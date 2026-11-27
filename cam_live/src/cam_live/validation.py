@@ -63,17 +63,159 @@ class OffsetClock:
 
 
 class SiteMetrics:
-    """``runtime.verifier.MetricSource`` over a staging site's own state (read directly, not through the agent)."""
+    """``runtime.verifier.MetricSource`` over the staging sites' own state (read directly by the verifier, never
+    through the agent or the browser)."""
 
     live = False
 
-    def __init__(self, site: Any, name: str):
-        self.site, self.name = site, name
+    def __init__(self, site: Any, name: str, variants: Any = None):
+        self.site, self.name, self.variants = site, name, variants
 
     def read(self) -> List[Quantity]:
         st = self.site.state()
-        return [Quantity("staging.items.count", float(len(st.get("items", []))), kind="count"),
-                Quantity("staging.uploads.count", float(len(st.get("uploads", []))), kind="count")]
+        items = st.get("items", [])
+        out = [Quantity("staging.items.count", float(len(items)), kind="count"),
+               Quantity("staging.items.archived", float(sum(1 for i in items if i.get("status") == "archived")),
+                        kind="count"),
+               Quantity("staging.uploads.count", float(len(st.get("uploads", []))), kind="count")]
+        if self.variants is not None:
+            out.append(Quantity("staging.entries.count", float(len(self.variants.state().get("entries", []))),
+                                kind="count"))
+        return out
+
+
+#: objectives on the staging sites: (task key, site, path, metric, objective text). Plain outcome statements — what
+#: should become true, never how; the agent receives the site's address only as an authorized resource.
+STAGING_OBJECTIVES = {
+    "record_item": ("structured", "/", "staging.items.count",
+                    "Increase the number of items recorded by the records application to {target}."),
+    "archive_item": ("structured", "/", "staging.items.archived",
+                     "Increase the number of archived items of the records application to {target}."),
+    "store_entry": ("variants", "/a/", "staging.entries.count",
+                    "Increase the number of entries stored in the entry book to {target}."),
+}
+
+
+class StagingComputer:
+    """The general-purpose computer environment (``harness.env.ComputerEnvironment`` with every executor of
+    ``harness.factories.all_executors``) over the local staging sites, with the real authorization service and a
+    signing ``MetricThresholdVerifier`` that reads the sites' own state. One environment (one browser, one skill
+    library) persists across the objectives given to it, like the persistent computer of spec 12A.1.
+
+    ``exclude``: executor modalities left out (``("skill",)`` = primitive-only operation)."""
+
+    def __init__(self, root: str, clock: Any, *, exclude: Sequence[str] = (), browser: bool = True):
+        from .harness.staging import StagingSites
+        self.root, self.clock, self.exclude, self.browser = os.path.abspath(root), clock, tuple(exclude), browser
+        os.makedirs(self.root, exist_ok=True)
+        self.sites = StagingSites().start()
+        self.env: Any = None
+        self.policy: Any = None
+        self.metrics = SiteMetrics(self.sites.structured, "staging-sites", variants=self.sites.variants)
+        self._n = 0
+
+    def task(self, key: str, *, max_decisions: int, objective_id: str = "", target: Optional[int] = None,
+             duration_s: float = 2 * 3600.0) -> TaskSpec:
+        site, path, metric, text = STAGING_OBJECTIVES[key]
+        now = {q.name: q.value for q in self.metrics.read()}[metric]
+        target = int(now) + 1 if target is None else int(target)
+        self._n += 1
+        hosts = [u.replace("http://", "") for u in self.sites.urls.values()]
+        url = self.sites.urls[site].rstrip("/") + path
+        return TaskSpec(
+            objective_id=objective_id or f"obj_{key}_{self._n:04d}", objective=text.format(target=target),
+            success={"verifier": "metric_threshold", "metric": metric, "target": target},
+            family=f"staging/{key.replace('_', '-')}",
+            resources={"owned": hosts + [url], "preauthorized": hosts, "read": hosts},
+            interfaces=["structured_browser", "api", "internal", "skill"],
+            limits=Limits(duration_s=duration_s, money=1.0, compute_s=0.0, max_external_actions=10 * max_decisions,
+                          max_decisions=int(max_decisions)),
+            data_permissions={"aggregate_metrics": True}, mode="staging")
+
+    def open(self, task: TaskSpec, start_url: str = "about:blank") -> Tuple[Any, Any, Any]:
+        """(env, policy, verifier) for ``task``. The environment and its skill library are created once; the
+        browser is put on ``start_url`` before the objective starts."""
+        from .harness.auth import PolicyService
+        from .harness.env import ComputerEnvironment
+        from .harness.factories import all_executors
+        from .runtime.verifier import MetricThresholdVerifier
+        if self.policy is None:
+            self.policy = PolicyService(os.path.join(self.root, "auth_state"), clock=self.clock)
+        self.policy.register_task(task, "operator")
+        if self.env is None:
+            exec_dir = os.path.join(self.root, "exec")
+            self.env = ComputerEnvironment(exec_dir, self.policy, clock=self.clock,
+                                           secrets=self.policy.secrets_handle(), provenance="staging")
+            for ex in all_executors(exec_dir, self.clock, env=self.env, policy=self.policy,
+                                    secrets=self.policy.secrets_handle(), task=task, browser_enabled=self.browser,
+                                    exclude=self.exclude):
+                self.env.register(ex)
+        self.reset_browser(task, start_url)
+        verifier = MetricThresholdVerifier(self.metrics, self.clock, os.path.join(self.root, "verifier", task.objective_id),
+                                           pinned_task=task)
+        return self.env, self.policy, verifier
+
+    def start_url(self, key: str) -> str:
+        site, path, _m, _t = STAGING_OBJECTIVES[key]
+        return self.sites.urls[site].rstrip("/") + path
+
+    def reset_browser(self, task: TaskSpec, url: str = "about:blank") -> None:
+        """Experimental control between objectives: the active tab is put on ``url`` (the operator's harness does
+        this, not the agent; it is not one of the agent's decisions and the agent sees only the resulting page)."""
+        from .contracts import ActionSpec, new_id
+        tool = next((t for t in self.env.discover_tools() if t.name == "browser.navigate"), None)
+        if tool is None:
+            return
+        a = ActionSpec(action_id=new_id("act"), operation=tool.name, modality=tool.modality,
+                       arguments={"url": url}, auth_scope=tool.auth_scope)
+        with contextlib.suppress(Exception):
+            self.env.execute(a, self.policy.authorize(a, task, {"actor_id": "operator-harness"}))
+
+    def close(self) -> None:
+        with contextlib.suppress(Exception):
+            if self.env is not None:
+                self.env.close()
+        with contextlib.suppress(Exception):
+            self.sites.stop()
+
+
+def run_episode(agent: Any, sc: StagingComputer, key: str, clock: Any, root: str, *, max_decisions: int,
+                start: str = "site", rt_cfg: Any = None, max_steps: int = 0) -> Dict[str, Any]:
+    """One objective of the task family ``key`` driven by the real runtime until it ends (verified achieved,
+    decision budget exhausted, or failed). Returns what was measured: verified success, decisions, primitive
+    operations of the executed actions, skill use, failure classes, wall time."""
+    from .runtime.loop import LiveRuntime, RuntimeConfig
+    task = sc.task(key, max_decisions=max_decisions)
+    env, policy, verifier = sc.open(task, sc.start_url(key) if start == "site" else "about:blank")
+    agent.attach_verifier(verifier)
+    rt = LiveRuntime(agent, env, policy, verifier, task, os.path.join(root, task.objective_id), clock,
+                     rt_cfg or RuntimeConfig(fsync=False, candidates_k=10, keep_checkpoints=1, verify_every_s=0.0))
+    t0 = time.time()
+    rt.start()
+    steps = 0
+    while rt.status == "running" and steps < (max_steps or 3 * max_decisions + 10):
+        rt.step()
+        steps += 1
+    if rt.status == "running":
+        rt._finish("stopped", "episode step budget reached")
+    rt.close()
+    recs = [r for r in agent.store.trajectory(task.objective_id) if r.result is not None]
+    ops = [r.result.cost.primitive_ops for r in recs]
+    fails: Dict[str, int] = {}
+    for r in recs:
+        if r.result.status != "ok":
+            fails[r.result.failure_class] = fails.get(r.result.failure_class, 0) + 1
+    verified = rt._last_verified.get("outcome", {})
+    return {"objective_id": task.objective_id, "key": key, "status": rt.status, "reason": rt.status_reason[:200],
+            "achieved": verified.get("status") == "achieved", "verified_value": verified.get("value"),
+            "target": task.success["target"], "decisions": len(recs), "primitive_ops": int(sum(ops)),
+            "skill_runs": sum(1 for r in recs if r.decision.chosen.operation == "skill.run"),
+            "skill_runs_ok": sum(1 for r in recs if r.decision.chosen.operation == "skill.run"
+                                 and r.result.status == "ok"),
+            "induce_attempts": sum(1 for r in recs if r.decision.chosen.operation == "skill.induce"),
+            "operations": [r.decision.chosen.operation for r in recs],
+            "provenance": [r.decision.chosen.provenance for r in recs], "failures": fails,
+            "seconds": time.time() - t0, "steps": steps}
 
 
 def lab_config(seed: int, **kw: Any) -> Any:
@@ -83,22 +225,6 @@ def lab_config(seed: int, **kw: Any) -> Any:
                 mean_delay_s=(1800.0, 4 * 3600.0), at_most_once=True, family="lab/staging")
     base.update(kw)
     return LabConfig(**base)
-
-
-class LookOnlyGrants:
-    """The authorization service as the runtime sees it: ``check_grant`` only looks (``consume=False``); the
-    computer environment, which executes, consumes the grant (EA-2: single use, one defined point of consumption).
-    Workaround for change request M-int-6: ``runtime.loop`` consumes the grant itself before ``env.execute``, after
-    which the environment refuses the action ("the grant does not verify")."""
-
-    def __init__(self, policy: Any):
-        self._p = policy
-
-    def check_grant(self, action: Any, decision: Any) -> bool:
-        return self._p.check_grant(action, decision, consume=False)
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._p, name)
 
 
 def _git_head() -> str:
@@ -248,7 +374,7 @@ def phase_computer(agent: Any, clock: OffsetClock, root: str, n_decisions: int, 
         verifier = MetricThresholdVerifier(SiteMetrics(sites.structured, "staging-structured"), clock,
                                            os.path.join(run, "verifier"), pinned_task=task)
         agent.attach_verifier(verifier)
-        rt = LiveRuntime(agent, env, LookOnlyGrants(policy), verifier, task, os.path.join(run, "runtime"), clock,
+        rt = LiveRuntime(agent, env, policy, verifier, task, os.path.join(run, "runtime"), clock,
                          RuntimeConfig(fsync=True, candidates_k=10, keep_checkpoints=2, verify_every_s=0.0))
         rt.start()
         if rt.status != "running":

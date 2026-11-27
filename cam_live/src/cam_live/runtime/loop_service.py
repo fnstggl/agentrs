@@ -11,7 +11,8 @@ process. LabWorld tasks (``success.verifier: labworld``) get the diagnostic worl
 tasks get the harness' in-process authorization service and computer environment.
 
 The agent comes from ``--agent-factory`` (default ``cam_live.agent:build_agent``), called with those of
-``cfg, run_dir, clock, task`` it accepts.
+``cfg, run_dir, clock, task, verifier`` it accepts (the verifier only to *check* signatures: in separated mode it is
+the ``RemoteVerifier`` client, which holds no key).
 """
 from __future__ import annotations
 
@@ -100,7 +101,10 @@ def run_service(run_dir: str, task: TaskSpec, cfg: CamLiveConfig, *, agent_facto
     run_dir = os.path.abspath(run_dir)
     os.makedirs(run_dir, exist_ok=True)
     env, policy, verifier, clock = build_inproc(task, cfg, run_dir) if inproc else build_remote(run_dir)
-    agent = call_factory(load_factory(agent_factory), cfg=cfg, run_dir=run_dir, clock=clock, task=task)
+    # the verifier is passed so that the agent can check signatures itself before an outcome supervises (M-int-1);
+    # call_factory passes only the keywords a factory accepts
+    agent = call_factory(load_factory(agent_factory), cfg=cfg, run_dir=run_dir, clock=clock, task=task,
+                         verifier=verifier)
     wake = threading.Event()
     rt = LiveRuntime(agent, env, policy, verifier, task, run_dir, clock, RuntimeConfig.from_any(cfg), wake=wake)
     if threading.current_thread() is threading.main_thread():

@@ -3,7 +3,8 @@
     cam-live doctor                         inspect hardware, models, storage, dependencies, harness
     cam-live init --config C                create the state root, the initial learner checkpoint, the dashboard token
     cam-live test [--suite S] [-m MARK]     run the acceptance tests (JUnit XML under docs/evidence/test_results/)
-    cam-live validate --mode staging        exercise the complete runtime against the controlled services
+    cam-live validate --mode staging [--debug|--real-model] [--decisions N] [--out D] [--seed S]
+                                            exercise the complete runtime against the controlled services
     cam-live inspect-harness                list tools, permissions and missing integrations
     cam-live preflight --task T             the readiness report alone
     cam-live run --task T                   preflight, then start the persistent runtime (detached, pid file)
@@ -57,6 +58,18 @@ def _cfg(path: str = "") -> CamLiveConfig:
 
 def _out(obj: Any, as_json: bool, text: str = "") -> None:
     print(json.dumps(obj, indent=1, sort_keys=True, default=str) if as_json or not text else text)
+
+
+def _accepted(fn: Any, kw: Dict[str, Any]) -> Dict[str, Any]:
+    """The keyword arguments of ``kw`` that ``fn`` accepts (an installed hook may be older than this command)."""
+    import inspect
+    try:
+        params = inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return dict(kw)
+    if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return dict(kw)
+    return {k: v for k, v in kw.items() if k in params}
 
 
 def _run_dir(a: argparse.Namespace, cfg: Optional[CamLiveConfig] = None) -> str:
@@ -259,8 +272,15 @@ def cmd_validate(a: argparse.Namespace) -> int:
         run_staging = load_hook(VALIDATION_HOOK, "staging validation")
     except (ComponentMissing, ComponentBroken) as e:
         return _hook_failed(e)
-    report = run_staging(cfg)
-    out = os.path.join(cfg.resolved_home(), "validation", "staging_report.json")
+    kw: Dict[str, Any] = {"real_model": not a.debug, "seed": int(a.seed)}
+    if a.decisions:
+        kw["n_decisions"] = int(a.decisions)
+    if a.out:
+        kw["out_dir"] = os.path.abspath(a.out)
+    if a.evidence_dir:
+        kw["evidence_dir"] = os.path.abspath(a.evidence_dir)
+    report = run_staging(cfg, **_accepted(run_staging, kw))
+    out = os.path.join(kw.get("out_dir") or os.path.join(cfg.resolved_home(), "validation"), "staging_report.json")
     atomic_write_json(out, report)
     _out(report, True)
     print(f"report: {out}")
@@ -624,9 +644,12 @@ def cmd_export_checkpoint(a: argparse.Namespace) -> int:
         return 1
     dest = os.path.abspath(a.out) if a.out else os.path.join(run_dir, "exports", f"export_{ckpt['id']}")
     try:
-        export = importlib.import_module("cam_live.credit.checkpoint").export_weights
-        export(ckpt["path"], dest, config={"task": st.get("task")})
-        how = "cam_live.credit.checkpoint.export_weights (weights, adapters and compatible configuration only)"
+        mod = importlib.import_module("cam_live.credit.checkpoint")
+        state = mod.load_checkpoint(ckpt["path"])
+        # the configuration that rebuilds the model (credit.checkpoint.load_exported_model reads it)
+        mod.export_weights_only(state, dest, config=(state.extra or {}).get("config") or {})
+        how = ("cam_live.credit.checkpoint.export_weights_only (weights, adapters and the model configuration; "
+               "load with credit.checkpoint.load_exported_model)")
     except Exception as e:  # noqa: BLE001 — not a checkpoint of that format (or the module is absent): say so and copy
         how = f"complete copy of the committed checkpoint (weights-only export not applicable: {type(e).__name__})"
         if os.path.isdir(ckpt["path"]):
@@ -720,6 +743,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--results-dir", default="")
     p = add("validate", cmd_validate, "exercise the complete runtime against controlled services")
     p.add_argument("--mode", required=True)
+    g = p.add_mutually_exclusive_group()
+    g.add_argument("--real-model", dest="debug", action="store_false", default=False,
+                   help="the configured backbone and core on the GPU (default)")
+    g.add_argument("--debug", "--cpu", dest="debug", action="store_true",
+                   help="tiny random backbone + debug core on the CPU (plumbing check, not evidence about learning)")
+    p.add_argument("--decisions", type=int, default=0, help="number of decisions (0: the validation's default)")
+    p.add_argument("--out", default="", help="directory for the run (default: <home>/validation/staging_<ts>)")
+    p.add_argument("--evidence-dir", default="", help="also write the evidence file here")
+    p.add_argument("--seed", type=int, default=0)
     p = add("inspect-harness", cmd_inspect_harness, "list available tools, permissions and missing integrations")
     p.add_argument("--run-dir", default="")
     p.add_argument("--task", default="")

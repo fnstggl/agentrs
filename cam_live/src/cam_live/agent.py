@@ -31,6 +31,7 @@ import collections
 import dataclasses
 import hashlib
 import json
+import math
 import os
 import random
 import time
@@ -102,6 +103,30 @@ class AgentSettings:
     credit_beta: float = 0.0                 # duration discount exp(-beta * dt) of credit and returns
     durable: bool = True                     # store synchronous=FULL (False only for diagnostics / tests)
     max_obs_text: int = 2000
+    # ---- grounding of candidates in the observed interface (spec Part 5, 12A items 2 and 6) ----
+    grounded: bool = True                    # element / form / link / tab arguments from the latest observation
+    grounded_elements: int = 40              # elements of the current surface considered per decision
+    grounded_texts: int = 2                  # observed strings offered per editable field
+    pool_max: int = 96                       # candidate pool before the offer (backbone, grounded, skills, walker)
+    policy_share: float = 0.5                # share of the offered slots ranked by the trainable policy; the rest
+                                             # are drawn uniformly from the pool (recorded inclusion probabilities)
+    grounded_share: float = 0.5              # share of the free slots for operations on the observed interface
+    backbone_slots: int = 2                  # slots reserved for the backbone's proposals (if valid)
+    skill_slots: int = 2                     # slots reserved for skill-library candidates (12A.7 initial preference)
+    proposer_tools: int = 12                 # tools shown to the backbone: those of the policy's top-ranked pool
+    planner: bool = True                     # imagined values of candidates (recorded; no rule selects on them)
+    goal_metric_query: bool = True           # ask the verifier for the objective metric after every action
+    skills: bool = True                      # validated skills and skill induction from verified-successful runs
+    induce_min_steps: int = 2
+    induce_max_steps: int = 12
+    learning: bool = True                    # False: no weight / belief / reward update at all (controlled
+                                             # experiments only: the "frozen" comparison arm)
+    # ---- checkpoint promotion (spec 10.3, 15.2) ----
+    promotion: bool = True                   # CheckpointManager promotion gated on held-out validation + retention
+    promote_every: int = 24                  # frequent updates between promotion attempts (and at objective ends)
+    promotion_max_validation_drop: float = 0.5
+    promotion_max_retention_drop: float = 0.1
+    retention_records: int = 24              # records per finished objective kept as its retention set
 
     @classmethod
     def from_cfg(cls, cfg: CamLiveConfig, **over: Any) -> "AgentSettings":
@@ -161,6 +186,180 @@ def _jsonable(x: Any) -> Any:
 
 
 # ----------------------------------------------------------------------------------------------------------------
+# grounding: candidates executable on the interface actually observed (spec Part 5, 12A items 2 and 6)
+# ----------------------------------------------------------------------------------------------------------------
+#: properties of a tool schema that locate an element, and the ones that pick a session / tab
+LOCATOR_PROPS = ("ref", "obs_id", "role", "name", "selector", "nth")
+CONTEXT_PROPS = ("session", "tab")
+PROV_GROUNDED = "grounded"                   # deterministic enumeration from the latest structured observation
+PROV_SKILL = "skill_library"
+PROV_EXPERIENCE = "experience_trace"         # arguments taken from the agent's own verified-successful executions
+#: operations that never belong to a reusable procedure (bookkeeping, waiting, the skill library itself)
+_NOT_PROCEDURAL = ("wait", "internal.", "skill.", "program")
+_NONTEXT_INPUTS = ("checkbox", "radio", "submit", "button", "hidden", "file", "image", "reset", "range", "color")
+
+
+def surface_of(o: Observation, max_elements: int = 120) -> Optional[Dict[str, Any]]:
+    """The interactive surface an observation describes — element references (valid together with this
+    observation's id), forms, links, tables and tabs — or ``None`` when it is not an observation of an interface
+    (no ``data.elements``). A page without elements is a surface too (it replaces the previous one). Generic: it
+    reads the structured payload any executor may attach (``data.elements`` with ``ref``), nothing site-specific."""
+    data = o.data if isinstance(o.data, dict) else {}
+    els = data.get("elements")
+    if not isinstance(els, list):
+        return None
+    elements = [e for e in els if isinstance(e, dict) and isinstance(e.get("ref"), str) and e["ref"]][:max_elements]
+    links = [ln for ln in (data.get("links") or []) if isinstance(ln, dict)][:48]
+    tabs = [t for t in (data.get("tabs") or []) if isinstance(t, dict)][:12]
+    tables = [t for t in (data.get("tables") or []) if isinstance(t, dict)][:6]
+    return {"obs_id": o.obs_id, "ts": float(o.ts), "url": str(data.get("url") or ""), "title": str(data.get("title") or ""),
+            "tab": data.get("tab"), "elements": elements, "links": links, "tabs": tabs, "tables": tables,
+            "forms": [f for f in (data.get("forms") or []) if isinstance(f, dict)][:8]}
+
+
+def editable(e: Dict[str, Any]) -> bool:
+    """A form control whose content is text (it reports a value, has no option list, is no button / toggle)."""
+    return "value" in e and not e.get("options") and str(e.get("type") or "").lower() not in _NONTEXT_INPUTS \
+        and e.get("checked") is None
+
+
+def numeric_field(e: Dict[str, Any]) -> bool:
+    return str(e.get("type") or "").lower() == "number" or str(e.get("role") or "") == "spinbutton"
+
+
+def _is_number(x: str) -> bool:
+    try:
+        float(x)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def observed_strings(surf: Dict[str, Any], limit: int = 64, max_len: int = 48) -> List[str]:
+    """Short strings the observation shows (table cells, option labels, link texts, element names and values), in a
+    fixed order and without duplicates: the values a text argument may be filled from."""
+    out: List[str] = []
+
+    def add(v: Any) -> None:
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            v = f"{v:g}"
+        if not isinstance(v, str):
+            return
+        v = " ".join(v.split())
+        if v and len(v) <= max_len and "://" not in v and v not in out:
+            out.append(v)
+    for t in surf.get("tables") or []:
+        for row in (t.get("rows") or [])[:20]:
+            for c in (row if isinstance(row, list) else [])[:8]:
+                add(c)
+    for e in surf.get("elements") or []:
+        for o in (e.get("options") or [])[:12]:
+            add(o)
+        if e.get("value") not in (None, ""):
+            add(e.get("value"))
+    for ln in surf.get("links") or []:
+        add(ln.get("text"))
+    for e in surf.get("elements") or []:
+        add(e.get("name"))
+    return out[:limit]
+
+
+def element_values(e: Dict[str, Any], prop: str, props: Dict[str, Any], texts: Sequence[str],
+                   numbers: Sequence[str]) -> List[Any]:
+    """Values of argument ``prop`` that element ``e`` itself supplies: its options for the first of label / option /
+    value, observed text for a text field, its link target for a url. Nothing invented, nothing site-specific."""
+    if e.get("options"):
+        first = next((p for p in ("label", "option", "value") if p in props), "")
+        if prop == first:
+            return [str(o) for o in e["options"][:12] if str(o) != str(e.get("value", ""))] or \
+                [str(o) for o in e["options"][:12]]
+        return []
+    if prop == "text" and editable(e):
+        pool = list(numbers) if numeric_field(e) else [t for t in texts if not _is_number(t)]
+        return [t for t in pool if t != str(e.get("value", ""))]
+    if prop == "url" and isinstance(e.get("href"), str) and "://" in e["href"]:
+        return [e["href"]]
+    return []
+
+
+def grounded_candidates(tools: Sequence[ToolDescriptor], surf: Optional[Dict[str, Any]], *, rng: random.Random,
+                        id_prefix: str, max_elements: int = 40, texts_per_field: int = 2) -> List[ActionSpec]:
+    """Every tool that acts on an element (its schema has a ``ref`` property and it has side effects; read-only tools
+    are offered page-level by the schema walker) instantiated on each element of the current surface: ``ref`` + the observation's ``obs_id``, plus — where the element supplies them — one value for
+    a further argument (an option, an observed string for a text field, a link target). A tool whose required
+    argument the element cannot supply is not instantiated on it. The environment still validates and authorizes
+    every action; this only makes candidates refer to what is actually on the screen."""
+    from .predict.candidates import validate_schema
+    if not surf:
+        return []
+    texts = observed_strings(surf)
+    numbers = [t for t in texts if _is_number(t)]
+    out: List[ActionSpec] = []
+    for t in tools:
+        if not t.available:
+            continue
+        schema = t.arg_schema if isinstance(t.arg_schema, dict) else {}
+        props = schema.get("properties") or {}
+        if "ref" not in props or t.side_effects == "none":
+            continue                                       # read-only tools stay page-level (schema walker)
+        required = set(schema.get("required") or [])
+        value_props = [p for p in props if p not in LOCATOR_PROPS + CONTEXT_PROPS]
+        for e in surf["elements"][:max_elements]:
+            base: Dict[str, Any] = {"ref": e["ref"]}
+            if "obs_id" in props:
+                base["obs_id"] = surf["obs_id"]
+            if "tab" in props and isinstance(surf.get("tab"), str) and surf["tab"]:
+                base["tab"] = surf["tab"]                  # the tab the observation (and so the ref) belongs to
+            fills: Dict[str, List[Any]] = {}
+            for p in value_props:
+                vals = element_values(e, p, props, texts, numbers)
+                if p == "text" and len(vals) > texts_per_field:
+                    vals = rng.sample(vals, texts_per_field)      # different observed strings across decisions
+                if vals:
+                    fills[p] = vals[:12]
+            if any(p not in base and p not in fills for p in required):
+                continue
+            settings = [{**base, p: v} for p, vals in fills.items() for v in vals] or [dict(base)]
+            for args in settings:
+                if validate_schema(args, schema):
+                    continue
+                payload = json.dumps({"op": t.name, "args": args}, sort_keys=True, default=str)
+                out.append(ActionSpec(action_id=f"{id_prefix}_{hashlib.sha256((payload + '|g').encode()).hexdigest()[:16]}",
+                                      operation=t.name, modality=t.modality, level=t.level, arguments=args,
+                                      target=str(e.get("name") or e.get("role") or "")[:80],
+                                      est_cost=Cost.from_dict(t.est_cost.to_dict()), auth_scope=t.auth_scope,
+                                      provenance=PROV_GROUNDED))
+    return out
+
+
+def surface_digest(surf: Optional[Dict[str, Any]], max_chars: int = 2000) -> str:
+    """Compact text of the current surface for the backbone: where it is, which observation the refs belong to and
+    one line per element (``[ref] role "name" = value {options}``)."""
+    if not surf:
+        return ""
+    lines = [f"page: {surf.get('title', '')} <{surf.get('url', '')}> observation {surf['obs_id']} (refs below belong "
+             f"to it)"]
+    if len(surf.get("tabs") or []) > 1:
+        lines.append("tabs: " + ", ".join(f"{t.get('tab')}={t.get('url')}" for t in surf["tabs"][:6]))
+    for e in surf["elements"]:
+        ln = f"[{e.get('ref')}] {e.get('role', '')} \"{str(e.get('name', ''))[:60]}\""
+        if e.get("value") not in (None, ""):
+            ln += f" = \"{str(e['value'])[:40]}\""
+        if e.get("options"):
+            ln += " {" + "|".join(str(x)[:20] for x in e["options"][:8]) + "}"
+        if e.get("href"):
+            ln += f" -> {str(e['href'])[:100]}"
+        lines.append(ln)
+    out, n = [], 0
+    for ln in lines:
+        n += len(ln) + 1
+        if n > max_chars:
+            break
+        out.append(ln)
+    return "\n".join(out)
+
+
+# ----------------------------------------------------------------------------------------------------------------
 # the agent
 # ----------------------------------------------------------------------------------------------------------------
 class CamLiveAgent:
@@ -204,6 +403,11 @@ class CamLiveAgent:
         # ---- continual learner and its providers ----
         lsec = cfg.section("credit").get("learner", {})
         lover = {} if "val_split" in lsec else {"val_split": "record"}   # a single live objective must train
+        if "holdout_experiments" not in lsec:
+            # credit.learner holds out every lifetime that contains a randomised experiment (D-14). The agent runs
+            # its experiments inside the objective it is learning from; holding that lifetime out would stop all
+            # frequent learning in it. Experiment decisions stay identifiable by decision.experiment_id.
+            lover["holdout_experiments"] = False
         self.learner = ContinualLearner(self.model, self.store, cfg, clock=self.clock,
                                         settings=LearnerSettings.from_cfg(cfg, **lover),
                                         log_path=os.path.join(self.dir, "learner_updates.jsonl"), credit=self.assigner)
@@ -265,6 +469,28 @@ class CamLiveAgent:
         self.checkpoint_id = ""
         self.last: Dict[str, Any] = {}
         self.counters: Dict[str, int] = collections.Counter()
+        # ---- grounding, skills, verified progress (spec 5, 12A.2, 12A.6, 12A.8) ----
+        self.surface: Optional[Dict[str, Any]] = None     # latest observed interactive surface
+        self.skill_catalog: Dict[str, Dict[str, Any]] = {}  # skill id -> summary, as the skill library reported it
+        self.validate_fn: Any = None                      # EnvironmentAdapter.validate_action (runtime hook)
+        self.objective_ops: List[Dict[str, Any]] = []     # executed actions of the current objective, in order
+        self.progress_mark = 0                            # index into objective_ops after the last verified progress
+        self.goal_level: Optional[float] = None           # last verified reading of the objective metric
+        self.success_traces: List[List[str]] = []         # action ids that led to verified progress (newest last)
+        self.induced: List[str] = []                      # signatures of traces already offered for induction
+        self.offer: Dict[str, Any] = {}                   # inclusion probabilities of the last offered set
+        # ---- checkpoint promotion (spec 10.3, 15.2) ----
+        self.ckpts: Any = None
+        self.retention_sets: Dict[str, List[str]] = {}    # family -> fixed record ids measured for forgetting
+        self.retention_ref: Dict[str, Dict[str, Any]] = {}  # family -> reference action distributions
+        self.frequent_since_promotion = 0
+        self.promotions: List[Dict[str, Any]] = []
+        if s.promotion:
+            from .credit.checkpoint import CheckpointManager, PromotionGates
+            self.ckpts = CheckpointManager(os.path.join(self.dir, "promoted"), keep_last=3, keep_promoted=5,
+                                           gates=PromotionGates(max_validation_drop=s.promotion_max_validation_drop,
+                                                                max_retention_drop=s.promotion_max_retention_drop),
+                                           clock=self.clock)
         if task is not None:
             self.set_objective(task)
 
@@ -354,6 +580,8 @@ class CamLiveAgent:
         now = float(self.clock.now())
         if self.task is not None:
             self._close_objective_bookkeeping()
+            if self.ckpts is not None:                     # the finished objective's learning is judged now
+                self.fast_records += self.promote(f"objective {self.task.objective_id} ended")
             self.meta.new_lifetime()
             self.lifetime += 1
         self.learner.reset_fast()
@@ -367,6 +595,7 @@ class CamLiveAgent:
         self.tools_ref = ""
         self.recent_obs.clear()
         self.active_goals = {}
+        self.objective_ops, self.progress_mark, self.goal_level = [], 0, None
         goal = ExperienceItem(kind=ItemKind.GOAL, text=task.objective or "no assigned objective", ts=now,
                               ref=f"goal:{task.objective_id}", trust=Trust.OPERATOR,
                               quantities=[Quantity("goal.target", self._scale())])
@@ -396,16 +625,31 @@ class CamLiveAgent:
                     pass
 
     # ============================================================================================ steps 2-3
+    def _note_obs(self, o: Observation) -> None:
+        """One observation into the experience stream and the agent's view of the interface it is operating."""
+        self._put(observation_item(o, self.settings.max_obs_text))
+        self.recent_obs.append({"obs_id": o.obs_id, "ts": o.ts, "kind": o.kind, "text": (o.text or "")[:600],
+                                "quantities": [[q.name, q.value] for q in o.quantities[:12]],
+                                "vocab": self._vocab_of(o)})
+        for q in o.quantities:
+            self.metric_kinds.pop(q.name, None)
+            self.metric_kinds[q.name] = q.kind
+        surf = surface_of(o)
+        if surf is not None and (self.surface is None or surf["ts"] >= self.surface.get("ts", 0.0)):
+            self.surface = surf
+        data = o.data if isinstance(o.data, dict) else {}
+        listed = data.get("skills") if isinstance(data.get("skills"), list) else []
+        one = [data["skill"]] if isinstance(data.get("skill"), dict) else []
+        for sk in listed + one:                             # what the skill library reported (skill.list / induce)
+            if isinstance(sk, dict) and isinstance(sk.get("skill_id"), str):
+                self.skill_catalog[sk["skill_id"]] = {k: sk.get(k) for k in ("skill_id", "name", "description",
+                                                                            "version", "status", "arg_schema",
+                                                                            "reliability", "operations")}
+
     def ingest(self, observations: Sequence[Observation]) -> None:
         events = []
         for o in observations:
-            self._put(observation_item(o, self.settings.max_obs_text))
-            self.recent_obs.append({"obs_id": o.obs_id, "ts": o.ts, "kind": o.kind, "text": (o.text or "")[:600],
-                                    "quantities": [[q.name, q.value] for q in o.quantities[:12]],
-                                    "vocab": self._vocab_of(o)})
-            for q in o.quantities:
-                self.metric_kinds.pop(q.name, None)
-                self.metric_kinds[q.name] = q.kind
+            self._note_obs(o)
             if o.kind == "event":
                 events.append(o)
             self._resolve_observed(o)
@@ -417,20 +661,19 @@ class CamLiveAgent:
 
     @staticmethod
     def _vocab_of(o: Observation) -> Dict[str, List[str]]:
-        """Strings an action may refer to (element references, URLs) read from an observation's structured data."""
+        """Identifiers an action may refer to that an observation's structured data names: URLs (the page, its
+        links), tab ids. Element references are not vocabulary: they are valid only together with the id of the
+        observation they were read from, so element tools are instantiated by :func:`grounded_candidates`."""
         out: Dict[str, List[str]] = {}
-        data = o.data or {}
-        for el in (data.get("elements") or [])[:24]:
-            if isinstance(el, dict) and el.get("ref"):
-                out.setdefault("ref", []).append(str(el["ref"]))
-        for key in ("url",):
-            if isinstance(data.get(key), str):
-                out.setdefault("url", []).append(data[key])
-        for ln in (data.get("links") or [])[:12]:
-            if isinstance(ln, dict) and isinstance(ln.get("href"), str):
+        data = o.data if isinstance(o.data, dict) else {}
+        if isinstance(data.get("url"), str) and "://" in data["url"]:
+            out.setdefault("url", []).append(data["url"])
+        for ln in (data.get("links") or [])[:24]:
+            if isinstance(ln, dict) and isinstance(ln.get("href"), str) and "://" in ln["href"]:
                 out.setdefault("url", []).append(ln["href"])
-        if out:
-            out.setdefault("obs_id", []).append(o.obs_id)
+        for t in (data.get("tabs") or [])[:8]:
+            if isinstance(t, dict) and t.get("tab"):
+                out.setdefault("tab", []).append(str(t["tab"]))
         return out
 
     def _resolve_observed(self, o: Observation) -> None:
@@ -488,12 +731,60 @@ class CamLiveAgent:
             if q is not None:
                 trusted = bool(o.verified) and self._check_measurement(o)
                 self._put(outcome_item(q, o, owner.get("action_id", ""), trusted))
+                if trusted and q.metric == self._goal_metric() and o.status == OutcomeStatus.OBSERVED:
+                    self._annotate_verified_delta(owner.get("exp_id", ""), float(o.value))
+                    self._verified_level(float(o.value), owner.get("action_id", ""), float(o.observed_at))
             self.buffer.append(o)
             self._experiment_outcome(o, owner)
             self._goal_free_outcome(o, owner, q)
         if verified is not None:
             info["verified"] = self._verified(verified)
+            if info["verified"].get("accepted") and self.goal_level is None and \
+                    verified.objective_id == getattr(self.task, "objective_id", None):
+                self.goal_level = float(verified.value)
         return info
+
+    def _annotate_verified_delta(self, exp_id: str, value: float) -> None:
+        """The verified change of the objective metric across a decision, written once as the decision's
+        ``reward_signals.verified_progress_delta`` annotation (the stored-signal path of ``reward.assemble``).
+
+        Why here: the assembler's own source for this signal is verifier-trust OUTCOME items in H_{t+1}, but in the
+        runtime's order a verified measurement of a decision arrives one cycle *after* its record was stored, so
+        that source is always empty in a live run (change request INT2-1). The value is the verifier's signed reading
+        minus the previous signed reading of the same objective — nothing the agent estimates."""
+        prev = self.goal_level
+        if not exp_id or prev is None:
+            return
+        rec = self.store.get(exp_id)
+        if rec is None or not isinstance(rec.decision.diagnostics, dict) or \
+                "reward_signals" in rec.decision.diagnostics:
+            return
+        rec.decision.diagnostics["reward_signals"] = {"verified_progress_delta": float(value) - float(prev)}
+        try:
+            self.store.update(rec)
+            self.counters["verified_delta_annotations"] += 1
+        except Exception as e:  # noqa: BLE001 — the store refuses rewriting history: nothing else is affected
+            self.last["annotation_error"] = f"{type(e).__name__}: {e}"
+
+    def _verified_level(self, value: float, action_id: str, at: float) -> None:
+        """A verified reading of the objective metric. When it rose above the previous verified reading, the actions
+        executed since the previous rise up to the one it was measured after form a sequence that produced verified
+        progress: a trace offered for skill induction (12A.8)."""
+        prev = self.goal_level
+        if prev is None or value > prev + 1e-12:
+            idx = next((i for i, d in enumerate(self.objective_ops) if d["action_id"] == action_id), None)
+            if prev is not None and idx is not None and idx >= self.progress_mark:
+                seg = [d for d in self.objective_ops[self.progress_mark:idx + 1]
+                       if d["ok"] and not d["operation"].startswith(_NOT_PROCEDURAL)]
+                seg = seg[-self.settings.induce_max_steps:]
+                if len(seg) >= self.settings.induce_min_steps:
+                    self.success_traces.append([d["action_id"] for d in seg])
+                    self.success_traces = self.success_traces[-6:]
+                    self.counters["success_traces"] += 1
+            if idx is not None:
+                self.progress_mark = max(self.progress_mark, idx + 1)
+            self.counters["verified_progress"] += int(prev is not None)
+        self.goal_level = value if prev is None else max(prev, value)
 
     def _experiment_outcome(self, o: OutcomeObservation, owner: Dict[str, str]) -> None:
         eid = owner.get("experiment_id", "")
@@ -562,6 +853,8 @@ class CamLiveAgent:
     # ============================================================================================ step 5
     def update_beliefs(self) -> Dict[str, Any]:
         out: Dict[str, Any] = {"n_outcomes": len(self.buffer)}
+        if self.buffer and not self.settings.learning:
+            self.buffer = []
         if self.buffer:
             buf, self.buffer = self.buffer, []
             res = self.predictor.observe_outcomes(buf)
@@ -598,17 +891,59 @@ class CamLiveAgent:
         b = self._belief(items)
         self._reserve_decision_number()
         prefix = f"a{self.uid}{self.n_decisions:06d}"
-        digest = self._digest()
         vocab = self._vocab()
         k_max = max(1, min(int(k), s.max_candidates))
+        from .predict.candidates import merge_candidates, schema_candidates
+        walker = schema_candidates(tools, vocab=vocab, per_tool=s.proposer_per_tool, id_prefix=prefix)
+        grounded = grounded_candidates(tools, self.surface, rng=self.rng, id_prefix=prefix,
+                                       max_elements=s.grounded_elements, texts_per_field=s.grounded_texts) \
+            if s.grounded else []
+        skills = self._skill_candidates(tools, prefix, vocab) if s.skills else []
+        n_raw = len(walker) + len(grounded) + len(skills)
+        invalid: Dict[str, int] = {}
+        pool = self._feasible(merge_candidates(skills, grounded, self._spread(walker, 2 * s.pool_max)), tools,
+                              now, invalid)
+        n_first = sum(1 for a in pool if a.provenance.split("+")[0] in (PROV_SKILL, PROV_EXPERIENCE))
+        pool = self._spread(pool, s.pool_max, first=n_first)
+        probs = self.policy_distribution(items, pool) if pool else None
+        stats: Dict[str, Any] = {"latent_conditioned": False}
+        backbone: List[ActionSpec] = []
         if s.use_backbone:
-            res = self.proposer.propose(tools, digest, objective=self._goal_text(), latent=b, vocab=vocab,
+            # the backbone writes actions over the tools of the candidates the trainable policy ranks highest in this
+            # context (a bounded prompt), reading the compact digest of the current interface, conditioned on b
+            ranked = [pool[i] for i in sorted(range(len(pool)), key=lambda i: (-float(probs[i]), i))] if pool else []
+            names: List[str] = []
+            for a in ranked:
+                if a.operation not in names:
+                    names.append(a.operation)
+            names = names[:max(1, s.proposer_tools)]
+            ptools = [t for t in tools if t.name in names] or tools[:s.proposer_tools]
+            res = self.proposer.propose(ptools, self._digest(), objective=self._goal_text(), latent=b, vocab=vocab,
                                         k=s.proposer_k, id_prefix=prefix, seed=self.rng.randrange(1 << 30))
-            cands, stats = res.actions, res.stats
-        else:
-            from .predict.candidates import schema_candidates
-            cands = schema_candidates(tools, vocab=vocab, per_tool=s.proposer_per_tool, id_prefix=prefix)
-            stats = {"n_schema": len(cands), "latent_conditioned": False}
+            stats = dict(res.stats)
+            stats["prompt_tools"] = names
+            seen = {a.action_id for a in pool}
+            backbone = [a for a in self._feasible([a for a in res.actions if "backbone" in a.provenance.split("+")],
+                                                  tools, now, invalid) if a.action_id not in seen]
+        cands = self._offer(backbone, pool, probs, k_max)
+        if self._goal_free_active():
+            cands = self._goal_free_candidates(b, cands)
+        by_prov: Dict[str, int] = {}
+        for a in cands:
+            for p in a.provenance.split("+"):
+                by_prov[p] = by_prov.get(p, 0) + 1
+        stats.update(n_raw=n_raw, n_pool_valid=len(pool), n_invalid_by_operation=invalid, n_backbone_valid=len(backbone),
+                     n_grounded=len(grounded), n_skill_candidates=len(skills), offered_by_provenance=by_prov,
+                     surface=(self.surface or {}).get("obs_id", ""), validator=self.validate_fn is not None)
+        self.last["proposal"] = {"n": len(cands), "stats": _jsonable(stats), "prefix": prefix}
+        self.counters["candidates_offered"] += len(cands)
+        self.counters["candidates_grounded"] += by_prov.get(PROV_GROUNDED, 0)
+        return cands
+
+    def _feasible(self, cands: List[ActionSpec], tools: Sequence[ToolDescriptor], now: float,
+                  invalid: Dict[str, int]) -> List[ActionSpec]:
+        """Cost estimates from the tool descriptors; drop what cannot finish within the objective's time left and
+        what the environment's structural validation refuses for the interface it currently shows."""
         for a in cands:
             if a.est_cost.seconds <= 0 and a.est_cost.money <= 0:
                 t = next((t for t in tools if t.name == a.operation), None)
@@ -616,11 +951,152 @@ class CamLiveAgent:
                     a.est_cost = Cost.from_dict(t.est_cost.to_dict())
             if a.operation.endswith("wait") and "seconds" in a.arguments:
                 a.est_cost.seconds = float(a.arguments["seconds"])
-        cands = self._order(cands, k_max)
-        if self._goal_free_active():
-            cands = self._goal_free_candidates(b, cands)
-        self.last["proposal"] = {"n": len(cands), "stats": _jsonable(stats), "prefix": prefix}
-        return cands
+        allowed = set(self.task.interfaces) if self.task is not None and self.task.interfaces else set()
+        if allowed:                                        # modalities the task does not permit are not proposed
+            out = [a for a in cands if a.modality not in allowed and a.modality != "internal"]
+            if out and len(out) < len(cands):
+                invalid["interface_not_permitted"] = invalid.get("interface_not_permitted", 0) + len(out)
+                cands = [a for a in cands if a not in out]
+        deadline = self._deadline()
+        if deadline is not None:
+            over = [a for a in cands if float(a.est_cost.seconds) > max(deadline - now, 0.0)]
+            if over and len(over) < len(cands):
+                invalid["exceeds_time_left"] = invalid.get("exceeds_time_left", 0) + len(over)
+                cands = [a for a in cands if a not in over]
+        if self.validate_fn is None:
+            return cands
+        kept = []
+        for a in cands:
+            try:
+                errs = list(self.validate_fn(a) or [])
+            except Exception as e:  # noqa: BLE001 — a validator failure is not a reason to drop everything
+                errs, self.last["validate_error"] = [], f"{type(e).__name__}: {e}"
+            if errs:
+                invalid[a.operation] = invalid.get(a.operation, 0) + 1
+            else:
+                kept.append(a)
+        return kept or cands
+
+    def set_action_validator(self, fn: Any) -> None:
+        """``EnvironmentAdapter.validate_action`` (called by the runtime when present): candidates the environment
+        reports as structurally invalid for the interface it currently shows are not offered."""
+        self.validate_fn = fn
+
+    @staticmethod
+    def _spread(cands: List[ActionSpec], n: int, first: int = 0) -> List[ActionSpec]:
+        """At most ``n`` candidates: the first ``first`` kept, then an even spread over the operations (one tool with
+        many argument settings cannot crowd out the others); the order within each operation is kept."""
+        if len(cands) <= n:
+            return list(cands)
+        out = list(cands[:min(first, n)])
+        by_op: Dict[str, List[ActionSpec]] = collections.OrderedDict()
+        for a in cands[len(out):]:
+            by_op.setdefault(a.operation, []).append(a)
+        while len(out) < n and any(by_op.values()):
+            for op in list(by_op):
+                if by_op[op] and len(out) < n:
+                    out.append(by_op[op].pop(0))
+        return out
+
+    def _offer(self, backbone: List[ActionSpec], pool: List[ActionSpec], probs: Optional[torch.Tensor],
+               k: int) -> List[ActionSpec]:
+        """The candidate set C_t offered for evaluation (the trainable policy then selects among it):
+
+        * up to ``backbone_slots`` backbone proposals and up to ``skill_slots`` skill-library candidates (validated
+          skills; induction from verified-successful runs) — the initial preference of spec 12A.7;
+        * of the remaining slots, ``grounded_share`` go to candidates grounded in the currently observed interface
+          (structured operations on its elements), the rest to the other tools' candidates (schema walker);
+        * within each of those two groups, ``policy_share`` of its slots go to the candidates the trainable policy
+          ranks highest in the current context and the rest are drawn uniformly at random from the group.
+
+        This is an initial engineering heuristic about execution modalities, not a strategy: what is done is decided
+        by the policy over C_t and changes with its learning. The inclusion probability of every non-backbone
+        candidate is recorded (``proposal_probs`` of the decision); backbone generation probabilities are not
+        tracked, so sets with a backbone proposal are marked untracked."""
+        s = self.settings
+        bb = backbone[:max(0, s.backbone_slots)]
+        sk_idx = [i for i, a in enumerate(pool) if a.provenance.split("+")[0] in (PROV_SKILL, PROV_EXPERIENCE)]
+        sk_idx = sk_idx[:max(0, s.skill_slots)]
+        slots = max(0, k - len(bb) - len(sk_idx))
+        fixed = set(sk_idx)
+        grounded = [i for i in range(len(pool)) if i not in fixed and PROV_GROUNDED in pool[i].provenance.split("+")]
+        other = [i for i in range(len(pool)) if i not in fixed and i not in set(grounded)]
+        n_g = min(len(grounded), int(round(s.grounded_share * slots)))
+        n_o = min(len(other), slots - n_g)
+        n_g = min(len(grounded), slots - n_o)               # a group with too few candidates leaves its slots
+        incl: Dict[str, float] = {pool[i].action_id: 1.0 for i in sk_idx}
+        picked: List[int] = []
+        n_top = n_rnd = 0
+        for group, n in ((grounded, n_g), (other, n_o)):
+            if n <= 0:
+                continue
+            if len(group) <= n:
+                picked += group
+                incl.update({pool[i].action_id: 1.0 for i in group})
+                n_top += len(group)
+                continue
+            m = min(n, int(round(s.policy_share * n)))
+            top = sorted(group, key=lambda i: (-float(probs[i]), i))[:m] if (m > 0 and probs is not None) else []
+            tops = set(top)
+            left = [i for i in group if i not in tops]
+            r = min(n - len(top), len(left))
+            rnd = sorted(self.rng.sample(left, r)) if r > 0 else []
+            incl.update({pool[i].action_id: 1.0 for i in top})
+            incl.update({pool[i].action_id: r / len(left) for i in rnd})
+            picked += top + rnd
+            n_top, n_rnd = n_top + len(top), n_rnd + len(rnd)
+        chosen = [pool[i] for i in sk_idx] + [pool[i] for i in picked]
+        self.offer = {"inclusion": incl, "tracked": not bb, "pool": len(pool), "policy_ranked": n_top,
+                      "random": n_rnd, "backbone": len(bb), "skills": len(sk_idx), "grounded": n_g}
+        return bb + chosen
+
+    def _skill_candidates(self, tools: Sequence[ToolDescriptor], prefix: str,
+                          vocab: Dict[str, List[str]]) -> List[ActionSpec]:
+        """``skill.run`` for every validated skill the library reported (arguments from its schema and observed
+        values), and ``skill.induce`` over the agent's own executions that preceded verified progress (12A.8)."""
+        from .predict.candidates import enumerate_arguments
+        names = {t.name: t for t in tools if t.available}
+        out: List[ActionSpec] = []
+
+        def spec(t: ToolDescriptor, args: Dict[str, Any], prov: str, target: str = "", expected: str = "") -> ActionSpec:
+            payload = json.dumps({"op": t.name, "args": args}, sort_keys=True, default=str)
+            return ActionSpec(action_id=f"{prefix}_{hashlib.sha256((payload + '|' + prov).encode()).hexdigest()[:16]}",
+                              operation=t.name, modality=t.modality, level=t.level, arguments=args, target=target,
+                              expected=expected, est_cost=Cost.from_dict(t.est_cost.to_dict()),
+                              auth_scope=t.auth_scope, provenance=prov)
+        run = names.get("skill.run")
+        if run is not None:
+            texts = observed_strings(self.surface) if self.surface else []
+            sv = {**vocab, "*": texts}
+            for sk in list(self.skill_catalog.values())[-8:]:
+                if sk.get("status") != "validated":
+                    continue
+                schema = sk.get("arg_schema") if isinstance(sk.get("arg_schema"), dict) else {}
+                props = schema.get("properties") or {}
+                settings = [{}] if not props or not schema.get("required") else []
+                settings += enumerate_arguments(schema, vocab=sv, max_per_field=3, max_total=3) if props else []
+                for a in settings[:3]:
+                    out.append(spec(run, {"skill_id": sk["skill_id"], "arguments": a}, PROV_SKILL,
+                                    target=sk["skill_id"], expected=str(sk.get("description") or "")[:200]))
+        ind = names.get("skill.induce")
+        if ind is not None and self.success_traces:
+            last = self.success_traces[-1]
+            sig = hashlib.sha256("|".join(last).encode()).hexdigest()[:16]
+            if sig not in self.induced:
+                traces = [last]
+                ops = self._trace_ops(last)
+                for t in reversed(self.success_traces[:-1]):     # a second run of the same procedure helps alignment
+                    if self._trace_ops(t) == ops:
+                        traces.insert(0, t)
+                        break
+                out.append(spec(ind, {"traces": traces}, PROV_EXPERIENCE,
+                                expected="a validated reusable procedure from the executions that preceded verified "
+                                         "progress"))
+        return out
+
+    def _trace_ops(self, ids: Sequence[str]) -> List[str]:
+        by = {d["action_id"]: d["operation"] for d in self.objective_ops}
+        return [by.get(i, "") for i in ids]
 
     def _decision_id(self, n: Optional[int] = None) -> str:
         return f"dec_{self.uid}{self.n_decisions if n is None else n:06d}"
@@ -635,31 +1111,23 @@ class CamLiveAgent:
             n += 1
         self.n_decisions = n
 
-    def _order(self, cands: List[ActionSpec], k: int) -> List[ActionSpec]:
-        """At most ``k`` candidates: backbone proposals first, then an even spread over the operations (so one tool
-        with many argument settings cannot crowd out the others); the order within each tool is kept."""
-        lm = [a for a in cands if "backbone" in a.provenance.split("+")]
-        rest = [a for a in cands if a not in lm]
-        by_op: Dict[str, List[ActionSpec]] = collections.OrderedDict()
-        for a in rest:
-            by_op.setdefault(a.operation, []).append(a)
-        out = lm[:max(1, k // 2)]
-        while len(out) < k and any(by_op.values()):
-            for op in list(by_op):
-                if by_op[op] and len(out) < k:
-                    out.append(by_op[op].pop(0))
-        return out
-
     def _digest(self) -> str:
-        lines, n = [], 0
+        """Compact observation digest for the backbone: the current interface (refs, fields, links, tabs), then the
+        latest other observations (results, errors, metrics), newest last, within ``proposer_max_obs_chars``."""
+        budget = int(self.settings.proposer_max_obs_chars)
+        head = surface_digest(self.surface, max_chars=int(budget * 0.6))
+        skip = (self.surface or {}).get("obs_id", "")
+        lines, n = [], len(head)
         for o in reversed(self.recent_obs):
+            if o["obs_id"] == skip:
+                continue
             q = ", ".join(f"{a}={b:g}" for a, b in o["quantities"][:8])
             line = f"[{o['kind']}] {o['text']}" + (f" ({q})" if q else "")
             n += len(line)
-            if n > self.settings.proposer_max_obs_chars:
+            if n > budget:
                 break
             lines.append(line)
-        return "\n".join(reversed(lines))
+        return "\n".join(([head] if head else []) + list(reversed(lines)))
 
     def _resource_vocab(self) -> Dict[str, List[str]]:
         """Identifiers of the resources the operator authorized in the task (URLs, account / channel ids), as
@@ -692,13 +1160,15 @@ class CamLiveAgent:
         return out
 
     def _vocab(self) -> Dict[str, List[str]]:
+        """Values for the schema walker: the resources the operator authorized, then identifiers from the latest
+        observations (newest last; the walker spreads evenly over at most 24 per name)."""
         v: Dict[str, List[str]] = {k: list(x) for k, x in self._resource_vocab().items()}
         for o in list(self.recent_obs)[-3:]:
             for key, vals in (o.get("vocab") or {}).items():
                 for x in vals:
                     if x not in v.setdefault(key, []):
                         v[key].append(x)
-        return {k: vals[-16:] for k, vals in v.items()}
+        return {k: vals[-24:] for k, vals in v.items()}
 
     def _goal_free_candidates(self, b: torch.Tensor, cands: List[ActionSpec]) -> List[ActionSpec]:
         pairs = []
@@ -749,6 +1219,14 @@ class CamLiveAgent:
                                     issued_at=0.0, description=t["description"], goal_relevant=t["goal_relevant"],
                                     exposure=float(ex), categories=list(t["categories"])))
         horizon = max(float(a.est_cost.seconds), 1.0)
+        goal = self._goal_metric()
+        if goal and self.settings.goal_metric_query and not any(t["metric"] == goal for t in
+                                                                 self.templates.get(a.operation, [])):
+            kind = self.metric_kinds.get(goal, OutcomeKind.COUNT)
+            out.append(OutcomeQuery(query_id="", metric=goal, kind=kind if kind in (OutcomeKind.REAL, OutcomeKind.COUNT)
+                                    else OutcomeKind.REAL, horizon_s=horizon, issued_at=now, goal_relevant=True,
+                                    description="the objective metric, measured by the independent verifier, "
+                                                "after the action"))
         for m in self._watched_metrics():
             kind = self.metric_kinds.get(m, OutcomeKind.REAL)
             if kind not in (OutcomeKind.REAL, OutcomeKind.COUNT):
@@ -756,6 +1234,13 @@ class CamLiveAgent:
             out.append(OutcomeQuery(query_id="", metric=OBS_PREFIX + m, kind=kind, horizon_s=horizon, issued_at=now,
                                     description=f"next reading of {m} after the action"))
         return out
+
+    def _goal_metric(self) -> str:
+        """The objective's metric as the task names it (``learner_view`` keeps ``success.metric``); '' without one."""
+        if self.task is None or not self.task.objective.strip():
+            return ""
+        m = (self.task.success or {}).get("metric", "") if isinstance(self.task.success, dict) else ""
+        return m if isinstance(m, str) else ""
 
     def _watched_metrics(self) -> List[str]:
         n = self.settings.observed_metric_queries
@@ -781,7 +1266,7 @@ class CamLiveAgent:
             items, self._goal_text(), cands, queries=self._queries_for, decision_id=did, objective_id=objective,
             deadline=self._deadline(), objective_scale=self._scale(), compute_voi=True, generator=self.gen)
         imagined = None
-        allowed = self.planner.controller.allowed()
+        allowed = self.planner.controller.allowed() if self.settings.planner else 0
         if allowed >= 1:                                   # only where multi-step accuracy has been measured
             try:
                 imagined = self.planner.plan(items, self._goal_text(), cands, now=float(self.clock.now()),
@@ -818,6 +1303,11 @@ class CamLiveAgent:
                                            generator=self.gen, **fields)
         decision.diagnostics["context_item_refs"] = list(refs)
         decision.diagnostics["lifetime"] = self.lifetime
+        inc = self.offer.get("inclusion") or {}
+        pp = [inc.get(c.action.action_id) for c in decision.candidates]
+        if self.offer.get("tracked") and pp and all(isinstance(x, float) for x in pp):
+            decision.diagnostics["proposal_probs"] = pp          # inclusion probability of each offered candidate
+        decision.diagnostics["offer"] = {k: self.offer.get(k) for k in ("pool", "policy_ranked", "random", "backbone")}
         decision.diagnostics["planner_horizon"] = self.pending_eval.get("planner_horizon", 0)
         if rec is not None:
             self.exp_out[rec.experiment_id] = rec
@@ -865,13 +1355,7 @@ class CamLiveAgent:
         refs = list(decision.diagnostics.get("context_item_refs") or self._window())
         self._put(action_item(a, decision.ts, result))
         for o in result.observations:
-            self._put(observation_item(o, self.settings.max_obs_text))
-            self.recent_obs.append({"obs_id": o.obs_id, "ts": o.ts, "kind": o.kind, "text": (o.text or "")[:600],
-                                    "quantities": [[q.name, q.value] for q in o.quantities[:12]],
-                                    "vocab": self._vocab_of(o)})
-            for q in o.quantities:
-                self.metric_kinds.pop(q.name, None)
-                self.metric_kinds[q.name] = q.kind
+            self._note_obs(o)
         post = self._window()
         self._learn_templates(a, result)
         linked = self.predictor.adopt_queries(a.action_id, result.expected_outcomes)
@@ -879,6 +1363,11 @@ class CamLiveAgent:
         chosen_ev = next((e for e in decision.candidates if e.action.action_id == a.action_id), None)
         own = [p.query for p in (chosen_ev.predictions if chosen_ev else [])]
         selfq = [q for q in own if q.metric == QUERY_EXEC_OK or q.metric.startswith(OBS_PREFIX)]
+        # the agent's own goal-relevant questions (the objective metric after the action) are measured by the
+        # verifier through the runtime's pending queue: they are pending queries of the record (the store indexes
+        # them, so the verifier's signed answer attaches to this decision)
+        askedq = [q for q in own if q.goal_relevant and q not in selfq
+                  and q.query_id not in {x.query_id for x in result.expected_outcomes}]
         exp_id = existing.exp_id if existing is not None else f"exp_{decision.decision_id[4:]}"
         arm = str(decision.diagnostics.get("arm", ""))
         for q in list(result.expected_outcomes) + own:
@@ -905,13 +1394,13 @@ class CamLiveAgent:
             self.store.append(ExperienceRecord(
                 exp_id=exp_id, objective_id=decision.objective_id, decision=decision, result=result,
                 context_item_refs=refs, post_item_refs=post, goal_text=self._goal_text(), outcomes=outcomes,
-                pending_queries=list(result.expected_outcomes), queries=selfq,
+                pending_queries=list(result.expected_outcomes) + askedq, queries=selfq,
                 duration_s=max(0.0, float(result.ended - result.started)) if result.ended else 0.0,
                 objective_family=(self.task.family if self.task is not None else ""),
                 provenance=self._provenance(), lifetime=self.lifetime))
         else:                                              # the executed result of a decision queued for approval
             existing.result, existing.post_item_refs = result, post
-            existing.pending_queries = list(result.expected_outcomes)
+            existing.pending_queries = list(result.expected_outcomes) + askedq
             existing.queries = selfq
             existing.outcomes = [o for o in existing.outcomes if o.query_id not in {x.query_id for x in outcomes}]
             existing.outcomes += outcomes
@@ -940,6 +1429,17 @@ class CamLiveAgent:
             self._goal_outcome(a.action_id, QUERY_EXEC_OK, float(o.value), result.cost)
         if exp_id not in self.unrewarded and exp_id not in self.rewarded:
             self.unrewarded.append(exp_id)
+        if not any(d["action_id"] == a.action_id for d in self.objective_ops[-64:]):
+            self.objective_ops.append({"action_id": a.action_id, "operation": a.operation,
+                                       "ok": result.status == ResultStatus.OK, "level": a.level})
+            if len(self.objective_ops) > 512:
+                cut = len(self.objective_ops) - 512
+                self.objective_ops = self.objective_ops[cut:]
+                self.progress_mark = max(0, self.progress_mark - cut)
+        if a.operation == "skill.induce" and a.arguments.get("traces"):
+            sig = hashlib.sha256("|".join(a.arguments["traces"][-1]).encode()).hexdigest()[:16]
+            if sig not in self.induced:
+                self.induced = (self.induced + [sig])[-64:]
         self.counters["results"] += 1
 
     def _provenance(self) -> str:
@@ -993,9 +1493,14 @@ class CamLiveAgent:
         t0 = time.perf_counter()
         out: List[LearningUpdateRecord] = list(self.fast_records)
         self.fast_records = []
+        if not self.settings.learning:
+            self.rewarded_since_update = []
+            return out
         plan = self.learner.poll()
         if plan is not None:
-            out += self.learner.learn(dataclasses.replace(plan, budget_s=float(budget_s)))
+            ups = self.learner.learn(dataclasses.replace(plan, budget_s=float(budget_s)))
+            out += ups
+            self.frequent_since_promotion += sum(1 for u in ups if u.timescale == "frequent")
         s = self.settings
         if len(self.rewarded_since_update) >= s.policy_update_every:
             ids = self.rewarded[-s.policy_update_batch:]
@@ -1006,10 +1511,135 @@ class CamLiveAgent:
                 out.append(rec)
             self.rewarded_since_update = []
         self.n_since_planner += 1
-        if self.n_since_planner >= s.planner_measure_every and time.perf_counter() - t0 < budget_s:
+        if s.planner and self.n_since_planner >= s.planner_measure_every and time.perf_counter() - t0 < budget_s:
             self.n_since_planner = 0
             self._measure_planner()
+        if (self.ckpts is not None and s.promote_every > 0 and self.frequent_since_promotion >= s.promote_every
+                and time.perf_counter() - t0 < budget_s):
+            out += self.promote(f"{self.frequent_since_promotion} frequent updates since the last promotion attempt")
         return out
+
+    # ============================================================================================ promotion (10.3)
+    def _world_provider(self) -> Any:
+        return next((p for p in self.learner.providers if p.name == "world_model"), None)
+
+    def _freeze_retention_set(self, objective_id: str, family: str) -> None:
+        """The first ``retention_records`` executed records of an objective become a fixed retention set, with the
+        policy's action distributions on them at this moment as the reference for decision agreement."""
+        key = f"{family or 'objective'}@{objective_id}"
+        if key in self.retention_sets:
+            return
+        recs = [r for r in self.store.trajectory(objective_id) if r.result is not None and r.decision.candidates]
+        recs = recs[:self.settings.retention_records]
+        if len(recs) < max(4, self.settings.retention_records // 3):
+            return
+        ids = [r.exp_id for r in recs]
+        self.retention_sets[key] = ids
+        self.retention_ref[key] = {"probs": [p.tolist() for p in self._record_action_probs(ids)]}
+
+    @torch.no_grad()
+    def _record_action_probs(self, ids: Sequence[str]) -> List[torch.Tensor]:
+        from .learning_api import encode_decisions
+        recs = [r for r in self.store.get_many(list(ids)) if r is not None]
+        out: List[torch.Tensor] = []
+        was = self.model.training
+        self.model.eval()
+        try:
+            for i in range(0, len(recs), 16):
+                batch = encode_decisions(self.model, self.store, recs[i:i + 16], grad=False)
+                pr = self.heads.policy(batch.z, batch.a_mask, batch.b).probs.detach().double().cpu()
+                k = batch.a_mask.sum(1).tolist()
+                out += [pr[j, :int(k[j])].clone() for j in range(pr.shape[0])]
+        finally:
+            self.model.train(was)
+        return out
+
+    @torch.no_grad()
+    def retention_metrics(self) -> Dict[str, Dict[str, Any]]:
+        """Measured retention on every fixed retention set (higher = better; provenance ``retention``): the negated
+        world-model loss on the set's realised outcomes and the agreement of the policy's most probable candidate
+        with the reference recorded when the set was frozen. Forgetting is measured, not assumed away."""
+        from .learning_api import encode_decisions
+        out: Dict[str, Dict[str, Any]] = {}
+        wm = self._world_provider()
+        was = self.model.training
+        self.model.eval()
+        try:
+            for key, ids in self.retention_sets.items():
+                recs = [r for r in self.store.get_many(list(ids)) if r is not None]
+                if not recs:
+                    continue
+                if wm is not None:
+                    batch = encode_decisions(self.model, self.store, recs, grad=False)
+                    loss, _ = wm.loss(self.model, batch, self.store)
+                    if loss is not None and math.isfinite(float(loss)):
+                        out[f"{key}/neg_world_loss"] = {"value": -float(loss), "provenance": "retention"}
+                ref = (self.retention_ref.get(key) or {}).get("probs") or []
+                now = self._record_action_probs(ids)
+                pairs = [(torch.tensor(a, dtype=torch.float64), b) for a, b in zip(ref, now) if len(a) == b.numel()]
+                if pairs:
+                    agree = sum(float(int(torch.argmax(a)) == int(torch.argmax(b))) for a, b in pairs) / len(pairs)
+                    out[f"{key}/decision_agreement"] = {"value": agree, "provenance": "retention"}
+        finally:
+            self.model.train(was)
+        return out
+
+    def promote(self, trigger: str) -> List[LearningUpdateRecord]:
+        """Checkpoint the learner and ask ``credit.checkpoint.CheckpointManager`` to promote it on independent
+        evidence only: held-out validation losses of the learner's providers (``ContinualLearner.validate``, each
+        with its declared provenance; a provider trained on the agent's own reward never counts) and measured
+        retention on fixed sets of earlier experience. When the gates refuse it, the learner returns to the last
+        promoted checkpoint (weights, optimizers, schedules, fast state); experience is never rolled back."""
+        from .credit.checkpoint import promote_learner
+        if self.ckpts is None:
+            return []
+        self.frequent_since_promotion = 0
+        if self.task is not None:
+            self._freeze_retention_set(self.task.objective_id, self.task.family)
+        retention = self.retention_metrics()
+        before = self.model.trainable_state()
+        hb = self.model.group_hashes()
+        now = float(self.clock.now())
+        try:
+            dec, info, rb = promote_learner(
+                self.ckpts, self.learner, retention=retention, notes=trigger[:200],
+                extra_optimizers={"reward_meta": self.meta.optimizer},
+                lifetime_context=self.meta.reward.lifetime.state.detach().clone(),
+                current_task=self.task.to_dict() if self.task is not None else None,
+                reward_version=self.meta.reward.version)
+        except Exception as e:  # noqa: BLE001 — a failed promotion attempt changes nothing and is reported
+            self.last["promotion_error"] = f"{type(e).__name__}: {e}"
+            self.counters["promotion_errors"] += 1
+            return []
+        if rb is not None:
+            self.predictor.set_fast_state(self.learner.fast_state)
+            self.counters["rollbacks"] += 1
+        self.counters["promotions" if dec.promoted else "promotions_refused"] += 1
+        delta = self.model.group_delta_norms(before) if rb is not None else {}
+        row = {"ts": now, "trigger": trigger, "checkpoint_id": info.checkpoint_id, "promoted": dec.promoted,
+               "baseline_id": dec.baseline_id, "reasons": list(dec.reasons)[:8], "validation": dict(dec.validation),
+               "retention": dict(dec.retention), "deltas": dict(dec.deltas), "ignored": list(dec.ignored),
+               "rolled_back_to": (rb or {}).get("rolled_back_to", ""), "weight_delta": delta}
+        self.promotions = (self.promotions + [_jsonable(row)])[-32:]
+        rec = LearningUpdateRecord(
+            update_id=new_id("upd"), ts=now, trigger=("rollback: " if rb is not None else "promotion: ") + trigger,
+            timescale="checkpoint", losses={k: float(v) for k, v in dec.validation.items()},
+            param_groups=sorted(g for g, v in delta.items() if v > 0), weight_delta=delta, hash_before=hb,
+            hash_after=self.model.group_hashes(), checkpoint_id=info.checkpoint_id,
+            model_version=self.learner.model_version, notes=json.dumps(_jsonable(row), sort_keys=True)[:4000],
+            diagnostics={"promoted": bool(dec.promoted), "rolled_back": rb is not None})
+        return [rec]
+
+    # ============================================================================================ export (15.3)
+    def export_weights(self, dest: str) -> Dict[str, Any]:
+        """Weights-only export of the current learner (experiential core, adapters, heads, reward) with the
+        configuration that rebuilds it: readable in a fresh process by ``credit.checkpoint.load_exported_model``
+        with ``register_heads=cam_live.agent.register_agent_heads``. No experience, optimizer or task state."""
+        from .credit.checkpoint import export_learner_weights
+        cfg = export_learner_weights(self.learner, dest)
+        cfg["promoted_checkpoint"] = (self.ckpts.promoted().checkpoint_id
+                                      if self.ckpts is not None and self.ckpts.promoted() is not None else "")
+        return cfg
 
     def _measure_planner(self) -> None:
         if self.task is None:
@@ -1027,7 +1657,7 @@ class CamLiveAgent:
         """One outer update of R_psi when the verified query evidence allows it, else a record of the exact reason it
         was skipped. Asked again only when something it depends on changed (events, ledger, decisions)."""
         key = (len(self.meta.events), len(self.meta.ledger), self.counters["results"])
-        if key == self.meta_state_key:
+        if key == self.meta_state_key or not self.settings.learning:
             return []
         self.meta_state_key = key
         return [self.meta.meta_update(float(self.clock.now()))]
@@ -1093,7 +1723,12 @@ class CamLiveAgent:
             "n_decisions": self.n_decisions, "n_since_planner": self.n_since_planner, "uid": self.uid,
             "objective_started_at": getattr(self, "objective_started_at", 0.0), "counters": dict(self.counters),
             "proposer_calls": self.proposer._calls, "settings": dataclasses.asdict(self.settings),
-            "buffer": [o.to_dict() for o in self.buffer]})
+            "buffer": [o.to_dict() for o in self.buffer], "surface": self.surface,
+            "skill_catalog": self.skill_catalog, "objective_ops": self.objective_ops,
+            "progress_mark": self.progress_mark, "goal_level": self.goal_level, "success_traces": self.success_traces,
+            "induced": self.induced, "offer": self.offer, "retention_sets": self.retention_sets,
+            "retention_ref": self.retention_ref, "frequent_since_promotion": self.frequent_since_promotion,
+            "promotions": self.promotions})
 
     def _load_json_state(self, d: Dict[str, Any]) -> None:
         if not d:
@@ -1116,6 +1751,18 @@ class CamLiveAgent:
         self.counters = collections.Counter(d["counters"])
         self.proposer._calls = int(d["proposer_calls"])
         self.buffer = [OutcomeObservation.from_dict(x) for x in d.get("buffer", [])]
+        self.surface = d.get("surface")
+        self.skill_catalog = dict(d.get("skill_catalog") or {})
+        self.objective_ops = list(d.get("objective_ops") or [])
+        self.progress_mark = int(d.get("progress_mark", 0))
+        self.goal_level = d.get("goal_level")
+        self.success_traces = [list(t) for t in d.get("success_traces") or []]
+        self.induced = list(d.get("induced") or [])
+        self.offer = dict(d.get("offer") or {})
+        self.retention_sets = {k: list(v) for k, v in (d.get("retention_sets") or {}).items()}
+        self.retention_ref = dict(d.get("retention_ref") or {})
+        self.frequent_since_promotion = int(d.get("frequent_since_promotion", 0))
+        self.promotions = list(d.get("promotions") or [])
 
     def _meta_batches(self) -> Dict[str, Any]:
         """The support latents each policy-update event cached when it happened. ``MetaLearner.state_dict`` leaves
@@ -1206,7 +1853,12 @@ class CamLiveAgent:
                                                "adapters_bridge", "reward", "heads_total",
                                                "total_persistent_trainable")},
             "backbone": cp["backbone"], "scale": cp["scale"], "counters": dict(self.counters),
-            "verifier_attached": self.verifier is not None, "checkpoint": self.checkpoint_id})
+            "verifier_attached": self.verifier is not None, "checkpoint": self.checkpoint_id,
+            "promoted_checkpoint": (self.ckpts.promoted().checkpoint_id
+                                    if self.ckpts is not None and self.ckpts.promoted() is not None else ""),
+            "last_promotion": self.promotions[-1] if self.promotions else None,
+            "skills_known": len(self.skill_catalog), "surface": (self.surface or {}).get("url", ""),
+            "proposal": (self.last.get("proposal") or {}).get("stats", {})})
 
     # ============================================================================================ F-1 hooks
     def drain_experiments(self) -> List[ExperimentRecord]:
@@ -1258,6 +1910,22 @@ def _rng_state(r: random.Random) -> List[Any]:
 
 def _rng_from(s: Sequence[Any]) -> Tuple:
     return (int(s[0]), tuple(int(x) for x in s[1]), s[2])
+
+
+def register_agent_heads(model: Any, cfg: Optional[CamLiveConfig] = None) -> Any:
+    """Register on a freshly built model the heads an agent registers (prediction heads and the intrinsic reward
+    R_psi): the ``register_heads`` argument of ``credit.checkpoint.load_exported_model`` for an agent export."""
+    from .nn.api import GROUP_REWARD
+    from .reward.intrinsic import IntrinsicReward
+    from .reward.metalearner import MetaConfig
+    heads = attach_heads(model)
+    try:
+        model.head("reward")
+    except KeyError:
+        mc = MetaConfig.from_cfg(cfg or model.cfg)
+        model.register_head("reward", IntrinsicReward(model.d_model, d_hidden=mc.reward_hidden, d_life=mc.reward_life,
+                                                      bound=mc.reward_bound), GROUP_REWARD)
+    return heads
 
 
 def build_agent(cfg: Optional[CamLiveConfig] = None, run_dir: str = "", clock: Optional[Clock] = None,

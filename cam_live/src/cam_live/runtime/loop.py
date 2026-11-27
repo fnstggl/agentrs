@@ -36,6 +36,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 import hashlib
+import inspect
 import json
 import math
 import os
@@ -121,6 +122,22 @@ class RuntimeConfig:
         d = cfg.section("runtime") if hasattr(cfg, "section") else dict(cfg)
         known = {f.name for f in dataclasses.fields(cls)}
         return cls(**{k: v for k, v in d.items() if k in known})
+
+
+def look_grant(policy: Any, action: ActionSpec, auth: AuthorizationDecision) -> bool:
+    """Verify a grant *without using it up* (M-int-6). The executor that runs the action consumes the grant
+    immediately before execution (``harness.auth.PolicyService.check_grant``: single use, one defined point of
+    consumption); a runtime-side check that consumed it would make the environment refuse the action ("the grant
+    does not verify"). A ``PolicyEngine`` whose ``check_grant`` takes no ``consume`` keyword (the contract's
+    two-argument form, e.g. a remote client whose service already forces look-only for the learner uid, or a
+    diagnostic policy without single use) is asked with the plain call."""
+    fn = policy.check_grant
+    try:
+        params = inspect.signature(fn).parameters
+        takes = "consume" in params or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+    except (TypeError, ValueError):
+        takes = False
+    return bool(fn(action, auth, consume=False)) if takes else bool(fn(action, auth))
 
 
 def action_signature(a: ActionSpec) -> str:
@@ -262,6 +279,12 @@ class LiveRuntime:
         self._guard_live(TaskSpec.from_dict(inner["task"]) if resume else self.task)
         atomic_write_text(os.path.join(self.run_dir, PID_FILE), str(os.getpid()), durable=self._durable)
         self._started = True
+        hook = getattr(self.agent, "set_action_validator", None)
+        if callable(hook):                    # the learner may drop candidates the environment reports as invalid
+            try:
+                hook(self.env.validate_action)
+            except Exception as e:  # noqa: BLE001 — optional; the chosen action is validated here regardless
+                self._note_error("agent", "set_action_validator", e)
         if resume:
             self._restore(st, inner)
         else:
@@ -548,7 +571,7 @@ class LiveRuntime:
                 or (caps.get("features") or {}).get("at_most_once_by_action_id")):
             try:
                 auth = self.policy.authorize(action, self.task, self._auth_context(decision))
-                if auth.verdict == AuthVerdict.ALLOW and self.policy.check_grant(action, auth):
+                if auth.verdict == AuthVerdict.ALLOW and look_grant(self.policy, action, auth):
                     result = self.env.execute(action, auth)     # the environment returns the stored result, or runs it once
                     how = "re-issued under the same action id (environment de-duplicates)"
                 else:
@@ -814,12 +837,20 @@ class LiveRuntime:
     def _export(self, dest: str) -> tuple:
         dest = dest or os.path.join(self.run_dir, "exports", f"export_{len(self._exports) + 1:04d}")
         os.makedirs(os.path.dirname(dest), exist_ok=True)
-        cid = self._agent("save", dest)
+        if callable(getattr(self.agent, "export_weights", None)):
+            # weights-only transfer artefact (spec 15.3): weights, adapters and the configuration that rebuilds the
+            # model — no experience, optimizer or task state (credit.checkpoint.load_exported_model reads it)
+            info = self._agent("export_weights", dest) or {}
+            cid = str(info.get("model_version", "")) or "weights"
+            how = "weights-only export (agent.export_weights)"
+        else:
+            cid = self._agent("save", dest)
+            how = "complete learner checkpoint (agent.save)"
         meta = {"checkpoint_id": cid, "path": dest, "ts": self.clock.now(), "objective_id": self.task.objective_id,
-                "provenance": self.task.mode, "counters": dict(self.counters)}
+                "provenance": self.task.mode, "counters": dict(self.counters), "method": how}
         atomic_write_json(dest.rstrip("/") + ".export.json", {**meta, "task": self.task.to_dict()})
         self._exports.append(meta)
-        return True, f"exported checkpoint {cid} to {dest}"
+        return True, f"exported {cid} to {dest} ({how})"
 
     def _assign(self, path: str, sha256: str, by: str) -> tuple:
         if sha256 and file_sha256(path) != sha256:
@@ -945,7 +976,7 @@ class LiveRuntime:
                     self._complete(decision, self._synthetic(action, ResultStatus.FAILED, FailureClass.RESOURCE_LIMIT,
                                                              f"approved by the operator, but {why}; not executed"),
                                    "over_limit", preds, aid, new_decision=False)
-                elif auth.verdict != AuthVerdict.ALLOW or not self.policy.check_grant(action, auth):
+                elif auth.verdict != AuthVerdict.ALLOW or not look_grant(self.policy, action, auth):
                     self._complete(decision, self._synthetic(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
                                                              "the approval did not yield a grant valid for this action"),
                                    "denied", preds, aid, new_decision=False)
@@ -1213,7 +1244,7 @@ class LiveRuntime:
                                                      "queued for operator approval: " + "; ".join(auth.reasons)),
                            "queued", preds, aid)
             return True
-        if auth.verdict != AuthVerdict.ALLOW or not self.policy.check_grant(action, auth):
+        if auth.verdict != AuthVerdict.ALLOW or not look_grant(self.policy, action, auth):
             detail = "; ".join(auth.reasons) or ("authorization refused" if auth.verdict != AuthVerdict.ALLOW
                                                  else "the grant does not match this action")
             self._complete(decision, self._synthetic(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
