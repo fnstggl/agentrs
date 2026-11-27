@@ -1,6 +1,6 @@
 {
  "workstream": "M-int",
- "commit": "4b46a97",
+ "commit": "1039a6f",
  "summary": "Integrated agent (M-int round 1, INT2 round 2): runtime wiring fixed (look-only grants, verifier to the agent, signed measurements, validate options), checkpoints with promotion / rollback / weights-only export, candidates grounded in the observed interface, backbone proposals executable (S-6), selection with the world model (S-5, LRN-1), attributed verified progress, storage guard, drain, planning task; separated-services run; real-model meta-updates with non-zero meta-gradients; diagnosis of the near-random LabWorld choices.",
  "requirements": {
   "IN-01": {
@@ -27,7 +27,8 @@
    "evidence": [
     "docs/evidence/test_results/INT2_full.xml",
     "docs/evidence/validation/separated/separated_20261127T183623Z.json",
-    "docs/evidence/validation/meta_real/meta_real_20261127T184014Z.json"
+    "docs/evidence/validation/meta_real/meta_real_20261127T184014Z.json",
+    "docs/evidence/validation/staging_20261127T223510Z.json"
    ],
    "limitations": "Round-1 wiring defects M-int-1/2/3/6 fixed; separated-services run through cam-live run executed (debug core). Not done: no live service; LRN-3 (two bootstrap inputs) not written."
   },
@@ -51,7 +52,8 @@
    ],
    "evidence": [
     "docs/evidence/test_results/INT2_full.xml",
-    "docs/evidence/validation/meta_real/meta_real_20261127T184014Z.json"
+    "docs/evidence/validation/meta_real/meta_real_20261127T184014Z.json",
+    "docs/evidence/validation/staging_20261127T223510Z.json"
    ],
    "limitations": "Pathway shown with the real configuration on LabWorld (diagnostic) - psi -> R_psi -> inner update -> verified query outcomes -> non-zero meta-gradient -> changed next inner update - and on the staging services; not on a live service."
   },
@@ -63,16 +65,17 @@
    "integration_points": [
     "cam_live.validation.run_staging"
    ],
-   "tests": [],
+   "tests": [
+    "tests/integration/test_int2_queries.py::test_a_result_after_approval_is_recorded_without_rewriting_history"
+   ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -c \"from cam_live.validation import run_staging, EVIDENCE_DIR; run_staging(None, real_model=True, n_decisions=40, evidence_dir=EVIDENCE_DIR)\""
    ],
    "evidence": [
-    "docs/evidence/validation/staging_20261127T052759Z.json",
-    "docs/evidence/validation/staging_20261127T053639Z.json",
-    "docs/evidence/validation/staging_20261127T055041Z.json"
+    "docs/evidence/test_results/INT2_full.xml",
+    "docs/evidence/validation/staging_20261127T223510Z.json"
    ],
-   "limitations": "Three real-configuration staging runs executed; none passes every check: no reward meta-update with a non-zero meta-gradient on the real model (runs 1, 3: none applied; run 2: one recorded as applied with a zero gradient and unchanged psi); runs 2 and 3 ran out of their time budget before the second LabWorld lifetime on a loaded machine. All other checks held in run 1."
+   "limitations": "Real-configuration staging validation executed (INT2, frozen copy of d55986d, 630 s under the GPU lock): checks failing: approvals_exercised, meta_step_changes_policy, meta_update_applied, resource_limit_exercised. The approval failure was a defect (an approved action's result refused by the append-only store), fixed in 1039a6f and covered by tests/integration/test_int2_queries.py; the run was not repeated after the fix. The resource limit was not reached before the decision budget; no meta-update was applied in 4 lifetimes of 7 decisions (39 skips for insufficient independent outcomes)."
   },
   "NA-06": {
    "state": "implemented",
@@ -138,7 +141,8 @@
    "evidence": [
     "docs/evidence/test_results/INT2_full.xml",
     "docs/evidence/validation/learning/debug_store_entry_20261127/summary.json",
-    "docs/evidence/validation/separated/separated_20261127T183623Z.json"
+    "docs/evidence/validation/separated/separated_20261127T183623Z.json",
+    "docs/evidence/validation/staging_20261127T223510Z.json"
    ],
    "limitations": "Grounded browser actions on the staging sites complete an unfamiliar two-step form task in 9-33 % of objectives (debug scale); not better with repetition; real-configuration task success not established."
   },
@@ -661,30 +665,30 @@
    "total_persistent_trainable": 74672079
   },
   "full_suite": {
-   "tests": 1467,
+   "tests": 1468,
    "failures": 0,
    "errors": 0,
    "skipped": 90,
-   "passed": 1377,
-   "time_s": 1628.9,
-   "wall_s": 619,
+   "passed": 1378,
+   "time_s": 1152.8,
+   "wall_s": 442,
    "failed": [],
-   "commit": "4b46a97",
+   "commit": "1039a6f",
    "command": "frozen copy of the commit (git archive); one pytest process per test directory, 5 at a time: PYTHONPATH=<copy>/cam_live/src .venv/bin/python -m pytest cam_live/tests/<dir> -q --rootdir=cam_live --junitxml=<dir>.xml; merged into docs/evidence/test_results/INT2_full.xml",
-   "note": "default suite (gpu / slow / browser / privileged / network tests skip by the suite's own markers); load average 13-29 during this run. An earlier run of the same procedure at 07be9ba under load ~55 had 7 errors (the 900 s per-test guard on the runtime module's shared session; the module guard is 2400 s since 4b46a97) and 1 failure (tests/reward state round-trip, fixed by LRN in f0df920)",
+   "note": "default suite (gpu / slow / browser / privileged / network tests skip by the suite's own markers). Earlier runs of the same procedure: 4b46a97 1377 passed / 0 failed (619 s wall); 07be9ba under load ~55: 7 errors (900 s per-test guard on the runtime module's session, 2400 s since 4b46a97) and 1 failure (tests/reward state round-trip, fixed by LRN in f0df920)",
    "per_directory": [
-    "predict rc=0 176s 157 passed, 10 skipped in 172.26s (0:02:52)",
-    "reward rc=0 197s 143 passed, 3 skipped, 1 warning in 192.66s (0:03:12)",
-    "credit rc=0 217s 114 passed, 7 skipped in 214.83s (0:03:34)",
-    "eval rc=0 316s 32 passed, 1 skipped in 314.04s (0:05:14)",
-    "integration rc=0 496s 47 passed, 1 skipped in 493.99s (0:08:13)",
-    "storage rc=0 1s 3 passed in 0.86s",
+    "predict rc=0 114s 157 passed, 10 skipped in 110.01s (0:01:50)",
+    "reward rc=0 125s 143 passed, 3 skipped, 1 warning in 121.62s (0:02:01)",
+    "credit rc=0 139s 114 passed, 7 skipped in 137.35s (0:02:17)",
+    "eval rc=0 228s 32 passed, 1 skipped in 226.35s (0:03:46)",
+    "integration rc=0 319s 48 passed, 1 skipped, 1 warning in 317.27s (0:05:17)",
+    "storage rc=0 2s 3 passed in 0.83s",
     "diagnostics rc=0 4s 8 passed in 2.32s",
-    "test_verify_completion rc=0 11s 27 passed in 6.28s",
-    "nn rc=0 60s 99 passed, 13 skipped, 2 warnings in 56.23s",
-    "runtime rc=0 67s 212 passed, 3 skipped in 64.76s (0:01:04)",
-    "harness rc=0 123s 535 passed, 52 skipped in 120.78s (0:02:00)",
-    "wall 619s"
+    "test_verify_completion rc=0 12s 27 passed in 6.21s",
+    "nn rc=0 60s 99 passed, 13 skipped, 2 warnings in 56.04s",
+    "runtime rc=0 66s 212 passed, 3 skipped in 64.27s (0:01:04)",
+    "harness rc=0 123s 535 passed, 52 skipped in 119.95s (0:01:59)",
+    "wall 442s"
    ]
   },
   "int2_evidence": [
@@ -692,7 +696,8 @@
    "docs/evidence/validation/meta_real/meta_real_20261127T184014Z.json",
    "docs/evidence/validation/learning/debug_store_entry_20261127/summary.json",
    "docs/evidence/validation/diagnosis/debug_f1_20261127/summary.json",
-   "docs/evidence/validation/diagnosis/meta_evidence_20261127.json"
+   "docs/evidence/validation/diagnosis/meta_evidence_20261127.json",
+   "docs/evidence/validation/staging_20261127T223510Z.json"
   ]
  },
  "not_done": [

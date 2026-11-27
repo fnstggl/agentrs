@@ -223,8 +223,20 @@ chosen from the backbone (`http.get` measurements at points it chose, notes of t
 the authorization layer because the parser gave it its first step's modality: INT2-9, fixed in the agent since).
 Valid-and-executed: 12 of 13 chosen actions, 7 of 8 chosen backbone actions.
 
-**7.6 Tests** — whole default suite of commit 4b46a97, one pytest process per test directory (module-name clashes,
-INT2-5), from a frozen copy: **1467 tests, 1377 passed, 90 skipped, 0 failed, 0 errors**, 619 s wall (1629 s summed),
+**7.6 Staging validation, real configuration** — `evidence/validation/staging_20261127T223510Z.json`
+(`run_staging(real_model=True, n_decisions=40)` from a frozen copy of d55986d; 630 s under the GPU lock, peak
+18.6 GB, 1030 s wall): **executed, not passed**. Held: computer-environment decisions (10 on the staging sites:
+grounded clicks / fill, two backbone-written actions, 0 grant refusals), predictions before outcomes (175 resolved),
+internal rewards, experiential (52 updates) and adapter (14) weights changed, delayed outcomes linked (35),
+behaviour change on a held-out context (TV 0.134) carried by the weights, interruption + restart from disk, logging,
+4 verified LabWorld lifetimes. Failed: `approvals_exercised` (1 approval resolved, but the approved action's result
+was refused by the append-only store — fixed since, `test_int2_queries.py::
+test_a_result_after_approval_is_recorded_without_rewriting_history`), `resource_limit_exercised` (the decision budget
+ran out first), `meta_update_applied` / `meta_step_changes_policy` (0 applied: 39 skips for insufficient independent
+outcomes, 2 unsupported episodes, in 4 lifetimes of 7 decisions).
+
+**7.7 Tests** — whole default suite of commit 1039a6f, one pytest process per test directory (module-name clashes,
+INT2-5), from a frozen copy: **1468 tests, 1378 passed, 90 skipped, 0 failed, 0 errors**, 442 s wall (1152 s summed),
 JUnit `evidence/test_results/INT2_full.xml`, summary in `docs/status/M-int.json` (`measured.full_suite`). An earlier run
 at 07be9ba under load ~55 had 7 errors (900 s per-test guard on the runtime module's session, now 2400 s) and 1 reward
 test failure fixed by LRN since.
