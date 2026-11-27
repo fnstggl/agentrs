@@ -796,11 +796,13 @@ def run_lifetime(agent, env: EnvAdapter, *, evaluator: Optional[GoalEvaluator] =
             operator.checkpoint(os.path.join(d, "operator.pkl"))
         if evaluator is not None and hasattr(evaluator, "state_dict"):
             _write_atomic(os.path.join(d, "evaluator.pkl"), evaluator.state_dict())
+        # the learner's state first: IntegratedLearner.state_dict aborts an open meta window and restores the slow
+        # weights, which must happen before the model weights are written (W7 change request)
+        ls = learner.state_dict() if learner is not None and hasattr(learner, "state_dict") else None
         if hasattr(agent, "save"):
             agent.save(os.path.join(d, "agent"))
         elif ck.ops is not None:
             ck.ops.save_full_lifetime(os.path.join(d, "agent"))
-        ls = learner.state_dict() if learner is not None and hasattr(learner, "state_dict") else None
         if ls is not None:
             tmp = os.path.join(d, "learner.pt.tmp")
             torch.save(ls, tmp)

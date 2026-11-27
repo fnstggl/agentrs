@@ -142,7 +142,8 @@ class CamConfig:
     preset: str = ""                  # name of the make_preset preset this config came from ("" = none)
     # core F_theta / reasoner [W3]
     state_gate: bool = False          # gated persistence Z = u*Z_new + (1-u)*Z_prev, u = sigmoid(W[Z_prev; Z_new] + b)
-    state_emb_std: float = 0.5        # init std of the additive kind / state-slot / time embeddings (backbone emb_std)
+    state_emb_std: float = 0.5        # init std of the STATE-stream embeddings (state_pos and the STATE / REASON kind
+                                      # rows); context kind / time / slot embeddings keep emb_std 0.5 (W3)
     reason_iters_fixed: int = 0       # J > 0: fixed reasoning iterations (CamUnifiedModel.reason_iters defaults to it,
                                       # live now); 0 = adaptive halting / the model's reason_iters kwarg
     d_satellite: int = 0              # width of the satellite modules (entities, beliefs, heads); 0 = d_model
@@ -150,12 +151,16 @@ class CamConfig:
     value_channel: bool = False       # NUMERIC tokens = proj([norm(value features); norm(description + unit)])
     sem_lora: bool = True             # PEFT LoRA adapters on the semantic model's decoder path (QwenSemantic lora=)
     dec_alpha_init: float = 0.05      # initial gate alpha of the decoder latent cross-attention (tanh(alpha) scale)
+    sem_merged_acting: Optional[bool] = None   # merged-LoRA acting copy of the semantic model (None = only for
+                                               # models < 3B parameters; ~1.9 GB at 4B, so off by default for dom)
     # decision bottleneck (Mechanism B) [W5]
     n_intent: int = 0                 # intent tokens I_t = IntentHead(R_t, ctx_out); 0 = no intent bottleneck
     n_candidates: int = 1             # K candidate actions per decision scored by decision/evaluator
     select_tau: float = 1.0           # selection k ~ softmax(Q / select_tau) over the K candidates
     veto_q: Optional[float] = None    # evaluator veto: candidates with Q_k < veto_q are rejected (None = no veto)
     # world model and beliefs [W6]
+    share_guard: bool = True          # [W7] IntegratedLearner keeps the actor's core-gradient share >= its floor
+                                      # (False = the factors-only balancing ablation)
     wm_transition_blocks: int = 0     # prior Z_hat = WM.prior(R, A, B, dt) through the last k core blocks
                                       # (0 = the world model's own transition network)
     wm_ema_target: bool = True        # EMA target encoder for the latent targets (False = no EMA target)
