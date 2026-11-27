@@ -172,7 +172,7 @@
     "tests/v5/test_gate_P.py",
     "tests/test_v5_civ_longrun.py"
    ],
-   "status_claim": "harness verified on a CPU smoke run (3 hour-long 'days': 2 exact + 2 free resume checks equal, 3 replay segments exact, 0 accounting mismatches); first suite at e77fef3 reached day 60-70 of the 180/365-day runs (0 unexplained violations, 0 accounting mismatches) before the slot governor stopped it at 18 GB; the full suite (30/90/180/365 days x 2 seeds, two workers, at most one 365-day run at a time) is queued as 'J: Gate P suite (restart, RAM 28G)' on the branch head at its start; results: /workspace/data/crucible/runs-c5/civ/<code key>/ and the scratch log gate_p_suite2.log",
+   "status_claim": "criteria met in an unofficial run at 02c300f (code key 3be22bda71b33310; balanced profile, development population: 1,000 behavioural, 32 adaptive, 8 strategic, 2 semantic individuals; GPU slot, two workers, 7.1 h): 8 runs (30, 90, 180, 365 days x 2 seeds: 101/102, 111/112, 121/122, 131/132), all completed, failed_runs 0, unexplained_invariant_violations 0, snapshot_resume_mismatches 0 of 16 exact cross-process resume checks (the free resume that recomputes inference was equal in 11 of 16; divergence origins logic, recorded_outcome: DEF-J-1), replay_mismatches 0 over 148 replayed snapshot segments, event_accounting_mismatches 0, min late/early economic activity 0.517 (90 d, seed 111), social 0.942 (365 d, seed 131), independent_seeds_per_horizon 2. The official run recomputes the suite (its code key differs).",
    "notes": ""
   },
   "P.2": {
@@ -190,7 +190,7 @@
    "tests": [
     "tests/v5/test_gate_P.py"
    ],
-   "status_claim": "harness verified on a CPU smoke run (3 hour-long 'days': 2 exact + 2 free resume checks equal, 3 replay segments exact, 0 accounting mismatches); first suite at e77fef3 reached day 60-70 of the 180/365-day runs (0 unexplained violations, 0 accounting mismatches) before the slot governor stopped it at 18 GB; the full suite (30/90/180/365 days x 2 seeds, two workers, at most one 365-day run at a time) is queued as 'J: Gate P suite (restart, RAM 28G)' on the branch head at its start; results: /workspace/data/crucible/runs-c5/civ/<code key>/ and the scratch log gate_p_suite2.log",
+   "status_claim": "criteria met in an unofficial run at 02c300f (code key 3be22bda71b33310; balanced profile, development population: 1,000 behavioural, 32 adaptive, 8 strategic, 2 semantic individuals; GPU slot, two workers, 7.1 h): 8 runs (30, 90, 180, 365 days x 2 seeds: 101/102, 111/112, 121/122, 131/132), all completed, failed_runs 0, unexplained_invariant_violations 0, snapshot_resume_mismatches 0 of 16 exact cross-process resume checks (the free resume that recomputes inference was equal in 11 of 16; divergence origins logic, recorded_outcome: DEF-J-1), replay_mismatches 0 over 148 replayed snapshot segments, event_accounting_mismatches 0, min late/early economic activity 0.517 (90 d, seed 111), social 0.942 (365 d, seed 131), independent_seeds_per_horizon 2. The official run recomputes the suite (its code key differs).",
    "notes": ""
   },
   "P.3": {
@@ -211,7 +211,7 @@
     "tests/test_v5_civ_longrun.py",
     "tests/v5/test_gate_P.py"
    ],
-   "status_claim": "implemented, exact check (D-47): each resume check copies the store at the resume day; a NEW process resumes it freely (reported, with the origin of any divergence) and another re-executes the live run's recorded continuation on the resumed copy (counted: hash, digest and seq must equal the live world). Verified on civilisations in tests/test_v5_civ_determinism.py (CPU, 3 passed); the interruption test also regenerates the interrupted run's whole record; Gate P suite queued (see P.1)",
+   "status_claim": "criteria met in an unofficial run at 02c300f (code key 3be22bda71b33310; balanced profile, development population: 1,000 behavioural, 32 adaptive, 8 strategic, 2 semantic individuals; GPU slot, two workers, 7.1 h): 8 runs (30, 90, 180, 365 days x 2 seeds: 101/102, 111/112, 121/122, 131/132), all completed, failed_runs 0, unexplained_invariant_violations 0, snapshot_resume_mismatches 0 of 16 exact cross-process resume checks (the free resume that recomputes inference was equal in 11 of 16; divergence origins logic, recorded_outcome: DEF-J-1), replay_mismatches 0 over 148 replayed snapshot segments, event_accounting_mismatches 0, min late/early economic activity 0.517 (90 d, seed 111), social 0.942 (365 d, seed 131), independent_seeds_per_horizon 2. The official run recomputes the suite (its code key differs).",
    "notes": ""
   },
   "P.4": {
@@ -230,7 +230,7 @@
     "tests/test_v5_civ_determinism.py",
     "tests/v5/test_gate_P.py"
    ],
-   "status_claim": "harness verified on a CPU smoke run (3 hour-long 'days': 2 exact + 2 free resume checks equal, 3 replay segments exact, 0 accounting mismatches); first suite at e77fef3 reached day 60-70 of the 180/365-day runs (0 unexplained violations, 0 accounting mismatches) before the slot governor stopped it at 18 GB; the full suite (30/90/180/365 days x 2 seeds, two workers, at most one 365-day run at a time) is queued as 'J: Gate P suite (restart, RAM 28G)' on the branch head at its start; results: /workspace/data/crucible/runs-c5/civ/<code key>/ and the scratch log gate_p_suite2.log",
+   "status_claim": "criteria met in an unofficial run at 02c300f (code key 3be22bda71b33310; balanced profile, development population: 1,000 behavioural, 32 adaptive, 8 strategic, 2 semantic individuals; GPU slot, two workers, 7.1 h): 8 runs (30, 90, 180, 365 days x 2 seeds: 101/102, 111/112, 121/122, 131/132), all completed, failed_runs 0, unexplained_invariant_violations 0, snapshot_resume_mismatches 0 of 16 exact cross-process resume checks (the free resume that recomputes inference was equal in 11 of 16; divergence origins logic, recorded_outcome: DEF-J-1), replay_mismatches 0 over 148 replayed snapshot segments, event_accounting_mismatches 0, min late/early economic activity 0.517 (90 d, seed 111), social 0.942 (365 d, seed 131), independent_seeds_per_horizon 2. The official run recomputes the suite (its code key differs).",
    "notes": ""
   },
   "P.5": {
@@ -249,7 +249,7 @@
    "tests": [
     "tests/v5/test_gate_P.py"
    ],
-   "status_claim": "harness verified on a CPU smoke run (3 hour-long 'days': 2 exact + 2 free resume checks equal, 3 replay segments exact, 0 accounting mismatches); first suite at e77fef3 reached day 60-70 of the 180/365-day runs (0 unexplained violations, 0 accounting mismatches) before the slot governor stopped it at 18 GB; the full suite (30/90/180/365 days x 2 seeds, two workers, at most one 365-day run at a time) is queued as 'J: Gate P suite (restart, RAM 28G)' on the branch head at its start; results: /workspace/data/crucible/runs-c5/civ/<code key>/ and the scratch log gate_p_suite2.log",
+   "status_claim": "criteria met in an unofficial run at 02c300f (code key 3be22bda71b33310; balanced profile, development population: 1,000 behavioural, 32 adaptive, 8 strategic, 2 semantic individuals; GPU slot, two workers, 7.1 h): 8 runs (30, 90, 180, 365 days x 2 seeds: 101/102, 111/112, 121/122, 131/132), all completed, failed_runs 0, unexplained_invariant_violations 0, snapshot_resume_mismatches 0 of 16 exact cross-process resume checks (the free resume that recomputes inference was equal in 11 of 16; divergence origins logic, recorded_outcome: DEF-J-1), replay_mismatches 0 over 148 replayed snapshot segments, event_accounting_mismatches 0, min late/early economic activity 0.517 (90 d, seed 111), social 0.942 (365 d, seed 131), independent_seeds_per_horizon 2. The official run recomputes the suite (its code key differs).",
    "notes": ""
   },
   "P.6": {
@@ -268,7 +268,7 @@
    "tests": [
     "tests/v5/test_gate_P.py"
    ],
-   "status_claim": "harness verified on a CPU smoke run (3 hour-long 'days': 2 exact + 2 free resume checks equal, 3 replay segments exact, 0 accounting mismatches); first suite at e77fef3 reached day 60-70 of the 180/365-day runs (0 unexplained violations, 0 accounting mismatches) before the slot governor stopped it at 18 GB; the full suite (30/90/180/365 days x 2 seeds, two workers, at most one 365-day run at a time) is queued as 'J: Gate P suite (restart, RAM 28G)' on the branch head at its start; results: /workspace/data/crucible/runs-c5/civ/<code key>/ and the scratch log gate_p_suite2.log",
+   "status_claim": "criteria met in an unofficial run at 02c300f (code key 3be22bda71b33310; balanced profile, development population: 1,000 behavioural, 32 adaptive, 8 strategic, 2 semantic individuals; GPU slot, two workers, 7.1 h): 8 runs (30, 90, 180, 365 days x 2 seeds: 101/102, 111/112, 121/122, 131/132), all completed, failed_runs 0, unexplained_invariant_violations 0, snapshot_resume_mismatches 0 of 16 exact cross-process resume checks (the free resume that recomputes inference was equal in 11 of 16; divergence origins logic, recorded_outcome: DEF-J-1), replay_mismatches 0 over 148 replayed snapshot segments, event_accounting_mismatches 0, min late/early economic activity 0.517 (90 d, seed 111), social 0.942 (365 d, seed 131), independent_seeds_per_horizon 2. The official run recomputes the suite (its code key differs).",
    "notes": ""
   },
   "P.n1": {
@@ -286,7 +286,7 @@
    "tests": [
     "tests/v5/test_gate_P.py"
    ],
-   "status_claim": "harness verified on a CPU smoke run (3 hour-long 'days': 2 exact + 2 free resume checks equal, 3 replay segments exact, 0 accounting mismatches); first suite at e77fef3 reached day 60-70 of the 180/365-day runs (0 unexplained violations, 0 accounting mismatches) before the slot governor stopped it at 18 GB; the full suite (30/90/180/365 days x 2 seeds, two workers, at most one 365-day run at a time) is queued as 'J: Gate P suite (restart, RAM 28G)' on the branch head at its start; results: /workspace/data/crucible/runs-c5/civ/<code key>/ and the scratch log gate_p_suite2.log",
+   "status_claim": "criteria met in an unofficial run at 02c300f (code key 3be22bda71b33310; balanced profile, development population: 1,000 behavioural, 32 adaptive, 8 strategic, 2 semantic individuals; GPU slot, two workers, 7.1 h): 8 runs (30, 90, 180, 365 days x 2 seeds: 101/102, 111/112, 121/122, 131/132), all completed, failed_runs 0, unexplained_invariant_violations 0, snapshot_resume_mismatches 0 of 16 exact cross-process resume checks (the free resume that recomputes inference was equal in 11 of 16; divergence origins logic, recorded_outcome: DEF-J-1), replay_mismatches 0 over 148 replayed snapshot segments, event_accounting_mismatches 0, min late/early economic activity 0.517 (90 d, seed 111), social 0.942 (365 d, seed 131), independent_seeds_per_horizon 2. The official run recomputes the suite (its code key differs).",
    "notes": ""
   },
   "SP-10.0": {
@@ -484,6 +484,191 @@
    "wall_s_per_day": "15-29 (4 runs in parallel on a shared GPU)",
    "store_mb": "about 500 MB at day 60-70 with retention (blobs about 3.9 MB/day)",
    "note": "restarted from genesis on the fixed code with 28 GB RAM; progress of the first suite kept in the scratch directory p_first/"
+  },
+  "gate_p_suite (02c300f, code key 3be22bda71b33310, 2026-11-26 23:05 - 11-27 06:11 UTC, GPU slot, two workers)": {
+   "metrics": {
+    "runs_30_days": 2,
+    "runs_90_days": 2,
+    "runs_180_days": 2,
+    "runs_365_days": 2,
+    "failed_runs": 0,
+    "unexplained_invariant_violations": 0,
+    "snapshot_resume_mismatches": 0,
+    "snapshot_resume_checks": 16,
+    "snapshot_resume_exact_checks": 16,
+    "free_resume_equal": 11,
+    "free_resume_divergence_origins": "logic,recorded_outcome",
+    "replay_mismatches": 0,
+    "event_accounting_mismatches": 0,
+    "min_late_over_early_economic_activity": 0.5170691090757702,
+    "min_late_over_early_social_activity": 0.9417114510128152,
+    "independent_seeds_per_horizon": 2
+   },
+   "wall_s": 25560,
+   "runs": {
+    "balanced-development-h180-s121": {
+     "completed_days": 180,
+     "failed": false,
+     "unexplained_invariant_violations": 0,
+     "accounting_mismatches": 0,
+     "resume_checks": 2,
+     "resume_mismatches": 0,
+     "resume_exact_checks": 2,
+     "free_resume_equal": 1,
+     "free_resume_divergence_origins": [
+      "recorded_outcome"
+     ],
+     "replay_mismatches": 0,
+     "replay_segments": 19,
+     "late_over_early_economic": 0.8776595744680851,
+     "late_over_early_social": 1.3187628865979382,
+     "wall_s_per_day_mean": 14.52,
+     "peak_rss_mb": 4319.5,
+     "store_mb_max": 918.86,
+     "events": 1996764
+    },
+    "balanced-development-h180-s122": {
+     "completed_days": 180,
+     "failed": false,
+     "unexplained_invariant_violations": 0,
+     "accounting_mismatches": 0,
+     "resume_checks": 2,
+     "resume_mismatches": 0,
+     "resume_exact_checks": 2,
+     "free_resume_equal": 2,
+     "free_resume_divergence_origins": [],
+     "replay_mismatches": 0,
+     "replay_segments": 19,
+     "late_over_early_economic": 2.1075697211155378,
+     "late_over_early_social": 1.4112699747687132,
+     "wall_s_per_day_mean": 13.79,
+     "peak_rss_mb": 4242.2,
+     "store_mb_max": 950.23,
+     "events": 1883411
+    },
+    "balanced-development-h30-s101": {
+     "completed_days": 30,
+     "failed": false,
+     "unexplained_invariant_violations": 0,
+     "accounting_mismatches": 0,
+     "resume_checks": 2,
+     "resume_mismatches": 0,
+     "resume_exact_checks": 2,
+     "free_resume_equal": 2,
+     "free_resume_divergence_origins": [],
+     "replay_mismatches": 0,
+     "replay_segments": 5,
+     "late_over_early_economic": 1.3289036544850499,
+     "late_over_early_social": 1.248882265275708,
+     "wall_s_per_day_mean": 17.41,
+     "peak_rss_mb": 2739.1,
+     "store_mb_max": 242.72,
+     "events": 299961
+    },
+    "balanced-development-h30-s102": {
+     "completed_days": 30,
+     "failed": false,
+     "unexplained_invariant_violations": 0,
+     "accounting_mismatches": 0,
+     "resume_checks": 2,
+     "resume_mismatches": 0,
+     "resume_exact_checks": 2,
+     "free_resume_equal": 0,
+     "free_resume_divergence_origins": [
+      "logic",
+      "recorded_outcome"
+     ],
+     "replay_mismatches": 0,
+     "replay_segments": 5,
+     "late_over_early_economic": 0.7980132450331126,
+     "late_over_early_social": 1.329093799682035,
+     "wall_s_per_day_mean": 18.34,
+     "peak_rss_mb": 2743.0,
+     "store_mb_max": 283.84,
+     "events": 300994
+    },
+    "balanced-development-h365-s131": {
+     "completed_days": 365,
+     "failed": false,
+     "unexplained_invariant_violations": 0,
+     "accounting_mismatches": 0,
+     "resume_checks": 2,
+     "resume_mismatches": 0,
+     "resume_exact_checks": 2,
+     "free_resume_equal": 1,
+     "free_resume_divergence_origins": [
+      "recorded_outcome"
+     ],
+     "replay_mismatches": 0,
+     "replay_segments": 39,
+     "late_over_early_economic": 2.0052219321148828,
+     "late_over_early_social": 0.9417114510128152,
+     "wall_s_per_day_mean": 17.32,
+     "peak_rss_mb": 5676.7,
+     "store_mb_max": 1622.43,
+     "events": 3950309
+    },
+    "balanced-development-h365-s132": {
+     "completed_days": 365,
+     "failed": false,
+     "unexplained_invariant_violations": 0,
+     "accounting_mismatches": 0,
+     "resume_checks": 2,
+     "resume_mismatches": 0,
+     "resume_exact_checks": 2,
+     "free_resume_equal": 1,
+     "free_resume_divergence_origins": [
+      "recorded_outcome"
+     ],
+     "replay_mismatches": 0,
+     "replay_segments": 39,
+     "late_over_early_economic": 2.01125703564728,
+     "late_over_early_social": 1.8895874263261299,
+     "wall_s_per_day_mean": 31.07,
+     "peak_rss_mb": 7188.1,
+     "store_mb_max": 1857.45,
+     "events": 5179908
+    },
+    "balanced-development-h90-s111": {
+     "completed_days": 90,
+     "failed": false,
+     "unexplained_invariant_violations": 0,
+     "accounting_mismatches": 0,
+     "resume_checks": 2,
+     "resume_mismatches": 0,
+     "resume_exact_checks": 2,
+     "free_resume_equal": 2,
+     "free_resume_divergence_origins": [],
+     "replay_mismatches": 0,
+     "replay_segments": 11,
+     "late_over_early_economic": 0.5170691090757702,
+     "late_over_early_social": 1.3187732342007434,
+     "wall_s_per_day_mean": 11.25,
+     "peak_rss_mb": 3454.0,
+     "store_mb_max": 568.1,
+     "events": 927491
+    },
+    "balanced-development-h90-s112": {
+     "completed_days": 90,
+     "failed": false,
+     "unexplained_invariant_violations": 0,
+     "accounting_mismatches": 0,
+     "resume_checks": 2,
+     "resume_mismatches": 0,
+     "resume_exact_checks": 2,
+     "free_resume_equal": 2,
+     "free_resume_divergence_origins": [],
+     "replay_mismatches": 0,
+     "replay_segments": 11,
+     "late_over_early_economic": 1.9111111111111112,
+     "late_over_early_social": 1.4013274336283186,
+     "wall_s_per_day_mean": 26.42,
+     "peak_rss_mb": 3484.6,
+     "store_mb_max": 604.35,
+     "events": 947716
+    }
+   },
+   "run_dirs": "/workspace/data/crucible/runs-c5/civ/3be22bda71b33310/"
   }
  },
  "history": {
