@@ -31,7 +31,8 @@ Learner and world per tier (D-68 addendum, wave 3b; the rule above is the same i
 
 Why not the neural learner in the kernel tiers (measured on this branch, observation-only, held-out seeds): its
 near-uniform policy over 60-580 tools rarely repeats a tool, so a few thousand decisions move its tool preferences
-little; after 2400 decisions in crisis it still spent the coordinator's fund (trained below frozen on 3 of 4 seeds), and
+little; in crisis it still spent the coordinator's fund (below its frozen copy on 3 of 4 held-out seeds after 1200
+decisions; after 2400 better on 2 of 4 with a lower mean, $21,700 against $30,700), and
 in the first wave-3b run it never moved its money at all in commercialization or the civilisation (both copies at their
 endowment; part of that was a learner defect fixed since: integer arguments were sent as 2.0 and rejected). That is
 an algorithmic limitation of the neural reference learner, not an environment failure. Why crisis: it is the Part 9

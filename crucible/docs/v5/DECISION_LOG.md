@@ -377,8 +377,8 @@ the `balanced` civilisation (training seeds 1-2, decisions 10 simulated minutes 
 copies stochastic with one sampling seed, evaluator outcome, do-nothing reported) and the manifest criterion are
 unchanged. Evidence for the change, measured on this branch before it: the neural learner never moved its own money
 in a kernel world - every integer-argument tool call it made was rejected (it sent `2.0`; fixed) - and after the fix
-its near-uniform policy over 60-580 tools still spent the crisis coordinator's fund after 2400 decisions (trained
-below frozen on 3 of 4 seeds); in a 150-decision random scan of the fifteen first Part 9 configurations the seat's
+its near-uniform policy over 60-580 tools still spent the crisis coordinator's fund (trained below frozen on 3 of
+4 held-out seeds after 1200 decisions; after 2400 better on 2 of 4, mean $21,700 against the frozen copy's $30,700); in a 150-decision random scan of the fifteen first Part 9 configurations the seat's
 own money moved in crisis only (elsewhere at most two small fees). Rejected: tuning the neural learner's
 hyperparameters until it passes (a fitted pass would say nothing about learnability); restricting its tool list to
 a hand-picked host (the focus would be the experimenter's knowledge, not the learner's); counting the neural
