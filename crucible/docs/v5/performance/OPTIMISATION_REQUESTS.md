@@ -63,6 +63,11 @@ the substrate's batch blobs 4-9%; sandboxed site fetches 5-7%; class-3 decisions
   the world, the shoppers grow with the population, and the cost per search grows with the index, so the shopping
   cost grows faster than the population and through the run. At 697.6 CPU-s per day the large world runs 5.2
   simulated days per CPU-hour on day 2, against T3 >= 3.75; with a growing index the 30-day run is at risk.
+* Growth through the run (MEASUREMENTS section 8, large seed 0, 7 days before the job was stopped): CPU per event
+  3.46, 7.19, 8.76, 10.62, 12.13, 15.25, 16.15 ms on days 1-7 at a steady 65,000-103,000 events per day; day 7 cost
+  1,332 CPU-s (2.7 simulated days per CPU-hour) and the 7-day rate was 4.2. Extrapolated linearly, 30 days cost
+  62,000-70,000 CPU-s (1.5-1.7 per CPU-hour): T3 is missed without this change. Only day 2 is attributed (above); the
+  growth is consistent with the cost per search growing with the index, not yet attributed day by day.
 
 * Cost (`light`, standard days 2-3): `Work.act_shop` 22.1% of the world's CPU, of which `_organic` 19.2%: 5,554
   `search.query` calls made by `Work._candidates` (3,449 calls: one search per shopping step); 7.4% on day 4. `_organic` scores every
