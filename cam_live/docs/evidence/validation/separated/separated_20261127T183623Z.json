@@ -1,0 +1,204 @@
+{
+ "kind": "staging_validation_separated",
+ "executed": true,
+ "started_utc": "20261127T183623Z",
+ "run_dir": "/workspace/camlive/runs/int2_separated_20261127T183623Z/run",
+ "run_exit": 0,
+ "start": {
+  "launcher_pid": 960511,
+  "log": "/workspace/camlive/runs/int2_separated_20261127T183623Z/run/logs/supervisor.log",
+  "mode": "staging",
+  "run_dir": "/workspace/camlive/runs/int2_separated_20261127T183623Z/run",
+  "runtime_pid": 960667,
+  "separated": true,
+  "started": true
+ },
+ "local_services_registered": [
+  {
+   "service": "127.0.0.1:18763",
+   "exit": 0,
+   "out": "{\n \"address\": \"127.0.0.1:18763\",\n \"kind\": \"loopback\"\n}\n"
+  },
+  {
+   "service": "127.0.0.1:18760",
+   "exit": 0,
+   "out": "{\n \"address\": \"127.0.0.1:18760\",\n \"kind\": \"loopback\"\n}\n"
+  }
+ ],
+ "learner_uid": 999,
+ "service_uids": {
+  "learner": 999,
+  "browser": 997,
+  "sandbox": 996,
+  "auth": 995,
+  "verifier": 994
+ },
+ "final_status": "exhausted",
+ "status_reason": "limit max_decisions exhausted",
+ "approvals_resolved": [],
+ "stop_exit": 0,
+ "seconds": 584.0271718502045,
+ "counters": {
+  "actions_executed": 14,
+  "compute_s": 546.4899523602799,
+  "decisions": 20,
+  "external_actions": 5,
+  "failures": 3,
+  "money": 0.0,
+  "waits": 4
+ },
+ "decisions": 20,
+ "chosen": [
+  [
+   "browser.navigate",
+   "schema_walker"
+  ],
+  [
+   "browser.download",
+   "grounded"
+  ],
+  [
+   "browser.click",
+   "grounded"
+  ],
+  [
+   "wait",
+   "schema_walker"
+  ],
+  [
+   "browser.open_tab",
+   "schema_walker"
+  ],
+  [
+   "browser.read",
+   "schema_walker"
+  ],
+  [
+   "browser.inspect",
+   "schema_walker"
+  ],
+  [
+   "wait",
+   "schema_walker"
+  ],
+  [
+   "browser.wait_for",
+   "schema_walker"
+  ],
+  [
+   "internal.inspect",
+   "schema_walker"
+  ],
+  [
+   "wait",
+   "schema_walker"
+  ],
+  [
+   "browser.select_tab",
+   "schema_walker"
+  ],
+  [
+   "browser.fill",
+   "grounded"
+  ],
+  [
+   "browser.fill",
+   "grounded"
+  ],
+  [
+   "browser.fill",
+   "grounded"
+  ],
+  [
+   "browser.click",
+   "grounded"
+  ],
+  [
+   "browser.download",
+   "grounded"
+  ],
+  [
+   "wait",
+   "schema_walker"
+  ],
+  [
+   "browser.download",
+   "grounded"
+  ],
+  [
+   "browser.fill",
+   "grounded"
+  ]
+ ],
+ "result_status": {
+  "execute:ok": 13,
+  "wait:ok": 4,
+  "execute:timeout": 1,
+  "denied:denied": 2
+ },
+ "grant_refusals": 0,
+ "learning_updates": {
+  "fast": 20,
+  "frequent": 22,
+  "slow_adapters": 5,
+  "checkpoint": 1
+ },
+ "weight_deltas_nonzero": 27,
+ "meta_updates": {
+  "applied": 0,
+  "skipped": {
+   "no_policy_update_recorded": 2,
+   "insufficient_independent_outcomes": 10,
+   "zero_advantage": 9
+  }
+ },
+ "verified_outcomes": [
+  "pending",
+  "pending",
+  "pending",
+  "pending",
+  "pending"
+ ],
+ "last_verified": {
+  "evaluated_at": 1795805144.3597438,
+  "evidence_refs": [
+   "source:staging-http",
+   "verifier-log:35"
+  ],
+  "excluded": {},
+  "notes": "staging.entries.count = 0 read from staging-http.",
+  "objective_id": "staging-entry-book",
+  "origin": "operator",
+  "secondary": [
+   {
+    "exposure": 1.0,
+    "kind": "real",
+    "name": "secondary.time_elapsed_s",
+    "unit": "s",
+    "value": 546.8439223766327
+   }
+  ],
+  "signature": "23d9a69cb251e23218584cb66de8d3565fccfb4fb82f1e2208e97e34764448b4",
+  "status": "pending",
+  "target": 1.0,
+  "uncertainty": 0.0,
+  "value": 0.0
+ },
+ "refused_verified": 0,
+ "entries_after": 0.0,
+ "entries_before": 0.0,
+ "errors": [],
+ "files_owned_by": {
+  "state": 999,
+  "verifier_key": 994
+ },
+ "journal": true,
+ "checks": {
+  "learner_not_root": true,
+  "executed_by_executor": true,
+  "no_grant_refusals": true,
+  "verified_outcomes_signed_and_accepted": true,
+  "neural_updates": true,
+  "stopped_cleanly": true
+ }
+}
