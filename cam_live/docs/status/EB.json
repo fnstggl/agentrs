@@ -1,7 +1,7 @@
 {
  "workstream": "EB",
  "commit": "4d527ba",
- "summary": "Computer environment core: ComputerEnvironment (EnvironmentAdapter over registered modality executors with grant verification, per-primitive checks, staleness, at-most-once, serialised writes, verification, events, outcomes, accounting, execution log, restart recovery), ExecRPC v1 service + RemoteEnvironment/RemotePolicy, structured browser on Playwright Chromium (persistent / research / CDP sessions, screen() for visual control), unified perception, internal executor, five local staging sites, adapter guide. 66 tests: 43 in the default suite (no Chromium), 23 gated by the browser/privileged markers of which 22 launch real Chromium (2 of those also need root and the cambrowser user). Everything runs against local staging services only.",
+ "summary": "Computer environment core: ComputerEnvironment (EnvironmentAdapter over registered modality executors with grant verification, per-primitive checks, staleness, at-most-once, serialised writes, verification, events, outcomes, accounting, execution log, restart recovery), ExecRPC v1 service + RemoteEnvironment/RemotePolicy, structured browser on Playwright Chromium (persistent / research / CDP sessions, screen() for visual control), unified perception, internal executor, five local staging sites, adapter guide. 66 tests: 43 in the default suite (no Chromium), 23 gated by the browser/privileged markers, of which 22 launch real Chromium (the 2 privileged tests additionally need root and the cambrowser user). Everything runs against local staging services only.",
  "requirements": {
   "IH-01": {
    "state": "implemented",

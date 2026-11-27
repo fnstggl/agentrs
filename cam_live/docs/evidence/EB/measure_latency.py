@@ -34,7 +34,7 @@ def med(fn):
 
 
 def main():
-    run_dir = tempfile.mkdtemp(prefix="ebm")
+    run_dir = tempfile.mkdtemp(prefix="ebm")          # removed again at the end
     out = {"n": N, "unit": "ms (median, max)"}
     with StagingSites() as sites:
         policy = GrantPolicy()
@@ -71,6 +71,8 @@ def main():
         out["totals"] = {"actions": rs["actions"], "primitive_ops": rs["primitive_ops"],
                          "primitive_checks": rs["primitive_checks"], "seconds": round(rs["seconds"], 2)}
         env.close()
+    import shutil
+    shutil.rmtree(run_dir, ignore_errors=True)
     path = os.path.join(os.path.dirname(__file__), "latency.json")
     with open(path, "w") as f:
         json.dump(out, f, indent=1)
