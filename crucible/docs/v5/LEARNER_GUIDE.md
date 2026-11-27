@@ -225,14 +225,21 @@ A tier whose package has not landed raises `TierUnavailable`; nothing falls back
   exactly; `weights_only` loading), `params_blob`/`load_params`. String arguments draw from the ids and short name
   tokens it was shown under the argument's name (`ArgumentMemory`: a `listing` argument from the `listing` ids of its
   results, a `site` argument from the ids of the `sites` it was shown; an episodic memory saved with its state, not
-  part of `params_blob`); integer arguments are ints (an integer schema rejects `2.0`).
+  part of `params_blob`); integer arguments are ints (an integer schema rejects `2.0`). A nested object whose fields
+  are all optional ("set any subset", e.g. a rig's levers) gets each field by a learned Bernoulli per field (before
+  wave 3b's repair it was always sent empty, so no lever could ever change).
 * `ToolValueLearner` (`crucible.experience.statistical`) - the statistical reference learner: per tool, the
   recency-weighted mean of the observed change of its own money after the tool against the median change per step
   (what its money does on its own), a softmax over those values at max(temperature, median absolute deviation) -
   the default temperature is $0.50 a call -, optional multi-step credit (`credit_horizon`), any signal the learner
   chooses (`signal_keys`, e.g. its forum replies and followers), the same argument memory; `python -m
-  crucible.experience run --learner tool-value`, `remote.tool_value_learner` for the evaluation path. Transparent and fast to learn; state-independent values and one-step credit are its limits.
-  Gate SP-11.6c measures its improvement over a frozen copy in the kernel tiers (D-68 addendum).
+  crucible.experience run --learner tool-value`, `remote.tool_value_learner` for the evaluation path. Transparent and
+  fast to learn; state-independent values and one-step credit are its limits. ``arg_levels=k`` offers a tool with
+  bounded numbers as k arms that set every bounded number (the fields of a "set any subset" object included) to the
+  same fraction 0 .. 1 of its range, so what it learns does not depend on argument names (Tier 1 families draw new
+  lever names per world). Gate SP-11.6c measures its improvement over a frozen copy AND over doing nothing in every
+  tier (Tier 1 with ``arg_levels=5`` in `rapid:mk_signal`; kernel tiers on the money it earns, endowments and grants
+  excluded; D-68 amendment).
 * `VecExperience(envs)` steps environments in one process; `FarmRun(learner, worlds, n_workers=...)` runs them in
   worker processes through `crucible.scale.RolloutFarm`; its concurrency is measured from worker-side timestamps and
   bounded by the number of distinct worker processes.
