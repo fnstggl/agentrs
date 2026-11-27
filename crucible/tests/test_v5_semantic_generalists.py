@@ -124,7 +124,44 @@ def test_argument_slots_offer_only_compatible_known_identifiers():
                                                    "properties": {"ref": {"type": "string", "maxLength": 71},
                                                                   "title": {"type": "string", "maxLength": 200}}}}
     s = {x.name: x for x in M.plan_slots(a, pub)}
-    assert s["ref"].values[:-1] == ["sha256:" + "a" * 64] and s["title"].kind == "text"
+    assert s["ref"].kind == "compose" and s["title"].kind == "text"     # it owns no artifact yet: it writes the text
+    a.known["sha256:" + "b" * 64] = "from your blog.latest ref ('someone else's post')"
+    M.own_ref(a, "sha256:" + "a" * 64)
+    s = {x.name: x for x in M.plan_slots(a, pub)}
+    assert s["ref"].values[:-1] == ["sha256:" + "a" * 64]               # only its own artifacts can be published
+    # an optional addressee (either `to` or `conversation`) is offered among the people it knows
+    send = {"name": "msg.send", "inputSchema": {"type": "object", "required": ["body"], "properties": {
+        "to": {"type": "string", "maxLength": 60}, "conversation": {"type": "string", "maxLength": 40},
+        "body": {"type": "string", "maxLength": 4000}}}}
+    s = {x.name: x for x in M.plan_slots(a, send)}
+    assert s["to"].values == ["p7", None] and "conversation" not in s
+    # an object argument (a listing, an offer ...) never takes a person
+    buy = {"name": "market.buy", "inputSchema": {"type": "object", "required": ["listing"], "properties": {
+        "listing": {"type": "string", "maxLength": 40}}}}
+    s = {x.name: x for x in M.plan_slots(a, buy)}
+    assert "p7" not in s["listing"].values
+
+
+def test_written_values_reusing_the_goal_are_kept_and_echoes_of_the_prompt_are_not():
+    a = M.Agent(i=1, principal="p1", account=None, persona={"about": "You like travel."})
+    a.new_goal(0, "I will write a travel article about a hidden gem in the Amazon rainforest and publish it.")
+    tool = {"name": "blog.publish", "description": "Publish an artifact you own.",
+            "inputSchema": {"type": "object", "required": ["title"],
+                            "properties": {"title": {"type": "string", "maxLength": 200}}}}
+    title = M.Slot("title", tool["inputSchema"]["properties"]["title"], True, "text", tokens=24)
+    req = M.slot_request(a, 0, tool, title, {}, None)
+    assert M.accept(a, title, req, "A hidden gem in the Amazon rainforest") == "A hidden gem in the Amazon rainforest"
+    assert M.accept(a, title, req, "You are calling blog.publish: Publish an artifact you own.") is None
+    body = M.Slot("ref", {"type": "string"}, True, "compose", tokens=200)
+    a.remember(0, "act", "You called search.query {\"q\":\"amazon\"} -> ok: [] nothing was found for the query "
+                         "you sent to the search engine today")
+    req = M.slot_request(a, 0, tool, body, {}, None)
+    text = ("The Amazon rainforest hides a small village on the Rio Negro where boats arrive once a week. "
+            "Travellers sleep in hammocks, eat river fish and learn to read the forest with local guides.")
+    assert M.accept(a, body, req, text) == {M.COMPOSED: text}
+    echo = ("You called search.query q amazon ok nothing was found for the query you sent to the search engine "
+            "today and nothing was found for the query you sent")
+    assert M.accept(a, body, req, echo) is None and a.counts["copied_values"] == 2
 
 
 def test_recorded_inference_regenerates_without_running_a_model():
@@ -169,6 +206,8 @@ def test_a_refused_publication_undoes_the_text_it_stored(ablated):
         out["types"] = [e.type for e in ctx.events[n0:]]
     w._run_system("test.refused", run)
     assert a.history[-1]["ok"] is False and "artifact.stored" not in out["types"]
+    # the participant does not keep the identifier of the text the rollback removed
+    assert not [k for k in a.known if a.known[k].startswith("the text you wrote")] and not a.seen.get("own_refs")
     ok = {}
 
     def run_ok(ctx):
@@ -178,4 +217,5 @@ def test_a_refused_publication_undoes_the_text_it_stored(ablated):
         ok["types"] = [e.type for e in ctx.events[n0:]]
     w._run_system("test.published", run_ok)
     assert a.history[-1]["ok"] is True and "artifact.stored" in ok["types"]
+    assert len(a.seen["own_refs"]) == 1 and a.seen["own_refs"][0] in a.known
     assert a.history[-1]["seq"][0] <= a.history[-1]["seq"][1]

@@ -116,6 +116,9 @@ def harvest_ids(x: Any, label: str, out: dict[str, str], depth: int = 0) -> None
             harvest_ids(v, label, out, depth + 1)
 
 
+OBJECT_ARGS = ("listing", "offer", "posting", "invoice", "product", "contract", "proposal", "plan", "project", "issue",
+               "thread", "question", "repo", "post", "reply_to", "parent", "conversation", "instance", "order", "job",
+               "package", "paper", "channel", "community", "board", "msg", "in_reply_to")
 PRINCIPAL_ARGS = ("to", "recipients", "payer", "payee", "person", "target", "grantee", "member", "principal",
                   "counterparty", "invitee", "user", "seller", "buyer", "assignee", "arbiter", "who", "with")
 
@@ -136,6 +139,8 @@ def compatible(arg: str, schema: dict, value: str) -> bool:
         return value.startswith("doc_")
     if n == "item":
         return value.isdigit()
+    if n in OBJECT_ARGS and re.match(r"^(p\d+$|p:|o:)", value):
+        return False                    # a listing, offer, thread ... is not a person (market.buy listing=p10295)
     return not value.startswith(("sha256:", "acct_")) or n in ("id",)
 
 
@@ -143,6 +148,9 @@ def _specific(arg: str, value: str) -> bool:
     """Optional arguments are offered only when the known identifier is of the arguments's own kind (a message for
     in_reply_to, content for reply_to / post / item ...), not merely compatible in form."""
     n = arg.lower()
+    if n in PRINCIPAL_ARGS:
+        # an optional addressee (msg.send takes either `to` or `conversation`): a person it knows
+        return bool(re.match(r"^(p\d+$|p:|o:)", value))
     if n in ("in_reply_to", "msg"):
         return value.startswith("mail_")
     if n in ("reply_to", "post", "thread", "question", "parent", "item", "id"):
@@ -574,7 +582,11 @@ def plan_slots(a: Agent, tool: dict, max_slots: int = 6) -> list[Slot]:
                    _ID_PATTERNS.fullmatch(x) and compatible(k, ps, x)][:MAX_OPTIONS]
             if publishes_content(tool, k):
                 # the content of a publication: an artifact it already made, or text it writes now (stored as its
-                # own artifact by the same call, see `execute`) - as a publishing form offers a text box
+                # own artifact by the same call, see `execute`) - as a publishing form offers a text box. Only its own
+                # artifacts: a platform publishes only what the publisher owns (the third standard run offered
+                # artifacts seen in others' posts and got 17 refusals "you can only publish artifacts you own")
+                own = set(a.seen.get("own_refs", []))
+                ids = [x for x in ids if x in own]
                 out.append(Slot(k, ps, required, "choose", [f"{x} ({a.known[x]})" for x in ids] + [COMPOSE],
                                 ids + [COMPOSE]) if ids else Slot(k, ps, required, "compose", tokens=200))
             elif ids:
@@ -644,16 +656,38 @@ def parse_json_object(text: str) -> dict | None:
     return None
 
 
-def copied_from_prompt(text: str, req: dict, n: int = 5, share: float = 0.3) -> bool:
-    """Whether a written value is mostly the prompt copied back (more than `share` of its word 5-grams occur in
-    the prompt): small models sometimes answer "You are calling blog.comment: ..." instead of writing the value."""
-    def grams(t: str) -> set:
-        w = re.findall(r"[a-z0-9']+", t.lower())
-        return {tuple(w[i:i + n]) for i in range(max(0, len(w) - n + 1))}
-    g = grams(text if isinstance(text, str) else json.dumps(text, default=str))
-    if not g:
+# lines of the prompt's own scaffolding (not the participant's words): a written value that repeats one of them is an
+# echo of the instructions ("You are calling blog.comment: ...", seen from SmolLM2-135M in the second standard run)
+SCAFFOLD = re.compile(r"\b(you are calling|arguments so far|next argument|answer with|write the \w+ (only|itself)|"
+                      r"your goal \(you chose|your situation:|what you remember:|your last actions:|"
+                      r"you are p\d+\b|options:|services you can use|tools of the service)", re.I)
+
+
+def _grams(t: str, n: int = 5) -> set:
+    w = re.findall(r"[a-z0-9']+", t.lower())
+    return {tuple(w[i:i + n]) for i in range(max(0, len(w) - n + 1))}
+
+
+def copied_from_prompt(text: str, req: dict, own: str = "", n: int = 5, share: float = 0.3, short: bool = False) -> bool:
+    """Whether a written value is mostly the prompt copied back rather than the value itself.
+
+    * any value that repeats a line of the prompt's scaffolding (`SCAFFOLD`) is an echo;
+    * a longer value is one when more than `share` of its word 5-grams occur in the prompt, not counting the 5-grams
+      of the participant's own goal (`own`): a title, query or post about its goal naturally reuses the goal's words
+      (the third standard run discarded 48 such titles and queries of one participant as copies, leaving every
+      publication without its required title);
+    * a short value (`short`: a title, subject, query, name ...) only by the scaffolding check and, from eight words
+      on, by a share above 0.5.
+    """
+    t = text if isinstance(text, str) else json.dumps(text, default=str)
+    t = re.sub(r"<think>.*?</think>", "", t, flags=re.S)
+    if SCAFFOLD.search(t):
+        return True
+    g = _grams(t, n)
+    if not g or (short and len(t.split()) < 8):
         return False
-    return len(g & grams(" ".join(m.get("content", "") for m in req.get("messages", [])))) / len(g) > share
+    ref = _grams(" ".join(m.get("content", "") for m in req.get("messages", [])), n) - _grams(own or "", n)
+    return len(g & ref) / len(g) > (0.5 if short else share)
 
 
 def written_value(slot: Slot, text: str):
@@ -838,6 +872,7 @@ def fill_arguments(ctx, brain, acting: list, now: int, cfg: Config) -> list[dict
             groups.setdefault((kind, capability_of(tool["name"], slot.name if kind == "generate" else None)),
                               []).append((j, slot, req))
         written: list[tuple[int, Slot]] = []
+        retry: list[tuple[int, Slot]] = []
         for (kind, cap), items in sorted(groups.items()):
             reqs = [x[2] for x in items]
             if kind == "choose":
@@ -852,12 +887,11 @@ def fill_arguments(ctx, brain, acting: list, now: int, cfg: Config) -> list[dict
             else:
                 out = brain.generate(ctx, cap, reqs)
                 for (j, slot, req), o in zip(items, out):
-                    v = written_value(slot, o)
-                    if v is not None and copied_from_prompt(o, req):
-                        acting[j][0].count("copied_values")
-                        v = None
+                    v = accept(acting[j][0], slot, req, o)
                     if v is not None:
                         vals[j][slot.name] = v
+                    elif slot.required:
+                        retry.append((j, slot))
         if written:                     # "another value": write it (one more batched request)
             reqs, caps = [], []
             for j, slot in written:
@@ -868,13 +902,43 @@ def fill_arguments(ctx, brain, acting: list, now: int, cfg: Config) -> list[dict
                 reqs.append((j, s2, slot_request(a, now, tool, s2, vals[j], qv)))
             out = brain.generate(ctx, "communication", [x[2] for x in reqs])
             for (j, s2, req), o in zip(reqs, out):
-                v = written_value(s2, o)
-                if v is not None and copied_from_prompt(o, req):
-                    acting[j][0].count("copied_values")
-                    v = None
+                v = accept(acting[j][0], s2, req, o)
                 if v is not None:
                     vals[j][s2.name] = [v] if ("array" in str(s2.schema.get("type")) and s2.kind != "compose") else v
+                elif s2.required:
+                    retry.append((j, s2))
+        if retry:
+            # a required value the participant did not write usably (nothing, or an echo of the prompt): it writes it
+            # once more, sampling (a person rewrites a field it got wrong); still nothing -> the call goes out without
+            # it and the world's refusal ("args.title: required") is what the participant learns
+            reqs = []
+            for j, slot in retry:
+                a, tool, qv = acting[j]
+                req = slot_request(a, now, tool, slot, vals[j], qv)
+                req = dict(req, temperature=0.7, seed=int(a.i * 104729 + now + len(a.history)))
+                reqs.append((j, slot, req))
+            groups2: dict[str, list] = {}
+            for x in reqs:
+                groups2.setdefault(capability_of(acting[x[0]][1]["name"], x[1].name), []).append(x)
+            for cap, items in sorted(groups2.items()):
+                out = brain.generate(ctx, cap, [x[2] for x in items])
+                for (j, slot, req), o in zip(items, out):
+                    v = accept(acting[j][0], slot, req, o)
+                    acting[j][0].count("rewritten_values")
+                    if v is not None:
+                        vals[j][slot.name] = [v] if ("array" in str(slot.schema.get("type")) and
+                                                     slot.kind not in ("compose", "list")) else v
     return vals
+
+
+def accept(a: Agent, slot: Slot, req: dict, text: str):
+    """The value a participant wrote for a slot, or None when it wrote nothing usable or echoed the prompt."""
+    v = written_value(slot, text)
+    if v is not None and copied_from_prompt(text, req, own=(a.goal() or {}).get("text", ""),
+                                            short=slot.kind in ("text", "number", "list") and slot.tokens <= 40):
+        a.count("copied_values")
+        return None
+    return v
 
 
 READING_TOOLS = ("mail.read", "forum.read", "docs.get", "msg.read", "msg.history", "content.get", "blog.view",
@@ -887,7 +951,7 @@ KIND_OF_HOST = {"mail": "talk", "msg": "talk", "forum": "talk", "social": "talk"
                 "jobs": "work", "labor": "work", "cloud": "build"}
 
 
-def compose_artifacts(ctx, a: Agent, args: dict, g: dict | None) -> dict:
+def compose_artifacts(ctx, a: Agent, args: dict, g: dict | None, made: dict) -> dict:
     """Arguments whose content the participant wrote in this call (`COMPOSED`) become artifacts of its own, stored
     as itself with the world's ordinary tools (`studio.write`, else `artifact.put`) inside the same decision, so
     their events belong to the call it chose."""
@@ -898,15 +962,34 @@ def compose_artifacts(ctx, a: Agent, args: dict, g: dict | None) -> dict:
         body = str(v[COMPOSED])
         title = clip(str(args.get("title") or (g or {}).get("text") or "Notes"), 120)
         if "studio" in ctx.world.modules:
-            made = ctx.call("studio.write", {"format": "text", "title": title, "body": body},
+            stored = ctx.call("studio.write", {"format": "text", "title": title, "body": body},
                             as_principal=a.principal)
         else:
             import base64
-            made = ctx.call("artifact.put", {"data_b64": base64.b64encode(body.encode("utf-8")).decode("ascii"),
+            stored = ctx.call("artifact.put", {"data_b64": base64.b64encode(body.encode("utf-8")).decode("ascii"),
                                              "mime": "text/plain", "kind": "text"}, as_principal=a.principal)
-        out[k] = made["ref"]
-        a.learn_ids({made["ref"]: f"the text you wrote ('{clip(title, 40)}')"})
+        out[k] = stored["ref"]
+        made["refs"].append(stored["ref"])
+        made["n"] = len(ctx.events)
+        a.learn_ids({stored["ref"]: f"the text you wrote ('{clip(title, 40)}')"})
+        own_ref(a, stored["ref"])
     return out
+
+
+def own_ref(a: Agent, ref: str) -> None:
+    """An artifact the participant made itself (its own record: the text it wrote, the result of its studio call)."""
+    own = [x for x in a.seen.get("own_refs", []) if x != ref] + [ref]
+    a.seen["own_refs"] = own[-30:]
+
+
+def forget(a: Agent, refs: list[str]) -> None:
+    """Identifiers of artifacts a refused decision stored and that the rollback removed again (the third standard
+    run kept offering them: 17 calls "no artifact sha256:...")."""
+    for r in refs:
+        a.known.pop(r, None)
+        a.add_known.pop(r, None)
+    if refs and a.seen.get("own_refs"):
+        a.seen["own_refs"] = [x for x in a.seen["own_refs"] if x not in refs]
 
 
 def execute(ctx, a: Agent, tool: dict, args: dict, now: int, cfg: Config) -> None:
@@ -918,10 +1001,9 @@ def execute(ctx, a: Agent, tool: dict, args: dict, now: int, cfg: Config) -> Non
            "goal": g["id"] if g else None, "kind": KIND_OF_HOST.get(name.split(".", 1)[0], "other"), "decision": dec}
     a.count("calls")
     n0, seq0, mark = len(ctx.events), ctx.world.seq, ctx.state.savepoint()
-    n1 = None
+    made = {"refs": [], "n": n0}       # artifacts stored for this call, and the event count after the last one
     try:
-        args = compose_artifacts(ctx, a, args, g)
-        n1 = len(ctx.events)
+        args = compose_artifacts(ctx, a, args, g, made)
         res = ctx.call(name, args, as_principal=a.principal)
         rec["ok"] = True
         evs = ctx.events[n0:]
@@ -933,6 +1015,9 @@ def execute(ctx, a: Agent, tool: dict, args: dict, now: int, cfg: Config) -> Non
         found: dict[str, str] = {}
         harvest_ids(res, f"from your {name}", found)
         a.learn_ids(found)
+        if name.split(".", 1)[0] in ("studio", "artifact") and isinstance(res, dict) and \
+                isinstance(res.get("ref"), str) and res["ref"].startswith("sha256:"):
+            own_ref(a, res["ref"])      # an artifact it just made with its own tools
         text = f"You called {name} {cjson(args, 200)} -> ok: {cjson(view, 260)}"
         if name in READING_TOOLS and isinstance(res, dict):
             inner = res.get("message") if isinstance(res.get("message"), dict) else res
@@ -949,15 +1034,16 @@ def execute(ctx, a: Agent, tool: dict, args: dict, now: int, cfg: Config) -> Non
         if g:
             g["ok"] += 1
     except CrucibleError as e:
-        if n1 is not None and n1 > n0:
+        if made["refs"]:
             # the whole decision is undone, including the text it stored for this call (compose_artifacts): Ctx.call
             # undoes only the refused call itself; the facts it keeps about the refusal are kept
-            keep = [(ev.type, ev.payload, ev.vis) for ev in ctx.events[n1:]]
+            keep = [(ev.type, ev.payload, ev.vis) for ev in ctx.events[made["n"]:]]
             ctx.state.rollback_to(mark)
             del ctx.events[n0:]
             ctx.world.seq = seq0
             for t_, p_, v_ in keep:
                 ctx.emit(t_, p_, v_)
+        forget(a, made["refs"])
         rec["code"] = type(e).__name__
         rec["error"] = clip(str(e), 200)
         a.remember(now, "act", f"You called {name} {cjson(args, 200)} -> FAILED ({rec['code']}): {rec['error']}")
@@ -970,6 +1056,7 @@ def execute(ctx, a: Agent, tool: dict, args: dict, now: int, cfg: Config) -> Non
         ctx.state.rollback_to(mark)
         del ctx.events[n0:]
         ctx.world.seq = seq0
+        forget(a, made["refs"])
         rec["code"] = "ToolFault"
         rec["error"] = clip(f"{type(e).__name__}: {e}", 200)
         a.remember(now, "act", f"You called {name} {cjson(args, 200)} -> FAILED (the service broke): {rec['error']}")
