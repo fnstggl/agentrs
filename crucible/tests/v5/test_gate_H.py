@@ -217,7 +217,7 @@ def test_H_7_verified_productive_or_collaborative_result(society):
     s = society["summary"]
     m = {"verified_productive_results": s["productive_verified"] + s["collaborative_verified"],
          "productive_verified": s["productive_verified"], "collaborative_verified": s["collaborative_verified"],
-         "published_items": len(s["productive"]),
+         "published_items": len(s["productive"]), "productive_items_verified": s.get("productive_items_verified"),
          "independent_viewers_max": max([p["independent_viewers"] for p in s["productive"]] or [0]),
          "collaborations": json.dumps(s["collaborative"])[:1500],
          "productive": json.dumps(s["productive"])[:1500]}

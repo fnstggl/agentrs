@@ -478,3 +478,14 @@ def test_evaluator_excludes_junk_content_and_counts_repeated_content_once(ablate
     plan = "I will bring the rye bread on Friday. I will also bring the starter so you can try it at home."
     assert not verify.junk_text(plan, set(), goal) and verify.junk_text(plan, set(), goal, publication=True)
     assert verify.junk_text("Here is the text you'd publish:", set(), "", publication=True)
+
+
+def test_productive_results_count_each_published_content_once():
+    """The same artifact published again (the fourth standard run republished one article as replies to other
+    items) is one productive result."""
+    prod = [{"item": 1, "creator": "p1", "ref": "sha256:" + "a" * 64, "verified": True},
+            {"item": 2, "creator": "p1", "ref": "sha256:" + "a" * 64, "verified": True},
+            {"item": 3, "creator": "p1", "ref": "sha256:" + "b" * 64, "verified": False},
+            {"item": 4, "creator": "p2", "ref": "sha256:" + "a" * 64, "verified": True},
+            {"item": 5, "creator": "p2", "ref": None, "verified": True}]
+    assert verify.distinct_results(prod) == 3

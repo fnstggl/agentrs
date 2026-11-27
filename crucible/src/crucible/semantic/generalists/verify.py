@@ -17,7 +17,8 @@ about itself:
   call the participant's brain chose (the recorded step shortlist and pick); any other event acted as a participant
   is a scripted path.
 * `productive(world)` - content a participant published (catalogue items it created) that independent individuals of
-  the population (not class 4) viewed, from the exact audience sets (`crucible.social.audience.viewers_of`).
+  the population (not class 4) viewed, from the exact audience sets (`crucible.social.audience.viewers_of`);
+  `summary` counts distinct published contents (the same artifact published again is one result).
 * `collaborative(world)` - (a) answered requests: a message from one participant to another and the recipient's
   reply to it (`in_reply_to`), with the reply on the request's subject (MiniLM cosine of request and reply above
   ``RELEVANCE``); (b) documents edited by at least two participants; (c) payments between participants (a bank
@@ -247,13 +248,18 @@ def productive(world, min_viewers: int = 3) -> list[dict]:
         names = ns | {n.split(".", 1)[0] for n in ns}
         junk = any(junk_text(text, names, g, publication=True) for g in goals[rec["creator"]] or [""]) or \
             (bool(title) and title != text and junk_text(title, names, "", publication=True))
-        out.append({"item": int(key), "creator": rec["creator"], "platform": rec.get("platform"),
+        out.append({"item": int(key), "creator": rec["creator"], "platform": rec.get("platform"), "ref": rec.get("ref"),
                     "unique_viewers": int(ex["unique_viewers"]), "independent_viewers": int(indep.size),
                     "views": int(ex["views"]), "shares": int(ex["shares"]), "junk_content": junk,
                     # independent viewers of content that says something of its own (not a tool name, not the
                     # creator's goal sentence restated)
                     "verified": bool(indep.size >= min_viewers and not junk)})
     return out
+
+
+def distinct_results(prod: list[dict]) -> int:
+    """Verified productive results counted once per creator and published content (artifact ref)."""
+    return len({(p["creator"], p.get("ref") or p["item"]) for p in prod if p["verified"]})
 
 
 def _cos(a: str, b: str) -> float:
@@ -344,7 +350,10 @@ def summary(world) -> dict:
         "goals_abandoned": sum(g["status"] == "abandoned" for g in goals),
         "participants_with_own_goals": sum(1 for r in rs if r["goals"]),
         "provenance": prov,
-        "productive_verified": sum(p["verified"] for p in prod), "productive": prod,
+        # distinct published contents with >= 3 independent viewers (the same artifact published again, e.g. as a
+        # reply to other items, is one result)
+        "productive_verified": distinct_results(prod),
+        "productive_items_verified": sum(p["verified"] for p in prod), "productive": prod,
         "collaborative_verified": sum(c["verified"] for c in coll), "collaborative": coll,
         "bound": bound(world),
     }
