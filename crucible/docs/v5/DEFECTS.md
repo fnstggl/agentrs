@@ -172,13 +172,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-C-3 (critical, open): Multimodal distribution broken: default encoder refuses non-text; semantic mode uses a random projection that 
+### DEF-C-3 (critical, fixed): Multimodal distribution broken: default encoder refuses non-text; semantic mode uses a random projection that 
 
 ```json
 {
  "area": "C_social",
+ "fixed_by": "c5c/w2-corepop (aud encoder 'space': every modality is represented from its bytes in the one shared semantic space; no random projection) + c5c/w3b-soc (C.1 measured in the integrated distributed configuration with the default encoder: images, audio and video published on pics/pods/shorts/tube are distributed from their bytes, no caption fallback; population media on the same platforms). Verified: tests/v5/test_gate_C.py::test_C_1_media_artifacts_published passed on c5c/w3b-soc 848d76a (unofficial snapshot run, 2026-11-27).",
  "id": "DEF-C-3",
  "owner": "C (CORE-POP)",
+ "regression_tests": "tests/v5/test_gate_C.py::test_C_1_media_artifacts_published",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -186,7 +188,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/C_social.json",
   "finding": 2
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Multimodal distribution broken: default encoder refuses non-text; semantic mode uses a random projection that destroys topical alignment (p1, p4)."
 }
 ```
@@ -212,13 +214,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-C-5 (critical, open): C1 and C2 keep separate follower/share truths (78 vs 0 followers, p5); tool reading is never consumption.
+### DEF-C-5 (critical, fixed): C1 and C2 keep separate follower/share truths (78 vs 0 followers, p5); tool reading is never consumption.
 
 ```json
 {
  "area": "C_social",
+ "fixed_by": "c5c/w2-corepop (population follows and shares are written into the one social graph; content.open / content.read are recorded as exposure and consumption) + c5c/w3b-soc (in worlds of the one population with the social network the audience module keeps no follower sets or follower count: audience.followers / is_follower read the graph, subscribers count follow decisions - one follow truth). Verified: tests/v5/test_gate_SP_4_1b.py (tool reads recorded as consumption, 0 analytics mismatches) passed on bf696ea and tests/v5/test_gate_C.py::test_C_5_social_mechanisms_affect_future_interactions passed on 848d76a (unofficial snapshot runs, 2026-11-27).",
  "id": "DEF-C-5",
  "owner": "C (CORE-POP)",
+ "regression_tests": "tests/v5/test_gate_SP_4_1b.py, tests/test_v5_social_catalogue.py::test_follows_have_one_owner_the_social_graph, tests/v5/test_gate_C.py::test_C_5_social_mechanisms_affect_future_interactions",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -226,7 +230,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/C_social.json",
   "finding": 4
  },
- "status": "open",
+ "status": "fixed",
  "summary": "C1 and C2 keep separate follower/share truths (78 vs 0 followers, p5); tool reading is never consumption."
 }
 ```
