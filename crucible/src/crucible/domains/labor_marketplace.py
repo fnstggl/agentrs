@@ -56,8 +56,11 @@ FIRM_SETS = {
               "staff": 3, "headcount": 6, "salary": [300_000, 650_000]},
              {"handle": "bluefield", "name": "Bluefield", "goal": "growth", "skills": {"design": 0.5, "writing": 0.5},
               "staff": 3, "headcount": 7, "salary": [250_000, 550_000]}],
+    # a well-funded rival (about five months of its full payroll): with the default capital (5.0M against a 2.7M
+    # monthly payroll) it never had the runway `firms` asks before hiring and never entered the market
     "rival": [{"handle": "rivalco", "name": "Rival Co", "goal": "rival", "skills": {"research": 0.6, "software": 0.6},
-               "staff": 4, "headcount": 8, "salary": [400_000, 850_000], "competitors": ["o:leadco"]}],
+               "staff": 4, "headcount": 8, "salary": [400_000, 850_000], "competitors": ["o:leadco"],
+               "cash": 25_000_000}],
     "mission": [{"handle": "civicworks", "name": "Civic Works", "goal": "mission",
                  "skills": {"operations": 0.5, "writing": 0.5}, "staff": 3, "headcount": 5,
                  "salary": [250_000, 500_000]}],
@@ -402,6 +405,13 @@ class PostOnly(TeamReference):
     assign = False
 
 
+class NeverRaise(TeamReference):
+    """Degenerate: the reference without retention - it never adjusts pay to what the market (a rival bidding for
+    the same people) offers."""
+    def _keep_pay(self, team):
+        return
+
+
 class Lowball(TeamReference):
     """Degenerate: offer a third of the market salary (nobody worth hiring stays or accepts)."""
     salary_factor = 0.35
@@ -444,7 +454,7 @@ MECHANICS = (
     Mechanic("Worker skills", ("labor.worker", "labor.perf"), "workers' private skills drive progress and quality"),
     Mechanic("Preferences", (), "worker counters and declines from their own pay, interest and fatigue",
              count=_preferences),
-    Mechanic("Compensation", ("labor.hired", "contracts.payment"), "negotiated salaries paid under contracts"),
+    Mechanic("Compensation", ("labor.hired", "contracts.paid"), "negotiated salaries paid under contracts"),
     Mechanic("Recruitment", ("labor.posting", "labor.application"), "postings and applications"),
     Mechanic("Delegation", ("inst.task_assigned",), "tasks delegated to employees"),
     Mechanic("Project dependencies", (), "dependent tasks finished after their prerequisites", count=_dependencies),
@@ -472,7 +482,8 @@ DOMAIN = Domain(
     seats=(Seat(SEAT, 100_000, "Project lead", "the owner of a small company with a commissioned project"),),
     actors=ACTORS,
     degenerate=(Probe("post_only", "recruit but never delegate", PostOnly),
-                Probe("lowball", "offer a third of the market salary", Lowball)),
+                Probe("lowball", "offer a third of the market salary", Lowball),
+                Probe("never_raise", "never match the market's pay (no retention)", NeverRaise)),
     structure=structure, tier3=tier3, mode="C", horizon_days=HORIZON_DAYS, slowest_effect_days=14.0, dt=8 * 3600,
     reference_seeds=(0, 1), reference_configs=("pipeline_open",), sources=("firms.py", "_kit.py"), doc=__doc__)
 

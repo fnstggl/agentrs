@@ -89,7 +89,33 @@ def run(job, caller=None):
 '''
 DEFAULTS = {"ops": ["form"], "aspiration": [0.82, 0.93], "try_p": 0.5, "trial_days": 10, "eval_days": 4,
             "min_trial_units": 150, "max_trial_days": 16, "keep_gain": 0.02, "review_every_days": 7, "timeout_s": 5.0,
-            "history": 40}
+            "history": 40, "vendors": True}
+
+# Technologies already on the market at genesis (real programs, run in the sandbox like any other): a legacy
+# vendor's controller for machine models outside this market (plants record it as incompatible with theirs) and a
+# free open-source controller written against the previous interface version (it answers `temperature` where
+# process_control/1 asks `temp`, so the world's interface check rejects it in every trial) supporting half of the
+# market's machine models.
+LEGACY_SOURCE = '''"""Legacy process controller (process_control/1): nudge speed up while yield holds."""
+
+
+def recommend(request):
+    h = request.get("history") or []
+    if not h:
+        return {"speed": 0.5, "temp": 0.5}
+    last = h[-1]
+    y = last["made"] / max(1, last["units"])
+    step = 0.02 if y >= 0.85 else -0.02
+    return {"speed": min(1.0, max(0.0, last["speed"] + step)), "temp": last["temp"]}
+'''
+OPENCTL_SOURCE = '''"""openctl 0.9: a free process controller (written for process_control/0)."""
+
+
+def recommend(request):
+    h = request.get("history") or []
+    best = max(h, key=lambda r: r["made"] / max(1, r["units"])) if h else {"speed": 0.5, "temp": 0.5}
+    return {"speed": round(best["speed"], 4), "temperature": round(best["temp"], 4)}
+'''
 
 
 # ============================================================================================ the technology market
@@ -119,7 +145,32 @@ class TechMarket(Module):
         st.declare_table("tech_needs", index=("plant",))
 
     def genesis(self, ctx):
+        if self.cfg["vendors"]:
+            self._vendors(ctx)
         ctx.schedule(ctx.now + 2 * DAY + 11 * 3600, "techmkt.review", {}, prio=70, period=DAY, key="techmkt.review")
+
+    def _vendors(self, ctx) -> None:
+        """The technologies on the market at genesis (see LEGACY_SOURCE / OPENCTL_SOURCE)."""
+        from .common import make_org
+        models = ctx.world.modules["industry"].phys["models"]
+        ops = self.cfg["ops"]
+        market = sorted(m for m, d in models.items() if d["op"] in ops or "any" in ops)
+        other = sorted(m for m in models if m not in market)
+        code = ctx.world.modules["code"]
+        offers = []
+        if other:
+            offers.append(("legacyctl", "Legacy Controls", "Legacy process controller", LEGACY_SOURCE, other, 4_000))
+        if market:
+            half = market[::2]
+            offers.append(("openctl", "openctl project", "openctl 0.9 (free)", OPENCTL_SOURCE, half, 0))
+        for handle, name, title, src, mods, fee in offers:
+            org, lead = make_org(ctx, handle, name, "company")
+            rid = code.create_repo(ctx, org, "controls", "public", title, "open")
+            ref = code.commit_files(ctx, rid, {"control.py": src}, title, lead)
+            ctx.emit("tech.declared", {"id": ctx.state.new_id("tech"), "owner": org, "repo": rid, "ref": ref,
+                                       "target": "control.py:recommend", "models": list(mods),
+                                       "licence_cents_per_run": int(fee), "title": title, "doc": title,
+                                       "interface": INTERFACE, "status": "active"}, vis="public")
 
     # ------------------------------------------------------------------ plants and their own records
     def plants(self, st) -> list[str]:
@@ -765,14 +816,13 @@ def _downstream(world, since):
 
 MECHANICS = (
     Mechanic("Executable inventions", ("tech.declared", "tech.recommended"), "programs declared and run in the sandbox"),
-    Mechanic("Technical constraints", ("tech.rejected",), "interface, range and sandbox constraints enforced",
-             count=lambda w, s: _ev(w, s, ("tech.recommended",))),
+    Mechanic("Technical constraints", ("tech.rejected",), "a program's output refused by the world's interface, range "
+             "or sandbox checks (the market's openctl answers the previous interface version)"),
     Mechanic("Independent evaluation", ("tech.trial_done",), "plants' own measured comparisons at the end of a trial"),
     Mechanic("Adoption", ("tech.adopted", "tech.trial"), "trials and adoptions by plants"),
-    Mechanic("Compatibility", ("tech.incompatible",), "machine-model compatibility checks",
-             count=lambda w, s: _ev(w, s, ("tech.trial",))),
-    Mechanic("Economic consequences", ("tech.licence_paid",), "licence fees paid per run; plants' costs",
-             count=lambda w, s: _ev(w, s, ("make.retail_sold",))),
+    Mechanic("Compatibility", ("tech.incompatible",), "a technology passed over because it does not support the "
+             "plant's machine model"),
+    Mechanic("Economic consequences", ("tech.licence_paid",), "licence fees adopters pay per production run"),
     Mechanic("Downstream resource changes", (), "adopters' production runs at the new operating points",
              count=_downstream),
 )

@@ -312,9 +312,18 @@ class Learning(Module):
                         "public")
         if cfg["textbook"]:
             rng = w.rng_for("learn-textbook")
+            chapters = []
             for c in self.cur:
-                docs.create_doc(ctx, board, f"{C.LIBRARY[c].title} ({c}) - textbook chapter",
-                                textbook(c, cfg["textbook"], rng), "public")
+                chapters.append((c, docs.create_doc(ctx, board, f"{C.LIBRARY[c].title} ({c}) - textbook chapter",
+                                                    textbook(c, cfg["textbook"], rng), "public")))
+            if "forum" in cfg["channels"]:
+                # the Board announces its textbook where this world's learners look for study material (without
+                # it, forum-only worlds had nothing to find until somebody posted: nobody ever studied)
+                for c, did in chapters:
+                    con = C.LIBRARY[c]
+                    forum.post(ctx, board, cfg["board"], f"{con.title} ({c}) - textbook chapter {did}",
+                               f"The Board of Education's textbook chapter on {con.title.lower()} ({c}): {did}",
+                               tags=["textbook"])
         ctx.emit("learn.meta", {"board": board}, vis="public")
         n = P.n_individuals(w)
         if n:
@@ -473,7 +482,7 @@ class Learning(Module):
                 spend[j] = 20.0
                 choices.append((i, "exam", goal))
                 continue
-            doc, via = self._find(ctx, i, row, c, rng, now)
+            doc, via, post = self._find(ctx, i, row, c, rng, now)
             if doc is None:
                 ch["mot"] = float(_cl(row["mot"] - 0.03))
                 rows.setdefault("decide", []).append((i, ch))
@@ -491,6 +500,10 @@ class Learning(Module):
             sessions.append(out["session"])
             if out["rating"] is not None:
                 rated.append(out["rating"])
+                if post and out["rating"]["stars"] >= 4:
+                    # a lesson that worked: the reader up-votes the board post that led to it (best-voted posts are
+                    # what other learners browsing the board by "top" see)
+                    self._call(ctx, p, "forum.vote", {"post": post, "value": 1})
             spend[j] = out["session"]["minutes"]
             util[j] = out["utility"]
             choices.append((i, "study", c))
@@ -556,7 +569,7 @@ class Learning(Module):
         return int(row["rn"][hit[0]]) if hit.size else 0
 
     # ------------------------------------------------------------------ discovery and choice
-    def _find(self, ctx, i, row, c, rng, now) -> tuple[str | None, str]:
+    def _find(self, ctx, i, row, c, rng, now) -> tuple[str | None, str, str | None]:
         from .. import population as P
         from .common import bow_cos
         st = ctx.state
@@ -564,7 +577,7 @@ class Learning(Module):
         nd = doc_id(row["next_doc"])
         if nd and st.has("documents", nd) and self._times_read(row, row["next_doc"]) < 2 and \
                 self._trust(row, st, st.tables["documents"][nd]["owner"]) >= 1.0:
-            return nd, "next"
+            return nd, "next", None
         con = C.LIBRARY[c]
         cands: dict[str, dict] = {}
         p = ids.ensure_principal(ctx, i)
@@ -582,14 +595,22 @@ class Learning(Module):
                 if les is not None and c in les["concepts"]:
                     cands.setdefault(did, {"via": "contacts", "cos": 0.6})
         if "forum" in chans:
-            ok, posts = self._call(ctx, p, "forum.list", {"board": self.cfg["board"], "sort": "new", "limit": 20})
+            # one page of the study board: the newest posts (scrolling up to two pages further back now and then)
+            # or the best voted ones
+            if rng.random() < 0.3:
+                args = {"board": self.cfg["board"], "sort": "top", "limit": 20}
+            else:
+                args = {"board": self.cfg["board"], "sort": "new", "limit": 20,
+                        "offset": 20 * int(rng.choice([0, 0, 1, 2]))}
+            ok, posts = self._call(ctx, p, "forum.list", args)
             if ok:
                 for post in posts:
                     text = (post.get("title", "") + " " + post.get("snippet", "")).lower()
                     if c not in text and con.title.lower() not in text:
                         continue
                     for mm in DOC_RE.finditer(text):
-                        cands.setdefault(f"doc_{mm.group(1)}", {"via": "forum", "cos": 0.5})
+                        cands.setdefault(f"doc_{mm.group(1)}", {"via": "forum", "cos": 0.5 + 0.05 * min(
+                            4, max(0, int(post.get("score") or 0))), "post": post.get("post")})
         if "search" in chans:
             from ..population.schema import SKILL_NAMES
             sk = float(f["skills"][0][SKILL_NAMES.index("searching")])
@@ -610,7 +631,7 @@ class Learning(Module):
                     cands.setdefault(x["ref"], {"via": "search",
                                                 "cos": bow_cos(q, x["title"] + " " + x.get("snippet", ""))})
         if not cands:
-            return None, ""
+            return None, "", None
         best, best_u = None, -1e9
         for did in sorted(cands):
             d = st.get("documents", did)
@@ -633,7 +654,7 @@ class Learning(Module):
                  - 0.8 * n_read + float(rng.gumbel()) * 0.7)
             if u > best_u:
                 best, best_u = did, u
-        return (best, cands[best]["via"]) if best else (None, "")
+        return (best, cands[best]["via"], cands[best].get("post")) if best else (None, "", None)
 
     # ------------------------------------------------------------------ reading and learning
     def _study(self, ctx, i, rec: Rec, row, doc, d, rng, now, via) -> dict:
@@ -874,6 +895,11 @@ class Learning(Module):
             title = str(rng.choice([f"{con.title}: worked examples", f"Learn {con.title.lower()} ({c})",
                                     f"{con.title} - practice problems", f"How to do {c.replace('_', ' ')}"]))
             ok, res = self._call(ctx, p, "docs.create", {"title": title, "body": body, "visibility": "public"})
+            if ok and "forum" in self.cfg["channels"]:
+                # authors share their lesson where learners look for material (the study board)
+                self._call(ctx, p, "forum.post", {"board": self.cfg["board"], "title": f"{title} {res['doc']}",
+                                                  "body": f"I wrote a lesson on {con.title.lower()} ({c}): "
+                                                          f"{res['doc']}", "tags": ["lesson"]})
             if ok:
                 done.append(i)
                 authored.append({"i": int(i), "doc": res["doc"], "concept": c})

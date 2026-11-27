@@ -669,20 +669,37 @@ class Firms(Module):
         affordable = self.cash(st, org) > 2 * (pay + mid)
         post = st.get("labor_posts", f["post"]) if f["post"] else None
         want = f["headcount"] - len(people)
+        # a rival employer bids for the people its competitors hire: one more hire for each of a competitor's roles
+        # (its postings, up to three) while the competitor employs anyone, posted for the latest such role's skills at
+        # a salary well above the competitor's (a standing offer the competitor's people can leave for)
+        bid = None
+        if f["goal"] == "rival" and f["competitors"]:
+            comp = [st.tables["labor_posts"][pid] for c in f["competitors"] for pid in st.find_ids("labor_posts", "org", c)]
+            if comp and any(staff_of(st, c) for c in f["competitors"]):
+                want += min(3, len(comp))
+                last = max(comp, key=lambda q: (int(q["t"]) if "t" in q else 0, int(q["salary_max"]), str(q["title"])))
+                bid = {"skills": {k: round(float(v), 3) for k, v in sorted(last["skills"].items())},
+                       "salary_max": int(min(1.25 * f["band"][1], 1.3 * int(last["salary_max"])))}
         if want <= 0 or not affordable:
             if post is not None and post["status"] == "open":
                 _call(ctx, f["manager"], "labor.close_post", {"post": f["post"]})
             return
         if post is None or post["status"] != "open":
             req = {k: round(min(0.6, v * 0.6), 3) for k, v in sorted(f["skills"].items())[:2]}
+            top = int(f["band"][1])
+            if bid is not None:
+                req, top = bid["skills"], max(top, bid["salary_max"])
             r, err = _call(ctx, f["manager"], "labor.post", {"org": org, "title": f"{org[2:]} staff",
                                                              "skills": req, "salary_min": int(f["band"][0]),
-                                                             "salary_max": int(f["band"][1]), "hours_week": 40})
+                                                             "salary_max": int(top), "hours_week": 40})
             if err is None:
                 self._set(ctx, org, post=r["post"], post_t=ctx.now)
             return
-        # counters from applicants: accept within the band (a little above for a growth firm), else counter once
+        # counters from applicants: accept within the band (a little above for a growth firm, up to its posted top
+        # for a rival's bid), else counter once
         top = f["band"][1] * (1.08 if f["goal"] == "growth" else 1.0)
+        if f["goal"] == "rival":
+            top = max(top, int(post["salary_max"]))
         offers, _ = _call(ctx, f["manager"], "labor.offers", {"as_org": org})
         for o in offers or []:
             if o["from"] != "worker" or o["status"] != "open":
@@ -713,7 +730,8 @@ class Firms(Module):
                 held[a["application"]] = (a["worker"], sorted(cs))
             cands.append((-(fit + (0.3 * float(np.mean(rec)) if rec else 0.0) + 0.15 * len(cs)), a["application"]))
         for _, app in sorted(cands)[:max(0, want - pending)]:
-            sal = int(f["band"][0] + (f["band"][1] - f["band"][0]) * float(rng.uniform(0.45, 0.7)))
+            hi = max(int(f["band"][1]), int(post["salary_max"])) if f["goal"] == "rival" else int(f["band"][1])
+            sal = int(f["band"][0] + (hi - f["band"][0]) * float(rng.uniform(0.45, 0.7)))
             if app in held:
                 # the shortlist used the candidate's Board certificates: name those education events as causes
                 who, cs = held[app]

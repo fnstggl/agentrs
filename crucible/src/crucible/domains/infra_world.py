@@ -112,6 +112,10 @@ power      "always_on": every available machine on | "follow_demand": enough mac
 forecast   "last_hour" | "day_ago_max": max of the same hours yesterday and the last hour, per service and region
 placement  "nearest": all of a region's traffic to its lowest-latency site | "spread": a share `spread` of it
            split over the other sites in proportion to their cores
+failover   (follow_demand) warm reserve at each site for the forecast traffic it takes over when the nearest site of
+           a region is lost (cut off or tripped): `failover` cores per core of that traffic (0: no reserve)
+max_on     {site: n}: never more than n machines on at that site (a smaller fleet, e.g. to test one on recorded
+           traffic before returning machines)
 batch      "asap": run every job now at the site with most spare cores | "cheapest": run a job only in the hours
            with the lowest price that still meet its deadline (with a 50% safety margin)
 """
@@ -158,11 +162,13 @@ def control(obs):
     headroom = _num(p.get("headroom", 1.6), 1.0, 5.0, 1.6)
     min_on = int(_num(p.get("min_on", 1), 0, 10000, 1))
     spread = _num(p.get("spread", 0.0), 0.0, 1.0, 0.0)
+    failover = _num(p.get("failover", 0.0), 0.0, 3.0, 0.0)
     sites = obs["sites"]
     ids = [s["id"] for s in sites]
     adj = _lat(obs["topology"], set(obs.get("cut_links") or []))
     live = [s for s in sites if not s.get("tripped_until")]
     placement = {}
+    second = {}
     for svc in obs["services"]:
         placement[svc["id"]] = {}
         for r in obs["regions"]:
@@ -171,6 +177,8 @@ def control(obs):
             if not cand:
                 continue
             near = cand[0][1]
+            if len(cand) > 1:
+                second[(svc["id"], r)] = cand[1][1]
             if p.get("placement") == "spread" and len(cand) > 1 and spread > 0:
                 others = [c[1] for c in cand[1:]]
                 cores = {s["id"]: max(1, s["machines"]["on"] + s["machines"]["booting"] + s["machines"]["off"])
@@ -182,26 +190,35 @@ def control(obs):
                 placement[svc["id"]][r] = fr
             else:
                 placement[svc["id"]][r] = {near: 1.0}
+    def forecast(svc, r):
+        last = float((svc.get("rps_last") or {}).get(r, 0.0))
+        if p.get("forecast", "day_ago_max") == "last_hour":
+            return last
+        return max([last] + [float(x) for x in (svc.get("rps_next_day_ago") or {}).get(r, [])])
+
+    caps = p.get("max_on") if isinstance(p.get("max_on"), dict) else {}
     on = {}
     for s in sites:
         m = s["machines"]
         avail = m["on"] + m["booting"] + m["off"]
+        cap = caps.get(s["id"])
+        if cap is not None:
+            avail = min(avail, int(_num(cap, 0, 100000, avail)))
         if power != "follow_demand":
             on[s["id"]] = avail
             continue
         need = 0.0
+        reserve = 0.0
         for svc in obs["services"]:
             for r in obs["regions"]:
-                fr = placement[svc["id"]].get(r, {}).get(s["id"], 0.0)
-                if fr <= 0:
-                    continue
-                last = float((svc.get("rps_last") or {}).get(r, 0.0))
-                if p.get("forecast", "day_ago_max") == "last_hour":
-                    f = last
-                else:
-                    f = max([last] + [float(x) for x in (svc.get("rps_next_day_ago") or {}).get(r, [])])
-                need += f * fr * float(svc["cpu_ms"]) / 1000.0
-        cores = need * headroom
+                pl = placement[svc["id"]].get(r, {})
+                fr = pl.get(s["id"], 0.0)
+                if fr > 0:
+                    need += forecast(svc, r) * fr * float(svc["cpu_ms"]) / 1000.0
+                if failover > 0 and second.get((svc["id"], r)) == s["id"]:
+                    away = sum(v for k, v in pl.items() if k != s["id"])
+                    reserve += forecast(svc, r) * away * float(svc["cpu_ms"]) / 1000.0
+        cores = need * headroom + reserve * failover
         n = int(-(-cores // max(1, s["cores_per_machine"])))
         on[s["id"]] = max(min_on, min(avail, n))
     batch = {}
@@ -1512,7 +1529,11 @@ class Fleet(Module):
         jobs = open_jobs(st)
         tot = {"energy_cents": 0.0, "kwh": 0.0, "machine_hours": 0.0, "good": 0.0, "offered": 0.0,
                "batch_core_h": 0.0, "plan_errors": 0, "controller_errors": 0, "hours_replayed": len(recs)}
-        hist: list[dict] = []
+        # the controller's history at the start of the replay is the recorded day before it (in production it
+        # sees the same hours: without them every replay began with no forecast and lost its first day)
+        h_first = int(recs[0]["hour"]) if recs else h_now
+        hist: list[dict] = [{"hour": int(r["hour"]), "rps": r["rps"]} for r in
+                            (st.get("fleet_hours", f"h{h:06d}") for h in range(h_first - 24, h_first)) if r is not None]
         for k, rec in enumerate(recs):
             h = int(rec["hour"])
             demand = {sid: {r: float(v) for r, v in d.items()} for sid, d in rec["rps"].items()}
