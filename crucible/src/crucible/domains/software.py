@@ -52,7 +52,7 @@ from ..core.errors import CrucibleError
 from ..core.kernel import Module, applier, register_module
 from ..substrate import columns, ids
 from . import _t2kit as K
-from .base import Actor, Domain, DomainConfig, Mechanic, Probe, Seat, civ_recipe, register
+from .base import Actor, Domain, DomainConfig, GoalFamily, Mechanic, Probe, Seat, civ_recipe, events_where, register
 
 DAY = 86400
 DECISION = {"model_id": "devpop", "model_version": "1", "fidelity_id": "FR-DEVPOP-1"}
@@ -650,16 +650,38 @@ def population_owner(world, owner: str) -> str | None:
 TARGET = {1: 4, 2: 12, 3: 30}
 
 
-def objective(world, principal: str, difficulty: int = 1) -> dict:
+def _goal_draw(rng, difficulty: int, world) -> dict:
+    """The goal generator's draw (`crucible.goals`, its own stream): the level's number of independent adopters
+    (varied by +-10% per instance, at least two)."""
     d = int(min(3, max(1, difficulty)))
-    text = (f"Develop a software package that independent developers voluntarily adopt and continue using: within "
-            f"{HORIZON_DAYS:.0f} days at least {TARGET[d]} developers you do not control must depend on a package "
-            f"you registered, and their own code must have executed it successfully in the last 7 days.")
-    return {"text": text, "description": text, "domain": "software", "difficulty": d, "target_adopters": TARGET[d],
-            "window_days": HORIZON_DAYS}
+    return {"target_adopters": int(max(2, round(TARGET[d] * float(rng.uniform(0.9, 1.1))))),
+            "active_days": 7, "window_days": HORIZON_DAYS}
 
 
-def evaluate(world, principal: str, obj: dict) -> dict:
+def _goal_text(p: dict) -> str:
+    return (f"Develop a software package that independent developers voluntarily adopt and continue using: within "
+            f"{p['window_days']:.0f} days at least {p['target_adopters']} developers you do not control must depend "
+            f"on a package you registered, and their own code must have executed it successfully in the last "
+            f"{p['active_days']} days.")
+
+
+GOAL = GoalFamily(
+    "adopted_package", draw=_goal_draw, text=_goal_text,
+    success=lambda p: {"metric": "software_independent_adopters", "args": {"principal": "$self"}, "op": ">=",
+                       "value": int(p["target_adopters"])},
+    progress=lambda p: {"metric": "software_independent_adopters", "args": {"principal": "$self"},
+                        "target": int(p["target_adopters"])},
+    window_days=lambda p: float(p["window_days"]),
+    doc="population developers outside the seat's control whose active dependency on a package the seat "
+        "registered executed successfully in their own code in the last 7 days (innovation.pkg adoption)")
+
+
+def objective(world, principal: str, difficulty: int = 1) -> dict:
+    """The objective generated for a participant (`Domain.make_objective`: the goal generator above)."""
+    return DOMAIN.make_objective(world, principal, difficulty)
+
+
+def verdict(world, principal: str, target_adopters: int, active_days: int = 7) -> dict:
     from ..goals.metrics import is_related
     st = world.state
     mine = set(world.principals_of(principal)) | {principal} if world.principal(principal) else {principal}
@@ -674,13 +696,35 @@ def evaluate(world, principal: str, obj: dict) -> dict:
                 continue
             active = any(d["status"] == "active" for d in st.find("pkg_deps", "repo", a["repo"])
                          if d["package"] == name)
-            if active and int(a["last_t"]) >= now - 7 * DAY:
+            if active and int(a["last_t"]) >= now - int(active_days) * DAY:
                 rows.append(owner)
         per[name] = len(set(rows))
         adopters |= set(rows)
-    t = int(obj["target_adopters"])
+    t = int(target_adopters)
     return {"success": len(adopters) >= t, "score": round(min(1.0, len(adopters) / t), 5),
             "details": {"independent_adopters": len(adopters), "packages": per}}
+
+
+def evaluate(world, principal: str, obj: dict) -> dict:
+    """The evaluator (hidden): `verdict` with the generated goal's parameters."""
+    p = obj.get("params") or {}
+    return verdict(world, principal, int(p.get("target_adopters", TARGET[1])), int(p.get("active_days", 7)))
+
+
+def _register_metrics() -> None:
+    """The goal's metric (`crucible.goals.metrics`, evaluator side; no in-world subject, evaluator-only)."""
+    from ..goals import metrics as GM
+
+    @GM.metric("software_independent_adopters", "EVALUATOR-ONLY. Population developers outside the principal's "
+               "control whose active dependency on one of its packages executed successfully in their code in the "
+               "last 7 days.")
+    def m_adopters(world, principal: str, active_days: int = 7) -> float:
+        return float(verdict(world, principal, 1, active_days)["details"]["independent_adopters"])
+
+    GM.EVALUATOR_ONLY_METRICS.add("software_independent_adopters")
+
+
+_register_metrics()
 
 
 # ====================================================================== the hidden reference (LABELLED SCRIPTED)
@@ -698,6 +742,21 @@ def _parse_requests(posts: list[dict]) -> dict[str, dict]:
 
 
 FEATURE_RE = re.compile(r"Please add ([a-z_][a-z0-9_]*)\(\)")
+
+
+# Textbook examples the reference maintainer writes its package's tests from (input, expected output); worked out
+# by hand from each capability's documented behaviour (the same catalogue functions hand-coders write).
+TEXTBOOK_CASES = {
+    "slugify": (["Crucible! market! x9! dog"], "crucible-market-x9-dog"),
+    "median": ([[23, 27, 42, 20, 34, 38]], 30.5),
+    "levenshtein": (["café", "crucible"], 7),
+    "roman": ([1994], "MCMXCIV"),
+    "word_counts": (["Crucible market x9 dog node 2024 the"],
+                    {"crucible": 1, "market": 1, "x": 1, "dog": 1, "node": 1, "the": 1}),
+    "parse_duration": (["2h37m41s"], 9461),
+    "csv_rows": (["market, x9\nnode, 2024\nriver"], [["market", "x9"], ["node", "2024"], ["river"]]),
+    "title_case": (["Crucible market x9 dog"], "Crucible Market X9 Dog"),
+}
 
 
 def reference_script(good: bool = True):
@@ -738,11 +797,10 @@ def reference_script(good: bool = True):
             out = {"lib.py": src, "README.md": readme("toolbelt", ns, "deps.toolbelt.lib")}
             if good:
                 tests = ["from lib import " + ", ".join(NEEDS[n]["hint"] for n in ns), ""]
-                rng = np.random.default_rng(7)
                 for n in ns:
-                    args = draw_cases(n, rng, 1)[0]
+                    args, expected = TEXTBOOK_CASES[n]
                     tests += [f"def test_{n}():", f"    assert {NEEDS[n]['hint']}(*{json.dumps(args)}) == "
-                                                  f"{_reference_fn(n)(*args)!r}", ""]
+                                                  f"{expected!r}", ""]
                 out["tests/test_lib.py"] = "\n".join(tests) + "\n"
             return out
 
@@ -829,77 +887,80 @@ def null_policy(principal=None, obj=None):
 
 
 # ====================================================================== mechanics (recorded-event probes)
-def _ev(world, since, types):
-    return [e for e in world.events_range(int(since), world.seq) if e.type in types]
+# Evidence functions return the SEQUENCE NUMBERS of the recorded events that exercise a mechanic (D-48 /3).
+def _repo_owner(world, repo: str | None) -> str | None:
+    r = world.state.get("repos", repo) if repo and "repos" in world.state.tables else None
+    return (r or {}).get("owner") or (str(repo).split("/", 1)[0] if repo else None)
 
 
-def count_executions(world, since: int) -> int:
-    return sum(1 for e in _ev(world, since, ("pkg.executed",)) if e.payload.get("ok"))
+def population_issues(world, since: int) -> list[int]:
+    """Issues filed by population developers (through their own principal or developer account)."""
+    return events_where(world, since, ("issues.create",), lambda e: population_owner(world, e.actor) is not None)
 
 
-def count_population_issues(world, since: int) -> int:
-    return sum(1 for e in _ev(world, since, ("issues.create",)) if population_owner(world, e.actor))
+def preference_choices(world, since: int) -> list[int]:
+    """Developers' package choices: the records of an application switching a capability to a package the
+    developer chose with its own preference weights (adopters, documentation, recency, open issues, stars)."""
+    def chose(e):
+        via = (e.payload.get("changes") or {}).get("via")
+        return isinstance(via, dict) and any(isinstance(v, dict) and v.get("kind") == "pkg" for v in via.values())
+    return events_where(world, since, ("devpop.state",), chose)
 
 
-def count_preference_choices(world, since: int) -> int:
-    """Developer decisions recorded with the developer's own preference weights (heterogeneous: distinct weight
-    vectors among developers that chose a package)."""
-    st = world.state
-    if "devpop_d" not in st.tables:
-        return 0
-    ws = {json.dumps(r["w"], sort_keys=True) for _, r in st.scan("devpop_d")
-          if any(v.get("kind") == "pkg" for v in r["via"].values())}
-    return len(ws)
+def documented_releases(world, since: int) -> list[int]:
+    return events_where(world, since, ("pkg.released",), lambda e: bool(e.payload.get("docs")))
 
 
-def count_documented_releases(world, since: int) -> int:
-    st = world.state
-    return sum(1 for e in _ev(world, since, ("pkg.released",)) if e.payload.get("docs"))
+def adoptions(world, since: int) -> list[int]:
+    """Successful executions (not CI runs) of population developers' own code that exercised a package: the
+    events that write adoption rows (`innovation.pkg`, adoption by execution)."""
+    def adopted(e):
+        p = e.payload
+        if not p.get("ok") or p.get("kind") == "ci" or not p.get("exercised"):
+            return False
+        return population_owner(world, _repo_owner(world, p.get("repo")) or "") is not None
+    return events_where(world, since, ("pkg.executed",), adopted)
 
 
-def count_adoptions(world, since: int) -> int:
-    st = world.state
-    return sum(1 for _, a in st.scan("pkg_adoptions") if population_owner(world, a["owner"])) \
-        if "pkg_adoptions" in st.tables else 0
-
-
-def count_compat_checks(world, since: int) -> int:
+def compat_checks(world, since: int) -> list[int]:
     """Upgrade compatibility checks of dependents (`pkg.compat`) and API comparisons of a release with the
     package's previous release."""
-    return len(_ev(world, since, ("pkg.compat",))) + sum(
-        1 for e in _ev(world, since, ("pkg.released",)) if (e.payload.get("compat") or {}).get("previous"))
+    return events_where(world, since, ("pkg.compat", "pkg.released"),
+                        lambda e: e.type == "pkg.compat" or bool((e.payload.get("compat") or {}).get("previous")))
 
 
-def count_maintenance(world, since: int) -> int:
+def maintenance(world, since: int) -> list[int]:
     """Work on existing packages: releases after the first, issues handled (updated or closed) and merged
     changes."""
-    return sum(1 for e in _ev(world, since, ("pkg.released", "issues.update", "pkg.merged"))
-               if e.type != "pkg.released" or (e.payload.get("compat") or {}).get("previous"))
+    return events_where(world, since, ("pkg.released", "issues.update", "pkg.merged"),
+                        lambda e: e.type != "pkg.released" or bool((e.payload.get("compat") or {}).get("previous")))
 
 
 MECHANICS = (
-    Mechanic("Executable code", ("pkg.executed",), "sandboxed executions of repositories with their dependencies",
-             count=count_executions),
+    Mechanic("Executable code", ("pkg.executed",), "sandboxed executions of repositories with their dependencies"),
     Mechanic("Repositories", ("code.repo", "code.commit"), "repositories and commits"),
     Mechanic("Dependencies", ("pkg.dependency",), "dependency locks written into dependents"),
     Mechanic("Issues", ("issues.create", "issues.update", "issues.comment"), "issues filed and handled",
-             count=count_population_issues),
-    Mechanic("Independent testing", (), "dependents' own tests run with the package (pkg.ci)",
-             count=lambda w, s: sum(1 for e in _ev(w, s, ("pkg.executed",)) if e.payload.get("kind") == "ci")),
+             count=population_issues),
+    Mechanic("Independent testing", ("pkg.executed{kind=ci}",), "dependents' own tests run with the package (pkg.ci)"),
     Mechanic("Developer preferences", (), "choices made with each developer's own preference weights",
-             count=count_preference_choices),
-    Mechanic("Documentation", (), "releases that publish documentation", count=count_documented_releases),
-    Mechanic("Adoption", (), "adoption by execution (ablation-measured)", count=count_adoptions),
+             count=preference_choices),
+    Mechanic("Documentation", (), "releases that publish documentation", count=documented_releases),
+    Mechanic("Adoption", (), "adoption by execution (ablation-measured)", count=adoptions),
     Mechanic("Compatibility", (), "API comparison of releases and compatibility checks of upgrades",
-             count=count_compat_checks),
-    Mechanic("Maintenance", (), "later releases, issue handling, merges", count=count_maintenance),
+             count=compat_checks),
+    Mechanic("Maintenance", (), "later releases, issue handling, merges", count=maintenance),
 )
 
 
 def structure(world) -> dict:
-    cfg = world.modules["devpop"].config
-    return {"needs": sorted(cfg.get("needs") or []), "forum": "forum" in world.modules,
-            "population_authors": bool(cfg.get("authors"))}
+    """Built state only (`base.BuiltWorld`): the capabilities the population developers' applications need, whether
+    any developer publishes its own implementations, and whether a forum exists (its boards)."""
+    st = world.state
+    devs = [r for _, r in st.scan("devpop_d")] if "devpop_d" in st.tables else []
+    return {"needs": sorted({n for r in devs for n in (r.get("needs") or [])}),
+            "forum": "forum" in world.modules,
+            "population_authors": any(bool(r.get("author")) for r in devs)}
 
 
 CONFIGS = tuple(DomainConfig(n, s, dict(STRUCTURES[n]), DOCS[n]) for n, s in (
@@ -908,7 +969,7 @@ CONFIGS = tuple(DomainConfig(n, s, dict(STRUCTURES[n]), DOCS[n]) for n, s in (
 
 DOMAIN = register(Domain(
     name="software", title="Software ecosystem", spec_part="9.2", required_mechanics=tuple(m.name for m in MECHANICS),
-    configs=CONFIGS, build=build, objective=objective, evaluate=evaluate, reference=reference, mechanics=MECHANICS,
+    configs=CONFIGS, build=build, goal=GOAL, evaluate=evaluate, reference=reference, mechanics=MECHANICS,
     seats=(Seat("maintainer", 500_000, "Maintainer", "an independent package author"),),
     actors=(Actor("population developers", ("cols.batch:devpop.decide", "pkg.executed"),
                   "individuals building their own applications from packages or by hand"),

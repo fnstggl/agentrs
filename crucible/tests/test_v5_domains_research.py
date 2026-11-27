@@ -134,7 +134,7 @@ def test_research_world_population_researchers_act_with_provenance_and_no_law_le
                     if amt < 0)]
     assert len(paid) >= 3 and all(m[k]["exercised"] for k in ("Experimental costs", "Data collection"))
     assert not w.check_invariants()
-    ev = RD.DOMAIN.evaluate(w, "p:researcher", RD.DOMAIN.objective(w, "p:researcher", 1))
+    ev = RD.DOMAIN.evaluate(w, "p:researcher", RD.objective(w, "p:researcher", 1))
     assert ev["success"] is False and ev["details"]["papers"] == []          # the null baseline fails
 
 
@@ -173,7 +173,7 @@ def test_reference_publishes_an_accurate_law_and_null_fails():
     difficulty-1 threshold); the evaluator is separate and the observation never carries its verdict."""
     env = experience.make(2, "research:bench", 0, semantic=False)
     a = env.agents()[0]
-    obj = RD.DOMAIN.objective(env.world, a, 1)
+    obj = RD.objective(env.world, a, 1)
     pol = RD.reference(a, obj)
     assert pol.kind == "scripted"
     K.drive(env, a, pol, days=6, dt=6 * 3600)

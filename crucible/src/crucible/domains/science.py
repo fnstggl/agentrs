@@ -645,8 +645,10 @@ class Science(Module):
             ref = ctx.run_as(bureau["org"], lambda c: artifacts.put(c, data, "application/json", owner=bureau["org"],
                                                                      meta={"challenge": cid}, kind="dataset"))
             ctx.run_as(bureau["org"], lambda c: artifacts.publish(c, ref))
-            ctx.emit("sci.challenge", {"id": cid, "phenomenon": pid, "readings": rows, "dataset": ref,
-                                       "stated_sd": sd, "stated_rel": rel, "results": results}, vis="public")
+            # the bureau publishes its challenge as itself (an institution's decision, not a system record)
+            payload = {"id": cid, "phenomenon": pid, "readings": rows, "dataset": ref, "stated_sd": sd,
+                       "stated_rel": rel, "results": results}
+            ctx.run_as(bureau["org"], lambda c: c.emit("sci.challenge", payload, vis="public"))
 
     def novel_points(self, st, phenomenon: str, papers, rng, n: int) -> list[dict]:
         """Conditions no bookable apparatus can set (some variable outside the union of the apparatus' ranges, inside
