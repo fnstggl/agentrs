@@ -228,8 +228,10 @@ A tier whose package has not landed raises `TierUnavailable`; nothing falls back
   part of `params_blob`); integer arguments are ints (an integer schema rejects `2.0`).
 * `ToolValueLearner` (`crucible.experience.statistical`) - the statistical reference learner: per tool, the
   recency-weighted mean of the observed change of its own money after the tool against the median change per step
-  (what its money does on its own), a softmax over those values at max(temperature, median absolute deviation), the
-  same argument memory. Transparent and fast to learn; state-independent values and one-step credit are its limits.
+  (what its money does on its own), a softmax over those values at max(temperature, median absolute deviation) -
+  the default temperature is $0.50 a call -, optional multi-step credit (`credit_horizon`), any signal the learner
+  chooses (`signal_keys`, e.g. its forum replies and followers), the same argument memory; `python -m
+  crucible.experience run --learner tool-value`, `remote.tool_value_learner` for the evaluation path. Transparent and fast to learn; state-independent values and one-step credit are its limits.
   Gate SP-11.6c measures its improvement over a frozen copy in the kernel tiers (D-68 addendum).
 * `VecExperience(envs)` steps environments in one process; `FarmRun(learner, worlds, n_workers=...)` runs them in
   worker processes through `crucible.scale.RolloutFarm`; its concurrency is measured from worker-side timestamps and
