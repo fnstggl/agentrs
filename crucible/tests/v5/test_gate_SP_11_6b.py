@@ -90,7 +90,7 @@ def test_SP11_6b_failure_causes_classified():
                         "unclassified_failures": unclassified, "expected_causes_matched": right,
                         "distinct_causes": len(set(causes.values()) | set(survey["by_cause"])),
                         "survey_runs": survey["runs"], "survey_failures": real,
-                        "survey_failures_by_cause": survey["by_cause"],
+                        **{f"survey_{c}": int(survey["by_cause"].get(c, 0)) for c in FAILURE_CAUSES},
                         "negative_control_unclassified": negative == "unclassified"},
            notes=f"Injected positive controls: {reports}. Survey failures (real protocol runs): "
                  f"{survey['failures'][:40]}")
