@@ -142,9 +142,16 @@ class Studio(Module):
             p = world.spec.params
             if (caps["landlock_abi"] < 1 or not caps["seccomp"]) and not p.get("allow_weak_sandbox"):
                 raise ServiceUnavailable("program execution is disabled: Landlock/seccomp unavailable on this host")
+            # the same metering as services.code.sandbox_pool (A.json, D-20): work measured per world lineage, the
+            # deterministic memo shared by every process of the machine (a rerun, resume or replication in a new
+            # process bills identical computations alike), one tenant per world
+            from ..sandbox import metering
+            det = p.get("cost_model") == "deterministic"
+            memo = metering.default_memo_path() if det and p.get("meter_memo", "machine") == "machine" else None
             cfg = SandboxConfig(mem_mb=int(p.get("sandbox_mem_mb", 1024)), job_wall_s=float(p.get("sandbox_job_s", 10)),
-                                allow_weak=bool(p.get("allow_weak_sandbox", False)),
-                                count_lines=p.get("cost_model") == "deterministic")
+                                allow_weak=bool(p.get("allow_weak_sandbox", False)), count_lines=det,
+                                meter_scope=str(p.get("meter_lineage") or world.spec.hash()[:16]), memo_path=memo,
+                                tenant=f"world:{world.spec.hash()[:16]}")
             pool = world.runtime["studio.sandbox_pool"] = WorkerPool(int(p.get("sandbox_max_workers", 24)), cfg)
         return pool
 
