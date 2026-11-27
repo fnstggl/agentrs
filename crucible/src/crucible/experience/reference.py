@@ -93,7 +93,60 @@ class Config:
     wait_bias: float = 0.0
 
 
-class ReferenceLearner:
+class ArgumentMemory:
+    """What a learner remembers to fill tool arguments: parameter specs (``{name, min, max}``) seen in results
+    (`memory`) and ids / name tokens seen in its own results and visible events, by the key they appeared under
+    (`ids`). Shared by the reference learners of this package; it reads only what the learner was shown."""
+
+    MAX_ID_KEYS = 512
+    IDS_PER_KEY = 64
+
+    def _remember_id(self, key: str, v: str) -> None:
+        lst = self.ids.get(key)
+        if lst is None:
+            if len(self.ids) >= self.MAX_ID_KEYS:
+                return
+            lst = self.ids[key] = []
+        elif v in lst:
+            lst.remove(v)
+        lst.append(v)
+        if len(lst) > self.IDS_PER_KEY:
+            del lst[0]
+
+    def _harvest(self, x: Any, depth: int = 0, key: str | None = None) -> None:
+        """Remember parameter specs (``{name, min, max}``) and the ids / name tokens (`_token`) a result or event
+        shows, by key: ``{"listing": "xl_5"}`` under ``listing``; an ``id`` inside a list under ``sites`` also under
+        ``site``; a list of tokens under its key's singular. Free text (anything with spaces) is never a token."""
+        if depth > 6:
+            return
+        if isinstance(x, dict):
+            if isinstance(x.get("name"), str) and isinstance(x.get("min"), (int, float)) and \
+                    isinstance(x.get("max"), (int, float)) and not isinstance(x.get("min"), bool):
+                self.memory[x["name"]] = {"min": float(x["min"]), "max": float(x["max"]),
+                                          "integer": bool(x.get("integer", False))}
+            for k, v in x.items():
+                if isinstance(v, str):
+                    if _token(v):
+                        self._remember_id(str(k), v)
+                        if k == "id" and key:
+                            self._remember_id(_singular(key), v)
+                else:
+                    self._harvest(v, depth + 1, str(k))
+        elif isinstance(x, list):
+            for v in x[:256]:
+                if isinstance(v, str):
+                    if key and _token(v):
+                        self._remember_id(_singular(key), v)
+                else:
+                    self._harvest(v, depth + 1, key)
+
+    def _harvest_events(self, obs: dict) -> None:
+        for e in (obs.get("events") or [])[-50:]:
+            if isinstance(e.get("payload"), dict):
+                self._harvest(e["payload"], 1)
+
+
+class ReferenceLearner(ArgumentMemory):
     name = "reference"
     kind = "rl"
     version = VERSION
@@ -229,54 +282,6 @@ class ReferenceLearner:
         if s == "auto":
             return "observed" if self.reward_mode == OBSERVATION_ONLY else "reward"
         return s
-
-    # ------------------------------------------------------------------ memory of parameter specs and ids
-    MAX_ID_KEYS = 512
-    IDS_PER_KEY = 64
-
-    def _remember_id(self, key: str, v: str) -> None:
-        lst = self.ids.get(key)
-        if lst is None:
-            if len(self.ids) >= self.MAX_ID_KEYS:
-                return
-            lst = self.ids[key] = []
-        elif v in lst:
-            lst.remove(v)
-        lst.append(v)
-        if len(lst) > self.IDS_PER_KEY:
-            del lst[0]
-
-    def _harvest(self, x: Any, depth: int = 0, key: str | None = None) -> None:
-        """Remember parameter specs (``{name, min, max}``) and the ids / name tokens (`_token`) a result or event
-        shows, by key: ``{"listing": "xl_5"}`` under ``listing``; an ``id`` inside a list under ``sites`` also under
-        ``site``; a list of tokens under its key's singular. Free text (anything with spaces) is never a token."""
-        if depth > 6:
-            return
-        if isinstance(x, dict):
-            if isinstance(x.get("name"), str) and isinstance(x.get("min"), (int, float)) and \
-                    isinstance(x.get("max"), (int, float)) and not isinstance(x.get("min"), bool):
-                self.memory[x["name"]] = {"min": float(x["min"]), "max": float(x["max"]),
-                                          "integer": bool(x.get("integer", False))}
-            for k, v in x.items():
-                if isinstance(v, str):
-                    if _token(v):
-                        self._remember_id(str(k), v)
-                        if k == "id" and key:
-                            self._remember_id(_singular(key), v)
-                else:
-                    self._harvest(v, depth + 1, str(k))
-        elif isinstance(x, list):
-            for v in x[:256]:
-                if isinstance(v, str):
-                    if key and _token(v):
-                        self._remember_id(_singular(key), v)
-                else:
-                    self._harvest(v, depth + 1, key)
-
-    def _harvest_events(self, obs: dict) -> None:
-        for e in (obs.get("events") or [])[-50:]:
-            if isinstance(e.get("payload"), dict):
-                self._harvest(e["payload"], 1)
 
     # ------------------------------------------------------------------ acting
     def tool_tokens(self, t: dict) -> list[int]:
@@ -781,21 +786,27 @@ class _Decider:
         return int(round(v)) if integer else float(v)
 
     def _string_candidates(self, key: str) -> list[str]:
-        obs = self.obs
-        ids = {e["id"] for e in obs.get("entities") or [] if isinstance(e.get("id"), str)}
-        for k in (obs.get("numbers") or {}):
-            for seg in k.split("."):
-                if is_id(seg):
-                    ids.add(seg)
-        want = {"account": "account", "from_account": "account", "to_account": "account", "org": "organisation",
-                "owner": None, "to": None, "principal": None, "seller": None}.get(key, "-")
-        seen = self.L.ids.get(key) or []
-        if want == "-":
-            names = sorted(self.L.memory) if key in ("name", "lever", "target") else []
-            return (names + sorted(set(seen) - set(names)))[:64]
-        out = sorted({i for i in ids if want is None or id_kind(i) == want} |
-                     {i for i in seen if want is None or id_kind(i) == want})
-        return out[:64]
+        return string_candidates(self.L, self.obs, key)
+
+
+def string_candidates(L: ArgumentMemory, obs: dict, key: str) -> list[str]:
+    """Candidates for a string argument named `key`: the agent's own entity ids of the matching kind (accounts,
+    organisations, any principal for ``to`` / ``owner`` / ...), the ids and tokens it saw under that key, and for
+    ``name`` / ``lever`` / ``target`` the parameter names it saw in results."""
+    ids = {e["id"] for e in obs.get("entities") or [] if isinstance(e.get("id"), str)}
+    for k in (obs.get("numbers") or {}):
+        for seg in k.split("."):
+            if is_id(seg):
+                ids.add(seg)
+    want = {"account": "account", "from_account": "account", "to_account": "account", "org": "organisation",
+            "owner": None, "to": None, "principal": None, "seller": None}.get(key, "-")
+    seen = L.ids.get(key) or []
+    if want == "-":
+        names = sorted(L.memory) if key in ("name", "lever", "target") else []
+        return (names + sorted(set(seen) - set(names)))[:64]
+    out = sorted({i for i in ids if want is None or id_kind(i) == want} |
+                 {i for i in seen if want is None or id_kind(i) == want})
+    return out[:64]
 
 
 _SKIP = object()

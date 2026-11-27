@@ -276,3 +276,47 @@ def test_external_batched_adapter_follows_the_reward_modes():
     rs, obs, ok = seen["verified_terminal_outcome"]
     assert ok and sorted(rs) == [0.0, 0.0, 0.0, 1.0] and find_keys(obs) == []
     assert any(r != 0.0 for r in seen["legacy_shaped_reward"][0])
+
+
+def test_tool_value_learner_values_tools_by_their_observed_effect_on_its_money(tmp_path):
+    """The statistical reference learner (`ToolValueLearner`): the change of its own observed money after an action,
+    against the median change per step (what the money does on its own), becomes that tool's value; it then avoids
+    a tool that cost it money; a frozen copy and `learn=False` change nothing; checkpoints restore it exactly."""
+    from crucible.experience.statistical import ToolValueLearner
+    tools = [{"name": n, "inputSchema": {"type": "object", "properties": {}}} for n in ("shop.buy", "news.read")]
+
+    def obs(bal):
+        return {"t": 0, "numbers": {"bank.balances.acct_000001": bal}, "events": [], "tools": tools, "entities": []}
+    L = ToolValueLearner(seed=3)
+    assert L.reward_mode == "observation_only"
+    bal = 100_000
+    for _ in range(60):
+        a = L.act(obs(bal))
+        nb = bal + 100 - (5_000 if a and a["tool"] == "shop.buy" else 0)      # +$1 a step on its own; a buy costs $50
+        L.observe(0.0, {"ok": True, "result": {}}, obs(nb))
+        bal = nb
+    L.update()
+    assert L.value("shop.buy") < -40 and abs(L.value("news.read")) < 1 and abs(L.baseline() - 1.0) < 1e-9
+    picks = [L.act(obs(bal), explore=True) for _ in range(300)]
+    fresh = ToolValueLearner(seed=3)
+    before = [fresh.act(obs(bal), explore=True) for _ in range(300)]
+    n_buy = sum(1 for a in picks if a and a["tool"] == "shop.buy")
+    assert n_buy <= 12 and sum(1 for a in before if a and a["tool"] == "shop.buy") >= 70      # uniform: ~100
+    h = L.params_hash()
+    F = ToolValueLearner(seed=3)
+    F.load_params(L.params_blob())
+    F.freeze()
+    F.observe(0.0, None, obs(0))
+    assert F.update()["updates"] == 0 and F.params_hash() == h
+    p = tmp_path / "tv.json"
+    L.save(str(p))
+    M = ToolValueLearner(seed=0)
+    M.load(str(p))
+    assert M.params_hash() == h and M.state() == L.state()
+    a1, a2 = L.act(obs(bal)), M.act(obs(bal))
+    assert a1 == a2                                                      # the same random stream after a reload
+    env = make(2, "crisis", 3)                                          # a real world: schema-valid actions
+    T = ToolValueLearner(seed=1)
+    from crucible.experience import run_learner
+    s = run_learner(env, T, 40, update_every=20, think_s=3600)
+    assert s["schema_failures"] == 0 and s["ok"] >= 10 and T.updates == 2 and s["nonzero_rewards"] == 0
