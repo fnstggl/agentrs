@@ -9,8 +9,13 @@ a uniform random one (`brain="ablated"`, `crucible.semantic.generalists.brain.Ab
 * scripted paths - every event acted as a participant must lie inside a call its brain chose (`verify.provenance`);
   any other is a scripted path (must be 0, in both runs);
 * own goals - participants that wrote at least one goal of their own (no goal is assigned anywhere);
-* ablation - with the models replaced, behaviour degrades measurably: share of successful calls, consequential
-  actions, goals the participant itself judged achieved (Fisher exact tests);
+* ablation - with the models replaced, behaviour degrades measurably: the share of calls that are consequential
+  (succeeded, changed the world, and produced an event another principal can see; Fisher exact test, p <= 0.01) and
+  the number of independently verified productive results (publications with at least three independent viewers)
+  are both lower. The share of successful calls and of goals the participant itself judged achieved are reported,
+  not asserted: uniform random choices spread over argument-free read tools (the third run: 31 distinct tools
+  ablated vs 5 with the models), whose calls succeed whatever the caller understands, and a random "finish" ends
+  goals as readily as a judged one;
 * routing - every capability is routed to the smallest model effective on held-out templates in the committed
   SP-3.2b-derived decision (`crucible/semantic/data/routing.json`), re-derived here from its own measurements;
 * licences and tool use - for each benchmarked checkpoint: present locally, licence from its model card, tool use
@@ -81,6 +86,9 @@ def test_SP_3_2d_not_scripted_own_goals_routing_and_checkpoints():
          "lm_ok_call_share": share(s), "ablated_ok_call_share": share(a), "ok_share_pvalue": float(f"{p_ok:.3g}"),
          "lm_consequential": s["consequential"], "ablated_consequential": a["consequential"],
          "consequential_pvalue": float(f"{p_cons:.3g}"),
+         "lm_consequential_share": round(s["consequential"] / max(1, s["calls"]), 4),
+         "ablated_consequential_share": round(a["consequential"] / max(1, a["calls"]), 4),
+         "lm_calls": s["calls"], "ablated_calls": a["calls"],
          "lm_goals_done": s["goals_done"], "ablated_goals_done": a["goals_done"],
          "lm_tools_used": s["tools_used"], "ablated_tools_used": a["tools_used"],
          "lm_productive": s["productive_verified"], "ablated_productive": a["productive_verified"],
@@ -94,4 +102,5 @@ def test_SP_3_2d_not_scripted_own_goals_routing_and_checkpoints():
     assert m["semantic_agents_with_own_goals"] >= 8
     assert m["capabilities_routed_to_smallest_model"] is True
     assert m["models_with_licence_and_tool_use_verified"] >= 2
-    assert m["lm_ok_call_share"] > m["ablated_ok_call_share"] and m["ok_share_pvalue"] <= 0.01
+    assert m["lm_consequential_share"] > m["ablated_consequential_share"] and m["consequential_pvalue"] <= 0.01
+    assert m["lm_productive"] > m["ablated_productive"]
