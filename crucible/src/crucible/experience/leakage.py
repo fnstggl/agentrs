@@ -66,26 +66,76 @@ def find_keys(x: Any, keys=PRIVILEGED_KEYS, path: str = "", out: list | None = N
     return out
 
 
-def registered_hidden(x: Any, depth: int = 0) -> Any:
-    """`x` (legacy-mode observations, events, results) without the fields the evaluator-only registry hides from
-    participants (`core.evaluator_only.EVENT_FIELDS` / `RESULT_FIELDS`): what observation-only mode removes on
-    purpose is not a legitimate field missing (e.g. the controller label of an admitted participant)."""
+def _reviewed(kind: str, names, fields, why: str) -> dict:
+    return {(kind, n): {f: why for f in fields} for n in names}
+
+
+_REL = "a verdict of the evaluator's relatedness analysis (goals.metrics.is_related, commerce.integrity)"
+_CAPS_V = ("independent_trials", "independent_trial_ok_rate", "independent_adopters", "independent",
+           "independent_payers", "independent_buyers")
+# The evaluator-only fields reviewed as evaluator data (wave 3b, workstream L): observation-only mode removes them from
+# what participants receive on purpose, so they are not "legitimate fields missing" (R.4). The legacy side of a
+# legitimate-field comparison is normalised for THESE ONLY. A field `core.evaluator_only` hides that is not listed
+# here (for example a world quantity such as an amount or a post body registered by mistake) is compared like any
+# other field and counts as missing, and `unreviewed_hidden_fields()` names it (Gate R.4 requires none). Adding a
+# registry entry therefore needs an entry here stating why it is evaluator data.
+REVIEWED_EVALUATOR_FIELDS: dict[tuple[str, str], dict[str, str]] = {
+    **_reviewed("event", ("caps.tried", "caps.adopted", "caps.verification", "caps.installed", "caps.evidence",
+                          "caps.payer", "pkg.executed", "pkg.review"), ("independent",), _REL),
+    **_reviewed("event", ("caps.market",), ("buyers",), "independent buyers selected by the relatedness analysis"),
+    **_reviewed("event", ("rig.report",), ("score",), "the hidden mechanism's objective quantity (the 4.0 score)"),
+    **_reviewed("event", ("use.probe",), ("mean",), "the hidden usefulness grader's mean over hidden requests"),
+    **_reviewed("event", ("sci.replication",), ("related_to_author", "independent"), _REL),
+    **_reviewed("event", ("id.person", "id.org"), ("controller",), "the controller label a harness gives the seats "
+                "one learner drives: the relatedness analysis's ground truth"),
+    **_reviewed("result", ("caps.search", "caps.declaration", "caps.declarations", "caps.view", "caps.list",
+                           "caps.evidence", "caps.get_evidence"), _CAPS_V, _REL),
+    **_reviewed("result", ("caps.graph",), _CAPS_V + ("buyers",), _REL),
+    **_reviewed("result", ("caps.verify",), ("independent",), _REL),
+    **_reviewed("result", ("rig.read", "rig.history"), ("score",), "the hidden mechanism's objective quantity"),
+    **_reviewed("result", ("sci.replicate", "sci.paper", "sci.papers", "sci.replications"),
+                ("related_to_author", "independent", "independent_consistent"), _REL),
+    **_reviewed("summary", ("rig",), ("score",), "the hidden mechanism's objective quantity"),
+}
+
+
+def unreviewed_hidden_fields() -> list[str]:
+    """`kind:name.field` of every field the evaluator-only registry hides from participants that is not in
+    `REVIEWED_EVALUATOR_FIELDS` (hidden without a review: possibly a legitimate observation removed)."""
+    from ..core import evaluator_only as EO
+    out = []
+    for kind, table in (("event", EO.EVENT_FIELDS), ("result", EO.RESULT_FIELDS), ("summary", EO.SUMMARY_FIELDS)):
+        for name, fields in table.items():
+            ok = REVIEWED_EVALUATOR_FIELDS.get((kind, name), {})
+            out += [f"{kind}:{name}.{f}" for f in fields if f not in ok]
+    return sorted(out)
+
+
+def _reviewed_keys(kind: str, name: str, registry: dict) -> frozenset:
+    ok = REVIEWED_EVALUATOR_FIELDS.get((kind, name), {})
+    return frozenset(f for f in registry.get(name, ()) if f in ok)
+
+
+def reviewed_hidden(x: Any, depth: int = 0) -> Any:
+    """`x` (legacy-mode observations, events, results) without the fields observation-only mode hides on purpose:
+    those the evaluator-only registry (`core.evaluator_only.EVENT_FIELDS` / `RESULT_FIELDS`) hides AND that are
+    reviewed as evaluator data (`REVIEWED_EVALUATOR_FIELDS`, e.g. the controller label of an admitted participant).
+    A registry entry without a review is left in, so hiding it shows up as a legitimate field missing."""
     from ..core import evaluator_only as EO
     if depth > 24:
         return x
     if isinstance(x, dict):
-        keys = ()
         if isinstance(x.get("type"), str) and isinstance(x.get("payload"), dict):
-            keys = EO.EVENT_FIELDS.get(x["type"], ())
+            keys = _reviewed_keys("event", x["type"], EO.EVENT_FIELDS)
             if keys:
-                x = dict(x, payload=EO._strip(x["payload"], frozenset(keys)))
+                x = dict(x, payload=EO._strip(x["payload"], keys))
         if isinstance(x.get("tool"), str) and "result" in x:
-            keys = EO.RESULT_FIELDS.get(x["tool"], ())
+            keys = _reviewed_keys("result", x["tool"], EO.RESULT_FIELDS)
             if keys:
-                x = dict(x, result=EO._strip(x["result"], frozenset(keys)))
-        return {k: registered_hidden(v, depth + 1) for k, v in x.items()}
+                x = dict(x, result=EO._strip(x["result"], keys))
+        return {k: reviewed_hidden(v, depth + 1) for k, v in x.items()}
     if isinstance(x, list):
-        return [registered_hidden(v, depth + 1) for v in x]
+        return [reviewed_hidden(v, depth + 1) for v in x]
     return x
 
 
@@ -264,7 +314,7 @@ def _gym_metrics(runs: dict, multi: bool) -> dict:
     # mode's tool list carries the 4.0 evaluator tools)
     def evs(infos):
         return [(i.get("events") if not multi else {a: x.get("events") for a, x in i.items()}) for i in infos]
-    legit = sum(1 for a, b in zip(evs(leg["infos"]), evs(oo["infos"])) if dump(registered_hidden(a)) != dump(b))
+    legit = sum(1 for a, b in zip(evs(leg["infos"]), evs(oo["infos"])) if dump(reviewed_hidden(a)) != dump(b))
     verified = 1 if (oo["verify"] and (("progress" in oo["verify"]) if not multi else
                                        all("progress" in v for v in oo["verify"].values()))) else 0
     legacy_nonzero = sum(1 for r in leg["rewards"] if (any(x != 0 for x in r) if multi else r != 0))
@@ -500,7 +550,7 @@ def _legit_missing_kernel(leg: list, obs: list) -> int:
     n = 0
     for x, y in zip(leg, obs):
         if isinstance(x, dict) and "numbers" in x and isinstance(y, dict):
-            x = registered_hidden(x)
+            x = reviewed_hidden(x)
             for f in ("numbers", "resources", "events", "entities", "analytics"):
                 if dump(x.get(f)) != dump(y.get(f)):
                     n += 1

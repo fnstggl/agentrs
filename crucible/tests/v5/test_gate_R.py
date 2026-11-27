@@ -129,12 +129,18 @@ def test_R4_legitimate_observations_remain(battery, learner_run):
                    if k not in kinds]
     absent += [] if kn["resources"].get("balance_cents") is not None else ["kernel resources"]
     compared = sum(1 for k in battery if "legitimate_fields_missing" in battery[k]["metrics"])
+    # the legacy side is normalised only for the reviewed evaluator-only fields (leakage.REVIEWED_EVALUATOR_FIELDS);
+    # a field the registry hides without a review is compared (and counted above) and named here
+    unreviewed = leakage.unreviewed_hidden_fields()
     metrics = {"legitimate_fields_missing": missing + len(absent), "environments_compared_to_legacy": compared,
-               "required_entries_checked": len(need_t1) + 7}
+               "required_entries_checked": len(need_t1) + 7, "unreviewed_hidden_fields": len(unreviewed)}
     record("R.4", metrics, command=CMD, notes="every non-reward observation entry of the numeric envs, the Gym/PZ "
            f"observations and WorldEnv observations equal to legacy mode's; required present: {need_t1} + balances, "
-           f"readings, tools, events, resources. Absent: {absent}")
+           f"readings, tools, events, resources. Absent: {absent}. Legacy side normalised only for the "
+           f"{len(leakage.REVIEWED_EVALUATOR_FIELDS)} reviewed evaluator-only registry entries; unreviewed hidden "
+           f"fields: {unreviewed}")
     assert metrics["legitimate_fields_missing"] == 0, absent
+    assert not unreviewed, unreviewed
 
 
 def test_R5_independent_verification_active(battery, learner_run, tmp_path):
