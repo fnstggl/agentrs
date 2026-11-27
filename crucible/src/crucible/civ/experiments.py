@@ -634,7 +634,7 @@ EXPERIMENTS: dict[str, Experiment] = {e.name: e for e in [
                {"inventor_revenue": m_inv_revenue, "incumbent_revenue": m_incumbent_revenue,
                 "adopters": m_inv_adopters, "delegated_uses": m_inv_uses, "service_compute": m_inv_compute,
                 "provider_kwh": m_inv_provider_kwh, "invention_needs": m_inv_needs, "needs_total": m_needs_total},
-               "adopters", setup=_invention_setup, during=_agent_during),
+               "adopters", setup=_invention_setup, during=_agent_during, chain=True),
     Experiment("agent_science", "a scripted researcher's paper: replication, R&D trials, process settings, output",
                "research_intensive", 1.0, 14.0, {"no_paper": _noop},
                {"adopted": m_adopted_from_papers, "true_quality": m_true_quality, "bound_yield": m_bound_yield,

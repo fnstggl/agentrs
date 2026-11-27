@@ -166,6 +166,16 @@ CHAIN_ARMS = {
         "no_paper": ("the agent's paper (its measurements stay)", "technical",
                      {"adopted": "industry", "true_quality": "industry", "bound_yield": "industry",
                       "kwh_per_unit": "energy", "goods_bought": "population"})},
+    # a technological invention (SP-2.1b's experiment, on the chain seeds): a scripted reference inventor's service for
+    # a published work format, declared as a typed capability; the population finds, tries and adopts it on its own
+    # work. Its root stage is the capability (technology invention), mapping fixed before its first chain run
+    "invention": {
+        "no_invention": ("the inventor's service (repository, deployment, capability declaration, announcement)",
+                         "technical",
+                         {"adopters": "population", "delegated_uses": "population",
+                          "service_compute": "computing_infrastructure", "provider_kwh": "energy",
+                          "inventor_revenue": "finance", "incumbent_revenue": "digital_economy"},
+                         "technology_invention")},
 }
 ROOT_SUBSYSTEM = {"agent_artifact": "software_development", "social": "search_information",
                   "technical": "scientific_research"}
@@ -179,11 +189,12 @@ def chain_results(seeds=CHAIN_SEEDS) -> dict:
         r = _safe(exp, "chain", seeds)
         raw[exp] = r
         mined = [c for per in r.get("per_seed_chains", []) for c in per]
-        for arm, (what, cls, msub) in arms.items():
+        for arm, (what, cls, msub, *root) in arms.items():
             eff = r["effects"][arm]
             confirmed_subs = sorted({msub[m] for m, v in eff.items() if isinstance(v, dict) and v.get("confirmed")
                                      and m in msub})
-            stages = [ROOT_SUBSYSTEM[cls]] + [s for s in confirmed_subs if s != ROOT_SUBSYSTEM[cls]]
+            root_sub = root[0] if root else ROOT_SUBSYSTEM[cls]
+            stages = [root_sub] + [s for s in confirmed_subs if s != root_sub]
             # provenance: a mined chain of the agent with this class in every seed's reference arm
             support = [c for c in mined if c["actor_kind"] == "agent" and c.get(cls)]
             per_seed = r.get("per_seed_chains", [])
