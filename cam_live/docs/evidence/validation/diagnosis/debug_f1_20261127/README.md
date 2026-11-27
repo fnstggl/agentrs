@@ -35,3 +35,8 @@ Mechanisms found (each measured in the files here):
 
 Not established here: whether these hold on the real configuration (separate runs), and CIs of the fix variants
 overlap each other (8 lifetimes each); only base vs fix2lr / fix3 is clearly apart.
+
+`sep_real.json` (`separation.py --real`, frozen copy of d55986d, Qwen3-4B + 50m core): the 12 LabWorld interventions
+are distinguishable in the action embeddings (mean cosine distance 0.11, min 0.05; trunk output 0.075 / 0.029), the
+untrained policy is near uniform over them (probabilities 0.078–0.087, uniform 0.083), and one SGD step of 0.1 on
+log pi(candidate 0) moves its probability from 0.082 to 0.110 — a larger gain than at debug scale (0.0826 -> 0.0852).
