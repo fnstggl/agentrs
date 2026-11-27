@@ -362,12 +362,12 @@ again: change-specific improvement -0.0018, pooled 95% CI [-0.020, +0.016] over 
 +0.0001, -0.0065). Learning after the change DID change behaviour in the direction of the new condition in every seed:
 share of the learning members' phase-2 visits to the sites the switch made rich 0.357 / 0.387 / 0.489 with learning vs
 0.258 / 0.257 / 0.315 frozen at the switch; but realised utility did not rise (visit-weighted 0.494 / 0.490 / 0.490 vs
-0.502 / 0.523 / 0.521), because (1) on the first day after the switch the learning members visited the failing guides
-about three times as often (12-19% of visits vs 4-5%): a broken site shows no title, so the perceived category of the
-formerly broken blogs that became rich and of the guides that failed is the same "unknown" (kind 0) until a reader
-fetches them again, and the first post-switch updates learned from the formerly broken blogs' good visits that kind-0
-candidates are good; (2) the newly rich blogs are not more useful to these members than the three rich guides left
-(their interests had drifted towards what they read in phase 1). The other Gate G measures passed in the same run
+0.502 / 0.523 / 0.521). Measured: on the first day after the switch the learning members visited the failing guides
+about three times as often (12-19% of visits vs 4-5%). Probable causes (hypotheses, not tested separately): (1) a
+broken site shows no title, so the perceived category of the formerly broken blogs that became rich and of the guides
+that failed is the same "unknown" (kind 0) until a reader fetches them again, and the first post-switch updates can
+learn from the formerly broken blogs' good visits that kind-0 candidates are good; (2) the newly rich blogs are not
+more useful to these members than the three rich guides left (interests drift towards what was read in phase 1). The other Gate G measures passed in the same run
 (G.1 256, G.2 256, G.3 174, G.5 held-out loss decrease 0.036, G.n1 lowest per-seed CI bound 0.181, G.4 3 groups / 4
 hashes). The two failed protocols are reported as failed. A next protocol would need a condition in which a reader's
 own per-site state cannot do what learning does and the change carries utility headroom (e.g. a stream of newly
