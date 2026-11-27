@@ -349,7 +349,7 @@ def _govern(ctx: Ctx, cm, cid: str, people: np.ndarray, civic: np.ndarray, rng) 
         if nmem >= 10 and n_mods < max(1, nmem // MODS_PER_MEMBERS) and rng.random() < _sigm(-1.0 + 2.0 * civic[k]):
             contrib = v["posts"] + v["comments"]
             cand = np.flatnonzero(mine & (v["role"] == 0) & (contrib >= 3) &
-                                  (v["last_active"] >= w.now - 7 * 86400) & (v["node"] < nodes_offset()))
+                                  (v["last_active"] >= w.now - 7 * 86400) & (v["node"] < _nodes_offset()))
             if cand.size:
                 best = cand[np.lexsort((v["node"][cand], -contrib[cand]))][0]
                 proposal = ("add_moderator", {"member": ids.pid(int(v["node"][best]))},
@@ -380,7 +380,7 @@ def _govern(ctx: Ctx, cm, cid: str, people: np.ndarray, civic: np.ndarray, rng) 
         prop = st.tables["community_proposals"][pid]
         boost = 0.0
         if prop["action"] == "add_moderator":
-            cn_ = nodes_of_principal(w, prop["args"].get("member"))
+            cn_ = _node_of_principal(w, prop["args"].get("member"))
             r_ = cm._lookup(w, np.array([cn_]), np.array([cn]))[0] if cn_ is not None else -1
             if r_ >= 0:
                 boost = 0.4 * math.log1p(int(v["posts"][r_]) + int(v["comments"][r_]))
@@ -408,12 +408,12 @@ def _pending(st, cid: str, action: str, args: dict) -> bool:
                for x in st.find_ids("community_proposals", "community", cid))
 
 
-def nodes_offset() -> int:
+def _nodes_offset() -> int:
     from . import nodes
     return int(nodes.OFFSET)
 
 
-def nodes_of_principal(world, principal) -> int | None:
+def _node_of_principal(world, principal) -> int | None:
     from . import nodes
     return None if not principal else nodes.node_of(world, principal)
 
