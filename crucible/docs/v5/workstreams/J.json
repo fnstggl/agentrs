@@ -16,6 +16,7 @@
     "src/crucible/civ/subsystems.py"
    ],
    "tests": [
+    "tests/test_v5_civ_core.py",
     "tests/v5/test_gate_O.py"
    ],
    "status_claim": "fails on measured values at 02c300f (GPU lane, frozen copy, balanced seed 7, 5 days after a warm-up day): subsystems_in_one_world 12 of 17 (present 17, active 13); not active or not connected: education, employment, institutions, marketplaces, technology_invention",
@@ -78,6 +79,7 @@
   },
   "O.5": {
    "implementation_files": [
+    "src/crucible/civ/chains.py",
     "src/crucible/civ/counterfactual.py",
     "src/crucible/civ/couplings.py",
     "src/crucible/civ/events.py",
@@ -87,9 +89,11 @@
     "src/crucible/civ/genesis.py",
     "src/crucible/civ/goods.py",
     "src/crucible/civ/profiles.py",
+    "src/crucible/civ/reference.py",
     "src/crucible/civ/subsystems.py"
    ],
    "tests": [
+    "tests/test_v5_civ_measures.py",
     "tests/v5/test_gate_O.py"
    ],
    "status_claim": "fails at a54f53d (six seeds 11-16, GPU lane, frozen copy): cross_domain_effect_types 2 of 7 implemented categories confirmed on the pre-declared primary measure - 1 science -> technology (true process quality -0.40, CI [-0.56, -0.25], noise 0.14; adopted settings -3.3) and 3 service usage -> infrastructure demand (datacenter kWh -765, CI [-1,327, -203], noise 161). Not confirmed: 2 technology_cost (unit cost +31.7, CI [-19.9, 83.3], noise 43; true quality -0.36 confirmed, so the settings were reverted but the cost per good unit stayed below noise), 4 infrastructure_software (failed_requests 0 in every arm while the 10% grid cut lowered datacenter kWh by 458, CI [-706, -210]: the instrument saw API calls only - population web visits refused during a curtailment are net.hit unavailable; corrected in 2de98e9 with a regression test, re-measurement in the lane), 5 social_discovery (population buyers 0-1 per seed: -0.5, CI [-1.1, 0.1]; visitors -18.7 and the shop's compute -350 confirmed) and social_adoption (goods bought -4.3, noise 19.6), 7 coordination (multi-operator output +54, CI [-64, 172], noise 196), 8 supply_disruption (goods bought -0.25, noise 18.5; shelf units 0 +- 37; mean retail price -489, CI [-932, -46], noise 99 confirmed as a secondary measure but not counted: the primary was fixed before the run and the mechanism of the price fall is not understood). 0 invariant errors, 0 failed process runs.",
@@ -392,6 +396,7 @@
   },
   "SP-2.1b": {
    "implementation_files": [
+    "src/crucible/civ/chains.py",
     "src/crucible/civ/counterfactual.py",
     "src/crucible/civ/couplings.py",
     "src/crucible/civ/events.py",
@@ -401,9 +406,11 @@
     "src/crucible/civ/genesis.py",
     "src/crucible/civ/goods.py",
     "src/crucible/civ/profiles.py",
+    "src/crucible/civ/reference.py",
     "src/crucible/civ/subsystems.py"
    ],
    "tests": [
+    "tests/test_v5_civ_measures.py",
     "tests/v5/test_gate_SP_2_1b.py"
    ],
    "status_claim": "fails at 02c300f with six seeds (51-56): invention_effect_kinds_confirmed 1 of 4 (future_opportunities: invention_needs 1-2 vs 0 in every seed). In five seeds the invention was adopted (adopters 118/130/5/113/53, inventor revenue 1905/2172/120/2016/1158 cents, delegated uses 635/724/40/672/386 vs 0 in every counterfactual arm; paired intervals exclude zero and exceed twice the reshuffling noise); in seed 54 nobody adopted it (0 adopters, 0 compute), so the every-seed sign rule fails for economic outcomes, behaviour and resource demand. Seed 54 is the only seed whose inventor served pack.knapsack (the format is chosen as the first published format with a public interface schema); the cause of zero adoption is under diagnosis (probe after the Gate P suite in its slot). The confirmation rule was not relaxed. Diagnosis (seed-54 probe at 5bcd1e5, GPU lane): the inventor built and declared its knapsack service, but the population's own help threads for knapsack ('Looking for a service: ...') and the replies to them filled 10 of 10 results of the searchers' query, so it was never considered (0 work.considered rows in three days vs 165 for the incumbents, found through replies naming their hosts). Fix: the reference inventor answers those public requests once a day (crucible.civ.reference.InventorAgent, labelled scripted; unit test). Re-measured on the chain seeds 21-26 (one run serves SP-2.1b and the invention chain), queued in the J lanes; the confirmation rule was not relaxed.",
