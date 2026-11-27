@@ -10,7 +10,7 @@
    "tests": [
     "tests/v5/test_gate_A.py"
    ],
-   "status_claim": "measured on 87a6c54: passes",
+   "status_claim": "measured locally: passes (d579516)",
    "notes": "109 definitions (74 world, 25 mechanism, 10 useful-work) on 2 seeds: 0 changed, 0 missing, 0 generation errors against an extracted c07098b tree."
   },
   "A.3": {
@@ -29,10 +29,11 @@
     "src/crucible/acceptance/v5/baseline.py"
    ],
    "tests": [
-    "tests/v5/test_gate_A.py"
+    "tests/v5/test_gate_A.py",
+    "tests/test_v5_acceptance_baseline.py"
    ],
-   "status_claim": "measured: passes after the scan refinement (failed on 87a6c54 with 1 static reference)",
-   "notes": "On 87a6c54 the static scan counted src/crucible/redteam/v5/isolation.py:23, a module-path denylist of the red team's isolation probe that names crucible.research.sealed without importing it. The scan now reports such denylist entries as v5_denylist_mentions_of_sealed_module (1) instead of a reference; imports, import_module/__import__ and the store's file and variable names still count. Measured: 0 sealed files changed (5 checked), 0 access-log entries after 2026-11-25, 0 static references in 320 v5 files, 0 runtime opens under the audit hook (12 packages, 48 steps)."
+   "status_claim": "measured locally: passes (d579516)",
+   "notes": "Failed at 2fc3984 on one false-positive static reference (research/v5/evaluator.py:78, the 5.0 evaluator's own `v5_sealed_salt` matched the substring `sealed_salt`); the scan now matches the 4.0 store's names as whole tokens (baseline.sealed_reference, regression test in tests/test_v5_acceptance_baseline.py)."
   },
   "A.5": {
    "implementation_files": [
