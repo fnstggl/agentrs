@@ -1,0 +1,27 @@
+tools: ['discord.create_channel', 'discord.create_event', 'discord.create_invite', 'discord.edit_message', 'discord.get_channel_activity', 'discord.get_guild_stats', 'discord.list_channels', 'discord.list_events', 'discord.list_invites', 'discord.send_message', 'http.get', 'http.request', 'program', 'publish.draft', 'publish.get_analytics', 'publish.preview', 'publish.status', 'publish.submit', 'publish.update', 'skill.describe', 'skill.induce', 'skill.list', 'skill.run']
+  http.request                 auth=allow          -> ok             none                   
+  http.request                 auth=allow          -> ok             none                   
+  http.request                 auth=allow          -> ok             none                   
+  http.request                 auth=allow          -> ok             none                   
+  skill.induce                 auth=allow          -> ok             none                   
+  skill.run                    auth=allow          -> ok             none                   
+  item: {'id': 4, 'title': 'via skill', 'body': 'zzz', 'status': 'published'}
+  discord.get_guild_stats      auth=allow          -> ok             none                   
+  discord.list_channels        auth=allow          -> ok             none                   
+  discord.send_message         auth=needs_approval -> needs_approval none                   external write to owned destination account:discord:1000000000000000002 needs the operator's approval (the des
+  discord messages: []
+  publish.draft                auth=allow          -> ok             none                   
+  publish.preview              auth=allow          -> ok             none                   
+  publish.submit               auth=allow          -> ok             none                   
+  publish.status               auth=allow          -> ok             none                   
+  site files: ['index.html']
+approvals pending: [('action', ['P-PUBLISH-APPROVAL'])]
+first: needs_approval needs_approval []
+after approval: allow ok  ['approved words']
+  publish.draft                auth=allow          -> ok             none                   
+  publish.preview              auth=allow          -> ok             none                   
+publish.submit->discord: needs_approval needs_approval external write to owned destination channel:discord:1000000000000000004 needs the operator's approval (the destination class is not pre-authorized)
+  after approval: allow ok none  ['approved words', 'channel text']
+  draft: published
+  publish.update               auth=deny           -> denied         missing_permission     'publish.update' names no url destination in arguments.destination / arguments.url / arguments.site / argument
+  publish.update               auth=needs_approval -> needs_approval none                   external write to owned destination channel:discord:1000000000000000004 needs the operator's approval (the des
