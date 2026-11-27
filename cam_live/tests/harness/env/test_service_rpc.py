@@ -228,7 +228,10 @@ def test_browser_through_the_service_process(short_dir, sites):
     try:
         remote = RemoteEnvironment(ready["socket"])
         d = Driver(remote, policy, TASK)
-        assert remote.get_capabilities()["modalities"] == ["internal", "structured_browser"]
+        # without --executor the service composes every executor of the harness (cam_live.harness.factories)
+        assert remote.get_capabilities()["modalities"] == sorted(["internal", "structured_browser", "code", "visual",
+                                                                  "api", "skill"])
+        assert ready["compose"] == "all"
         s = sites.urls["structured"]
         o = d.ok("browser.navigate", url=s + "/items").observations[0]
         assert o.kind == "page" and o.provenance.trust == Trust.UNTRUSTED
@@ -237,7 +240,12 @@ def test_browser_through_the_service_process(short_dir, sites):
         assert nxt.data["url"] == s + "/report" and "Total quantity" in nxt.text
         stale = d.do("browser.click", ref=Driver.ref(o, "link", "Report"), obs_id=o.obs_id)
         assert stale.failure_class == FailureClass.STALE_OBSERVATION
-        assert [p[0] for p in policy.primitives] == ["browser.navigate", "browser.click", "browser.navigate"]
+        # reads of the page's own origin (e.g. its icon) are judged per origin and action: browser.request
+        assert [p[0] for p in policy.primitives if p[0] != "browser.request"] == \
+            ["browser.navigate", "browser.click", "browser.navigate"]
+        from urllib.parse import urlsplit
+        extra = [p[1] for p in policy.primitives if p[0] == "browser.request"]
+        assert all(urlsplit(x["url"]).netloc == urlsplit(s).netloc and x["method"] == "GET" for x in extra), extra
         observed = remote.observe()
         assert [x.kind for x in observed] == ["page", "metric"] and observed[0].data["url"] == s + "/report"
         log = open(os.path.join(short_dir, "events.jsonl")).read()

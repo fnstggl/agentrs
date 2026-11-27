@@ -317,23 +317,64 @@ def call_factory(fn: Callable[..., Any], **available: Any) -> Any:
 
 def build_environment(run_dir: str, policy: Any, *, provenance: str = "staging", clock: Any = None, secrets: Any = None,
                       executors: Sequence[str] = (), browser: bool = True, browser_config: Any = None,
-                      limits: Any = None) -> Any:
-    """A ``ComputerEnvironment`` with the internal and browser executors plus any ``module:factory`` executors.
-    A factory is called with those of ``run_dir, clock, env, policy, secrets`` it accepts and must return a
-    ``contracts.ModalityExecutor`` (or a list of them)."""
+                      limits: Any = None, compose: str = "minimal", task: Any = None, **factory_kw: Any) -> Any:
+    """A ``ComputerEnvironment``.
+
+    ``compose="all"``: every executor of the harness, configured from ``task``
+    (:func:`cam_live.harness.factories.all_executors`). ``compose="minimal"``: the internal and browser executors
+    plus any ``module:factory`` executors; a factory is called with those of ``run_dir, clock, env, policy,
+    secrets, task`` it accepts and must return a ``contracts.ModalityExecutor`` (or a list of them)."""
     from .env import ComputerEnvironment
-    from .internal import InternalExecutor
     env = ComputerEnvironment(run_dir, policy, clock=clock, secrets=secrets, provenance=provenance, limits=limits)
-    env.register(InternalExecutor(run_dir, clock=env.clock))
-    if browser:
-        from .browser import BrowserExecutor
-        env.register(BrowserExecutor(run_dir, clock=env.clock, config=browser_config))
+    if compose == "all":
+        from .factories import all_executors
+        for ex in all_executors(run_dir, env.clock, env, policy, env.secrets, task, browser_enabled=browser,
+                                browser_config=browser_config, **factory_kw):
+            env.register(ex)
+    elif compose == "minimal":
+        from .internal import InternalExecutor
+        env.register(InternalExecutor(run_dir, clock=env.clock))
+        if browser:
+            from .browser import BrowserExecutor
+            env.register(BrowserExecutor(run_dir, clock=env.clock, config=browser_config))
+    else:
+        env.close()
+        raise ValueError(f"compose must be 'all' or 'minimal', not {compose!r}")
     for spec in executors:
         made = call_factory(load_factory(spec), run_dir=run_dir, clock=env.clock, env=env, policy=policy,
-                            secrets=secrets)
+                            secrets=env.secrets, task=task)
         for ex in (made if isinstance(made, (list, tuple)) else [made]):
             env.register(ex)
     return env
+
+
+def find_task_file(run_dir: str) -> str:
+    """The run's task file: ``cam-live run`` copies it to ``<run>/task.yaml`` and gives the environment service
+    ``<run>/exec`` as its run directory."""
+    R = os.path.abspath(run_dir)
+    for p in (os.path.join(R, "task.yaml"), os.path.join(os.path.dirname(R), "task.yaml")
+              if os.path.basename(R) == "exec" else ""):
+        if p and os.path.isfile(p):
+            return p
+    return ""
+
+
+def remote_secrets(auth_socket: str) -> Any:
+    """The executor-side secret broker handle over AuthRPC (``secret_get`` for the granted action and
+    destination, ``scrub``); it works only when this process runs as the executor uid."""
+    from .auth.client import AuthClient
+    from . import users_exist
+    probe = RpcClient(auth_socket, timeout=10.0)
+    try:
+        methods = set(probe.call("__ping__").get("methods", []))
+    finally:
+        probe.close()
+    if not {"secret_get", "scrub"} <= methods:
+        print("warning: the authorization service offers no secret broker (secret_get / scrub): observations are "
+              "not scrubbed and no executor can use a stored secret", file=sys.stderr)
+        return None
+    uids = {uid_of("auth"), 0, os.getuid()} if users_exist() else None
+    return AuthClient(auth_socket, 60.0, uids).secrets
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -344,9 +385,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--auth-socket", default="", help="unix socket of the authorization service")
     ap.add_argument("--provenance", default="staging", choices=["staging", "live", "diagnostic"])
     ap.add_argument("--executor", action="append", default=[], metavar="MODULE:FACTORY",
-                    help="additional modality executor factory (repeatable)")
+                    help="additional modality executor factory (repeatable); implies --compose minimal")
+    ap.add_argument("--compose", choices=["all", "minimal"], default="",
+                    help="all: every executor of the harness, configured from the task (default without --executor); "
+                         "minimal: internal + browser (+ --executor factories)")
+    ap.add_argument("--task", default="", help="task file that configures the executors (default: the run's "
+                                               "task.yaml, next to an 'exec' run directory)")
     ap.add_argument("--secrets", default="", metavar="MODULE:FACTORY",
-                    help="factory for the executor-side secret broker handle (called with run_dir, auth_socket)")
+                    help="factory for the executor-side secret broker handle (called with run_dir, auth_socket); "
+                         "default: the authorization service's broker over --auth-socket")
+    ap.add_argument("--no-secrets", action="store_true", help="no secret broker (observations are not scrubbed)")
     ap.add_argument("--no-browser", action="store_true")
     ap.add_argument("--headed", action="store_true", help="show the browser window (needs a display)")
     ap.add_argument("--cdp", action="append", default=[], metavar="NAME=ENDPOINT",
@@ -367,14 +415,27 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print("refusing to start: --auth-socket is required (or --diagnostic-allow-all for non-live staging)",
               file=sys.stderr)
         return 2
-    secrets = call_factory(load_factory(a.secrets), run_dir=a.run_dir, auth_socket=a.auth_socket) if a.secrets else None
+    if a.secrets:
+        secrets = call_factory(load_factory(a.secrets), run_dir=a.run_dir, auth_socket=a.auth_socket)
+    elif a.auth_socket and not a.no_secrets:
+        secrets = remote_secrets(a.auth_socket)
+    else:
+        secrets = None
     bcfg = None
     if not a.no_browser:
         from .browser import BrowserConfig
         bcfg = BrowserConfig(headless=not a.headed,
                              cdp_endpoints=dict(x.split("=", 1) for x in a.cdp))
+    compose = a.compose or ("minimal" if a.executor else "all")
+    task, task_file = None, a.task or find_task_file(a.run_dir)
+    if task_file:
+        try:
+            from ..runtime.tasks import load_task
+            task = load_task(task_file, for_run=False)
+        except Exception as e:  # noqa: BLE001 — task-configured executors then report themselves unavailable
+            print(f"warning: task file {task_file} not usable for executor configuration: {e}", file=sys.stderr)
     env = build_environment(a.run_dir, policy, provenance=a.provenance, secrets=secrets, executors=a.executor,
-                            browser=not a.no_browser, browser_config=bcfg)
+                            browser=not a.no_browser, browser_config=bcfg, compose=compose, task=task)
     sites = None
     if a.staging_sites:
         if a.provenance == "live":
@@ -390,7 +451,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: stop.set())
     print(json.dumps({"ready": True, "socket": a.socket, "pid": os.getpid(), "versions": list(EXEC_RPC_VERSIONS),
-                      "staging": sites.urls if sites else None}), flush=True)
+                      "staging": sites.urls if sites else None, "compose": compose,
+                      "modalities": sorted(env.get_capabilities()["modalities"]), "task_file": task_file,
+                      "secret_scrubbing": secrets is not None}), flush=True)
     stop.wait()
     server.stop()
     env.close()
