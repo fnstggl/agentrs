@@ -242,8 +242,9 @@ def notify_asker(ctx: Ctx, platform: str, question: str, answer: str) -> None:
     rec = ctx.state.tables["content"].get(answer)
     if feed is None or asker is None or rec is None or rec.get("aud_item") is None or platform not in feed.platforms:
         return
+    # generation 0: a notification, not a share (share generations count person-to-person passing on)
     feed.engine.deliver(ctx, np.array([asker], np.int64), np.array([int(rec["aud_item"])], np.int64),
-                        np.ones(1, np.uint8), platform=platform)
+                        np.zeros(1, np.uint8), platform=platform)
 
 
 def _qa(ctx: Ctx, platform: str, p: str, coords_j: np.ndarray, rng, skill: float, k: int,
