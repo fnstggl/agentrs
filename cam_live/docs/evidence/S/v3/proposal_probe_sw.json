@@ -1,0 +1,260 @@
+{
+ "family": "SW",
+ "problem": "rle",
+ "rounds": [
+  {
+   "seconds": 7.450536012649536,
+   "stats": {
+    "n_texts": 1,
+    "n_lines": 1,
+    "n_items": 1,
+    "n_backbone_valid": 0,
+    "fraction_valid_of_items": 0.0,
+    "fraction_valid_of_lines": 0.0,
+    "n_schema": 14,
+    "n_skills": 0,
+    "n_merged": 14,
+    "n_environment_invalid": 0,
+    "rejection_reasons": {
+     "invalid_arguments": 1
+    },
+    "by_provenance": {
+     "schema_walker": 14
+    },
+    "latent_conditioned": true
+   },
+   "raw": [
+    "{\"operation\": \"program\", \"arguments\": {\"steps\": [{\"operation\": \"sandbox.list_files\", \"arguments\": {\"path\": \"sandbox\", \"recursive\": true}}, {\"operation\": \"internal.inspect\", \"arguments\": {\"what\": \"actions\", \"limit\": 200, \"offset\": 0}}, {\"operation\": \"internal.inspect\", \"arguments\": {\"what\": \"results\", \"limit\": 200, \"offset\": 0}}, {\"operation\": \"internal.inspect\", \"arguments\": {\"what\": \"events\", \"limit\": 200, \"offset\": 0}}], \"expected\": \"Information about the sandbox files, actions, results, and events.\"}}"
+   ],
+   "rejections": [
+    {
+     "reason": "invalid_arguments",
+     "detail": "$: unexpected property 'steps'; $: unexpected property 'expected'",
+     "text": "{\"arguments\":{\"expected\":\"Information about the sandbox files, actions, results, and events.\",\"steps\":[{\"arguments\":{\"path\":\"sandbox\",\"recursive\":true},\"operation\":\"sandbox.list_files\"},{\"arguments\":{\"limit\":200,\"offset\":0,\"what\":\"actions\"},\"operation\":\"internal.inspect\"},{\"arguments\":{\"limit\":200,\""
+    }
+   ],
+   "candidates": [
+    {
+     "op": "sandbox.list_files",
+     "prov": "schema_walker",
+     "args": "{\"recursive\": true}"
+    },
+    {
+     "op": "sandbox.list_files",
+     "prov": "schema_walker",
+     "args": "{\"max_entries\": 1}"
+    },
+    {
+     "op": "sandbox.list_files",
+     "prov": "schema_walker",
+     "args": "{}"
+    },
+    {
+     "op": "sandbox.job_status",
+     "prov": "schema_walker",
+     "args": "{}"
+    },
+    {
+     "op": "internal.inspect",
+     "prov": "schema_walker",
+     "args": "{\"what\": \"actions\"}"
+    },
+    {
+     "op": "wait",
+     "prov": "schema_walker",
+     "args": "{\"seconds\": 0.0}"
+    },
+    {
+     "op": "internal.inspect",
+     "prov": "schema_walker",
+     "args": "{\"what\": \"results\"}"
+    },
+    {
+     "op": "internal.inspect",
+     "prov": "schema_walker",
+     "args": "{\"what\": \"log\"}"
+    },
+    {
+     "op": "internal.inspect",
+     "prov": "schema_walker",
+     "args": "{\"what\": \"blob\"}"
+    },
+    {
+     "op": "program",
+     "prov": "schema_walker",
+     "args": "{}"
+    }
+   ]
+  },
+  {
+   "seconds": 7.261240243911743,
+   "stats": {
+    "n_texts": 1,
+    "n_lines": 1,
+    "n_items": 0,
+    "n_backbone_valid": 0,
+    "fraction_valid_of_items": 0.0,
+    "fraction_valid_of_lines": 0.0,
+    "n_schema": 14,
+    "n_skills": 0,
+    "n_merged": 14,
+    "n_environment_invalid": 0,
+    "rejection_reasons": {
+     "not_json": 1
+    },
+    "by_provenance": {
+     "schema_walker": 14
+    },
+    "latent_conditioned": true
+   },
+   "raw": [
+    "{\"operation\": \"program\", \"arguments\": {\"steps\": [{\"operation\": \"sandbox.list_files\", \"arguments\": {\"path\": \"solution.py\", \"recursive\": false}}, {\"operation\": \"internal.inspect\", \"arguments\": {\"what\": \"actions\", \"limit\": 5, \"offset\": 0}}, {\"operation\": \"program\", \"arguments\": {\"steps\": [{\"operation\": \"sandbox.list_files\", \"arguments\": {\"path\": \"solution.py\", \"recursive\": false}}, {\"operation\": \"internal.inspect\", \"arguments\": {\"what\": \"actions\", \"limit\": 5, \"offset\": 0}}], \"expected\": \"solution.py file exists and contains the correct code.\"}}, \"expected\": \"solution.py file exists and contains the correct code.\"}}"
+   ],
+   "rejections": [
+    {
+     "reason": "not_json",
+     "detail": "Expecting ',' delimiter: line 1 column 560 (char 559)",
+     "text": "{\"operation\": \"program\", \"arguments\": {\"steps\": [{\"operation\": \"sandbox.list_files\", \"arguments\": {\"path\": \"solution.py\", \"recursive\": false}}, {\"operation\": \"internal.inspect\", \"arguments\": {\"what\": \"actions\", \"limit\": 5, \"offset\": 0}}, {\"operation\": \"program\", \"arguments\": {\"steps\": [{\"operation\":"
+    }
+   ],
+   "candidates": [
+    {
+     "op": "sandbox.list_files",
+     "prov": "schema_walker",
+     "args": "{\"recursive\": true}"
+    },
+    {
+     "op": "sandbox.list_files",
+     "prov": "schema_walker",
+     "args": "{\"max_entries\": 1}"
+    },
+    {
+     "op": "sandbox.list_files",
+     "prov": "schema_walker",
+     "args": "{}"
+    },
+    {
+     "op": "sandbox.job_status",
+     "prov": "schema_walker",
+     "args": "{}"
+    },
+    {
+     "op": "internal.inspect",
+     "prov": "schema_walker",
+     "args": "{\"what\": \"actions\"}"
+    },
+    {
+     "op": "wait",
+     "prov": "schema_walker",
+     "args": "{\"seconds\": 0.0}"
+    },
+    {
+     "op": "internal.inspect",
+     "prov": "schema_walker",
+     "args": "{\"what\": \"results\"}"
+    },
+    {
+     "op": "internal.inspect",
+     "prov": "schema_walker",
+     "args": "{\"what\": \"log\"}"
+    },
+    {
+     "op": "sandbox.list_files",
+     "prov": "schema_walker",
+     "args": "{\"recursive\": false}"
+    },
+    {
+     "op": "program",
+     "prov": "schema_walker",
+     "args": "{}"
+    }
+   ]
+  },
+  {
+   "seconds": 7.556520223617554,
+   "stats": {
+    "n_texts": 1,
+    "n_lines": 1,
+    "n_items": 0,
+    "n_backbone_valid": 0,
+    "fraction_valid_of_items": 0.0,
+    "fraction_valid_of_lines": 0.0,
+    "n_schema": 14,
+    "n_skills": 0,
+    "n_merged": 14,
+    "n_environment_invalid": 0,
+    "rejection_reasons": {
+     "not_json": 1
+    },
+    "by_provenance": {
+     "schema_walker": 14
+    },
+    "latent_conditioned": true
+   },
+   "raw": [
+    "{\"operation\": \"program\", \"arguments\": {\"steps\": [{\"operation\": \"sandbox.list_files\", \"arguments\": {\"path\": \"solution.py\", \"recursive\": true}}, {\"operation\": \"internal.inspect\", \"arguments\": {\"what\": \"actions\", \"limit\": 5, \"offset\": 0}}, {\"operation\": \"program\", \"arguments\": {\"steps\": [{\"operation\": \"sandbox.list_files\", \"arguments\": {\"path\": \"solution.py\", \"recursive\": true}}, {\"operation\": \"internal.inspect\", \"arguments\": {\"what\": \"actions\", \"limit\": 5, \"offset\": 0}}], \"expected\": \"solution.py exists and contains the correct code for the problem.\"}}, \"expected\": \"solution.py exists and contains the correct code for the problem.\"}}"
+   ],
+   "rejections": [
+    {
+     "reason": "not_json",
+     "detail": "Expecting ',' delimiter: line 1 column 569 (char 568)",
+     "text": "{\"operation\": \"program\", \"arguments\": {\"steps\": [{\"operation\": \"sandbox.list_files\", \"arguments\": {\"path\": \"solution.py\", \"recursive\": true}}, {\"operation\": \"internal.inspect\", \"arguments\": {\"what\": \"actions\", \"limit\": 5, \"offset\": 0}}, {\"operation\": \"program\", \"arguments\": {\"steps\": [{\"operation\": "
+    }
+   ],
+   "candidates": [
+    {
+     "op": "sandbox.list_files",
+     "prov": "schema_walker",
+     "args": "{\"recursive\": true}"
+    },
+    {
+     "op": "sandbox.list_files",
+     "prov": "schema_walker",
+     "args": "{\"max_entries\": 1}"
+    },
+    {
+     "op": "sandbox.list_files",
+     "prov": "schema_walker",
+     "args": "{}"
+    },
+    {
+     "op": "sandbox.job_status",
+     "prov": "schema_walker",
+     "args": "{}"
+    },
+    {
+     "op": "internal.inspect",
+     "prov": "schema_walker",
+     "args": "{\"what\": \"actions\"}"
+    },
+    {
+     "op": "wait",
+     "prov": "schema_walker",
+     "args": "{\"seconds\": 0.0}"
+    },
+    {
+     "op": "internal.inspect",
+     "prov": "schema_walker",
+     "args": "{\"what\": \"log\"}"
+    },
+    {
+     "op": "internal.inspect",
+     "prov": "schema_walker",
+     "args": "{\"what\": \"blob\"}"
+    },
+    {
+     "op": "sandbox.list_files",
+     "prov": "schema_walker",
+     "args": "{\"recursive\": false}"
+    },
+    {
+     "op": "program",
+     "prov": "schema_walker",
+     "args": "{}"
+    }
+   ]
+  }
+ ],
+ "n_tools": 16,
+ "prompt_chars": 12586
+}

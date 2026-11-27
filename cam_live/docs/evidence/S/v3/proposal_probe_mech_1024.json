@@ -1,0 +1,268 @@
+{
+ "family": "MECH",
+ "problem": "3",
+ "rounds": [
+  {
+   "seconds": 4.690828084945679,
+   "stats": {
+    "n_texts": 1,
+    "n_lines": 1,
+    "n_items": 1,
+    "n_backbone_valid": 0,
+    "fraction_valid_of_items": 0.0,
+    "fraction_valid_of_lines": 0.0,
+    "n_schema": 21,
+    "n_skills": 0,
+    "n_merged": 21,
+    "n_environment_invalid": 0,
+    "rejection_reasons": {
+     "invalid_arguments": 1
+    },
+    "by_provenance": {
+     "schema_walker": 21
+    },
+    "latent_conditioned": true
+   },
+   "raw": [
+    "{\"operation\": \"http.get\", \"arguments\": {\"url\": \"http://127.0.0.1:36727/measure?x=0&y=0\", \"auth\": {\"secret\": \"secret:example\"}, \"method\": \"GET\"}, \"target\": \"measure\", \"expected\": \"value for (0, 0)\"}"
+   ],
+   "rejections": [
+    {
+     "reason": "invalid_arguments",
+     "detail": "$: unexpected property 'method'",
+     "text": "{\"arguments\":{\"auth\":{\"secret\":\"secret:example\"},\"method\":\"GET\",\"url\":\"http://127.0.0.1:36727/measure?x=0&y=0\"},\"expected\":\"value for (0, 0)\",\"operation\":\"http.get\",\"target\":\"measure\"}"
+    }
+   ],
+   "candidates": [
+    {
+     "op": "http.request",
+     "prov": "schema_walker",
+     "args": "{\"url\": \"http://127.0.0.1:36727/\", \"method\": \"GET\"}"
+    },
+    {
+     "op": "http.request",
+     "prov": "schema_walker",
+     "args": "{\"url\": \"http://127.0.0.1:36727/\"}"
+    },
+    {
+     "op": "http.request",
+     "prov": "schema_walker",
+     "args": "{\"url\": \"http://127.0.0.1:36727/\", \"query\": {}}"
+    },
+    {
+     "op": "http.get",
+     "prov": "schema_walker",
+     "args": "{\"url\": \"http://127.0.0.1:36727/\", \"headers\": {}}"
+    },
+    {
+     "op": "http.request",
+     "prov": "schema_walker",
+     "args": "{\"url\": \"http://127.0.0.1:36727/\", \"method\": \"DELETE\"}"
+    },
+    {
+     "op": "wait",
+     "prov": "schema_walker",
+     "args": "{\"seconds\": 0.0}"
+    },
+    {
+     "op": "internal.inspect",
+     "prov": "schema_walker",
+     "args": "{\"what\": \"actions\"}"
+    },
+    {
+     "op": "internal.inspect",
+     "prov": "schema_walker",
+     "args": "{\"what\": \"blob\"}"
+    },
+    {
+     "op": "sandbox.list_files",
+     "prov": "schema_walker",
+     "args": "{\"recursive\": false}"
+    },
+    {
+     "op": "sandbox.job_status",
+     "prov": "schema_walker",
+     "args": "{}"
+    }
+   ]
+  },
+  {
+   "seconds": 15.391508102416992,
+   "stats": {
+    "n_texts": 1,
+    "n_lines": 4,
+    "n_items": 4,
+    "n_backbone_valid": 0,
+    "fraction_valid_of_items": 0.0,
+    "fraction_valid_of_lines": 0.0,
+    "n_schema": 21,
+    "n_skills": 0,
+    "n_merged": 21,
+    "n_environment_invalid": 0,
+    "rejection_reasons": {
+     "invalid_arguments": 4
+    },
+    "by_provenance": {
+     "schema_walker": 21
+    },
+    "latent_conditioned": true
+   },
+   "raw": [
+    "{\"operation\": \"http.get\", \"arguments\": {\"url\": \"http://127.0.0.1:36727/measure?x=0&y=0\", \"auth\": {\"secret\": \"secret:api_key\"}, \"method\": \"GET\"}, \"target\": \"measure\", \"expected\": \"response from the service for x=0, y=0\"}\n{\"operation\": \"http.get\", \"arguments\": {\"url\": \"http://127.0.0.1:36727/measure?x=1&y=1\", \"auth\": {\"secret\": \"secret:api_key\"}, \"method\": \"GET\"}, \"target\": \"measure\", \"expected\": \"response from the service for x=1, y=1\"}\n{\"operation\": \"http.get\", \"arguments\": {\"url\": \"http://127.0.0.1:36727/measure?x=-1&y=1\", \"auth\": {\"secret\": \"secret:api_key\"}, \"method\": \"GET\"}, \"target\": \"measure\", \"expected\": \"response from the service for x=-1, y=1\"}\n{\"operation\": \"http.get\", \"arguments\": {\"url\": \"http://127.0.0.1:36727/measure?x=0&y=1\", \"auth\": {\"secret\": \"secret:api_key\"}, \"method\": \"GET\"}, \"target\": \"measure\", \"expected\": \"response from the service for x=0, y=1\"}"
+   ],
+   "rejections": [
+    {
+     "reason": "invalid_arguments",
+     "detail": "$: unexpected property 'method'",
+     "text": "{\"operation\": \"http.get\", \"arguments\": {\"url\": \"http://127.0.0.1:36727/measure?x=0&y=0\", \"auth\": {\"secret\": \"secret:api_key\"}, \"method\": \"GET\"}, \"target\": \"measure\", \"expected\": \"response from the service for x=0, y=0\"}"
+    },
+    {
+     "reason": "invalid_arguments",
+     "detail": "$: unexpected property 'method'",
+     "text": "{\"operation\": \"http.get\", \"arguments\": {\"url\": \"http://127.0.0.1:36727/measure?x=1&y=1\", \"auth\": {\"secret\": \"secret:api_key\"}, \"method\": \"GET\"}, \"target\": \"measure\", \"expected\": \"response from the service for x=1, y=1\"}"
+    },
+    {
+     "reason": "invalid_arguments",
+     "detail": "$: unexpected property 'method'",
+     "text": "{\"operation\": \"http.get\", \"arguments\": {\"url\": \"http://127.0.0.1:36727/measure?x=-1&y=1\", \"auth\": {\"secret\": \"secret:api_key\"}, \"method\": \"GET\"}, \"target\": \"measure\", \"expected\": \"response from the service for x=-1, y=1\"}"
+    },
+    {
+     "reason": "invalid_arguments",
+     "detail": "$: unexpected property 'method'",
+     "text": "{\"operation\": \"http.get\", \"arguments\": {\"url\": \"http://127.0.0.1:36727/measure?x=0&y=1\", \"auth\": {\"secret\": \"secret:api_key\"}, \"method\": \"GET\"}, \"target\": \"measure\", \"expected\": \"response from the service for x=0, y=1\"}"
+    }
+   ],
+   "candidates": [
+    {
+     "op": "http.request",
+     "prov": "schema_walker",
+     "args": "{\"url\": \"http://127.0.0.1:36727/\", \"method\": \"GET\"}"
+    },
+    {
+     "op": "http.request",
+     "prov": "schema_walker",
+     "args": "{\"url\": \"http://127.0.0.1:36727/\"}"
+    },
+    {
+     "op": "http.request",
+     "prov": "schema_walker",
+     "args": "{\"url\": \"http://127.0.0.1:36727/\", \"query\": {}}"
+    },
+    {
+     "op": "http.get",
+     "prov": "schema_walker",
+     "args": "{\"url\": \"http://127.0.0.1:36727/\", \"headers\": {}}"
+    },
+    {
+     "op": "http.request",
+     "prov": "schema_walker",
+     "args": "{\"url\": \"http://127.0.0.1:36727/\", \"method\": \"DELETE\"}"
+    },
+    {
+     "op": "internal.inspect",
+     "prov": "schema_walker",
+     "args": "{\"what\": \"results\"}"
+    },
+    {
+     "op": "internal.inspect",
+     "prov": "schema_walker",
+     "args": "{\"what\": \"log\"}"
+    },
+    {
+     "op": "internal.inspect",
+     "prov": "schema_walker",
+     "args": "{\"what\": \"blob\"}"
+    },
+    {
+     "op": "sandbox.list_files",
+     "prov": "schema_walker",
+     "args": "{}"
+    },
+    {
+     "op": "sandbox.list_files",
+     "prov": "schema_walker",
+     "args": "{\"max_entries\": 1}"
+    }
+   ]
+  },
+  {
+   "seconds": 12.21202301979065,
+   "stats": {
+    "n_texts": 1,
+    "n_lines": 4,
+    "n_items": 4,
+    "n_backbone_valid": 4,
+    "fraction_valid_of_items": 1.0,
+    "fraction_valid_of_lines": 1.0,
+    "n_schema": 21,
+    "n_skills": 0,
+    "n_merged": 25,
+    "n_environment_invalid": 0,
+    "rejection_reasons": {},
+    "by_provenance": {
+     "backbone": 4,
+     "schema_walker": 21
+    },
+    "latent_conditioned": true
+   },
+   "raw": [
+    "{\"operation\": \"http.get\", \"arguments\": {\"url\": \"http://127.0.0.1:36727/measure?x=-3&y=-3\"}, \"target\": \"measure\", \"expected\": \"response from the service for x=-3, y=-3\"}\n{\"operation\": \"http.get\", \"arguments\": {\"url\": \"http://127.0.0.1:36727/measure?x=-3&y=3\"}, \"target\": \"measure\", \"expected\": \"response from the service for x=-3, y=3\"}\n{\"operation\": \"http.get\", \"arguments\": {\"url\": \"http://127.0.0.1:36727/measure?x=3&y=-3\"}, \"target\": \"measure\", \"expected\": \"response from the service for x=3, y=-3\"}\n{\"operation\": \"http.get\", \"arguments\": {\"url\": \"http://127.0.0.1:36727/measure?x=3&y=3\"}, \"target\": \"measure\", \"expected\": \"response from the service for x=3, y=3\"}"
+   ],
+   "rejections": [],
+   "candidates": [
+    {
+     "op": "http.get",
+     "prov": "backbone",
+     "args": "{\"url\": \"http://127.0.0.1:36727/measure?x=-3&y=-3\"}"
+    },
+    {
+     "op": "http.get",
+     "prov": "backbone",
+     "args": "{\"url\": \"http://127.0.0.1:36727/measure?x=-3&y=3\"}"
+    },
+    {
+     "op": "http.request",
+     "prov": "schema_walker",
+     "args": "{\"url\": \"http://127.0.0.1:36727/\", \"method\": \"GET\"}"
+    },
+    {
+     "op": "http.request",
+     "prov": "schema_walker",
+     "args": "{\"url\": \"http://127.0.0.1:36727/\"}"
+    },
+    {
+     "op": "http.request",
+     "prov": "schema_walker",
+     "args": "{\"url\": \"http://127.0.0.1:36727/\", \"query\": {}}"
+    },
+    {
+     "op": "http.get",
+     "prov": "schema_walker",
+     "args": "{\"url\": \"http://127.0.0.1:36727/\", \"headers\": {}}"
+    },
+    {
+     "op": "wait",
+     "prov": "schema_walker",
+     "args": "{\"seconds\": 0.0}"
+    },
+    {
+     "op": "internal.inspect",
+     "prov": "schema_walker",
+     "args": "{\"what\": \"log\"}"
+    },
+    {
+     "op": "sandbox.list_files",
+     "prov": "schema_walker",
+     "args": "{\"recursive\": true}"
+    },
+    {
+     "op": "sandbox.job_status",
+     "prov": "schema_walker",
+     "args": "{}"
+    }
+   ]
+  }
+ ],
+ "n_tools": 16,
+ "prompt_chars": 12579
+}

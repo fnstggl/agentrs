@@ -1,0 +1,676 @@
+{
+ "executed": true,
+ "condition": "E",
+ "seed": 99,
+ "plan": "SW:rle",
+ "decisions_per_objective": 12,
+ "real": true,
+ "root": "/workspace/camlive/runs/cam_live/eval/v3/oe/E_s99_probe",
+ "objectives": [
+  {
+   "family": "SW",
+   "problem": "rle",
+   "world_seed": 1099,
+   "objective_id": "obj_SW_rle_0_s99",
+   "runtime_status": "exhausted",
+   "reason": "limit max_decisions exhausted",
+   "verified_status": "pending",
+   "verified_value": 0.0,
+   "target": 0.9,
+   "achieved": false,
+   "decisions": 12,
+   "steps": 13,
+   "wall_s": 138.186194896698,
+   "decisions_to_achieve": null,
+   "executable_fraction": 0.75,
+   "backbone_chosen_fraction": 0.08333333333333333,
+   "repeats_of_failed_actions": 0,
+   "distinct_strategies": 6,
+   "mean_prediction_nll": -0.5389395093295466,
+   "n_predictions_resolved": 43,
+   "first_verified_hit": null,
+   "compute": {
+    "seconds": {
+     "inference": 103.44175354158506,
+     "training": 28.968042430467904,
+     "save": 4.266739613376558
+    },
+    "cpu_seconds": {
+     "inference": 616.4810937449998,
+     "training": 28.898841271999984,
+     "save": 24.725548636999967
+    }
+   },
+   "counters": {
+    "decisions": 12,
+    "external_actions": 0,
+    "actions_executed": 9,
+    "waits": 1,
+    "failures": 3,
+    "money": 0.0,
+    "compute_s": 136.6845825430937
+   },
+   "errors": [],
+   "decisions_detail": [
+    {
+     "operation": "internal.inspect",
+     "provenance": "schema_walker",
+     "ok": true,
+     "status": "ok",
+     "failure": "none",
+     "detail": "",
+     "signature": "internal.inspect{\"what\": \"str\"}",
+     "n_candidates": 10,
+     "n_backbone_candidates": 1,
+     "args_preview": "{\"what\": \"results\"}"
+    },
+    {
+     "operation": "sandbox.list_files",
+     "provenance": "schema_walker",
+     "ok": false,
+     "status": "denied",
+     "failure": "missing_permission",
+     "detail": "'sandbox.list_files' names no file destination in arguments.path / target",
+     "signature": "sandbox.list_files{\"recursive\": \"bool\"}",
+     "n_candidates": 10,
+     "n_backbone_candidates": 2,
+     "args_preview": "{\"recursive\": true}"
+    },
+    {
+     "operation": "internal.inspect",
+     "provenance": "schema_walker",
+     "ok": true,
+     "status": "ok",
+     "failure": "none",
+     "detail": "",
+     "signature": "internal.inspect{\"what\": \"str\"}",
+     "n_candidates": 10,
+     "n_backbone_candidates": 2,
+     "args_preview": "{\"what\": \"actions\"}"
+    },
+    {
+     "operation": "sandbox.list_files",
+     "provenance": "schema_walker",
+     "ok": false,
+     "status": "denied",
+     "failure": "missing_permission",
+     "detail": "'sandbox.list_files' names no file destination in arguments.path / target",
+     "signature": "sandbox.list_files{\"max_entries\": \"int\"}",
+     "n_candidates": 10,
+     "n_backbone_candidates": 1,
+     "args_preview": "{\"max_entries\": 1}"
+    },
+    {
+     "operation": "internal.inspect",
+     "provenance": "schema_walker",
+     "ok": true,
+     "status": "ok",
+     "failure": "none",
+     "detail": "",
+     "signature": "internal.inspect{\"what\": \"str\"}",
+     "n_candidates": 10,
+     "n_backbone_candidates": 1,
+     "args_preview": "{\"what\": \"log\"}"
+    },
+    {
+     "operation": "internal.inspect",
+     "provenance": "schema_walker",
+     "ok": true,
+     "status": "ok",
+     "failure": "none",
+     "detail": "",
+     "signature": "internal.inspect{\"what\": \"str\"}",
+     "n_candidates": 10,
+     "n_backbone_candidates": 2,
+     "args_preview": "{\"what\": \"results\"}"
+    },
+    {
+     "operation": "internal.inspect",
+     "provenance": "schema_walker",
+     "ok": true,
+     "status": "ok",
+     "failure": "none",
+     "detail": "",
+     "signature": "internal.inspect{\"what\": \"str\"}",
+     "n_candidates": 10,
+     "n_backbone_candidates": 1,
+     "args_preview": "{\"what\": \"log\"}"
+    },
+    {
+     "operation": "wait",
+     "provenance": "schema_walker",
+     "ok": true,
+     "status": "ok",
+     "failure": "none",
+     "detail": "",
+     "signature": "wait{\"seconds\": \"float\"}",
+     "n_candidates": 10,
+     "n_backbone_candidates": 2,
+     "args_preview": "{\"seconds\": 0.0}"
+    },
+    {
+     "operation": "internal.inspect",
+     "provenance": "schema_walker",
+     "ok": true,
+     "status": "ok",
+     "failure": "none",
+     "detail": "",
+     "signature": "internal.inspect{\"what\": \"str\"}",
+     "n_candidates": 10,
+     "n_backbone_candidates": 2,
+     "args_preview": "{\"what\": \"log\"}"
+    },
+    {
+     "operation": "sandbox.job_status",
+     "provenance": "schema_walker",
+     "ok": true,
+     "status": "ok",
+     "failure": "none",
+     "detail": "",
+     "signature": "sandbox.job_status{}",
+     "n_candidates": 10,
+     "n_backbone_candidates": 2,
+     "args_preview": "{}"
+    },
+    {
+     "operation": "internal.inspect",
+     "provenance": "schema_walker",
+     "ok": true,
+     "status": "ok",
+     "failure": "none",
+     "detail": "",
+     "signature": "internal.inspect{\"what\": \"str\"}",
+     "n_candidates": 10,
+     "n_backbone_candidates": 2,
+     "args_preview": "{\"what\": \"results\"}"
+    },
+    {
+     "operation": "sandbox.list_files",
+     "provenance": "backbone",
+     "ok": false,
+     "status": "failed",
+     "failure": "invalid_arguments",
+     "detail": "FileNotFoundError: [Errno 2] No such file or directory: 'solution.py'",
+     "signature": "sandbox.list_files{\"path\": \"str\"}",
+     "n_candidates": 10,
+     "n_backbone_candidates": 2,
+     "args_preview": "{\"path\": \"solution.py\"}"
+    }
+   ],
+   "index": 0,
+   "group_changed": {
+    "semantic_adapters": true,
+    "experiential": true,
+    "reward": false,
+    "heads": true,
+    "backbone_frozen": false
+   },
+   "meta_updates": [
+    {
+     "applied": false,
+     "skipped_reason": "no_policy_update_recorded",
+     "meta_grad_norm": 0.0,
+     "n_independent_outcomes": 0,
+     "reward_version_before": "rpsi1-s1.0-514584c92efca9e9",
+     "reward_version_after": "rpsi1-s1.0-514584c92efca9e9",
+     "bootstrap_mix": 1.0,
+     "estimator": ""
+    },
+    {
+     "applied": false,
+     "skipped_reason": "no_policy_update_recorded",
+     "meta_grad_norm": 0.0,
+     "n_independent_outcomes": 0,
+     "reward_version_before": "rpsi1-s1.0-dacdb6ed5e6f2260",
+     "reward_version_after": "rpsi1-s1.0-dacdb6ed5e6f2260",
+     "bootstrap_mix": 1.0,
+     "estimator": ""
+    },
+    {
+     "applied": false,
+     "skipped_reason": "insufficient_independent_outcomes:0<4",
+     "meta_grad_norm": 0.0,
+     "n_independent_outcomes": 0,
+     "reward_version_before": "rpsi1-s1.0-0728607ae191f14a",
+     "reward_version_after": "rpsi1-s1.0-0728607ae191f14a",
+     "bootstrap_mix": 1.0,
+     "estimator": ""
+    },
+    {
+     "applied": false,
+     "skipped_reason": "insufficient_independent_outcomes:0<4",
+     "meta_grad_norm": 0.0,
+     "n_independent_outcomes": 0,
+     "reward_version_before": "rpsi1-s1.0-a3a3869229bc4b68",
+     "reward_version_after": "rpsi1-s1.0-a3a3869229bc4b68",
+     "bootstrap_mix": 1.0,
+     "estimator": ""
+    },
+    {
+     "applied": false,
+     "skipped_reason": "insufficient_independent_outcomes:0<4",
+     "meta_grad_norm": 0.0,
+     "n_independent_outcomes": 0,
+     "reward_version_before": "rpsi1-s1.0-69a95e32208f136c",
+     "reward_version_after": "rpsi1-s1.0-69a95e32208f136c",
+     "bootstrap_mix": 1.0,
+     "estimator": ""
+    },
+    {
+     "applied": false,
+     "skipped_reason": "insufficient_independent_outcomes:0<4",
+     "meta_grad_norm": 0.0,
+     "n_independent_outcomes": 0,
+     "reward_version_before": "rpsi1-s1.0-803b3a6b2484811c",
+     "reward_version_after": "rpsi1-s1.0-803b3a6b2484811c",
+     "bootstrap_mix": 1.0,
+     "estimator": ""
+    },
+    {
+     "applied": false,
+     "skipped_reason": "insufficient_independent_outcomes:0<4",
+     "meta_grad_norm": 0.0,
+     "n_independent_outcomes": 0,
+     "reward_version_before": "rpsi1-s1.0-8bf7eaf1ad18611d",
+     "reward_version_after": "rpsi1-s1.0-8bf7eaf1ad18611d",
+     "bootstrap_mix": 1.0,
+     "estimator": ""
+    },
+    {
+     "applied": false,
+     "skipped_reason": "insufficient_independent_outcomes:1<4",
+     "meta_grad_norm": 0.0,
+     "n_independent_outcomes": 1,
+     "reward_version_before": "rpsi1-s1.0-8bf7eaf1ad18611d",
+     "reward_version_after": "rpsi1-s1.0-8bf7eaf1ad18611d",
+     "bootstrap_mix": 1.0,
+     "estimator": ""
+    },
+    {
+     "applied": false,
+     "skipped_reason": "insufficient_independent_outcomes:1<4",
+     "meta_grad_norm": 0.0,
+     "n_independent_outcomes": 1,
+     "reward_version_before": "rpsi1-s1.0-b7233f7a4f3bbb22",
+     "reward_version_after": "rpsi1-s1.0-b7233f7a4f3bbb22",
+     "bootstrap_mix": 1.0,
+     "estimator": ""
+    },
+    {
+     "applied": false,
+     "skipped_reason": "insufficient_independent_outcomes:2<4",
+     "meta_grad_norm": 0.0,
+     "n_independent_outcomes": 2,
+     "reward_version_before": "rpsi1-s1.0-e68866307578782f",
+     "reward_version_after": "rpsi1-s1.0-e68866307578782f",
+     "bootstrap_mix": 1.0,
+     "estimator": ""
+    },
+    {
+     "applied": false,
+     "skipped_reason": "insufficient_independent_outcomes:2<4",
+     "meta_grad_norm": 0.0,
+     "n_independent_outcomes": 2,
+     "reward_version_before": "rpsi1-s1.0-415ad1fcd63ab6a8",
+     "reward_version_after": "rpsi1-s1.0-415ad1fcd63ab6a8",
+     "bootstrap_mix": 1.0,
+     "estimator": ""
+    },
+    {
+     "applied": false,
+     "skipped_reason": "insufficient_independent_outcomes:3<4",
+     "meta_grad_norm": 0.0,
+     "n_independent_outcomes": 3,
+     "reward_version_before": "rpsi1-s1.0-c1904c01cfdcf79b",
+     "reward_version_after": "rpsi1-s1.0-c1904c01cfdcf79b",
+     "bootstrap_mix": 1.0,
+     "estimator": ""
+    },
+    {
+     "applied": false,
+     "skipped_reason": "insufficient_independent_outcomes:3<4",
+     "meta_grad_norm": 0.0,
+     "n_independent_outcomes": 3,
+     "reward_version_before": "rpsi1-s1.0-c1904c01cfdcf79b",
+     "reward_version_after": "rpsi1-s1.0-c1904c01cfdcf79b",
+     "bootstrap_mix": 1.0,
+     "estimator": ""
+    }
+   ],
+   "learning_updates": [
+    {
+     "timescale": "fast",
+     "param_groups": [],
+     "weight_delta": {}
+    },
+    {
+     "timescale": "frequent",
+     "param_groups": [
+      "experiential",
+      "heads"
+     ],
+     "weight_delta": {
+      "experiential": 1.044510006904602,
+      "heads": 0.2501085102558136
+     }
+    },
+    {
+     "timescale": "fast",
+     "param_groups": [],
+     "weight_delta": {}
+    },
+    {
+     "timescale": "frequent",
+     "param_groups": [
+      "heads",
+      "experiential"
+     ],
+     "weight_delta": {
+      "experiential": 0.01998615951263466,
+      "heads": 0.019985075302460013
+     }
+    },
+    {
+     "timescale": "fast",
+     "param_groups": [],
+     "weight_delta": {}
+    },
+    {
+     "timescale": "frequent",
+     "param_groups": [
+      "experiential",
+      "heads"
+     ],
+     "weight_delta": {
+      "experiential": 1.568760633468628,
+      "heads": 0.38118332624435425
+     }
+    },
+    {
+     "timescale": "fast",
+     "param_groups": [],
+     "weight_delta": {}
+    },
+    {
+     "timescale": "frequent",
+     "param_groups": [
+      "experiential",
+      "heads"
+     ],
+     "weight_delta": {
+      "experiential": 1.3713375329971313,
+      "heads": 0.3407836854457855
+     }
+    },
+    {
+     "timescale": "slow_adapters",
+     "param_groups": [
+      "semantic_adapters"
+     ],
+     "weight_delta": {
+      "semantic_adapters": 0.06995146721601486
+     }
+    },
+    {
+     "timescale": "fast",
+     "param_groups": [],
+     "weight_delta": {}
+    },
+    {
+     "timescale": "frequent",
+     "param_groups": [
+      "experiential",
+      "heads"
+     ],
+     "weight_delta": {
+      "experiential": 1.2266626358032227,
+      "heads": 0.31433627009391785
+     }
+    },
+    {
+     "timescale": "frequent",
+     "param_groups": [
+      "heads",
+      "experiential"
+     ],
+     "weight_delta": {
+      "experiential": 0.009231673047103801,
+      "heads": 0.018346390811966953
+     }
+    },
+    {
+     "timescale": "fast",
+     "param_groups": [],
+     "weight_delta": {}
+    },
+    {
+     "timescale": "frequent",
+     "param_groups": [
+      "experiential",
+      "heads"
+     ],
+     "weight_delta": {
+      "experiential": 1.1342382431030273,
+      "heads": 0.30005887150764465
+     }
+    },
+    {
+     "timescale": "fast",
+     "param_groups": [],
+     "weight_delta": {}
+    },
+    {
+     "timescale": "fast",
+     "param_groups": [],
+     "weight_delta": {}
+    },
+    {
+     "timescale": "frequent",
+     "param_groups": [
+      "experiential",
+      "heads"
+     ],
+     "weight_delta": {
+      "experiential": 1.0492000579833984,
+      "heads": 0.27928340435028076
+     }
+    },
+    {
+     "timescale": "slow_adapters",
+     "param_groups": [
+      "semantic_adapters"
+     ],
+     "weight_delta": {
+      "semantic_adapters": 0.15242904424667358
+     }
+    },
+    {
+     "timescale": "frequent",
+     "param_groups": [
+      "heads",
+      "experiential"
+     ],
+     "weight_delta": {
+      "experiential": 0.011447596671885421,
+      "heads": 0.01997123157936293
+     }
+    },
+    {
+     "timescale": "fast",
+     "param_groups": [],
+     "weight_delta": {}
+    },
+    {
+     "timescale": "frequent",
+     "param_groups": [
+      "experiential",
+      "heads"
+     ],
+     "weight_delta": {
+      "experiential": 0.9718112349510193,
+      "heads": 0.27300286293029785
+     }
+    },
+    {
+     "timescale": "fast",
+     "param_groups": [],
+     "weight_delta": {}
+    },
+    {
+     "timescale": "frequent",
+     "param_groups": [
+      "experiential",
+      "heads"
+     ],
+     "weight_delta": {
+      "experiential": 0.8895471096038818,
+      "heads": 0.26129019260406494
+     }
+    },
+    {
+     "timescale": "fast",
+     "param_groups": [],
+     "weight_delta": {}
+    },
+    {
+     "timescale": "frequent",
+     "param_groups": [
+      "experiential",
+      "heads"
+     ],
+     "weight_delta": {
+      "experiential": 0.8354030847549438,
+      "heads": 0.2559266686439514
+     }
+    },
+    {
+     "timescale": "slow_adapters",
+     "param_groups": [],
+     "weight_delta": {
+      "semantic_adapters": 0.0
+     }
+    },
+    {
+     "timescale": "frequent",
+     "param_groups": [
+      "heads",
+      "experiential"
+     ],
+     "weight_delta": {
+      "experiential": 0.0057975823612636665,
+      "heads": 0.012883321529584523
+     }
+    },
+    {
+     "timescale": "fast",
+     "param_groups": [],
+     "weight_delta": {}
+    }
+   ],
+   "mix": 1.0,
+   "reward_version": "rpsi1-s1.0-c1904c01cfdcf79b",
+   "lock_hold_s": 150.25117588043213,
+   "gpu_peak_gb": 9.523857593536377
+  }
+ ],
+ "code": {
+  "cam_live_dir": "/workspace/camlive/cam_live/src/cam_live",
+  "snapshot": "",
+  "snapshot_commit": "",
+  "agent.py": "5a633d02e59c7c83",
+  "reward/metalearner.py": "6203b0b1685e2caa",
+  "credit/learner.py": "414404e03c2d005e",
+  "predict/predictor.py": "21d203d377d5bedb",
+  "runtime/loop.py": "cfe5cdb2cdd6266f",
+  "nn/model.py": "d2e2e4bb36914ddc",
+  "eval/conditions.py": "b9d2a82a70388055",
+  "eval/runner.py": "e829a782e3463f5b"
+ },
+ "configuration": {
+  "agent_class": "CamLiveAgent",
+  "backbone": "Qwen/Qwen3-4B",
+  "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+  "scale": "50m",
+  "device": "cuda:0",
+  "parameters": {
+   "frozen": 4022468096,
+   "experiential": 50953765,
+   "adapters": 16713856,
+   "adapters_lora": 11796480,
+   "adapters_bridge": 4917376,
+   "reward": 949121,
+   "heads": {
+    "predict_world": 1022954,
+    "predict_transition": 1977600,
+    "predict_evaluator": 783192,
+    "predict_policy": 702339,
+    "predict_downstream": 84195,
+    "reward": 949121,
+    "credit_rudder": 559361,
+    "credit_cocoa": 925696
+   },
+   "head_groups": {
+    "predict_world": "heads",
+    "predict_transition": "heads",
+    "predict_evaluator": "heads",
+    "predict_policy": "heads",
+    "predict_downstream": "heads",
+    "reward": "reward",
+    "credit_rudder": "heads",
+    "credit_cocoa": "heads"
+   },
+   "heads_total": 6055337,
+   "total_persistent_trainable": 74672079,
+   "by_group": {
+    "backbone_frozen": 4022468096,
+    "semantic_adapters": 16713856,
+    "experiential": 50953765,
+    "reward": 949121,
+    "heads": 6055337
+   },
+   "scale": "50m",
+   "backbone": "Qwen/Qwen3-4B",
+   "backbone_pretrained": true,
+   "fast_state_numbers_per_kind": 16512
+  },
+  "agent_settings": {
+   "use_backbone": true,
+   "selection_rule": "policy",
+   "proposer_max_new_tokens": 512,
+   "proposer_k": 4,
+   "experiment_rate": 0.1,
+   "adapters": true,
+   "bridge_grounding": true,
+   "retention": true
+  },
+  "loss_providers": [
+   "world_model",
+   "fast_prior",
+   "evaluator",
+   "world_model_adapters",
+   "evaluator_adapters",
+   "rudder",
+   "cocoa",
+   "retention",
+   "bridge_grounding"
+  ],
+  "credit_assigner": true,
+  "pathways": {
+   "fast_beliefs": true,
+   "weights": true,
+   "policy_update": true,
+   "meta_learning": true,
+   "bootstrap_mix": 1.0,
+   "chooser": "policy"
+  },
+  "trainable_groups": [
+   "backbone_frozen",
+   "experiential",
+   "heads",
+   "reward",
+   "semantic_adapters"
+  ]
+ },
+ "retention": 959344855,
+ "wall_seconds": 153.54570245742798
+}

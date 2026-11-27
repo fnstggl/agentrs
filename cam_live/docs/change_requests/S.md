@@ -65,3 +65,32 @@ from predicted goal-relevant outcomes, or verified-outcome policy gradient), (b)
 policy with the predicted goal value, (c) check the bootstrap reward's exploration term (it rewards uncertainty
 reduction on the noisy gauge and probes regardless of decision relevance). Re-measure with
 `python -m cam_live.eval.cli analyse` (shadow + action-quality sections) after a fix.
+
+## S-6 BLOCKER for substantive evaluation: open-ended generation does not reach the objective's actions (owner: INT2 / B)
+
+**Measured** (HEAD 8e666ad, real Qwen3-4B + 50m, substantive settings `use_backbone=True`,
+`proposer_max_new_tokens` 512 / 1024, `proposer_k=4`; evidence `docs/evidence/S/v3/`):
+
+* SW objective ("write solution.py defining solve(s) ..."), 12 decisions under the runtime
+  (`probe_E_s99_sw_rle.json`): the agent never wrote a file. 11 of 12 chosen actions were schema-walker
+  candidates (`internal.inspect`, `sandbox.list_files`, `wait`, `sandbox.job_status`); the backbone contributed
+  1–2 of 10 candidates per decision, all of them `sandbox.list_files {"path": "solution.py"}`,
+  `internal.inspect {"what": "actions"}` or `wait`; selection probabilities were ~uniform (0.09–0.12 each).
+  Verifier: pass fraction 0.0 throughout (solution.py missing).
+* Proposal probe, same objective, 3 rounds (`proposal_probe_sw.json`): 0 valid backbone actions. Qwen writes one
+  composite `{"operation": "program", "arguments": {"steps": [...], "expected": ...}}` of inspection steps; it is
+  rejected (`invalid_arguments`: unexpected properties `steps` / `expected` for the `program` tool) or truncated
+  (`not_json`). No round contains `sandbox.write_file` with program text. Prompt: 12.6 k characters for 16 tools.
+* MECH objective (query a local service, write model.py), 1024 tokens (`proposal_probe_mech_1024.json`): sensible
+  experiments are written (`http.get .../measure?x=-3&y=3` at the corners of the domain), but in 2 of 3 rounds
+  every one is rejected for a harmless extra property (`"method": "GET"`); 4 valid in the third round.
+
+**Consequence.** With the current proposer and selection, substantive objectives that require writing software
+cannot be attempted by the agent at all, and backbone-written candidates are a small, rarely chosen minority.
+Requested (owners decide how): (a) the `program` tool's schema and the prompt must agree (the model is invited to
+compose `program` but its natural argument form is refused); (b) tolerate / strip unknown argument properties that
+do not change meaning instead of rejecting the whole action (or show `additionalProperties: false` in the prompt);
+(c) make sure artifact-producing tools (`sandbox.write_file`) are reachable — e.g. ask for several single actions,
+not one plan; (d) the selection rule should not dilute k backbone proposals among 20 walker candidates with a
+uniform untrained policy (see S-5). Re-measure with `python -m cam_live.eval.proposal_probe` and
+`python -m cam_live.eval.oe_runner sequence ...` (both in `cam_live/eval/`).
