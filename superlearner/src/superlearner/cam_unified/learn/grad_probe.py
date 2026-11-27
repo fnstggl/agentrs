@@ -251,16 +251,61 @@ def objective_gradients(weighted: "OrderedDict[str, Tensor]", groups: dict, accu
     vecs = {}
     live = [n for n in names if torch.is_tensor(weighted[n]) and weighted[n].requires_grad]
     gorder = list(groups)
+    core_pos = {}
+    ci_ = 0
+    for i, (g, p) in enumerate(flat):
+        if g in cg:
+            core_pos[i] = ci_
+            ci_ += 1
+    hook_multi = 0
     for k, n in enumerate(names):
         sq: dict = {}                    # group -> squared-norm tensor (one device sync per objective, not per tensor)
         parts = []
-        if n in live:
+        if n in live and accumulate:
+            # backward into .grad with per-parameter hooks reading this objective's gradient on its way into the
+            # accumulator: the same norms / samples as autograd.grad without materialising a second full gradient
+            # set (6 GB at the 1B dom preset, the G3 OOM) or the first objective's .grad clone
+            last = n == live[-1]
+            seen: dict = {}
+            hsq: dict = {}
+            hparts: dict = {}
+
+            def _hook(gr, _i):
+                c = seen.get(_i, 0)
+                seen[_i] = c + 1
+                gd = gr.detach()
+                s_ = gd.float().pow(2).sum()
+                hsq[_i] = s_ if c == 0 else hsq[_i] + s_
+                if _i in core_pos:
+                    gf = gd.reshape(-1).float()
+                    v_ = gf if exact else gf[samp.idx[core_pos[_i]]]
+                    hparts[_i] = v_.clone() if c == 0 else hparts[_i] + v_
+                return None
+            handles = [p.register_hook(lambda gr, _i=i: _hook(gr, _i)) for i, p in enumerate(params) if p.requires_grad]
+            try:
+                torch.autograd.backward(weighted[n], retain_graph=retain_graph or not last,
+                                        inputs=[p for p in params if p.requires_grad])
+            finally:
+                for h in handles:
+                    h.remove()
+            hook_multi += sum(1 for c in seen.values() if c > 1)
+            for i, (g, p) in enumerate(flat):
+                if i in core_pos:
+                    v_ = hparts.get(i)
+                    if v_ is None:
+                        k_ = p.numel() if exact else samp.idx[core_pos[i]].numel()
+                        v_ = torch.zeros(k_, device=p.device)
+                    parts.append(v_)
+                if i in hsq:
+                    sq[g] = hsq[i] if g not in sq else sq[g] + hsq[i]
+            gs = None
+        elif n in live:
             last = n == live[-1]
             gs = torch.autograd.grad(weighted[n], params, retain_graph=retain_graph or not last, allow_unused=True)
         else:
             gs = [None] * len(params)
         ci = 0
-        for (g, p), gr in zip(flat, gs):
+        for (g, p), gr in zip(flat, gs if gs is not None else ()):
             if g in cg:
                 if gr is None:
                     k_ = p.numel() if exact else samp.idx[ci].numel()
@@ -299,4 +344,6 @@ def objective_gradients(weighted: "OrderedDict[str, Tensor]", groups: dict, accu
             gs_ = [p.grad.detach().float().pow(2).sum() for _, p in ps if p.grad is not None]
             total[g] = float(torch.stack(gs_).sum().sqrt()) if gs_ else 0.0
     sizes = {g: sum(p.numel() for _, p in ps) for g, ps in groups.items()}
-    return GradTable(norms, sizes, core_norm, cos, exact, total)
+    table = GradTable(norms, sizes, core_norm, cos, exact, total)
+    table.hook_multi = hook_multi        # parameters whose gradient arrived in >1 pieces (norm then approximate)
+    return table
