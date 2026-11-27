@@ -1418,9 +1418,12 @@ def test_V10_the_rebound_check_accepts_what_a_module_does_to_its_own_definitions
         assert evidence.rebound_definitions(str(root)) == []
         mod.plain = mod.set_state
         mod.K.m = len
+        import functools
+        mod.cached = functools.wraps(mod.cached)(functools.partial(int))      # disguised as the decorated original
         found = evidence.rebound_definitions(str(root))
         assert any("rbmod.plain <- bound to set_state" in f for f in found), found
         assert any("rbmod.K.m <- bound to a builtin_function_or_method" in f for f in found), found
+        assert any("rbmod.cached <- bound to the builtin 'int'" in f for f in found), found
     finally:
         sys.modules.pop("rbmod", None)
 

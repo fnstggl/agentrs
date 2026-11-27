@@ -518,12 +518,17 @@ def _definitions(path: str) -> dict | None:
     return out
 
 
-def _unwrap(obj, depth: int = 0):
-    for attr in ("__func__", "fget", "__wrapped__", "func"):
-        inner = getattr(obj, attr, None) if depth < 8 else None
-        if inner is not None and inner is not obj:
-            return _unwrap(inner, depth + 1)
-    return obj
+_WRAP_ATTRS = ("__func__", "fget", "__wrapped__", "func")
+
+
+def _leaves(obj, depth: int = 0) -> list:
+    """Every callable a decorated object wraps, following each wrapping attribute (a functools.partial carries both
+    `func` and, after functools.wraps, `__wrapped__`: both are followed)."""
+    inner = [getattr(obj, a, None) for a in _WRAP_ATTRS] if depth < 8 else []
+    inner = [x for x in inner if x is not None and x is not obj]
+    if not inner:
+        return [obj]
+    return [leaf for x in inner for leaf in _leaves(x, depth + 1)]
 
 
 def rebound_definitions(root: str) -> list[str]:
@@ -564,19 +569,19 @@ def rebound_definitions(root: str) -> list[str]:
                     out.append(f"{where} <- deleted")
                     continue
                 val = space[fname]
-                fn = _unwrap(val) if decorated else val
-                if isinstance(fn, types.FunctionType):
-                    c = fn.__code__
-                    cf = os.path.realpath(c.co_filename)
-                    if cf == rf:
-                        if c.co_qualname != qual and (not decorated or "<locals>" not in c.co_qualname):
-                            out.append(f"{where} <- bound to {c.co_qualname}, another function of the file")
-                    elif _under(cf, [root]) and (not decorated or not _under(cf, [src])):
-                        out.append(f"{where} <- bound to {c.co_qualname} of {os.path.relpath(cf, root)}")
-                elif not decorated:
-                    out.append(f"{where} <- bound to a {type(val).__name__}, not the function the file defines")
-                elif isinstance(fn, (types.BuiltinFunctionType, type)):
-                    out.append(f"{where} <- bound to the builtin {getattr(fn, '__name__', fn)!r}")
+                for fn in (_leaves(val) if decorated else [val]):
+                    if isinstance(fn, types.FunctionType):
+                        c = fn.__code__
+                        cf = os.path.realpath(c.co_filename)
+                        if cf == rf:
+                            if c.co_qualname != qual and (not decorated or "<locals>" not in c.co_qualname):
+                                out.append(f"{where} <- bound to {c.co_qualname}, another function of the file")
+                        elif _under(cf, [root]) and (not decorated or not _under(cf, [src])):
+                            out.append(f"{where} <- bound to {c.co_qualname} of {os.path.relpath(cf, root)}")
+                    elif not decorated:
+                        out.append(f"{where} <- bound to a {type(val).__name__}, not the function the file defines")
+                    elif isinstance(fn, (types.BuiltinFunctionType, type)):
+                        out.append(f"{where} <- bound to the builtin {getattr(fn, '__name__', fn)!r}")
     return sorted(set(out))
 
 
