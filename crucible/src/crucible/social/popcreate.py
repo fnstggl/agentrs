@@ -246,7 +246,7 @@ def _launched(st, link: dict) -> bool:
     if "launches" not in st.tables:
         return True
     (kind, tgt), = link.items()
-    return any(L["link"] == kind and L["target"] == tgt for _, L in st.scan("launches"))
+    return bool(st.find_ids("launches", "link_key", f"{kind}:{tgt}"))
 
 
 def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
