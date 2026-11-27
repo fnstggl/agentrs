@@ -1,6 +1,6 @@
 {
  "workstream": "F",
- "commit": "7876477",
+ "commit": "61fd43c",
  "summary": "Persistent live runtime: 17-step loop with approvals, waiting, limits, crash-safe resume; structured logs with redaction; journal; task loader and three task files; independent membership / metric verifiers with signing, hash-chained log and service; operator control; multi-actor plumbing; dashboard; doctor; preflight; cam-live CLI; learner process entry. Built and tested against the AgentAPI protocol with a small real test agent, LabWorld, and the real authorization service and computer environment (in-process and under separated uids). The integrated neural agent, staging validation module and transfer evaluation module are not present yet.",
  "requirements": {
   "AE-06": {
