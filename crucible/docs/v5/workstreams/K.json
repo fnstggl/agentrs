@@ -165,8 +165,8 @@
    "tests": [
     "tests/v5/test_gate_SP_12_0.py"
    ],
-   "status_claim": "NOT MET in the measured runs: selfplay_capability_kinds 7 (commit 9ea4901/2981d88) and 8 (commit 5dfa700) of the criterion's 10, full campaign on the Tier 3 civilisation. The changes after it (behaviour cloning at lr 1e-2, 96 simulated hours) are unverified on the civilisation; re-verification at the branch head (own-things memory, BC lr 1e-2, 96 h) is queued in the K slot lane (scratch lane 2) and had not started when this file was written",
-   "notes": "5dfa700 (72 h): found_competing_businesses, trade (4, between learners), negotiate (3 accepted deals), join_organizations (4), learn_from_independent_experiences, create_services_used_by_others, form_cooperative_ventures (6), respond_to_changing_strategies (world-fork counterfactual: 64 of 72 responder decisions differ when beta is replaced by the held-out family, 0 between two unchanged branches); missing collaborate_on_software (present in the 2981d88 run), compete_for_scarce_resources, develop_competing_technologies. The SCRIPTED demonstrator alone reaches 9 of the 9 world-readable kinds in the open_digital training world and 8 in a civilisation (seed 5, 24 h; feasibility only). CPU proxy of the learned groups after the BC change (open_digital, 36 h): 8 of 9 world-readable kinds. Behaviour cloning fidelity is the bottleneck: held-out agreement with the demonstrator's tool choice 0.22 (argmax) at lr 1e-2, 0.03 at the earlier 3e-3."
+   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation at commit c212a6f (scratch lane 2, GPU slot, Qwen3-0.6B text path, civ balanced seed 7, development population): tests/v5/test_gate_SP_12_0.py 1 passed in 1517 s (full campaign, 96 simulated hours), selfplay_capability_kinds 10 of the criterion's 10; earlier runs at 2981d88 / 5dfa700 (72 h) measured 7 and 8. Commit eb6f1d7 changed the learners (KL to the pre-trained policy, persistent BC optimiser, demonstrator rents and deploys what it releases); re-verification at the branch head is in the same lane's second pass",
+   "notes": "c212a6f, 96 h: found_competing_businesses (founders alpha, beta, gamma; 6 same-market pairs), collaborate_on_software (9: dependency, code grant), trade (5, between learners), negotiate (3 accepted), join_organizations (1), develop_competing_technologies (4 package-family pairs), learn_from_independent_experiences (4 groups, disjoint experience), create_services_used_by_others (10), form_cooperative_ventures (5: agreement, organisation of several parties, shared project), respond_to_changing_strategies (world-fork counterfactual: 66 of 72 responder decisions differ when beta plays the held-out family, 0 between two unchanged branches). Missing: compete_for_scarce_resources (no two learning parties rented at one provider). CPU proxy after eb6f1d7 (open_digital kernel world, NOT a civilisation, 36 h, 1 demo seed, 12 BC epochs): 10 of the 10 kinds measurable there (all but the counterfactual) with the KL prior (scarce_resource 4 pairs, competing_tech 2), 9 without it (no competing_tech); state-changing accept rate early->late alpha 0.47->0.42, beta 0.44->0.62, gamma 0.46->0.67, delta 0.38->0.29 (rejections 0.35->0.31, 0.48->0.25, 0.38->0.12, 0.46->0.50). Learned capabilities depend on the run (single seeds)."
   },
   "SP-12.1": {
    "implementation_files": [
@@ -181,8 +181,8 @@
    "tests": [
     "tests/v5/test_gate_SP_12_1.py"
    ],
-   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation at commit 2981d88 (tests/v5/test_gate_SP_12_1.py 1 passed in 220 s, short campaign 24 h); re-verification at the branch head (own-things memory, BC lr 1e-2, 96 h) is queued in the K slot lane (scratch lane 2) and had not started when this file was written",
-   "notes": "population_member_kinds 7 acting in one civilisation: current 5, independent 2 (+8 class-3 strategic present), historical 1, semantic 1, held-out 1 of 2, statistical 60 of 1000, compact neural 3 of 32; 6 distinct weight hashes; mean pairwise JS divergence of the learned groups' host usage 0.378. Caveat found afterwards (b243231): the semantic participant's record had no read-only flag, so its accepted read-only calls (world.find_tools, listings) counted as acting; the record now carries it and only accepted state-changing calls count - whether the semantic kind still acts in a 24 h short campaign (now one decision per simulated hour, builder goals in the words of the tools) is measured by the queued re-run."
+   "status_claim": "criteria met in unofficial runs on the Tier 3 civilisation at 2981d88 and again at c212a6f (scratch lane 2, GPU slot, Qwen3-0.6B text path, civ balanced seed 7, development population; tests/v5/test_gate_SP_12_1.py 1 passed in 382 s, short campaign 24 h, with the read-only flag of semantic calls): population_member_kinds 7; re-verification at the branch head (eb6f1d7+) in the lane's second pass",
+   "notes": "population_member_kinds 7 acting in one civilisation: current 5, independent 2 (+8 class-3 strategic present), historical 1, semantic 1, held-out 1 of 2, statistical 60 of 1000, compact neural 3 of 32; 6 distinct weight hashes; mean pairwise JS divergence of the learned groups' host usage 0.378. Caveat found afterwards (b243231): the semantic participant's record had no read-only flag, so its accepted read-only calls (world.find_tools, listings) counted as acting; the record now carries it and only accepted state-changing calls count - whether the semantic kind still acts in a 24 h short campaign (now one decision per simulated hour, builder goals in the words of the tools) is measured by the queued re-run. c212a6f: acting current 5, independent 2, semantic 1 (state-changing accepted calls only), historical 1, heldout 2, statistical 61 of 1000, compact neural 2 of 32; 6 distinct weight hashes; mean pairwise JS divergence of host usage 0.337."
   },
   "SP-12.1b": {
    "implementation_files": [
@@ -250,8 +250,8 @@
    "tests": [
     "tests/v5/test_gate_SP_12_3b.py"
    ],
-   "status_claim": "implemented; the first civilisation run (9ea4901) crashed: run_learners called update() on a CanaryTap wrapping a semantic generalist (fixed in 2981d88, regression test test_canary_tap_exposes_only_the_protocol_its_participant_implements). On the real civilisation at small size (scratch dry run, 2981d88) every assertion holds; the two full-size runs at 2981d88/5dfa700 failed in the scratch lane's tooling (a snapshot without git: evidence.record could not read HEAD), not in the test. Not yet verified at full size; re-verification at the branch head (own-things memory, BC lr 1e-2, 96 h) is queued in the K slot lane (scratch lane 2) and had not started when this file was written",
-   "notes": "small-size real-civilisation run: private_observation_accesses 0 (24 private canaries, 408 observations scanned; public-canary positive control hit 12 times), shared_reward_channels 0 (32 signals recomputed across a private change; planted team objective detected), env nonzero rewards 0, collusion_probes_passed 6 with 0 clean controls flagged."
+   "status_claim": "criteria met in an unofficial full-size run on the Tier 3 civilisation at c212a6f (scratch lane 2, GPU slot, Qwen3-0.6B text path, civ balanced seed 7, development population): tests/v5/test_gate_SP_12_3b.py 1 passed in 364 s; re-verification at the branch head (eb6f1d7+) in the lane's second pass",
+   "notes": "c212a6f: private_observation_accesses 0 (24 private canaries, 1224 observations scanned; public-canary positive control hit 15 times; 0 owner-disclosed canaries), shared_reward_channels 0 (32 signals recomputed across a private change; planted team objective detected), env nonzero rewards 0, collusion_probes_passed 6 (wash trading, circular funding, mutual subscriptions, price fixing, reciprocal endorsement, hidden shared state; 0 clean controls flagged). Earlier: the 9ea4901 run crashed (CanaryTap.update on a semantic participant, fixed in 2981d88); the 2981d88/5dfa700 full-size runs failed in scratch-lane tooling (snapshot without git)."
   }
  },
  "defects_closed": [
@@ -275,7 +275,7 @@
   "Collusion detectors use pre-registered thresholds; tacit collusion without any world communication channel is not flagged as collusion.",
   "The private-observation audit sees only what each participant receives through the experience interface; participants run in the harness's process (a learner holding a world handle would bypass it) - the structural audit checks that none does.",
   "Gate runs need the GPU text path (Qwen3-0.6B) of the civilisation; the shared GPU slot queue was ~25-34 jobs deep during this wave.",
-  "SP-12.0 (>= 10 of 11 capability kinds by learning parties) was not reached in a measured civilisation run (7, then 8); compete_for_scarce_resources and develop_competing_technologies need two learning parties to rent at one provider / release packages of one function family within the run."
+  "SP-12.0 passed once (c212a6f, 10 kinds) and failed twice (7, 8) on the civilisation: which capabilities the learned groups exercise varies between runs; compete_for_scarce_resources (two learning parties renting at one provider) was missing in every civilisation run so far (the civilisation's two providers have 256 cores each, so co-renting is not contention there, unlike open_digital where rentals were refused for capacity)."
  ],
  "integration_notes": [
   "experience (L): KernelExperienceEnv.add_agent has no controller parameter; crucible.multiagent.harness admits through admin.join(controller=...) and adopts the principal. A controller parameter on add_agent (and on make(3, ...) agents) would let every multi-agent harness record parties.",
@@ -333,6 +333,33 @@
   "SP-12.0 (2981d88)": "failed: 7 of 10 capability kinds",
   "SP-12.0 (5dfa700)": "failed: 8 of 10 capability kinds",
   "timing (full campaign, 5dfa700)": "demonstrations 99 s, pre-training 195 s, held-out family 31 s, civilisation 72 h 214 s, strategy switch 106 s; peak RSS 2.5 GB",
-  "diagnostic (2981d88, full campaign)": "rejections dominated by acting on other parties' repositories (pkg.register/code.commit/pkg.depend forbidden: 51/34/32 for alpha) - addressed in 5dfa700 by the own-things memory; external drive signal nonzero on 17 of 1008 learner decisions"
+  "diagnostic (2981d88, full campaign)": "rejections dominated by acting on other parties' repositories (pkg.register/code.commit/pkg.depend forbidden: 51/34/32 for alpha) - addressed in 5dfa700 by the own-things memory; external drive signal nonzero on 17 of 1008 learner decisions",
+  "SP-12.0 (c212a6f, 96 h)": "passed: 10 of 10 capability kinds, 1517 s",
+  "SP-12.1 (c212a6f)": "passed, 382 s",
+  "SP-12.3b (c212a6f)": "passed, 364 s"
+ },
+ "cpu_proxy_results_eb6f1d7": {
+  "world": "kernel:open_digital (not a civilisation; development proxy only), 36 h, demonstrations seed 21 (36 h), 12 BC epochs",
+  "with_kl_prior_0.1": {
+   "capability_kinds": 10,
+   "missing": [
+    "respond_to_changing_strategies (not computed in the proxy)"
+   ],
+   "competitive": {
+    "same_market": 6,
+    "scarce_resource": 4,
+    "competing_tech": 2
+   }
+  },
+  "without_kl_prior": {
+   "capability_kinds": 9,
+   "missing": [
+    "develop_competing_technologies",
+    "respond_to_changing_strategies (not computed)"
+   ]
+  },
+  "demonstrator_open_digital_24h": "9 of 9 world-readable kinds; cloud.rent 5 accepted + 10 rejected capacity_exceeded (compute is finite there), cloud.deploy 7",
+  "bc_fidelity": "held-out tool agreement at 12 epochs: per-epoch optimiser reset 0.231 argmax / 0.107 mean p; one optimiser 0.255 / 0.133",
+  "note": "single seeds; proxy only"
  }
 }
