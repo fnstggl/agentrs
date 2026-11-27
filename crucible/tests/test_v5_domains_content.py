@@ -38,6 +38,34 @@ def test_originality_is_exact_against_every_earlier_item():
     assert og.is_copy("art5999", me, "anything") and not og.is_copy("mine6", me, "")
 
 
+def test_rearranged_copies_are_copies_and_the_reference_writes_its_own_pieces():
+    """Sentences of another creator's piece in a new order are a copy (the shingles across sentence boundaries
+    change, the words they cover do not). Pieces composed like the population's (`population.writing`, every topic, the
+    population's mix of lengths and skills) do not contain the reference's own arrangements."""
+    import numpy as np
+    from crucible.population import semantics, writing
+    rng = np.random.default_rng(1)
+    og = D.Originality()
+    pieces = []
+    for k in range(3000):
+        skill = float(rng.beta(2.5, 2.5))
+        n = int(4 + rng.integers(0, 8) * (0.5 + skill)) if rng.random() < 0.15 + 0.6 * skill else int(1 + rng.integers(0, 3))
+        title, body = writing.compose(rng, int(rng.integers(0, len(semantics.topic_names()))), n, skill)
+        pieces.append(f"{title}\n\n{body}\n")
+        og.add_other(f"pop{k}", f"p{k}", pieces[-1])
+    longs = [t for t in pieces if len([x for x in D._SPLIT.split(t) if x.strip()]) >= 6][:50]
+    for t in longs:
+        sents = [x for x in D._SPLIT.split(t) if x.strip()]
+        shuffled = " ".join(sents[j] for j in np.random.default_rng(2).permutation(len(sents)))
+        assert og.is_copy("mine1", {"p:creator"}, shuffled), shuffled
+        assert og.is_copy("mine2", {"p:creator"}, shuffled.replace(".", ""))     # punctuation stripped as well
+    flagged = 0
+    for topic in range(len(semantics.topic_names())):
+        parts = [writing.compose(rng, topic, 1, 0.95) for _ in range(5)]
+        flagged += og.is_copy(f"ref{topic}", {"p:creator"}, " ".join(b for _, b in parts))
+    assert flagged <= 2, flagged
+
+
 def test_reference_reaches_viewers_and_copycat_counts_nothing():
     r = base.run("content", "short_social", 0, policy="reference", days=1)
     assert r["proc_failed"] == 0 and r["invariant_violations"] == 0

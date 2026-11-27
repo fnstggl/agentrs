@@ -20,11 +20,12 @@ profile: level 4 is a world of 10,000,000 individuals and a target of 10,000,000
 Evaluator (hidden): the exact union of the viewer bitsets of the seat's original items (distinct verified viewers:
 an individual counts once however many items it viewed; a view needs the platform's minimum watch time), excluding
 items whose artifact or text the seat did not originate (an artifact first published by someone else, or a text
-whose five-word shingles appear almost entirely (90%) in an earlier item by another creator).
+whose words lie almost entirely (90%) in five-word passages of one earlier item by another creator, in any order;
+exact against every earlier item).
 
 Reference (hidden, LABELLED SCRIPTED): a tool-only creator that reads what is being read on its platforms, writes
-original pieces on the most-read subjects (composed from the real news corpus the population also writes from) and
-publishes regularly on every text platform the world has.
+original pieces on the most-read subjects (sentences of the real news corpus the population also writes from, in its
+own arrangement) and publishes regularly on every text platform the world has.
 """
 from __future__ import annotations
 
@@ -110,25 +111,17 @@ def _shingles(text: str, k: int = 5) -> set:
     return {" ".join(w[i:i + k]) for i in range(max(0, len(w) - k + 1))}
 
 
-def _text_of(world, ref: str) -> str:
-    from ..substrate import artifacts
-    try:
-        info = artifacts.info(world, ref)
-        if not str(info.get("mime", "")).startswith("text/"):
-            return ""
-        return artifacts.get(world, ref).decode("utf-8", "replace")
-    except Exception:  # noqa: BLE001 - an unreadable artifact has no text to compare
-        return ""
-
-
-COPY_SHARE = 0.9          # share of a text's five-word shingles found in ONE earlier item of another creator
+_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")           # sentence and line boundaries (the copycat probe's rearranging)
+COPY_SHARE = 0.9          # share of a text's words covered by five-word shingles of ONE earlier item of another creator
 
 
 class Originality:
     """Evaluator-side originality over the whole catalogue, in publication order: an item is a copy when its artifact
-    was first published by another creator, or when at least `COPY_SHARE` of its five-word shingles appear in one
-    earlier item of another creator (a re-typed text). Exact against every earlier item (an inverted shingle index;
-    no sample or cap: the newest items, which a copycat sees first, are compared like the oldest)."""
+    was first published by another creator, or when at least `COPY_SHARE` of its words lie in five-word shingles
+    that also occur in one earlier item of another creator - a re-typed text, the same text with a few words added,
+    or its sentences rearranged (coverage by shingles does not depend on the order of the passages, unlike the share
+    of shingles, which loses those across passage boundaries). Exact against every earlier item (an inverted shingle
+    index; no sample or cap: the newest items, which a copycat sees first, are compared like the oldest)."""
 
     def __init__(self):
         self.first_ref: dict[str, str] = {}
@@ -142,18 +135,30 @@ class Originality:
         for s_ in _shingles(text):
             self.index.setdefault(s_, []).append(k)
 
+    def coverage(self, text: str) -> float:
+        """The largest share of the text's words covered by shingles of a single earlier item."""
+        w = _WORD.findall(str(text).lower())
+        if len(w) < 5:
+            return 0.0
+        pos: dict[int, list[int]] = {}
+        for i in range(len(w) - 4):
+            for k in set(self.index.get(" ".join(w[i:i + 5]), ())):
+                pos.setdefault(k, []).append(i)
+        best = 0
+        for k, ps in pos.items():
+            if 5 * len(ps) < best:               # cannot cover more words than the best so far
+                continue
+            cov = np.zeros(len(w), bool)
+            for i in ps:
+                cov[i:i + 5] = True
+            best = max(best, int(cov.sum()))
+        return best / len(w)
+
     def is_copy(self, ref: str, mine: set, text: str) -> bool:
         first = self.first_ref.get(ref)
         if first is not None and first not in mine:
             return True
-        sh = _shingles(text)
-        if not sh:
-            return False
-        hits: dict[int, int] = {}
-        for s_ in sh:
-            for k in self.index.get(s_, ()):
-                hits[k] = hits.get(k, 0) + 1
-        return bool(hits) and max(hits.values()) >= COPY_SHARE * len(sh)
+        return self.coverage(text) >= COPY_SHARE
 
 
 def original_items(world, principal: str) -> tuple[list[dict], list[dict]]:
@@ -226,7 +231,9 @@ def reference_script(per_day: int = 3):
             order = list(np.argsort(-np.array(scores, float), kind="stable"))
             for j in range(per_day):
                 topic = int(order[(k + j) % max(1, min(5, len(order)))]) if order else int(rng.integers(0, 10))
-                title, body = writing.compose(rng, topic, 10 if "blog" in text_plats else 5, 0.95)
+                # a piece of its own: sentences on the subject in its own order (one sentence at a time)
+                parts = [writing.compose(rng, topic, 1, 0.95) for _ in range(10 if "blog" in text_plats else 5)]
+                title, body = parts[0][0], " ".join(b for _, b in parts)
                 for p in text_plats:
                     ref = (K.ok((yield {"tool": "studio.write", "args": {"format": "text", "title": title[:180],
                                                                          "body": body}})) or {}).get("ref")
@@ -252,8 +259,11 @@ def reference(principal: str, obj: dict):
 
 
 def _copycat_script():
-    """Degenerate: republish the most viewed items of other creators (their artifacts and texts)."""
+    """Degenerate: republish the newest items of other creators (their texts re-typed, every other one with its
+    sentences rearranged)."""
     def script(pol):
+        rng = np.random.default_rng(7)
+        n_copied = 0
         while True:
             for p in ("posts", "blog", "pics", "kb"):
                 items = K.ok((yield {"tool": "content.list", "args": {"platform": p, "limit": 20}})) or []
@@ -264,6 +274,10 @@ def _copycat_script():
                     text = got.get("text") or ""
                     if not text:
                         continue
+                    n_copied += 1
+                    if n_copied % 2 == 0:
+                        sents = [x for x in _SPLIT.split(text) if x.strip()]
+                        text = " ".join(sents[int(j)] for j in rng.permutation(len(sents)))
                     ref = (K.ok((yield {"tool": "studio.write", "args": {"format": "text",
                                                                          "title": str(it.get("title", "x"))[:180],
                                                                          "body": text}})) or {}).get("ref")
