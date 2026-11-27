@@ -38,6 +38,7 @@
 """
 from __future__ import annotations
 
+import copy
 import dataclasses
 import hashlib
 import math
@@ -76,6 +77,7 @@ class MetaConfig:
     unroll_events: int = 1               # consecutive update events one unroll covers (K = their steps together)
     on_policy_tol: float = 1e-3          # consistency check (max |pi_thetaK(a) - logged propensity|) on top of the
                                          # structural condition for the on-policy estimator (see module doc)
+    min_meta_grad_norm: float = 0.0      # an update is applied only if |dJ/dpsi| is finite and strictly above this
     weight_clip: float = 10.0
     min_ess: float = 2.0
     min_ess_fraction: float = 0.05
@@ -490,14 +492,14 @@ class MetaLearner:
 
     # ------------------------------------------------------------------------------------------- outer update
     def _skip(self, reason: str, now: float, eps: Sequence[_Episode], n_groups: int,
-              diag: Optional[Dict[str, float]] = None) -> MetaUpdateRecord:
+              diag: Optional[Dict[str, float]] = None, **fields: Any) -> MetaUpdateRecord:
         v = self.reward.version
         rec = MetaUpdateRecord(meta_id=new_id("meta"), ts=now, reward_version_before=v, reward_version_after=v,
                                n_support=sum(len(e.events[-1].exp_ids) for e in eps if e.events),
                                n_query=sum(sum(e.has_u) for e in eps), n_independent_outcomes=n_groups,
                                inner_steps=self.mc.inner_steps, inner_lr=self.mc.inner_lr,
                                bootstrap_mix=self.mixer.mix, applied=False, skipped_reason=reason,
-                               query_window=f"@{self.ledger.head}", diagnostics=dict(diag or {}))
+                               query_window=f"@{self.ledger.head}", diagnostics=dict(diag or {}), **fields)
         self.records.append(rec)
         self.stats["meta_skipped"] += 1
         return rec
@@ -537,6 +539,8 @@ class MetaLearner:
         unsupported: Dict[str, int] = {}
         used_ids: List[str] = []
         K_used, lr_used, d_policy = 0, self.mc.inner_lr, []
+        adv: List[float] = []                                  # U - b of every supported outer row
+        u_rows: List[float] = []
         traces: Dict[int, Tuple[List[InnerBatch], Params]] = {}
         with self.reward.meta_window():
             for k, e in enumerate(eps):
@@ -576,6 +580,8 @@ class MetaLearner:
                     continue
                 for n_, g_ in res.grads.items():
                     grads[n_] += g_
+                adv.extend((U.to(torch.float64) - base.to(torch.float64)).tolist())
+                u_rows.extend(U.tolist())
                 estimators.add(res.estimator)
                 n_sup += len(steps[0].exp_ids)
                 n_used += len(idx)
@@ -584,20 +590,52 @@ class MetaLearner:
                 obj += res.objective
                 K_used, lr_used = max(K_used, trace.K), lr
                 d_policy.append(float((lpK.exp() - lp0.exp()).abs().mean()))
-        self._used.update(used_ids)
         if n_used == 0:
+            self._used.update(used_ids)
             why = max(unsupported, key=unsupported.get) if unsupported else "no_query_rows_with_verified_utility"
             return self._skip(f"no_supported_episode:{why}", now, eps, len(used_groups),
                               {f"unsupported.{r}": float(c) for r, c in unsupported.items()})
         norm = math.sqrt(sum(float((g ** 2).sum()) for g in grads.values()))
         est = ESTIMATOR_ON_POLICY if estimators == {ESTIMATOR_ON_POLICY} else \
             (ESTIMATOR_IMPORTANCE if estimators == {ESTIMATOR_IMPORTANCE} else "mixed_on_policy_and_importance")
+        max_adv = max(abs(a) for a in adv)
+        u_scale = max(1.0, max(abs(u) for u in u_rows))
+        why_diag = {"meta_grad_norm": norm if math.isfinite(norm) else -1.0, "n_query_rows": float(n_used),
+                    "utility_min": min(u_rows), "utility_max": max(u_rows),
+                    "n_distinct_utilities": float(len({round(u, 12) for u in u_rows})),
+                    "max_abs_advantage": max_adv, "n_heldout_groups": float(len(held_groups)),
+                    **{f"unsupported.{r}": float(c) for r, c in unsupported.items()}}
+        refuse = ""
+        if not math.isfinite(norm):
+            refuse = "non_finite_meta_gradient"
+        elif max_adv <= 1e-9 * u_scale:
+            refuse = (f"zero_advantage: all {n_used} query utilities equal their baselines "
+                      f"({len({round(u, 12) for u in u_rows})} distinct utility value(s), "
+                      f"utility in [{min(u_rows):.4g}, {max(u_rows):.4g}])")
+        elif norm <= self.mc.min_meta_grad_norm:
+            refuse = f"zero_meta_gradient:{norm:.3e}<={self.mc.min_meta_grad_norm:g}"
+        if refuse:
+            # zero advantage: the rows stay available and wait for contrast from later verified outcomes; a zero or
+            # non-finite gradient with contrast (psi cannot influence these updates) consumes them
+            if not refuse.startswith("zero_advantage"):
+                self._used.update(used_ids)
+            return self._skip(refuse, now, eps, len(used_groups), why_diag, meta_grad_norm=why_diag["meta_grad_norm"],
+                              estimator=est, outer_objective=obj)
+        self._used.update(used_ids)
         result = MetaGradResult(True, "", est, grads=grads, grad_norm=norm, objective=obj, n=n_used,
                                 n_groups=len(used_groups), ess=ess, max_weight=max_w,
                                 clipped_fraction=clipped / n_used, K=K_used, inner_lr=lr_used, mode=self.mc.mode)
+        opt_state = copy.deepcopy(self.optimizer.state_dict())
         info = MetaGradient.apply(self.optimizer, self.reward, result, clip=self.mc.clip_reward)
-        if info.get("applied", 1.0):
-            self.mixer.note_meta_update()
+        if not info.get("applied", 0.0) or params_hash(self.reward) == h_before:
+            self.optimizer.load_state_dict(opt_state)            # nothing moved: no optimizer state either
+            for p in self.reward.parameters():
+                p.grad = None
+            return self._skip("psi_unchanged_by_the_step" if info.get("applied", 0.0)
+                              else f"not_applied:{info.get('reason', '')}", now, eps, len(used_groups),
+                              {**why_diag, "clip_scale": float(info.get("clip_scale", 0.0))},
+                              meta_grad_norm=norm, estimator=est, outer_objective=obj)
+        self.mixer.note_meta_update()
         mean_u = tot / max(N, 1)
         self._u_ema = mean_u if self._u_ema is None else 0.9 * self._u_ema + 0.1 * mean_u
         promo = self._promotion(eps, traces, dev)

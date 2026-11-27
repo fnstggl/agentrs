@@ -543,9 +543,13 @@ class MetaGradient:
     def apply(optimizer: torch.optim.Optimizer, reward_params: Union[nn.Module, Mapping[str, Tensor]],
               result: MetaGradResult, clip: Optional[float] = None) -> Dict[str, float]:
         """One ascent step of the reward optimizer on ``result.grads`` (clipped to norm ``clip``). Nothing is
-        applied — and the parameters stay bit-identical — when the result is unsupported."""
+        applied — the parameters and the optimizer state stay untouched — when the result is unsupported or its
+        gradient is zero or not finite (an Adam step on a zero gradient would still move psi through its moments)."""
         if not result.supported:
-            return {"applied": 0.0, "grad_norm": 0.0, "clip_scale": 0.0}
+            return {"applied": 0.0, "grad_norm": 0.0, "clip_scale": 0.0, "reason": "unsupported"}
+        if not math.isfinite(result.grad_norm) or result.grad_norm <= 0.0:
+            return {"applied": 0.0, "grad_norm": float(result.grad_norm), "clip_scale": 0.0,
+                    "reason": "zero_meta_gradient" if result.grad_norm == 0.0 else "non_finite_meta_gradient"}
         named = dict(reward_params.named_parameters()) if isinstance(reward_params, nn.Module) else dict(reward_params)
         if set(named) != set(result.grads):
             raise ValueError("meta-gradient names do not match the reward parameters")

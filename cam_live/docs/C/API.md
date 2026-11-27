@@ -319,7 +319,8 @@ source is masked. `learning_progress` (bootstrap only) is read from the stored d
 
 ```python
 MetaConfig(inner_lr, inner_steps, lr_reward, clip_reward, clip_policy, clip_trunk, min_independent, mode="unroll",
-           unroll_events=1, on_policy_tol=1e-3, weight_clip=10.0, min_ess=2.0, min_ess_fraction=0.05,
+           unroll_events=1, on_policy_tol=1e-3, min_meta_grad_norm=0.0, weight_clip=10.0, min_ess=2.0,
+           min_ess_fraction=0.05,
            min_propensity=1e-6, heldout_fraction=0.25, meta_mix=0.0, utility="return_to_go", max_events=32,
            provenance=None, min_gap_s=0.0, mix=1.0, mixer_step=0.1, mixer_min_independent=8, mixer_tolerance=0.0,
            reward_hidden=256, reward_life=64, reward_bound=1.0, policy_hidden=192)
@@ -368,8 +369,14 @@ Use by the integrated agent
    automatically, but only with a `check_measurement` (change request C-1); `measurement_utility` selects which
    measurements are utility, the ledger's number (the measured value) must agree with it.
 5. `ml.meta_update()` whenever convenient: it returns a record with `applied=False` and `skipped_reason`
-   (`no_policy_update_recorded`, `insufficient_independent_outcomes:n<min`, `no_supported_episode:<why>`) until the
-   evidence suffices. A broken ledger chain raises `IntegrityError`.
+   (`no_policy_update_recorded`, `insufficient_independent_outcomes:n<min`, `no_supported_episode:<why>`,
+   `zero_advantage: all n query utilities equal their baselines (...)`, `zero_meta_gradient:<norm><=<floor>`,
+   `non_finite_meta_gradient`, `psi_unchanged_by_the_step`) until the evidence suffices. `applied=True` only when
+   the meta-gradient is finite and above `min_meta_grad_norm` and psi actually changed; otherwise psi *and the
+   optimizer state* are untouched (an Adam step on a zero gradient would move psi through its moments) and the
+   skipped record's `meta_grad_norm`, `estimator`, `outer_objective` and diagnostics (`max_abs_advantage`,
+   `n_distinct_utilities`, `utility_min/max`, `n_query_rows`) say why. Rows of a zero-advantage window are not
+   consumed: they wait for contrast from later verified outcomes. A broken ledger chain raises `IntegrityError`.
 6. `ml.new_lifetime()` only when a genuinely new lifetime starts. `state_dict()` goes into the checkpoint
    (`CheckpointState.extra`); the ledger persists in its own append-only file.
 

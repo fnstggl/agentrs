@@ -242,3 +242,81 @@ def test_goal_free_budget_is_enforced_including_pending_goals():
     assert twin.budget.n_reserved == 1 and twin.select(_cands(), k=3) == []   # restored reservations still count
     secs = SelfGoalSelector(GoalFreeBudget(seconds=25.0, decisions=100))
     assert len(secs.select(_cands(), k=5)) == 2                      # estimated seconds are reserved too
+
+
+# ===================================== zero meta-gradients are never recorded as applied (staging run 2 of M-int)
+def _three_lifetimes(seed, **over):
+    ec = dg.ExperimentConfig(min_independent=2)
+    model, store, clock, ml = dg.make_stack(seed, ec, mix=0.0, **over)
+    for i in range(3):
+        ml.new_lifetime()
+        lt, _, _ = dg.lab_lifetime(ml, store, clock, ec, seed=400 + 10 * seed + i)
+        assert ml.admit_objective(lt.verified).accepted
+    return model, store, clock, ml, ec
+
+
+def test_equal_query_utilities_give_zero_advantage_and_are_skipped_with_the_reason():
+    """All verified query utilities equal (e.g. evaluations without progress): U - b = 0 on every row, the
+    meta-gradient is exactly 0. The update is skipped with reason and diagnostics, psi and the optimizer state are
+    untouched, and the rows stay available to be contrasted with later outcomes."""
+    model, store, clock, ml, ec = _three_lifetimes(11)
+    collect = ml._collect
+
+    def equal_utilities():
+        eps, used, held = collect()
+        for e in eps:
+            e.utility = [0.0] * len(e.utility)                   # what M-int's staging run 2 had: no progress
+        return eps, used, held
+    ml._collect = equal_utilities
+    h, opt = I_hash(ml), dict(ml.optimizer.state_dict()["state"])
+    rec = ml.meta_update()
+    assert not rec.applied and rec.skipped_reason.startswith("zero_advantage: all")
+    assert rec.meta_grad_norm == 0.0 and rec.diagnostics["max_abs_advantage"] == 0.0
+    assert rec.diagnostics["n_distinct_utilities"] == 1.0 and rec.estimator
+    assert I_hash(ml) == h and dict(ml.optimizer.state_dict()["state"]) == opt == {}
+    assert ml.mixer.meta_updates_applied == 0 and ml.stats["meta_applied"] == 0
+    ml._collect = collect                                        # the rows were not consumed
+    assert ml.ready() == (True, "")
+    real = ml.meta_update()
+    assert real.applied and real.meta_grad_norm > 0 and I_hash(ml) != h
+
+
+def I_hash(ml):
+    from cam_live.reward.integrity import params_hash
+    return params_hash(ml.reward)
+
+
+def test_zero_meta_gradient_never_moves_psi_through_optimizer_momentum():
+    """After a real Adam step, a meta-gradient of exactly 0 (R_psi has no path into this update) used to be applied
+    and moved psi through Adam's moments. Now it is skipped ('zero_meta_gradient') and psi stays bit-identical."""
+    model, store, clock, ml, ec = _three_lifetimes(12)
+    first = ml.meta_update()
+    assert first.applied and first.meta_grad_norm > 0
+    for i in range(3):
+        ml.new_lifetime()
+        lt, _, _ = dg.lab_lifetime(ml, store, clock, ec, seed=480 + i)
+        assert ml.admit_objective(lt.verified).accepted
+    orig = ml.inner.learned_reward
+    ml.inner.learned_reward = lambda psi, ib: orig({k: v.detach() for k, v in psi.items()}, ib)
+    h = I_hash(ml)
+    steps = [s["step"].clone() for s in ml.optimizer.state_dict()["state"].values()]
+    rec = ml.meta_update()
+    assert not rec.applied and rec.skipped_reason.startswith("zero_meta_gradient:")
+    assert rec.diagnostics["max_abs_advantage"] > 0 and rec.meta_grad_norm == 0.0
+    assert I_hash(ml) == h and rec.reward_version_before == rec.reward_version_after
+    assert [s["step"] for s in ml.optimizer.state_dict()["state"].values()] == steps
+    assert ml.mixer.meta_updates_applied == 1
+
+
+def test_meta_gradient_apply_refuses_zero_and_non_finite_gradients():
+    from cam_live.reward.meta import MetaGradient, MetaGradResult
+    from cam_live.reward.integrity import params_hash
+    p = {"w": torch.nn.Parameter(torch.randn(3))}
+    opt = torch.optim.Adam(list(p.values()), lr=0.1)
+    zero = MetaGradResult(True, "", "on_policy_query", grads={"w": torch.zeros(3)}, grad_norm=0.0)
+    nan = MetaGradResult(True, "", "on_policy_query", grads={"w": torch.full((3,), float("nan"))},
+                         grad_norm=float("nan"))
+    h = params_hash(p)
+    assert MetaGradient.apply(opt, p, zero)["reason"] == "zero_meta_gradient"
+    assert MetaGradient.apply(opt, p, nan)["reason"] == "non_finite_meta_gradient"
+    assert params_hash(p) == h and opt.state_dict()["state"] == {}
