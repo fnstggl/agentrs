@@ -66,7 +66,16 @@ objective) the mismatch remains. The calibration standardises within each decisi
 outcomes, which limits but does not remove the effect. A query flag for "level vs increment" in the contract would
 remove it (owner M, not requested now).
 
-## LRN-5 (integration test, `tests/integration/test_agent_recovery.py`, owner INT2): reload drift vs the 1e-6 bound
+## LRN-5 (integration test, `tests/integration/test_agent_recovery.py`, owner INT2): reload drift vs the 1e-6 bound — WITHDRAWN
+
+**Resolved in LRN's own files (commit 5ad3777), no change requested any more.** The divergence had two causes in
+`predict/` and `reward/`: (1) experiment assignment hashed the random experiment id, so a restored agent that
+registered a new experiment drew another arm (now: registration ordinal + arms); (2) INT2-8, the update events'
+support batches were rebuilt from the store after a restore (now checkpointed). After both fixes the two recovery
+tests pass (2 of 2 runs), the reloaded decisions agree with the uninterrupted ones to 0.0 in probability. The
+original text follows for the record.
+
+
 
 **Measured** (isolated tree of commit 9d5ba8e — LRN's code with INT2's committed agent — so that the test's child
 processes import that tree; machine loaded): `test_save_fresh_process_load_gives_identical_decisions` makes the same

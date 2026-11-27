@@ -185,14 +185,16 @@ Reading:
   decisions more than valued ones; promotions in E were mostly "hold" (inconclusive). The promotion margin (0.05 x
   utility RMS), step (0.25) and 4-group minimum are set by hand.
 * Learning progress and epistemic reduction still have no inputs in runtime runs (LRN-3).
-* `tests/integration/test_agent_recovery.py::test_save_fresh_process_load_gives_identical_decisions`: decisions
-  identical after reload, probabilities drift by 1.1e-6 > the test's 1e-6 (LRN-5; larger live steps amplify float
-  drift). Two other integration tests (`test_meta_update_runs_with_a_nonzero_meta_gradient`,
-  `test_kill_9_mid_run_then_restart_without_duplicate_actions`) failed the same way on the code before LRN when run
-  from an isolated tree — not caused by LRN, not investigated further.
+* Restore determinism (INT2-8, also fixed here): the recovery tests passed only when nothing diverged. Two causes were
+  in LRN's files — experiment assignment hashed the random experiment id, and restored update events rebuilt their
+  support batch from the store — both fixed (5ad3777, tests `test_registry.py::test_assignment_is_reproduced_by_a_
+  restored_registry...`, `test_reward_lrn.py::test_restored_update_events_keep_the_support_batch...`);
+  `tests/integration/test_agent_recovery.py` passes (2 of 2 runs). R_psi's version hash still differs bitwise after
+  the first post-load reward step (input statistics from re-computed embeddings, float order) without changing a
+  decision.
 
 ## 7. Requests to INT2
 
-`docs/change_requests/LRN.md`: LRN-1 default `selection_rule = "thompson_policy"` (INT2 is applying it in its
-working copy at the time of writing), LRN-3 record `epistemic_after` / `learning_progress`, LRN-5 recovery-test bound.
+`docs/change_requests/LRN.md`: LRN-1 default `selection_rule = "thompson_policy"` (applied by INT2 in d55986d), LRN-3
+record `epistemic_after` / `learning_progress`; LRN-5 withdrawn (fixed in LRN's files together with INT2-8).
 No other agent wiring is needed (calibration shared through the policy head and checkpointed by `meta.state_dict()`).

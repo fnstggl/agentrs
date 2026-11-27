@@ -140,3 +140,5 @@ processes is not equivalent.
   inside `reward/`.
 * **LRN-3** (not blocking) record `reward_signals.epistemic_after` and `learning_progress` so the bootstrap's
   exploration / learning-progress terms have inputs in runtime runs.
+* **INT2-8 done by LRN** (5ad3777): events that will still be differentiated are checkpointed with their support
+  batch; experiment assignment no longer depends on the random experiment id. Both recovery tests pass.
