@@ -1,0 +1,1053 @@
+{
+ "overrides": {},
+ "B": 16,
+ "rounds": 8,
+ "static_GB": 13.66677713394165,
+ "variants": {
+  "asis": {
+   "error": "OOM",
+   "detail": "CUDA out of memory. Tried to allocate 24.00 MiB. GPU 0 has a total capacity of 47.40 GiB of which 16.31 MiB is free. Including non-PyTorch memory, this process has 47.38 GiB memory in use. Of the allo",
+   "s": 121.96111152274534,
+   "log": [
+    {
+     "phase": "learner.collect",
+     "depth": 0,
+     "s": 30.107,
+     "alloc_before": 13.67,
+     "alloc_after": 16.59,
+     "peak_so_far": 16.6
+    },
+    {
+     "phase": "model.filter_sequence",
+     "depth": 1,
+     "s": 1.274,
+     "alloc_before": 16.59,
+     "alloc_after": 18.35,
+     "peak_so_far": 20.27
+    },
+    {
+     "phase": "model.world_loss",
+     "depth": 1,
+     "s": 1.162,
+     "alloc_before": 18.35,
+     "alloc_after": 33.42,
+     "peak_so_far": 33.96
+    },
+    {
+     "phase": "model.filter_sequence",
+     "depth": 1,
+     "s": 1.598,
+     "alloc_before": 33.42,
+     "alloc_after": 34.5,
+     "peak_so_far": 36.4
+    },
+    {
+     "phase": "model.adapt_loss",
+     "depth": 1,
+     "s": 0.834,
+     "alloc_before": 34.5,
+     "alloc_after": 36.24,
+     "peak_so_far": 36.75
+    },
+    {
+     "phase": "learner._replay_losses",
+     "depth": 0,
+     "s": 4.871,
+     "alloc_before": 16.59,
+     "alloc_after": 36.23,
+     "peak_so_far": 36.75
+    },
+    {
+     "phase": "learner.policy_batch",
+     "depth": 0,
+     "s": 17.121,
+     "alloc_before": 36.23,
+     "alloc_after": 36.46,
+     "peak_so_far": 41.6
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 0,
+     "s": 23.163,
+     "alloc_before": 36.46,
+     "alloc_after": 36.46,
+     "peak_so_far": 41.7
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.824,
+     "alloc_before": 36.46,
+     "alloc_after": 43.19,
+     "peak_so_far": 43.25
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.828,
+     "alloc_before": 36.46,
+     "alloc_after": 43.19,
+     "peak_so_far": 43.25
+    },
+    {
+     "phase": "learner._label_batch",
+     "depth": 0,
+     "s": 0.083,
+     "alloc_before": 43.19,
+     "alloc_after": 43.19,
+     "peak_so_far": 43.25
+    },
+    {
+     "phase": "reward_model.losses",
+     "depth": 0,
+     "s": 0.0,
+     "alloc_before": 43.19,
+     "alloc_after": 43.19,
+     "peak_so_far": 43.25
+    },
+    {
+     "phase": "grad_probe.objective_gradients",
+     "depth": 0,
+     "s": 45.624,
+     "alloc_before": 43.19,
+     "alloc_after": 43.23,
+     "peak_so_far": 46.68
+    }
+   ],
+   "opt_state_GB": 0.0
+  },
+  "noprobe": {
+   "updated": true,
+   "reason": null,
+   "microbatches": [
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4
+   ],
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 8.730396984901745e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 18.915771484375,
+     "stepped": false
+    }
+   ],
+   "probe": false,
+   "losses": {
+    "world": 132.2801971435547,
+    "adapt": 5.284698486328125,
+    "actor": -0.027129165828227997,
+    "value": 5.541263580322266
+   },
+   "s": 138.3696279558353,
+   "log": [
+    {
+     "phase": "learner.collect",
+     "depth": 0,
+     "s": 31.596,
+     "alloc_before": 13.68,
+     "alloc_after": 16.6,
+     "peak_so_far": 16.61
+    },
+    {
+     "phase": "model.filter_sequence",
+     "depth": 1,
+     "s": 1.315,
+     "alloc_before": 16.6,
+     "alloc_after": 18.37,
+     "peak_so_far": 20.3
+    },
+    {
+     "phase": "model.world_loss",
+     "depth": 1,
+     "s": 1.17,
+     "alloc_before": 18.37,
+     "alloc_after": 33.63,
+     "peak_so_far": 34.6
+    },
+    {
+     "phase": "model.filter_sequence",
+     "depth": 1,
+     "s": 1.65,
+     "alloc_before": 33.63,
+     "alloc_after": 34.68,
+     "peak_so_far": 36.59
+    },
+    {
+     "phase": "model.adapt_loss",
+     "depth": 1,
+     "s": 1.003,
+     "alloc_before": 34.68,
+     "alloc_after": 36.59,
+     "peak_so_far": 37.09
+    },
+    {
+     "phase": "learner._replay_losses",
+     "depth": 0,
+     "s": 5.14,
+     "alloc_before": 16.6,
+     "alloc_after": 36.58,
+     "peak_so_far": 37.09
+    },
+    {
+     "phase": "learner.policy_batch",
+     "depth": 0,
+     "s": 17.145,
+     "alloc_before": 36.58,
+     "alloc_after": 36.81,
+     "peak_so_far": 41.95
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 0,
+     "s": 22.177,
+     "alloc_before": 36.81,
+     "alloc_after": 36.81,
+     "peak_so_far": 42.04
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.756,
+     "alloc_before": 36.81,
+     "alloc_after": 43.53,
+     "peak_so_far": 43.59
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.76,
+     "alloc_before": 36.81,
+     "alloc_after": 43.53,
+     "peak_so_far": 43.59
+    },
+    {
+     "phase": "learner._label_batch",
+     "depth": 0,
+     "s": 0.0,
+     "alloc_before": 43.53,
+     "alloc_after": 43.53,
+     "peak_so_far": 43.59
+    },
+    {
+     "phase": "reward_model.losses",
+     "depth": 0,
+     "s": 0.0,
+     "alloc_before": 43.53,
+     "alloc_after": 43.53,
+     "peak_so_far": 43.59
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 7.509,
+     "alloc_before": 43.53,
+     "alloc_after": 19.37,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.804,
+     "alloc_before": 19.37,
+     "alloc_after": 26.14,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.808,
+     "alloc_before": 19.37,
+     "alloc_after": 26.14,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.304,
+     "alloc_before": 26.14,
+     "alloc_after": 19.37,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.758,
+     "alloc_before": 19.37,
+     "alloc_after": 26.08,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.762,
+     "alloc_before": 19.37,
+     "alloc_after": 26.08,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.27,
+     "alloc_before": 26.08,
+     "alloc_after": 19.37,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.793,
+     "alloc_before": 19.37,
+     "alloc_after": 26.18,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.796,
+     "alloc_before": 19.37,
+     "alloc_after": 26.18,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.3,
+     "alloc_before": 26.18,
+     "alloc_after": 19.37,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.745,
+     "alloc_before": 19.37,
+     "alloc_after": 25.81,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.749,
+     "alloc_before": 19.37,
+     "alloc_after": 25.81,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.229,
+     "alloc_before": 25.81,
+     "alloc_after": 19.37,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.753,
+     "alloc_before": 19.37,
+     "alloc_after": 26.12,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.757,
+     "alloc_before": 19.37,
+     "alloc_after": 26.12,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.258,
+     "alloc_before": 26.12,
+     "alloc_after": 19.37,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.743,
+     "alloc_before": 19.37,
+     "alloc_after": 25.82,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.746,
+     "alloc_before": 19.37,
+     "alloc_after": 25.82,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.232,
+     "alloc_before": 25.82,
+     "alloc_after": 19.37,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.764,
+     "alloc_before": 19.37,
+     "alloc_after": 26.13,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.767,
+     "alloc_before": 19.37,
+     "alloc_after": 26.13,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.269,
+     "alloc_before": 26.13,
+     "alloc_after": 19.37,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.751,
+     "alloc_before": 19.37,
+     "alloc_after": 26.03,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.755,
+     "alloc_before": 19.37,
+     "alloc_after": 26.03,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.249,
+     "alloc_before": 26.03,
+     "alloc_after": 19.37,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.772,
+     "alloc_before": 19.37,
+     "alloc_after": 26.13,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.776,
+     "alloc_before": 19.37,
+     "alloc_after": 26.13,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.286,
+     "alloc_before": 26.13,
+     "alloc_after": 19.37,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.795,
+     "alloc_before": 19.37,
+     "alloc_after": 26.14,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.799,
+     "alloc_before": 19.37,
+     "alloc_after": 26.14,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.315,
+     "alloc_before": 26.14,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.772,
+     "alloc_before": 19.4,
+     "alloc_after": 26.15,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.775,
+     "alloc_before": 19.4,
+     "alloc_after": 26.15,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.284,
+     "alloc_before": 26.15,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.771,
+     "alloc_before": 19.4,
+     "alloc_after": 26.13,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.775,
+     "alloc_before": 19.4,
+     "alloc_after": 26.13,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.301,
+     "alloc_before": 26.13,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.772,
+     "alloc_before": 19.4,
+     "alloc_after": 26.2,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.776,
+     "alloc_before": 19.4,
+     "alloc_after": 26.2,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.313,
+     "alloc_before": 26.2,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.753,
+     "alloc_before": 19.4,
+     "alloc_after": 26.17,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.757,
+     "alloc_before": 19.4,
+     "alloc_after": 26.17,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.293,
+     "alloc_before": 26.17,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.786,
+     "alloc_before": 19.4,
+     "alloc_after": 26.15,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.789,
+     "alloc_before": 19.4,
+     "alloc_after": 26.15,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.283,
+     "alloc_before": 26.15,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.79,
+     "alloc_before": 19.4,
+     "alloc_after": 26.62,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.794,
+     "alloc_before": 19.4,
+     "alloc_after": 26.62,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.257,
+     "alloc_before": 26.62,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.802,
+     "alloc_before": 19.4,
+     "alloc_after": 26.18,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.805,
+     "alloc_before": 19.4,
+     "alloc_after": 26.18,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.316,
+     "alloc_before": 26.18,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.761,
+     "alloc_before": 19.4,
+     "alloc_after": 25.85,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.765,
+     "alloc_before": 19.4,
+     "alloc_after": 25.85,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.225,
+     "alloc_before": 25.85,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.791,
+     "alloc_before": 19.4,
+     "alloc_after": 26.17,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.795,
+     "alloc_before": 19.4,
+     "alloc_after": 26.17,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.284,
+     "alloc_before": 26.17,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.788,
+     "alloc_before": 19.4,
+     "alloc_after": 26.08,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.792,
+     "alloc_before": 19.4,
+     "alloc_after": 26.08,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.294,
+     "alloc_before": 26.08,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.731,
+     "alloc_before": 19.4,
+     "alloc_after": 26.11,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.735,
+     "alloc_before": 19.4,
+     "alloc_after": 26.11,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.26,
+     "alloc_before": 26.11,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.784,
+     "alloc_before": 19.4,
+     "alloc_after": 26.12,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.788,
+     "alloc_before": 19.4,
+     "alloc_after": 26.12,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.312,
+     "alloc_before": 26.12,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.716,
+     "alloc_before": 19.4,
+     "alloc_after": 26.12,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.72,
+     "alloc_before": 19.4,
+     "alloc_after": 26.12,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.252,
+     "alloc_before": 26.12,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.746,
+     "alloc_before": 19.4,
+     "alloc_after": 26.63,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.75,
+     "alloc_before": 19.4,
+     "alloc_after": 26.63,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.311,
+     "alloc_before": 26.63,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.747,
+     "alloc_before": 19.4,
+     "alloc_after": 26.17,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.75,
+     "alloc_before": 19.4,
+     "alloc_after": 26.17,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.313,
+     "alloc_before": 26.17,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.771,
+     "alloc_before": 19.4,
+     "alloc_after": 26.24,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.776,
+     "alloc_before": 19.4,
+     "alloc_after": 26.24,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.323,
+     "alloc_before": 26.24,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.786,
+     "alloc_before": 19.4,
+     "alloc_after": 26.26,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.79,
+     "alloc_before": 19.4,
+     "alloc_after": 26.26,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.309,
+     "alloc_before": 26.26,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.68,
+     "alloc_before": 19.4,
+     "alloc_after": 26.06,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.683,
+     "alloc_before": 19.4,
+     "alloc_after": 26.06,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.256,
+     "alloc_before": 26.06,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.826,
+     "alloc_before": 19.4,
+     "alloc_after": 26.14,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.83,
+     "alloc_before": 19.4,
+     "alloc_after": 26.14,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.296,
+     "alloc_before": 26.14,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.728,
+     "alloc_before": 19.4,
+     "alloc_after": 26.14,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.732,
+     "alloc_before": 19.4,
+     "alloc_after": 26.14,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.269,
+     "alloc_before": 26.14,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 1,
+     "s": 0.743,
+     "alloc_before": 19.4,
+     "alloc_after": 26.14,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.747,
+     "alloc_before": 19.4,
+     "alloc_after": 26.14,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "Tensor.backward",
+     "depth": 0,
+     "s": 0.291,
+     "alloc_before": 26.14,
+     "alloc_after": 19.4,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "trainer.apply",
+     "depth": 0,
+     "s": 0.108,
+     "alloc_before": 19.4,
+     "alloc_after": 24.82,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._node_eval",
+     "depth": 0,
+     "s": 20.945,
+     "alloc_before": 24.82,
+     "alloc_after": 24.82,
+     "peak_so_far": 43.68
+    },
+    {
+     "phase": "learner._policy_losses",
+     "depth": 0,
+     "s": 0.003,
+     "alloc_before": 24.82,
+     "alloc_after": 24.82,
+     "peak_so_far": 43.68
+    }
+   ],
+   "opt_state_GB": 10.845304794609547
+  }
+ }
+}

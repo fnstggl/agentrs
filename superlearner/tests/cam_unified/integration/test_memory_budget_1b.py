@@ -1,19 +1,19 @@
 """W1 budget acceptance at the 1B scale (plan 2026-11-26 §2 memory budget, §4 G3): the real `build_agent("dom")`
-system (32 x 1536 x 24 core, Qwen3-4B) on 16 real rapid worlds through the canonical loop, then one full optimiser
-step over the 128 collected decisions (core/bench.benchmark_full).
+system (32 x 1536 x 24 core, Qwen3-4B) on 16 real rapid worlds through the canonical loop, then the system's own
+update (IntegratedLearner.step: replay world / adapt losses, the policy recompute in cfg.microbatch microbatches, PPO
+epochs, the named-group probe and share guard, role optimisers) over the 128 collected decisions, twice (the second
+update runs with the optimiser moments resident: the steady-state peak) - core/bench.benchmark_full.
 
-    peak memory of one full optimiser step <= 40 GB
-    decide at B=16 (agent.act) and at B*K = 64 rows (the cost model of K=4 candidates) <= 1.5 s
-    an update of 128 decisions (fwd+bwd in microbatches of 4 + world/adapt losses + optimiser step) <= 90 s
+    peak memory of a full optimiser step (both updates) <= 40 GB
+    decide at B=16 with K=4 candidates per row sharing one encode (agent.act, cfg.n_candidates = 4) <= 1.5 s
+    an update of 128 decisions <= 90 s (the slower of the two)
     the core changes
 
 Marked slow + gpu: it needs the GPU (it takes runs/cam_unified/gpu_heavy.lock itself, around the GPU part only,
 for about 10 minutes) and the locally cached Qwen3-4B weights. Free-memory gate: after taking the lock it skips
 (with the reason) unless >= 36 GB are free (CAM_GPU_WAIT_S seconds of waiting, default 0), so other tenants never
-make it OOM. The step is measured in the plan configuration
-available before the owners' merges: EMA target removed (shared online core; W6 deletes it), AdamW for the core and
-Adafactor for the satellites (the plan's fallback), the not-yet-wired DOM adapters' parameters included
-(--planned-adapters). Measured numbers of every variant tried are in docs/evidence/dom/W1/."""
+make it OOM. The learner runs in the configuration G3 selected (OVERRIDES / VARIANT below; every variant measured is
+in docs/evidence/dom/G3G4/)."""
 import contextlib
 import fcntl
 import os
@@ -27,7 +27,8 @@ LOCK = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..",
                                     "gpu_heavy.lock"))
 BUDGET_GB = 40.0
 MIN_FREE_GB = 36.0          # free-memory gate: other tenants of the shared GPU must leave room for the 1B step
-VARIANT = "share_ema+adafactor"
+OVERRIDES: dict = {}            # build overrides of the selected G3 configuration (filled from the G3 evidence)
+VARIANT = "adafactor+mb2+ols2"  # learner variant of core/bench (sat_optimizer, cfg.microbatch, open-loop starts)
 
 
 @contextlib.contextmanager
@@ -66,7 +67,8 @@ def bench():
         if not gate["ok"]:
             pytest.skip(f"GPU contention: {gate['free_GB']} GB free < {MIN_FREE_GB} GB (other tenants); the budget "
                         "check needs the GPU to itself (set CAM_GPU_WAIT_S to wait)")
-        return benchmark_full("dom", B=16, K=4, rounds=8, microbatch=4, planned_adapters=True, variants=[VARIANT])
+        return benchmark_full("dom", B=16, K=4, rounds=8, overrides=OVERRIDES, variants=["none"],
+                              agent_update_rows=128, learner_variants=[VARIANT])
 
 
 def test_dom_is_the_1b_core_with_qwen3_4b(bench):
@@ -77,16 +79,18 @@ def test_dom_is_the_1b_core_with_qwen3_4b(bench):
 
 
 def test_one_full_optimiser_step_fits_the_budget(bench):
-    st = bench["steps"][VARIANT]
-    assert "error" not in st, st
-    assert st["decisions"] == 128 and st["core_hash_changed"]
-    assert st["peak_GB"] <= BUDGET_GB, st["peak_GB"]
+    u = bench["agent_updates"][VARIANT]
+    assert u["error"] is None, u
+    for st in (u["first"], u["second"]):
+        assert st["updated"] and st["decisions_recomputed"] == 128 and st["core_hash_changed"], st
+    assert u["peak_GB"] <= BUDGET_GB, u["peak_GB"]
 
 
-def test_decide_at_B16_and_B16xK4_within_1_5_s(bench):
-    assert bench["acting"]["decide_s_warm_median"] <= 1.5
-    assert bench["decide_BK"]["rows"] == 64 and bench["decide_BK"]["decide_s_warm_median"] <= 1.5
+def test_decide_at_B16_with_K4_candidates_within_1_5_s(bench):
+    a = bench["acting"]
+    assert a["n_candidates_cfg"] == 4 and a["n_candidates_actions"] == [4]
+    assert a["decide_s_warm_median"] <= 1.5, a["decide_s"]
 
 
 def test_update_of_128_decisions_within_90_s(bench):
-    assert bench["steps"][VARIANT]["step_s"] <= 90.0
+    assert bench["agent_updates"][VARIANT]["s_max"] <= 90.0

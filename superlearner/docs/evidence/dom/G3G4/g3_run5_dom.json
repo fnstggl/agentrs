@@ -1,0 +1,1199 @@
+{
+ "mode": "full",
+ "preset": "dom",
+ "B": 16,
+ "K": 4,
+ "rounds": 8,
+ "microbatch": 4,
+ "overrides": {
+  "grad_checkpoint": true
+ },
+ "share_ema_target": false,
+ "planned_adapters": false,
+ "adafactor_satellites": false,
+ "ow_envs": 0,
+ "run_dir": "/tmp/bench_full_dom_zrs6n3os",
+ "torch": "2.15.0+cu132",
+ "gpu": "NVIDIA RTX A6000",
+ "gpu_free_before_build": {
+  "free_GB": 46.8779296875
+ },
+ "build_s": 24.865498337894678,
+ "build_mem": {
+  "allocated_GB": 13.43041181564331,
+  "reserved_GB": 13.44140625,
+  "peak_GB": 13.43041181564331
+ },
+ "parameters": {
+  "components": {
+   "tokenizer": {
+    "total": 27763202,
+    "trainable": 27763202
+   },
+   "core": {
+    "total": 1004124162,
+    "trainable": 1004124162
+   },
+   "entity_encoder": {
+    "total": 26203480,
+    "trainable": 26203480
+   },
+   "reasoner": {
+    "total": 53761,
+    "trainable": 53761
+   },
+   "outcome_head": {
+    "total": 34004024,
+    "trainable": 34004024
+   },
+   "beliefs": {
+    "total": 49653632,
+    "trainable": 49653632
+   },
+   "bayes": {
+    "total": 101960,
+    "trainable": 101960
+   },
+   "world_model": {
+    "total": 130646594,
+    "trainable": 130646594
+   },
+   "action_generator": {
+    "total": 191621780,
+    "trainable": 191621780
+   },
+   "value_head": {
+    "total": 14586111,
+    "trainable": 14586111
+   },
+   "option_policy": {
+    "total": 21307409,
+    "trainable": 21307409
+   },
+   "exploration_head": {
+    "total": 2548284,
+    "trainable": 2548284
+   },
+   "intent_head": {
+    "total": 56690688,
+    "trainable": 56690688
+   },
+   "decision_evaluator": {
+    "total": 14195713,
+    "trainable": 14195713
+   },
+   "query_encoder": {
+    "total": 21504,
+    "trainable": 21504
+   }
+  },
+  "cam_total": 1573522304,
+  "cam_trainable": 1573522304,
+  "semantic_pretrained": {
+   "total": 4022468096,
+   "trainable": 0,
+   "frozen": 4022468096
+  }
+ },
+ "trainer_groups": {
+  "core": 1004124162,
+  "heads": 569391998,
+  "semantic": 6144
+ },
+ "planned_adapters_report": null,
+ "ema_target_params": 0,
+ "cfg": {
+  "n_layers": 32,
+  "d_model": 1536,
+  "n_heads": 24,
+  "n_state": 128,
+  "d_satellite": 768,
+  "n_intent": 16,
+  "n_candidates": 4,
+  "wm_ema_target": false,
+  "microbatch": 4,
+  "ppo_epochs": 2,
+  "sem_xattn_every": 4,
+  "dec_xattn_every": 6,
+  "reward_mode": "observation_only",
+  "update_every": 8
+ },
+ "semantic_model": "Qwen/Qwen3-4B",
+ "acting": {
+  "decide_s": [
+   6.55681247683242,
+   1.5272157480940223,
+   1.0236067320220172,
+   1.1054642209783196,
+   1.7521365438587964,
+   1.1392239513806999,
+   1.0978614771738648,
+   1.1149654458276927
+  ],
+  "decide_s_warm_median": 1.1149654458276927,
+  "peak_GB": 16.407782554626465,
+  "decisions": 128,
+  "rounds": 8,
+  "reward_mode": "observation_only",
+  "labels_appended": 0,
+  "authorisation": {
+   "required": false,
+   "checked": 0,
+   "source": "explicit"
+  },
+  "tools_per_env": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "versions": {
+   "policy": 0,
+   "reward_model": 0,
+   "evaluator": null,
+   "env": null,
+   "code": "847559af4148fad938b168afbb78c8e0dab1af90"
+  },
+  "phase_wall_s": {
+   "act": 15.317814799956977,
+   "execute": 0.03712120372802019,
+   "advance": 0.007195847574621439,
+   "events": 0.0,
+   "observe": 1.4737706491723657,
+   "learner": 0.00027553876861929893,
+   "labels": 0.0006722812540829182,
+   "update": 0.0,
+   "meta": 0.0,
+   "tools": 0.0020301216281950474,
+   "checkpoint": 0.0,
+   "reset": 0.02718566218391061
+  },
+  "env_exceptions": [],
+  "decide_phase_s": [
+   {
+    "encode_s": 5.2409706031903625,
+    "generate_s": 0.44925035582855344,
+    "evaluate_s": 0.570838114246726,
+    "total_s": 6.51206274330616
+   },
+   {
+    "encode_s": 0.35352181596681476,
+    "generate_s": 0.45763898408040404,
+    "evaluate_s": 0.5616414812393486,
+    "total_s": 1.5056643821299076
+   },
+   {
+    "encode_s": 0.23911602701991796,
+    "generate_s": 0.23725576093420386,
+    "evaluate_s": 0.4586723051033914,
+    "total_s": 1.0018899599090219
+   },
+   {
+    "encode_s": 0.2635301509872079,
+    "generate_s": 0.22744477028027177,
+    "evaluate_s": 0.5235536969266832,
+    "total_s": 1.0828755479305983
+   },
+   {
+    "encode_s": 0.6597874090075493,
+    "generate_s": 0.39477682299911976,
+    "evaluate_s": 0.6058343169279397,
+    "total_s": 1.729530279058963
+   },
+   {
+    "encode_s": 0.2793930950574577,
+    "generate_s": 0.2698936681263149,
+    "evaluate_s": 0.5010480750352144,
+    "total_s": 1.1176087469793856
+   },
+   {
+    "encode_s": 0.2783565507270396,
+    "generate_s": 0.22622462082654238,
+    "evaluate_s": 0.5038738660514355,
+    "total_s": 1.0761628388427198
+   },
+   {
+    "encode_s": 0.24120051274076104,
+    "generate_s": 0.27988152019679546,
+    "evaluate_s": 0.5035083340480924,
+    "total_s": 1.092737358994782
+   }
+  ],
+  "n_candidates_cfg": 4,
+  "n_candidates_actions": [
+   4
+  ],
+  "actions_last_round": 16
+ },
+ "steps": {},
+ "step": null,
+ "after_step_mem": {
+  "allocated_GB": 13.666786670684814,
+  "reserved_GB": 16.64453125,
+  "peak_GB": 16.407782554626465
+ },
+ "agent_updates": {
+  "adafactorall+mb2+ols2": {
+   "first": {
+    "rows": 128,
+    "microbatch": 2,
+    "updated": true,
+    "s": 114.18210884789005,
+    "peak_GB": 35.58026933670044,
+    "optimizer_state_GB": 0.00752691924571991,
+    "optimizer": [
+     "SplitOptimizer",
+     "SplitOptimizer"
+    ],
+    "losses": {
+     "world": 187.67901611328125,
+     "adapt": 6.528891563415527,
+     "actor": -0.027077361941337585,
+     "value": 5.541263580322266
+    },
+    "reason": null,
+    "decisions_recomputed": 128,
+    "microbatches": [
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2
+    ],
+    "epochs": [
+     {
+      "epoch": 0,
+      "kl": 8.069455361692235e-06,
+      "stepped": true
+     },
+     {
+      "epoch": 1,
+      "kl": 0.006523680407553911,
+      "stepped": true,
+      "policy_loss": -0.04289202764630318,
+      "clipped": false
+     }
+    ],
+    "stop": null,
+    "probe": true,
+    "core_share": {
+     "world": 0.4365,
+     "adapt": 0.16475377565679253,
+     "actor": 0.3987462243432074,
+     "value": 0.0
+    },
+    "core_share_measured": {
+     "world": 0.561136923043851,
+     "adapt": 0.04162925332733488,
+     "actor": 0.39723382362881415,
+     "value": 0.0
+    },
+    "share_guard": {
+     "scale": {
+      "world": 0.19655253385264948,
+      "adapt": 1.0,
+      "actor": 0.2536375844140523,
+      "value": 1.0
+     },
+     "satisfied": true,
+     "violated_measured": [
+      "world"
+     ],
+     "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+    },
+    "dom08": {
+     "core.block0": "nonzero",
+     "core.block_mid": "nonzero",
+     "core.block_last": "nonzero",
+     "sem_proj": "nonzero",
+     "core.sem_xattn_gate": "nonzero",
+     "reasoner": "nonzero",
+     "beliefs": "nonzero",
+     "world_model": "nonzero",
+     "intent": "nonzero",
+     "dec_xattn": "zero",
+     "exploration": "nonzero",
+     "policy": "nonzero",
+     "v_int": "nonzero",
+     "predictors": "zero"
+    },
+    "grad_absent": [
+     "other"
+    ],
+    "hook_multi": 0,
+    "open_loop_starts": 2,
+    "n_seqs": 2,
+    "alloc_start_GB": 13.666786670684814,
+    "core_hash_changed": true
+   },
+   "second": {
+    "rows": 128,
+    "microbatch": 2,
+    "updated": true,
+    "s": 87.10581893008202,
+    "peak_GB": 38.76694393157959,
+    "optimizer_state_GB": 0.0075394995510578156,
+    "optimizer": [
+     "SplitOptimizer",
+     "SplitOptimizer"
+    ],
+    "losses": {
+     "world": 137.10401916503906,
+     "adapt": 5.231943130493164,
+     "actor": 0.482546329498291,
+     "value": 5.54120397567749
+    },
+    "reason": null,
+    "decisions_recomputed": 128,
+    "microbatches": [
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2
+    ],
+    "epochs": [
+     {
+      "epoch": 0,
+      "kl": 0.0,
+      "stepped": true
+     },
+     {
+      "epoch": 1,
+      "kl": 0.0,
+      "stepped": true,
+      "policy_loss": 0.5090120434761047,
+      "clipped": false
+     }
+    ],
+    "stop": null,
+    "probe": true,
+    "core_share": {
+     "world": 0.4365,
+     "adapt": 0.4473109351882894,
+     "actor": 0.11612403381661675,
+     "value": 6.503099509384284e-05
+    },
+    "core_share_measured": {
+     "world": 0.4670136834578561,
+     "adapt": 0.4647088653332336,
+     "actor": 0.06822688158363825,
+     "value": 5.0569625272116225e-05
+    },
+    "share_guard": {
+     "scale": {
+      "world": 0.5491462857985683,
+      "adapt": 0.5655382266187495,
+      "actor": 1.0,
+      "value": 0.7555515000610482
+     },
+     "satisfied": true,
+     "violated_measured": [
+      "world",
+      "adapt",
+      "actor"
+     ],
+     "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+    },
+    "dom08": {
+     "core.block0": "nonzero",
+     "core.block_mid": "nonzero",
+     "core.block_last": "nonzero",
+     "sem_proj": "nonzero",
+     "core.sem_xattn_gate": "nonzero",
+     "reasoner": "nonzero",
+     "beliefs": "nonzero",
+     "world_model": "nonzero",
+     "intent": "nonzero",
+     "dec_xattn": "zero",
+     "exploration": "nonzero",
+     "policy": "nonzero",
+     "v_int": "nonzero",
+     "predictors": "zero"
+    },
+    "grad_absent": [
+     "other"
+    ],
+    "hook_multi": 0,
+    "open_loop_starts": 2,
+    "n_seqs": 2,
+    "alloc_start_GB": 13.705729484558105,
+    "core_hash_changed": true
+   },
+   "peak_GB": 38.76694393157959,
+   "s_max": 114.18210884789005,
+   "error": null
+  },
+  "adafactor+mb2+ols1": {
+   "first": {
+    "rows": 128,
+    "microbatch": 2,
+    "updated": true,
+    "s": 94.03977043973282,
+    "peak_GB": 35.03294229507446,
+    "optimizer_state_GB": 7.466942831873894,
+    "optimizer": [
+     "SplitOptimizer",
+     "SplitOptimizer"
+    ],
+    "losses": {
+     "world": 125.02302551269531,
+     "adapt": 7.101099967956543,
+     "actor": 0.48125940561294556,
+     "value": 5.541145324707031
+    },
+    "reason": null,
+    "decisions_recomputed": 128,
+    "microbatches": [
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2
+    ],
+    "epochs": [
+     {
+      "epoch": 0,
+      "kl": 0.0,
+      "stepped": true
+     },
+     {
+      "epoch": 1,
+      "kl": 0.0,
+      "stepped": true,
+      "policy_loss": 0.48877987265586853,
+      "clipped": false
+     }
+    ],
+    "stop": null,
+    "probe": true,
+    "core_share": {
+     "world": 0.4482154102272857,
+     "adapt": 0.4365,
+     "actor": 0.11519960794223434,
+     "value": 8.498183047996461e-05
+    },
+    "core_share_measured": {
+     "world": 0.3372677762295532,
+     "adapt": 0.6255909175470025,
+     "actor": 0.03708811211596648,
+     "value": 5.319410747794461e-05
+    },
+    "share_guard": {
+     "scale": {
+      "world": 0.42785406351107563,
+      "adapt": 0.22463505964421768,
+      "actor": 1.0,
+      "value": 0.5143352397111105
+     },
+     "satisfied": true,
+     "violated_measured": [
+      "adapt",
+      "actor"
+     ],
+     "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+    },
+    "dom08": {
+     "core.block0": "nonzero",
+     "core.block_mid": "nonzero",
+     "core.block_last": "nonzero",
+     "sem_proj": "nonzero",
+     "core.sem_xattn_gate": "nonzero",
+     "reasoner": "nonzero",
+     "beliefs": "nonzero",
+     "world_model": "nonzero",
+     "intent": "nonzero",
+     "dec_xattn": "zero",
+     "exploration": "nonzero",
+     "policy": "nonzero",
+     "v_int": "nonzero",
+     "predictors": "zero"
+    },
+    "grad_absent": [
+     "other"
+    ],
+    "hook_multi": 0,
+    "open_loop_starts": 1,
+    "n_seqs": 2,
+    "alloc_start_GB": 13.698145389556885,
+    "core_hash_changed": true
+   },
+   "second": {
+    "rows": 128,
+    "microbatch": 2,
+    "updated": true,
+    "s": 82.01722284732386,
+    "peak_GB": 42.60502052307129,
+    "optimizer_state_GB": 7.466942831873894,
+    "optimizer": [
+     "SplitOptimizer",
+     "SplitOptimizer"
+    ],
+    "losses": {
+     "world": 105.76399993896484,
+     "adapt": 8.459419250488281,
+     "actor": 0.44646942615509033,
+     "value": 5.541073322296143
+    },
+    "reason": null,
+    "decisions_recomputed": 128,
+    "microbatches": [
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2
+    ],
+    "epochs": [
+     {
+      "epoch": 0,
+      "kl": 0.0,
+      "stepped": true
+     },
+     {
+      "epoch": 1,
+      "kl": 0.0,
+      "stepped": true,
+      "policy_loss": 0.4591256082057953,
+      "clipped": false
+     }
+    ],
+    "stop": null,
+    "probe": true,
+    "core_share": {
+     "world": 0.44907602618478554,
+     "adapt": 0.43649999999999994,
+     "actor": 0.11425597875575215,
+     "value": 0.00016799505946230587
+    },
+    "core_share_measured": {
+     "world": 0.28495744131333156,
+     "adapt": 0.676146464057468,
+     "actor": 0.03880552301489527,
+     "value": 9.057161430509857e-05
+    },
+    "share_guard": {
+     "scale": {
+      "world": 0.5352472869595688,
+      "adapt": 0.21925932512008703,
+      "actor": 1.0,
+      "value": 0.6299687514585824
+     },
+     "satisfied": true,
+     "violated_measured": [
+      "adapt",
+      "actor"
+     ],
+     "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+    },
+    "dom08": {
+     "core.block0": "nonzero",
+     "core.block_mid": "nonzero",
+     "core.block_last": "nonzero",
+     "sem_proj": "nonzero",
+     "core.sem_xattn_gate": "nonzero",
+     "reasoner": "nonzero",
+     "beliefs": "nonzero",
+     "world_model": "nonzero",
+     "intent": "nonzero",
+     "dec_xattn": "zero",
+     "exploration": "nonzero",
+     "policy": "nonzero",
+     "v_int": "nonzero",
+     "predictors": "zero"
+    },
+    "grad_absent": [
+     "other"
+    ],
+    "hook_multi": 0,
+    "open_loop_starts": 1,
+    "n_seqs": 2,
+    "alloc_start_GB": 21.16535186767578,
+    "core_hash_changed": true
+   },
+   "peak_GB": 42.60502052307129,
+   "s_max": 94.03977043973282,
+   "error": null
+  },
+  "adafactor+mb2+ols2+seq1": {
+   "first": {
+    "rows": 128,
+    "microbatch": 2,
+    "updated": true,
+    "s": 74.34263453492895,
+    "peak_GB": 37.4702091217041,
+    "optimizer_state_GB": 7.466942831873894,
+    "optimizer": [
+     "SplitOptimizer",
+     "SplitOptimizer"
+    ],
+    "losses": {
+     "world": 333.9862976074219,
+     "adapt": 5.07916259765625,
+     "actor": 0.4163370132446289,
+     "value": 5.540996074676514
+    },
+    "reason": null,
+    "decisions_recomputed": 128,
+    "microbatches": [
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2
+    ],
+    "epochs": [
+     {
+      "epoch": 0,
+      "kl": 0.0,
+      "stepped": true
+     },
+     {
+      "epoch": 1,
+      "kl": 0.0,
+      "stepped": true,
+      "policy_loss": 0.42751404643058777,
+      "clipped": false
+     }
+    ],
+    "stop": null,
+    "probe": true,
+    "core_share": {
+     "world": 0.43650000000000005,
+     "adapt": 0.41182528474557606,
+     "actor": 0.15112180078507004,
+     "value": 0.0005529144693539297
+    },
+    "core_share_measured": {
+     "world": 0.5735120068571757,
+     "adapt": 0.31169217252282677,
+     "actor": 0.11437734434242094,
+     "value": 0.00041847627757655206
+    },
+    "share_guard": {
+     "scale": {
+      "world": 0.5760426267846174,
+      "adapt": 1.0,
+      "actor": 1.0,
+      "value": 1.0
+     },
+     "satisfied": true,
+     "violated_measured": [
+      "world"
+     ],
+     "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+    },
+    "dom08": {
+     "core.block0": "nonzero",
+     "core.block_mid": "nonzero",
+     "core.block_last": "nonzero",
+     "sem_proj": "nonzero",
+     "core.sem_xattn_gate": "nonzero",
+     "reasoner": "nonzero",
+     "beliefs": "nonzero",
+     "world_model": "nonzero",
+     "intent": "nonzero",
+     "dec_xattn": "zero",
+     "exploration": "nonzero",
+     "policy": "nonzero",
+     "v_int": "nonzero",
+     "predictors": "zero"
+    },
+    "grad_absent": [
+     "other"
+    ],
+    "hook_multi": 0,
+    "open_loop_starts": 2,
+    "n_seqs": 1,
+    "alloc_start_GB": 13.698145389556885,
+    "core_hash_changed": true
+   },
+   "second": {
+    "rows": 128,
+    "microbatch": 2,
+    "updated": true,
+    "s": 84.486026418861,
+    "peak_GB": 42.92469024658203,
+    "optimizer_state_GB": 7.466942831873894,
+    "optimizer": [
+     "SplitOptimizer",
+     "SplitOptimizer"
+    ],
+    "losses": {
+     "world": 328.7301330566406,
+     "adapt": 4.242050647735596,
+     "actor": 0.385739803314209,
+     "value": 5.540904521942139
+    },
+    "reason": null,
+    "decisions_recomputed": 128,
+    "microbatches": [
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2
+    ],
+    "epochs": [
+     {
+      "epoch": 0,
+      "kl": 0.0,
+      "stepped": true
+     },
+     {
+      "epoch": 1,
+      "kl": 0.0,
+      "stepped": true,
+      "policy_loss": 0.399365097284317,
+      "clipped": false
+     }
+    ],
+    "stop": null,
+    "probe": true,
+    "core_share": {
+     "world": 0.43650000000000005,
+     "adapt": 0.3784030939268528,
+     "actor": 0.18407909381152554,
+     "value": 0.0010178122616216509
+    },
+    "core_share_measured": {
+     "world": 0.5946320336421419,
+     "adapt": 0.27221382901268826,
+     "actor": 0.13242194837156251,
+     "value": 0.0007321889736072064
+    },
+    "share_guard": {
+     "scale": {
+      "world": 0.528069947322739,
+      "adapt": 1.0,
+      "actor": 1.0,
+      "value": 1.0
+     },
+     "satisfied": true,
+     "violated_measured": [
+      "world"
+     ],
+     "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+    },
+    "dom08": {
+     "core.block0": "nonzero",
+     "core.block_mid": "nonzero",
+     "core.block_last": "nonzero",
+     "sem_proj": "nonzero",
+     "core.sem_xattn_gate": "nonzero",
+     "reasoner": "nonzero",
+     "beliefs": "nonzero",
+     "world_model": "nonzero",
+     "intent": "nonzero",
+     "dec_xattn": "zero",
+     "exploration": "nonzero",
+     "policy": "nonzero",
+     "v_int": "nonzero",
+     "predictors": "zero"
+    },
+    "grad_absent": [
+     "other"
+    ],
+    "hook_multi": 0,
+    "open_loop_starts": 2,
+    "n_seqs": 1,
+    "alloc_start_GB": 21.16535186767578,
+    "core_hash_changed": true
+   },
+   "peak_GB": 42.92469024658203,
+   "s_max": 84.486026418861,
+   "error": null
+  },
+  "adafactorall+mb4": {
+   "first": {
+    "rows": 128,
+    "microbatch": 4,
+    "error": "OutOfMemoryError",
+    "detail": "CUDA out of memory. Tried to allocate 110.00 MiB. GPU 0 has a total capacity of 47.40 GiB of which 69.38 MiB is free. Including non-PyTorch memory, this process has 46.79 GiB memory in use. Process 650256 has 262.00 MiB memory in use. Process 652502 has 262.00 MiB memory in use. Of the allocated mem",
+    "s": 14.988904073368758,
+    "peak_GB": 46.167466163635254,
+    "open_loop_starts": 8,
+    "n_seqs": 2,
+    "alloc_start_GB": 13.698145389556885,
+    "core_hash_changed": false
+   },
+   "second": null,
+   "peak_GB": 46.167466163635254,
+   "s_max": 14.988904073368758,
+   "error": "OutOfMemoryError"
+  }
+ },
+ "agent_update": {
+  "first": {
+   "rows": 128,
+   "microbatch": 4,
+   "error": "OutOfMemoryError",
+   "detail": "CUDA out of memory. Tried to allocate 110.00 MiB. GPU 0 has a total capacity of 47.40 GiB of which 69.38 MiB is free. Including non-PyTorch memory, this process has 46.79 GiB memory in use. Process 650256 has 262.00 MiB memory in use. Process 652502 has 262.00 MiB memory in use. Of the allocated mem",
+   "s": 14.988904073368758,
+   "peak_GB": 46.167466163635254,
+   "open_loop_starts": 8,
+   "n_seqs": 2,
+   "alloc_start_GB": 13.698145389556885,
+   "core_hash_changed": false
+  },
+  "second": null,
+  "peak_GB": 46.167466163635254,
+  "s_max": 14.988904073368758,
+  "error": "OutOfMemoryError"
+ },
+ "overall_peak_GB": 46.167466163635254
+}

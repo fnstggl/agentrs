@@ -1,0 +1,632 @@
+{
+ "mode": "full",
+ "preset": "dom_dev",
+ "B": 4,
+ "K": 4,
+ "rounds": 4,
+ "microbatch": 4,
+ "overrides": {
+  "grad_checkpoint": true
+ },
+ "share_ema_target": false,
+ "planned_adapters": false,
+ "adafactor_satellites": false,
+ "ow_envs": 0,
+ "run_dir": "/tmp/bench_full_dom_dev_p2sqmfxq",
+ "torch": "2.15.0+cu132",
+ "gpu": "NVIDIA RTX A6000",
+ "gpu_free_before_build": {
+  "free_GB": 47.13897705078125
+ },
+ "build_s": 8.032870552036911,
+ "build_mem": {
+  "allocated_GB": 1.3712291717529297,
+  "reserved_GB": 2.341796875,
+  "peak_GB": 2.267392158508301
+ },
+ "parameters": {
+  "components": {
+   "tokenizer": {
+    "total": 2370818,
+    "trainable": 2370818
+   },
+   "core": {
+    "total": 16917378,
+    "trainable": 16917378
+   },
+   "entity_encoder": {
+    "total": 5876102,
+    "trainable": 5876102
+   },
+   "reasoner": {
+    "total": 13441,
+    "trainable": 13441
+   },
+   "outcome_head": {
+    "total": 2209592,
+    "trainable": 2209592
+   },
+   "beliefs": {
+    "total": 3321856,
+    "trainable": 3321856
+   },
+   "bayes": {
+    "total": 27080,
+    "trainable": 27080
+   },
+   "world_model": {
+    "total": 8774210,
+    "trainable": 8774210
+   },
+   "action_generator": {
+    "total": 21058322,
+    "trainable": 21058322
+   },
+   "value_head": {
+    "total": 992511,
+    "trainable": 992511
+   },
+   "option_policy": {
+    "total": 1345553,
+    "trainable": 1345553
+   },
+   "exploration_head": {
+    "total": 194748,
+    "trainable": 194748
+   },
+   "intent_head": {
+    "total": 3555840,
+    "trainable": 3555840
+   },
+   "decision_evaluator": {
+    "total": 894721,
+    "trainable": 894721
+   },
+   "query_encoder": {
+    "total": 5376,
+    "trainable": 5376
+   }
+  },
+  "cam_total": 67557548,
+  "cam_trainable": 67557548,
+  "semantic_pretrained": {
+   "total": 596049920,
+   "trainable": 0,
+   "frozen": 596049920
+  }
+ },
+ "trainer_groups": {
+  "core": 16917378,
+  "heads": 50638634,
+  "semantic": 1536
+ },
+ "planned_adapters_report": null,
+ "ema_target_params": 0,
+ "cfg": {
+  "n_layers": 8,
+  "d_model": 384,
+  "n_heads": 6,
+  "n_state": 32,
+  "d_satellite": 0,
+  "n_intent": 16,
+  "n_candidates": 4,
+  "wm_ema_target": false,
+  "microbatch": 4,
+  "ppo_epochs": 2,
+  "sem_xattn_every": 4,
+  "dec_xattn_every": 6,
+  "reward_mode": "observation_only",
+  "update_every": 8
+ },
+ "semantic_model": "Qwen/Qwen3-0.6B",
+ "acting": {
+  "decide_s": [
+   1.6834461647085845,
+   0.9127551079727709,
+   0.828897163271904,
+   0.5203291364014149
+  ],
+  "decide_s_warm_median": 0.828897163271904,
+  "peak_GB": 1.4808712005615234,
+  "decisions": 16,
+  "rounds": 4,
+  "reward_mode": "observation_only",
+  "labels_appended": 0,
+  "authorisation": {
+   "required": false,
+   "checked": 0,
+   "source": "explicit"
+  },
+  "tools_per_env": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "versions": {
+   "policy": 0,
+   "reward_model": 0,
+   "evaluator": null,
+   "env": null,
+   "code": "c6149ce6198ccecc456ef850a2162711c1c8fb55"
+  },
+  "phase_wall_s": {
+   "act": 3.945679585915059,
+   "execute": 0.006773272529244423,
+   "advance": 0.0010958234779536724,
+   "events": 0.0,
+   "observe": 0.7366040982306004,
+   "learner": 7.949955761432648e-05,
+   "labels": 0.0001881239004433155,
+   "update": 0.0,
+   "meta": 0.0,
+   "tools": 0.0003358307294547558,
+   "checkpoint": 0.0,
+   "reset": 0.009643308818340302
+  },
+  "env_exceptions": [],
+  "n_candidates_cfg": 4,
+  "n_candidates_actions": [
+   null
+  ],
+  "actions_last_round": 4
+ },
+ "steps": {},
+ "step": null,
+ "after_step_mem": {
+  "allocated_GB": 1.3860726356506348,
+  "reserved_GB": 2.4140625,
+  "peak_GB": 1.4808712005615234
+ },
+ "agent_updates": {
+  "base": {
+   "rows": 16,
+   "microbatch": 4,
+   "updated": true,
+   "s": 9.590535462833941,
+   "peak_GB": 3.135084629058838,
+   "optimizer_state_GB": 0.3693198822438717,
+   "losses": {
+    "world": 404.63214111328125,
+    "adapt": 8.229619026184082,
+    "actor": -0.0358976349234581,
+    "value": 5.541263580322266
+   },
+   "reason": null,
+   "decisions": 0,
+   "microbatches": [
+    4,
+    4,
+    4,
+    4
+   ],
+   "core_share": {
+    "world": 0.43650000000000005,
+    "adapt": 0.23165109952299467,
+    "actor": 0.3318489004770053,
+    "value": 0.0
+   },
+   "core_share_measured": {
+    "world": 0.6869785527270351,
+    "adapt": 0.12868103360259345,
+    "actor": 0.18434041367037138,
+    "value": 0.0
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "nonzero",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "nonzero",
+    "dec_xattn": "zero",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "zero"
+   },
+   "grad_absent": [
+    "other"
+   ],
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 3.9141432353062555e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 1.4527498483657837,
+     "stepped": false
+    }
+   ],
+   "stop": "kl 1.4527 > 1.5 * target_kl",
+   "probe": true,
+   "info_keys": [
+    "actor_psi_grad_norm",
+    "balance",
+    "balance_factors",
+    "balance_factors_used",
+    "base_weights",
+    "clip",
+    "clip_rate",
+    "clipped",
+    "consolidated",
+    "core_share",
+    "core_share_measured",
+    "dom08",
+    "epochs",
+    "grad_norm",
+    "grad_table",
+    "group_grad_norm",
+    "integrity",
+    "label_join",
+    "losses",
+    "memory_sync",
+    "metrics",
+    "microbatches",
+    "n_consumed",
+    "n_replay_events",
+    "n_survivors",
+    "policy",
+    "probe",
+    "probe_policy",
+    "reward",
+    "reward_mode",
+    "reward_mode_note",
+    "share_guard",
+    "skipped_losses",
+    "stop",
+    "update",
+    "update_id",
+    "updated",
+    "version",
+    "wall_s",
+    "weighted",
+    "weights",
+    "weights_applied"
+   ],
+   "core_hash_changed": true
+  },
+  "adafactor": {
+   "rows": 16,
+   "microbatch": 4,
+   "updated": true,
+   "s": 12.279196324758232,
+   "peak_GB": 3.1477794647216797,
+   "optimizer_state_GB": 0.125805776566267,
+   "losses": {
+    "world": 397.2856750488281,
+    "adapt": 6.128699779510498,
+    "actor": 0.14565351605415344,
+    "value": 5.533514499664307
+   },
+   "reason": null,
+   "decisions": 0,
+   "microbatches": [
+    4,
+    4,
+    4,
+    4
+   ],
+   "core_share": {
+    "world": 0.43650000000000005,
+    "adapt": 0.4475113525954543,
+    "actor": 0.10733468178602816,
+    "value": 0.00865396561851755
+   },
+   "core_share_measured": {
+    "world": 0.6206635575464959,
+    "adapt": 0.31777530527070125,
+    "actor": 0.05623731502945815,
+    "value": 0.005323822153344798
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "nonzero",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "nonzero",
+    "dec_xattn": "zero",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "zero"
+   },
+   "grad_absent": [
+    "other"
+   ],
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.0,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.0,
+     "stepped": true,
+     "policy_loss": 0.18456752598285675,
+     "clipped": false
+    }
+   ],
+   "stop": null,
+   "probe": true,
+   "info_keys": [
+    "actor_psi_grad_norm",
+    "balance",
+    "balance_factors",
+    "balance_factors_used",
+    "base_weights",
+    "clip",
+    "clip_rate",
+    "clipped",
+    "consolidated",
+    "core_share",
+    "core_share_measured",
+    "dom08",
+    "epochs",
+    "grad_norm",
+    "grad_table",
+    "group_grad_norm",
+    "integrity",
+    "label_join",
+    "losses",
+    "memory_sync",
+    "metrics",
+    "microbatches",
+    "n_consumed",
+    "n_replay_events",
+    "n_survivors",
+    "policy",
+    "probe",
+    "probe_policy",
+    "reward",
+    "reward_mode",
+    "reward_mode_note",
+    "share_guard",
+    "skipped_losses",
+    "stop",
+    "update",
+    "update_id",
+    "updated",
+    "version",
+    "wall_s",
+    "weighted",
+    "weights",
+    "weights_applied"
+   ],
+   "split_opt": {
+    "adamw_core_params": 16917378,
+    "adafactor_satellite_params": 51923535
+   },
+   "core_hash_changed": true
+  },
+  "mb0": {
+   "rows": 16,
+   "microbatch": 0,
+   "updated": true,
+   "s": 9.191708187106997,
+   "peak_GB": 4.039853096008301,
+   "optimizer_state_GB": 0.3693198822438717,
+   "losses": {
+    "world": 345.0318603515625,
+    "adapt": 6.964154243469238,
+    "actor": 0.15425768494606018,
+    "value": 5.533284664154053
+   },
+   "reason": null,
+   "decisions": 0,
+   "microbatches": null,
+   "core_share": {
+    "world": 0.4365,
+    "adapt": 0.44467539700226744,
+    "actor": 0.11069200732977909,
+    "value": 0.008132595667953426
+   },
+   "core_share_measured": {
+    "world": 0.6712363138951141,
+    "adapt": 0.29689775483399045,
+    "actor": 0.02780662069963853,
+    "value": 0.0040593105712569124
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "nonzero",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "nonzero",
+    "dec_xattn": "zero",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "zero"
+   },
+   "grad_absent": [
+    "other"
+   ],
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.0,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.0,
+     "stepped": true,
+     "policy_loss": 0.23948465287685394,
+     "clipped": false
+    }
+   ],
+   "stop": null,
+   "probe": true,
+   "info_keys": [
+    "actor_psi_grad_norm",
+    "balance",
+    "balance_factors",
+    "balance_factors_used",
+    "base_weights",
+    "clip",
+    "clip_rate",
+    "clipped",
+    "consolidated",
+    "core_share",
+    "core_share_measured",
+    "dom08",
+    "epochs",
+    "grad_norm",
+    "grad_table",
+    "group_grad_norm",
+    "integrity",
+    "label_join",
+    "losses",
+    "memory_sync",
+    "metrics",
+    "microbatches",
+    "n_consumed",
+    "n_replay_events",
+    "n_survivors",
+    "policy",
+    "probe",
+    "probe_policy",
+    "reward",
+    "reward_mode",
+    "reward_mode_note",
+    "share_guard",
+    "skipped_losses",
+    "stop",
+    "update",
+    "update_id",
+    "updated",
+    "version",
+    "wall_s",
+    "weighted",
+    "weights",
+    "weights_applied"
+   ],
+   "core_hash_changed": true
+  }
+ },
+ "agent_update": {
+  "rows": 16,
+  "microbatch": 0,
+  "updated": true,
+  "s": 9.191708187106997,
+  "peak_GB": 4.039853096008301,
+  "optimizer_state_GB": 0.3693198822438717,
+  "losses": {
+   "world": 345.0318603515625,
+   "adapt": 6.964154243469238,
+   "actor": 0.15425768494606018,
+   "value": 5.533284664154053
+  },
+  "reason": null,
+  "decisions": 0,
+  "microbatches": null,
+  "core_share": {
+   "world": 0.4365,
+   "adapt": 0.44467539700226744,
+   "actor": 0.11069200732977909,
+   "value": 0.008132595667953426
+  },
+  "core_share_measured": {
+   "world": 0.6712363138951141,
+   "adapt": 0.29689775483399045,
+   "actor": 0.02780662069963853,
+   "value": 0.0040593105712569124
+  },
+  "dom08": {
+   "core.block0": "nonzero",
+   "core.block_mid": "nonzero",
+   "core.block_last": "nonzero",
+   "sem_proj": "nonzero",
+   "core.sem_xattn_gate": "nonzero",
+   "reasoner": "nonzero",
+   "beliefs": "nonzero",
+   "world_model": "nonzero",
+   "intent": "nonzero",
+   "dec_xattn": "zero",
+   "exploration": "nonzero",
+   "policy": "nonzero",
+   "v_int": "nonzero",
+   "predictors": "zero"
+  },
+  "grad_absent": [
+   "other"
+  ],
+  "epochs": [
+   {
+    "epoch": 0,
+    "kl": 0.0,
+    "stepped": true
+   },
+   {
+    "epoch": 1,
+    "kl": 0.0,
+    "stepped": true,
+    "policy_loss": 0.23948465287685394,
+    "clipped": false
+   }
+  ],
+  "stop": null,
+  "probe": true,
+  "info_keys": [
+   "actor_psi_grad_norm",
+   "balance",
+   "balance_factors",
+   "balance_factors_used",
+   "base_weights",
+   "clip",
+   "clip_rate",
+   "clipped",
+   "consolidated",
+   "core_share",
+   "core_share_measured",
+   "dom08",
+   "epochs",
+   "grad_norm",
+   "grad_table",
+   "group_grad_norm",
+   "integrity",
+   "label_join",
+   "losses",
+   "memory_sync",
+   "metrics",
+   "microbatches",
+   "n_consumed",
+   "n_replay_events",
+   "n_survivors",
+   "policy",
+   "probe",
+   "probe_policy",
+   "reward",
+   "reward_mode",
+   "reward_mode_note",
+   "share_guard",
+   "skipped_losses",
+   "stop",
+   "update",
+   "update_id",
+   "updated",
+   "version",
+   "wall_s",
+   "weighted",
+   "weights",
+   "weights_applied"
+  ],
+  "core_hash_changed": true
+ },
+ "overall_peak_GB": 4.039853096008301
+}

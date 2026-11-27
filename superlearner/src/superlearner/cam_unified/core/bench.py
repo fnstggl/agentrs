@@ -209,7 +209,7 @@ class _PlannedAdapters(torch.nn.Module):
     in every cfg.dec_xattn_every-th decoder layer, W4). Only for memory accounting: they get zero gradients so the
     optimiser allocates their states; they compute nothing."""
 
-    def __init__(self, cfg, sem, core):
+    def __init__(self, cfg, sem, core, wired_a: bool = False):
         super().__init__()
         from ..semantic.decoder_xattn import LatentDecoderConditioning
         from .semantic_xattn import GatedSemanticXAttn, SemanticProjection
@@ -227,7 +227,7 @@ class _PlannedAdapters(torch.nn.Module):
         de = int(getattr(cfg, "dec_xattn_every", 0) or 0)
         n_lm = int(getattr(sem, "n_layers", 0) or 0)
         d_lm = int(getattr(sem, "sem_dim", 0) or sdim)
-        if de and n_lm:
+        if de and n_lm and not wired_a:
             layers = [i for i in range(n_lm) if (i + 1) % de == 0]
             self.mech_a = LatentDecoderConditioning(d_lm, cfg.d_model, layers)
             self.report["mech_a"] = {"layers": layers, "params": count_parameters(self.mech_a)}
@@ -343,6 +343,11 @@ def full_optimiser_step(system, *, microbatch: int = 4, world: bool = True, adap
     return out
 
 
+def core_hash_of(model) -> str:
+    from ..stage1.harness_agent import core_hash
+    return core_hash(model)
+
+
 PARTIAL_OUT: Optional[str] = None             # benchmark_full writes its results so far here after every phase
 
 
@@ -414,7 +419,8 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
                    adafactor_satellites: bool = False, planned_adapters: bool = False, grad_checkpoint: bool = True,
                    agent_update_rows: int = 0, run_dir: Optional[str] = None, sem_model: Optional[str] = None,
                    seed: int = 0, ow_envs: int = 0, variants: Optional[list] = None,
-                   min_free_GB: float = 0.0, max_wait_s: float = 0.0) -> dict:
+                   min_free_GB: float = 0.0, max_wait_s: float = 0.0, bk_cost_model: bool = False,
+                   learner_variants: Optional[list] = None) -> dict:
     """The real system at `preset` (see the module docstring). `ow_envs` > 0 adds that many ow_tiny OpenWorld worlds
     to the B rapid worlds (one ConcatEnv batch)."""
     import tempfile
@@ -439,19 +445,25 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
                                            fresh_max_steps=rounds + 2, checkpoint_semantic_cache=False))
     res["build_s"] = time.perf_counter() - t0
     model, agent = sysm.model, sysm.agent
-    if share_ema_target and hasattr(model.world_model, "target_core"):
+    if share_ema_target and getattr(model.world_model, "target_core", None) is not None:
         del model.world_model.target_core
         model.world_model.target_core = model.world_model.core
         model.world_model.update_target = lambda *a, **k: None
         torch.cuda.empty_cache()
-    extra = _PlannedAdapters(sysm.cfg, sysm.semantic, model.core).cuda() if planned_adapters else None
+    wired_a = getattr(model.action_generator, "dec_cond", None) is not None      # W4 x W5 merge fix d564665
+    extra = _PlannedAdapters(sysm.cfg, sysm.semantic, model.core, wired_a).cuda() if planned_adapters else None
     res["build_mem"] = {k: v - (base / GB if k == "allocated_GB" else 0.0) for k, v in _mem().items()}
     _partial(res)
     d = describe(sysm)
     res["parameters"] = d["parameters"]
     res["trainer_groups"] = d["trainer"]["groups"]
     res["planned_adapters_report"] = extra.report if extra is not None else None
-    res["ema_target_params"] = sum(p.numel() for p in model.world_model.target_core.parameters())         if hasattr(model.world_model, "target_core") and not share_ema_target else 0
+    tcore = getattr(model.world_model, "target_core", None)
+    res["ema_target_params"] = sum(p.numel() for p in tcore.parameters()) \
+        if tcore is not None and tcore is not model.world_model.core else 0
+    res["cfg"] = {k: getattr(sysm.cfg, k, None) for k in (
+        "n_layers", "d_model", "n_heads", "n_state", "d_satellite", "n_intent", "n_candidates", "wm_ema_target",
+        "microbatch", "ppo_epochs", "sem_xattn_every", "dec_xattn_every", "reward_mode", "update_every")}
     res["semantic_model"] = d["semantic_model"]
     # ---------------- acting through the canonical loop (real rapid worlds, numeric tools)
     op = ExperienceOperator(rapid_lever_specs(B, seed0=1000 + seed))
@@ -475,7 +487,17 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
         a = act0(obs, tools)
         torch.cuda.synchronize()
         act_s.append(time.perf_counter() - t)
+        agent._bench_last_actions = list(a) if isinstance(a, (list, tuple)) else list(getattr(a, "actions", []) or [])
         return a
+    dec_timings: list = []
+    _dec0 = sysm.model.decide
+
+    def _timed_decide(*a_, **k_):
+        d_ = _dec0(*a_, **k_)
+        dec_timings.append({k: float(v) for k, v in (getattr(d_, "timings", None) or {}).items()
+                            if isinstance(v, (int, float))})
+        return d_
+    sysm.model.decide = _timed_decide
     agent.act = timed_act
     torch.cuda.reset_peak_memory_stats()
     try:
@@ -483,16 +505,23 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
                             max_decisions=rounds, update_every=0, require_cam_eval=False)
     finally:
         agent.act = act0
+        sysm.model.__dict__.pop("decide", None)
     res["acting"] = {"decide_s": act_s, "decide_s_warm_median": sorted(act_s[1:])[len(act_s[1:]) // 2]
                      if len(act_s) > 1 else None, "peak_GB": torch.cuda.max_memory_allocated() / GB,
                      "decisions": life.compute["decisions"], "rounds": life.steps, "reward_mode": life.reward_mode,
                      "labels_appended": life.labels_appended, "authorisation": life.authorisation,
                      "tools_per_env": [len(t) for t in env.available_tools()][:4],
                      "versions": life.versions, "phase_wall_s": life.accounting["phase_wall_s"],
-                     "env_exceptions": list(env.errors)}
+                     "env_exceptions": list(env.errors), "decide_phase_s": dec_timings}
     _partial(res)
-    # ---------------- B*K rows in one decide (cost model of K candidates per environment)
-    if K and K > 1:
+    last = [a for a in (getattr(agent, "_bench_last_actions", None) or []) if a is not None]
+    res["acting"]["n_candidates_cfg"] = int(getattr(sysm.cfg, "n_candidates", 1) or 1)
+    from ..decision.select import stamp_of
+    res["acting"]["n_candidates_actions"] = sorted({(stamp_of(a) or {}).get("n") for a in last}, key=str)
+    res["acting"]["actions_last_round"] = len(last)
+    # ---------------- B*K rows in one decide (the pre-W5 cost model of K candidates per environment; with
+    # cfg.n_candidates = K the acting decide above already decodes K candidates per row sharing one encode)
+    if K and K > 1 and (bk_cost_model or int(getattr(sysm.cfg, "n_candidates", 1) or 1) <= 1):
         obs = env.observe()
         tools = env.available_tools()
         goals = env.goals()
@@ -526,9 +555,10 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
         _partial(res)
     # ---------------- one full optimiser step per variant (optimiser states freed between variants)
     res["steps"] = {}
-    for var in (variants or ["base"]):
+    sur = [] if variants == ["none"] else (variants or ["base"])
+    for var in sur:
         parts_v = set(var.split("+"))
-        if "share_ema" in parts_v and hasattr(model.world_model, "target_core") \
+        if "share_ema" in parts_v and getattr(model.world_model, "target_core", None) is not None \
                 and model.world_model.target_core is not model.world_model.core:
             del model.world_model.target_core
             model.world_model.target_core = model.world_model.core
@@ -559,9 +589,12 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
             o.state.clear()
         del opts
         torch.cuda.empty_cache()
-    res["step"] = res["steps"][(variants or ["base"])[-1]]
+    res["step"] = res["steps"][sur[-1]] if sur else None
     res["after_step_mem"] = _mem()
-    # ---------------- the agent's own (unmicrobatched) update on a reduced buffer
+    # ---------------- the system's real update (IntegratedLearner.step: replay world/adapt losses, policy recompute
+    # in cfg.microbatch microbatches, PPO epochs, the named-group probe, role optimisers) on the last
+    # `agent_update_rows` decisions; one measurement per learner variant ('+'-joined: base, mb<k>, adafactor),
+    # each from the same fresh-buffer snapshot with fresh optimiser moments
     if agent_update_rows:
         keep, n = [], 0
         for stp in reversed(agent.fresh):
@@ -569,21 +602,84 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
                 break
             keep.append(stp)
             n += len(stp.rows)
-        agent.fresh = list(reversed(keep))
-        torch.cuda.empty_cache()
-        torch.cuda.reset_peak_memory_stats()
-        t = time.perf_counter()
-        try:
-            u = sysm.learner.step()
-            res["agent_update"] = {"rows": n, "updated": bool(u.get("updated")), "s": time.perf_counter() - t,
-                                   "peak_GB": torch.cuda.max_memory_allocated() / GB,
-                                   "losses": u.get("losses"), "reason": u.get("reason")}
-        except torch.OutOfMemoryError as e:
-            res["agent_update"] = {"rows": n, "error": "OutOfMemoryError", "detail": str(e)[:300],
-                                   "peak_GB": torch.cuda.max_memory_allocated() / GB}
+        snap = list(reversed(keep))
+        res["agent_updates"] = {}
+        lr = sysm.learner
+        cfg0, tcfg0 = lr.cfg, lr.trainer.cfg
+        wm = model.world_model
+        ols0 = getattr(wm, "open_loop_starts", None)
+        from dataclasses import replace as _replace
+        import gc
+        for var in (learner_variants or ["base"]):
+            parts_v = set(var.split("+"))
+            mb = next((int(q[2:]) for q in parts_v if q.startswith("mb")), None)
+            ols = next((int(q[3:]) for q in parts_v if q.startswith("ols")), None)
+            nseq = next((int(q[3:]) for q in parts_v if q.startswith("seq")), None)
+            nseq0 = agent.n_seqs
+            if nseq is not None:
+                agent.n_seqs = nseq
+            sat_mode = "adafactor_all" if "adafactorall" in parts_v else ("adafactor" if "adafactor" in parts_v
+                                                                           else None)
+            lr.cfg = cfg0 if mb is None else _replace(cfg0, microbatch=mb)
+            lr.trainer.cfg = _replace(tcfg0, sat_optimizer=sat_mode) if sat_mode else tcfg0
+            if ols is not None:
+                wm.open_loop_starts = ols
+            lr.trainer.reset_optimizer()
+            runs = []
+            for rep in range(2 if "once" not in parts_v else 1):   # 2nd update: optimiser moments resident
+                agent.fresh = list(snap)
+                gc.collect()
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                torch.cuda.reset_peak_memory_stats()
+                alloc0 = torch.cuda.memory_allocated() / GB
+                h0 = core_hash_of(model)
+                t = time.perf_counter()
+                try:
+                    u = lr.step()
+                    torch.cuda.synchronize()
+                    mbs_ = u.get("microbatches")
+                    r = {"rows": n, "microbatch": int(getattr(lr.cfg, "microbatch", 0) or 0),
+                         "updated": bool(u.get("updated")), "s": time.perf_counter() - t,
+                         "peak_GB": torch.cuda.max_memory_allocated() / GB,
+                         "optimizer_state_GB": _opt_state_GB([o for o in lr.trainer.opts.values() if o is not None]),
+                         "optimizer": [type(o).__name__ for o in lr.trainer.opts.values() if o is not None],
+                         "losses": u.get("losses"), "reason": u.get("reason"),
+                         "decisions_recomputed": sum(mbs_) if mbs_ else None, "microbatches": mbs_,
+                         "epochs": u.get("epochs"), "stop": u.get("stop"), "probe": u.get("probe"),
+                         "core_share": u.get("core_share"), "core_share_measured": u.get("core_share_measured"),
+                         "share_guard": u.get("share_guard"), "dom08": u.get("dom08"),
+                         "grad_absent": (u.get("grad_table") or {}).get("absent"),
+                         "hook_multi": (u.get("grad_table") or {}).get("hook_multi")}
+                except torch.OutOfMemoryError as e:
+                    r = {"rows": n, "microbatch": int(getattr(lr.cfg, "microbatch", 0) or 0),
+                         "error": "OutOfMemoryError", "detail": str(e)[:300], "s": time.perf_counter() - t,
+                         "peak_GB": torch.cuda.max_memory_allocated() / GB}
+                    for p_ in model.parameters():
+                        p_.grad = None
+                    model.eval()
+                r["open_loop_starts"] = getattr(wm, "open_loop_starts", None)
+                r["n_seqs"] = agent.n_seqs
+                r["alloc_start_GB"] = alloc0
+                r["core_hash_changed"] = h0 != core_hash_of(model)
+                runs.append(r)
+                if "error" in r:
+                    break
+            res["agent_updates"][var] = {"first": runs[0], "second": runs[1] if len(runs) > 1 else None,
+                                         "peak_GB": max(x["peak_GB"] for x in runs),
+                                         "s_max": max(x["s"] for x in runs),
+                                         "error": next((x.get("error") for x in runs if x.get("error")), None)}
+            res["agent_update"] = res["agent_updates"][var]
+            _partial(res)
+            lr.cfg, lr.trainer.cfg = cfg0, tcfg0
+            wm.open_loop_starts = ols0
+            agent.n_seqs = nseq0
+            lr.trainer.reset_optimizer()
+            gc.collect()
+            torch.cuda.empty_cache()
     res["overall_peak_GB"] = max(v.get("peak_GB", 0.0) if isinstance(v, dict) else 0.0
                                  for v in (res.get("acting"), res.get("decide_BK"), *res["steps"].values(),
-                                           res.get("agent_update")) if v is not None)
+                                           *(res.get("agent_updates") or {}).values()) if v is not None)
     if ow_ad is not None:
         ow_ad.close()
     return res
@@ -618,6 +714,11 @@ def main(argv: Optional[list] = None):
     ap.add_argument("--min-free-gb", type=float, default=0.0, help="wait until this much GPU memory is free")
     ap.add_argument("--max-wait-s", type=float, default=0.0)
     ap.add_argument("--decide-reps", type=int, default=3)
+    ap.add_argument("--learner-variants", nargs="*", default=None,
+                    help="real IntegratedLearner.step variants on --agent-update-rows decisions, '+'-joined: base, "
+                         "mb<k> (cfg.microbatch), adafactor (AdamW core + Adafactor satellites)")
+    ap.add_argument("--bk-cost-model", action="store_true",
+                    help="also time one batched decide of B*K rows (the pre-W5 cost model)")
     ap.add_argument("--variants", nargs="*", default=None,
                     help="optimiser-step variants in order, '+'-joined flags: base, share_ema, adafactor, mb<k>")
     a = ap.parse_args(argv)
@@ -636,7 +737,8 @@ def main(argv: Optional[list] = None):
                            planned_adapters=a.planned_adapters, agent_update_rows=a.agent_update_rows,
                            sem_model=a.sem_model, ow_envs=a.ow_envs, grad_checkpoint=a.checkpoint != "off",
                            variants=a.variants, min_free_GB=a.min_free_gb, max_wait_s=a.max_wait_s,
-                           decide_reps=a.decide_reps)
+                           decide_reps=a.decide_reps, bk_cost_model=a.bk_cost_model,
+                           learner_variants=a.learner_variants)
         txt = json.dumps(r, indent=1, default=str)
         print(txt, flush=True)
         if a.out:

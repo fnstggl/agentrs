@@ -1,0 +1,224 @@
+{
+ "mode": "full",
+ "preset": "dom",
+ "B": 16,
+ "K": 4,
+ "rounds": 8,
+ "microbatch": 4,
+ "overrides": {
+  "grad_checkpoint": true
+ },
+ "share_ema_target": false,
+ "planned_adapters": false,
+ "adafactor_satellites": false,
+ "ow_envs": 0,
+ "run_dir": "/tmp/bench_full_dom_522lwals",
+ "torch": "2.15.0+cu132",
+ "gpu": "NVIDIA RTX A6000",
+ "gpu_free_before_build": {
+  "free_GB": 47.13897705078125
+ },
+ "build_s": 24.89927810523659,
+ "build_mem": {
+  "allocated_GB": 13.43041181564331,
+  "reserved_GB": 13.44140625,
+  "peak_GB": 13.43041181564331
+ },
+ "parameters": {
+  "components": {
+   "tokenizer": {
+    "total": 27763202,
+    "trainable": 27763202
+   },
+   "core": {
+    "total": 1004124162,
+    "trainable": 1004124162
+   },
+   "entity_encoder": {
+    "total": 26203480,
+    "trainable": 26203480
+   },
+   "reasoner": {
+    "total": 53761,
+    "trainable": 53761
+   },
+   "outcome_head": {
+    "total": 34004024,
+    "trainable": 34004024
+   },
+   "beliefs": {
+    "total": 49653632,
+    "trainable": 49653632
+   },
+   "bayes": {
+    "total": 101960,
+    "trainable": 101960
+   },
+   "world_model": {
+    "total": 130646594,
+    "trainable": 130646594
+   },
+   "action_generator": {
+    "total": 191621780,
+    "trainable": 191621780
+   },
+   "value_head": {
+    "total": 14586111,
+    "trainable": 14586111
+   },
+   "option_policy": {
+    "total": 21307409,
+    "trainable": 21307409
+   },
+   "exploration_head": {
+    "total": 2548284,
+    "trainable": 2548284
+   },
+   "intent_head": {
+    "total": 56690688,
+    "trainable": 56690688
+   },
+   "decision_evaluator": {
+    "total": 14195713,
+    "trainable": 14195713
+   },
+   "query_encoder": {
+    "total": 21504,
+    "trainable": 21504
+   }
+  },
+  "cam_total": 1573522304,
+  "cam_trainable": 1573522304,
+  "semantic_pretrained": {
+   "total": 4022468096,
+   "trainable": 0,
+   "frozen": 4022468096
+  }
+ },
+ "trainer_groups": {
+  "core": 1004124162,
+  "heads": 569391998,
+  "semantic": 6144
+ },
+ "planned_adapters_report": null,
+ "ema_target_params": 0,
+ "cfg": {
+  "n_layers": 32,
+  "d_model": 1536,
+  "n_heads": 24,
+  "n_state": 128,
+  "d_satellite": 768,
+  "n_intent": 16,
+  "n_candidates": 4,
+  "wm_ema_target": false,
+  "microbatch": 4,
+  "ppo_epochs": 2,
+  "sem_xattn_every": 4,
+  "dec_xattn_every": 6,
+  "reward_mode": "observation_only",
+  "update_every": 8
+ },
+ "semantic_model": "Qwen/Qwen3-4B",
+ "acting": {
+  "decide_s": [
+   7.13958155317232,
+   7.069453387055546,
+   2.3741529467515647,
+   1.7443321482278407,
+   2.4531789710745215,
+   2.0328159001655877,
+   1.719475660007447,
+   1.9857523520477116
+  ],
+  "decide_s_warm_median": 2.0328159001655877,
+  "peak_GB": 16.4077730178833,
+  "decisions": 128,
+  "rounds": 8,
+  "reward_mode": "observation_only",
+  "labels_appended": 0,
+  "authorisation": {
+   "required": false,
+   "checked": 0,
+   "source": "explicit"
+  },
+  "tools_per_env": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "versions": {
+   "policy": 0,
+   "reward_model": 0,
+   "evaluator": null,
+   "env": null,
+   "code": "c6149ce6198ccecc456ef850a2162711c1c8fb55"
+  },
+  "phase_wall_s": {
+   "act": 26.519227298442274,
+   "execute": 0.03762451559305191,
+   "advance": 0.007279794197529554,
+   "events": 0.0,
+   "observe": 9.136733564548194,
+   "learner": 0.0002836417406797409,
+   "labels": 0.0006813686341047287,
+   "update": 0.0,
+   "meta": 0.0,
+   "tools": 0.002030780538916588,
+   "checkpoint": 0.0,
+   "reset": 0.020211909897625446
+  },
+  "env_exceptions": [],
+  "n_candidates_cfg": 4,
+  "n_candidates_actions": [
+   null
+  ],
+  "actions_last_round": 16
+ },
+ "steps": {},
+ "step": null,
+ "after_step_mem": {
+  "allocated_GB": 13.66677713394165,
+  "reserved_GB": 16.64453125,
+  "peak_GB": 16.4077730178833
+ },
+ "agent_updates": {
+  "base": {
+   "rows": 128,
+   "microbatch": 4,
+   "error": "OutOfMemoryError",
+   "detail": "CUDA out of memory. Tried to allocate 24.00 MiB. GPU 0 has a total capacity of 47.40 GiB of which 16.31 MiB is free. Including non-PyTorch memory, this process has 47.38 GiB memory in use. Of the allocated memory 46.65 GiB is allocated by PyTorch, and 393.59 MiB is reserved by PyTorch but unallocate",
+   "s": 123.96870437124744,
+   "peak_GB": 46.677141189575195,
+   "core_hash_changed": false
+  },
+  "adafactor": {
+   "rows": 128,
+   "microbatch": 4,
+   "error": "OutOfMemoryError",
+   "detail": "CUDA out of memory. Tried to allocate 130.00 MiB. GPU 0 has a total capacity of 47.40 GiB of which 136.31 MiB is free. Including non-PyTorch memory, this process has 47.26 GiB memory in use. Of the allocated memory 46.56 GiB is allocated by PyTorch, and 359.63 MiB is reserved by PyTorch but unalloca",
+   "s": 84.34416141593829,
+   "peak_GB": 46.63887643814087,
+   "core_hash_changed": false
+  },
+  "mb0": {
+   "rows": 128,
+   "microbatch": 0,
+   "error": "OutOfMemoryError",
+   "detail": "CUDA out of memory. Tried to allocate 148.00 MiB. GPU 0 has a total capacity of 47.40 GiB of which 106.31 MiB is free. Including non-PyTorch memory, this process has 47.29 GiB memory in use. Of the allocated memory 46.81 GiB is allocated by PyTorch, and 134.98 MiB is reserved by PyTorch but unalloca",
+   "s": 72.52609290089458,
+   "peak_GB": 46.892837047576904,
+   "core_hash_changed": false
+  }
+ },
+ "agent_update": {
+  "rows": 128,
+  "microbatch": 0,
+  "error": "OutOfMemoryError",
+  "detail": "CUDA out of memory. Tried to allocate 148.00 MiB. GPU 0 has a total capacity of 47.40 GiB of which 106.31 MiB is free. Including non-PyTorch memory, this process has 47.29 GiB memory in use. Of the allocated memory 46.81 GiB is allocated by PyTorch, and 134.98 MiB is reserved by PyTorch but unalloca",
+  "s": 72.52609290089458,
+  "peak_GB": 46.892837047576904,
+  "core_hash_changed": false
+ },
+ "overall_peak_GB": 46.892837047576904
+}

@@ -127,10 +127,37 @@ def canary_scan(system, canaries: list) -> dict:
             "content_clean": not hits, "id_field_hits": id_hits, "clean": not hits and not id_hits}
 
 
+def intent_permutation_kl(model, inp, perm=None) -> dict:
+    """KL(pi_tool(. | I_b) || pi_tool(. | I_perm(b))) per row of stored decision inputs `inp` (StepInputs of one
+    round): the generator pointer's tool distribution with the row's own intent tokens vs. another row's (a cyclic
+    derangement by default; observations, tools and R_t held fixed; a lower bound on the action KL, the tool being a
+    marginal of the action). The identity "permutation" is the control (recompute noise floor). DOM intent mode
+    only (cfg.n_intent > 0)."""
+    with torch.no_grad():
+        lp, allowed, lists, I = model.tool_distribution(inp)
+        B = int(I.shape[0])
+        if perm is None:
+            perm = torch.roll(torch.arange(B, device=I.device), 1)
+        lpp, _, _, _ = model.tool_distribution(inp, lambda X: X[perm])
+        lpi, _, _, _ = model.tool_distribution(inp, lambda X: X)
+    lp, lpp, lpi = lp.float(), lpp.float(), lpi.float()
+
+    def kl(a, b):
+        m = torch.isfinite(a) & torch.isfinite(b)
+        return (a.exp() * (a - b)).masked_fill(~m, 0.0).sum(-1)
+    k, k0 = kl(lp, lpp), kl(lp, lpi)
+    dI = (I.float() - I.float()[perm]).flatten(1).norm(dim=-1)
+    return {"B": B, "perm": [int(x) for x in perm.tolist()], "n_tools": [len(t) for t in lists],
+            "kl_tool_mean": float(k.mean()), "kl_tool_min": float(k.min()), "kl_tool_max": float(k.max()),
+            "kl_tool_per_row": [float(x) for x in k.tolist()],
+            "kl_identity_control_max": float(k0.abs().max()),
+            "intent_row_distance_mean": float(dI.mean()), "intent_norm_mean": float(I.float().flatten(1).norm(dim=-1).mean())}
+
+
 def run_dom_e2e(preset: str = "dom_dev", *, n_rapid: int = 4, n_ow: int = 1, rounds: int = 16, update_every: int = 8,
                 run_dir: Optional[str] = None, seed: int = 0, require_cam_eval: Optional[bool] = None,
                 overrides: Optional[dict] = None, fresh_max_steps: Optional[int] = None,
-                sem_model: Optional[str] = None, semantic=None) -> dict:
+                sem_model: Optional[str] = None, semantic=None, intent_kl: bool = True) -> dict:
     """See the module docstring. `require_cam_eval` None = armed by the config (raises ActionNotAuthorised on the
     first unstamped action); False = declared legacy decision path (counted, not refused)."""
     import tempfile
@@ -187,16 +214,38 @@ def run_dom_e2e(preset: str = "dom_dev", *, n_rapid: int = 4, n_ow: int = 1, rou
         act_s.append(time.perf_counter() - t)
         peaks.append(torch.cuda.max_memory_allocated() / GB)
         return a
+    dec_timings: list = []
+    _dec0 = sysm.model.decide
+
+    def _timed_decide(*a_, **k_):
+        d_ = _dec0(*a_, **k_)
+        dec_timings.append({k: float(v) for k, v in (getattr(d_, "timings", None) or {}).items()
+                            if isinstance(v, (int, float))})
+        return d_
+    sysm.model.decide = _timed_decide
     agent.act = timed_act
     learner = _TimedLearner(sysm.learner)
     h0 = core_hash(sysm.model)
+    kl_state: dict = {}
+
+    def on_step(s_, tr):
+        seen.append(tr)
+        if intent_kl and "before" not in kl_state and int(getattr(sysm.cfg, "n_intent", 0) or 0) > 0 and agent.fresh:
+            inp = agent.fresh[-1].inputs                 # the round just decided, before any learner update
+            try:
+                kl_state["before"] = {"agent_version": int(agent.version), "round": len(seen),
+                                      **intent_permutation_kl(sysm.model, inp)}
+                kl_state["inp"] = inp
+            except Exception as e:                       # reported, never silently passed
+                kl_state["before"] = {"error": f"{type(e).__name__}: {e}"[:400]}
     t1 = time.perf_counter()
     try:
         life = run_lifetime(agent, env, labels=ConcatLabels(srcs), label_store=sysm.label_store, learner=learner,
                             max_decisions=rounds, update_every=update_every, require_cam_eval=require_cam_eval,
-                            transcript=os.path.join(run_dir, "transcript.jsonl"), on_step=lambda s, tr: seen.append(tr))
+                            transcript=os.path.join(run_dir, "transcript.jsonl"), on_step=on_step)
     finally:
         agent.act = act0
+        sysm.model.__dict__.pop("decide", None)
     out["lifetime_s"] = time.perf_counter() - t1
     h1 = core_hash(sysm.model)
     acts = [r.action for tr in seen for r in tr.records if r.action is not None]
@@ -209,11 +258,19 @@ def run_dom_e2e(preset: str = "dom_dev", *, n_rapid: int = 4, n_ow: int = 1, rou
         "actions_stamped": sum(cam_eval_stamp(a) is not None for a in acts), "actions": len(acts),
         "actions_stamp_verified": sum(bool(verify_stamp(a)[0]) for a in acts),
         "decide_s": act_s, "decide_s_warm_median": sorted(act_s[1:])[len(act_s[1:]) // 2] if len(act_s) > 1 else None,
-        "decide_peak_GB": max(peaks) if peaks else None, "updates": learner.log,
+        "decide_peak_GB": max(peaks) if peaks else None, "decide_phase_s": dec_timings, "updates": learner.log,
         "n_updates": sum(u["updated"] for u in learner.log), "core_hash_before": h0, "core_hash_after": h1,
         "core_hash_changed": h0 != h1, "phase_wall_s": life.accounting["phase_wall_s"],
         "by_tool": life.accounting["by_tool"], "dropped": life.dropped,
         "agent_version": int(agent.version), "env_exceptions": list(env.errors)})
+    if intent_kl:
+        out["intent_permutation_kl"] = {"before_training": kl_state.get("before")}
+        if "inp" in kl_state:                            # the same stored inputs after the updates
+            try:
+                out["intent_permutation_kl"]["after_training_same_inputs"] = {
+                    "agent_version": int(agent.version), **intent_permutation_kl(sysm.model, kl_state["inp"])}
+            except Exception as e:
+                out["intent_permutation_kl"]["after_training_same_inputs"] = {"error": f"{type(e).__name__}: {e}"[:400]}
     out["canary_scan"] = canary_scan(sysm, canaries)
     out["peak_GB"] = max([out["decide_peak_GB"] or 0.0] + [u["peak_GB"] for u in learner.log])
     if ow_ad is not None:
