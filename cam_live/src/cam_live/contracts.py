@@ -22,15 +22,16 @@ Design rules that every implementation must respect:
 from __future__ import annotations
 
 import dataclasses
+import functools
 import hashlib
 import json
 import time as _time
 import typing
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Protocol, Sequence, Tuple, runtime_checkable
+from typing import Any, Dict, Iterator, List, Optional, Protocol, Sequence, Tuple, runtime_checkable
 
-CONTRACT_VERSION = "1.0.0"
+CONTRACT_VERSION = "1.1.0"              # 1.1: additive fields / optional protocol members (change requests, APPLIED.md)
 EXEC_INTERFACE_VERSION = "1.0"          # learner <-> computer environment execution interface
 
 
@@ -59,6 +60,11 @@ class Level:
     PROCEDURE = "procedure"          # a multi-operation skill or program with one intermediate purpose
     INTERVENTION = "intervention"    # a decision meant to change something in the external world
     ALL = (PRIMITIVE, PROCEDURE, INTERVENTION)
+
+
+#: ``ActionSpec.operation`` of a multi-step program: its content is ``steps``, executed in order, every step
+#: authorized individually (a program never has more permission than its steps issued one by one) [B-CR-1]
+PROGRAM_OPERATION = "program"
 
 
 class ResultStatus:
@@ -159,6 +165,12 @@ def _from(tp: Any, v: Any) -> Any:
     return v
 
 
+@functools.lru_cache(maxsize=None)
+def _hints(cls) -> Tuple[Dict[str, Any], frozenset]:
+    """Resolved type hints and field names of a record class, computed once per class [D-5]."""
+    return typing.get_type_hints(cls), frozenset(f.name for f in dataclasses.fields(cls))
+
+
 @dataclass
 class Record:
     """Base for every contract record: ``to_dict`` / ``from_dict`` / ``to_json`` with nested dataclasses."""
@@ -171,8 +183,7 @@ class Record:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]):
-        hints = typing.get_type_hints(cls)
-        known = {f.name for f in dataclasses.fields(cls)}
+        hints, known = _hints(cls)
         return cls(**{k: _from(hints.get(k, Any), v) for k, v in d.items() if k in known})
 
     def content_hash(self) -> str:
@@ -242,7 +253,19 @@ class ExperienceItem(Record):
 # --------------------------------------------------------------------------------------------------------------
 @dataclass
 class VerificationCondition(Record):
-    """How execution success is checked from the *resulting world state* (never assumed)."""
+    """How execution success is checked from the *resulting world state* (never assumed).
+
+    ``spec`` keys by modality and kind, as the executors evaluate them (anything else yields ``verified=None``,
+    never ``True``) [EC-3]:
+
+    ============  ===============  =================================================================================
+    visual        element_state    ``{"color_at": [x, y], "rgb": [r, g, b], "tolerance": 60}`` or
+                                   ``{"changed": bool, "region": [x, y, w, h], "min_fraction": f}``
+    visual        url_matches      ``{"pattern": regex}`` (only when the screen provider has ``url()``)
+    code          text_present     ``{"text": str, "stream": "stdout" | "stderr"}``
+    code          program          ``{"command": shell text, "expect_exit": 0}`` (run in the sandbox afterwards)
+    ============  ===============  =================================================================================
+    """
     description: str = ""
     kind: str = "none"               # "none" | "text_present" | "url_matches" | "element_state" | "metric" | "program"
     spec: Dict[str, Any] = field(default_factory=dict)
@@ -307,6 +330,7 @@ class PrimitiveOp(Record):
     obs_before: str = ""
     obs_after: str = ""
     note: str = ""
+    step_id: str = ""                # action_id of the ActionSpec.steps entry that issued this operation ("" = top) [D-4]
 
 
 @dataclass
@@ -373,6 +397,7 @@ class OutcomeObservation(Record):
     evidence_refs: List[str] = field(default_factory=list)
     uncertainty: float = 0.0         # measurement standard error where known
     dedup_key: str = ""              # two observations with the same key are the same event
+    signature: str = ""              # verifier signature over the record with signature="" (measure() only) [C-1, F-5]
 
 
 @dataclass
@@ -398,6 +423,7 @@ class PredictionRecord(Record):
     model_version: str = ""
     checkpoint_id: str = ""
     imagined_horizon_steps: int = 0
+    registered_at: Optional[float] = None    # set by the prediction registry; outcomes must be strictly later [B-CR-3]
     resolved_at: Optional[float] = None
     resolved_value: Optional[float] = None
     resolved_status: str = OutcomeStatus.PENDING
@@ -427,7 +453,7 @@ class Decision(Record):
     candidates: List[CandidateEvaluation] = field(default_factory=list)
     probabilities: List[float] = field(default_factory=list)     # behaviour-policy probability of each candidate
     chosen_index: int = 0
-    exploration: str = ""            # rule that produced the choice: "thompson" | "ucb" | "greedy" | "voi" | "randomized" | ...
+    exploration: str = ""            # predict.policy.RULES: "policy" | "thompson" | "ucb" | "greedy" | "voi" | "randomized" [B-CR-4]
     rationale: str = ""              # concise and faithful: built from the numbers above, not invented
     context_obs_ids: List[str] = field(default_factory=list)
     model_version: str = ""
@@ -453,6 +479,9 @@ class ExperimentRecord(Record):
     comparison: str = ""             # comparison condition, "" if none
     arms: List[str] = field(default_factory=list)
     assignment: str = "none"         # "randomized" | "sequential" | "none"
+    arm_probs: List[float] = field(default_factory=list)               # assignment probability of each arm [B-CR-2]
+    assignments: List[Dict[str, Any]] = field(default_factory=list)    # [{"unit_id", "arm", "probability", "ts"}]
+    test: Dict[str, Any] = field(default_factory=dict)                 # the test used for ``supported``
     predicted: List[PredictionRecord] = field(default_factory=list)
     cost: Cost = field(default_factory=Cost)
     horizon_s: float = 0.0
@@ -498,17 +527,20 @@ class ExperienceRecord(Record):
     goal_text: str = ""              # objective text at decision time (for goal encoding during replay)
     outcomes: List[OutcomeObservation] = field(default_factory=list)
     pending_queries: List[OutcomeQuery] = field(default_factory=list)
+    queries: List[OutcomeQuery] = field(default_factory=list)    # every question asked about this decision [B-CR-6]
     intrinsic_reward: Optional[float] = None
     reward_version: str = ""
     bootstrap_reward: Optional[float] = None
+    reward_inputs: Dict[str, Any] = field(default_factory=dict)  # RewardSignals.to_dict() + {"life_step": int} [C-4]
     credit: Dict[str, float] = field(default_factory=dict)       # estimator name -> redistributed credit
     credit_uncertainty: Dict[str, float] = field(default_factory=dict)
     duration_s: float = 0.0
-    eligible: Dict[str, bool] = field(default_factory=dict)      # loss name -> may be trained on
+    eligible: Dict[str, bool] = field(default_factory=dict)      # loss name -> may be trained on (no entry = eligible) [D-2]
     window_id: str = ""              # meta-learning window (support/query bookkeeping)
     objective_family: str = ""
     provenance: str = "live"         # "live" | "staging" | "diagnostic" — never mixed silently
     seq: int = 0                     # monotone position in the lifetime
+    lifetime: int = 0                # index of the lifetime (0 for the single live lifetime) [C-7]
 
 
 @dataclass
@@ -531,6 +563,7 @@ class LearningUpdateRecord(Record):
     checkpoint_id: str = ""
     model_version: str = ""
     notes: str = ""
+    diagnostics: Dict[str, Any] = field(default_factory=dict)   # loss shares, balance scale, strata, flags [D-11]
 
 
 @dataclass
@@ -554,6 +587,8 @@ class MetaUpdateRecord(Record):
     applied: bool = False
     skipped_reason: str = ""
     diagnostics: Dict[str, float] = field(default_factory=dict)
+    ledger_head: str = ""            # reward.integrity.OutcomeLedger.head when the update was computed [C-3]
+    window_pair: str = ""            # reward.windows.WindowPair.pair_id
 
 
 @dataclass
@@ -598,6 +633,7 @@ class TaskSpec(Record):
     stop_conditions: List[str] = field(default_factory=list)
     secondary_metrics: List[str] = field(default_factory=list)
     mode: str = "staging"            # "diagnostic" | "staging" | "live"
+    origin: str = Trust.OPERATOR     # Trust.OPERATOR | Trust.SELF (goal-free mode); set by the runtime only [C-2]
 
     FORBIDDEN_KEYS = ("strategy", "plan", "steps", "niche", "schedule", "playbook", "actions")
 
@@ -645,6 +681,9 @@ class EnvironmentAdapter(Protocol):
     def get_pending_outcomes(self) -> List[OutcomeQuery]: ...
     def get_observable_metrics(self) -> List[Quantity]: ...
     def get_capabilities(self) -> Dict[str, Any]: ...
+    # ``get_capabilities()["features"]["at_most_once_by_action_id"] = True`` declares that executing an action id a
+    # second time returns the recorded result instead of acting again; the runtime re-issues an action that was in
+    # flight at a crash only when this is declared [F-4]. ``"provenance"`` is "diagnostic" | "staging" | "live".
 
     # outcome maturation: environment-side measurements for due queries (unverified unless stated)
     def measure(self, queries: Sequence[OutcomeQuery]) -> List[OutcomeObservation]: ...
@@ -661,6 +700,18 @@ class ModalityExecutor(Protocol):
     def close(self) -> None: ...
 
 
+@runtime_checkable
+class SecretHandle(Protocol):
+    """Executor-side secret handle placed in ``ExecContext.secrets`` (``harness.auth.vault.ExecutorSecrets``):
+    releases a secret only for a granted action that is being executed, and scrubs every known secret value from
+    text that is about to become an observation. Optional: ``has(name) -> bool`` (whether a non-revoked secret of
+    that name exists; releases nothing) and ``bind(action, decision)`` returning a handle with
+    ``get(name, destination)`` [EB-2, EC-2, ES-2]."""
+
+    def get(self, name: str, action: "ActionSpec", decision: "AuthorizationDecision", destination: str) -> str: ...
+    def scrub(self, text: str) -> str: ...
+
+
 @dataclass
 class ExecContext:
     """What an executor gets besides the action. ``check`` MUST be called for every primitive operation that
@@ -671,7 +722,11 @@ class ExecContext:
     run_dir: str = ""
     deadline: float = 0.0
     cancel: Any = None               # threading.Event-like; executors poll it
-    secrets: Any = None              # SecretBroker handle (executor side only; never the learner)
+    secrets: Any = None              # SecretHandle (executor side only; never the learner)
+    authorization: Any = None        # AuthorizationDecision of the top-level action being executed [EA-1, EB-1, ES-1]
+    granted_action: Any = None       # the top-level ActionSpec whose grant covers the operations being executed [ES-1]
+    dispatch: Any = None             # Callable[[ActionSpec], ActionResult]: run a sub-step through the environment [EB-1]
+    workspace: str = ""              # persistent workspace directory of the environment [EB-1]
 
 
 @runtime_checkable
@@ -680,9 +735,13 @@ class PolicyEngine(Protocol):
     reward cannot change its configuration or its audit log."""
 
     def authorize(self, action: ActionSpec, task: TaskSpec, context: Dict[str, Any]) -> AuthorizationDecision: ...
+    # check_grant: called exactly once, by the executor, immediately before execution: verifies binding / expiry and
+    # USES UP the grant (implementations may offer consume=False to only look) [EA-2]
     def check_grant(self, action: ActionSpec, decision: AuthorizationDecision) -> bool: ...
     def check_primitive(self, op: PrimitiveOp, action: ActionSpec) -> AuthorizationDecision: ...
-    def record(self, action: ActionSpec, result: ActionResult) -> None: ...     # audit + limit accounting
+    # record: audit + limit accounting. Called exactly once per executed action by the computer environment /
+    # executor after execution (``ComputerEnvironment(record_results=True)``); the runtime does not call it [EB-3, F-3]
+    def record(self, action: ActionSpec, result: ActionResult) -> None: ...
     def approvals(self) -> List[Dict[str, Any]]: ...
     def resolve_approval(self, approval_id: str, approve: bool, by: str, note: str = "") -> AuthorizationDecision: ...
     def emergency_stop(self, reason: str, by: str) -> None: ...
@@ -698,6 +757,10 @@ class OutcomeVerifier(Protocol):
     def verify(self, task: TaskSpec) -> VerifiedOutcome: ...
     def check_signature(self, outcome: VerifiedOutcome) -> bool: ...
     def measure(self, queries: Sequence[OutcomeQuery]) -> List[OutcomeObservation]: ...   # verified=True measurements
+    # check_measurement: True only for an observation this verifier produced and signed (``OutcomeObservation.
+    # signature`` over the record with signature=""). Callers must use getattr: verifiers written before contract
+    # 1.1 do not have it, and their measurements then never supervise the outer (meta) objective [C-1, F-5]
+    def check_measurement(self, obs: OutcomeObservation) -> bool: ...
 
 
 @runtime_checkable
@@ -712,10 +775,22 @@ class ExperienceStore(Protocol):
     def items(self, refs: Sequence[str]) -> List[ExperienceItem]: ...
     def pending(self, now: float) -> List[Tuple[ExperienceRecord, OutcomeQuery]]: ...
     def sample(self, n: int, *, loss: str, strata: Optional[Dict[str, float]] = None,
-               seed: Optional[int] = None) -> List[ExperienceRecord]: ...
+               seed: Optional[int] = None, provenance: Optional[Sequence[str]] = None) -> List[ExperienceRecord]: ...
     def window(self, window_id: str) -> List[ExperienceRecord]: ...
     def count(self) -> int: ...
     def flush(self) -> None: ...
+    # [D-1] outcomes with de-duplication (result has .accepted / .duplicate), the earliest due pending query, and
+    # the replay-sampler state for checkpoints (experience itself is never rolled back)
+    def add_outcome(self, obs: OutcomeObservation, exp_id: str = "") -> Any: ...
+    def next_due(self) -> Optional[float]: ...
+    def state_dict(self) -> Dict[str, Any]: ...
+    def load_state_dict(self, state: Dict[str, Any]) -> Dict[str, Any]: ...
+    # [C-5] the records of a lifetime in order
+    def iter_records(self, *, since_seq: int = 0, objective_id: str = "") -> Iterator[ExperienceRecord]: ...
+    # [D-10] a closed objective and its verified outcome (``verified`` = the verifier's signature was checked)
+    def put_objective_outcome(self, objective_id: str, *, status: str, value: float = 0.0, evaluated_at: float = 0.0,
+                              verified: bool = False, body: Optional[Dict[str, Any]] = None) -> None: ...
+    def objective_outcome(self, objective_id: str) -> Optional[Dict[str, Any]]: ...
 
 
 @runtime_checkable
@@ -730,19 +805,30 @@ class AgentAPI(Protocol):
     def propose(self, tools: Sequence[ToolDescriptor], k: int) -> List[ActionSpec]: ...      # step 6
     def evaluate(self, candidates: Sequence[ActionSpec]) -> List[CandidateEvaluation]: ...   # steps 7-8
     def select(self, evaluations: Sequence[CandidateEvaluation]) -> Decision: ...            # step 9
+    # record_result: also called after ``load()`` for decisions journalled after that checkpoint (crash recovery);
+    # it must accept a decision it has not seen and must not double-count one it has [F-6]
     def record_result(self, decision: Decision, result: ActionResult) -> None: ...           # step 12
     def internal_rewards(self) -> Dict[str, Any]: ...                                        # step 13
     def learn(self, budget_s: float) -> List[LearningUpdateRecord]: ...                      # step 14
     def meta_learn(self, budget_s: float) -> List[MetaUpdateRecord]: ...                     # step 15
     def save(self, path: str) -> str: ...                                                    # step 16 -> checkpoint id
+    # load: restores the complete learner state of a checkpoint written by ``save``. Afterwards the runtime may
+    # re-deliver results journalled after it (``record_result``), events after the committed cursor (``ingest``)
+    # and outcomes that were pending at the commit (``reconcile``); all of them must be accepted idempotently [F-6]
     def load(self, path: str) -> None: ...
     def next_wake(self) -> Optional[float]: ...                                              # step 17
     def status(self) -> Dict[str, Any]: ...
+    # [F-1] experiment records registered or updated since the last call (logged to experiments.jsonl), and the
+    # learner's explanations of an obstacle: [{"hypothesis": str, "p": float}, ...]
+    def drain_experiments(self) -> List[ExperimentRecord]: ...
+    def explain_obstacle(self, obstacle: ObstacleRecord) -> List[Dict[str, Any]]: ...
 
 
 @runtime_checkable
 class VisualGrounder(Protocol):
-    """Replaceable visual-grounding model. It only *proposes* coordinates; the harness validates and executes."""
+    """Replaceable visual-grounding model. It only *proposes* coordinates; the harness validates and executes.
+    Optional members read by the visual executor [EC-3]: attribute ``heavy: bool`` (needs the shared GPU lock) and
+    method ``close()`` (release model memory)."""
     name: str
     revision: str
 

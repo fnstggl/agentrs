@@ -60,6 +60,10 @@ class LabConfig:
     change_at_s: float = 0.0         # 0 = the mechanism never changes
     max_effort: int = 3
     seed: int = 0
+    #: execute each action id at most once: a repeated ``execute`` of the same id returns the recorded result and
+    #: ``get_capabilities()["features"]["at_most_once_by_action_id"]`` says so (change request F-4). Off by default:
+    #: diagnostics that re-run one ActionSpec object to advance time rely on repeated execution.
+    at_most_once: bool = False
 
 
 def _softplus(x: float) -> float:
@@ -105,6 +109,7 @@ class LabWorld:
         self._n_exec = 0
         self._first_observe = True
         self._events_seen = 0
+        self._results: Dict[str, ActionResult] = {}          # action id -> result (only with cfg.at_most_once)
 
     # ---- ground truth (tests only; never reachable through the adapter API) -------------------------------
     def _rate(self, ch: int, at: Optional[float] = None) -> float:
@@ -195,6 +200,14 @@ class LabWorld:
                 "lab.unlock": c.act_cost}.get(action.operation, 0.0)
 
     def execute(self, action: ActionSpec, authorization: AuthorizationDecision) -> ActionResult:
+        if self.cfg.at_most_once and action.action_id in self._results:
+            return ActionResult.from_dict(self._results[action.action_id].to_dict())
+        res = self._execute(action, authorization)
+        if self.cfg.at_most_once and res.status not in (ResultStatus.DENIED, ResultStatus.NEEDS_APPROVAL):
+            self._results[action.action_id] = ActionResult.from_dict(res.to_dict())
+        return res
+
+    def _execute(self, action: ActionSpec, authorization: AuthorizationDecision) -> ActionResult:
         c, now = self.cfg, self.clock.now()
         res = ActionResult(action_id=action.action_id, status=ResultStatus.OK, started=now, ended=now)
         if authorization is None or authorization.verdict != AuthVerdict.ALLOW:
@@ -286,7 +299,8 @@ class LabWorld:
 
     def get_capabilities(self) -> Dict[str, Any]:
         return {"name": "labworld", "interface_version": self.interface_version, "provenance": "diagnostic",
-                "modalities": [Modality.API, Modality.INTERNAL], "simulated_time": True, "live": False}
+                "modalities": [Modality.API, Modality.INTERNAL], "simulated_time": True, "live": False,
+                "features": {"at_most_once_by_action_id": bool(self.cfg.at_most_once)}}
 
     def measure(self, queries: Sequence[OutcomeQuery], *, _verified: bool = False) -> List[OutcomeObservation]:
         now, out = self.clock.now(), []
@@ -309,12 +323,14 @@ class LabWorld:
 
 
 class LabVerifier:
-    """Independent verifier for LabWorld objectives (implements ``contracts.OutcomeVerifier``). Holds its own key."""
+    """Independent verifier for LabWorld objectives (implements ``contracts.OutcomeVerifier``). Holds its own key.
+    Objective outcomes and measurements are signed (HMAC over the record with ``signature=""``); ``verified`` is
+    part of what is signed, so a measurement of the environment relabelled as verified does not check."""
 
     def __init__(self, world: LabWorld, secret: bytes = b"lab-verifier-key"):
         self._world, self._secret = world, secret
 
-    def _sign(self, o: VerifiedOutcome) -> str:
+    def _sign(self, o: Any) -> str:
         d = o.to_dict()
         d.pop("signature", None)
         return hmac.new(self._secret, json.dumps(d, sort_keys=True).encode(), hashlib.sha256).hexdigest()
@@ -337,10 +353,21 @@ class LabVerifier:
         return o
 
     def check_signature(self, outcome: VerifiedOutcome) -> bool:
-        return bool(outcome.signature) and hmac.compare_digest(outcome.signature, self._sign(outcome))
+        return (isinstance(outcome, VerifiedOutcome) and bool(outcome.signature)
+                and hmac.compare_digest(outcome.signature, self._sign(outcome)))
 
     def measure(self, queries: Sequence[OutcomeQuery]) -> List[OutcomeObservation]:
-        return self._world.measure(queries, _verified=True)
+        out = self._world.measure(queries, _verified=True)
+        for o in out:
+            if o.status in (OutcomeStatus.OBSERVED, OutcomeStatus.CENSORED):
+                o.source = "verifier:labworld"
+                o.signature = self._sign(o)
+        return out
+
+    def check_measurement(self, obs: OutcomeObservation) -> bool:
+        """True only for an observation this verifier measured and signed (change request C-1)."""
+        return (isinstance(obs, OutcomeObservation) and bool(obs.signature) and obs.verified
+                and hmac.compare_digest(obs.signature, self._sign(obs)))
 
 
 def lab_task(world: LabWorld, objective_id: str = "") -> TaskSpec:

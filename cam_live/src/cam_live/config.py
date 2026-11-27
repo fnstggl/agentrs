@@ -49,14 +49,18 @@ class BackboneConfig:
 
 
 #: experiential-core presets. ``target_params`` is the engineering target; the model reports the actual count.
+#: ``d_ff`` values are the measured corrections of change request A-1 (the earlier values sized only the transformer
+#: blocks and overshot every target: 50m measured 67.8 M). Measured with these values (``python -m cam_live.nn.bench``):
+#: debug 202,421 · 5m 5,044,741 · 20m 20,087,333 · 50m 50,953,765 · 150m 151,022,853 · 500m 502,708,549 ·
+#: 1b 1,000,547,333 (the small presets also use the low-rank semantic projection of ``nn.presets.NN_PRESETS``).
 SCALE_PRESETS: Dict[str, Dict[str, Any]] = {
-    "debug": dict(d_model=64, n_layers=2, n_heads=4, d_ff=128, n_slots=4, n_features=16, target_params=0.2e6),
-    "5m": dict(d_model=256, n_layers=4, n_heads=4, d_ff=640, n_slots=8, n_features=64, target_params=5e6),
-    "20m": dict(d_model=512, n_layers=5, n_heads=8, d_ff=1280, n_slots=8, n_features=96, target_params=20e6),
-    "50m": dict(d_model=768, n_layers=6, n_heads=12, d_ff=1792, n_slots=8, n_features=128, target_params=50e6),
-    "150m": dict(d_model=1024, n_layers=10, n_heads=16, d_ff=2560, n_slots=16, n_features=192, target_params=150e6),
+    "debug": dict(d_model=64, n_layers=2, n_heads=4, d_ff=64, n_slots=4, n_features=16, target_params=0.2e6),
+    "5m": dict(d_model=256, n_layers=4, n_heads=4, d_ff=320, n_slots=8, n_features=64, target_params=5e6),
+    "20m": dict(d_model=512, n_layers=5, n_heads=8, d_ff=576, n_slots=8, n_features=96, target_params=20e6),
+    "50m": dict(d_model=768, n_layers=6, n_heads=12, d_ff=1024, n_slots=8, n_features=128, target_params=50e6),
+    "150m": dict(d_model=1024, n_layers=10, n_heads=16, d_ff=2048, n_slots=16, n_features=192, target_params=150e6),
     "500m": dict(d_model=1536, n_layers=14, n_heads=24, d_ff=4096, n_slots=16, n_features=256, target_params=500e6),
-    "1b": dict(d_model=2048, n_layers=16, n_heads=32, d_ff=5376, n_slots=16, n_features=256, target_params=1.0e9),
+    "1b": dict(d_model=2048, n_layers=16, n_heads=32, d_ff=5504, n_slots=16, n_features=256, target_params=1.0e9),
 }
 
 
@@ -66,7 +70,7 @@ class CoreConfig:
     d_model: int = 768
     n_layers: int = 6
     n_heads: int = 12
-    d_ff: int = 1792
+    d_ff: int = 1024                 # corrected 50m preset (change request A-1)
     n_slots: int = 8                 # persistent recurrent state slots
     n_features: int = 128            # F: width of the fast-adaptation feature map
     max_context: int = 256           # tokens of H_t per forward

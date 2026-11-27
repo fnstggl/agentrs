@@ -19,6 +19,10 @@ SERVICE_USERS: Dict[str, str] = {
 }
 SERVICE_GROUP = "camlive"        # shared group used only for socket access
 
+#: service -> role (key of SERVICE_USERS) whose uid runs it. The executor runs as the browser role; it drops to
+#: the sandbox uid for generated code itself [EA-3].
+SERVICE_ROLES: Dict[str, str] = {"auth": "auth", "exec": "browser", "verifier": "verifier", "learner": "learner"}
+
 #: socket file names inside <run_dir>/sock/
 SOCK_AUTH, SOCK_EXEC, SOCK_VERIFY = "auth.sock", "exec.sock", "verify.sock"
 

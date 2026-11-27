@@ -88,7 +88,11 @@ class Lifetime:
 
 
 class LabCollector:
-    """Collects one LabWorld lifetime into ``store``. ``max_context`` bounds |H_t| (goal item always kept)."""
+    """Collects one LabWorld lifetime into ``store``. ``max_context`` bounds |H_t| (goal item always kept).
+
+    ``seq_start=0`` (default): when the store keeps a lifetime head (``head_seq()``, e.g.
+    ``credit.replay.SqliteExperienceStore``) every record gets the next position after it, so a store that assigns
+    positions itself never sees a position twice (change request D-7a); otherwise positions count from 0."""
 
     def __init__(self, store: ExperienceStore, *, max_context: int = 40, verified_measurements: bool = True,
                  window_id: str = "", seq_start: int = 0):
@@ -157,12 +161,15 @@ class LabCollector:
             self._put(ctx, action_item(chosen, ts))
             for o in res.observations:
                 self._put(ctx, obs_item(o))
+            seq = self.seq
+            if hasattr(self.store, "head_seq") and seq <= int(self.store.head_seq()):
+                seq = int(self.store.head_seq()) + 1
             rec = ExperienceRecord(exp_id=new_id("exp"), objective_id=task.objective_id, decision=dec, result=res,
                                    context_item_refs=list(h_t), pending_queries=list(res.expected_outcomes),
                                    goal_text=task.objective, duration_s=res.ended - res.started,
                                    window_id=self.window_id, objective_family=task.family, provenance="diagnostic",
-                                   seq=self.seq)
-            self.seq += 1
+                                   seq=seq)
+            self.seq = seq + 1
             self.store.append(rec)
             reconcile()
             rec.post_item_refs = self._window(ctx)

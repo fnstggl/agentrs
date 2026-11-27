@@ -100,7 +100,10 @@ class LatentModelAPI(nn.Module, abc.ABC):
 
     # ---- experience encoding ----------------------------------------------------------------------------
     @abc.abstractmethod
-    def tokenize(self, contexts: Sequence[Sequence[ExperienceItem]], *, with_grad: bool = False) -> TokenBatch: ...
+    def tokenize(self, contexts: Sequence[Sequence[ExperienceItem]], *, with_grad: bool = False,
+                 grad_last: Optional[int] = None) -> TokenBatch:
+        """``grad_last=k``: with ``with_grad=True`` only the newest k items of each context get a graph into the
+        semantic adapters; older ones use cached detached embeddings (bounded memory for slow updates) [A-3]."""
 
     @abc.abstractmethod
     def core_forward(self, tokens: TokenBatch, state: Optional[CoreState] = None) -> CoreOutput: ...
@@ -124,6 +127,12 @@ class LatentModelAPI(nn.Module, abc.ABC):
     @abc.abstractmethod
     def decision_latent(self, b: Tensor, e_a: Tensor, e_g: Tensor) -> Tensor:
         """z [B, N, D]."""
+
+    def decision_trunk(self) -> Optional[nn.Module]:
+        """The module behind ``decision_latent`` (``forward(b, e_a, e_g) -> z``) for functional inner updates over
+        its named parameters (``torch.func.functional_call``), or ``None`` when the model does not expose it as one
+        module; callers then adapt the policy head alone [C-6]. Optional: implementations override it."""
+        return None
 
     @abc.abstractmethod
     def features(self, z: Tensor, e_q: Tensor) -> Tensor:
@@ -156,7 +165,8 @@ class LatentModelAPI(nn.Module, abc.ABC):
 
     @abc.abstractmethod
     def load_trainable_state(self, state: Dict[str, Tensor], *, strict: bool = True) -> Dict[str, List[str]]:
-        """Returns {"missing": [...], "unexpected": [...]}; ``strict=False`` tolerates newly added heads."""
+        """Returns {"missing": [...], "unexpected": [...], "mismatched": [...]}; ``strict=False`` tolerates newly
+        added heads (shape-mismatched tensors are reported and never loaded) [A-3]."""
 
     @abc.abstractmethod
     def arch_signature(self) -> Dict[str, Any]:
