@@ -458,19 +458,22 @@
   "ECON / J: members now also post services that work for them on the product-discovery platform as hunters (launch.post with product or host, once per product), so in civilisations launch carries population items and product-linked launches feed social.popinbox._service_leads."
  ],
  "test_results_unofficial": {
-  "tests/test_kernel.py tests/test_invariants.py (CPU, 1 thread)": "51 passed, 0 failed",
-  "tests/test_v5_social_audience.py + _recsys + _idset (CPU)": "16 passed, 0 failed",
-  "tests/test_v5_social_catalogue.py (CPU; incl. the follow-ownership regression test)": "3 passed, 0 failed",
-  "tests/test_v5_social_security.py (CPU)": "5 passed, 0 failed",
-  "tests/test_v5_social_calibrated.py + _popmedia (CPU)": "9 passed, 0 failed",
-  "tests/v5/test_gate_SP_4.py + SP_4_7 + SP_4_2 (CPU)": "3 passed, 0 failed (SP-4 16 platform kinds; SP-4.2 10 artifact kinds, 24 tools; SP-4.7 13 community features)",
-  "red-team probes v5.social.* and v5.network media probes (CPU)": "5 social probes held (incl. sybils_with_a_fake_footprint: organic 3, cluster 6); jailed_media_tools held; media_tools_at_participant_call_sites: 9 of 10 launches jailed, the unjailed one is semantic/media.py tool_hash ffmpeg -version (owner D)",
-  "strict typed social world, all 12 distributed platforms, 150 members, 30 h (CPU)": "0 proc.failed, 0 invariant errors, recount 0 mismatches; population items on 6-8 platforms, 7 messages, Q&A posts, labelled open.shorts batches"
+  "tests/test_kernel.py tests/test_invariants.py (CPU, 1 thread, 2026-11-27, third agent)": "51 passed, 0 failed",
+  "tests/test_v5_social_audience.py + _recsys + _idset (CPU, third agent)": "17 passed, 0 failed",
+  "tests/test_v5_social_catalogue.py (CPU, third agent)": "3 passed, 0 failed",
+  "tests/test_v5_social_communities.py (CPU, third agent; incl. the new governance test)": "2 passed, 0 failed",
+  "tests/test_v5_social_security.py + tests/v5/test_gate_SP_4_2.py (CPU, after the studio metering change)": "6 passed, 0 failed",
+  "tests/test_v5_social_calibrated.py + _popmedia (CPU, third agent)": "9 passed, 0 failed (tests/test_v5_social_random_exposure.py did not finish inside the 5-minute direct-run budget on CPU; it is in the queued civ job)",
+  "tests/test_v5_substrate_facts.py (CPU)": "1 failed before (content_artifact still required as a known duplicate after C's migration), 9 passed after the minimal commented test update",
+  "tests/v5/test_gate_SP_4.py + SP_4_7 + SP_4_8 scripted (CPU)": "3 passed (SP-4 16 platform kinds; SP-4.7 13 community features)",
+  "tests/v5/test_gate_SP_4_8.py::test_SP_4_8_population_discovers_buys_uses_and_reviews (CPU)": "FAILED before 9632c26: social_to_purchase_chains_verified 0 (171 failed population ticks in 2 days: column ownership refused pop.n_purchases writes from the social package); also 0 chains on the base 55433e7 (no assert there); after the fix a 2-day run of its world: 0 failed ticks, launch post exposed to 892 and viewed by 293 members, 63 shop decision batches; the gate itself is queued",
+  "dev smoke of the hunter branch (scratch scripts/hunt_unit.py, recommendation forced by monkeypatch; not a shipped test)": "one member hunted the launched product (launch maker=False), the other recommendations went to posts; 0 failed ticks, 0 invariant errors over 6 more hours",
+  "Gate I scaling on CPU (scratch scripts/imem.py, iorg.py)": "1M identities positive control: control item 213,160 unique viewers and 1.81M distinct qualifying views after 11 simulated hours, 0 exposure / distinct-viewer recount mismatches at 4 h; organic 250k identities: top item 78,987 unique viewers in 24 h",
+  "previous snapshot gate run (second agent, head cf1dceb, 77 min)": "88 passed; every gate test failed only at evidence.record (no git HEAD in the snapshot: fixed in the runner) and the C fixture at the 600 s default timeout (fixed: module timeout)"
  },
  "history": {
   "wave2 (c5c/w2-corepop, CORE-POP)": "the C2 engine on the one population, decision provenance, communities used by the population, product discovery on launch, gates B/C/D/I on pop (INT.json)",
   "wave3b (c5c/w3b-soc, first agent, stopped by a usage limit)": "population creation on every distributed platform (image cards, narrated audio, narrated slide videos, Q&A, status posts, newsletter issues, service recommendations), messaging/newsletters/memberships used by the population, content_open@1 + random exposure on shorts, posts self-adaptation, feed probes, studio jail and image decodes in the jail, coordinated-cluster integrity rule, content_artifact migration, gate tests SP-4.1b/4.5b/4.6b/4.7b/4.8b, D-33..D-35; nothing measured except SP-4.1b and SP-4.6b (unofficial)",
-  "wave3b (c5c/w3b-soc, continuation)": "merged feat/crucible-5-complete; relationship migration (audience side); every gate test asserts its manifest criteria; random-exposure integration test; E.3 text feed probe left to D; measurement of every gate on snapshots of the committed head; defects DEF-C-1..6 closed where their regression tests passed",
   "wave3b (c5c/w3b-soc, second agent, stopped by a usage limit)": "merged feat/crucible-5-complete; relationship migration (audience side); every gate test asserts its manifest criteria; random-exposure integration test; E.3 text feed probe left to D; audience.recount reads the durable history (skeptic S2); reply notifications in communities; its snapshot gate run could not record evidence (no git HEAD in the snapshot) and the C fixture hit the 600 s default timeout",
   "wave3b (c5c/w3b-soc, third agent)": "merged feat/crucible-5-complete again; snapshot runner makes the snapshot a git repo; gate C module timeout; studio sandbox metering per lineage (A note); population governance of communities; product discovery fixed (column ownership made every population tick with a product visit fail: SP-4.8 had 0 chains); hunter launches of services that work; every population gate refuses failed ticks; gates re-queued"
  }
