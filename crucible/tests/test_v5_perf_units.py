@@ -98,3 +98,125 @@ def test_the_event_counter_counts_decisions_and_public_events():
     ec(E("forum.post", {}, vis="public", actor="p2"))
     assert ec.decisions == 7 and ec.sessions == 4 and ec.activations == 5 and ec.public == 1
     assert ec.decisions_by["pop.adaptive:0"] == 3 and ec.event_bytes > 0
+
+
+def test_rollout_world_env_defaults_to_observation_only_regression_def_m_5():
+    """DEF-M-5 (audit M_performance finding 4): the 4.0 farm's WorldEnv returned the account-balance change as its
+    reward by default (12345.0 for an exogenous deposit with no action). The default is observation_only: the scalar
+    reward is 0.0 while the balance change stays observable; the shaped reward exists only when selected."""
+    import crucible
+    from crucible.scale.rollout import WorldEnv
+    crucible.load_all_modules()
+    out = {}
+    for mode in (None, "legacy_shaped_reward"):
+        env = WorldEnv({"family": "tiny", "seed": 0, "overrides": {"n_consumers": 40}}, reward_mode=mode)
+        env.reset()
+        before = env._balance()
+        env.world.system_call("admin.endow", {"principal": env.actor, "amount": 12345})
+        obs, r, done, info = env.step(None)
+        out[mode] = (env.reward_mode, r, env._balance() - before)
+    assert out[None][0] == "observation_only" and out[None][1] == 0.0 and out[None][2] >= 12345
+    assert out["legacy_shaped_reward"][1] == float(out["legacy_shaped_reward"][2]) >= 12345
+
+
+def test_semantic_batches_are_counted_per_reply():
+    class E:
+        def __init__(self, t, p):
+            self.type, self.payload, self.vis, self.actor = t, p, "internal", "sys"
+
+        def body(self):
+            return {"type": self.type, "payload": self.payload}
+    ec = bench5.EventCounter(count_bytes=False)
+    ec(E("ext", {"outcomes": [{"kind": "infer.semantic.choose", "out": {"output": [{"choice": 0}] * 5}},
+                              {"kind": "infer.space.items", "out": {"output_ref": "sha256:x"}}]}))
+    ec(E("ext", {"outcomes": [{"kind": "infer.semantic.generate", "out": {"output": [{"text": "a"}] * 3}}]}))
+    assert ec.semantic_calls == 2 and ec.semantic_rows == 8 and ec.infer["infer.space.items"] == 1
+
+
+def test_outcomes_handle_resources_created_during_the_run():
+    """Web resources appear during a run (the res table grows): daily reach is padded, not a shape error."""
+    from crucible.scale import approx
+    def snap(n_res, sess):
+        return {"class": np.ones(4, np.int64), "segment": np.zeros(4, np.int64), "n_sessions": np.asarray(sess),
+                "n_purchases": np.zeros(4, np.int64), "spent_cents": np.zeros(4, np.int64),
+                "res_kind": np.zeros(n_res, np.int64), "res_visits": np.arange(n_res), "res_uniq": np.arange(n_res),
+                "res_purchases": np.zeros(n_res, np.int64), "res_revenue_cents": np.zeros(n_res, np.int64)}
+    o = approx.outcomes({"snaps": [snap(2, [0, 0, 0, 0]), snap(3, [1, 0, 2, 0]), snap(5, [2, 1, 2, 0])]})
+    assert o["days"] == 2 and len(o["reach_top"]) == 2 and o["audience_shares"][0] == 1.0
+
+
+def test_batch_sizes_are_read_from_the_recorded_outputs():
+    """bench5 sizes every class-2/3 recorded call from its recorded output (V.4 uses the exact in-world batches, not
+    per-run means): real AdaptivePolicy and StrategicGroup calls recorded the way the population records them."""
+    import crucible
+    crucible.load_all_modules()
+    import numpy as np
+    from crucible.core.kernel import World, WorldSpec
+    from crucible.population.adaptive import AdaptivePolicy
+    from crucible.population.strategic import HIST, OBS_DIM, StrategicGroup
+    from crucible.substrate import inference
+    pol = AdaptivePolicy(0, 12, 9, 8, hidden=32, seed=1)
+    grp = StrategicGroup({"group": "g", "arch": "mlp", "hidden": 32, "learning": False, "code": 0}, seed=2)
+    w = World.create(WorldSpec("bench-sizes", 1, [{"name": m, "config": {}} for m in
+                                                  ("identity", "bank", "admin", "artifacts")]))
+    ec = bench5.EventCounter(count_bytes=False)
+    w.listeners.append(ec)
+    rng = np.random.default_rng(0)
+
+    def run(ctx):
+        for n in (3, 3, 7):
+            x = {"obs": rng.normal(size=(n, 12)).astype(np.float32), "mem": rng.normal(size=(n, 8)).astype(np.float32),
+                 "cand": rng.normal(size=(n, 5, 9)).astype(np.float32)}
+            inference.recorded(ctx, "pop.adaptive.0", "adaptive:0", pol.weights_hash(), x,
+                               lambda x=x: {"scores": pol.scores(x["obs"], x["mem"], x["cand"])[0]})
+        O = rng.normal(size=(2, OBS_DIM)).astype(np.float32)
+        H = rng.normal(size=(2, HIST, OBS_DIM)).astype(np.float32)
+        inference.recorded(ctx, "pop.strategic.g", "strategic:g", grp.weights_hash(), {"obs": O, "hist": H},
+                           lambda: grp.logits(O, H))
+        xd = {"obs": rng.normal(size=(4, 12)).astype(np.float32), "mem": rng.normal(size=(4, 8)).astype(np.float32)}
+        cd = rng.normal(size=(4, 5, 9)).astype(np.float32)      # day review: memory step only (pop.adaptive_day.*)
+        inference.recorded(ctx, "pop.adaptive_day.0", "adaptive:0", pol.weights_hash(), xd,
+                           lambda: {"memory": pol.scores(xd["obs"], xd["mem"], cd)[1]})
+        inference.recorded(ctx, "other.model", "m", "h", {"x": O}, lambda: {"y": O})   # not a class-2/3 call
+    w._run_system("bench.sizes", run)
+    ec.size_batches(w)
+    assert dict(ec.batch_sizes["class2"]) == {3: 2, 7: 1, 4: 1} and dict(ec.batch_sizes["class3"]) == {2: 1}
+    assert ec.model_refs == []
+    b = bench5.batching(w, ec)
+    assert b["class2"]["sizes"] == {"3": 2, "4": 1, "7": 1} and b["class3"]["sizes"] == {"2": 1}
+    w.close()
+
+
+def test_resident_store_size_is_measured_without_a_second_copy(tmp_path):
+    """bench5 measures the resident store as the database pages in use after a WAL checkpoint (no VACUUM, which
+    needs a second copy of the store on disk): deleting rows frees pages, which the measure excludes, and it never
+    exceeds the file."""
+    from crucible.storage.sqlite import SQLiteStore
+    db = str(tmp_path / "s.sqlite")
+    st = SQLiteStore(db)
+    c = st._conn()
+    c.execute("CREATE TABLE junk (k INTEGER PRIMARY KEY, v BLOB)")
+    c.executemany("INSERT INTO junk VALUES (?, ?)", [(i, os.urandom(4000)) for i in range(2000)])
+    c.commit()
+    bench5._settle(st)
+    full = bench5._live_bytes(st)
+    assert full >= 2000 * 4000 and full <= os.path.getsize(db)
+    assert not os.path.exists(db + "-wal") or os.path.getsize(db + "-wal") == 0     # checkpoint folded the WAL
+    c.execute("DELETE FROM junk WHERE k >= 500")
+    c.commit()
+    bench5._settle(st)
+    after = bench5._live_bytes(st)
+    assert after < 0.4 * full and os.path.getsize(db) >= full                     # freed pages excluded, file kept
+    st.close()
+
+
+def test_benchmark_time_grants_follow_the_targets_and_the_headroom(monkeypatch):
+    """A run's wall-time grant is headroom x the time its throughput target allows (targets.json): 30 large days at
+    3.75 simulated days per CPU-hour and headroom 3 are 24 h; the official run can widen the headroom."""
+    monkeypatch.delenv("CRUCIBLE_BENCH5_TIME_HEADROOM", raising=False)
+    tg = {t["profile"]: t["value"] for t in bench5.targets()["targets"] if t["quantity"] == "sim_days_per_cpu_hour"}
+    assert bench5.time_grant_s("large", 30) == 3.0 * 30 / tg["large"] * 3600
+    assert bench5.time_grant_s("development", 0.01) == 3600.0                     # at least one hour
+    monkeypatch.setenv("CRUCIBLE_BENCH5_TIME_HEADROOM", "5")
+    assert bench5.time_grant_s("large", 30) == 5.0 * 30 / tg["large"] * 3600
+    assert bench5.time_grant_s("large", 30, headroom=2.0) == 2.0 * 30 / tg["large"] * 3600
