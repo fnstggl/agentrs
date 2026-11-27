@@ -12,6 +12,13 @@ against this requirement:
     interface_failure        a lever learner given a world that offers no continuous lever interface
     partition_refusal        a training request for an evaluation item
     infrastructure_failure   a request to an evaluator process after its channel closed
+
+Those six cases are positive controls of the classifier (each failure is injected, its cause known). The measured
+failures are those of `integrity.failure_survey`: real protocol runs over the whole training distribution (every
+Tier 2 configuration with the neutral learner, every Tier 1 training family with a lever learner, practice curves of
+the cannot-learn control), whose failures are not chosen (wave 3b repair: with only injected cases, zero
+unclassified failures was satisfiable by construction). A negative control - an error raised by research-harness
+code that no rule attributes - must come back ``unclassified``, so the classifier does not attribute everything.
 """
 from __future__ import annotations
 
@@ -25,7 +32,7 @@ from crucible.research.v5 import evaluator as EV
 from crucible.research.v5 import learners as LR
 from crucible.research.v5 import sampler as S
 from crucible.research.v5.episodes import lever_entries, run_episode
-from crucible.research.v5.integrity import FAILURE_CAUSES, classify_failure
+from crucible.research.v5.integrity import FAILURE_CAUSES, _harness_bug, classify_failure, failure_survey
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(1800)]
 
@@ -66,14 +73,26 @@ def test_SP11_6b_failure_causes_classified():
     except Exception as e:  # noqa: BLE001
         reports.append({"case": "tier3_world", **classify_failure(e)})
     causes = {r["case"]: r["cause"] for r in reports}
-    unclassified = sum(1 for r in reports if r["cause"] not in FAILURE_CAUSES)
+    survey = failure_survey(reg)
+    # negative control: a harness bug (an error raised in research code outside learners and episodes)
+    try:
+        _harness_bug()
+    except Exception as e:  # noqa: BLE001
+        negative = classify_failure(e)["cause"]
+    unclassified = sum(1 for r in reports if r["cause"] not in FAILURE_CAUSES) + survey["unclassified"]
     expected = {"cannot_learn_practice": "algorithmic_limitation", "tier2_world": "environment_failure",
                 "tier3_world": "environment_failure",
                 "no_lever_interface": "interface_failure", "evaluation_item_for_training": "partition_refusal",
                 "closed_evaluator": "infrastructure_failure"}
     right = sum(1 for k, v in expected.items() if causes.get(k) == v)
-    record("SP-11.6b", {"failure_reports_with_cause_classification": len(reports) - unclassified,
+    real = len(survey["failures"])
+    record("SP-11.6b", {"failure_reports_with_cause_classification": len(reports) + real - unclassified,
                         "unclassified_failures": unclassified, "expected_causes_matched": right,
-                        "distinct_causes": len(set(causes.values()))},
-           notes=f"Failure reports: {reports}")
-    assert unclassified == 0 and right == len(expected), causes
+                        "distinct_causes": len(set(causes.values()) | set(survey["by_cause"])),
+                        "survey_runs": survey["runs"], "survey_failures": real,
+                        "survey_failures_by_cause": survey["by_cause"],
+                        "negative_control_unclassified": negative == "unclassified"},
+           notes=f"Injected positive controls: {reports}. Survey failures (real protocol runs): "
+                 f"{survey['failures'][:40]}")
+    assert unclassified == 0 and right == len(expected), (causes, survey["failures"])
+    assert real >= 1 and negative == "unclassified"

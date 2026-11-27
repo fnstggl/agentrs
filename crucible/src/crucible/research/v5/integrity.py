@@ -326,3 +326,67 @@ def classify_failure(x) -> dict:
         return {"cause": "algorithmic_limitation", "detail": "the run completed and the learner did not reach "
                                                              "the competence threshold"}
     return {"cause": "unclassified", "detail": "no failure cause recognised"}
+
+
+def failure_survey(registry=None, *, tier2_steps: int = 12, practice_families: int = 4, seed: int = 0) -> dict:
+    """Real protocol runs whose failures are not injected (SP-11.6b; wave 3b repair: every failure of the earlier
+    gate was injected by construction, so ``unclassified == 0`` was satisfiable by the cases chosen). It runs the
+    research harness's own protocol steps over the whole training distribution and classifies every failure that
+    occurs, whatever it is:
+
+        tier 2      every Tier 2 configuration of the registry, built from a mixture-drawn episode spec (training
+                    seed, difficulty level drawn as the default mixture draws it) and run for `tier2_steps`
+                    decisions with the architecture-neutral `crucible.experience.ReferenceLearner`
+        tier 1      every Tier 1 training entry, built the same way, one episode of the lever `adapter` learner
+                    (worlds without a continuous lever interface fail there, as they do when a lever learner is
+                    sampled onto them)
+        practice    practice curves of the cannot-learn `hold` control on the first `practice_families` lever
+                    families (a run that completes without reaching the competence threshold is a failure)
+
+    Returns {"runs", "failures": [{tier, entry, cause, detail}], "by_cause", "unclassified"}."""
+    import numpy as np
+    from . import curves as CV
+    from . import learners as LR
+    from . import sampler as S
+    from .distribution import build_registry
+    from .episodes import lever_entries, run_episode
+    reg = registry or build_registry()
+    rng = np.random.default_rng(seed)
+    runs, failures = 0, []
+
+    def spec(eid):
+        return S.episode_spec(reg, eid, int(rng.integers(0, 1_000_000)), rng, objective={"mode": "assigned"})
+
+    from ...experience.loop import run_learner
+    from ...experience.reference import ReferenceLearner
+    neutral = ReferenceLearner(seed=seed)
+    for w in reg.worlds(tier=2, family_partition="train"):
+        runs += 1
+        try:
+            run_learner(S.make_env(spec(w["id"]), reg), neutral, int(tier2_steps))
+        except Exception as e:  # noqa: BLE001 - every failure is classified, none is hidden
+            failures.append({"tier": 2, "entry": w["id"], **classify_failure(e)})
+    for w in reg.worlds(tier=1, family_partition="train", source="crucible.rapid"):
+        runs += 1
+        try:
+            run_episode(S.make_env(spec(w["id"]), reg), LR.make("adapter", seed), learn=True, rng=rng)
+        except Exception as e:  # noqa: BLE001
+            failures.append({"tier": 1, "entry": w["id"], **classify_failure(e)})
+    for f in lever_entries(reg, "train")[:int(practice_families)]:
+        runs += 1
+        r = CV.practice_curve(reg, {"entry": f, "seed": 1_000_000 + int(rng.integers(0, 900_000))},
+                              LR.make("hold", seed), budgets=(0, 1, 2, 4), rng=rng, q=0.3)
+        rec = {"completed": True, "censored": r["censored"], "score": r["curve"][-1]["score"], "q": 0.3}
+        if r["censored"] or rec["score"] < rec["q"]:
+            failures.append({"tier": 1, "entry": f, "practice": True, **classify_failure(rec)})
+    by = {}
+    for x in failures:
+        by[x["cause"]] = by.get(x["cause"], 0) + 1
+    return {"runs": runs, "failures": failures, "by_cause": by,
+            "unclassified": sum(1 for x in failures if x["cause"] not in FAILURE_CAUSES)}
+
+
+def _harness_bug():
+    """The SP-11.6b negative control: an error raised by research-harness code that is neither a learner, an episode
+    driver, world code nor infrastructure - a bug of the harness, which `classify_failure` must not attribute."""
+    return {}["no such key"]

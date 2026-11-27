@@ -29,7 +29,7 @@ standard error (`forgetting_drop`; revisits are drawn without regard to the firs
 change has an expected drop of zero - revisiting items selected for scoring well would make it positive by
 regression to the mean); generalization is the gap between the scores of seen structures at new seeds and of
 first encounters of structures, within each structural category and the recent window, pooled over categories and
-beyond twice its standard error (`seen_unseen_gap`). A category's weakness is its regret in excess of a reference
+beyond the 95% t quantile of its standard error (`seen_unseen_gap`). A category's weakness is its regret in excess of a reference
 profile (category difficulty is not a learner weakness), plus a learning-progress bonus where scores are moving by
 more than twice their standard error (practice pays there), plus a small uncertainty bonus; forgetting's weakness is
 its drop and generalization's its gap (each at least 0).
@@ -235,19 +235,26 @@ class WeaknessProfiler:
                 "drop_se": se}
 
     def generalization(self) -> dict:
-        diffs, var, n_seen = [], [], 0
+        """Seen-structure-at-a-new-seed minus first-encounter scores within each structural category (at least 2
+        seen and 3 first encounters in its recent window), pooled; counted beyond the two-sided 95% t quantile of its standard error
+        (df = items - 2 x categories): with a few items per category a 2-se margin gave a frozen learner a
+        spurious gap in a development run (raw 0.36, se 0.13)."""
+        from scipy.stats import t as student_t
+        diffs, var, n_seen, n_all = [], [], 0, 0
         for c, rows in self.fam.items():
             a = np.array([sc for sc, sn in rows if sn])
             b = np.array([sc for sc, sn in rows if not sn])
-            if len(a) >= 2 and len(b) >= 2:
+            if len(a) >= 2 and len(b) >= 3:
                 diffs.append(float(a.mean() - b.mean()))
                 var.append(float(a.var(ddof=1) / len(a) + b.var(ddof=1) / len(b)))
                 n_seen += len(a)
+                n_all += len(a) + len(b)
         if not diffs:
             return {"seen_unseen_gap": None, "categories_compared": 0, "seen_items": 0}
         g = float(np.mean(diffs))
         se = float(math.sqrt(sum(var)) / len(diffs))
-        return {"seen_unseen_gap": float(g - 2.0 * se), "raw_gap": g, "gap_se": se,
+        q = float(student_t.ppf(0.975, max(1, n_all - 2 * len(diffs))))
+        return {"seen_unseen_gap": float(g - q * se), "raw_gap": g, "gap_se": se, "t_quantile": q,
                 "categories_compared": len(diffs), "seen_items": n_seen}
 
     def profile(self) -> dict:
