@@ -12,12 +12,17 @@ is registered; a Tier 1 rapid environment for determinism):
   array, column or kernel metadata it changes (`integrity.trace_writes`). Approved interfaces are the columns
   module's batch events whose recorded writer the column ownership rule admits (an interface only from the module
   that implements it), and the kernel's counters. The metric counts distinct offending (writer, target) pairs, plus
-  one per traced world whose own log does not replay to its state (`integrity.replay_check`: a write that bypasses
-  the state store's methods, e.g. a nested value of a row mutated in place, leaves no trace but breaks replay).
-  Positive control: a module whose applier writes another module's table is found.
+  one per traced world whose own log does not replay to its state (`integrity.replay_check`). Writes that bypass the
+  state store's methods (a nested value of a row mutated in place, an array written through a cached reference) are
+  found by the trace's content fingerprints (untracked writes), inside appliers too, where replay re-applies them.
+  Each world is traced from its first event: genesis (`integrity.trace_genesis`) and the run. Metadata keys belong to
+  their declaring or namespacing module (`integrity.meta_owner`). Positive controls: a module whose applier writes
+  another module's table, a handler write, an applier's in-place write into another module's row, a write through a
+  cached array reference, and a genesis write into another module's table are each found.
 * determinism: each kind is built from the same spec and seed in two fresh processes (`python -m
   crucible.substrate.integrity hashes`) and run for the same simulated time; event hash and state digest must be
-  equal. A kind counts as checked only if its world ran (events > 0) in both processes.
+  equal. A kind counts as checked only if its world ran (events > 0) in both processes; a kind that fails in one
+  process and runs in the other is a determinism mismatch (wave-3b repair: it was dropped as unavailable).
 
 Typed-event coverage (`bus.coverage`: emitted event types that have a registered schema) is reported alongside.
 """
@@ -26,6 +31,7 @@ import os
 import subprocess
 import sys
 
+import numpy as np
 import pytest
 
 import crucible
@@ -57,6 +63,7 @@ class Sp23bOwner(Module):
 
     def install(self, world):
         world.state.declare_table("sp23b_owned")
+        world.state.set_array("sp23b_owner_vec", np.zeros(4))
 
 
 @register_module
@@ -91,7 +98,39 @@ class Sp23bIntruder(Module):
     @applier("sp23b.poked")
     def ap_poked(self, ev):
         self.world.state.put("sp23b_mine", f"m{ev.seq}", {"n": 1, "tags": []})
-        self.world.state.put("sp23b_owned", f"x{ev.seq}", {"n": 1})       # not its table
+        self.world.state.put("sp23b_owned", f"x{ev.seq}", {"n": 1, "tags": []})       # not its table
+
+
+@register_module
+class Sp23bSneak(Module):
+    """Writes another module's state without the store's methods inside its appliers (replay re-applies these, so
+    only the trace's content fingerprints find them), and another module's table at genesis."""
+    name = "sp23b_sneak"
+    host = "sp23bs"
+    depends = ("sp23b_owner",)
+
+    def install(self, world):
+        world.state.set_array("sp23b_vec", np.zeros(4))
+
+    def genesis(self, ctx):
+        ctx.emit("sp23bs.gen", {}, vis="internal")
+
+    @endpoint("go", S.obj({"how": S.s_enum(["nested", "cached"])}, ["how"]))
+    def ep_go(self, ctx, how):
+        ctx.emit("sp23bs.went", {"how": how}, vis="internal")
+        return {}
+
+    @applier("sp23bs.gen")
+    def ap_gen(self, ev):
+        self.world.state.put("sp23b_owned", "genesis", {"n": 0, "tags": []})          # another module's table
+
+    @applier("sp23bs.went")
+    def ap_went(self, ev):
+        if ev.payload["how"] == "nested":
+            self.world.state.get("sp23b_owned", "genesis")["tags"].append(ev.seq)     # in place
+        else:
+            ref = self.world.runtime.setdefault("sp23b.vec", self.world.state.arrays["sp23b_owner_vec"])
+            ref[0] += 1                                                               # cached reference
 
 
 def _control() -> dict:
@@ -112,6 +151,18 @@ def _control() -> dict:
         assert q.execute(pq, {"tool": "sp23b.smudge", "args": {}}).ok
     rep["silent_control"] = {"traced": tq.report()["cross_module_state_writes"] - 1, "replay_before": clean,
                              "replay_after": integrity.replay_check(q)["replay_exact"]}
+    # writes without the store's methods inside appliers (replay re-applies them) and a genesis write
+    with integrity.trace_genesis() as gen:
+        z = World.create(WorldSpec("sp23b-sneak", 1, [{"name": m, "config": {}} for m in
+                                                       ("identity", "bank", "admin", "sp23b_owner", "sp23b_sneak")]))
+    pz = z.system_call("admin.join", {"handle": "snk", "endowment": 0})["principal"]
+    found = {"genesis": [(r["writer"], r["target"]) for r in gen[0][1].report()["cross"]]}
+    for how in ("nested", "cached"):
+        with integrity.trace_writes(z) as tz:
+            assert z.execute(pz, {"tool": "sp23bs.go", "args": {"how": how}}).ok
+        found[how] = [(r["writer"], r["target"]) for r in tz.report()["untracked"]]
+    found["replay_exact"] = integrity.replay_check(z)["replay_exact"]
+    rep["sneak_control"] = found
     return rep
 
 
@@ -123,8 +174,13 @@ def test_SP_2_3b_typed_events_approved_interfaces_and_determinism():
     assert ctl["cross_module_state_writes"] == 2, ctl
     assert [(r["writer"], r["target"]) for r in ctl["cross"]] == [("sp23b_intruder", "sp23b_owned")]
     assert [(r["writer"], r["target"]) for r in ctl["handler"]] == [("handler", "sp23b_mine")]
-    # ...and a write that bypasses the state store adds nothing to the trace but breaks replay of the world's log
-    assert ctl["silent_control"] == {"traced": 0, "replay_before": True, "replay_after": False}, ctl["silent_control"]
+    # ...a handler write that bypasses the state store is found by the content fingerprints and breaks replay
+    assert ctl["silent_control"] == {"traced": 1, "replay_before": True, "replay_after": False}, ctl["silent_control"]
+    # ...and so are applier writes without the store's methods (which replay exactly) and a genesis write
+    assert ctl["sneak_control"] == {"genesis": [("sp23b_sneak", "sp23b_owned")],
+                                    "nested": [("sp23b_sneak", "sp23b_owned")],
+                                    "cached": [("sp23b_sneak", "sp23b_owner_vec")],
+                                    "replay_exact": True}, ctl["sneak_control"]
 
     kinds = list(integrity.KINDS)
     traced, hashed, problems = {}, {}, {}
@@ -134,21 +190,27 @@ def test_SP_2_3b_typed_events_approved_interfaces_and_determinism():
             problems[kind] = tr["error"]
             continue
         traced[kind] = tr
+    one_sided = []
     for kind in kinds + list(integrity.ENV_KINDS):
         a, b = _run("hashes", kind, 0, HOURS[kind]), _run("hashes", kind, 0, HOURS[kind])
+        if "error" in a and "error" in b:
+            problems.setdefault(kind, a["error"])
+            continue
         if "error" in a or "error" in b:
-            problems.setdefault(kind, (a.get("error") or b.get("error")))
+            one_sided.append(kind)       # the same spec and seed failed in one process only: not deterministic
+            problems.setdefault(kind, a.get("error") or b.get("error"))
             continue
         hashed[kind] = (a, b)
     # the domain kind is not available while no Tier 2 domain is registered; every other kind must run
     missing = sorted(set(kinds) - set(traced) - {"domain"})
     assert not missing, {k: problems.get(k, "")[-600:] for k in missing}
     checked = {k: v for k, v in hashed.items() if v[0]["events"] > 0 and v[1]["events"] > 0}
-    mismatches = sorted(k for k, (a, b) in checked.items()
-                        if (a["last_hash"], a["digest"]) != (b["last_hash"], b["digest"]))
+    mismatches = sorted([k for k, (a, b) in checked.items()
+                         if (a["last_hash"], a["digest"]) != (b["last_hash"], b["digest"])] + one_sided)
     unreplayable = sorted(k for k, t in traced.items() if (t.get("replay") or {}).get("replay_exact") is not True)
     cross = sum(t["writes"]["cross_module_state_writes"] for t in traced.values()) + len(unreplayable)
     offenders = {k: t["writes"]["cross"][:8] + t["writes"]["handler"][:4] + t["writes"]["refused"][:4]
+                 + t["writes"].get("untracked", [])[:4]
                  for k, t in traced.items() if t["writes"]["cross_module_state_writes"]}
     writes = sum(t["writes"]["writes_traced"] for t in traced.values())
     assert writes > 10_000 and all(t["writes"]["events_applied"] > 0 for t in traced.values())
@@ -156,7 +218,7 @@ def test_SP_2_3b_typed_events_approved_interfaces_and_determinism():
     cov = bus.types()
     metrics = {
         "cross_module_state_writes": int(cross),
-        "world_kinds_checked_for_determinism": len(checked),
+        "world_kinds_checked_for_determinism": len(checked) + len(one_sided),
         "determinism_mismatches": len(mismatches),
         "world_kinds_traced": len(traced),
         "state_writes_traced": int(writes),
@@ -164,6 +226,11 @@ def test_SP_2_3b_typed_events_approved_interfaces_and_determinism():
         "column_writes_refused_by_rule": int(sum(t["writes"]["column_writes_refused_by_rule"]
                                                  for t in traced.values())),
         "control_cross_module_writes_found": int(ctl["cross_module_state_writes"]),
+        "control_untracked_writes_found": len(ctl["sneak_control"]["nested"]) + len(ctl["sneak_control"]["cached"]),
+        "control_genesis_writes_found": len(ctl["sneak_control"]["genesis"]),
+        "untracked_writes": int(sum(t["writes"].get("untracked_writes", 0) for t in traced.values())),
+        "genesis_cross_module_state_writes": int(sum(t.get("genesis_writes", {}).get("cross_module_state_writes", 0)
+                                                     for t in traced.values())),
         "traced_worlds_not_replaying_to_their_state": len(unreplayable),
         "registered_event_types": len(cov),
         "kinds_unavailable": len(problems),

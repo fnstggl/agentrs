@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from ..core import schema as S
 from ..core.errors import Conflict, Forbidden, InvalidAction, NotFound
-from ..core.kernel import SYSTEM, Ctx, Module, applier, endpoint, process, register_module
+from ..core.kernel import SYSTEM, Ctx, Module, applier, derives, endpoint, process, register_module
 from ..services.identity import ident
 
 DAY = 86400
@@ -55,7 +55,6 @@ class Ops(Module):
         st.declare_table("ops_days", index=("owner",))
         st.declare_table("ops_requests", index=("by", "status"))
         st.declare_table("ops_responses", index=("request", "by"))
-        world.hooks.setdefault("txn_observers", []).append(self._on_txn)
         world.hooks["ops"] = self
 
     def genesis(self, ctx):
@@ -69,6 +68,11 @@ class Ops(Module):
         return {"owner": owner, "day": day, "flows": dict(r["flows"]), "losses": dict(r["losses"]),
                 "loss_n": dict(r["loss_n"])}
 
+    # 5.0 (wave-3b repair, SP-2.3b; minimal edit by workstream A): a derived-state applier of bank's typed
+    # `bank.txn` event (`kernel.derives`) instead of a callback the bank's own applier invoked through
+    # world.hooks["txn_observers"] - the write into ops_days was performed inside bank's applier. Same writes, same
+    # order (right after the bank applier, in the same transaction and in replay): trajectories are unchanged.
+    @derives("bank.txn")
     def _on_txn(self, ev) -> None:
         st = self.world.state
         day = ev.t // DAY

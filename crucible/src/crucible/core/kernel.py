@@ -184,6 +184,23 @@ def applier(event_type: str):
     return deco
 
 
+def derives(event_type: str):
+    """5.0 (SP-2.3b, wave-3b repair): a *derived-state applier*. The decorated module method runs right after the
+    applier of `event_type` (typically another module's typed event), in the same transaction and identically in
+    replay, and maintains state its own module declared from that event and the state the event's applier left.
+
+    It is the approved interface for a module that keeps a derived view of another module's events (the `ops`
+    journal of `bank.txn` postings). Before it, `ops` wrote that journal from inside `bank`'s applier through a
+    `world.hooks` callback, so the event's applier performed a write into another module's table (the write trace
+    counted bank -> ops_days on every civilisation) and the coupling was invisible to the event registry. Derivers of
+    one event type run in module order. A deriver may only write state its own module owns
+    (`crucible.substrate.integrity.trace_writes` attributes its writes to its module) and never emits events."""
+    def deco(fn):
+        fn.__crucible_derives__ = event_type
+        return fn
+    return deco
+
+
 def process(name: str):
     def deco(fn):
         fn.__crucible_process__ = name
@@ -442,6 +459,8 @@ class World:
         self.modules: dict[str, Module] = {}
         self.endpoints: dict[str, Endpoint] = {}
         self.appliers: dict[str, Callable] = {}
+        # 5.0 (wave-3b repair, `derives`): derived-state appliers by event type, run after the event's applier
+        self.derivers: dict[str, list[Callable]] = {}
         self.processes: dict[str, Callable] = {}
         self.resolvers: list[Callable[[str, str], Endpoint | None]] = []
         self.listeners: list[Callable[[Event], None]] = []
@@ -537,6 +556,8 @@ class World:
                 if et in self.appliers:
                     raise ProtocolError(f"duplicate applier {et}")
                 self.appliers[et] = bound
+            if hasattr(fn, "__crucible_derives__"):
+                self.derivers.setdefault(fn.__crucible_derives__, []).append(bound)
             if hasattr(fn, "__crucible_process__"):
                 self.processes[f"{mod.name}.{fn.__crucible_process__}"] = bound
         self.state.declaring = mod.name        # 5.0: which module declares which table (runtime, not state)
@@ -725,6 +746,10 @@ class World:
         if fn is None:
             raise ProtocolError(f"no applier for event type {ev.type!r}")
         fn(ev)
+        ds = self.derivers.get(ev.type)
+        if ds:
+            for d in ds:          # derived state of other modules (`derives`), in module order
+                d(ev)
         if ev.via is not None:
             # kernel bookkeeping reproduced identically by replay (it applies the same events): the count of side
             # events, from which main_seq is derived. Journaled, so rollbacks undo it with the events.
@@ -1135,6 +1160,7 @@ class World:
             loaded.declare_table(name, fields)
         loaded.declared_by = w.state.declared_by
         loaded.array_declared_by = w.state.array_declared_by
+        loaded.meta_declared_by = w.state.meta_declared_by
         w.state = loaded
         w.seq = d["seq"]
         w.last_hash = d["hash"]

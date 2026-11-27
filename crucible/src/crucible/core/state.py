@@ -47,6 +47,9 @@ class StateStore:
         self.declaring: str | None = None
         self.declared_by: dict[str, list[str]] = {}
         self.array_declared_by: dict[str, str] = {}     # dense array -> the module that created it at install
+        # 5.0 (wave-3b repair, SP-2.3b): metadata keys (exact, or a prefix ending in "." or ":") a module declared it
+        # owns (`declare_meta` in Module.install; runtime only, like declared_by)
+        self.meta_declared_by: dict[str, str] = {}
 
     # ------------------------------------------------------------------ schema
     def declare_table(self, name: str, index: Iterable[str] = ()) -> None:
@@ -64,6 +67,17 @@ class StateStore:
             for rid, rec in self.tables[name].items():
                 idx.setdefault(_ikey(rec.get(f)), set()).add(rid)
             self.indexes[(name, f)] = idx
+
+    def declare_meta(self, *keys: str) -> None:
+        """Declare metadata keys the installing module owns: an exact key, or a prefix ending in "." or ":" (5.0,
+        wave-3b repair). Keys namespaced by the module's own name or host (`<name>.x`, `<name>:x`) need no
+        declaration (crucible.substrate.integrity.meta_owner)."""
+        if self.declaring is None:
+            raise ProtocolError("declare_meta outside Module.install")
+        for k in keys:
+            if not isinstance(k, str) or not k:
+                raise ProtocolError(f"bad metadata key {k!r}")
+            self.meta_declared_by.setdefault(k, self.declaring)
 
     # ------------------------------------------------------------------ reads
     def get(self, table: str, rid: str) -> MappingProxyType | None:

@@ -314,8 +314,8 @@ class Bank(Module):
             a = st.tables["accounts"][acct]
             st.patch("accounts", acct, balance=a["balance"] + d)
             st.insert("acct_txns", f"{p['id']}|{acct}", {"acct": acct, "txn": p["id"], "amount": d, "t": ev.t})
-        for fn in self.world.hooks.get("txn_observers", ()):   # derived per-owner accounting (ops module)
-            fn(ev)
+        # 5.0 (wave-3b repair, SP-2.3b): derived per-owner accounting (ops) is a `kernel.derives` applier of this event
+        # now; this applier writes only the bank's own tables
 
     @applier("bank.account_status")
     def ap_status(self, ev):
