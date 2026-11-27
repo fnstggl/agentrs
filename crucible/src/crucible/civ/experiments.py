@@ -24,6 +24,10 @@ Chains (Part 10.3), mined from provenance in the reference arm and confirmed by 
     agent_science  a scripted researcher measures a process phenomenon and publishes a fitted model
                    arm: no_paper (it measures, never publishes) -> technical chain (paper -> replication -> R&D
                    trial -> process settings -> production yield and energy per good unit -> goods)
+    invention      (also SP-2.1b) a scripted inventor declares a service for a published work format and answers
+                   public requests for it; arm no_invention (it never builds it) -> technical chain (capability ->
+                   population adoption on its own work -> the service's compute -> its provider's energy ->
+                   payments by population individuals -> incumbents' revenue)
 
 Every measure is evaluator-side (it may use hidden physics, e.g. the true quality of an operating point).
 """
