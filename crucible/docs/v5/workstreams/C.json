@@ -373,7 +373,7 @@
     "src/crucible/social/formats.py"
    ],
    "notes": "",
-   "status_claim": "social call sites jailed; probe v5.network.media_tools_at_participant_call_sites_are_jailed holds for the social studio (remaining unjailed launches and in-process decodes are semantic/media's, owner D)",
+   "status_claim": "social call sites jailed (re-run 2026-11-27): every social studio FFmpeg/SoX launch jailed, no social image decode in the world process; the two network probes still report D's semantic/media.py (1 unjailed ffmpeg version query, 6 in-process decodes in semantic/media.open_image)",
    "tests": [
     "tests/test_v5_social_security.py",
     "tests/v5/test_gate_W.py::test_W1_sandbox"
@@ -384,7 +384,7 @@
     "src/crucible/social/integrity.py"
    ],
    "notes": "D-35",
-   "status_claim": "probe v5.social.sybils_with_a_fake_footprint holds (organic 3 = the independent fans; the 6 sybils classified 'cluster'); remove it from KNOWN_OPEN (owner O)",
+   "status_claim": "probe v5.social.sybils_with_a_fake_footprint holds (re-run 2026-11-27: organic followers 3 = the independent fans; the 6 sybils classified 'cluster'); the other four v5.social probes hold too",
    "tests": [
     "tests/test_v5_social_security.py",
     "tests/v5/test_gate_W.py::test_W4_metric_manipulation"
@@ -455,7 +455,8 @@
   "WEB (crucible/web/app.py owner): register the social pages in the deployable app - e.g. a page-provider list in web.app that WebApp.__init__ calls after _register_pages, with crucible.social.web.register_pages added to it at import of crucible.social; then `python -m crucible.web.app` serves the timeline, communities, studio and site pages that make_social_web_app serves today (audit C skeptic S6).",
   "F+G (commerce): creator memberships through subs needs a membership delivery type in products (or a subs plan without a product); when it exists, social.creators.join can subscribe through subs.subscribe and keep only the tier catalogue and access rule.",
   "B (population) / A (kernel): column ownership refuses writes of pop.n_purchases / pop.spent_cents from other packages; social product discovery now keeps its own soc_purchases / soc_spent_cents columns. If the population's behavioural history should count purchases made anywhere, population could expose a recorded interface (or columns.grant the social package) instead of every package keeping its own counter.",
-  "ECON / J: members now also post services that work for them on the product-discovery platform as hunters (launch.post with product or host, once per product), so in civilisations launch carries population items and product-linked launches feed social.popinbox._service_leads."
+  "ECON / J: members now also post services that work for them on the product-discovery platform as hunters (launch.post with product or host, once per product), so in civilisations launch carries population items and product-linked launches feed social.popinbox._service_leads.",
+  "O / D (security, traced on this branch 2026-11-27 with a stack hook on Pillow's ImageFile.load): v5.network.image_decoders_run_outside_the_world_process still reports 6 in-process decodes - all six are semantic/media.py open_image (from process_image and _image_extra, the media.* tools), none at a social decode site (social/formats.inspect and social/render.open_image decode through isolation.decode_image); v5.network.media_tools_at_participant_call_sites_are_jailed: 7 of 8 launches jailed, the unjailed ffmpeg is semantic/media.py's version query. Both KNOWN_OPEN entries should name owner D; the probes' fixed summary strings still name social/render.run_tool and social/formats.inspect (redteam/v5/network.py, owner O) and should report the traced sites instead."
  ],
  "test_results_unofficial": {
   "tests/test_kernel.py tests/test_invariants.py (CPU, 1 thread, 2026-11-27, third agent)": "51 passed, 0 failed",
