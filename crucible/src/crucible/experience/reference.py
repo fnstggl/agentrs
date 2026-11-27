@@ -12,9 +12,10 @@ Model (about 0.2M parameters with the defaults)::
     tool  ~ softmax_i( q(h_t) . e(tool_i) )          e(.) = EmbeddingBag over hashed name / host / category tokens;
                                                        option 0 is "wait" (no action this step)
     args  : filled from the tool's JSON schema - bounded numbers lo + sigmoid(z)(hi - lo), z ~ N(mu(h, e(tool))[slot],
-            sigma); enums and id-like strings ~ softmax over candidates (entity ids; ids seen in its own results
-            and visible events under the same key - a ``listing`` argument draws from the ``listing`` ids it has
-            seen; names seen in results);
+            sigma); enums and id-like strings ~ softmax over candidates (entity ids; ids and name tokens seen in
+            its own results and visible events under the same key - a ``listing`` argument draws from the
+            ``listing`` ids it has seen, a ``site`` argument from the ``id`` of the ``sites`` it was shown;
+            parameter names seen in results);
             maps of numbers (e.g. rig.set settings) over the parameter specs (``{name, min, max}``) seen in results
     V(h_t), and a world-model head that predicts x_{t+1} from (h_t, e(a_t))
 
@@ -114,8 +115,8 @@ class ReferenceLearner:
         self.updates = 0
         self.steps = 0
         self.memory: dict[str, dict] = {}       # parameter specs seen in results: name -> {min, max, integer}
-        # ids seen in its own results and visible events, by the key they appeared under (most recent last); an
-        # episodic memory of the current world: checkpointed with the learner's state, never part of its weights
+        # ids and name tokens seen in its own results and visible events, by the key they appeared under (most recent
+        # last); an episodic memory of the current world: checkpointed with the learner's state, never in its weights
         self.ids: dict[str, list[str]] = {}
         self.reset()
 
@@ -246,9 +247,9 @@ class ReferenceLearner:
             del lst[0]
 
     def _harvest(self, x: Any, depth: int = 0, key: str | None = None) -> None:
-        """Remember parameter specs (``{name, min, max}``) and the ids a result or event shows, by key: ``{"listing":
-        "xl_5"}`` under ``listing``; an ``id`` inside a list under ``orders`` also under ``order``; a list of ids
-        under its key's singular."""
+        """Remember parameter specs (``{name, min, max}``) and the ids / name tokens (`_token`) a result or event
+        shows, by key: ``{"listing": "xl_5"}`` under ``listing``; an ``id`` inside a list under ``sites`` also under
+        ``site``; a list of tokens under its key's singular. Free text (anything with spaces) is never a token."""
         if depth > 6:
             return
         if isinstance(x, dict):
@@ -258,7 +259,7 @@ class ReferenceLearner:
                                           "integer": bool(x.get("integer", False))}
             for k, v in x.items():
                 if isinstance(v, str):
-                    if is_id(v):
+                    if _token(v):
                         self._remember_id(str(k), v)
                         if k == "id" and key:
                             self._remember_id(_singular(key), v)
@@ -267,7 +268,7 @@ class ReferenceLearner:
         elif isinstance(x, list):
             for v in x[:256]:
                 if isinstance(v, str):
-                    if key and is_id(v):
+                    if key and _token(v):
                         self._remember_id(_singular(key), v)
                 else:
                     self._harvest(v, depth + 1, key)
@@ -798,6 +799,14 @@ class _Decider:
 
 
 _SKIP = object()
+
+
+_TOKEN_RE = re.compile(r"[A-Za-z0-9_.:@/+#-]{1,48}")
+
+
+def _token(v: str) -> bool:
+    """An id or a short name token (``s0``, ``household``, ``xch_000001``) - never free text."""
+    return is_id(v) or bool(_TOKEN_RE.fullmatch(v))
 
 
 def _singular(key: str) -> str:
