@@ -314,7 +314,13 @@ def staging_config(cfg: Optional[CamLiveConfig], real_model: bool, seed: int) ->
         learner = {"min_independent_outcomes": 2, "warmup_steps": 2, "batch_size": 8, "slow_batch_size": 3,
                    "grad_last": 2, "adapter_every": 3}
     else:
-        cfg = cfg or CamLiveConfig.debug()
+        # INT3B (master item B): the debug / CPU validation never loads the pretrained backbone, whatever
+        # configuration file was given (``cam-live validate --debug`` passes the operator's real configuration);
+        # only the state root of that configuration is kept
+        if cfg is None or cfg.backbone.name != "tiny" or cfg.resolved_device() != "cpu":
+            home = cfg.home if cfg is not None else ""
+            cfg = CamLiveConfig.debug()
+            cfg.home = home
         cfg.backbone.tiny_vocab = 4096
         agent = dict(proposer_max_new_tokens=16, durable=False, policy_update_every=3, policy_update_batch=12,
                      planner_measure_every=4, experiment_rate=0.1)
@@ -670,9 +676,10 @@ def run_staging(cfg: Optional[CamLiveConfig] = None, *, out_dir: Optional[str] =
                               "git_head": _git_head(), "real_model": bool(real_model), "seed": seed,
                               "root": root, "requirements": list(REQUIREMENTS), "failures": []}
     lock = contextlib.nullcontext()
-    if real_model:
-        if not torch.cuda.is_available():
-            raise RuntimeError("real_model=True needs a CUDA GPU (use real_model=False for the CPU plumbing check)")
+    if real_model and not torch.cuda.is_available():
+        raise RuntimeError("real_model=True needs a CUDA GPU (use real_model=False for the CPU plumbing check)")
+    if cfg.backbone.name != "tiny" and cfg.resolved_device() == "cuda":
+        # any configuration that puts the pretrained backbone on the GPU holds the shared lock while it does
         from .nn.gpu import gpu_lock
         lock = gpu_lock(min_free_gb=18.0)
         torch.cuda.reset_peak_memory_stats()

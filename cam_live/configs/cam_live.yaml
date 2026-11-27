@@ -42,3 +42,9 @@ storage:
 
 runtime:
   keep_checkpoints: 2         # runtime checkpoints kept; optimizer state only in the newest
+  # shared GPU (runtime.gpu_cycle, INT3B): with a pretrained backbone on CUDA the learner leases the machine's GPU
+  # lock — at most gpu_hold_s per hold; at a decision boundary it commits, releases, yields gpu_yield_s and
+  # re-acquires in the same process; released whenever the runtime sleeps. Waiting is not charged to compute.
+  gpu_lock: auto
+  gpu_hold_s: 840
+  gpu_yield_s: 15

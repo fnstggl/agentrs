@@ -25,6 +25,9 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# INT2-5 / INT3B: one process can collect the whole suite (module names from the path; helper directories are put on
+# sys.path by tests/conftest.py)
+addopts = "--import-mode=importlib"
 timeout = 900
 markers = [
   "gpu: needs a CUDA GPU and the locally cached Qwen3-4B weights (takes the shared GPU lock itself)",

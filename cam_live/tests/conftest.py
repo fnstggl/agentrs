@@ -10,6 +10,25 @@ import pytest
 SRC = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))
 if SRC not in sys.path:
     sys.path.insert(0, SRC)
+
+# INT2-5 / INT3B: the whole suite is collected in ONE process with ``--import-mode=importlib`` (pyproject addopts):
+# test modules get unique names from their path, so two ``test_providers.py`` in different directories no longer
+# clash. That mode does not put a test's directory on sys.path, so the directories whose sibling helper modules
+# tests import (``rt_helpers``, ``int_helpers``, ``ea_helpers``, ...) are appended here, once, in a fixed order.
+_TESTS = os.path.dirname(os.path.abspath(__file__))
+for _d in ("credit", "runtime", "integration", "nn", os.path.join("harness", "env"), os.path.join("harness", "auth"),
+           os.path.join("harness", "skills")):
+    _p = os.path.join(_TESTS, _d)
+    if os.path.isdir(_p) and _p not in sys.path:
+        sys.path.append(_p)
+# ``from conftest import build_record`` (tests/credit) must always mean tests/credit/conftest.py, whichever conftest
+# files pytest has loaded before (in a whole-suite run another directory's conftest used to win: INT2-5 clash 2)
+if "conftest" not in sys.modules and os.path.exists(os.path.join(_TESTS, "credit", "conftest.py")):
+    import importlib.util as _ilu
+    _spec = _ilu.spec_from_file_location("conftest", os.path.join(_TESTS, "credit", "conftest.py"))
+    _mod = _ilu.module_from_spec(_spec)
+    sys.modules["conftest"] = _mod
+    _spec.loader.exec_module(_mod)
 os.environ.setdefault("HF_HOME", "/workspace/.hf_home")
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")

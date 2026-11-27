@@ -352,8 +352,25 @@ def cmd_inspect_harness(a: argparse.Namespace) -> int:
     return 0
 
 
+ACCEPT_EPHEMERAL = "--accept-ephemeral-storage"
+
+
+def _accepted_risks(a: argparse.Namespace) -> List[str]:
+    """Risks the operator acknowledged on THIS command line (never from a file or the environment)."""
+    return ["persistent_storage"] if getattr(a, "accept_ephemeral_storage", False) else []
+
+
+def _risk_record(rep: Dict[str, Any], a: argparse.Namespace) -> List[Dict[str, Any]]:
+    """What run.json records: each accepted risk with the finding that was accepted, by whom, when."""
+    now = WallClock().now()
+    return [{"check": m["item"], "finding": m["detail"], "accepted_by": m["accepted_by"], "accepted_at": now,
+             "reason": "operator acknowledgement on the command line: the state root is not on a persistent volume; "
+                       "checkpoints and logs must be copied off the machine to survive it"}
+            for m in (rep.get("live") or {}).get("accepted_risks", [])]
+
+
 def cmd_preflight(a: argparse.Namespace) -> int:
-    rep = _preflight.preflight(a.task, _cfg(a.config), with_doctor=not a.no_doctor)
+    rep = _preflight.preflight(a.task, _cfg(a.config), with_doctor=not a.no_doctor, accept_risks=_accepted_risks(a))
     _out(rep, a.json, _preflight.render(rep))
     return 0 if (rep["live"]["ready"] if rep.get("mode") == "live" else rep["staging"]["ready"]) else 3
 
@@ -366,7 +383,7 @@ def cmd_run(a: argparse.Namespace) -> int:
         print(f"cam-live run: {e}", file=sys.stderr)
         return 3
     mode = raw.get("mode", "staging")
-    rep = _preflight.preflight(a.task, cfg, with_doctor=not a.no_doctor)
+    rep = _preflight.preflight(a.task, cfg, with_doctor=not a.no_doctor, accept_risks=_accepted_risks(a))
     if a.preflight_only:
         _out(rep, a.json, _preflight.render(rep))
         return 0 if (rep["live"]["ready"] if mode == "live" else rep["staging"]["ready"]) else 3
@@ -403,7 +420,9 @@ def cmd_run(a: argparse.Namespace) -> int:
                       {"task_file": os.path.abspath(a.task), "config": os.path.abspath(a.config) if a.config else "",
                        "agent_factory": a.agent_factory, "separated": separated, "mode": task.mode,
                        "authorization": os.path.abspath(a.authorization) if a.authorization else "",
-                       "verifier_source": a.verifier_source, "created_at": WallClock().now()})
+                       "verifier_source": a.verifier_source, "created_at": WallClock().now(),
+                       "accepted_risks": _risk_record(rep, a) if task.mode == "live" else [],
+                       "accept_ephemeral_storage_given": bool(_accepted_risks(a))})
     OperatorKey(run_dir).ensure()          # the operator's command key exists before any service or learner starts
     atomic_write_json(os.path.join(run_dir, "preflight.json"), rep)
     os.makedirs(home, exist_ok=True)
@@ -423,6 +442,8 @@ def cmd_run(a: argparse.Namespace) -> int:
             argv += ["--authorization", os.path.abspath(a.authorization)]
         if a.verifier_source:
             argv += ["--verifier-source", a.verifier_source]
+        if _accepted_risks(a):
+            argv.append(ACCEPT_EPHEMERAL)          # the operator's acknowledgement on this command line, passed on
         log = os.path.join(run_dir, "logs", "supervisor.log")
         pid = _spawn_detached(argv, log, _child_env())
         atomic_write_text(os.path.join(run_dir, SUPERVISOR_PID), str(pid))
@@ -492,7 +513,8 @@ def cmd_supervise(a: argparse.Namespace) -> int:
         except Exception as e:  # noqa: BLE001
             vinfo = None
             print(f"supervisor: verifier not reachable: {type(e).__name__}: {e}", flush=True)
-        rep = _preflight.preflight(a.task, cfg, policy=auth, env=env, verifier_info=vinfo, run_dir=run_dir)
+        rep = _preflight.preflight(a.task, cfg, policy=auth, env=env, verifier_info=vinfo, run_dir=run_dir,
+                                   accept_risks=_accepted_risks(a))
         atomic_write_json(os.path.join(run_dir, "preflight.json"), rep)
         print(_preflight.render(rep), flush=True)
         if task.mode == "live" and not rep["live"]["ready"]:
@@ -539,7 +561,12 @@ def cmd_status(a: argparse.Namespace) -> int:
         f"change); meta: {meta['n_applied']} applied of {meta['n_updates']}, bootstrap mix {meta['bootstrap_mix']}",
         f"checkpoint: {(st['checkpoint'] or {}).get('id', 'none')}",
         f"pending:    {st['pending_outcomes']} outcomes, {st['pending_approvals']} approvals",
-    ]))
+    ] + [f"GPU lock:   {'held' if (st.get('gpu') or {}).get('held') else 'not held'}"
+         + (f", waiting {st['gpu']['waiting_for_s']} s" if (st.get('gpu') or {}).get('waiting_for_s') is not None else "")
+         + f" (holds <= {(st.get('gpu') or {}).get('hold_s')} s; waited {(st.get('gpu') or {}).get('waited_s_total')} s "
+           f"in total)" for _ in [0] if st.get("gpu")]
+      + [f"ACCEPTED RISK: {r.get('check')} — {r.get('finding')} ({r.get('accepted_by')})"
+         for r in st.get("accepted_risks", [])]))
     _out(rep, a.json, text)
     return 0
 
@@ -611,6 +638,11 @@ def cmd_resume(a: argparse.Namespace) -> int:
             argv += ["--authorization", meta["authorization"]]
         if meta.get("verifier_source"):
             argv += ["--verifier-source", meta["verifier_source"]]
+        if _accepted_risks(a):
+            argv.append(ACCEPT_EPHEMERAL)          # only when given again on this command line
+        elif meta.get("accepted_risks"):
+            print(f"cam-live resume: the run was started with {ACCEPT_EPHEMERAL}; a restarted live preflight blocks "
+                  f"again unless it is given on this command line too", file=sys.stderr)
         log = os.path.join(run_dir, "logs", "supervisor.log")
     else:
         argv = [sys.executable, "-m", "cam_live.runtime.loop_service"] + common + ["--inproc"]
@@ -774,6 +806,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = add("preflight", cmd_preflight, "report staging and live readiness for a task")
     p.add_argument("--task", required=True)
     p.add_argument("--no-doctor", action="store_true")
+    p.add_argument(ACCEPT_EPHEMERAL, dest="accept_ephemeral_storage", action="store_true",
+                   help="live mode only: accept that the state root is not on a persistent volume (recorded)")
     p = add("run", cmd_run, "start the configured experiment after authorization and preflight verification")
     p.add_argument("--task", required=True)
     p.add_argument("--run-dir", default="")
@@ -785,6 +819,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--verifier-source", default="")
     p.add_argument("--preflight-only", action="store_true")
     p.add_argument("--no-doctor", action="store_true")
+    p.add_argument(ACCEPT_EPHEMERAL, dest="accept_ephemeral_storage", action="store_true",
+                   help="live mode only: accept that the state root is not on a persistent volume (recorded)")
     p.add_argument("--max-iterations", type=int, default=0)
     p.add_argument("--start-timeout", type=float, default=120.0)
     add("status", cmd_status, "report current objective, learning state and verified progress", run_dir=True)
@@ -792,6 +828,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--reason", default="")
     p = add("resume", cmd_resume, "resume, restoring the complete persistent state if the process is gone", run_dir=True)
     p.add_argument("--agent-factory", default="")
+    p.add_argument(ACCEPT_EPHEMERAL, dest="accept_ephemeral_storage", action="store_true",
+                   help="live mode only: accept that the state root is not on a persistent volume (recorded)")
     p = add("stop", cmd_stop, "stop the run (checkpoints the learner)", run_dir=True)
     p.add_argument("--reason", default="")
     p.add_argument("--emergency", action="store_true")
@@ -825,6 +863,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--agent-factory", default="")
     p.add_argument("--authorization", default="")
     p.add_argument("--verifier-source", default="")
+    p.add_argument(ACCEPT_EPHEMERAL, dest="accept_ephemeral_storage", action="store_true")
     return ap
 
 

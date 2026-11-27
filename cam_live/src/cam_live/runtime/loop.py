@@ -208,7 +208,10 @@ class LiveRuntime:
         self.lifetime: Dict[str, Any] = {"decisions": 0, "actions_executed": 0, "objectives": []}
         self.approvals: Dict[str, Dict[str, Any]] = {}           # redacted rows (state.json)
         self._approval_raw: Dict[str, Dict[str, Any]] = {}       # approval id -> exact decision / preds / auth (sealed)
-        self.hooks: Dict[str, List[Callable[["LiveRuntime"], None]]] = {"after_cycle": []}
+        # before_cycle hooks run at a decision boundary, before a cycle with work; one returning False skips the
+        # cycle (e.g. runtime.gpu_cycle: the shared GPU lock could not be taken because a command stopped the run)
+        self.hooks: Dict[str, List[Callable[["LiveRuntime"], Any]]] = {"after_cycle": [], "before_cycle": []}
+        self.gpu: Optional[Dict[str, Any]] = None                # runtime.gpu_cycle lease status (state.json)
         self._committed: Dict[str, Any] = {}
         self._ckpts: List[Dict[str, Any]] = []
         self._exports: List[Dict[str, Any]] = []
@@ -679,6 +682,7 @@ class LiveRuntime:
             "last_verified": red(self._last_verified), "refused_verified": self._refused_verified,
             "obstacles_open": self.obstacles.open_count(), "errors": red(self._errors[-20:]),
             "settling": None if self._settle is None else {**self._settle, "reason": self._red(self._settle["reason"])},
+            "gpu": self.gpu,
             "waiting": None if w is None else {"until": w["until"], "started": w["started"],
                                                 "action_id": w["decision"].chosen.action_id},
             "sealed": self.box.seal(inner),
@@ -1824,6 +1828,16 @@ class LiveRuntime:
             return rep
 
         # -------------------------------------------------------------------------------- a cycle with work
+        for hook in list(self.hooks.get("before_cycle", [])):
+            try:
+                go = hook(self)
+            except Exception as e:  # noqa: BLE001
+                self._note_error("runtime", f"before_cycle hook {getattr(hook, '__name__', type(hook).__name__)}", e)
+                go = True
+            if go is False:
+                self._triggers = reasons + self._triggers          # the work is still there for the next cycle
+                rep["status"] = self.status
+                return rep
         self.cycles += 1
         errors_before = self._error_total
         rep.update(cycle=True, reasons=reasons)

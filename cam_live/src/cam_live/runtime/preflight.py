@@ -295,11 +295,20 @@ def verifier_items(task: TaskSpec, verifier_info: Optional[Dict[str, Any]]) -> L
     return out
 
 
+#: live-blocking system checks the operator may accept as a risk, by an explicit command-line acknowledgement
+#: (``cam-live run --accept-ephemeral-storage``); nothing else can be accepted, and nothing is accepted by default
+ACCEPTABLE_RISKS = {"persistent_storage": "--accept-ephemeral-storage"}
+
+
 def preflight(task_path: str, cfg: Optional[CamLiveConfig] = None, *, policy: Any = None, env: Any = None,
               verifier_info: Optional[Dict[str, Any]] = None, with_doctor: bool = True,
-              run_dir: str = "") -> Dict[str, Any]:
+              run_dir: str = "", accept_risks: Sequence[str] = ()) -> Dict[str, Any]:
     """Readiness report for one task file. ``policy`` / ``env`` / ``verifier_info`` are the operator's handles on
-    the running services when there are any; without them the corresponding items are reported as unconfirmed."""
+    the running services when there are any; without them the corresponding items are reported as unconfirmed.
+
+    ``accept_risks``: names of ``ACCEPTABLE_RISKS`` the operator acknowledged on the command line. Only in mode live
+    (outside it these checks do not block anything); an accepted check is still run and reported, under
+    ``live.accepted_risks`` with its finding, instead of blocking."""
     cfg = cfg or CamLiveConfig()
     try:
         raw = load_task_raw(task_path)
@@ -321,9 +330,15 @@ def preflight(task_path: str, cfg: Optional[CamLiveConfig] = None, *, policy: An
     if not users_exist() or os.geteuid() != 0:
         live.append(_item("isolation", "separated services", "the service users do not exist or this is not root: "
                           "the learner, executor, authorization service and verifier cannot run under separate uids"))
+    accepted: List[Dict[str, str]] = []
     for name in doc["summary"]["blocking_live"]:
         c = flat[name]
-        live.append(_item("system", name, c["detail"] if c["ok"] is False else f"not determined: {c['detail']}"))
+        it = _item("system", name, c["detail"] if c["ok"] is False else f"not determined: {c['detail']}")
+        if raw.get("mode") == "live" and name in ACCEPTABLE_RISKS and name in set(accept_risks):
+            accepted.append({**it, "accepted_by": f"operator (command line {ACCEPTABLE_RISKS[name]})",
+                             "consequence": "the run proceeds although this check fails; the risk is the operator's"})
+        else:
+            live.append(it)
 
     staging: List[Dict[str, str]] = [_item("task", "task file", p) for p in structural_problems(raw) + strategy_findings(raw)]
     if raw.get("mode") != "live":
@@ -333,7 +348,7 @@ def preflight(task_path: str, cfg: Optional[CamLiveConfig] = None, *, policy: An
 
     warnings = [c["detail"] for n, c in flat.items() if n in ("kernel_network_filtering",) and c["ok"] is not True]
     return {"task": task_path, "objective_id": task.objective_id, "mode": raw.get("mode"),
-            "live": {"ready": not live, "blocked": bool(live), "missing": live},
+            "live": {"ready": not live, "blocked": bool(live), "missing": live, "accepted_risks": accepted},
             "staging": {"ready": not staging, "missing": staging},
             "warnings": warnings,
             "note": "live readiness is established only from live services and operator records; nothing reported "
@@ -346,6 +361,8 @@ def render(report: Dict[str, Any]) -> str:
     lines.append("LIVE: " + ("READY" if lv["ready"] else f"BLOCKED — {len(lv['missing'])} item(s) missing"))
     for m in lv["missing"]:
         lines.append(f"  - [{m['kind']}] {m['item']}: {m['detail']}")
+    for m in lv.get("accepted_risks", []):
+        lines.append(f"  ! ACCEPTED RISK [{m['kind']}] {m['item']} ({m['accepted_by']}): {m['detail']}")
     sg = report["staging"]
     lines.append("STAGING: " + ("ready" if sg["ready"] else f"not ready — {len(sg['missing'])} item(s)"))
     for m in sg["missing"]:

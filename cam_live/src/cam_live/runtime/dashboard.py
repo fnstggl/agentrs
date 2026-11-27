@@ -239,7 +239,14 @@ class RunView:
             "pending_approvals": sum(1 for a in (st.get("approvals") or {}).values()
                                      if isinstance(a, dict) and a.get("status") == "pending"),
             "updated_at": st.get("updated_at"),
+            # INT3B: the shared-GPU lease (holding / waiting), an ended objective's settling, accepted risks
+            "gpu": st.get("gpu"), "settling": st.get("settling"),
+            "accepted_risks": (self._run_meta().get("accepted_risks") or []),
         }
+
+    def _run_meta(self) -> Dict[str, Any]:
+        d = read_json(os.path.join(self.run_dir, "run.json"), {})
+        return d if isinstance(d, dict) else {}
 
     def experiments(self, n: int = 20) -> List[Dict[str, Any]]:
         """Registered experiments. ``actual`` lists only outcomes the runtime itself measured for the experiment
@@ -742,6 +749,12 @@ APP_JS = r"""'use strict';
         el('p', 'Pending outcomes: ' + txt(s.pending_outcomes) + ' · process ' + (pr.alive === true ? 'alive' : 'not running') +
            ' (pid ' + txt(pr.pid) + ') · restarts ' + txt(h.restarts) + ' · disk free ' + txt(h.disk_free_gb) +
            ' GB · verifier log ' + (vl ? (obj(vl).intact === true ? 'intact' : 'PROBLEM: ' + txt(obj(vl).problem)) : 'n/a')),
+        s.gpu ? el('p', 'Shared GPU lock: ' + (obj(s.gpu).held ? 'held ' + txt(obj(s.gpu).held_for_s) + ' s' : 'not held') +
+           (obj(s.gpu).waiting_for_s != null ? ' · WAITING ' + txt(obj(s.gpu).waiting_for_s) + ' s' : '') +
+           ' · holds <= ' + txt(obj(s.gpu).hold_s) + ' s · waited ' + txt(obj(s.gpu).waited_s_total) + ' s in total') : null,
+        s.settling ? el('p', 'Settling the ended objective: ' + txt(s.settling)) : null,
+        list(s.accepted_risks).length ? el('p', 'ACCEPTED RISKS: ' + list(s.accepted_risks).map(r => txt(obj(r).check) + ' — ' +
+           txt(obj(r).finding) + ' (' + txt(obj(r).accepted_by) + ')').join('; '), 'b') : null,
         el('pre', txt(list(h.errors_recent)))]);
       fill($('resources'), Object.entries(obj(s.resources)).map(([k, r0]) => {
         const r = obj(r0), p = el('p', k + ': ' + txt(r.used) + (num(r.limit) && r.limit > 0 ? ' of ' + txt(r.limit) : ' (no limit set)'));
