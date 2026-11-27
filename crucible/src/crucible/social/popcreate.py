@@ -208,12 +208,14 @@ def _topic_for(coords: np.ndarray, rng, tech: bool, k: int) -> np.ndarray:
 
 
 REVIEW_P = 0.35            # a member who relies on a provider that works for it recommends it this often
+HUNT_P = 0.5               # ... and, when nobody has launched it yet, posts it on the product-discovery platform
 
 
-def _recommendation(ctx: Ctx, i: int, rng) -> tuple[str, str] | None:
-    """(title, body) of a recommendation of a service the member relies on in its work and that works for it (its
-    own adoption record of `economy.work`: at least 3 uses, at least 2/3 accepted), naming the service's address -
-    or None. Read-only use of the member's own experience; the text is the member's (no score, no bonus)."""
+def _recommendation(ctx: Ctx, i: int, rng) -> tuple[str, str, dict, str] | None:
+    """(title, body, link, name) of a recommendation of a service the member relies on in its work and that works for it
+    (its own adoption record of `economy.work`: at least 3 uses, at least 2/3 accepted), naming the service's
+    address - or None. `link` is what a launch post of it would link (the product, else the service host). Read-only
+    use of the member's own experience; the text is the member's (no score, no bonus)."""
     st = ctx.state
     work = ctx.world.modules.get("work")
     if work is None or "work_exp" not in st.tables:
@@ -233,7 +235,18 @@ def _recommendation(ctx: Ctx, i: int, rng) -> tuple[str, str] | None:
     title = f"How I get my {task.split()[0].lower()} work done"[:C.MAX_TITLE]
     body = (f"For my work I need {task}. I use {name} (http://{prov['host']}.crucible/): it handled {int(r['ok'])} "
             f"of my last {int(r['uses'])} tasks well enough for my employer. Recommended if you do the same work.")
-    return title, body
+    pr = st.get("products", pid) if "products" in st.tables else None
+    link = {"product": pid} if pr is not None and pr.get("status") == "launched" else {"host": prov["host"]}
+    return title, body, link, name
+
+
+def _launched(st, link: dict) -> bool:
+    """Someone already launched this product or service on the product-discovery platform (one launch each, as
+    hunters do: the first one posts it, later fans upvote or comment)."""
+    if "launches" not in st.tables:
+        return True
+    (kind, tgt), = link.items()
+    return any(L["link"] == kind and L["target"] == tgt for _, L in st.scan("launches"))
 
 
 def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
@@ -301,12 +314,18 @@ def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
         rec_post = _recommendation(ctx, i, rng) if m in ("post", "status", "article") else None
         try:
             if rec_post is not None:
-                # a recommendation of a service that works for the member (text naming its address)
-                title, body = rec_post
+                # a recommendation of a service that works for the member (text naming its address); a service
+                # nobody has launched yet the member may post on the product-discovery platform, as a hunter
+                title, body, link, name = rec_post
                 data = f"{title}\n\n{body}\n".encode("utf-8")
                 ref = artifacts.put(ctx, data, "text/plain", owner=p, meta={"title": title[:80]}, kind="text")
-                cid = C.module(w).publish(ctx, p, ref, kind, plat, title)
-                media_made.append("recommendation")
+                if "launch" in w.modules and not _launched(ctx.state, link) and rng.random() < HUNT_P:
+                    cid = ctx.call("launch.post", {"ref": ref, "title": f"{name} - {title}"[:C.MAX_TITLE], **link},
+                                   as_principal=p)["id"]
+                    media_made.append("hunt")
+                else:
+                    cid = C.module(w).publish(ctx, p, ref, kind, plat, title)
+                    media_made.append("recommendation")
             elif m in ("answer", "tech"):
                 cid = _qa(ctx, plat, p, coords[j], rng, skill, k)
             else:
