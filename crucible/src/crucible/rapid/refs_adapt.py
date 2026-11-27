@@ -1860,3 +1860,93 @@ def serial_chain_predict(view, env) -> None:
     view.step({"kind": "message", "to": "journal", "content": {"predictions": preds}})
     while not view.done:
         view.step(None)
+
+
+# ====================================================================== interdependent cascades
+def _coupled_outcome(la, lb, thr_a, thr_b, k_ab, k_ba, ticks: int) -> float:
+    """Binary collapse dynamics of two coupled cascading networks from an intact start: a network is down while its
+    demand plus the other network's lagged failure times the coupling reaches its threshold."""
+    fa = fb = 0.0
+    for _ in range(ticks):
+        fa, fb = float(la + k_ab * fb >= thr_a), float(lb + k_ba * fa >= thr_b)
+    return 1.0 - fa
+
+
+def interdependent_predict(view, env) -> None:
+    """Scripted public reference for two interdependent cascading networks. Ramp the first network's demand in
+    half steps with the second idle until the first goes down (its threshold), watch whether the second follows
+    (the coupling into it reaches its threshold), drop both demands and see whether the collapse sustains itself;
+    then the same for the second network; then, with one network held down by its own demand, ramp the other's
+    demand to find how much stress the failed network adds (its coupling = threshold - the demand at which it
+    fails). Predictions simulate the binary collapse dynamics (`_coupled_outcome`) from an intact start. Assumes
+    the model class: each network fails as a whole at a threshold of demand plus coupled stress."""
+    obj = env._config["objective"]
+    held = obj["heldout"]
+    ga = obj["gauge"]
+    gb = next(g["name"] for g in env._config["gauges"] if g["name"] != ga)
+    n1, n2 = list(held[0])[:2]
+    T = int(obj.get("settle_ticks", 15))
+    state = {"a": 1.0, "b": 1.0}
+
+    def step(x1, x2):
+        if view.done or view.t >= view.horizon - 2:
+            return None
+        x = view.step({"kind": "levers", "values": {n1: float(x1), n2: float(x2)}})["observation"]["numbers"]
+        state["a"], state["b"] = x.get(ga, 1.0), x.get(gb, 1.0)
+        return state["a"] > 0.5, state["b"] > 0.5
+
+    def ramp(which):
+        """Raise one demand (the other at 0) until that network goes down; returns (threshold, other_down)."""
+        for k in range(1, 21):
+            v = 0.5 * k
+            r = step(v, 0.0) if which == "a" else step(0.0, v)
+            if r is None:
+                return None, None
+            if not (r[0] if which == "a" else r[1]):
+                r2 = step(v, 0.0) if which == "a" else step(0.0, v)       # one more tick: does the other follow?
+                other_down = (not r2[1]) if (which == "a" and r2) else ((not r2[0]) if r2 else None)
+                return v - 0.25, other_down
+        return 10.5, False
+
+    def recover():
+        for _ in range(3):
+            r = step(0.0, 0.0)
+        return r is not None and r[0] and r[1]
+    thr_a, b_follows = ramp("a")
+    locked = not recover()
+    thr_b, a_follows = (None, None)
+    if not locked:
+        thr_b, a_follows = ramp("b")
+        locked = not recover()
+    k_ab = k_ba = None
+    if not locked and thr_a is not None and thr_b is not None and thr_b <= 10.0:
+        # hold the second network down with its own demand and ramp the first: it fails at thr_a - k_ab
+        for k in range(0, 21):
+            v = 0.5 * k
+            r = step(v, min(10.0, thr_b + 1.0))
+            if r is None:
+                break
+            if not r[0]:
+                k_ab = max(0.0, thr_a - (v - 0.25))
+                break
+        recover()
+        for k in range(0, 21):
+            v = 0.5 * k
+            r = step(min(10.0, thr_a + 1.0), v)
+            if r is None:
+                break
+            if not r[1]:
+                k_ba = max(0.0, thr_b - (v - 0.25))
+                break
+        recover()
+    big = 1e3
+    ta = thr_a if thr_a is not None else 10.5
+    tb = thr_b if thr_b is not None else (ta if locked else 10.5)
+    if k_ab is None:
+        k_ab = big if (a_follows or locked) else 0.0
+    if k_ba is None:
+        k_ba = big if (b_follows or locked) else 0.0
+    preds = [{"set": c, "value": _coupled_outcome(float(c[n1]), float(c[n2]), ta, tb, k_ab, k_ba, T)} for c in held]
+    view.step({"kind": "message", "to": "journal", "content": {"predictions": preds}})
+    while not view.done:
+        view.step(None)

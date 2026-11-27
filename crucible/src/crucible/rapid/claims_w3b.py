@@ -1169,3 +1169,52 @@ def identify_bottleneck_stage(env) -> dict:
     est = int(np.argmin([cap for cap, _ in laws]))
     truth = int(np.argmin(c["claim"]["caps"]))
     return {"question": "the slowest stage", "estimate": est, "truth": truth, "ok": est == truth}
+
+
+# ====================================================================== net_interdependent (8.7.4)
+def claim_interdependent_cascade(env) -> dict:
+    """(1) Threshold and cascade: with the second network idle, a demand just below the first network's threshold
+    leaves it fully in service and a demand just above takes it fully down; (2) interdependence: with the first
+    network's demand just below its threshold, taking the second network down (its own demand above its threshold)
+    takes the first down a tick later whenever the coupling into it covers the gap - and never otherwise."""
+    from .oracles import fork
+    c = env._config
+    cl = c["claim"]
+    names = {n["id"]: n["lever"]["name"] for n in c["nodes"] if n["type"] == "lever"}
+    a, b = names[cl["first"]], names[cl["second"]]
+    ta, tb = (float(x) for x in cl["thr"])
+    kab = float(cl["coupling"][0])
+    eng = env._engine
+    ia = eng.idx[cl["outcome"]]
+
+    def service_a(x1, x2, ticks=4):
+        e = fork(env)
+        for _ in range(ticks):
+            e.step({"kind": "levers", "values": {a: x1, b: x2}})
+        return float(e._state["h"][0, -1, ia])
+    below, above = service_a(ta - 0.3, 0.0), service_a(ta + 0.3, 0.0)
+    gap = 0.3
+    coupled = service_a(ta - gap, tb + 0.5)
+    expect_down = kab >= gap
+    ok = below == 1.0 and above == 0.0 and ((coupled == 0.0) == expect_down)
+    return {"ok": bool(ok), "service_below_threshold": below, "service_above_threshold": above,
+            "service_with_other_down": coupled, "coupling_covers_gap": bool(expect_down)}
+
+
+def identify_first_threshold(env) -> dict:
+    """Question: at what demand does the first network go down with the second idle (within 0.5)? Public: ramp its
+    demand in half steps."""
+    view = PublicView(env)
+    c = env._config
+    obj = c["objective"]
+    n1, n2 = list(obj["heldout"][0])[:2]
+    est = None
+    for k in range(1, 21):
+        v = 0.5 * k
+        x = view.step({"kind": "levers", "values": {n1: v, n2: 0.0}})["observation"]["numbers"]
+        if x.get(obj["gauge"], 1.0) < 0.5:
+            est = v - 0.25
+            break
+    truth = float(c["claim"]["thr"][0])
+    return {"question": "the first network's failure threshold", "estimate": est, "truth": round(truth, 3),
+            "ok": bool(est is not None and abs(est - truth) <= 0.5)}

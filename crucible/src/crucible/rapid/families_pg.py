@@ -452,6 +452,58 @@ def plan_serial_stages(rng, d):
                            "lags": lags})
 
 
+@family("net_interdependent", engine="primitive_graph", category="8.7", item="8.7.4", split="val",
+        doc="Two interdependent networks (a power grid and the communications network that controls it): in each, "
+            "components on a ring carry a base load plus the demand put on the network; an overloaded component "
+            "fails and sheds its load onto its neighbours (a cascade). Failures in one network add stress to the "
+            "other a tick later. Predict the first network's service after fifteen ticks from an intact start at "
+            "demand pairs partly above what can be set: a demand that one network survives alone can bring both "
+            "down through the other, and a collapse can sustain itself.",
+        distinct_because="two cascading-failure rings coupled by lagged cross-stress (each network's failed share "
+                         "stresses the other): thresholds, load redistribution and mutual reinforcement give "
+                         "bistable collapse; scored by the service after an intact start at held-out demand pairs",
+        axes={"horizon": 60, "observation_noise": 0.3}, objective="predict_heldout",
+        claims=("crucible.rapid.claims_w3b:claim_interdependent_cascade",),
+        identify="crucible.rapid.claims_w3b:identify_first_threshold", lever_view=True,
+        reference="crucible.rapid.refs_adapt:interdependent_predict", oracle="crucible.rapid.oracles:science_oracle")
+def net_interdependent(rng, d):
+    gb = GraphBuilder(rng)
+    la = gb.lever(0.0, 10.0, 0.0, cost=0.0)
+    lb = gb.lever(0.0, 10.0, 0.0, cost=0.0)
+    m = 20
+    nodes = []
+    for _ in range(2):
+        base, spread = 5.0, u(rng, 0.5, 0.9)
+        thr = u(rng, 3.5, 8.0)                          # demand at which the most loaded component fails
+        nodes.append({"load": base, "spread": spread, "cap": base * (1.0 + spread) + thr, "thr": thr})
+    kab, kba = u(rng, 2.0, 7.0), u(rng, 2.0, 7.0)       # extra stress from a fully failed other network
+    fa = gb.prim("cascading_failure", {"m": m, "load": nodes[0]["load"], "spread": nodes[0]["spread"],
+                                       "cap": nodes[0]["cap"]}, role="failed_a", stress=[(la, 0, 1.0)])
+    fb = gb.prim("cascading_failure", {"m": m, "load": nodes[1]["load"], "spread": nodes[1]["spread"],
+                                       "cap": nodes[1]["cap"]}, role="failed_b", stress=[(lb, 0, 1.0), (fa, 1, kba)])
+    gb.nodes[int(fa[1:])]["ports"]["stress"] = [[la, 0, 1.0], [fb, 1, kab]]
+    sa = gb.prim("linear_nonlinear", {"form": "linear", "a": -1.0, "b": 1.0}, role="outcome", x=[(fa, 0, 1.0)])
+    sb = gb.prim("linear_nonlinear", {"form": "linear", "a": -1.0, "b": 1.0}, x=[(fb, 0, 1.0)])
+    noise = float(d["observation_noise"])
+    ga = gb.gauge(sa, [("measurement_noise", {"sd": noise * 0.05})])
+    gb.gauge(sb, [("measurement_noise", {"sd": noise * 0.05})])
+    held = [{gb.name_of(la): x, gb.name_of(lb): y} for x, y in
+            ((2.0, 2.0), (5.0, 9.0), (9.0, 1.0), (11.0, 3.0), (3.0, 12.0), (6.0, 6.0), (12.0, 12.0), (1.0, 7.0))]
+    text = ("Predict the share of the first network's components in service fifteen ticks after an intact start if "
+            f"these demands were put on the two networks (partly above what you can set): {held}. File predictions "
+            "with the journal: message to 'journal' with content {\"predictions\": [{\"set\": <condition>, "
+            "\"value\": <number>}, ...]}. Only the last filing counts.")
+    return gb.build(horizon=int(d["horizon"]), money={"revenue_node": sa, "price": 100.0, "cap": 1.0},
+                    affordances=["levers", "message"], endowment=100_000,
+                    objective={"type": "predict_heldout", "heldout": held, "gauge": ga, "text": text,
+                               "settle_ticks": 15},
+                    journal=True,
+                    brief="Two interdependent networks. Levers: the demand put on each. Gauges: the share of each "
+                          "network's components in service.",
+                    claim={"first": la, "second": lb, "outcome": sa, "failed": [fa, fb], "thr": [n["thr"] for n in nodes],
+                           "coupling": [kab, kba]})
+
+
 @family("dl_short_term_damage", engine="primitive_graph", category="8.6", item="8.6.6", split="train",
         doc="Overdriving raises output now but accumulates wear (shown by a noisy vibration reading) that drains "
             "only below a hidden rate; past a hidden level the machine latches into a permanently degraded state. "
