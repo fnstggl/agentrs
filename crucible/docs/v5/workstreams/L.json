@@ -19,7 +19,7 @@
     "tests/v5/test_gate_R.py",
     "tests/test_v5_experience_core.py"
    ],
-   "status_claim": "implemented; gate passes on the integrated tree (wave-3b rerun, GPU slot, real civilisations)",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": "probe surfaces now include the external batched adapter and the out-of-process evaluation path"
   },
   "R.2": {
@@ -35,7 +35,7 @@
     "tests/v5/test_gate_R.py",
     "tests/test_v5_experience_wave3b.py"
    ],
-   "status_claim": "implemented; gate passes on the integrated tree (wave-3b rerun incl. the Tier 3 civilisation surface)",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": "wave 3b: every evaluator-only metric of the registry union swept through self-goal and commitment predicates; EVALUATOR-ONLY documented metrics (social.integrity organic_*) joined the union (DECLARED_EVALUATOR_ONLY); wave 3b (3): controller labels (relatedness ground truth) hidden from the public identity events in observation-only worlds (core/evaluator_only.py EVENT_FIELDS; tests/test_v5_experience_core.py::test_kernel_env_admits_participants_with_their_controller_label)"
   },
   "R.3": {
@@ -49,7 +49,7 @@
    "tests": [
     "tests/v5/test_gate_R.py"
    ],
-   "status_claim": "implemented; gate passes on the integrated tree (canaries incl. a civilisation)",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": "; wave 3b (3): controller labels (relatedness ground truth) hidden from the public identity events in observation-only worlds (core/evaluator_only.py EVENT_FIELDS; tests/test_v5_experience_core.py::test_kernel_env_admits_participants_with_their_controller_label)"
   },
   "R.4": {
@@ -61,7 +61,7 @@
    "tests": [
     "tests/v5/test_gate_R.py"
    ],
-   "status_claim": "implemented; gate passes",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": "; wave 3b (3): the legacy-versus-observation-only comparisons of the leakage battery normalise the legacy side with the evaluator-only registry (experience.leakage.registered_hidden): a field observation-only hides on purpose (the controller label) is not a legitimate field missing; without it the Gym, PettingZoo and kernel invariance probes reported 1 missing field (SP-11.3 failed on CPU, fixed: passes)"
   },
   "R.5": {
@@ -73,7 +73,7 @@
    "tests": [
     "tests/v5/test_gate_R.py"
    ],
-   "status_claim": "implemented; gate passes",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": "evaluator-side verification also through remote.evaluate (the evaluator closes the participant pipe before verifying)"
   },
   "R.6": {
@@ -94,7 +94,7 @@
    "tests": [
     "tests/v5/test_gate_R.py"
    ],
-   "status_claim": "implemented; gate passes",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": ""
   },
   "R.n1": {
@@ -107,7 +107,7 @@
    "tests": [
     "tests/v5/test_gate_R.py"
    ],
-   "status_claim": "implemented; gate passes on the integrated tree",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": "surfaces: mech, rapid, kernel, innovation, selfplay, numeric, gym, external (stand-in for the AGENTRS adapters, RP.1), remote (adversarial evaluated learner), civ (incl. the population's private state)"
   },
   "S.1": {
@@ -118,7 +118,7 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "implemented; gate passes",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": ""
   },
   "S.2": {
@@ -128,7 +128,7 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": "c5c/w3b-dom1/dom2 merged read-only: startup, content, community, research, education, infrastructure; wave 3b (2): dev harness (CPU, crisis+marketplace): tier2_actions 235, tier2_world_changes 12 -> passes; 15-domain run queued"
   },
   "S.3": {
@@ -138,7 +138,7 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "implemented; gate passes on real civilisations (wave-3b rerun)",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": ""
   },
   "S.4": {
@@ -151,7 +151,7 @@
     "tests/v5/test_gate_S.py",
     "tests/test_v5_experience_core.py"
    ],
-   "status_claim": "implemented; gate passes",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": ""
   },
   "S.5": {
@@ -163,7 +163,7 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": ""
   },
   "S.6": {
@@ -173,7 +173,7 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "implemented; gate passes",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": ""
   },
   "S.7": {
@@ -184,7 +184,7 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "implemented; gate passes through crucible.scale.slots --cpu 4 (wave-3b rerun)",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": ""
   },
   "S.8": {
@@ -195,7 +195,7 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "implemented; gate passes",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": ""
   },
   "SP-11.1": {
@@ -208,7 +208,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_1.py"
    ],
-   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": "wave 3b (2): dev harness (CPU, crisis+marketplace + Tier 3 civ): observation_kinds 13, tiers_supported 3 -> passes"
   },
   "SP-11.2": {
@@ -218,7 +218,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_2.py"
    ],
-   "status_claim": "implemented; gate passes",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": ""
   },
   "SP-11.3": {
@@ -229,7 +229,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_3.py"
    ],
-   "status_claim": "implemented; gate passes",
+   "status_claim": "implemented; gate passed at b3a07b1 (GPU slot); raised at 684eeb5 because that slot job's shallow clone lacked the 4.0 commit c07098b (environment; job script fixed); passes on CPU at HEAD",
    "notes": ""
   },
   "SP-11.4": {
@@ -241,7 +241,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_4.py"
    ],
-   "status_claim": "implemented; gate passes",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": ""
   },
   "SP-11.5": {
@@ -252,7 +252,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_5.py"
    ],
-   "status_claim": "implemented; gate passes",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": ""
   },
   "SP-11.6": {
@@ -265,7 +265,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_6.py"
    ],
-   "status_claim": "implemented; gate passes",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": "the external curiosity learner can be evaluated out of process (evaluated(part, ...))"
   },
   "SP-11.1b": {
@@ -279,7 +279,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_1b.py"
    ],
-   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": ""
   },
   "SP-11.4b": {
@@ -290,7 +290,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_4b.py"
    ],
-   "status_claim": "implemented; gate passes",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": ""
   },
   "SP-11.6c": {
@@ -318,7 +318,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_6d.py"
    ],
-   "status_claim": "implemented; gate passes",
+   "status_claim": "implemented; gate passed at b3a07b1 (GPU slot); raised at 684eeb5 because that slot job's shallow clone lacked the 4.0 commit c07098b (environment; job script fixed); passes on CPU at HEAD",
    "notes": ""
   },
   "SP-2.2": {
@@ -329,7 +329,7 @@
    "tests": [
     "tests/v5/test_gate_SP_2_2.py"
    ],
-   "status_claim": "implemented; gate passes on real civilisations (wave-3b rerun)",
+   "status_claim": "implemented; gate passed on the integrated tree in GPU slots at b3a07b1 and again at 684eeb5 (after the ReferenceLearner fixes, the statistical learner and the controller labels)",
    "notes": ""
   },
   "OO.1": {
@@ -341,7 +341,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "status_claim": "implemented; gate passed at 684eeb5 (GPU slot, 15 domains): tiers_covered 3, env_families_checked 273 (113 Tier 1, 75 Tier 2, 11 Tier 3 profiles, 74 kernel 4.0 families), 0 not observation-only",
    "notes": "only Part 9 domains count as Tier 2 (fixtures never); wave 3b (2): dev harness (CPU, 10 domains = 50 configurations): 0 families not observation-only; Tier 3 measured in the gate run"
   },
   "OO.2": {
@@ -354,7 +354,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; gate passes on the integrated tree",
+   "status_claim": "implemented; gate passes on the integrated tree; rerun at 684eeb5 running in the head slot job (gates_oo_t2.log)",
    "notes": ""
   },
   "OO.3": {
@@ -367,7 +367,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit); rerun at 684eeb5 running in the head slot job (gates_oo_t2.log)",
    "notes": "wave 3b (2): dev harness (CPU): startup shows all 7 kinds; industry/labor/software/crisis/marketplace lose none of the kinds they compose (D-68)"
   },
   "OO.4": {
@@ -380,7 +380,7 @@
     "tests/v5/test_gate_OO.py",
     "tests/test_v5_experience_isolation.py"
    ],
-   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit); rerun at 684eeb5 running in the head slot job (gates_oo_t2.log)",
    "notes": "reachability now measured on the evaluation path (remote.evaluate + adversarial evaluated learner, sealed seed) per tier; wave 3b (2): dev harness (CPU, crisis + Tier 1 + Tier 3 civ isolation probe): verifier matches, not reachable, 0 hidden values reached; wave 3b (2): after merging the latest domain commits (dom1 d52bc5c, dom2 8a4ad73, dom3 4690070) the hosted verification matched and the evaluation path held in 14 domains (CPU dev; community/content not run): 0 evaluator objects or hidden values (incl. the science laws) in the learner's process"
   },
   "OO.5": {
@@ -403,7 +403,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit); rerun at 684eeb5 running in the head slot job (gates_oo_t2.log)",
    "notes": "wave 3b (2): dev harness (CPU, 12 domains): every domain's curiosity learner made 5 weight-changing updates, env paid 0.0"
   },
   "OO.7": {
@@ -414,7 +414,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; gate passes",
+   "status_claim": "implemented; gate passes; rerun at 684eeb5 running in the head slot job (gates_oo_t2.log)",
    "notes": ""
   },
   "OO.8": {
@@ -425,7 +425,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; gate passes",
+   "status_claim": "implemented; gate passes; rerun at 684eeb5 running in the head slot job (gates_oo_t2.log)",
    "notes": ""
   },
   "OO.9": {
@@ -439,7 +439,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit); rerun at 684eeb5 running in the head slot job (gates_oo_t2.log)",
    "notes": "the evaluation entry point (remote.evaluate) and its CLI are checked too; wave 3b (3): experience.statistical.ToolValueLearner added to the checked entry points (default observation_only)"
   },
   "OO.10": {
@@ -451,7 +451,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit); rerun at 684eeb5 running in the head slot job (gates_oo_t2.log)",
    "notes": "wave 3b (2): dev harness (CPU, 8 domains): objective delivered, 0 progress values exposed, 0 rewards"
   },
   "OO.11": {
@@ -463,7 +463,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit); rerun at 684eeb5 running in the head slot job (gates_oo_t2.log)",
    "notes": "Tier 2 worlds get the learner-side exp/goals modules; wave 3b (2): dev harness (CPU, 10 domains): every self-experiment resolved, 0 rewards"
   },
   "OO.12": {
@@ -473,7 +473,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; gate passes",
+   "status_claim": "implemented; gate passes; rerun at 684eeb5 running in the head slot job (gates_oo_t2.log)",
    "notes": ""
   },
   "OO.14": {
@@ -487,7 +487,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit); rerun at 684eeb5 running in the head slot job (gates_oo_t2.log)",
    "notes": "Tier 2 probes adapt to restricted domain worlds and check the domain evaluator's verdict; wave 3b (2): per-domain probes (CPU, 13 domains: all except community/content, which need the GPU text path): 0 leaks; channels event_metadata, free_text, info, observation, tool_response; wave 3b (2): after the domain merges, 0 leaks in commercialization, crisis, education, information, labor, organization (re-run) and industry, infrastructure, invention, marketplace, research (before); verdicts without a distinctive number after 30 reference days: commercialization, organization; software/startup/community/content measured only in the GPU run"
   },
   "OO.16": {
@@ -499,7 +499,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit); rerun at 684eeb5 running in the head slot job (gates_oo_t2.log)",
    "notes": ""
   }
  },
@@ -1057,8 +1057,8 @@
   "results_read_2026-11-27": {
    "fast_b3a07b1": "32 passed, 10 deselected, 1267 s (R.1-R.7, R.n1, S.1-S.8, S.n1, SP-11.1, 1b, 2, 3, 4, 4b, 5, 6, 6d, SP-2.2, OO.2, OO.7, OO.8, OO.9, OO.12)",
    "sp_11_6c_b3a07b1": "1 failed (tiers_with_learning_improvement 1 == 3), 462 s",
-   "oo5_b3a07b1": "running since 00:26 UTC (7 h timeout)",
-   "oo_tier2": "admitted 03:36 UTC at 684eeb5 (head slot job, log w3b-obs/gates_oo_t2.log, 40 tests: R, S, SP-11.1/1b/2/3/4/4b/5/6/6d, SP-2.2, every non-slow OO test incl. the Tier 2 parts); progress at 04:35: R.1-R.5 passed, R.6 raised (shallow clone without the 4.0 commit; SP-11.3 and SP-11.6d will raise the same way in this run), R.7, R.n1, S.1 passed",
+   "oo5_b3a07b1": "FAILED (3 h 39 min): objectiveless_tiers 2 (Tier 3 ProtocolError), 58 violations (community 46, content 10, commercialization rss, software wall); fixes on this branch, rerun queued (log gate_OO5.log)",
+   "oo_tier2": "head slot job at 684eeb5 (log w3b-obs/gates_oo_t2.log; 40 tests): at 04:49 UTC the first 28 were done - 25 passed (R.1-R.5, R.7, R.n1, S.1-S.8, S.n1, SP-11.1, 1b, 2, 4, 4b, 5, 6, SP-2.2, OO.1), 3 raised (R.6, SP-11.3, SP-11.6d: the shallow clone lacked the 4.0 commit; no new evidence record was written); OO.2-OO.16 still running",
    "tier3_dev_head_job": "civilisation dev run in the head slot job (03:36-04:27 UTC, s6c/civ_dev_head.log): money variant at T=$10 not improved (1 of 4), social variant not improved; the final design (T=$0.50) is measured by the queued dev job (s6c/civ_dev1.log) and the queued SP-11.6c gate job"
   }
  }
