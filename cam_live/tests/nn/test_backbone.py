@@ -117,8 +117,8 @@ def test_embedding_cache_bypass_and_invalidation(model):
     e2 = model.embed_texts(TEXTS + TEXTS[:1])
     assert torch.equal(e1, e2[:4]) and torch.equal(e2[0], e2[4])
     assert bb.stats["cache_hits"] == hits0 + 5 and bb.stats["cache_misses"] == miss0
-    eg = model.embed_texts(TEXTS, with_grad=True)                          # bypasses the cache
-    assert bb.stats["cache_hits"] == hits0 + 5 and eg.requires_grad
+    eg = model.embed_texts(TEXTS, with_grad=True)          # value: the cached canonical embedding; graph: a fresh forward
+    assert bb.stats["cache_hits"] == hits0 + 5 + 4 and bb.stats["cache_misses"] == miss0 and eg.requires_grad
     assert torch.equal(eg.detach(), e1)          # the graph path returns exactly the cached numbers (straight-through)
     assert float(torch.nn.functional.cosine_similarity(e1[0], e1[1], 0)) < 0.95   # texts are distinguishable
     # an optimizer step on the adapters invalidates the cache automatically
@@ -316,3 +316,31 @@ def test_float32_head_matches_a_float64_reference_with_its_gradient():
     probe = torch.randn(P, V, generator=g)
     (lg * probe).sum().backward()
     assert torch.allclose(h.grad.double(), probe.double() @ w.double(), atol=1e-3, rtol=1e-4)
+
+
+def test_embedding_gradient_matches_finite_differences_of_the_canonical_value():
+    """embed(with_grad=True) returns the canonical (cached) value with the gradient of a separate forward: that
+    gradient must be the derivative of the returned value (central differences along it, float32 tiny LM)."""
+    model = build_model(CamLiveConfig.debug())
+    _set_B(model, 4, 0.2)
+    B = [m.lora_B for m in model.backbone.lora_modules] + [m.lora_A for m in model.backbone.lora_modules]
+    probe = torch.randn(len(TEXTS), model.d_sem, generator=torch.Generator().manual_seed(9))
+    loss = lambda e: (e * probe).sum() / 50.0
+    model.zero_grad()
+    loss(model.embed_texts(TEXTS, with_grad=True)).backward()
+    g = [p.grad.detach().clone() for p in B]
+    gn = float(torch.sqrt(sum((x.double() ** 2).sum() for x in g)))
+    ratios = []
+    for dl in (0.01, 0.03):
+        eps = dl / gn
+        with torch.no_grad():
+            for p, x in zip(B, g):
+                p.add_(x, alpha=eps / gn)
+            lp = float(loss(model.embed_texts(TEXTS)))
+            for p, x in zip(B, g):
+                p.add_(x, alpha=-2 * eps / gn)
+            lm = float(loss(model.embed_texts(TEXTS)))
+            for p, x in zip(B, g):
+                p.add_(x, alpha=eps / gn)
+        ratios.append((lp - lm) / (2 * eps) / gn)
+    assert gn > 0 and all(abs(r - 1.0) < 0.03 for r in ratios), (gn, ratios)

@@ -14,8 +14,10 @@ Shared machinery (:class:`_Backbone`):
   weights are kept in float32 (a bf16 master weight would round small optimizer steps away) and cast in the forward.
 * **Semantic embedding**: masked mean of the hidden states at several depths (``tap_layers``), concatenated and
   standardised per dimension with statistics of a fixed neutral calibration corpus (mid-layer LM states carry a few
-  huge dimensions shared by every text). Results are cached by text hash; ``with_grad=True`` bypasses the cache and
-  builds a graph into the adapters; the cache is invalidated automatically when any adapter tensor changes.
+  huge dimensions shared by every text). A text's embedding does not depend on the other texts of a call (fixed
+  forward shapes per length bucket). Results are cached by text hash; ``with_grad=True`` returns the same values with
+  a graph into the adapters; the caches are invalidated whenever the content of a tensor they depend on changes
+  (checked on every call, so also after writes through ``.data``).
 * **Latent bridge** (:class:`LatentBridge`): CAM's belief ``b`` is mapped to ``bridge_tokens`` virtual prefix
   tokens that every sequence position reads through cross-attention added to the residual stream of several decoder
   layers. The cross-attention output projection is zero-initialised, so the bridge is an *exact* no-op at
@@ -599,25 +601,30 @@ class _Backbone(nn.Module):
 
     def embed(self, texts: Sequence[str], *, with_grad: bool = False) -> Tensor:
         """[n, d_sem] float32 standardised multi-depth embeddings, a function of each text alone (not of the other
-        texts in the call, see :meth:`_pooled`). ``with_grad=False``: detached and cached by text hash (stored as
-        float16); ``with_grad=True``: recomputed with a graph into the adapters, cache bypassed — the value is
-        rounded through float16 like the cache (straight-through: the gradient is that of the unrounded
-        embedding), so both paths return the same numbers."""
+        texts in the call, see :meth:`_pooled`), cached by text hash (stored as float16).
+
+        ``with_grad=True`` adds a graph into the adapters: the value is still the canonical (cached) embedding,
+        bit-exact, and the gradient is that of a forward over the call's texts alone (dynamic padding, no filler
+        rows: ``value = canonical + (g - g.detach())``). The two forwards differ only by bf16 rounding; the gradient
+        is checked by finite differences on the float32 backbone (tests/nn/test_gpu_qwen_fp32.py)."""
         texts = list(texts)
         if not texts:
             return torch.zeros(0, self.d_sem, device=self.device)
         t0 = time.time()
         self.sync_caches()
+        canon = self._cached(texts)
         if with_grad:
             uniq = list(dict.fromkeys(texts))
             with torch.enable_grad():
-                emb = self._standardise(self._pooled([self._text_ids(t, self.cfg.max_text_tokens) for t in uniq]))
-                emb = emb + (emb.detach().to(torch.float16).to(torch.float32) - emb.detach())
+                g = self._standardise(self._pooled_dynamic([self._text_ids(t, self.cfg.max_text_tokens) for t in uniq]))
             pos = {t: i for i, t in enumerate(uniq)}
-            out = emb.index_select(0, torch.tensor([pos[t] for t in texts], device=self.device))
-            self.stats["embedded_texts"] += len(uniq)
-            self.stats["embed_s"] += time.time() - t0
-            return out
+            g = g.index_select(0, torch.tensor([pos[t] for t in texts], device=self.device))
+            canon = canon + (g - g.detach())
+        self.stats["embed_s"] += time.time() - t0
+        return canon
+
+    def _cached(self, texts: Sequence[str]) -> Tensor:
+        """Canonical embeddings [n, d_sem] float32 (detached) from the cache, computing and caching the missing ones."""
         keys = [_sha(t) for t in texts]
         todo: "OrderedDict[str, str]" = OrderedDict()
         for k, t in zip(keys, texts):
@@ -641,8 +648,30 @@ class _Backbone(nn.Module):
                 self._cache.popitem(last=False)
             self.stats["embedded_texts"] += len(todo)
         out = torch.stack([fresh[k] if k in fresh else self._cache[k] for k in keys], 0)
-        self.stats["embed_s"] += time.time() - t0
         return out.to(self.device, torch.float32)
+
+    def _pooled_dynamic(self, rows: Sequence[Sequence[int]]) -> Tensor:
+        """Like :meth:`_pooled` but batched by length with padding to each group's longest text and no filler rows
+        (the shapes depend on the call): used only for the gradient of ``embed(with_grad=True)``."""
+        order = sorted(range(len(rows)), key=lambda i: -len(rows[i]))
+        outs: List[Tensor] = []
+        i = 0
+        while i < len(order):
+            L = len(rows[order[i]])
+            grp = order[i: i + max(1, int(self.nn_cfg.embed_grad_batch_tokens) // max(L, 1))]
+            ids, attn = self._pad([rows[j] for j in grp])
+            prev, self._capture = self._capture, {}
+            try:
+                self._hidden(ids, attn)
+                cap = self._capture
+            finally:
+                self._capture = prev
+            m = attn.to(torch.float32).unsqueeze(-1)
+            outs.append(torch.cat([(cap[t].to(torch.float32) * m).sum(1) / m.sum(1) for t in self.tap_ids], -1))
+            i += len(grp)
+        inv = torch.empty(len(order), dtype=torch.long, device=self.device)
+        inv[torch.tensor(order, device=self.device)] = torch.arange(len(order), device=self.device)
+        return torch.cat(outs, 0).index_select(0, inv)
 
     # ---- generation -------------------------------------------------------------------------------------------------------
     @torch.no_grad()
