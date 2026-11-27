@@ -15,7 +15,8 @@ Owner: workstream L. Contract: INTERFACE_CONTRACTS section 11. How a learner con
 | `src/crucible/experience/registry.py` | `make(tier, name, seed, reward_mode, **kw)`, `TierUnavailable`, `domains()`, `tiers_available()` |
 | `src/crucible/experience/experiments.py` (+ `modules.py`) | kernel module `exp`: self-generated experiments over any read-only measure, evidence only (passes `worldgen.admission.admit`) |
 | `src/crucible/experience/store.py` | `ExperienceStore` (append-only shards, per-record SHA-256, hash-chained manifest, content-addressed blobs, crash recovery) and `make_record` (`crucible-exp/1`) |
-| `src/crucible/experience/reference.py` | `ReferenceLearner`: recurrent neural learner over hashed structured-observation features, schema-driven argument filling, PPO-clip + value + entropy + world-model loss, exact checkpoints |
+| `src/crucible/experience/reference.py` | `ReferenceLearner`: recurrent neural learner over hashed structured-observation features, schema-driven argument filling (ids and name tokens it was shown, by argument name: `ArgumentMemory`), PPO-clip + value + entropy + world-model loss, exact checkpoints |
+| `src/crucible/experience/statistical.py` | `ToolValueLearner`: statistical reference learner - per-tool value of the observed change of its own signal (default its money) against the median change per step, softmax at max(temperature, MAD), optional multi-step credit; used by SP-11.6c in the kernel tiers (D-68 addendum) |
 | `src/crucible/experience/loop.py` | `run_learner`: the driver loop (schema checks, world-change counting, storage, updates, verification for the evaluator) |
 | `src/crucible/experience/parallel.py` | `VecExperience` (in-process) and `FarmRun` + `make_world` / `make_policy` hooks for the unchanged `crucible.scale.RolloutFarm` |
 | `src/crucible/experience/scripted.py` | scripted reference agents acting only through the interface (company, service deployment, discovery), `Recording` |
