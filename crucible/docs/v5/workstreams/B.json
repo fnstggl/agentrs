@@ -22,7 +22,7 @@
    "tests": [
     "tests/v5/test_gate_B.py"
    ],
-   "status_claim": "implemented; gate run on 85ae921 queued (the 4184cce run errored in the fixture: the learner's principal was shadowed by a counter dict, fixed in 36950aa)",
+   "status_claim": "criteria met in an unofficial gate run at 9fcb0a0e (tests/v5/test_gate_B.py: 6 passed in 48 min, GPU slot, strict standard-profile world with the social internet, 30 days, active learner): distinct_participants 10,256 (10,000 lightweight + 256 adaptive)",
    "notes": ""
   },
   "B.2": {
@@ -45,7 +45,7 @@
    "tests": [
     "tests/v5/test_gate_B.py"
    ],
-   "status_claim": "implemented; learner acts every simulated day through ordinary tools (search, page fetch, forum feed, forum post; probe: 4/4 commands ok, 0 learner-initiated population events); gate run queued",
+   "status_claim": "criteria met in an unofficial gate run at 9fcb0a0e (tests/v5/test_gate_B.py: 6 passed in 48 min, GPU slot, strict standard-profile world with the social internet, 30 days, active learner): learner_initiated_consumer_events 0 (120 learner commands, 0 members woken inside them, 0 forced audience rows), autonomous_sessions 611,512, web visits 990,696",
    "notes": ""
   },
   "B.3": {
@@ -68,7 +68,7 @@
    "tests": [
     "tests/v5/test_gate_B.py"
    ],
-   "status_claim": "implemented; gate run queued",
+   "status_claim": "criteria met in an unofficial gate run at 9fcb0a0e (tests/v5/test_gate_B.py: 6 passed in 48 min, GPU slot, strict standard-profile world with the social internet, 30 days, active learner): preference_effect_size 0.131 (return rate 0.686 vs 0.556 above/below the per-resource median interest match), p < 1e-300, 59,908 pairs",
    "notes": ""
   },
   "B.4": {
@@ -91,7 +91,7 @@
    "tests": [
     "tests/v5/test_gate_B.py"
    ],
-   "status_claim": "implemented; gate run queued",
+   "status_claim": "criteria met in an unofficial gate run at 9fcb0a0e (tests/v5/test_gate_B.py: 6 passed in 48 min, GPU slot, strict standard-profile world with the social internet, 30 days, active learner): return gap useful vs unsatisfactory 0.482 (0.765 vs 0.283), abandon gap 0.514 (0.637 vs 0.123), p < 1e-300",
    "notes": ""
   },
   "B.5": {
@@ -114,7 +114,7 @@
    "tests": [
     "tests/v5/test_gate_B.py"
    ],
-   "status_claim": "implemented; gate run queued",
+   "status_claim": "criteria met in an unofficial gate run at 9fcb0a0e (tests/v5/test_gate_B.py: 6 passed in 48 min, GPU slot, strict standard-profile world with the social internet, 30 days, active learner): 30 simulated days, 31 days with activity, last/first week sessions 1.236, 0 invariant errors, 9,530 items published",
    "notes": ""
   },
   "B.6": {
@@ -137,7 +137,7 @@
    "tests": [
     "tests/v5/test_gate_B.py"
    ],
-   "status_claim": "implemented; gate run queued",
+   "status_claim": "criteria met in an unofficial gate run at 9fcb0a0e (tests/v5/test_gate_B.py: 6 passed in 48 min, GPU slot, strict standard-profile world with the social internet, 30 days, active learner): 3 intervention forks at day 20, combined p 1e-300, abandon-rate gap 0.240-0.288",
    "notes": ""
   },
   "G.1": {
@@ -595,7 +595,8 @@
    "regression of population-dependent tests (25 files)": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_R2.full"
   },
   "regression at 178cab6 (predecessor, GPU slot)": "351 passed, 6 failed of 357: test_v5_calibration_inworld x4 (fixture grants; c5c/w3b-kcal updated the test file for this branch), test_v5_substrate_history::test_events_of_an_individual_include_its_cohort_decisions and test_v5_econ_work::test_demand_comes_from_population_individuals_paying_their_own_money (both assume pre-D-30 population behaviour; precise patches in integration_notes)",
-  "tests/test_v5_population_core.py tests/test_v5_population_api.py tests/test_kernel.py tests/test_invariants.py (9fcb0a0e, CPU, one run)": "76 passed, 0 failed"
+  "tests/test_v5_population_core.py tests/test_v5_population_api.py tests/test_kernel.py tests/test_invariants.py (9fcb0a0e, CPU, one run)": "76 passed, 0 failed",
+  "tests/v5/test_gate_B.py (9fcb0a0e snapshot, GPU slot)": "6 passed in 2897.6 s"
  },
  "performance": {
   "world": "population_world('development', 41, n=1500, sites=14, 32 adaptive, no strategic/semantic), strict, one CPU thread, CUDA hidden, warm machine text cache, days 2-4, no profiler (probe perfcmp.py)",
