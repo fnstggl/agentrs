@@ -184,6 +184,7 @@ class OutcomeLedger:  __init__(check_signature, check_measurement=None, path=Non
     refuse(reason, key, *, kind, objective_id, observed_at, signature, content, claimed=None, derived=None,
            exp_ids=()) -> AdmitResult
     head;  entries();  admitted();  verify_chain() -> (ok, bad_index);  anchor_error;  independent_groups(...)
+    confirm_head(head) -> bool          # adopt a pre-anchor ledger file through a head kept elsewhere
     rejected [(reason, key)];  rejected_details [dict]
 LedgerEntry(..., note="").admitted                  # kinds "objective", "measurement" supervise; "refused" never
 class SelfGoalDiscount:  __init__(decay=0.5, trivial_above=0.9, *, embed=None, similar_above=0.9,
@@ -212,6 +213,8 @@ Admission semantics (G-pr D2, D3, D8; all existing parameters are still accepted
   anchor (truncated at an entry boundary), has no anchor, or lacks `expected_head` loads, but `verify_chain()`
   returns `(False, len(entries))`, `anchor_error` says why, appending raises `IntegrityError` and
   `MetaLearner.meta_update` raises. An edited / reordered / deleted-in-the-middle entry still raises on load.
+  A ledger file written before anchors existed (`missing_anchor` only) is adopted by `confirm_head(head)` when
+  `head` is in its chain; `MetaLearner.load_state_dict` does this with the checkpoint's ledger head.
 
 ## reward.selfgoals (goal-free mode machinery)
 

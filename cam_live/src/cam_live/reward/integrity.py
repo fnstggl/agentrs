@@ -583,6 +583,21 @@ class OutcomeLedger:
             self.anchor_error = "anchor_mismatch"
         # a file longer than its anchor (crash between the two writes) is accepted: the chain covers the rest
 
+    def confirm_head(self, head: str) -> bool:
+        """Adopt a ledger file written before anchors existed: if the only problem is a missing anchor and ``head``
+        (kept elsewhere, e.g. the checkpoint's) is in the chain, the anchor is written and the ledger verifies.
+        A truncated or mismatched anchor is never cleared. Returns whether the ledger verifies afterwards."""
+        if self.anchor_error == "missing_anchor" and (head == self.GENESIS or head in {e.hash for e in self._entries}):
+            self.anchor_error = ""
+            if self.path and self._entries:
+                tmp = self.path + ".head.tmp"
+                with open(tmp, "w") as f:
+                    json.dump({"n": len(self._entries), "head": self.head}, f)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp, self.path + ".head")
+        return self.verify_chain()[0]
+
     def by_exp(self, exp_id: str) -> List[LedgerEntry]:
         """Admitted entries credited to an experience record."""
         return [self._entries[i] for i in self._by_exp.get(exp_id, ())]

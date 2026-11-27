@@ -319,8 +319,14 @@ def test_ledger_tampering_is_detected(tmp_path):
     open(path, "w").write("\n".join(lines) + "\n")
     os.remove(path + ".head")
     assert I.OutcomeLedger(v.check_signature, path=path).verify_chain()[0] is False
+    legacy = I.OutcomeLedger(v.check_signature, path=path)          # written before anchors existed
+    assert legacy.anchor_error == "missing_anchor" and not legacy.confirm_head("e" * 64)
+    assert legacy.confirm_head(head) and os.path.exists(path + ".head")   # adopted through a head kept elsewhere
     open(path + ".head", "w").write(anchor)
     assert I.OutcomeLedger(v.check_signature, path=path).verify_chain() == (True, -1)
+    open(path, "w").write("\n".join(lines[:3]) + "\n")
+    assert not I.OutcomeLedger(v.check_signature, path=path).confirm_head(lines and json.loads(lines[0])["hash"])
+    open(path, "w").write("\n".join(lines) + "\n")
     assert I.OutcomeLedger(v.check_signature, path=path, expected_head=head).verify_chain() == (True, -1)
     assert I.OutcomeLedger(v.check_signature, path=path, expected_head="f" * 64).verify_chain()[0] is False
     # in memory

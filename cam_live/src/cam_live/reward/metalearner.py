@@ -724,6 +724,7 @@ class MetaLearner:
         head = sd.get("ledger_head", OutcomeLedger.GENESIS)
         if head != OutcomeLedger.GENESIS and head not in {e.hash for e in self.ledger.entries()}:
             raise IntegrityError("the outcome ledger does not contain the head recorded in the checkpoint")
+        self.ledger.confirm_head(head)               # a ledger file from before anchors: adopted via this head
         dev = next(self.reward.parameters()).device
         self.mixer.load_state_dict(sd["mixer"])
         self._life = int(sd["life"])
