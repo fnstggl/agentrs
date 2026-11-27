@@ -6,8 +6,9 @@ that widen their own CPU affinity, a job allocating past its RAM grant, a 1 GB G
 (and a job that lifts its own allocator cap), a CUDA context held past its GPU-time grant, files written past a disk
 grant (and one file larger than it), 6 threads in 2 processes contending for 2 inference tokens, and worlds created
 beyond an active-world grant in two processes of one job. The scheduling rules are probed too: FIFO admission,
-zombies, a detached grandchild, a self-declared budget, an oversized request, a nested ledger and a kill that must not
-reach a process outside the job.
+zombies, a detached grandchild, a self-declared budget, an oversized request, a nested ledger, a kill that must not
+reach a process outside the job, backfilling behind a blocked head and deadline backfilling (a short job in the
+head's share ends before the head's planned start; the head is not delayed).
 
 scheduler_limits_enforced = dimensions whose attack was stopped or contained (by measurement of what the job used);
 scheduler_limit_violations = attacks (dimensions and rules) that got through. The GPU probes need the GPU: run this
@@ -25,7 +26,7 @@ from crucible.acceptance.v5 import evidence
 from crucible.scale import govprobe, slots
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(1200)]
-CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 2 --gpu-mb 1500 --ram-mb 8000 -- "
+CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 2 --gpu-mb 1500 --ram-mb 8000 --timeout 1200 -- "
        "python -m crucible.acceptance.v5 run --requirement SP-13.7")
 
 
