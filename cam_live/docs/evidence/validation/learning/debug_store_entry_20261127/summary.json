@@ -1,0 +1,1004 @@
+{
+ "arms": {
+  "frozen_primitive": {
+   "seeds": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "episodes_per_seed": 12,
+   "decision_budget": 30,
+   "overall_success": {
+    "k": 10,
+    "n": 48,
+    "rate": 0.20833333333333334,
+    "wilson95": [
+     0.11730147795889813,
+     0.3425917352135348
+    ]
+   },
+   "per_episode": [
+    {
+     "episode": 0,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 23.25,
+     "mean_decisions": 28.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 1,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 21.75,
+     "mean_decisions": 25.25,
+     "skill_runs": 0
+    },
+    {
+     "episode": 2,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 22.25,
+     "mean_decisions": 28.5,
+     "skill_runs": 0
+    },
+    {
+     "episode": 3,
+     "n_seeds": 4,
+     "successes": 2,
+     "success_rate": 0.5,
+     "wilson95": [
+      0.15003570882017148,
+      0.8499642911798285
+     ],
+     "mean_primitive_ops": 17.75,
+     "mean_decisions": 23.5,
+     "skill_runs": 0
+    },
+    {
+     "episode": 4,
+     "n_seeds": 4,
+     "successes": 0,
+     "success_rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.48990002040399916
+     ],
+     "mean_primitive_ops": 24.0,
+     "mean_decisions": 30.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 5,
+     "n_seeds": 4,
+     "successes": 0,
+     "success_rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.48990002040399916
+     ],
+     "mean_primitive_ops": 23.25,
+     "mean_decisions": 30.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 6,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 24.5,
+     "mean_decisions": 29.5,
+     "skill_runs": 0
+    },
+    {
+     "episode": 7,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 20.25,
+     "mean_decisions": 25.25,
+     "skill_runs": 0
+    },
+    {
+     "episode": 8,
+     "n_seeds": 4,
+     "successes": 0,
+     "success_rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.48990002040399916
+     ],
+     "mean_primitive_ops": 22.25,
+     "mean_decisions": 30.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 9,
+     "n_seeds": 4,
+     "successes": 0,
+     "success_rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.48990002040399916
+     ],
+     "mean_primitive_ops": 24.5,
+     "mean_decisions": 30.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 10,
+     "n_seeds": 4,
+     "successes": 2,
+     "success_rate": 0.5,
+     "wilson95": [
+      0.15003570882017148,
+      0.8499642911798285
+     ],
+     "mean_primitive_ops": 20.5,
+     "mean_decisions": 25.75,
+     "skill_runs": 0
+    },
+    {
+     "episode": 11,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 18.0,
+     "mean_decisions": 24.25,
+     "skill_runs": 0
+    }
+   ],
+   "first_half_success": {
+    "n": 4,
+    "mean": 0.20833333333333331,
+    "lo": 0.08333333333333333,
+    "hi": 0.3333333333333333
+   },
+   "second_half_success": {
+    "n": 4,
+    "mean": 0.20833333333333331,
+    "lo": 0.041666666666666664,
+    "hi": 0.4166666666666667
+   },
+   "change_in_success_second_minus_first": {
+    "n": 4,
+    "mean": 6.938893903907228e-18,
+    "lo": -0.16666666666666666,
+    "hi": 0.3333333333333333
+   },
+   "first_half_primitive_ops": {
+    "n": 4,
+    "mean": 22.041666666666668,
+    "lo": 20.791666666666668,
+    "hi": 23.25
+   },
+   "second_half_primitive_ops": {
+    "n": 4,
+    "mean": 21.666666666666664,
+    "lo": 18.833333333333332,
+    "hi": 24.0
+   },
+   "change_in_primitive_ops_second_minus_first": {
+    "n": 4,
+    "mean": -0.3750000000000009,
+    "lo": -3.541666666666668,
+    "hi": 1.3333333333333321
+   },
+   "primitive_ops_per_success": {
+    "n": 10,
+    "mean": 14.4,
+    "lo": 10.9,
+    "hi": 17.7
+   },
+   "decisions_per_success": {
+    "n": 10,
+    "mean": 18.0,
+    "lo": 12.8,
+    "hi": 22.9
+   },
+   "skill_runs_total": 0,
+   "skill_runs_ok": 0,
+   "induce_attempts": 0,
+   "errors": 0
+  },
+  "frozen_skills": {
+   "seeds": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "episodes_per_seed": 12,
+   "decision_budget": 30,
+   "overall_success": {
+    "k": 7,
+    "n": 48,
+    "rate": 0.14583333333333334,
+    "wilson95": [
+     0.07248157413793963,
+     0.27167447042858606
+    ]
+   },
+   "per_episode": [
+    {
+     "episode": 0,
+     "n_seeds": 4,
+     "successes": 0,
+     "success_rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.48990002040399916
+     ],
+     "mean_primitive_ops": 21.75,
+     "mean_decisions": 30.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 1,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 19.25,
+     "mean_decisions": 23.5,
+     "skill_runs": 0
+    },
+    {
+     "episode": 2,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 17.0,
+     "mean_decisions": 23.5,
+     "skill_runs": 0
+    },
+    {
+     "episode": 3,
+     "n_seeds": 4,
+     "successes": 0,
+     "success_rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.48990002040399916
+     ],
+     "mean_primitive_ops": 23.75,
+     "mean_decisions": 30.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 4,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 18.5,
+     "mean_decisions": 25.25,
+     "skill_runs": 0
+    },
+    {
+     "episode": 5,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 18.5,
+     "mean_decisions": 24.75,
+     "skill_runs": 0
+    },
+    {
+     "episode": 6,
+     "n_seeds": 4,
+     "successes": 0,
+     "success_rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.48990002040399916
+     ],
+     "mean_primitive_ops": 22.0,
+     "mean_decisions": 30.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 7,
+     "n_seeds": 4,
+     "successes": 0,
+     "success_rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.48990002040399916
+     ],
+     "mean_primitive_ops": 22.75,
+     "mean_decisions": 30.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 8,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 21.25,
+     "mean_decisions": 25.5,
+     "skill_runs": 0
+    },
+    {
+     "episode": 9,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 20.25,
+     "mean_decisions": 25.75,
+     "skill_runs": 0
+    },
+    {
+     "episode": 10,
+     "n_seeds": 4,
+     "successes": 0,
+     "success_rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.48990002040399916
+     ],
+     "mean_primitive_ops": 22.75,
+     "mean_decisions": 30.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 11,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 19.75,
+     "mean_decisions": 26.0,
+     "skill_runs": 0
+    }
+   ],
+   "first_half_success": {
+    "n": 4,
+    "mean": 0.16666666666666666,
+    "lo": 0.0,
+    "hi": 0.375
+   },
+   "second_half_success": {
+    "n": 4,
+    "mean": 0.125,
+    "lo": 0.0,
+    "hi": 0.25
+   },
+   "change_in_success_second_minus_first": {
+    "n": 4,
+    "mean": -0.04166666666666668,
+    "lo": -0.25,
+    "hi": 0.125
+   },
+   "first_half_primitive_ops": {
+    "n": 4,
+    "mean": 19.791666666666668,
+    "lo": 17.166666666666668,
+    "hi": 22.416666666666664
+   },
+   "second_half_primitive_ops": {
+    "n": 4,
+    "mean": 21.458333333333332,
+    "lo": 17.041666666666668,
+    "hi": 23.75
+   },
+   "change_in_primitive_ops_second_minus_first": {
+    "n": 4,
+    "mean": 1.6666666666666665,
+    "lo": -2.0833333333333335,
+    "hi": 5.749999999999999
+   },
+   "primitive_ops_per_success": {
+    "n": 7,
+    "mean": 7.428571428571429,
+    "lo": 5.428571428571429,
+    "hi": 9.285714285714286
+   },
+   "decisions_per_success": {
+    "n": 7,
+    "mean": 9.571428571428571,
+    "lo": 6.571428571428571,
+    "hi": 12.285714285714286
+   },
+   "skill_runs_total": 0,
+   "skill_runs_ok": 0,
+   "induce_attempts": 4,
+   "errors": 0
+  },
+  "learn_primitive": {
+   "seeds": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "episodes_per_seed": 12,
+   "decision_budget": 30,
+   "overall_success": {
+    "k": 16,
+    "n": 48,
+    "rate": 0.3333333333333333,
+    "wilson95": [
+     0.2167660137089678,
+     0.47460153667527943
+    ]
+   },
+   "per_episode": [
+    {
+     "episode": 0,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 26.0,
+     "mean_decisions": 29.75,
+     "skill_runs": 0
+    },
+    {
+     "episode": 1,
+     "n_seeds": 4,
+     "successes": 3,
+     "success_rate": 0.75,
+     "wilson95": [
+      0.3006360524426366,
+      0.9544139373553637
+     ],
+     "mean_primitive_ops": 12.25,
+     "mean_decisions": 14.75,
+     "skill_runs": 0
+    },
+    {
+     "episode": 2,
+     "n_seeds": 4,
+     "successes": 2,
+     "success_rate": 0.5,
+     "wilson95": [
+      0.15003570882017148,
+      0.8499642911798285
+     ],
+     "mean_primitive_ops": 17.25,
+     "mean_decisions": 22.5,
+     "skill_runs": 0
+    },
+    {
+     "episode": 3,
+     "n_seeds": 4,
+     "successes": 2,
+     "success_rate": 0.5,
+     "wilson95": [
+      0.15003570882017148,
+      0.8499642911798285
+     ],
+     "mean_primitive_ops": 15.75,
+     "mean_decisions": 19.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 4,
+     "n_seeds": 4,
+     "successes": 2,
+     "success_rate": 0.5,
+     "wilson95": [
+      0.15003570882017148,
+      0.8499642911798285
+     ],
+     "mean_primitive_ops": 23.0,
+     "mean_decisions": 27.75,
+     "skill_runs": 0
+    },
+    {
+     "episode": 5,
+     "n_seeds": 4,
+     "successes": 0,
+     "success_rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.48990002040399916
+     ],
+     "mean_primitive_ops": 24.25,
+     "mean_decisions": 30.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 6,
+     "n_seeds": 4,
+     "successes": 3,
+     "success_rate": 0.75,
+     "wilson95": [
+      0.3006360524426366,
+      0.9544139373553637
+     ],
+     "mean_primitive_ops": 14.75,
+     "mean_decisions": 18.75,
+     "skill_runs": 0
+    },
+    {
+     "episode": 7,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 20.25,
+     "mean_decisions": 25.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 8,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 20.75,
+     "mean_decisions": 23.5,
+     "skill_runs": 0
+    },
+    {
+     "episode": 9,
+     "n_seeds": 4,
+     "successes": 0,
+     "success_rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.48990002040399916
+     ],
+     "mean_primitive_ops": 26.0,
+     "mean_decisions": 30.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 10,
+     "n_seeds": 4,
+     "successes": 0,
+     "success_rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.48990002040399916
+     ],
+     "mean_primitive_ops": 24.0,
+     "mean_decisions": 30.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 11,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 22.5,
+     "mean_decisions": 29.5,
+     "skill_runs": 0
+    }
+   ],
+   "first_half_success": {
+    "n": 4,
+    "mean": 0.41666666666666663,
+    "lo": 0.25,
+    "hi": 0.5833333333333333
+   },
+   "second_half_success": {
+    "n": 4,
+    "mean": 0.25,
+    "lo": 0.08333333333333333,
+    "hi": 0.4166666666666667
+   },
+   "change_in_success_second_minus_first": {
+    "n": 4,
+    "mean": -0.16666666666666666,
+    "lo": -0.29166666666666663,
+    "hi": -0.04166666666666667
+   },
+   "first_half_primitive_ops": {
+    "n": 4,
+    "mean": 19.75,
+    "lo": 16.5,
+    "hi": 23.291666666666664
+   },
+   "second_half_primitive_ops": {
+    "n": 4,
+    "mean": 21.375,
+    "lo": 18.25,
+    "hi": 23.416666666666664
+   },
+   "change_in_primitive_ops_second_minus_first": {
+    "n": 4,
+    "mean": 1.6249999999999996,
+    "lo": -0.958333333333333,
+    "hi": 3.9999999999999982
+   },
+   "primitive_ops_per_success": {
+    "n": 16,
+    "mean": 12.5,
+    "lo": 9.125,
+    "hi": 15.9375
+   },
+   "decisions_per_success": {
+    "n": 16,
+    "mean": 15.125,
+    "lo": 11.0625,
+    "hi": 19.3125
+   },
+   "skill_runs_total": 0,
+   "skill_runs_ok": 0,
+   "induce_attempts": 0,
+   "errors": 0
+  },
+  "learn_skills": {
+   "seeds": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "episodes_per_seed": 12,
+   "decision_budget": 30,
+   "overall_success": {
+    "k": 12,
+    "n": 48,
+    "rate": 0.25,
+    "wilson95": [
+     0.1492048880971003,
+     0.3878464374792707
+    ]
+   },
+   "per_episode": [
+    {
+     "episode": 0,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 20.0,
+     "mean_decisions": 24.25,
+     "skill_runs": 0
+    },
+    {
+     "episode": 1,
+     "n_seeds": 4,
+     "successes": 2,
+     "success_rate": 0.5,
+     "wilson95": [
+      0.15003570882017148,
+      0.8499642911798285
+     ],
+     "mean_primitive_ops": 17.5,
+     "mean_decisions": 25.25,
+     "skill_runs": 0
+    },
+    {
+     "episode": 2,
+     "n_seeds": 4,
+     "successes": 2,
+     "success_rate": 0.5,
+     "wilson95": [
+      0.15003570882017148,
+      0.8499642911798285
+     ],
+     "mean_primitive_ops": 15.75,
+     "mean_decisions": 21.75,
+     "skill_runs": 0
+    },
+    {
+     "episode": 3,
+     "n_seeds": 4,
+     "successes": 2,
+     "success_rate": 0.5,
+     "wilson95": [
+      0.15003570882017148,
+      0.8499642911798285
+     ],
+     "mean_primitive_ops": 18.5,
+     "mean_decisions": 24.25,
+     "skill_runs": 0
+    },
+    {
+     "episode": 4,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 19.5,
+     "mean_decisions": 27.5,
+     "skill_runs": 0
+    },
+    {
+     "episode": 5,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 19.25,
+     "mean_decisions": 24.75,
+     "skill_runs": 0
+    },
+    {
+     "episode": 6,
+     "n_seeds": 4,
+     "successes": 0,
+     "success_rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.48990002040399916
+     ],
+     "mean_primitive_ops": 22.5,
+     "mean_decisions": 30.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 7,
+     "n_seeds": 4,
+     "successes": 0,
+     "success_rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.48990002040399916
+     ],
+     "mean_primitive_ops": 23.0,
+     "mean_decisions": 30.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 8,
+     "n_seeds": 4,
+     "successes": 0,
+     "success_rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.48990002040399916
+     ],
+     "mean_primitive_ops": 23.75,
+     "mean_decisions": 30.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 9,
+     "n_seeds": 4,
+     "successes": 0,
+     "success_rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.48990002040399916
+     ],
+     "mean_primitive_ops": 24.5,
+     "mean_decisions": 30.0,
+     "skill_runs": 0
+    },
+    {
+     "episode": 10,
+     "n_seeds": 4,
+     "successes": 1,
+     "success_rate": 0.25,
+     "wilson95": [
+      0.045586062644636216,
+      0.6993639475573634
+     ],
+     "mean_primitive_ops": 23.5,
+     "mean_decisions": 28.75,
+     "skill_runs": 0
+    },
+    {
+     "episode": 11,
+     "n_seeds": 4,
+     "successes": 2,
+     "success_rate": 0.5,
+     "wilson95": [
+      0.15003570882017148,
+      0.8499642911798285
+     ],
+     "mean_primitive_ops": 16.0,
+     "mean_decisions": 22.75,
+     "skill_runs": 0
+    }
+   ],
+   "first_half_success": {
+    "n": 4,
+    "mean": 0.375,
+    "lo": 0.20833333333333331,
+    "hi": 0.5833333333333333
+   },
+   "second_half_success": {
+    "n": 4,
+    "mean": 0.125,
+    "lo": 0.0,
+    "hi": 0.25
+   },
+   "change_in_success_second_minus_first": {
+    "n": 4,
+    "mean": -0.25,
+    "lo": -0.4583333333333333,
+    "hi": 0.041666666666666664
+   },
+   "first_half_primitive_ops": {
+    "n": 4,
+    "mean": 18.416666666666668,
+    "lo": 15.916666666666666,
+    "hi": 20.75
+   },
+   "second_half_primitive_ops": {
+    "n": 4,
+    "mean": 22.208333333333332,
+    "lo": 20.416666666666664,
+    "hi": 24.0
+   },
+   "change_in_primitive_ops_second_minus_first": {
+    "n": 4,
+    "mean": 3.7916666666666665,
+    "lo": 1.2499999999999982,
+    "hi": 7.208333333333334
+   },
+   "primitive_ops_per_success": {
+    "n": 12,
+    "mean": 12.75,
+    "lo": 9.583333333333334,
+    "hi": 16.333333333333332
+   },
+   "decisions_per_success": {
+    "n": 12,
+    "mean": 16.416666666666668,
+    "lo": 12.333333333333334,
+    "hi": 20.583333333333332
+   },
+   "skill_runs_total": 0,
+   "skill_runs_ok": 0,
+   "induce_attempts": 9,
+   "errors": 0
+  }
+ },
+ "comparisons": {
+  "learn_skills - frozen_skills": {
+   "second_half_success": {
+    "mean": 0.0,
+    "lo": -0.16666666666666669,
+    "hi": 0.20833333333333331,
+    "n_a": 4,
+    "n_b": 4
+   },
+   "second_half_primitive_ops": {
+    "mean": 0.75,
+    "lo": -2.666666666666668,
+    "hi": 5.208333333333332,
+    "n_a": 4,
+    "n_b": 4
+   }
+  },
+  "learn_primitive - frozen_primitive": {
+   "second_half_success": {
+    "mean": 0.041666666666666685,
+    "lo": -0.20833333333333337,
+    "hi": 0.29166666666666663,
+    "n_a": 4,
+    "n_b": 4
+   },
+   "second_half_primitive_ops": {
+    "mean": -0.2916666666666643,
+    "lo": -4.166666666666664,
+    "hi": 3.4166666666666643,
+    "n_a": 4,
+    "n_b": 4
+   }
+  },
+  "learn_skills - learn_primitive": {
+   "second_half_success": {
+    "mean": -0.125,
+    "lo": -0.3333333333333333,
+    "hi": 0.08333333333333334,
+    "n_a": 4,
+    "n_b": 4
+   },
+   "second_half_primitive_ops": {
+    "mean": 0.8333333333333321,
+    "lo": -2.208333333333332,
+    "hi": 4.291666666666668,
+    "n_a": 4,
+    "n_b": 4
+   }
+  },
+  "frozen_skills - frozen_primitive": {
+   "second_half_success": {
+    "mean": -0.08333333333333331,
+    "lo": -0.2916666666666667,
+    "hi": 0.125,
+    "n_a": 4,
+    "n_b": 4
+   },
+   "second_half_primitive_ops": {
+    "mean": -0.20833333333333215,
+    "lo": -5.0,
+    "hi": 4.0,
+    "n_a": 4,
+    "n_b": 4
+   }
+  }
+ },
+ "files": [
+  "frozen_primitive_s0.json",
+  "frozen_primitive_s1.json",
+  "frozen_primitive_s2.json",
+  "frozen_primitive_s3.json",
+  "frozen_skills_s0.json",
+  "frozen_skills_s1.json",
+  "frozen_skills_s2.json",
+  "frozen_skills_s3.json",
+  "learn_primitive_s0.json",
+  "learn_primitive_s1.json",
+  "learn_primitive_s2.json",
+  "learn_primitive_s3.json",
+  "learn_skills_s0.json",
+  "learn_skills_s1.json",
+  "learn_skills_s2.json",
+  "learn_skills_s3.json"
+ ]
+}
