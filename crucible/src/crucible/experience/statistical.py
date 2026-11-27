@@ -12,10 +12,11 @@ uses in observation-only mode). At `update` it folds the buffered changes into
   shrunk toward 0 by ``n / (n + shrink)`` for a tool tried n times.
 
 It acts by a softmax over the tools' values (``wait`` is an option with its own value) at a temperature of
-`temperature` or the median absolute deviation of those last 256 changes from the baseline, whichever is larger (so the noise of its money's own movements is not mistaken for a tool's effect, and a rare windfall does not
-flatten its preferences); a tool it never tried has the prior value 0. A copy with no values (the frozen initial copy) acts uniformly at random over the
-offered tools. Arguments come from the tool's JSON schema and what the learner was shown (`ArgumentMemory`, as
-in `ReferenceLearner`): enums and bounded numbers uniformly, ids and name tokens it saw under the argument's name,
+`temperature` or the median absolute deviation of those last 256 changes from the baseline, whichever is larger
+(so the noise of its money's own movements is not mistaken for a tool's effect, and a rare windfall does not flatten
+its preferences); a tool it never tried has the prior value 0. A copy with no values (the frozen initial copy) acts
+uniformly at random over the offered tools. Arguments come from the tool's JSON schema and what the learner was
+shown (`ArgumentMemory`, as in `ReferenceLearner`): enums and bounded numbers uniformly, ids and name tokens it saw under the argument's name,
 its own accounts for account arguments.
 
 It is deliberately simple and transparent: values do not depend on the state, credit reaches only the step of the
@@ -56,9 +57,9 @@ class ToolValueLearner(ArgumentMemory):
         """`temperature` is in signal units (default: dollars, `signal_scale` 0.01 per cent): a tool that loses
         50 cents a call more than the baseline is e times less likely than an untried one (measured in a
         civilisation: a person's fees are worth $0.7-$6 a call on average - a $5 listing, a $20 domain, a $30
-        subscription that succeeds one call in ten - and at $10 the trained values hardly changed what it did). `recency` is the smallest
-        weight of a new sample in a running mean (1/n before that). `credit_horizon` > 1 also credits a change to the
-        actions of the previous steps, the j-th back with weight ``credit_decay ** j`` (for consequences that
+        subscription that succeeds one call in ten - and at $10 the trained values hardly changed what it did).
+        `recency` is the smallest weight of a new sample in a running mean (1/n before that). `credit_horizon` > 1
+        also credits a change to the actions of the previous steps, the j-th back with weight ``credit_decay ** j`` (for consequences that
         arrive later than the next observation); 1 credits only the step's own action."""
         self.seed = int(seed)
         self.credit_horizon, self.credit_decay = max(1, int(credit_horizon)), float(credit_decay)
@@ -152,7 +153,8 @@ class ToolValueLearner(ArgumentMemory):
         if not props and isinstance(addl, dict) and addl.get("type") in ("number", "integer"):
             for key in sorted(self.memory):
                 sp = self.memory[key]
-                out[key] = self._uniform(sp["min"], sp["max"], sp.get("integer", False) or addl.get("type") == "integer")
+                integer = sp.get("integer", False) or addl.get("type") == "integer"
+                out[key] = self._uniform(sp["min"], sp["max"], integer)
         return out
 
     def _uniform(self, lo: float, hi: float, integer: bool):
