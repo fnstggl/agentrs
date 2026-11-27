@@ -64,10 +64,12 @@ PROGRAMS = {
     "sorter.py": "def solve(args, caller):\n    recs = sorted(args['records'], key=lambda r: r['key'], reverse=bool(args.get('descending')))\n    return {'ids': [r['id'] for r in recs]}\n",
     "boom.py": "def solve(args, caller):\n    x = args['n'] * 2\n    raise ValueError('bad input %d' % x)\n",
     "lazy.py": "def solve(args, caller):\n    import heapq\n    h = list(args['xs'])\n    heapq.heapify(h)\n    return [heapq.heappop(h) for _ in range(len(h))]\n",
+    "imp.py": "def solve(args, caller):\n    import no_such_module_q\n    return 1\n",
 }
 recs = [{"id": "r%d" % i, "key": (i * 7919) % 1000} for i in range(40)]
 jobs = [("sorter:solve", {"records": recs[:n]}) for n in (0, 1, 7, 40)] + [("boom:solve", {"n": 3}),
-        ("lazy:solve", {"xs": [5, 3, 9, 1, 7]}), ("lazy:solve", {"xs": []})]
+        ("lazy:solve", {"xs": [5, 3, 9, 1, 7]}), ("lazy:solve", {"xs": []}), ("imp:solve", {}),
+        ("missing:solve", {}), ("boom:nope", {})]
 out = []
 for fresh in (False, True):
     w = Worker(PROGRAMS, SandboxConfig(count_lines=True), "probe").start()
@@ -101,7 +103,25 @@ def test_a_4_0_baseline_process_counts_exactly_the_lines_crucible_4_0_counts():
     v4 = _lines(B.v4_tree(B.M.crucible_root()), historical=False)
     v5 = _lines(B.M.crucible_root(), historical=True)
     assert all(ok is not None and n is not None for _, ok, n in v4)
-    assert [x[1] for x in v4] == [True] * 4 + [False, True, True] + [True] * 4 + [False, True, True]
+    assert [x[1] for x in v4] == ([True] * 4 + [False, True, True, False, False, False]) * 2
+    assert v5 == v4, (v5, v4)
+
+
+def test_the_4_0_line_count_does_not_depend_on_where_the_checkout_is(tmp_path):
+    """Wave 3b repair pass: a failing request formats a traceback in the counted region, and linecache's executed
+    lines depend on whether the sandbox user can stat the boot file. Every official clone is made inside a 0700
+    directory (tempfile.mkdtemp) where it cannot: each failing request (an exception, a failed import in the program,
+    a missing module or function) counted 27 lines more than c07098b, so 4.0 worlds' bills - and Gate A.1/A.5 - depended
+    on the checkout's location. The 5.0 tree copied into a 0700 directory counts what c07098b counts."""
+    import shutil
+    hidden = tmp_path / "hidden"
+    hidden.mkdir(mode=0o700)
+    os.chmod(hidden, 0o700)
+    shutil.copytree(os.path.join(B.M.crucible_root(), "src"), hidden / "src",
+                    ignore=shutil.ignore_patterns("__pycache__"))
+    v4 = _lines(B.v4_tree(B.M.crucible_root()), historical=False)
+    v5 = _lines(str(hidden), historical=True)
+    assert [x[1] for x in v4] == ([True] * 4 + [False, True, True, False, False, False]) * 2
     assert v5 == v4, (v5, v4)
 
 

@@ -257,6 +257,10 @@ def _load(msg: dict) -> dict:
         _resolve(msg["target"])
         return {"ok": True, "error": None}
     except BaseException as e:  # noqa: BLE001 - the job that follows reports the failure again
+        if CFG.get("v4_count_lines"):   # 4.0 historical baseline (D-82): 4.0 had no load request; a traceback here
+            # would leave linecache entries that change what the next counted traceback costs (a fresh worker's
+            # failed import counted 25 lines fewer than c07098b's)
+            return {"ok": False, "error": {"type": type(e).__name__, "message": str(e)[:2000]}}
         return {"ok": False, "error": _capture_err(e)}
     finally:
         sys.stdout, sys.stderr = old_out, old_err
@@ -417,6 +421,29 @@ def _run_tests(folder: str) -> dict:
                                     "error": f"{type(e).__name__}: {e}"[:500]})
     return {"passed": sum(r["ok"] for r in results), "failed": sum(not r["ok"] for r in results), "results": results}
 
+
+def _v4_fixed_filenames(path: str) -> None:
+    """4.0 historical baseline only (D-82, wave 3b repair pass): give this file's functions the code filename `path`
+    (the working directory: it exists for the sandbox user and cannot be opened as a file). A traceback formatted in
+    the counted region runs linecache on every frame's file, and linecache's executed lines depend on whether the
+    sandbox user can stat that file: 4.0's boot file always could, a 5.0 tree inside a 0700 directory (every official
+    clone: tempfile.mkdtemp) cannot, and every failing request then counted 27 lines more than c07098b (stat fails ->
+    lazy loader lookup), which changed 4.0 worlds' bills with the checkout's location. With a stat-able, unreadable
+    filename linecache runs exactly 4.0's lines (stat succeeds, open fails) wherever the tree is."""
+    def fix(code):
+        return code.replace(co_filename=path, co_consts=tuple(fix(c) if isinstance(c, type(fix.__code__)) else c
+                                                              for c in code.co_consts))
+    me = fix.__code__.co_filename
+    for obj in list(globals().values()):
+        for fn in ([obj] if isinstance(obj, type(fix)) else
+                   [v for v in vars(obj).values() if isinstance(v, type(fix))] if isinstance(obj, type) else []):
+            if fn.__code__.co_filename == me:
+                fn.__code__ = fix(fn.__code__)
+
+
+if CFG.get("v4_count_lines"):
+    _v4_fixed_filenames(WORKDIR)
+    _V4_SHIMS = (_v4_quiet_import.__code__, _v4_quiet_import_module.__code__)
 
 import gc  # noqa: E402
 
