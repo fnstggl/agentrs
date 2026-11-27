@@ -14,7 +14,7 @@
     "src/crucible/social/studio.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_C.py::test_C_1_media_artifacts_published",
     "tests/test_v5_social_popmedia.py"
@@ -31,7 +31,7 @@
     "src/crucible/social/worlds.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_C.py::test_C_2_discovery_channels"
    ]
@@ -46,7 +46,7 @@
     "src/crucible/social/worlds.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_C.py::test_C_3_consumption_produces_analytics"
    ]
@@ -57,7 +57,7 @@
     "src/crucible/social/popsocial.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_C.py::test_C_4_communities_form_and_persist"
    ]
@@ -72,7 +72,7 @@
     "src/crucible/social/recsys/features.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_C.py::test_C_5_social_mechanisms_affect_future_interactions",
     "tests/test_v5_social_catalogue.py::test_follows_have_one_owner_the_social_graph"
@@ -83,7 +83,7 @@
     "src/crucible/social/web.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_C.py::test_C_6_browser_workflow_against_real_state"
    ]
@@ -94,7 +94,7 @@
     "src/crucible/social/integrity.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_C.py::test_C_n1_no_direct_counter_mutation"
    ]
@@ -106,7 +106,7 @@
     "src/crucible/social/recsys/service.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_D.py::test_D1_distinct_recommenders_end_to_end"
    ]
@@ -117,7 +117,7 @@
     "src/crucible/social/recsys/service.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_D.py::test_D2_controlled_change_changes_exposure_and_consumption"
    ]
@@ -128,7 +128,7 @@
     "src/crucible/social/worlds.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_D.py::test_D3_distribution_changes_during_persistent_run"
    ]
@@ -139,7 +139,7 @@
     "src/crucible/social/recsys/service.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_D.py::test_D4_hidden_parameters_are_not_reachable"
    ]
@@ -150,7 +150,7 @@
     "src/crucible/social/consumption.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_D.py::test_D5_exposure_and_attention_accounting_consistent"
    ]
@@ -163,7 +163,7 @@
     "src/crucible/social/popsocial.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_I.py::test_I1_ten_million_identities"
    ]
@@ -173,7 +173,7 @@
     "src/crucible/social/audience.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_I.py::test_I2_verified_exposure_accounting"
    ]
@@ -184,7 +184,7 @@
     "src/crucible/social/idset.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_I.py::test_I3_verified_distinct_viewer_accounting"
    ]
@@ -194,7 +194,7 @@
     "src/crucible/social/consumption.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_I.py::test_I4_finite_attention"
    ]
@@ -205,7 +205,7 @@
     "src/crucible/social/consumption.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_I.py::test_I5_organic_propagation"
    ]
@@ -214,8 +214,8 @@
    "implementation_files": [
     "src/crucible/social/cascade.py"
    ],
-   "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "notes": "scaling check on CPU (1M identities, positive control, 11 simulated hours): the control item reached 213,160 unique viewers and 1.81M distinct qualifying views, 0 recount mismatches at 4 h; the 10M run is queued with 30 GB RAM (an earlier 10M run was killed at its 17 GB limit)",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_I.py::test_I6_positive_control_cascade"
    ]
@@ -226,7 +226,7 @@
     "src/crucible/social/cascade.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_I.py::test_I7_ten_million_qualifying_distinct_consumption_events"
    ]
@@ -237,7 +237,7 @@
     "src/crucible/social/consumption.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_I.py::test_In1_organic_large_adoption"
    ]
@@ -249,7 +249,7 @@
     "src/crucible/social/sites.py"
    ],
    "notes": "",
-   "status_claim": "criteria met in an unofficial run on this branch: platform_kinds 16 met (>= 15)",
+   "status_claim": "criteria met in an unofficial run on this branch (2026-11-27 02:45 UTC, CPU): platform_kinds 16 met (>= 15)",
    "tests": [
     "tests/v5/test_gate_SP_4.py"
    ]
@@ -261,7 +261,7 @@
     "src/crucible/social/integration.py"
    ],
    "notes": "",
-   "status_claim": "criteria met in an unofficial run on this branch: tool_reads_recorded_as_consumption True met (== True); analytics_mismatches_for_tool_reads 0 met (== 0)",
+   "status_claim": "criteria met in an unofficial run on this branch (2026-11-26 19:04 UTC, an earlier head): tool_reads_recorded_as_consumption True; analytics_mismatches_for_tool_reads 0; re-measurement queued",
    "tests": [
     "tests/v5/test_gate_SP_4_1b.py"
    ]
@@ -273,7 +273,7 @@
     "src/crucible/social/studio.py"
    ],
    "notes": "",
-   "status_claim": "criteria met in an unofficial run on this branch: artifact_kinds 10 met (>= 10); content_tools 24 met (>= 8)",
+   "status_claim": "criteria met in an unofficial run on this branch (2026-11-27 02:24 UTC, CPU): artifact_kinds 10 met (>= 10); content_tools 24 met (>= 8)",
    "tests": [
     "tests/v5/test_gate_SP_4_2.py"
    ]
@@ -284,7 +284,7 @@
     "src/crucible/social/recsys/service.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_SP_4_5.py"
    ]
@@ -297,7 +297,7 @@
     "src/crucible/social/recsys/service.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_SP_4_5b.py"
    ]
@@ -307,7 +307,7 @@
     "src/crucible/social/audience.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_SP_4_6.py"
    ]
@@ -318,7 +318,7 @@
     "src/crucible/social/consumption.py"
    ],
    "notes": "",
-   "status_claim": "criteria met in an unofficial run on this branch: virality_multipliers_found 0 met (== 0); views_without_decision_provenance 0 met (== 0)",
+   "status_claim": "criteria met in an unofficial run on this branch (2026-11-26 19:06 UTC, an earlier head): virality_multipliers_found 0; views_without_decision_provenance 0; re-measurement queued",
    "tests": [
     "tests/v5/test_gate_SP_4_6b.py"
    ]
@@ -328,7 +328,7 @@
     "src/crucible/social/communities.py"
    ],
    "notes": "",
-   "status_claim": "criteria met in an unofficial run on this branch: community_features 13 met (>= 10)",
+   "status_claim": "criteria met in an unofficial run on this branch (2026-11-27 02:45 UTC, CPU): community_features 13 met (>= 10)",
    "tests": [
     "tests/v5/test_gate_SP_4_7.py"
    ]
@@ -339,7 +339,7 @@
     "src/crucible/social/popsocial.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_SP_4_7b.py"
    ]
@@ -349,8 +349,8 @@
     "src/crucible/social/launch.py",
     "src/crucible/social/popsocial.py"
    ],
-   "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "notes": "after the fix a 2-day run of the SP-4.8 world had 0 failed ticks, 892 exposed / 293 viewers of the launch post and 63 shop decision batches",
+   "status_claim": "criteria NOT met before fix 9632c26 (2026-11-27 03:00 UTC: social_to_purchase_chains_verified 0, the population idle because every tick with a product visit failed on column ownership); fixed, re-measurement queued",
    "tests": [
     "tests/v5/test_gate_SP_4_8.py"
    ]
@@ -362,7 +362,7 @@
     "src/crucible/social/popsocial.py"
    ],
    "notes": "",
-   "status_claim": "implemented; not measured on this branch",
+   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
     "tests/v5/test_gate_SP_4_8b.py"
    ]
@@ -429,12 +429,16 @@
  },
  "limitations": [
   "Population media are rendered from the population's own (MIND) text: images are poster cards, audio is flite speech after a synthesized jingle, video is narrated slides with subtitles (D-33); no photographs, music performances or filmed video (no such corpus exists under /workspace/data/crucible).",
-  "Relationship and community kinds keep copies outside this package: pop.contacts / pop.communities (B), forum.forum_follows / forum_boards (4.0 forum); in crowd-stand-in worlds aud still keeps follower sets. SP-2.3 shared_primitive_kinds is not raised to 19 by C alone.",
   "content_open@1 inputs own_creator_views, own_item_exposures and own_item_consumed are 0/1 flags from exact audience sets (counts are not kept); own_topic is the in-world analogue of KuaiRand's user_tag_lift > 0 (D-34). The random-exposure experiment and the fitted open decision reach civilisations only once civ uses social.worlds.feed_config.",
   "Engagement integrity: colluders who do not follow each other and each have a footprint are indistinguishable from independent fans by state; a genuine 3+ friend group with no outside attention is excluded (D-35).",
   "Social-to-economy chains depend on economy.work's own shop rules; the social side schedules a shop session after a relevant view for every viewer with that need (a hand-set deterministic lead rule, not a fitted decision).",
   "SP-4.5b's primary outcome (competing feed slots in the first session after a randomised inbox placement) follows from finite slots almost by construction; views and seconds of competing content are reported as secondary outcomes.",
-  "Behaviour models of the population on the social platforms (creation, messaging, subscriptions, communities, product discovery) are hand-set and unvalidated (FIDELITY_REGISTER rows); only content_open@1 on shorts is fitted."
+  "Behaviour models of the population on the social platforms (creation, messaging, subscriptions, communities, product discovery) are hand-set and unvalidated (FIDELITY_REGISTER rows); only content_open@1 on shorts is fitted.",
+  "Relationship and community kinds keep copies outside this package: pop.contacts / pop.communities (B), forum.forum_follows / forum_boards (4.0 forum); in crowd-stand-in worlds aud still keeps follower sets. SP-2.3 shared_primitive_kinds is not raised to 19 by C alone (forum, population and F migrations are other owners' files; integration notes).",
+  "Creator memberships (social.creators) still bill with their own bank.move of ledger kind subscription, not through commerce subs (F+G integration note: MRR/churn metrics of subs do not see them). Not changed this wave: products/subs offer no membership delivery type, and the change spans commerce.",
+  "Population governance of communities (wave 3b continuation, social.popsocial._govern): stewards appoint moderators, propose pruning and member votes, members vote; hand-set, no factions or strategic voting; tested by a unit test, not yet measured at 40-day scale (SP-4.7b reports it).",
+  "The social browser pages are reachable only through social.web.make_social_web_app; the deployable entry point (crucible.web.app.main -> make_web_app) does not register them (audit C skeptic S6; web/ is not this package: integration note).",
+  "Measurement on this branch was limited by the shared slot queue (FIFO, 4 GPU jobs; C's gate jobs waited behind ~15 jobs): requirements whose status says 'queued' were implemented and their gate test ran up to evidence.record in an earlier snapshot run that could not record (no git HEAD in the snapshot), so their criteria are not yet verified here."
  ],
  "integration_notes": [
   "CIV (workstream J, crucible/civ/generator.py social_config): build the feed config with crucible.social.worlds.feed_config(plats) instead of copying SW.MIXTURES - one line: \"feed\": SW.feed_config(plats). It adds the short-video platform's fitted open decision (content_open@1 through calibration.runtime) with its labelled random-exposure experiment (needed by E's SP-5.5b, which runs on civ.generate) and the posts platform's self-adaptation. Checked here in strict, typed civilisations through overrides module_config (see test_results_unofficial / civ_check).",
@@ -447,7 +451,11 @@
   "B (population): pop.cols:pop.contacts (relationship) and pop.cols:pop.communities (community) remain the population-side copies. social.communities memberships (community.cols:cmember) are the community state pop_social uses; contacts could become follow edges with a trust attribute (social.edges supports extra columns).",
   "M (performance, I.7): Gate I runs on cascade.pop_internet_spec (10M pop identities, social + posts, aud in graph-follow mode); I.1/I.7 report distinct_identities_with_qualifying_consumption besides the criteria. The aud follow sets are no longer maintained on this path (follows are graph edges), which removes one idset update per follow.",
   "ECON: members who rely on a service that works for them write recommendation posts naming its address; viewers with that task in their work get a shop session 30 min later (social.popinbox._service_leads, deterministic for every relevant viewer). A 'social' candidate channel in economy.work._candidates (items the individual viewed that name a host) would make discovery through content explicit instead of going through search.",
-  "QA: every C gate test now asserts its manifest criteria right after evidence.record (tests/v5/social_helpers.assert_met, the checker's criterion_met); implementation_files and tests per requirement are listed under requirements."
+  "QA: every C gate test now asserts its manifest criteria right after evidence.record (tests/v5/social_helpers.assert_met, the checker's criterion_met); implementation_files and tests per requirement are listed under requirements.",
+  "WEB (crucible/web/app.py owner): register the social pages in the deployable app - e.g. a page-provider list in web.app that WebApp.__init__ calls after _register_pages, with crucible.social.web.register_pages added to it at import of crucible.social; then `python -m crucible.web.app` serves the timeline, communities, studio and site pages that make_social_web_app serves today (audit C skeptic S6).",
+  "F+G (commerce): creator memberships through subs needs a membership delivery type in products (or a subs plan without a product); when it exists, social.creators.join can subscribe through subs.subscribe and keep only the tier catalogue and access rule.",
+  "B (population) / A (kernel): column ownership refuses writes of pop.n_purchases / pop.spent_cents from other packages; social product discovery now keeps its own soc_purchases / soc_spent_cents columns. If the population's behavioural history should count purchases made anywhere, population could expose a recorded interface (or columns.grant the social package) instead of every package keeping its own counter.",
+  "ECON / J: members now also post services that work for them on the product-discovery platform as hunters (launch.post with product or host, once per product), so in civilisations launch carries population items and product-linked launches feed social.popinbox._service_leads."
  ],
  "test_results_unofficial": {
   "tests/test_kernel.py tests/test_invariants.py (CPU, 1 thread)": "51 passed, 0 failed",
@@ -462,6 +470,8 @@
  "history": {
   "wave2 (c5c/w2-corepop, CORE-POP)": "the C2 engine on the one population, decision provenance, communities used by the population, product discovery on launch, gates B/C/D/I on pop (INT.json)",
   "wave3b (c5c/w3b-soc, first agent, stopped by a usage limit)": "population creation on every distributed platform (image cards, narrated audio, narrated slide videos, Q&A, status posts, newsletter issues, service recommendations), messaging/newsletters/memberships used by the population, content_open@1 + random exposure on shorts, posts self-adaptation, feed probes, studio jail and image decodes in the jail, coordinated-cluster integrity rule, content_artifact migration, gate tests SP-4.1b/4.5b/4.6b/4.7b/4.8b, D-33..D-35; nothing measured except SP-4.1b and SP-4.6b (unofficial)",
-  "wave3b (c5c/w3b-soc, continuation)": "merged feat/crucible-5-complete; relationship migration (audience side); every gate test asserts its manifest criteria; random-exposure integration test; E.3 text feed probe left to D; measurement of every gate on snapshots of the committed head; defects DEF-C-1..6 closed where their regression tests passed"
+  "wave3b (c5c/w3b-soc, continuation)": "merged feat/crucible-5-complete; relationship migration (audience side); every gate test asserts its manifest criteria; random-exposure integration test; E.3 text feed probe left to D; measurement of every gate on snapshots of the committed head; defects DEF-C-1..6 closed where their regression tests passed",
+  "wave3b (c5c/w3b-soc, second agent, stopped by a usage limit)": "merged feat/crucible-5-complete; relationship migration (audience side); every gate test asserts its manifest criteria; random-exposure integration test; E.3 text feed probe left to D; audience.recount reads the durable history (skeptic S2); reply notifications in communities; its snapshot gate run could not record evidence (no git HEAD in the snapshot) and the C fixture hit the 600 s default timeout",
+  "wave3b (c5c/w3b-soc, third agent)": "merged feat/crucible-5-complete again; snapshot runner makes the snapshot a git repo; gate C module timeout; studio sandbox metering per lineage (A note); population governance of communities; product discovery fixed (column ownership made every population tick with a product visit fail: SP-4.8 had 0 chains); hunter launches of services that work; every population gate refuses failed ticks; gates re-queued"
  }
 }
