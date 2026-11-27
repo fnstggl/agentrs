@@ -14,6 +14,7 @@ For each test function it reports:
   then fails is reported as `constant_record_then_fail`, which is not a placeholder);
 * `placeholder_text` - TODO / FIXME / XXX / placeholder / NotImplementedError in the function's source;
 * `dynamic_code`  - `exec` / `eval` / `compile` anywhere in the module (code no static rule can read).
+* `acceptance_tamper` - an underscore name of a crucible.acceptance module (the observer's and files-read records).
 * `interpreter_probe` - `sys.monitoring`, `sys.settrace` / `setprofile` / `gettrace` / `getprofile` or
   `threading.settrace` / `setprofile` in the module: a test that reads or installs interpreter hooks can detect the
   review's behavioural ablation (a sys.monitoring hook) and record differently under it (D-83 addendum).
@@ -47,7 +48,7 @@ import sys
 import sysconfig
 
 BLOCKING = ("no_assert", "trivial_assert", "early_return", "swallow", "skip", "mock", "patch", "constant_record",
-            "placeholder_text", "dynamic_code", "interpreter_probe")
+            "placeholder_text", "dynamic_code", "interpreter_probe", "acceptance_tamper")
 BROAD_EXCEPTIONS = {"Exception", "BaseException"}
 # hooks through which a conftest or plugin decides what runs, what is collected or what is reported
 OUTCOME_HOOKS = {"pytest_pyfunc_call", "pytest_runtest_call", "pytest_runtest_protocol", "pytest_runtest_setup",
@@ -423,14 +424,54 @@ def interpreter_probe_findings(tree: ast.Module) -> list[str]:
     return sorted(set(why))
 
 
+ACCEPTANCE_PACKAGE = "crucible.acceptance"
+
+
+def acceptance_tamper_findings(tree: ast.Module) -> list[str]:
+    """Private state of the acceptance machinery touched by a test module or harness file (wave 3b repair pass,
+    second round): the execution observer's and the files-read hook's records live in module globals of
+    crucible.acceptance.v5.evidence (`_EXEC`, `_OPENED`, ...), so a test that writes them forges what its record
+    attests. Any underscore name of a crucible.acceptance module - as an attribute, imported by name, through
+    getattr/vars/__dict__ - is a finding; the public functions (record, patched_functions, ...) are not."""
+    why = []
+    aliases: set[str] = set()
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Import):
+            for a in n.names:
+                if a.name.startswith(ACCEPTANCE_PACKAGE) and a.asname:
+                    aliases.add(a.asname)
+        elif isinstance(n, ast.ImportFrom) and (n.module or "").startswith(ACCEPTANCE_PACKAGE):
+            for a in n.names:
+                if a.name.startswith("_") and not a.name.startswith("__"):
+                    why.append(f"from {n.module} import {a.name}")
+                aliases.add(a.asname or a.name)
+
+    def private(name: str) -> bool:
+        return name.startswith("_") and not (name.startswith("__") and name.endswith("__")) or name == "__dict__"
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Attribute) and private(n.attr):
+            d = _dotted(n)
+            root = d.split(".")[0]
+            if d.startswith(ACCEPTANCE_PACKAGE + ".") or root in aliases:
+                why.append(d)
+        elif isinstance(n, ast.Call) and _dotted(n.func) in ("getattr", "setattr", "delattr", "vars") and n.args and \
+                (_root_name(n.args[0]) in aliases or _dotted(n.args[0]).startswith(ACCEPTANCE_PACKAGE + ".")):
+            k = _const_str(n.args[1]) if len(n.args) > 1 else None
+            if _dotted(n.func) != "getattr" or k is None or private(k):
+                why.append(f"{_dotted(n.func)}({_dotted(n.args[0])}, {k!r})")
+    return sorted(set(why))
+
+
 def dynamic_code_findings(tree: ast.Module) -> list[str]:
     """`exec` / `eval` / `compile` anywhere in a test module or harness file: code that no static check reads (a
-    patch compiled from a string is invisible to the patch rules); and interpreter-hook probes (`interpreter_probe`),
-    through which a test could tell the review's behavioural ablation from a normal run."""
+    patch compiled from a string is invisible to the patch rules); interpreter-hook probes (`interpreter_probe`),
+    through which a test could tell the review's behavioural ablation from a normal run; and private state of the
+    acceptance machinery (`acceptance_tamper`)."""
     out = ["dynamic_code" for n in ast.walk(tree) if isinstance(n, ast.Call) and
            isinstance(n.func, (ast.Name, ast.Attribute)) and _root_name(n.func) in ("exec", "eval", "compile", "builtins")
            and _dotted(n.func) in DYNAMIC_CODE][:1]
-    return out + (["interpreter_probe"] if interpreter_probe_findings(tree) else [])
+    return out + (["interpreter_probe"] if interpreter_probe_findings(tree) else []) + \
+        (["acceptance_tamper"] if acceptance_tamper_findings(tree) else [])
 
 
 def _is_fixture(fn) -> bool:

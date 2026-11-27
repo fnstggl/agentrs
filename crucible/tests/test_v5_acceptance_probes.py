@@ -1457,3 +1457,19 @@ def test_V11_a_pinned_hook_that_reaches_beyond_its_guarded_module_is_rejected(sr
     assert testscan.startup_hook_findings(src, local), src
     real = open(os.path.join(M.crucible_root(), HOOK)).read()
     assert testscan.startup_hook_findings(real, local) == []
+
+
+FORGED_OBSERVER = SACRIFICE.replace(
+    '    if "ablation" in text:\n        widgets.count()\n',
+    '    if "ablation" in text:\n        widgets.count()\n'
+    '    import os\n    evidence._EXEC.setdefault(os.path.realpath(widgets.__file__), set()).add("count")\n')
+
+
+def test_V12_a_test_that_writes_the_observers_record_is_rejected(tmp_path, monkeypatch):
+    """V9 again, with the observer's record forged in-process (evidence._EXEC): the reproduction then 'executed' the
+    implementation. Private state of the acceptance machinery is off limits to tests (acceptance_tamper, blocking)."""
+    assert "acceptance_tamper" in testscan.scan_source(FORGED_OBSERVER)[0]["findings"]
+    r = Repo(str(tmp_path), monkeypatch, widgets=DEFECT, test_src=FORGED_OBSERVER)
+    _, row = attempt(r)
+    assert row["status"] != "VERIFIED", row["problems"]
+    assert has(row, "acceptance_tamper"), row["problems"]
