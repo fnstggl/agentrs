@@ -136,7 +136,7 @@ def tensor_hash(tensors: Dict[str, Tensor]) -> str:
         h.update(k.encode())
         h.update(str(t.dtype).encode())
         h.update(str(tuple(t.shape)).encode())
-        h.update(t.view(torch.uint8).numpy().tobytes() if t.numel() else b"")
+        h.update(t.reshape(-1).view(torch.uint8).numpy().tobytes() if t.numel() else b"")
     return h.hexdigest()
 
 
@@ -471,12 +471,11 @@ def _append_log(root: str, event: Dict[str, Any]) -> None:
 
 
 # ------------------------------------------------------------------------------------------------ save / load
-def save_checkpoint(root: str, state: CheckpointState, *, parent: str = "", notes: str = "",
-                    clock: Optional[Clock] = None, rollback_of: str = "") -> CheckpointInfo:
-    """Write ``state`` as a new checkpoint under ``root`` atomically and return its info."""
+def _write_checkpoint(root: str, state: CheckpointState, *, seq: int, name: Optional[str], parent: str, notes: str,
+                      clock: Optional[Clock], rollback_of: str) -> CheckpointInfo:
+    """Write one checkpoint directory under ``root`` (temp directory -> fsync -> rename). ``name`` fixes the
+    directory name; otherwise it is ``ckpt_<seq>_<content digest>``."""
     os.makedirs(root, exist_ok=True)
-    seq = max([i.seq for i in list_checkpoints(root)] + [_seq_of(n) for n in os.listdir(root) if n.startswith("ckpt_")]
-              + [0]) + 1
     tmp = os.path.join(root, f".tmp-{os.getpid()}-{uuid.uuid4().hex[:8]}")
     os.makedirs(os.path.join(tmp, "weights"))
     os.makedirs(os.path.join(tmp, "optim"))
@@ -491,8 +490,8 @@ def save_checkpoint(root: str, state: CheckpointState, *, parent: str = "", note
         group_hashes[g] = tensor_hash(cpu)
         n_params[g] = int(sum(v.numel() for v in cpu.values()))
     _fault("weights")
-    for name, st in state.optimizers.items():
-        _save_pt(st, os.path.join(tmp, "optim", f"{name}.pt"))
+    for oname, st in state.optimizers.items():
+        _save_pt(st, os.path.join(tmp, "optim", f"{oname}.pt"))
     _save_pt({"fast_state": state.fast_state}, os.path.join(tmp, "fast_state.pt"))
     _save_pt({"lifetime_context": state.lifetime_context}, os.path.join(tmp, "lifetime.pt"))
     _save_pt(state.rng, os.path.join(tmp, "rng.pt"))
@@ -508,7 +507,7 @@ def save_checkpoint(root: str, state: CheckpointState, *, parent: str = "", note
             p = os.path.join(d, f)
             files[os.path.relpath(p, tmp)] = {"sha256": sha256_file(p), "bytes": os.path.getsize(p)}
     digest = hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()[:8]
-    ckpt_id = f"ckpt_{seq:06d}_{digest}"
+    ckpt_id = name or f"ckpt_{seq:06d}_{digest}"
     _write_json({"format": FORMAT_VERSION, "checkpoint_id": ckpt_id, "seq": seq,
                  "created_at": (clock or WallClock()).now(), "parent": parent, "notes": notes,
                  "rollback_of": rollback_of, "files": files, "group_hashes": group_hashes, "n_params": n_params,
@@ -524,6 +523,30 @@ def save_checkpoint(root: str, state: CheckpointState, *, parent: str = "", note
     atomic_write_bytes(os.path.join(root, "LATEST"), ckpt_id.encode())
     _fault("after_latest")
     return _info(final, _read_manifest(final))
+
+
+def _next_seq(root: str) -> int:
+    names = os.listdir(root) if os.path.isdir(root) else []
+    return max([_seq_of(n) for n in names if n.startswith("ckpt_")] + [0]) + 1
+
+
+def save_checkpoint(root: str, state: CheckpointState, *, parent: str = "", notes: str = "",
+                    clock: Optional[Clock] = None, rollback_of: str = "") -> CheckpointInfo:
+    """Write ``state`` as a new checkpoint ``<root>/ckpt_<seq>_<digest>`` atomically and return its info."""
+    return _write_checkpoint(root, state, seq=_next_seq(root), name=None, parent=parent, notes=notes, clock=clock,
+                             rollback_of=rollback_of)
+
+
+def save_checkpoint_at(path: str, state: CheckpointState, *, parent: str = "", notes: str = "",
+                       clock: Optional[Clock] = None) -> CheckpointInfo:
+    """Write ``state`` atomically as the checkpoint directory ``path`` (the caller chooses the name, e.g. the
+    runtime's ``checkpoints/ckpt_00000007``). An existing complete checkpoint is never overwritten."""
+    path = os.path.abspath(path.rstrip("/"))
+    if os.path.exists(path):
+        raise CheckpointError(f"{path} already exists; checkpoints are immutable")
+    root, name = os.path.dirname(path), os.path.basename(path)
+    seq = _seq_of(name) if name.startswith("ckpt_") and _seq_of(name) > 0 else _next_seq(root)
+    return _write_checkpoint(root, state, seq=seq, name=name, parent=parent, notes=notes, clock=clock, rollback_of="")
 
 
 def _resolve(path_or_root: str, checkpoint_id: Optional[str], verify: bool) -> str:
@@ -660,6 +683,11 @@ def load_weights_only(path: str, *, map_location: Any = "cpu") -> Tuple[Dict[str
         g, n = k.split(GROUP_SEP, 1)
         out.setdefault(g, {})[n] = t
     return out, cfg
+
+
+def export_weights(checkpoint_path: str, out_dir: str, *, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Weights-only export of a checkpoint on disk (a checkpoint directory, or a root: its newest intact one)."""
+    return export_weights_only(load_checkpoint(checkpoint_path), out_dir, config=config)
 
 
 def export_keys(path: str) -> List[str]:

@@ -30,6 +30,7 @@ class Net(nn.Module):
         self.policy = nn.Linear(d, 4)
         self.reward = nn.Linear(d, 1)
         self.register_buffer("norm_mean", torch.zeros(d))
+        self.register_buffer("scale", torch.tensor(2.5))            # zero-dimensional persistent buffer
         self.frozen = nn.Linear(4, 4)
         for p in self.frozen.parameters():
             p.requires_grad_(False)
@@ -254,7 +255,7 @@ def test_tolerant_loading_reports_added_removed_and_reshaped_modules(tmp_path):
     with pytest.warns(UserWarning, match="tolerant checkpoint load"):
         rep = C.load_weights(bigger, loaded.weights)
     assert rep.missing == ["new_head.bias", "new_head.weight"] and rep.unexpected == [] and rep.mismatched == []
-    assert len(rep.loaded) == 9                               # 4 core + 2 policy + 2 reward + 1 buffer
+    assert len(rep.loaded) == 10                              # 4 core + 2 policy + 2 reward + 2 buffers
     for n, p in net.named_parameters():
         if p.requires_grad:
             assert torch.equal(dict(bigger.named_parameters())[n], p), n
@@ -310,7 +311,7 @@ def test_weights_only_export_contains_only_parameters_and_fixed_configuration(tm
     cfg = C.export_weights_only(C.load_checkpoint(str(tmp_path / "ck")), out, config={"scale": "debug"})
     assert sorted(os.listdir(out)) == ["config.json", "weights.safetensors"]
     expected = {f"{g}::{n}" for g, d in state.weights.items() for n in d}
-    assert set(C.export_keys(out)) == expected and len(expected) == 9
+    assert set(C.export_keys(out)) == expected and len(expected) == 10
     assert set(cfg) == {"format", "arch_signature", "model_version", "reward_version", "config", "group_hashes",
                         "n_tensors", "weights_sha256"}
     blob = open(os.path.join(out, "weights.safetensors"), "rb").read() + open(os.path.join(out, "config.json"), "rb").read()
@@ -405,6 +406,57 @@ def test_replay_indices_and_pending_pointer_travel_with_the_checkpoint(tmp_path)
     st.append(build_record(500))
     rep = C.restore_state(loaded, net, opts, store=st, rng=False)
     assert rep["replay"]["records_after_checkpoint"] == 1 and st.count() == 81 and st.get("e500") is not None
+
+
+def test_runtime_named_checkpoint_directory_and_export_from_disk(tmp_path):
+    """The runtime chooses checkpoint paths itself (``checkpoints/ckpt_00000007``) and exports from disk."""
+    net, opts, gen = _trained()
+    state = _full_state(net, opts, gen)
+    path = str(tmp_path / "checkpoints" / "ckpt_00000007")
+    info = C.save_checkpoint_at(path, state, notes="generation 7")
+    assert info.path == path and info.seq == 7 and info.checkpoint_id == "ckpt_00000007"
+    assert C.verify_checkpoint(path) == [] and not [n for n in os.listdir(os.path.dirname(path)) if n.startswith(".tmp-")]
+    _same(C.load_checkpoint(path).weights, state.weights)
+    with pytest.raises(C.CheckpointError):
+        C.save_checkpoint_at(path, state)                    # a complete checkpoint is never overwritten
+    nxt = C.save_checkpoint_at(str(tmp_path / "checkpoints" / "ckpt_00000008"), state)
+    assert [i.seq for i in C.list_checkpoints(str(tmp_path / "checkpoints"))] == [7, 8] and nxt.seq == 8
+    cfg = C.export_weights(path, str(tmp_path / "exports" / "e7"))
+    weights, cfg2 = C.load_weights_only(str(tmp_path / "exports" / "e7"))
+    assert cfg2 == cfg and cfg["n_tensors"] == 10
+    _same(weights, state.weights)
+
+
+def test_real_model_class_round_trips_through_a_checkpoint(tmp_path):
+    """``CamLiveModel`` (debug preset, tiny random backbone, CPU): grouped weights, strict load into a fresh
+    instance, identical group hashes; a head registered later is reported, not fatal."""
+    try:
+        from cam_live.config import CamLiveConfig
+        from cam_live.nn.model import build_model
+        torch.manual_seed(0)
+        model = build_model(CamLiveConfig.debug())
+    except Exception as e:                                   # Workstream A's model is not importable in this tree
+        pytest.skip(f"real model not available: {type(e).__name__}: {e}")
+    with torch.no_grad():                                    # the model initialises deterministically from its
+        for p in model.parameters():                         # config, so move the trainable weights first
+            if p.requires_grad:
+                p.add_(0.01 * torch.randn_like(p))
+    state = C.capture_state(model, {})
+    assert set(state.weights) <= {"semantic_adapters", "experiential", "reward", "heads", "buffers"}
+    assert {"semantic_adapters", "experiential"} <= set(state.weights)
+    assert {n for d in state.weights.values() for n in d} == set(model.trainable_state())
+    assert state.arch_signature == model.arch_signature()
+    C.save_checkpoint(str(tmp_path), state)
+    torch.manual_seed(1)
+    fresh = build_model(CamLiveConfig.debug())
+    hashes = lambda m: {g: h for g, h in m.group_hashes().items() if g != "backbone_frozen"}
+    assert hashes(fresh) != hashes(model)
+    rep = C.restore_state(C.load_checkpoint(str(tmp_path)), fresh, {}, strict=True, rng=False)
+    assert rep["weights"].clean and rep["arch_signature_differences"] == [] and hashes(fresh) == hashes(model)
+    fresh.register_head("added_later", nn.Linear(fresh.d_model, 3))
+    with pytest.warns(UserWarning, match="tolerant checkpoint load"):
+        rep2 = C.load_weights(fresh, C.load_checkpoint(str(tmp_path)).weights)
+    assert len(rep2.missing) == 2 and all("added_later" in n for n in rep2.missing) and not rep2.unexpected
 
 
 @pytest.mark.gpu
