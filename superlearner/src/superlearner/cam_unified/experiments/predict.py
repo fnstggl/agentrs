@@ -84,24 +84,105 @@ def _set_action(name: str, value, integer: bool, tools: Sequence) -> Action:
                   logp_parts={"decode": {"key": tool.key, "name": tool.name}})
 
 
-def collect_support(tasks: Sequence, *, k_max: int = 64, n_queries: int = 12, design_seed: int = 0,
-                    condition: str = "A", delay: int = 3, hide_frac: float = 0.5, notes_m: int = 0,
-                    surface=None, ks: Sequence[int] = K_SET) -> list:
-    """Run the design policy on all `tasks` (one batched world) and return one SupportEpisode per task."""
-    cond = condition.upper()
-    world = M.make_world(tasks, surface=surface, seed=design_seed)
-    dp = M.DelayedPartial(world, delay=delay, hide_frac=hide_frac, seed=design_seed) if cond == "D" else None
-    ob = dp.reset() if dp is not None else world.adapter.reset()
-    B = len(tasks)
-    op = world.operator
-    notes_obs = [[] for _ in range(B)]
-    notes_raw = [[] for _ in range(B)]
-    if notes_m:
+class DesignPolicy:
+    """The fixed support design as an acting agent of the canonical loop: every decision sets one uniformly chosen
+    lever of each env to a uniformly chosen value of its public range (seeded per task). It never sees rewards,
+    labels or the operator: `configure` hands it the public lever table [(shown name, lo, hi, integer)] per env
+    after the reset (from the operator-side recorder), and it keeps the reset's tool lists for every decision."""
+
+    def __init__(self, task_ids: Sequence[str], design_seed: int = 0):
+        self.rngs = [random.Random(f"design|{tid}|{design_seed}") for tid in task_ids]
+        self.levers: Optional[list] = None
+        self.tools0: Optional[list] = None
+        self.state = None                  # the loop's agent protocol (no recurrent state)
+        self.env_ids: list = []
+        self.decisions = 0
+
+    def configure(self, levers: list, tools: list) -> None:
+        self.levers = [list(lv) for lv in levers]
+        self.tools0 = [list(t) for t in tools]
+
+    def reset(self, env_ids) -> None:
+        self.env_ids = list(env_ids)
+
+    def set_goals(self, goals) -> None:
+        pass
+
+    def act(self, obs, tools) -> list:
+        if self.levers is None:
+            raise RuntimeError("DesignPolicy.act before configure (the recorder configures it at the reset)")
+        acts = []
+        for b, levers in enumerate(self.levers):
+            name, lo, hi, integer = levers[self.rngs[b].randrange(len(levers))]
+            acts.append(_set_action(name, self.rngs[b].uniform(lo, hi), integer, self.tools0[b]))
+        self.decisions += len(acts)
+        return acts
+
+    def observe(self, results, rewards, next_obs) -> None:
+        pass
+
+    def flush(self, reason: str = "") -> None:
+        pass
+
+
+class SupportRecorder:
+    """Operator-side `on_round` callback of the support collection (`mechrun.run_batch` protocol: r = 0 once with
+    the reset observations, then after every round r >= 1): configures the DesignPolicy with the public lever table,
+    records every support step (agent view, the settings in force, the tick's gauge readings) and forks the world
+    for the queries at every r in `ks` (evaluator side, before decision r)."""
+
+    def __init__(self, world, policy: DesignPolicy, tasks: Sequence, ks: Sequence[int], n_queries: int,
+                 design_seed: int, k_max: int, dp=None):
+        self.w, self.policy, self.tasks, self.ks, self.nq, self.k_max, self.dp = \
+            world, policy, list(tasks), set(ks), n_queries, int(k_max), dp
+        B = len(self.tasks)
+        self.qrngs = [random.Random(f"query|{t.id}|{design_seed}") for t in self.tasks]
+        self.steps, self.X, self.G = ([[] for _ in range(B)] for _ in range(3))
+        self.queries = [dict() for _ in range(B)]
+        self.meta: list = []
+        self.tools0: list = []
+        self.obs_now: list = []
+        self.prev_t: list = []
+        self.rounds = 0
+
+    def __call__(self, r, acts, res, rew, nob) -> None:
+        w, envs = self.w, self.w.operator.envs
+        B = len(self.tasks)
+        if r == 0:
+            self.meta = [_env_meta(w, b, self.dp) for b in range(B)]
+            self.tools0 = w.adapter.available_tools()
+            self.policy.configure([[(e.lever_shown[j], lv.lo, lv.hi, lv.integer) for j, lv in enumerate(e.lever_spec)]
+                                   for e in envs], self.tools0)
+        else:
+            self.rounds = r
+            for b, e in enumerate(envs):
+                lo, hi, _, gm = self.meta[b]
+                nxt = list(nob.observations[b])
+                self.steps[b].append({"obs": self.obs_now[b], "action": acts[b], "result": res[b], "next_obs": nxt,
+                                      "reward": float(rew[b]), "t": float(self.prev_t[b])})
+                self.X[b].append([_norm(e.raw[j], lo[j], hi[j]) for j in range(len(e.lever_spec))])
+                last = e.env.sims[0].last[0]
+                g = np.array([float(last["readings"][n]) for n in e.gauge_engine], dtype=np.float64)
+                self.G[b].append(np.sign(g) * np.log1p(np.abs(g)) * gm)
+            if any(nob.done):
+                raise RuntimeError("a support episode ended before k_max decisions; use tasks with horizon > k_max")
+        self.obs_now = [list(nob.observations[b]) for b in range(B)]
+        self.prev_t = list(nob.t)
+        if r in self.ks:
+            for b in range(B):
+                self.queries[b][r] = make_queries(w, b, self.qrngs[b], self.nq, self.tools0[b], self.meta[b])
+
+
+def _support_notes(tasks: Sequence, notes_m: int, design_seed: int, notes_raw: list):
+    """Condition C: run_batch's `notes(world)` callable - the predecessor notes appended to the reset observations,
+    and (operator side, into `notes_raw`) their numeric content from a replay of the same draws."""
+    def notes(world) -> list:
         pn = M.PredecessorNotes()
-        for b in range(B):
+        op = world.operator
+        out = []
+        for b in range(len(tasks)):
             r = random.Random(f"notes|{tasks[b].id}|{design_seed}")
-            obs = pn.notes(world, b, notes_m, r)
-            notes_obs[b] = obs
+            out.append(pn.notes(world, b, notes_m, r))
             r = random.Random(f"notes|{tasks[b].id}|{design_seed}")      # replay the same draws for the numbers
             for _ in range(notes_m):
                 e = op.envs[b]
@@ -112,57 +193,43 @@ def collect_support(tasks: Sequence, *, k_max: int = 64, n_queries: int = 12, de
                 base, after = pn._experiment(e.task, op.spec, j, v)
                 notes_raw[b].append((j, v, base, after))
                 r.randrange(3)                                         # the wording draw
-    obs_now = [list(ob.observations[b]) + notes_obs[b] for b in range(B)]
-    rngs = [random.Random(f"design|{t.id}|{design_seed}") for t in tasks]
-    qrngs = [random.Random(f"query|{t.id}|{design_seed}") for t in tasks]
-    envs = op.envs
-    L = [len(e.lever_spec) for e in envs]
-    meta = [_env_meta(world, b, dp) for b in range(B)]
-    steps = [[] for _ in range(B)]
-    Xs = [[] for _ in range(B)]
-    Gs = [[] for _ in range(B)]
-    queries = [dict() for _ in range(B)]
-    think = M.THINK_S / M.DAY
-    tools0 = world.adapter.available_tools()
-    for t in range(k_max + 1):
-        if t in ks:
-            for b in range(B):
-                queries[b][t] = make_queries(world, b, qrngs[b], n_queries, tools0[b], meta[b])
-        if t == k_max:
-            break
-        acts = []
-        for b, e in enumerate(envs):
-            j = rngs[b].randrange(L[b])
-            lv = e.lever_spec[j]
-            v = rngs[b].uniform(lv.lo, lv.hi)
-            acts.append(_set_action(e.lever_shown[j], v, lv.integer, tools0[b]))
-        res = world.adapter.execute(acts)
-        dur = [(r.duration if r is not None else 0.0) + think for r in res]
-        adv = dp.advance(dur) if dp is not None else world.adapter.advance_time(dur)
-        rew = dp.take_rewards(adv.done) if dp is not None else world.evaluator.take_rewards()
-        for b, e in enumerate(envs):
-            lo, hi, _, gm = meta[b]
-            nxt = list(res[b].observations) + list(adv.observations[b])
-            steps[b].append({"obs": obs_now[b], "action": acts[b], "result": res[b], "next_obs": nxt,
-                             "reward": float(rew[b]), "t": float(ob.t[b]) if t == 0 else float(prev_t[b])})
-            Xs[b].append([_norm(e.raw[j], lo[j], hi[j]) for j in range(L[b])])
-            last = e.env.sims[0].last[0]
-            g = np.array([float(last["readings"][n]) for n in e.gauge_engine], dtype=np.float64)
-            Gs[b].append(np.sign(g) * np.log1p(np.abs(g)) * gm)
-            obs_now[b] = nxt
-        prev_t = list(adv.t)
-        if any(adv.done):
-            raise RuntimeError("a support episode ended before k_max decisions; use tasks with horizon > k_max")
+        return out
+    return notes
+
+
+def collect_support(tasks: Sequence, *, k_max: int = 64, n_queries: int = 12, design_seed: int = 0,
+                    condition: str = "A", delay: int = 3, hide_frac: float = 0.5, notes_m: int = 0,
+                    surface=None, ks: Sequence[int] = K_SET) -> list:
+    """Run the design policy on all `tasks` (one batched world) and return one SupportEpisode per task.
+
+    The design policy acts through the canonical loop (`mechrun.run_batch`, a wrapper over `runtime.run_lifetime`
+    where W1's loop is present), in reward_mode observation_only: the policy receives no reward; the per-step
+    `reward` of the support record is the operator-side verified increment of the round (condition D: the delayed
+    release of DelayedPartial), as before the migration."""
+    import inspect
+    cond = condition.upper()
+    world = M.make_world(tasks, surface=surface, seed=design_seed)
+    dp = M.DelayedPartial(world, delay=delay, hide_frac=hide_frac, seed=design_seed) if cond == "D" else None
+    B = len(tasks)
+    notes_raw = [[] for _ in range(B)]
+    policy = DesignPolicy([t.id for t in tasks], design_seed)
+    rec = SupportRecorder(world, policy, tasks, ks, n_queries, design_seed, k_max, dp)
+    kw = {"reward_mode": "observation_only"} if "reward_mode" in inspect.signature(M.run_batch).parameters else {}
+    M.run_batch(policy, world, learn=False, notes=_support_notes(tasks, notes_m, design_seed, notes_raw)
+                if notes_m else None, delayed=dp, max_rounds=k_max, on_round=rec, **kw)
+    if rec.rounds < k_max:
+        raise RuntimeError("a support episode ended before k_max decisions; use tasks with horizon > k_max")
+    op = world.operator
     out = []
     for b, task in enumerate(tasks):
-        e = envs[b]
-        lo, hi, x0, gm = meta[b]
-        gap = (task.reference_net - task.default_net) / max(1e-9, float(op.envs[b].goal.meta["reward_scale_cents"])) \
+        e = op.envs[b]
+        lo, hi, x0, gm = rec.meta[b]
+        gap = (task.reference_net - task.default_net) / max(1e-9, float(e.goal.meta["reward_scale_cents"])) \
             if task.validated else float("nan")
         out.append(SupportEpisode(task, cond, list(e.lever_shown), lo, hi, [lv.integer for lv in e.lever_spec], x0,
-                                  np.array(Xs[b]), np.array(Gs[b]), gm, np.array(world.rewards[b][:k_max]),
-                                  delay if cond == "D" else 0, steps[b], obs_now[b], queries[b], float(gap),
-                                  notes_raw[b], list(tools0[b]), world.adapter.goals()[b]))
+                                  np.array(rec.X[b]), np.array(rec.G[b]), gm, np.array(world.rewards[b][:k_max]),
+                                  delay if cond == "D" else 0, rec.steps[b], rec.obs_now[b], rec.queries[b],
+                                  float(gap), notes_raw[b], list(rec.tools0[b]), world.adapter.goals()[b]))
     return out
 
 

@@ -200,3 +200,78 @@ def merge_snapshots(snaps: Iterable[dict]) -> dict:
         tot["decisions_per_s"] = tot.get("decisions", 0.0) / tot["wall_s"]
         tot["env_steps_per_s"] = tot.get("env_steps", 0.0) / tot["wall_s"]
     return tot
+
+
+# ============================================================================ busy GPU time and semantic tokens
+class GpuBusy:
+    """Summed CUDA kernel time (seconds) of the code inside ``with GpuBusy() as g:`` from ``torch.profiler``: busy
+    device time of THIS process only (``g.busy_s``), unlike a CUDA-event span, which includes idle gaps (plan
+    2026-11-26 §5: GPU-busy seconds; audit 'h' X06: gpu_s was the wall span). ``g.span_s`` is the wall span for
+    comparison. Without CUDA (or with ``enabled=False``) busy_s stays None. The profiler keeps one record per kernel:
+    use it around bounded sections (evaluation runs, smoke runs, sampled windows), not a 12-hour training run."""
+
+    def __init__(self, enabled: bool = True):
+        self.enabled = enabled
+        self.busy_s: Optional[float] = None
+        self.kernels: Optional[int] = None
+        self.span_s = 0.0
+        self._prof = None
+
+    def __enter__(self):
+        self._t0 = time.perf_counter()
+        try:
+            import torch
+            if self.enabled and torch.cuda.is_available():
+                from torch.profiler import ProfilerActivity, profile
+                torch.cuda.synchronize()
+                self._prof = profile(activities=[ProfilerActivity.CUDA])
+                self._prof.__enter__()
+        except Exception:                        # profiling unavailable: report None, never a made-up number
+            self._prof = None
+        return self
+
+    def __exit__(self, *exc):
+        if self._prof is not None:
+            import torch
+            torch.cuda.synchronize()
+            self._prof.__exit__(None, None, None)
+            kern = [e for e in self._prof.events() if str(getattr(e, "device_type", "")).endswith("CUDA")]
+            self.busy_s = sum(float(getattr(e, "device_time", 0.0) or 0.0) for e in kern) / 1e6
+            self.kernels = len(kern)
+        self.span_s = time.perf_counter() - self._t0
+        return False
+
+
+class TokenMeter:
+    """Counts the token positions a pretrained semantic model processes (prefill + every decode step) with a forward
+    pre-hook on its token-embedding table(s): ``tokens`` = total positions embedded, ``calls`` = forward calls.
+    Padding positions are included (they cost compute); the count is of the model's work, not of text length.
+    ``attach(module)`` finds every ``nn.Embedding`` with at least ``min_vocab`` rows inside it (Qwen3: 151,936)."""
+
+    def __init__(self, min_vocab: int = 32_000):
+        self.min_vocab = int(min_vocab)
+        self.tokens = 0
+        self.calls = 0
+        self._handles: list = []
+
+    def attach(self, module) -> int:
+        import torch.nn as nn
+        n = 0
+        for m in (module.modules() if hasattr(module, "modules") else []):
+            if isinstance(m, nn.Embedding) and m.num_embeddings >= self.min_vocab:
+                self._handles.append(m.register_forward_pre_hook(self._hook))
+                n += 1
+        return n
+
+    def _hook(self, mod, args):
+        if args:
+            self.tokens += int(args[0].numel())
+            self.calls += 1
+
+    def detach(self) -> None:
+        for h in self._handles:
+            h.remove()
+        self._handles = []
+
+    def snapshot(self) -> dict:
+        return {"tokens": self.tokens, "calls": self.calls, "attached": len(self._handles)}

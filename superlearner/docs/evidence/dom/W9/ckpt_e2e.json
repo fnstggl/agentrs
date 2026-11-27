@@ -1,0 +1,166 @@
+{
+ "what": "W9 real end-to-end checkpoint check: dom_dev (Qwen3-0.6B) trained for N learner updates through the canonical loop, saved weights-only, reloaded in two fresh processes with the same seed",
+ "commit": "7ec4011d9a9e2b9eae2792d1bf4cd05fc69cfc6e",
+ "run_dir": "/workspace/agentrs/runs/cam_unified/W9/ckpt_e2e",
+ "commands": [
+  "flock gpu_heavy.lock python -m superlearner.cam_unified.experiments.dom_suite ckpt-e2e --run-dir RUN --updates 200 --budget-s 300   (repeated; resumable via full-lifetime checkpoints)",
+  "flock gpu_heavy.lock python -m superlearner.cam_unified.experiments.dom_suite ckpt-e2e-load --run-dir RUN --out RUN/load_{a,b}.json --seed 7   (two separate processes)"
+ ],
+ "training": {
+  "updates": 200,
+  "chunks": 10,
+  "decisions": 400,
+  "gpu_span_s": 1431.0772796859742,
+  "peak_gpu_mb": 6454.28466796875,
+  "loop": [
+   "runtime.run_steps (run_lifetime absent at this commit)"
+  ],
+  "weights": {
+   "sha256": "7a899d7f08606f669ef6567254a422ae41ff626d01b440aa87ea41e5b55cffd3",
+   "arch_hash": "62f57f7d52643e23dfbab8439540111c13b4d9d9a559a0cbd9850b99a26547d0",
+   "code_commit": "7ec4011d9a9e2b9eae2792d1bf4cd05fc69cfc6e",
+   "tensors": 963,
+   "bytes": 351399204
+  },
+  "agent_version": 200,
+  "trainer_n_updates": 80,
+  "source_archive_count": 442
+ },
+ "source_archive_events": 442,
+ "source_decision_ids": 422,
+ "loads": {
+  "a": {
+   "after_load": {
+    "fresh": 0,
+    "loss_mag": 0,
+    "update_log": 0,
+    "trainer_n_updates": 0,
+    "version": 0,
+    "reset": [
+     "experience_access",
+     "rng(agent+global)",
+     "pending_observations",
+     "fresh_buffer",
+     "working_state",
+     "fast_state",
+     "optimizer",
+     "version",
+     "counters",
+     "learner_diagnostics",
+     "trainer",
+     "tool_registry",
+     "semantic_caches"
+    ],
+    "weights_sha256": "7a899d7f08606f669ef6567254a422ae41ff626d01b440aa87ea41e5b55cffd3",
+    "migrated": []
+   },
+   "n_actions": 8,
+   "updates": 1,
+   "first_update": {
+    "consumed_events": 6,
+    "replay_events": 8,
+    "consumed_decisions": 6,
+    "consumed_source_events": 0,
+    "replayed_source_events": 0,
+    "consumed_source_decisions": 0,
+    "consumed_outside_own_archive": 0
+   },
+   "loop": "runtime.run_steps (run_lifetime absent at this commit)",
+   "tools": [
+    [
+     "wait",
+     "wait"
+    ],
+    [
+     "wait",
+     "wait"
+    ],
+    [
+     "wait",
+     "wait"
+    ],
+    [
+     "wait",
+     "wait"
+    ]
+   ]
+  },
+  "b": {
+   "after_load": {
+    "fresh": 0,
+    "loss_mag": 0,
+    "update_log": 0,
+    "trainer_n_updates": 0,
+    "version": 0,
+    "reset": [
+     "experience_access",
+     "rng(agent+global)",
+     "pending_observations",
+     "fresh_buffer",
+     "working_state",
+     "fast_state",
+     "optimizer",
+     "version",
+     "counters",
+     "learner_diagnostics",
+     "trainer",
+     "tool_registry",
+     "semantic_caches"
+    ],
+    "weights_sha256": "7a899d7f08606f669ef6567254a422ae41ff626d01b440aa87ea41e5b55cffd3",
+    "migrated": []
+   },
+   "n_actions": 8,
+   "updates": 1,
+   "first_update": {
+    "consumed_events": 6,
+    "replay_events": 8,
+    "consumed_decisions": 6,
+    "consumed_source_events": 0,
+    "replayed_source_events": 0,
+    "consumed_source_decisions": 0,
+    "consumed_outside_own_archive": 0
+   },
+   "loop": "runtime.run_steps (run_lifetime absent at this commit)",
+   "tools": [
+    [
+     "wait",
+     "wait"
+    ],
+    [
+     "wait",
+     "wait"
+    ],
+    [
+     "wait",
+     "wait"
+    ],
+    [
+     "wait",
+     "wait"
+    ]
+   ]
+  }
+ },
+ "checks": {
+  "a_reset_on_load": true,
+  "a_weights_match_saved": true,
+  "a_update_ran": true,
+  "a_zero_source_decisions": true,
+  "b_reset_on_load": true,
+  "b_weights_match_saved": true,
+  "b_update_ran": true,
+  "b_zero_source_decisions": true,
+  "two_loads_act_identically": true,
+  "trained_200_updates": true,
+  "decision_outputs_bitwise_identical": true
+ },
+ "passed": true,
+ "determinism_detail": "the 8 archived decisions of the two fresh processes (seed 7, world seed 123000) have bitwise-equal extra.value, extra.dt_pred, behavior, Action.logp (-2.636213779449463 at hc_confounded step 0) and logp_parts (entropy 2.292951822280884), compared from target_load_{a,b}/archive_target",
+ "notes": [
+  "the trained policy chose tool 'wait' (seconds 5555) at all 8 evaluation decisions of both loads: identical acting is therefore also checked on the continuous decision outputs, not only on the argmax action",
+  "training ran through runtime.run_steps (the canonical loop of the seam-0 base; W1's run_lifetime is not in this checkout), 2 rapid train environments (mk_elastic, hc_confounded), one learner update per round, under the shared GPU lock in 10 resumable sub-chunks (full-lifetime checkpoints between calls)",
+  "'consumes 0 source decisions': the first update after the weights-only load consumed 6 events / 6 decisions and replayed 8 events, all from the new lifetime's own archive; none of them is among the 442 source-archive events or 422 source decision ids",
+  "the training spanned W9 commits 8de47fa (updates 0-40) to 7ec4011 (40-200, weights saved; the weights' code_commit); the driver changes in between keep the run_steps fallback's behaviour (round budget k per sub-chunk, one update per round)"
+ ]
+}

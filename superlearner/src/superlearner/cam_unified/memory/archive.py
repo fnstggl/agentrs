@@ -47,6 +47,14 @@ Producer tag contract (flat, indexed, used by the replay sampler and the memory 
 
 Tags known only later (episode success, hindsight surprise) are set with ``tag()``; the learner records which updates
 consumed an event with ``mark_used()`` (merged into ``EventRecord.training_provenance["used_in_updates"]``).
+
+Delayed-outcome links (``links`` table of the index; plan 2026-11-26, Memory "archive links table"): every archived
+record that names an earlier event, through ``EventRecord.attributed_to`` or an observation's ``caused_by`` (its own
+observations or its result's), gets one link row (source event id, linking gseq, kind) indexed both ways.
+``consequences(event_id)`` returns the later events linked to an event and ``causes(event_id)`` what an event links
+to, each with one indexed lookup; ``scan`` / ``count_where`` accept ``attributed_to=`` / ``caused_by=`` /
+``linked_to=`` filters. Links are derived data: rebuilt with the rest of the index from chunks and WAL (an index
+written before the table existed is backfilled when the archive is next opened read-write).
 """
 from __future__ import annotations
 
@@ -96,7 +104,42 @@ _RANGE_FILTERS = {"t_min": ("t_sim", ">="), "t_max": ("t_sim", "<="), "gseq_min"
                   "model_version_min": ("model_version", ">="), "model_version_max": ("model_version", "<="),
                   "reward_min": ("reward", ">="), "reward_max": ("reward", "<="), "surprise_min": ("surprise", ">="),
                   "novelty_min": ("novelty", ">="), "t_wall_min": ("t_wall", ">="), "t_wall_max": ("t_wall", "<=")}
-FILTER_KEYS = frozenset(_EQ_FILTERS | _BOOL_FILTERS | set(_RANGE_FILTERS) | {"entity", "event_ids"})
+# delayed-outcome links (plan 2026-11-26 §1 Memory "links table"): one row per (source event id, linking event,
+# kind); filled at indexing time from EventRecord.attributed_to and from Observation.caused_by of the record's
+# observations and result observations. Filters: attributed_to=<event id(s)> / caused_by=<event id(s)> select the
+# events that carry such a link; linked_to=<event id(s)> either kind.
+LINK_KINDS = ("attributed_to", "caused_by")
+_LINK_FILTERS = {"attributed_to": ("attributed_to",), "caused_by": ("caused_by",), "linked_to": LINK_KINDS}
+FILTER_KEYS = frozenset(_EQ_FILTERS | _BOOL_FILTERS | set(_RANGE_FILTERS) | {"entity", "event_ids"} |
+                        set(_LINK_FILTERS))
+
+
+def row_links(d: dict) -> list:
+    """[(source event id, kind)] of one archive row dict (flat attributed_to + caused_by inside the JSON
+    observation columns), unique and order-preserving."""
+    out, seen = [], set()
+
+    def add(src, kind):
+        if src is None or src == "":
+            return
+        k = (str(src), kind)
+        if k not in seen:
+            seen.add(k)
+            out.append(k)
+    add(d.get("attributed_to"), "attributed_to")
+    for col in ("observations", "result"):
+        v = d.get(col)
+        if v is None:
+            continue
+        try:
+            v = json.loads(v) if isinstance(v, str) else v
+        except ValueError:
+            continue
+        obs = v.get("observations", []) if isinstance(v, dict) else (v or [])
+        for o in obs:
+            if isinstance(o, dict):
+                add(o.get("caused_by"), "caused_by")
+    return out
 
 
 def _jd(v) -> str:
@@ -431,6 +474,20 @@ class EventArchive:
                              key + [step, step, gseq, int(after)]).fetchall()
         return [tuple(r) for r in reversed(b)] + [tuple(me)] + [tuple(r) for r in f], len(b)
 
+    def consequences(self, event_id: str, kinds: Sequence[str] = LINK_KINDS) -> list:
+        """Events that link back to ``event_id`` (delayed outcomes, results of its action, later observations it
+        caused): [(event_id, gseq, kind)] in archive order. One indexed lookup (no scan)."""
+        kinds = tuple(kinds)
+        q = (f"SELECT e.event_id, l.gseq, l.kind FROM links l JOIN events e ON e.gseq = l.gseq WHERE l.src = ? AND "
+             f"l.kind IN ({','.join('?' * len(kinds))}) ORDER BY l.gseq")
+        return [tuple(r) for r in self._db.execute(q, (str(event_id), *kinds))]
+
+    def causes(self, event_id: str) -> list:
+        """[(source event id, kind)] that ``event_id`` links to (its attributed_to / caused_by references)."""
+        g = self._gseqs([event_id])[0][1]
+        return [tuple(r) for r in self._db.execute("SELECT src, kind FROM links WHERE gseq = ? ORDER BY rowid",
+                                                   (g,))]
+
     def _has_stream_index(self) -> bool:
         if getattr(self, "_stream_idx", None) is None:
             self._stream_idx = self._db.execute(
@@ -758,6 +815,10 @@ class EventArchive:
                     os.replace(path + suf, f"{path}{suf}.corrupt-{int(time.time())}")
             self._db = self._connect(path)
             fresh = True
+        links_new = False
+        if not fresh:
+            links_new = self._db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='links'").fetchone() is None
         if not self.readonly:
             self._create_schema()
         if fresh and not self.readonly:
@@ -769,12 +830,11 @@ class EventArchive:
             have = {int(r[0]): int(r[1]) for r in self._db.execute("SELECT n, rows FROM chunks")}
             man = {c["n"]: c for c in self._manifest["chunks"]}
             for n in set(have) - set(man):          # index rows of a chunk that is not committed
-                self._db.execute("DELETE FROM entities WHERE gseq IN (SELECT gseq FROM events WHERE chunk=?)", (n,))
-                self._db.execute("DELETE FROM events WHERE chunk=?", (n,))
+                self._delete_index_rows("chunk=?", (n,))
                 self._db.execute("DELETE FROM chunks WHERE n=?", (n,))
             for n, c in sorted(man.items()):
-                if have.get(n) != c["rows"]:
-                    self._reindex_chunk(c)
+                if have.get(n) != c["rows"] or (links_new and c["rows"]):
+                    self._reindex_chunk(c)          # links_new: an index from before the links table (backfill)
             self._db.commit()
         self._db.commit()
 
@@ -813,6 +873,9 @@ class EventArchive:
         CREATE TABLE IF NOT EXISTS chunks (n INTEGER PRIMARY KEY, rows INTEGER, gseq0 INTEGER, sha256 TEXT);
         CREATE TABLE IF NOT EXISTS tag_log (seq INTEGER PRIMARY KEY AUTOINCREMENT, gseq INTEGER NOT NULL, keys TEXT);
         CREATE TABLE IF NOT EXISTS akv (key TEXT PRIMARY KEY, value TEXT);
+        CREATE TABLE IF NOT EXISTS links (src TEXT NOT NULL, gseq INTEGER NOT NULL, kind TEXT NOT NULL);
+        CREATE INDEX IF NOT EXISTS link_src ON links(src, kind);
+        CREATE INDEX IF NOT EXISTS link_gseq ON links(gseq);
         """)
         if "keys" not in {r[1] for r in self._db.execute("PRAGMA table_info(tag_log)")}:
             self._db.execute("ALTER TABLE tag_log ADD COLUMN keys TEXT")
@@ -831,14 +894,25 @@ class EventArchive:
                              [irow(d) for d in rows])
         self._db.executemany("INSERT INTO entities(entity, gseq) VALUES (?,?)",
                              [(e, d["gseq"]) for d in rows for e in (d["entities"] or [])])
+        self._db.executemany("INSERT INTO links(src, gseq, kind) VALUES (?,?,?)",
+                             [(src, d["gseq"], kind) for d in rows for src, kind in row_links(d)])
+
+    def _delete_index_rows(self, where: str, params: tuple) -> None:
+        """Remove the entity and link rows of the events selected by ``where`` (over events), then the events."""
+        sub = f"SELECT gseq FROM events WHERE {where}"
+        self._db.execute(f"DELETE FROM entities WHERE gseq IN ({sub})", params)
+        self._db.execute(f"DELETE FROM links WHERE gseq IN ({sub})", params)
+        self._db.execute(f"DELETE FROM events WHERE {where}", params)
 
     def _reindex_chunk(self, c: dict) -> None:
-        """(Re)build the index rows of one committed chunk from its Parquet file (flat columns only)."""
+        """(Re)build the index rows of one committed chunk from its Parquet file (flat columns + the observation
+        columns the delayed-outcome links are read from)."""
         g0, n = c["gseq0"], c["rows"]
         self._db.execute("DELETE FROM entities WHERE gseq BETWEEN ? AND ?", (g0, g0 + n - 1))
+        self._db.execute("DELETE FROM links WHERE gseq BETWEEN ? AND ?", (g0, g0 + n - 1))
         self._db.execute("DELETE FROM events WHERE gseq BETWEEN ? AND ?", (g0, g0 + n - 1))
         pf = pq.ParquetFile(self._chunk_path(c))
-        flat = [x for x, _ in _FLAT]
+        flat = [x for x, _ in _FLAT] + ["observations", "result"]
         for b in pf.iter_batches(batch_size=8192, columns=flat):
             self._index_rows(b.to_pylist(), chunk=c["n"], g0=g0)
         self._db.execute("INSERT OR REPLACE INTO chunks(n, rows, gseq0, sha256) VALUES (?,?,?,?)",
@@ -899,6 +973,16 @@ class EventArchive:
                 vs = [v] if isinstance(v, str) else list(v)
                 clauses.append(f"gseq IN (SELECT gseq FROM entities WHERE entity IN ({','.join('?' * len(vs))}))")
                 params.extend(vs)
+            elif k in _LINK_FILTERS:
+                vs = [v] if isinstance(v, str) else list(v)
+                kinds = _LINK_FILTERS[k]
+                if not vs:
+                    clauses.append("0")
+                    continue
+                clauses.append(f"gseq IN (SELECT gseq FROM links WHERE src IN ({','.join('?' * len(vs))}) AND kind "
+                               f"IN ({','.join('?' * len(kinds))}))")
+                params.extend(str(x) for x in vs)
+                params.extend(kinds)
             else:
                 col = "event_id" if k == "event_ids" else k
                 vs = list(v) if isinstance(v, (list, tuple, set, frozenset)) else [v]
@@ -1182,8 +1266,7 @@ class EventArchive:
             # tag values already committed (and change-logged) for tail rows survive their re-indexing from the WAL
             saved = {r[0]: (r[1], dict(zip(TAG_KEYS, r[2:]))) for r in self._db.execute(
                 f"SELECT gseq, event_id, {','.join(TAG_KEYS)} FROM events WHERE chunk=-1")}
-            self._db.execute("DELETE FROM entities WHERE gseq IN (SELECT gseq FROM events WHERE chunk=-1)")
-            self._db.execute("DELETE FROM events WHERE chunk=-1")
+            self._delete_index_rows("chunk=-1", ())
         else:
             saved = {}
         d = os.path.join(self.root, "wal")

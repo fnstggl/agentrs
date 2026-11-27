@@ -14,6 +14,17 @@ Entity *ids* are deliberately not hashed (they are random per world and carry no
 +-1e30) plus a non-finite count feature, so one bad reading cannot turn the event token into NaN. The hash is CRC32
 (stable across processes, unlike Python's ``hash``). The integrated system may pass the core's own event-token encoder
 to ``Retriever(event_encoder=...)`` instead; this module is the default and the semantic-free baseline.
+
+Actor view (reward integrity; plan 2026-11-26 §1 Memory "featurize REBUILD: ActorView only"). Memory event tokens are
+actor inputs, so by default (``view="actor"``) the encoder reads ONLY what the acting agent itself saw or produced:
+``actor_view(record)`` = the observations available before the action, its own action, the execution result the
+environment returned to it (ok, error, cost, duration, result observations), its own predictions' behaviour
+log-probability, its entity links and the step. It never reads ``EventRecord.reward`` (the evaluator's return
+increment, or a verified label stored there), ``cost`` / ``done`` of the record (harness-side copies; the actor-visible
+cost is ``result.cost``), ``extra`` (labels such as success / verified_outcome / family), ``training_provenance``,
+``goal_id`` or ids. Changing any of those leaves the event token bitwise identical (tested with canaries).
+``view="legacy"`` is the pre-2026-11-26 encoder that also reads reward / cost / done: a declared baseline only, refused
+when ``reward_mode`` is "observation_only".
 """
 from __future__ import annotations
 
@@ -49,6 +60,17 @@ def _finite(v) -> tuple:
     return (0.0 if math.isnan(v) else math.copysign(_BIG, v)), 1
 
 
+ACTOR_VIEW_FIELDS = ("observations", "action", "result", "behavior_logp", "entity_links", "step")
+VIEWS = ("actor", "legacy")
+
+
+def actor_view(rec) -> dict:
+    """The actor-visible part of an archived event (EventRecord or its dict form): ACTOR_VIEW_FIELDS only. Nothing an
+    evaluator, a label source or the harness attached (reward, record cost/done, extra, training provenance) is in
+    it."""
+    return {k: _get(rec, k) for k in ACTOR_VIEW_FIELDS}
+
+
 def _entity_ids(rec) -> set:
     """Entity ids an event mentions (entity links + observation entity / target), for masking argument values."""
     out = set()
@@ -76,13 +98,22 @@ class HashedEventEncoder(nn.Module):
         n_fourier: Fourier frequencies of the numeric encodings.
         d_emb: width of the bag embedding and the numeric projection (default ``min(d_model, 128)``), projected to
             ``d_model`` by the output layer.
+        view: "actor" (default; reads `actor_view(record)` only) or "legacy" (declared baseline; also reads the
+            record's reward / cost / done).
+        reward_mode: the run's reward mode; "observation_only" refuses ``view="legacy"``.
     """
 
     N_SCALARS = 10
 
     def __init__(self, d_model: int, n_buckets: int = 1 << 14, max_words: int = 48, n_fourier: int = 6,
-                 d_emb: int | None = None):
+                 d_emb: int | None = None, view: str = "actor", reward_mode: str | None = None):
         super().__init__()
+        if view not in VIEWS:
+            raise ValueError(f"view must be one of {VIEWS}")
+        if view == "legacy" and reward_mode == "observation_only":
+            raise ValueError("the legacy event encoder reads the evaluator reward; it is a declared baseline and "
+                             "cannot be used with reward_mode='observation_only'")
+        self.view = view
         self.d = d_model
         e = int(d_emb or min(d_model, 128))
         self.d_emb = e
@@ -99,6 +130,8 @@ class HashedEventEncoder(nn.Module):
 
     # ------------------------------------------------------------------ discrete features
     def tokens(self, rec) -> list:
+        if self.view == "actor":
+            rec = actor_view(rec)
         toks = []
         act = _get(rec, "action")
         if act is not None:
@@ -144,6 +177,8 @@ class HashedEventEncoder(nn.Module):
 
     # ------------------------------------------------------------------ numeric features
     def numeric(self, rec) -> list:
+        if self.view == "actor":
+            rec = actor_view(rec)
         res = _get(rec, "result")
         ok = 0.0 if res is None else (1.0 if _get(res, "ok") else -1.0)
         obs = list(_get(rec, "observations") or []) + (list(_get(res, "observations") or []) if res is not None else [])
@@ -160,12 +195,18 @@ class HashedEventEncoder(nn.Module):
         argn = [fin(v) for v in ((_get(act, "args") or {}).values() if act is not None else [])
                 if isinstance(v, (int, float)) and not isinstance(v, bool)]
         blp = _get(rec, "behavior_logp")
-        reward, cost = fin(_get(rec, "reward", 0.0) or 0.0), fin(_get(rec, "cost", 0.0) or 0.0)
+        if self.view == "actor":
+            # slot 0 carries the actor-visible spend of the action (result.cost); no reward, no done flag
+            reward = fin(0.0 if res is None else (_get(res, "cost", 0.0) or 0.0))
+            cost, done = 0.0, 0.0
+        else:
+            reward, cost = fin(_get(rec, "reward", 0.0) or 0.0), fin(_get(rec, "cost", 0.0) or 0.0)
+            done = 1.0 if _get(rec, "done") else 0.0
         dur = 0.0 if res is None else fin(_get(res, "duration", 0.0) or 0.0)
         blp = 0.0 if blp is None else max(-20.0, fin(blp)) / 10.0
         clip = lambda x: max(-1e4, min(1e4, x))      # noqa: E731  (raw scale kept; extreme values bounded)
         return [clip(reward), clip(cost),
-                1.0 if _get(rec, "done") else 0.0, ok, 0.0 if act is None else 1.0, math.log1p(len(obs)),
+                done, ok, 0.0 if act is None else 1.0, math.log1p(len(obs)),
                 min(2.0, blp) if blp > 0 else blp, math.log1p(abs(dur)), math.log1p(len(vals)), math.log1p(bad)], \
             vals, argn
 

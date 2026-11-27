@@ -1,0 +1,102 @@
+{
+ "what": "dom_suite --condition G --smoke on real dom_dev (Qwen3-0.6B) through W1's canonical loop runtime.run_lifetime and factory build.build_agent: the W9 drivers on the merge of this branch with feat/cam-7.0-unified-complete (scratch extraction, not a commit; code_commit is therefore null in the row)",
+ "merged_tree": "c3e763e21c32f23d6f3becb105a39f27dd366655",
+ "w9_commit": "7ec4011d9a9e2b9eae2792d1bf4cd05fc69cfc6e",
+ "w1_branch_commit": "19a7a4ced2833272f1227539b4c863cf1872abdf",
+ "command": "flock gpu_heavy.lock timeout 900 python -m superlearner.cam_unified.experiments.dom_suite run --condition G --smoke --run-dir RUN --dashboard --legacy-decision-path",
+ "run_dir": "/workspace/agentrs/runs/cam_unified/W9/smoke_G_w1loop",
+ "dashboard": "/workspace/agentrs/runs/cam_unified/W9/smoke_G_w1loop/dashboard/index.html",
+ "dashboard_renders_rows": true,
+ "source_run": {
+  "init": "/workspace/agentrs/runs/cam_unified/W9/smoke_G_w1loop/source/init.safetensors",
+  "trained": "/workspace/agentrs/runs/cam_unified/W9/smoke_G_w1loop/source/trained.safetensors",
+  "loop": "runtime.run_lifetime",
+  "stats": {
+   "decisions": 8,
+   "env_steps": 8,
+   "updates": 2,
+   "gpu_span_s": 51.96081979370117,
+   "wall_s": 52.00424228888005,
+   "peak_gpu_mb": 6813.283203125,
+   "labels_joined": 0
+  },
+  "integrity": {
+   "reward_mode": "observation_only",
+   "records": 10,
+   "nonzero_rewards": 0,
+   "label_keys_in_extra": 0,
+   "labels": 0,
+   "ok": true
+  }
+ },
+ "rows": [
+  {
+   "experiment": "U-DOM-1",
+   "condition": "G",
+   "seed": 0,
+   "set": "dev",
+   "smoke": true,
+   "run_id": "U-DOM-1-G-s0-ee6ae1b4",
+   "code_commit": null,
+   "code_dirty": null,
+   "loop": "runtime.run_lifetime",
+   "builder": "build.build_agent",
+   "env_source": "envs.experience.ExperienceOperator",
+   "preset": "dom_dev",
+   "cfg_hash": "b533c93cab86d0ecc53fbea9c7d39cc2aba8c5e054f5b7beb8aabd603faa5274",
+   "arch_hash": "bbe129bd211cab1b36790d0a89beeda4ca0ba25f10cef793f8e40ec8652c2dcf",
+   "ckpt_sha256": "e8cbba1e6fff1ecf50f88c266663b69a70b5ec0f4bfdbc3f7d85fc7becf0b4b5",
+   "init_ckpt_sha256": "212603f2c31e38adb800e4965669f7aac300fa6d09d08041bab6c9bc9b121a22",
+   "reward_mode": "observation_only",
+   "semantic_model": "Qwen/Qwen3-0.6B",
+   "params": {
+    "cam_total": 66302482,
+    "cam_trainable": 51799312
+   },
+   "families": [
+    "mk_elastic",
+    "hc_confounded"
+   ],
+   "n_envs": 2,
+   "learning": false,
+   "decisions": 12,
+   "env_steps": 12,
+   "updates": 0,
+   "gpu_busy_s": 0.7973301549995916,
+   "gpu_span_s": 12.61535415649414,
+   "semantic_tokens": 8484,
+   "wall_s": 43.87889361381531,
+   "peak_gpu_mb": 2715.89208984375,
+   "integrity": {
+    "reward_mode": "observation_only",
+    "records": 14,
+    "nonzero_rewards": 0,
+    "label_keys_in_extra": 0,
+    "labels": 0,
+    "ok": true
+   },
+   "metrics": {
+    "verified_utility_end_mean": -3.705212043206622,
+    "worlds_resolved": 0,
+    "labels_joined": 0,
+    "g_probes": 12,
+    "g_action_change_rate": 0.0,
+    "g_tool_change_rate": 0.0,
+    "g_donor_tool_agreement": 1.0,
+    "g_own_donor_tool_agreement": 1.0,
+    "g_donor_follow_excess": 0.0,
+    "g_z_prev_rel_diff_mean": 0.03323837090283632,
+    "g_z_next_rel_diff_mean": 0.019344856031239033
+   },
+   "deviations": [
+    "smoke: engineering check with a tiny budget, not an evaluation",
+    "declared legacy decision path: run_lifetime(require_cam_eval=False) - the actions carry no cam_eval stamp (W5's decision.select stamp is not merged); not a DOM-path result"
+   ]
+  }
+ ],
+ "notes": [
+  "--legacy-decision-path is declared because W1's loop authorises only cam_eval-stamped actions and W5's stamp is not merged (W1's own dom_dev e2e ran the same way); the row lists it under deviations",
+  "the swap changes Z (relative difference ~0.03) but no greedy action at this smoke budget: action change rate 0.0 is a measured null at 4-round training, not the E0 claim (>= 90% donor-following after imitation)"
+ ],
+ "dashboard_check": "each provenance row's cfg hash and ckpt sha256 prefixes (12 chars), loop and reward mode appear in the dashboard's 'Controlled experiments' table (the table shows shortened hashes, not run ids)"
+}

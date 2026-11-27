@@ -1,0 +1,95 @@
+{
+ "what": "smoke_G: real dom_dev smoke through the experiment driver; provenance rows rendered by the dashboard",
+ "commit": "8de47fa199a318d4e6bde7f8fafa664a6b7a8e71",
+ "run_dir": "/workspace/agentrs/runs/cam_unified/W9/smoke_G",
+ "dashboard": "/workspace/agentrs/runs/cam_unified/W9/smoke_G/dashboard/index.html",
+ "dashboard_renders_rows": true,
+ "rows": [
+  {
+   "experiment": "U-DOM-1",
+   "condition": "G",
+   "seed": 0,
+   "set": "dev",
+   "smoke": true,
+   "run_id": "U-DOM-1-G-s0-4c9e82db",
+   "code_commit": "ebe1d544034696e55a76153bf42ca24e2ac8d450",
+   "code_dirty": false,
+   "loop": "runtime.run_steps (run_lifetime absent at this commit)",
+   "builder": "stage1.system helpers (build.build_agent absent at this commit; memory off)",
+   "env_source": "envs.experience.ExperienceOperator",
+   "preset": "dom_dev",
+   "cfg_hash": "b533c93cab86d0ecc53fbea9c7d39cc2aba8c5e054f5b7beb8aabd603faa5274",
+   "arch_hash": "62f57f7d52643e23dfbab8439540111c13b4d9d9a559a0cbd9850b99a26547d0",
+   "ckpt_sha256": "93c76fdb893d9b9db4ad67bb5cf88cd2685df0cdaa06e2ef50931a63e1886091",
+   "init_ckpt_sha256": "115ee2a1671838015db82026913a1114c15a77af262f69c673daadb9bfcb8983",
+   "reward_mode": "observation_only",
+   "semantic_model": "Qwen/Qwen3-0.6B",
+   "params": {
+    "cam_total": 66302482,
+    "cam_trainable": 51799312
+   },
+   "families": [
+    "mk_elastic",
+    "hc_confounded"
+   ],
+   "n_envs": 2,
+   "learning": false,
+   "decisions": 12,
+   "env_steps": 12,
+   "updates": 0,
+   "gpu_busy_s": 0.6497963289995814,
+   "gpu_span_s": 10.59881103515625,
+   "semantic_tokens": 7570,
+   "wall_s": 36.73216485977173,
+   "peak_gpu_mb": 1841.22265625,
+   "integrity": {
+    "reward_mode": "observation_only",
+    "records": 14,
+    "nonzero_rewards": 0,
+    "label_keys_in_extra": 0,
+    "labels": 0,
+    "ok": true
+   },
+   "metrics": {
+    "verified_utility_end_mean": -3.705212043206622,
+    "worlds_resolved": 0,
+    "labels_joined": 0,
+    "g_probes": 12,
+    "g_action_change_rate": 0.0,
+    "g_tool_change_rate": 0.0,
+    "g_donor_tool_agreement": 1.0,
+    "g_own_donor_tool_agreement": 1.0,
+    "g_donor_follow_excess": 0.0
+   },
+   "condition_detail": {
+    "description": "latent-state intervention",
+    "weights": {
+     "sha256": "93c76fdb893d9b9db4ad67bb5cf88cd2685df0cdaa06e2ef50931a63e1886091",
+     "arch_hash": "62f57f7d52643e23dfbab8439540111c13b4d9d9a559a0cbd9850b99a26547d0",
+     "migrated": [],
+     "reset": [
+      "experience_access",
+      "rng(agent+global)",
+      "pending_observations",
+      "fresh_buffer",
+      "working_state",
+      "fast_state",
+      "optimizer",
+      "version",
+      "counters",
+      "learner_diagnostics",
+      "trainer",
+      "tool_registry",
+      "semantic_caches"
+     ]
+    },
+    "probe_every": 1,
+    "acting": "greedy (deterministic decisions: the swap is the only difference)"
+   },
+   "deviations": [
+    "canonical loop: runtime.run_steps (run_lifetime absent at this commit)",
+    "factory: stage1.system helpers (build.build_agent absent at this commit; memory off)"
+   ]
+  }
+ ]
+}

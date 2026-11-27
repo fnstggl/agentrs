@@ -16,7 +16,7 @@ def test_nonfinite_numbers_give_finite_event_tokens():
     evs = light_events(6)
     evs[1].observations[0].value = float("inf")
     evs[2].observations[0].value = float("nan")
-    evs[3].reward = float("-inf")
+    evs[3].result.cost = float("-inf")         # the actor-visible spend (the record's reward is not an input)
     evs[4].action = Action("set_lever", {"value": float("nan")})
     evs[5].result.duration = float("inf")
     out = enc(evs)
@@ -24,6 +24,9 @@ def test_nonfinite_numbers_give_finite_event_tokens():
     feats = [enc.numeric(e)[0] for e in evs]
     assert all(math.isfinite(x) for f in feats for x in f)
     assert feats[0][-1] == 0 and all(f[-1] > 0 for f in feats[1:])      # the non-finite count is a feature
+    legacy = HashedEventEncoder(32, view="legacy")                         # declared baseline: reads the reward
+    evs[3].reward = float("-inf")
+    assert torch.isfinite(legacy(evs)).all() and legacy.numeric(evs[3])[0][-1] > 0
 
 
 def test_entity_ids_in_action_arguments_are_not_hashed():

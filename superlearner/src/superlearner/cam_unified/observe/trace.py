@@ -95,12 +95,18 @@ class TraceRecorder:
         self._write(o)
 
     def set_field(self, field: str, value, event_id: Optional[str] = None,
-                  decision_id: Optional[str] = None) -> None:
-        """Late value of a trace field (e.g. ``belief_after`` computed once the outcome arrived)."""
-        if field not in DecisionTrace.__dataclass_fields__:
+                  decision_id: Optional[str] = None, env_id: Optional[str] = None) -> None:
+        """Late value of a trace field (e.g. ``belief_after`` computed once the outcome arrived). The DOM
+        decision-bottleneck fields (``DOM_FIELDS``: intent, action_evaluation, r_psi, credit,
+        candidates_rejected) are accepted too; they live in ``trace.reasoning["dom"]`` (see `dom_fields`), so the
+        record schema of `interfaces.DecisionTrace` is unchanged."""
+        typ = "dom" if field in DOM_FIELDS else "field"
+        if typ == "field" and field not in DecisionTrace.__dataclass_fields__:
             raise KeyError(field)
-        self._write({"type": "field", "event_id": event_id, "decision_id": decision_id, "field": field,
-                     "value": value})
+        o = {"type": typ, "event_id": event_id, "decision_id": decision_id, "field": field, "value": value}
+        if env_id is not None:
+            o["env_id"] = env_id
+        self._write(o)
 
     def add_update_refs(self, event_ids: Iterable[str], update_id: str, env_id: Optional[str] = None) -> None:
         o = {"type": "update", "event_ids": list(event_ids), "update_id": update_id}
@@ -146,6 +152,17 @@ class TraceRecorder:
 
 def _is_num(v) -> bool:
     return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+DOM_FIELDS = ("intent", "action_evaluation", "r_psi", "credit", "candidates_rejected")
+
+
+def dom_fields(trace) -> dict:
+    """The DOM decision-bottleneck fields of a trace ({} when none were recorded): CAM's intent I_t, its evaluation
+    of the executed action (value / uncertainty), the actor reward r_psi with its components, credit assigned later
+    (RUDDER / COCOA / R-HCA) and the vetoed / rejected candidates."""
+    r = trace.reasoning if hasattr(trace, "reasoning") else (trace or {}).get("reasoning")
+    return dict((r or {}).get("dom") or {}) if isinstance(r, dict) else {}
 
 
 def _merge_outcome(dst: dict, new: dict, mode: str = "set") -> None:
@@ -201,6 +218,11 @@ def _merge(lines) -> list:
             _merge_outcome(base[did].setdefault("outcome", {}), o["outcome"], o.get("mode", "set"))
         elif typ == "field":
             base[did][o["field"]] = o["value"]
+        elif typ == "dom":
+            r = base[did].get("reasoning")
+            if not isinstance(r, dict):
+                r = base[did]["reasoning"] = {}
+            r.setdefault("dom", {})[o["field"]] = o["value"]
     out = [DecisionTrace(**d) for d in base.values()]
     out.sort(key=lambda t: (t.env_id, t.t_sim))          # stable: ties keep recording order
     return out

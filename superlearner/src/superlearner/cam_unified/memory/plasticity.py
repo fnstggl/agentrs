@@ -48,6 +48,7 @@ class UnitLayer:
     fc_in: nn.Linear
     fc_out: nn.Linear
     fc_gate: Optional[nn.Linear] = None
+    fused: bool = False         # fc_in is a fused SwiGLU projection: rows [i] (gate) and [i + n_units] (value) of unit i
 
     @property
     def n_units(self) -> int:
@@ -56,13 +57,23 @@ class UnitLayer:
 
 _PAIRS = (("linear1", "linear2", None), ("fc1", "fc2", None), ("w1", "w2", "w3"), ("gate_proj", "down_proj", "up_proj"),
           ("up", "down", None))
+# fused SwiGLU (core/blocks.py SwiGLU: w13 = [W1; W3] -> chunk(2), out w2): unit i owns rows i and i + d_ff of w13
+_FUSED = (("w13", "w2"),)
 
 
 def find_unit_layers(model: nn.Module) -> list:
-    """Discover hidden unit layers: attribute pairs (linear1/linear2, fc1/fc2, w1/w2(/w3), gate/down(/up), up/down)
-    and Linear -> activation(s) -> Linear runs inside nn.Sequential."""
+    """Discover hidden unit layers: attribute pairs (linear1/linear2, fc1/fc2, w1/w2(/w3), gate/down(/up), up/down),
+    fused SwiGLU projections (w13 / w2 with w13.out_features == 2 * w2.in_features; the fc_out pre-hook sees
+    silu(a) * b) and Linear -> activation(s) -> Linear runs inside nn.Sequential."""
     out, seen = [], set()
     for name, m in model.named_modules():
+        for a_in, a_out in _FUSED:
+            fi, fo = getattr(m, a_in, None), getattr(m, a_out, None)
+            if isinstance(fi, nn.Linear) and isinstance(fo, nn.Linear) and fi.out_features == 2 * fo.in_features:
+                key = (id(fi), id(fo))
+                if key not in seen:
+                    seen.add(key)
+                    out.append(UnitLayer(f"{name}.{a_in}" if name else a_in, fi, fo, None, fused=True))
         for a_in, a_out, a_gate in _PAIRS:
             fi, fo = getattr(m, a_in, None), getattr(m, a_out, None)
             if isinstance(fi, nn.Linear) and isinstance(fo, nn.Linear) and fi.out_features == fo.in_features:
@@ -379,13 +390,14 @@ def reinit_units(layer: UnitLayer, idx: torch.Tensor, optimizer=None, generator:
     for fc in (layer.fc_in, layer.fc_gate):
         if fc is None:
             continue
+        rows = torch.cat([idx, idx + layer.n_units]) if (layer.fused and fc is layer.fc_in) else idx
         b = 1.0 / math.sqrt(fc.in_features)
-        w = (torch.rand(len(idx), fc.in_features, generator=generator) * 2 - 1) * b
-        fc.weight[idx] = w.to(fc.weight.device, fc.weight.dtype)
-        _zero_opt_state(optimizer, fc.weight, idx, 0)
+        w = (torch.rand(len(rows), fc.in_features, generator=generator) * 2 - 1) * b
+        fc.weight[rows] = w.to(fc.weight.device, fc.weight.dtype)
+        _zero_opt_state(optimizer, fc.weight, rows, 0)
         if fc.bias is not None:
-            fc.bias[idx] = 0
-            _zero_opt_state(optimizer, fc.bias, idx, 0)
+            fc.bias[rows] = 0
+            _zero_opt_state(optimizer, fc.bias, rows, 0)
     if out_bias_correction is not None and layer.fc_out.bias is not None:
         layer.fc_out.bias += layer.fc_out.weight[:, idx] @ out_bias_correction[idx].to(layer.fc_out.weight)
     layer.fc_out.weight[:, idx] = 0

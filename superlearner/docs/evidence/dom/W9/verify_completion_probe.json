@@ -1,0 +1,42 @@
+{
+ "commit": "796794a3c80d9b3d41335c167e954a08c125ef06",
+ "command": "pytest tests/cam_unified/test_verify_completion.py tests/cam_unified/test_manifest.py; verify_completion.check(real manifest)",
+ "pytest_tail": [
+  "=========================== short test summary info ============================",
+  "FAILED tests/cam_unified/test_manifest.py::test_claims_are_backed_by_recorded_evidence",
+  "1 failed, 22 passed in 6.77s"
+ ],
+ "synthetic_cases_rejected": [
+  "audit probe (X01 EMPIRICALLY_DEMONSTRATED, verdict 'NOT_DEMONSTRATED (primary CI includes 0)', markdown as implementation, governance test as acceptance+integration test and entry, verified_by='anyone')",
+  "substring verdicts NOT_DEMONSTRATED / UNDEMONSTRATED / lowercase / suffixed",
+  "experiment_result outside the repository",
+  "IMPLEMENTED claim with an unexecuted test",
+  "JUnit record without commit binding / recorded dirty / source changed since / non-ancestor commit",
+  "integration record with test doubles / entry not executed / not run as integration",
+  "verified_by missing record / same workstream",
+  "free-text evidence for an integrated claim",
+  "verdict disagreeing with the interval",
+  "prereg committed after the first confirm row",
+  "prereg modified after confirm started",
+  "raw file hash mismatch",
+  "double confirm evaluation",
+  "< 3 seeds for DEMONSTRATED",
+  "CAM learner not observation_only",
+  "mis-declared dom scale",
+  "dev set as empirical evidence",
+  "register rows vs pre-registrations (4 failure modes)",
+  "actor-side label/evaluator imports"
+ ],
+ "real_manifest": {
+  "claims_consistent": false,
+  "n_problems": 177,
+  "global_problems": [],
+  "engineering_complete": 0,
+  "by_status": {
+   "IMPLEMENTED": 47,
+   "IN_PROGRESS": 34,
+   "NOT_STARTED": 66
+  },
+  "why": "47 IMPLEMENTED claims cite tests with no commit-bound JUnit record (the only recorded XML predates the binding plugin)"
+ }
+}

@@ -143,6 +143,32 @@ def load_predictor(name: str, seed: int):
 
 # ============================================================================ CAM loading
 
+def run_meta(a, cmd: str) -> dict:
+    """Row metadata of one run (audit 'h' Exp1 finding: runs.jsonl had no checkpoint / code provenance): learner,
+    tag, seed, set, run_id, t_wall, code commit / dirty flag, the checkpoint path and the sha256 of its weights file
+    (a weights file, or <ckpt>/weights.safetensors), and the reward channel of this harness. Every output row
+    carries it, so (learner, seed, set, run_id) identify each evaluation (verify_completion's exactly-once check)."""
+    import hashlib
+    import uuid
+    from ..memory.checkpoint import code_version
+    ck = getattr(a, "ckpt", None)
+    wf = None
+    if ck:
+        wf = ck if os.path.isfile(ck) else os.path.join(ck, "weights.safetensors")
+    sha = None
+    if wf and os.path.isfile(wf):
+        h = hashlib.sha256()
+        with open(wf, "rb") as fh:
+            for b in iter(lambda: fh.read(1 << 20), b""):
+                h.update(b)
+        sha = h.hexdigest()
+    cv = code_version()
+    return {"learner": a.learner, "tag": a.tag or a.learner, "seed": a.seed, "set": a.set, "cmd": cmd,
+            "run_id": f"{cmd}-{a.tag or a.learner}-s{a.seed}-{uuid.uuid4().hex[:8]}", "t_wall": time.time(),
+            "code_commit": cv["commit"], "code_dirty": cv["dirty"], "ckpt": ck, "ckpt_sha256": sha,
+            "reward_mode": "legacy (U-X reward-supervised harness; not an observation-only DOM run)"}
+
+
 def cam_stack(learner: str, ckpt: Optional[str], seed: int, sem=None):
     """Weights-only CAM in this fresh process (stack.load_condition "B": optimiser / fast state / experience access /
     counters reset) or a fresh untrained CAM (seeded init). No archive, replay or memory index is attached."""
@@ -165,7 +191,7 @@ def cmd_predict(a) -> None:
     d = set_dir(a.set)
     rows = []
     t0 = time.time()
-    meta = {"learner": a.learner, "tag": a.tag or a.learner, "seed": a.seed, "set": a.set}
+    meta = run_meta(a, "predict")
     if a.learner.startswith("cam"):
         st, info = cam_stack(a.learner, a.ckpt, a.seed)
         meta["load"] = info
@@ -192,7 +218,7 @@ def cmd_predict(a) -> None:
     meta["wall_s"] = time.time() - t0
     meta["gpu_peak_mb"] = torch.cuda.max_memory_allocated() / 2 ** 20 if torch.cuda.is_available() else 0
     _rows_out(os.path.join(d, "predict.jsonl"), rows)
-    _rows_out(os.path.join(d, "runs.jsonl"), [{"cmd": "predict", **meta}])
+    _rows_out(os.path.join(d, "runs.jsonl"), [meta])
     print(f"[exp1] predict {meta['tag']} seed {a.seed}: {len(rows)} rows in {meta['wall_s']:.0f}s")
 
 
@@ -234,7 +260,7 @@ def cmd_decide(a) -> None:
         tasks = tasks[:a.limit] if a.split == "all" else [t for t in tasks if split_of(t.family) == a.split][:a.limit]
     elif a.split != "all":
         tasks = [t for t in tasks if split_of(t.family) == a.split]
-    meta = {"learner": a.learner, "tag": a.tag or a.learner, "seed": a.seed, "set": a.set}
+    meta = run_meta(a, "decide")
     t0 = time.time()
     rows, prows = [], []
     for cond in a.conds.split(","):
@@ -261,7 +287,7 @@ def cmd_decide(a) -> None:
     meta["gpu_peak_mb"] = torch.cuda.max_memory_allocated() / 2 ** 20 if torch.cuda.is_available() else 0
     _rows_out(os.path.join(d, "decide.jsonl"), rows)
     _rows_out(os.path.join(d, "decide_predict.jsonl"), prows)
-    _rows_out(os.path.join(d, "runs.jsonl"), [{"cmd": "decide", **meta}])
+    _rows_out(os.path.join(d, "runs.jsonl"), [meta])
     print(f"[exp1] decide {meta['tag']} seed {a.seed}: {len(rows)} episodes in {meta['wall_s']:.0f}s")
 
 

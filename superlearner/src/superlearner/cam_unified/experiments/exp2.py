@@ -108,7 +108,8 @@ def cmd_run(a) -> None:
         tasks = pickle.load(fh)
     if a.limit:
         tasks = tasks[:a.limit]
-    meta = {"learner": a.learner, "tag": a.tag or a.learner, "seed": a.seed, "set": a.set}
+    a.ckpt = getattr(a, "ckpt", None)
+    meta = E1.run_meta(a, "run")
     t0 = time.time()
     if a.learner.startswith("cam"):
         st, info = E1.cam_stack(a.learner, a.ckpt, a.seed)
@@ -135,7 +136,7 @@ def cmd_run(a) -> None:
     E1._rows_out(os.path.join(d, "episodes.jsonl"), [{**meta, **x} for x in rows])
     E1._rows_out(os.path.join(d, "predict.jsonl"), [{**meta, **x, "split": "familiar", "cond": "B",
                                                     "family": x["task"].split(":")[0]} for x in prows])
-    E1._rows_out(os.path.join(d, "runs.jsonl"), [{"cmd": "run", **meta}])
+    E1._rows_out(os.path.join(d, "runs.jsonl"), [meta])
     print(f"[exp2] {meta['tag']} seed {a.seed}: {len(rows)} episodes {meta['wall_s']:.0f}s")
 
 
