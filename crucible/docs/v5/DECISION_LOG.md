@@ -471,3 +471,43 @@ Third addendum (2026-11-27, wave 3b repair pass after the second independent ver
    start-up hooks, ignored code and compiled files anywhere in the repository count, and a start-up hook outside the
    crucible tree can never be pinned. Stated residual: code that a child process of the measured test loads by name
    from outside the crucible tree (Gate A.1's AGENTRS alias plugin) is not attested by the records.
+Fourth addendum (2026-11-27, wave 3b repair pass, second round - the repair agent's own verification of the third
+addendum; no criterion changes):
+1. Execution observer (probe V9, "detect and sacrifice"): a test that never called its implementation in a normal run
+   (values from elsewhere) and called it on purpose when it read the ablated tree's text left no record under the
+   ablation, which the third addendum's verdict counted as sensitive: VERIFIED with a defective or an entirely raising
+   implementation, no static finding. The evidence plugin now observes, in official runs, which functions of the
+   checkout's src/ returned or yielded in the recording process (not at import time, not inside record()); records
+   carry `executed_implementation` for the requirement's implementation files, the run record the measured pytest
+   pid, and "no record, implementation blocked" counts as sensitive only if a block happened in a child process or the
+   reproduction's recording process executed the implementation. The third addendum's claim "the ablation proves that
+   the producing test executes implementation code before it records" holds now for in-process tests. Stated residual:
+   children are not observed, so a test whose parent imports the implementation and whose children run it only when
+   the ablation is detected is visible only to the reviewer; call-and-ignore stays a residual (now it needs an
+   implementation function that returns normally).
+2. Rebound definitions are patches (probe V10): a helper rebinding the defective function through its argument to the
+   builtin `int` or to another function of the implementation (`m.leaks = m._reset`) was VERIFIED - patched_functions
+   and code_object_patches judge the functions they find by file and code. Records now compare every function a module
+   under src/ defines at module level or in a top-level class body (and never rebinds in its own source) with what the
+   module holds: deleted, a non-function, a builtin or another function of the checkout is a patch (decorated
+   definitions after unwrapping). No finding on 483 real modules.
+3. What a pinned start-up hook may reach (probe V11): the third addendum's content scan rejected only hooks naming the
+   repository's modules; a re-pinned hook could wrap builtins.__import__, patch the standard library, set
+   PYTEST_ADDOPTS for child processes or end every process with exit status 0 from atexit. A pinned hook may now
+   import only os, sys, json, time, threading, importlib, atexit and its finders' guarded modules, name no other module
+   by a constant, never store into, alias, mutate or pass on a module it imported (sys.meta_path aside) and never end
+   or signal the process. The governor's hook (and c5c/w3b-perf's) passes unchanged.
+4. Measurements of the repository's branches in an official clone (Gate X.n1, RP.3-RP.6): a clone carries the source's
+   branches only as origin/*, and its origin is the source repository, so X.n1 saw no workstream or integration branch
+   and RP compared the source with itself. qa.ref_repository reads branches, remotes and reflogs from the repository
+   the official clone was made from; X.n1 skips the checked commit's own evidence/review commits on the integration
+   branch (any other later commit still means the check ran before full integration) and runs its implementation
+   (the test read only a constant, so the block ablation could never find it sensitive).
+D-82 second addendum (same session): the 4.0 historical line count depended on where the checkout was. A failing
+request formats a traceback in the counted region, and linecache's executed lines depend on whether the sandbox user
+can stat the boot file: in a checkout inside a 0700 directory - every official clone (tempfile.mkdtemp) and the
+agents' scratch directories - it cannot, and each failing request counted 27 lines more than c07098b; a fresh worker's
+failed load request also left linecache entries (25 lines fewer on the next failure). In a 4.0 historical-baseline
+process boot.py now gives its own functions a stat-able, unreadable code filename (the working directory) and the
+load request formats no traceback, so the counts equal c07098b's wherever the tree is (regression test with the tree
+in a 0700 directory and failing imports).
