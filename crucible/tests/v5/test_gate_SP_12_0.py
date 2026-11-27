@@ -70,7 +70,7 @@ def _one(prep, root, seed):
 
 
 def test_SP_12_0_selfplay_capabilities_in_a_civilisation(tmp_path):
-    prep = prepare(str(tmp_path), "full")
+    prep = prepare(str(tmp_path), "full", heldout_rl=False)     # the switch's replacement is heldout_gru
     runs = [_one(prep, str(tmp_path), s) for s in SEEDS]
     counts = {r["seed"]: len(r["ok"]) for r in runs}
     both = sorted(set.intersection(*(set(r["ok"]) for r in runs)))

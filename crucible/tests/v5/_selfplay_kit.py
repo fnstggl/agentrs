@@ -30,7 +30,8 @@ def service():
     return SemanticService(MODEL, device="auto", max_batch=8, max_new_tokens=640)
 
 
-def prepare(root: str, size: str = "full", *, heldout: bool = True, semantic: bool = True) -> dict:
+def prepare(root: str, size: str = "full", *, heldout: bool = True, semantic: bool = True,
+            heldout_rl: bool = True) -> dict:
     """Demonstrations, behaviour-cloning pre-training, the held-out families and the semantic service."""
     torch.set_num_threads(1)
     z = SIZES[size]
@@ -41,7 +42,7 @@ def prepare(root: str, size: str = "full", *, heldout: bool = True, semantic: bo
                           demo_hours=z["demo_hours"] * 0.75) if heldout else None
     # a second held-out family that never saw a demonstration (self-play from its random initialisation)
     ho_rl = C.heldout_family(reg, seed=4343, hours=2 * z["ho_hours"], source="self_play",
-                             drive="reach") if heldout else None
+                             drive="reach") if heldout and heldout_rl else None
     svc = service() if semantic and z["semantic"] else None
     return {"registry": reg, "demos": demos, "pretrained": groups, "heldout": ho, "heldout_rl": ho_rl,
             "service": svc, "size": size, "root": root}
