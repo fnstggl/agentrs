@@ -181,7 +181,7 @@ Every T4 limit is met with margin; 0 violations in the job's seven dimensions. T
 count grows with the cascade's reach (hour 6: 0.59M, hour 7: 3.5M, hour 8: 9.0M, hour 9: 13.1M; 260 CPU-s for the
 last hour). From this run on the internet grant is 25 GB / 2.5 GB GPU (1.5x / 1.8x the measured peaks).
 
-## 8. Civilisation world, standard and large profiles, 30 simulated days (job started 2026-11-26 21:05)
+## 8. Civilisation world, standard and large profiles, 30 simulated days (job 2026-11-26 21:05-23:05)
 
 One governed job (2 CPUs, 7 GB GPU, 14 GB RAM) runs governed sub-runs from a scratch snapshot of this branch, cold
 machine cache each: civ standard seeds 0, 1, 2 one after the other, next to civ large seed 0, then the
@@ -204,4 +204,30 @@ Large, seed 0 (101,120 individuals), first days: generation 7.9 CPU-s (1.8 GB); 
 2-4), peak RAM 3.87 GB, store 120 MB per simulated day (705 MB after 4 days). The shopping search is about 70% of a
 large day (R1).
 
-Still pending in this job: standard seeds 1 and 2, the remaining large days and the population-only standard row.
+How the job ended (2026-11-26 23:05): standard seed 1 also ran all 30 days and was stopped at its final VACUUM by
+the disk grant (1,823 MB against 1,500; the code it ran predates 294c83c). Then the whole job was stopped by its own
+GPU-time grant: the outer job was granted the scheduler's fixed 4-hour default of GPU time, and GPU time sums the
+context-holding seconds of every process of the job, so two GPU runs in parallel spent it after 2 hours of wall time,
+in spite of the job's 18-hour timeout. Standard seed 2 was at day 15 and large seed 0 at day 7; the population row
+never started. The default now covers every worker for the whole time limit (`slots.default_gpu_s`, 36bb5ef, test).
+The stores of the stopped runs were deleted to free disk; the per-day partial reports are what remains.
+
+| run | simulated days | simulated days per CPU-hour | CPU-s per day (first -> last) | ms CPU per event (first -> last) | peak RAM | store |
+|---|---|---|---|---|---|---|
+| civ standard seed 0 | 30 | 45.5 | 74 -> 103 (max 117, day 28) | 2.49 (day 2) -> 3.82 (max 4.35, day 26) | 3.58 GB | 758 MB |
+| civ standard seed 1 | 30 | 50.6 | 61 -> 86 (max 89, day 28) | 2.44 -> 3.12 | 3.58 GB | 737 MB |
+| civ standard seed 2 | 15 (stopped) | 62.4 | 51 -> 56 | 2.18 -> 2.19 | 3.15 GB | 393 MB |
+| civ large seed 0 | 7 (stopped) | 4.21 | 225 -> 1,332 | 3.46 -> 16.15 | 4.22 GB | 1,051 MB |
+
+Standard: T2 (>= 15 simulated days per CPU-hour) is met by every seed with a margin of 3x, also on the costliest
+day (31 per CPU-hour). The cost per event grows by 28% (seed 1) to 53-75% (seed 0) over 30 days at a nearly constant
+event rate (23,000-31,000 events per day), i.e. with the world's accumulated state, not with its activity.
+
+Large: the cost per event grows 4.7x in 7 days at a constant event rate (65,000-103,000 events per day), so the
+cumulative rate falls day by day (5.7 after 4 days, 4.2 after 7; days 6 and 7 alone 2.9 and 2.7). T3 (>= 3.75 over 30
+days) is **missed** on this trend: extrapolating the growth of days 2-7 linearly (+100 to +120 CPU-s per day), 30 days cost
+62,000-70,000 CPU-s, 1.5-1.7 simulated days per CPU-hour. The growth is the shopping search over a growing index
+(sections 5 and 6, request R1), which only its owner can change; the large row of V.1 fails until R1 lands.
+
+A rerun of the three standard seeds and the population-only standard row on the fixed code (36bb5ef, one CPU,
+sequential, label "M: bench5 civ standard x3 seeds 30d + population row") was queued on 2026-11-27 at 01:55.
