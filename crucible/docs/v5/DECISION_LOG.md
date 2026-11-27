@@ -410,7 +410,9 @@ time, read in the body) survives the block and is rejected - call a function of 
 Not covered (stated): implementation functions executed only in processes that do not import Crucible from a clone
 (the sandbox's `python -I -S` boot and jail scripts; each requirement listing them also lists the in-process modules that
 start them), generators started during an import and resumed later, and a test that detects the hook itself (it is
-visible to the measured process) - reviewers still read the tests.
+visible to the measured process; a test module or harness file that reads or installs interpreter hooks -
+sys.monitoring, sys/threading settrace or setprofile - is a blocking `interpreter_probe` finding, probe P38b) - reviewers still
+read the tests.
 Second addendum (same session): the D-26 rule "start-up hook files in the tree are rejected" made every project
 status unreachable after the merge of workstream M's resource governor (D-27), which commits
 `src/crucible/scale/_slotsite/sitecustomize.py` (the GPU cap and usage reporter the slot supervisor activates by

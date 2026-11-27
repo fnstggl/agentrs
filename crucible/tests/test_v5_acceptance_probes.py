@@ -676,7 +676,7 @@ def test_ablate_source_keeps_module_code_and_makes_every_function_raise():
     assert new.splitlines()[1] == "from __future__ import annotations"
 
 
-# ================================================================================================= wave 3b (P31-P38)
+# ================================================================================================= wave 3b (P31-P39)
 # Independent verification of the D-26 machinery (workstream P, wave 3b). Each probe is an attack that a cheating
 # producer can mount with the official pipeline and a few committed lines; all of them reached VERIFIED on the D-26
 # code (55433e7) and are rejected after the wave-3b hardening (DECISION_LOG D-83).
@@ -993,3 +993,27 @@ def test_P39_only_a_pinned_unchanged_startup_hook_outside_the_startup_roots_is_a
     r.commit("a pinned hook on PYTHONPATH")
     probs = r.verify()[0]["global_problems"]
     assert any("startup hooks" in p and "src/sitecustomize.py" in p for p in probs), probs
+
+
+HOOK_DETECTOR = '''import sys
+
+from crucible.acceptance.v5 import evidence
+import widgets
+
+
+def test_z():
+    ablated = any(sys.monitoring.get_tool(t) == "crucible-v5-ablation" for t in range(6))
+    n = 12 if not ablated else len(widgets.__name__)
+    evidence.record("Z.1", {"widgets": n, "leaks": int(ablated)})
+    assert n >= 10
+'''
+
+
+def test_P38b_a_test_that_probes_the_interpreter_hooks_is_rejected_statically():
+    """The behavioural ablation is a sys.monitoring hook the measured process can see; a test that asks the
+    interpreter for its monitoring tools (or installs trace/profile hooks) can tell an ablated run from a normal one.
+    Such a module is an `interpreter_probe` finding (blocking), whether or not the rest of the test looks honest."""
+    f = next(x for x in testscan.scan_source(HOOK_DETECTOR) if x["name"] == "test_z")
+    assert "interpreter_probe" in f["findings"], f
+    assert testscan.harness_findings("import sys\nsys.settrace(lambda *a: None)\n")
+    assert "interpreter_probe" not in testscan.scan_source(GOOD_TEST)[0]["findings"]

@@ -14,6 +14,9 @@ For each test function it reports:
   then fails is reported as `constant_record_then_fail`, which is not a placeholder);
 * `placeholder_text` - TODO / FIXME / XXX / placeholder / NotImplementedError in the function's source;
 * `dynamic_code`  - `exec` / `eval` / `compile` anywhere in the module (code no static rule can read).
+* `interpreter_probe` - `sys.monitoring`, `sys.settrace` / `setprofile` / `gettrace` / `getprofile` or
+  `threading.settrace` / `setprofile` in the module: a test that reads or installs interpreter hooks can detect the
+  review's behavioural ablation (a sys.monitoring hook) and record differently under it (D-83 addendum).
 
 `record_call_sites` lists each record() call of a test body with its span and the metric names whose value is fixed by
 the test's source (constants, `12 if ok else 0`, names bound only to such values); the checker rejects a producing
@@ -44,7 +47,7 @@ import sys
 import sysconfig
 
 BLOCKING = ("no_assert", "trivial_assert", "early_return", "swallow", "skip", "mock", "patch", "constant_record",
-            "placeholder_text", "dynamic_code")
+            "placeholder_text", "dynamic_code", "interpreter_probe")
 BROAD_EXCEPTIONS = {"Exception", "BaseException"}
 # hooks through which a conftest or plugin decides what runs, what is collected or what is reported
 OUTCOME_HOOKS = {"pytest_pyfunc_call", "pytest_runtest_call", "pytest_runtest_protocol", "pytest_runtest_setup",
@@ -289,12 +292,21 @@ def swallow_findings(node, *, helper: bool = False) -> list[str]:
 DYNAMIC_CODE = {"exec", "eval", "compile", "builtins.exec", "builtins.eval", "builtins.compile"}
 
 
+INTERPRETER_PROBES = {"sys.monitoring", "sys.settrace", "sys.setprofile", "sys.gettrace", "sys.getprofile",
+                      "threading.settrace", "threading.setprofile"}
+
+
 def dynamic_code_findings(tree: ast.Module) -> list[str]:
     """`exec` / `eval` / `compile` anywhere in a test module or harness file: code that no static check reads (a
-    patch compiled from a string is invisible to the patch rules)."""
-    return ["dynamic_code" for n in ast.walk(tree) if isinstance(n, ast.Call) and
-            isinstance(n.func, (ast.Name, ast.Attribute)) and _root_name(n.func) in ("exec", "eval", "compile", "builtins")
-            and _dotted(n.func) in DYNAMIC_CODE][:1]
+    patch compiled from a string is invisible to the patch rules); and interpreter-hook probes (`interpreter_probe`),
+    through which a test could tell the review's behavioural ablation from a normal run."""
+    out = ["dynamic_code" for n in ast.walk(tree) if isinstance(n, ast.Call) and
+           isinstance(n.func, (ast.Name, ast.Attribute)) and _root_name(n.func) in ("exec", "eval", "compile", "builtins")
+           and _dotted(n.func) in DYNAMIC_CODE][:1]
+    probes = [n for n in ast.walk(tree) if isinstance(n, ast.Attribute) and _dotted(n) in INTERPRETER_PROBES]
+    probes += [n for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module in ("sys", "threading") and
+               any(f"{n.module}.{a.name}" in INTERPRETER_PROBES for a in n.names)]
+    return out + (["interpreter_probe"] if probes else [])
 
 
 def _is_fixture(fn) -> bool:
