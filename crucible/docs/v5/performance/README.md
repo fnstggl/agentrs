@@ -54,6 +54,9 @@ Single pieces:
   `python -m crucible.scale.govprobe deadline_backfill`. So pass an honest `--timeout`: it is what lets a job start
   early, and a job that outlives it is stopped.
 * A head that waits only for free disk gives up after 15 minutes (exit status 75) instead of blocking the queue.
+* GPU time (seconds of held CUDA contexts, summed over the job's processes): without `--gpu-s` a GPU job is granted
+  the longer of 4 hours and its `--timeout`, per CPU worker (`slots.default_gpu_s`). The fixed 4-hour default
+  stopped a benchmark job of two parallel GPU runs with an 18-hour timeout after 2 hours (2026-11-26 23:05).
 * Ledger and queue entries carry their process's start time (a reused pid never keeps a dead holder's slot);
   signals go through a pidfd after the same identity check, so the governor cannot signal a process that took over
   a member's pid.
