@@ -177,6 +177,13 @@ class ActionGenerator(nn.Module):
                                    LatentBridge.init_rows_from(encoder, cfg.n_prefix), n_layers=bridge_layers)
         # LoRA tensors of the decoder path: registered so they are optimised and saved with the generator
         self.lora = nn.ParameterList(encoder.lora_parameters())
+        # DOM Mechanism A (W4): the decoder's latent cross-attention lives on the encoder (`encoder.conditioning`,
+        # "an nn.Module whose parameters the owning CAM module registers"). Registered here, like the LoRA tensors,
+        # so the learner optimises it, checkpoints save it and the DOM-08 table sees it (action_generator.dec_cond.*;
+        # wave-3 merge: it was unregistered, so its 11.5M dom_dev parameters were never trained)
+        cond_mod = getattr(encoder, "conditioning", None)
+        if isinstance(cond_mod, nn.Module):
+            self.dec_cond = cond_mod
         self.tables = tables_for(encoder.tok, encoder.vocab_size, encoder.device, encoder.model_name)
         self.filler = HoleFiller(encoder, self.tables, self.opts, max_prompt_tokens)
         # learned stop hazard of free strings (length prior of the untrained decoder; grammar.LengthHead)

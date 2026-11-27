@@ -431,8 +431,12 @@ def _set_group_lr(trainer, keep: Callable[[str], bool]) -> list:
     """Learning rate 0 for every optimiser group whose name fails `keep` (current optimiser AND the spec its
     resets rebuild from). Returns the names of the frozen groups."""
     frozen = []
-    for g in list(getattr(trainer, "_pg_spec", [])) + [g for o in (getattr(trainer, "opt", None),) if o is not None
-                                                       for g in o.param_groups]:
+    spec = getattr(trainer, "_pg_spec", [])
+    # W7's CombinedTrainer keeps one spec / optimiser per role ({"slow": [...], "meta": [...]}); older ones a list
+    spec_groups = [g for pg in spec.values() for g in (pg or [])] if isinstance(spec, dict) else list(spec)
+    opts = list((getattr(trainer, "opts", None) or {}).values()) or [getattr(trainer, "opt", None)]
+    opt_groups = [g for o in opts if o is not None for g in o.param_groups]
+    for g in spec_groups + opt_groups:
         name = str(g.get("name", ""))
         if not keep(name):
             g["lr"] = 0.0

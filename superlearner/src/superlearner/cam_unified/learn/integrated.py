@@ -718,11 +718,20 @@ class IntegratedLearner:
             if tok is not None and hasattr(tok, "action"):     # executed-action tokens (e_a of IntrinsicReward)
                 with torch.no_grad():
                     sig["action"] = tok.action([nodes[i].st.actions[nodes[i].j] for i in trainable])
+            extra = {}
+            names = getattr(self.reward_model, "signal_names", None)
+            if names is not None:
+                # W8's RewardModel declares its signal set (ExperienceSignals fields only); the window-end marker
+                # is not a signal there, and an episode end is its `done` (absorbing: Phi(terminal) = 0). A window
+                # end without an episode end keeps R_next = R (truncation, not termination).
+                sig = {k: v for k, v in sig.items() if k in set(names)}
+                extra["done"] = torch.tensor([float(bool(nodes[i].st.done[nodes[i].j])) for i in trainable],
+                                             device=dev)
             rr = self.reward_model.reward(R[idx], R_next, goal.select(idx) if hasattr(goal, "select") else goal, dt,
                                           info_gain=ig, cost=cost,
                                           belief=belief.select(idx) if hasattr(belief, "select") else None,
                                           belief_next=belief.select(nidx) if hasattr(belief, "select") else None,
-                                          intent=None, signals=sig)
+                                          intent=None, signals=sig, **extra)
             if torch.is_tensor(rr) and rr.requires_grad:
                 raise RewardIntegrityError("RewardModelP.reward must be detached (no actor loss reaches psi)")
             rr = torch.as_tensor(rr, device=dev).float().reshape(-1)

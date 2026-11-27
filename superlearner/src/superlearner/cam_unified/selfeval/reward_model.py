@@ -83,6 +83,7 @@ def _vec(x, B: int, device) -> Optional[Tensor]:
 
 
 class RewardModel(nn.Module):
+    signal_names = SIGNAL_NAMES      # the only `signals` keys reward() accepts (callers filter by it)
     """RewardModelP. See the module docstring. d_model = width of R (cfg.d_model)."""
 
     def __init__(self, cfg: Optional[CamConfig] = None, *, enabled: Optional[bool] = None,

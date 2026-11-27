@@ -28,7 +28,6 @@ KNOWN_OTHER_LOOPS = {
     "dist/toyworld.py": "toy mechanism proofs (RETAIN, not CAM evidence)",
     "envs/integrity.py": "operator-side oracle reference on forks of an integrity world (no agent acts) [W2]",
     "learn/meta.py": "MetaRLObjective baseline harness (kept only as a baseline) [W6: migrate to run_lifetime]",
-    "experiments/predict.py": "support collection for Experiment 1 predictions [W9: migrate to run_lifetime]",
     "capabilities/causal.py": "scripted intervention sequences of the causal diagnostic [W6: migrate]",
     "capabilities/memory.py": "cue evaluation of the memory diagnostic [unowned: migrate to run_lifetime]",
     "selfeval/integrity_harness.py": "Exp F harness: a state-independent tabular tool policy on integrity worlds (no "
