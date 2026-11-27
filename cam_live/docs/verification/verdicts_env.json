@@ -1,0 +1,214 @@
+{
+ "IH-01": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "All ten EnvironmentAdapter methods exist, typed, no reward field. With the real PolicyService: no / forged / foreign / relabelled grant and needs_approval never reach an executor, a grant is single-use, the log order is submitted->started->primitive_check->primitive_op->result, an emergency stop voids issued grants, SIGKILL during a write is recovered as failed/unknown without re-sending, ExecRPC refuses other uids. GAPS: (1) at-most-once is broken under concurrent duplicate submission with two valid grants - the POST was sent twice (env.py:489-507 vs 560-569 re-checks only the in-flight table, not the journal); (2) a refusal by a rate limit is labelled missing_permission (hard) (env.py:697-698); (3) as composed by the runtime (loop_service.py:78, cli.py:393-397) the environment has no secret broker handle.",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_env_core.py",
+   "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/skills -q --rootdir=cam_live   # G run: 149 passed, 23 skipped"
+  ]
+ },
+ "IH-02": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "Real Chromium reads, navigates, fills, clicks, downloads on local sites; file:/chrome:/view-source:/javascript: are refused twice over (PolicyService.authorize and executor validation) and page-initiated file:// access yields nothing; page text with fake system / operator / approval instructions is returned as untrusted data and changes nothing; typed, clicked and scripted navigations to a forbidden destination are checked before the request leaves. GAPS: a 302 to a forbidden destination IS sent before any check (content withheld afterwards); a WebSocket and a redirected same-origin fetch reach a forbidden destination with no check and no report (browser.py:947-1001); scripts' same-origin POSTs are never reported (EA README point 3); in staging mode the browser reads the instance portal on 127.0.0.1:11111 because the default policy allows every loopback port (default_policy.yaml:43-46, also found by G-sec p06); a deny entry for 127.0.0.1:PORT is bypassed by localhost:PORT; a click that opens a tab is reported failed/unknown in 4-6 of 8 clicks per run although it happened (browser.py:1040); a page showing 'x: 1e999999999999' cannot be observed at all (perception.py:64); in the separated deployment on this machine Chromium does not start (probe_separated.py).",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_browser.py",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_perception_internal.py",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_separated.py",
+   "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\"   # G run: 66 passed, 0 skipped (real Chromium, root)"
+  ]
+ },
+ "IH-12": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "docs/HARNESS_ADAPTER_GUIDE.md exists and matches the code I read (executor rules, hooks, ExecContext extras, ExecRPC); the conformance kit ran in my session against ComputerEnvironment and LabWorld (test_adapter_contract.py: 6 passed). GAPS: an executor written as the guide says (secret NAME in arguments, ctx.secrets.get(name, ...)) cannot obtain a secret from the real authorization service - the service refuses a bare name as a literal credential and the 'secret:<name>' form it asks for is passed to the vault unstripped (shown with both built-in executors: BR-SECRET-USABLE, HT-SECRET-REFERENCE); the guide states 'at most once' without the concurrency caveat; no third-party harness was plugged in.",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/skills -q --rootdir=cam_live   # G run: 149 passed, 23 skipped",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_browser.py",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_api_publish_modality.py"
+  ]
+ },
+ "CU-01": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "Persistent environment process, workspace, journal, event stream, scheduled waits and pending outcomes survive a SIGKILL + restart (ENV-RESTART); versioned ExecRPC with uid check. GAPS (beyond EB's own 'partial'): the environment service as `cam-live run` starts it registers only internal + structured_browser (21 tools; no code, visual, api, skill), gets no secret handle (secret_scrubbing=false), and its browser cannot start because Playwright's Chromium under /root is unreachable for the cambrowser uid and no shared install / PLAYWRIGHT_BROWSERS_PATH is configured; boundary is uids in a container, not a VM.",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_env_core.py",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_separated.py"
+  ]
+ },
+ "CU-02": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "Full Chromium 159.0.8154.6 (new headless mode) launched through Playwright in every in-process probe and in EB's 22 browser tests (re-run: passed). GAP: in the separated deployment (the only mode allowed for live tasks) launch_persistent_context fails with 'Executable doesn't exist at <run>/browser_profile/.cache/ms-playwright/...'; harness.service has no option for an executable path and runtime doctor checks Chromium only for the invoking user.",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_browser.py",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_separated.py",
+   "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\"   # G run: 66 passed, 0 skipped (real Chromium, root)"
+  ]
+ },
+ "CU-03": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "16 structured primitives exist; navigate, open/select/close tab, inspect, read, click, fill, scroll, download, upload confinement, stale refs exercised by my probes on real Chromium, the rest by EB's tests (re-run: passed). GAPS with the real PolicyService and default policy: (1) every click / fill / select counts as an external write and the default limit is 10 per hour per destination - EB's own 9-step staging workflow completes once and is refused during the second run; (2) browser.upload of a workspace file is always denied (workspace is not in the policy's file_roots, default_policy.yaml:73); (3) browser.fill with a stored secret cannot work (see IH-12); (4) the popup race and the number-parser crash report executed clicks as failed/unknown (duplicate risk).",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_browser_workflow.py",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_browser.py",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_perception_internal.py",
+   "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\"   # G run: 66 passed, 0 skipped (real Chromium, root)"
+  ]
+ },
+ "CU-04": {
+  "status": "verified",
+  "by": "G-env",
+  "notes": "EB's test attaches over CDP to a separately launched Chromium on a loopback DevTools port and drives it through the same executor; re-run in my session: passed. Not attacked beyond code reading: the request hook is installed on the external browser's first context only (browser.py:827-829), and a remote / authenticated endpoint was never tried.",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\"   # G run: 66 passed, 0 skipped (real Chromium, root)  (test_browser_sessions.py::test_cdp_attach_to_a_separately_launched_chromium)"
+  ]
+ },
+ "CU-05": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "Observations carry URL, title, text digest, a11y tree, elements with per-observation refs, forms, links, tables, tabs and a diff; refs to a removed element, a renamed element, a replaced document, an unknown observation and the ref@obs form all fail with stale_observation while an untouched element still works (BR-STALE). GAPS: Observation.data is unbounded - one wide table row, a long href or a long title gave observations of 1.8 / 5.0 / 3.0 MB that are also logged (browser.py:149,170,175,202; perception.py:300-304); a numeric string with a huge exponent makes the page unobservable; a non-displayed <dl> is read as quantities; iframes are not listed (disclosed).",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_browser.py",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_perception_internal.py"
+  ]
+ },
+ "CU-11": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "Typed ActionSpec with structural validation (unknown operation / tab, bad arguments, wrong scheme, oversized or negative values are refused before execution); verification conditions are evaluated on the resulting state. GAP: the compositional part does not run with the real authorization service - every ActionSpec(operation='program', steps=[...]) is denied because 'program' is not in the policy's tool table (PG-PROGRAMS-REAL-POLICY); EB's program tests pass only with EB's own test policy. prerequisites / expected / auth_scope are carried but not interpreted (disclosed).",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_programs.py",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_env_core.py",
+   "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/skills -q --rootdir=cam_live   # G run: 149 passed, 23 skipped"
+  ]
+ },
+ "CU-13": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "One interface routed real internal, structured_browser, api (ES HttpApiExecutor, PublishingExecutor) and skill executors in my probes, each primitive checked against the granted top-level action. GAPS: the runtime's default composition has two modalities only (internal, structured_browser); cross-modality programs are denied by the real policy; visual and code executors were not composed here (other lens).",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_skills.py",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_api_publish_modality.py",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_separated.py",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_programs.py"
+  ]
+ },
+ "CU-14": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "EB's tests show a staging sign-in cookie and open tabs surviving an environment restart and a 0700 profile under the browser uid with a shared Chromium copy (re-run: passed, including the two privileged tests). GAPS: connecting an account with a stored credential does not work with the real authorization service (browser.fill secret: bare name refused, 'secret:<name>' not stripped, browser.py:1429); with the missing step emulated the secret reaches only a password field of a page it is bound to and plain / reversed / base64 echoes are scrubbed, but spaced, upper-cased or split echoes reach the observation and events.jsonl; in the separated deployment the browser does not start.",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_browser.py",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_separated.py",
+   "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\"   # G run: 66 passed, 0 skipped (real Chromium, root)"
+  ]
+ },
+ "CU-21": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "Perception turns pages, tool results, PDF text, CSV, JSON, HTML, images, traces, events and metrics into Observation records with exact Quantity values and trust=untrusted; 24 number-parsing cases correct (dates, times, ranges, fractions are not numbers). GAPS: '1e999' becomes a non-finite Quantity (JSON token Infinity in events.jsonl / RPC); a larger exponent raises decimal.InvalidOperation and fails the whole observation (perception.py:64); '300K' -> 300000 and '5B' -> 5e9 with the unit lost; data size unbounded; file() silently reads only 8 MB; ES executors build their Observations directly, not through Perception.",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_perception_internal.py"
+  ]
+ },
+ "CU-28": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "events.jsonl records submission, refusal, start, every primitive check with verdict, every primitive op, every observation and the result, in order; the authorization service's audit has authorize / grant_use / primitive / record for the same action; grants are not logged. GAPS: requests a page makes on its own (same-origin fetch incl. POST, WebSocket, redirect hops) are in no log; scrubbing needs a broker handle that the launched service does not get; one hostile page added megabytes to the log (no bound, no rotation).",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_env_core.py",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_browser.py",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_perception_internal.py",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_separated.py"
+  ]
+ },
+ "CU-29": {
+  "status": "verified",
+  "by": "G-env",
+  "notes": "Real service process killed with SIGKILL while an external POST was in flight, restarted on the same run directory: the interrupted write is answered failed/unknown and NOT sent again (server received 1 request), the finished write returns its recorded result (1 request), the scheduled wake-up is unchanged; EB's restart tests for pending outcomes, cursors and the browser profile / tabs re-run and passed. Observation references and in-page state do not survive (disclosed).",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_env_core.py",
+   "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\"   # G run: 66 passed, 0 skipped (real Chromium, root)"
+  ]
+ },
+ "IH-04": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "Static-site half only (the Discord channel path was left out of this pass). draft -> preview -> submit works with the real PolicyService; paths leaving the site root (.., absolute, hidden, symlinked directory), unknown destinations and an unpreviewed draft are refused; the file equals the previewed bytes; re-submitting does not rewrite; with 'require_approval: always' the draft waits and is published only after the operator approves. GAPS: the approval is bound to the action (draft id + destination) and the queue entry shows the operator the draft id, not the text; it holds today only because publish.update is itself approval-gated - with ES's pending change request ES-3 applied the text was replaced while pending and the replaced text was published under the earlier approval; generic http.request cannot use a stored credential with the real service; a POST is re-sent up to 3 times after 503 / timeout.",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_api_publish_modality.py"
+  ]
+ },
+ "IH-06": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "Only the non-Discord half was examined: publish.get_analytics aggregates a combined-format access log to counts (6 page views, 3 distinct clients, 1 self-declared automated view, 9 requests), returns no client address and labels the result untrusted. The Discord aggregates (guild stats, channel activity, invites, retention) belong to the Discord adapter, which is being extended and was deliberately not examined in this pass.",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_api_publish_modality.py"
+  ]
+ },
+ "CU-15": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "With executed actions handed to the skill executor by the caller, a two-step skill is abstracted from two real traces (parameters title / body, the created id captured between steps), validated and registered through the real environment and PolicyService. GAPS: in the system as built this cannot happen - the environment never calls SkillExecutor.observe_execution (ES-4 not applied), skill.induce through the environment fails with 'no successful execution recorded', and nothing outside runtime/doctor.py imports harness.skills; exercised on HTTP API traces only. The claim 'a skill never has more permission than its steps issued one by one' is false for rate limits: 10 direct POSTs are allowed per hour, the same POSTs inside skill.run were sent 28 times in 14 runs without a refusal (SK-RATE-LIMIT).",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_skills.py"
+  ]
+ },
+ "CU-16": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "A candidate is registered only after an execution with fresh arguments through the authorized path (real requests, 4 primitive checks); a forbidden destination, an interface the task does not permit and an approval requirement stop a skill at the offending step with nothing sent; a step appended to the stored skill file by hand is checked and refused like any other. GAPS: validation is as strong as the derived postconditions - in my run the only one was 'every step reported success'; the guard against protected resources examines step templates only, so a protected name passed as an argument at run time is executed (skills.py:1195); rate-limit amplification as in CU-15.",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_skills.py"
+  ]
+ },
+ "CU-17": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "Reuse with new arguments works (the application received the new item, published); decisions per task 3 -> 1 and primitive operations 3 -> 4 reproduced (success 20/20); latency does not improve (my runs: ratio 1.28 and 1.59; status file: about 1.7). GAPS: not reachable from the runtime (SkillLibrary.candidate_actions is never called); transfer to unfamiliar interfaces not measured (disclosed).",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_skills.py",
+   "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_es_skills.py::test_measured_primitive_only_versus_skill_based_execution -q --rootdir=cam_live   # rewrites docs/evidence/ES/skills_vs_primitives.json"
+  ]
+ },
+ "CU-18": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "Mechanism verified through the real environment and PolicyService: after the application changed its interface the skill failed twice, was marked stale, was then refused without sending anything, was repaired from new traces into version 2 (validated again by execution, version 1 kept on disk), and a retired skill is never executed; a denial does not count against the skill. GAP: unreachable in the runtime as built (see CU-15); repair needs traces supplied by the caller.",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_skills.py"
+  ]
+ },
+ "CU-19": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "As ES states: only the PROCEDURE level exists here - one skill.run result carries start / end observation ids, the primitive operations, elapsed time and the termination condition (seen in my skill runs). Interventions, semi-Markov treatment and duration-aware discounting are not in ES; environment-level programs are denied by the real policy (CU-11).",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_skills.py",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_programs.py"
+  ]
+ },
+ "CU-31": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "Calibration numbers reproduced exactly (mean |error| 0.021668550514979505, max 0.05332807700219078; seeded simulated mix). A denial or a platform restriction blocks every realisation of the SAME intent key, survives save / load and is not counted against the modality. GAPS: the selector is called from nowhere in the runtime; calibration is on a simulated mix only; the block is keyed by parent_decision_id / operation suffix, so the same operation under the next decision id, or the other realisation's own ActionSpec given as the intent, is offered again, and update() without an intent records no block (modality.py:216-221, 339-351).",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_api_publish_modality.py",
+   "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_es_modality.py::test_estimates_calibrate_on_a_simulated_mix_and_selection_shifts -q --rootdir=cam_live"
+  ]
+ },
+ "CU-32": {
+  "status": "partial",
+  "by": "G-env",
+  "notes": "HTTP 403 / 451 are sent once and classed hard; a 429 with a long Retry-After is not retried and the host's window is then honoured; a policy denial sends nothing; a redirect to a forbidden destination is checked before the hop; retry rules cannot be created for hard classes; transient retries are bounded (3 / 2 / 1); a denial dominates accompanying transient evidence. GAPS: a POST whose effect the server applied is re-sent automatically - 4 sends after a 503 and 4 after a client timeout (http_api.py:441, failures.py:244), which duplicates external writes; the browser and the environment do not use this taxonomy and label a rate-limit refusal missing_permission.",
+  "evidence": [
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_api_publish_modality.py",
+   "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_browser_workflow.py"
+  ]
+ }
+}
