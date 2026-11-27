@@ -537,7 +537,7 @@
    "tests": [
     "tests/v5/test_gate_SP_4_4.py"
    ],
-   "status_claim": "failed at 96920ab (10 of 12 factors: attention and social relationships under the 1e-3 threshold because a cohort-wide shift of an alternative-specific input cancels in the softmax and the attention ratio had almost no spread at the day boundary); measurement follows the decision structure since 36950aa (one alternative perturbed; a quarter of the day's attention; contacts in the community computed instead of zeros): 12 of 12 on a CPU probe world; gate run queued",
+   "status_claim": "criteria met in an unofficial gate run at a50d20da (snapshot snapQ 6706518, governed CPU slot, integrated population world with the social internet, 6 days; 1 passed in 1594 s): choice_factors_used 12 of 12 (400 individuals), decision_kinds_simulated 4 (continue 18,682, share 931, subscribe 485, disengage 1,964), fitted_models_in_default_consumption 4 (customer_return@1, news_click_semantic@1, return_daily@1, session_rate@1)",
    "notes": ""
   }
  },
