@@ -692,7 +692,8 @@ def fits_behind(held: list[dict], ahead: list[dict], cpu: int, gpu_mb: int, budg
     Deadlines (`run_s`, the request's time limit; holders' `until`): while the head cannot start, its share is
     free until its shadow time (`shadow_time`: the holders it waits for have ended at their deadlines). A request
     whose own deadline comes before that may use the head's share meanwhile: it is stopped by then at the latest, so
-    the head is not delayed beyond the time it had to wait anyway. Without a known shadow time nothing changes."""
+    the head never starts later than its planned start (if a holder ends early, the head can wait for the rest of
+    the short job's run time, the usual EASY trade-off). Without a known shadow time nothing changes."""
     pend = protected(held, ahead, budget, free_disk_mb)
     if run_s is not None and pend and ahead:
         now = time.time() if now is None else float(now)

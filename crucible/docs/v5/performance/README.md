@@ -50,7 +50,8 @@ Single pieces:
   without a known planned start (a holder without a deadline, e.g. an older version's entry) nothing changes.
   Observed 2026-11-27 01:57: the head (1 CPU + 3 GB GPU) kept the ninth CPU idle while it waited for one of the 4 GPU
   job slots held by jobs with hours left, and 31 requests waited; short CPU jobs may now run on that CPU. The head
-  waits no longer than it had to (the short job is stopped by its deadline at the latest). Probe:
+  never starts later than its planned start (the short job is stopped by its deadline at the latest); when a holder
+  ends well before its deadline, the head can wait for the short job's remaining run time (the usual EASY trade-off). Probe:
   `python -m crucible.scale.govprobe deadline_backfill`. So pass an honest `--timeout`: it is what lets a job start
   early, and a job that outlives it is stopped.
 * `--status` says what each queued request waits for (`waiting_for`: the budget dimensions it is short of - the head
