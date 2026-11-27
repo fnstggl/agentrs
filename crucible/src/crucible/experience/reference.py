@@ -12,7 +12,9 @@ Model (about 0.2M parameters with the defaults)::
     tool  ~ softmax_i( q(h_t) . e(tool_i) )          e(.) = EmbeddingBag over hashed name / host / category tokens;
                                                        option 0 is "wait" (no action this step)
     args  : filled from the tool's JSON schema - bounded numbers lo + sigmoid(z)(hi - lo), z ~ N(mu(h, e(tool))[slot],
-            sigma); enums and id-like strings ~ softmax over candidates (entity ids, names seen in results);
+            sigma); enums and id-like strings ~ softmax over candidates (entity ids; ids seen in its own results
+            and visible events under the same key - a ``listing`` argument draws from the ``listing`` ids it has
+            seen; names seen in results);
             maps of numbers (e.g. rig.set settings) over the parameter specs (``{name, min, max}``) seen in results
     V(h_t), and a world-model head that predicts x_{t+1} from (h_t, e(a_t))
 
@@ -112,6 +114,9 @@ class ReferenceLearner:
         self.updates = 0
         self.steps = 0
         self.memory: dict[str, dict] = {}       # parameter specs seen in results: name -> {min, max, integer}
+        # ids seen in its own results and visible events, by the key they appeared under (most recent last); an
+        # episodic memory of the current world: checkpointed with the learner's state, never part of its weights
+        self.ids: dict[str, list[str]] = {}
         self.reset()
 
     # ------------------------------------------------------------------ context
@@ -224,8 +229,26 @@ class ReferenceLearner:
             return "observed" if self.reward_mode == OBSERVATION_ONLY else "reward"
         return s
 
-    # ------------------------------------------------------------------ memory of parameter specs
-    def _harvest(self, x: Any, depth: int = 0) -> None:
+    # ------------------------------------------------------------------ memory of parameter specs and ids
+    MAX_ID_KEYS = 512
+    IDS_PER_KEY = 64
+
+    def _remember_id(self, key: str, v: str) -> None:
+        lst = self.ids.get(key)
+        if lst is None:
+            if len(self.ids) >= self.MAX_ID_KEYS:
+                return
+            lst = self.ids[key] = []
+        elif v in lst:
+            lst.remove(v)
+        lst.append(v)
+        if len(lst) > self.IDS_PER_KEY:
+            del lst[0]
+
+    def _harvest(self, x: Any, depth: int = 0, key: str | None = None) -> None:
+        """Remember parameter specs (``{name, min, max}``) and the ids a result or event shows, by key: ``{"listing":
+        "xl_5"}`` under ``listing``; an ``id`` inside a list under ``orders`` also under ``order``; a list of ids
+        under its key's singular."""
         if depth > 6:
             return
         if isinstance(x, dict):
@@ -233,11 +256,26 @@ class ReferenceLearner:
                     isinstance(x.get("max"), (int, float)) and not isinstance(x.get("min"), bool):
                 self.memory[x["name"]] = {"min": float(x["min"]), "max": float(x["max"]),
                                           "integer": bool(x.get("integer", False))}
-            for v in x.values():
-                self._harvest(v, depth + 1)
+            for k, v in x.items():
+                if isinstance(v, str):
+                    if is_id(v):
+                        self._remember_id(str(k), v)
+                        if k == "id" and key:
+                            self._remember_id(_singular(key), v)
+                else:
+                    self._harvest(v, depth + 1, str(k))
         elif isinstance(x, list):
             for v in x[:256]:
-                self._harvest(v, depth + 1)
+                if isinstance(v, str):
+                    if key and is_id(v):
+                        self._remember_id(_singular(key), v)
+                else:
+                    self._harvest(v, depth + 1, key)
+
+    def _harvest_events(self, obs: dict) -> None:
+        for e in (obs.get("events") or [])[-50:]:
+            if isinstance(e.get("payload"), dict):
+                self._harvest(e["payload"], 1)
 
     # ------------------------------------------------------------------ acting
     def tool_tokens(self, t: dict) -> list[int]:
@@ -252,6 +290,7 @@ class ReferenceLearner:
         import torch
         tools = list(tools if tools is not None else obs.get("tools") or [])
         self._harvest(obs.get("last_result"))
+        self._harvest_events(obs)
         x = torch.from_numpy(self.features(obs)).unsqueeze(0)
         with torch.no_grad():
             h = self.net.step(x, self.prev_tokens, self.h)
@@ -447,7 +486,8 @@ class ReferenceLearner:
     def state(self) -> dict:
         return {"format": VERSION, "config": asdict(self.cfg), "seed": self.seed, "reward_mode": self.reward_mode,
                 "net": self.net.state_dict(), "opt": self.opt.state_dict(), "gen": self.gen.get_state(),
-                "rng": self.rng.bit_generator.state, "memory": dict(self.memory), "updates": self.updates,
+                "rng": self.rng.bit_generator.state, "memory": dict(self.memory),
+                "ids": {k: list(v) for k, v in self.ids.items()}, "updates": self.updates,
                 "steps": self.steps,
                 # the learner's context: a mid-episode save resumes with the same recurrent state, the same
                 # buffered transitions and the same transition in flight
@@ -478,6 +518,7 @@ class ReferenceLearner:
         self.gen.set_state(st["gen"])
         self.rng.bit_generator.state = st["rng"]
         self.memory = dict(st["memory"])
+        self.ids = {k: list(v) for k, v in (st.get("ids") or {}).items()}
         self.updates, self.steps = int(st["updates"]), int(st["steps"])
         self.seed, self.reward_mode = int(st["seed"]), st["reward_mode"]
         c = st.get("context")
@@ -747,11 +788,21 @@ class _Decider:
                     ids.add(seg)
         want = {"account": "account", "from_account": "account", "to_account": "account", "org": "organisation",
                 "owner": None, "to": None, "principal": None, "seller": None}.get(key, "-")
+        seen = self.L.ids.get(key) or []
         if want == "-":
             names = sorted(self.L.memory) if key in ("name", "lever", "target") else []
-            return names[:64]
-        out = sorted(i for i in ids if want is None or id_kind(i) == want)
+            return (names + sorted(set(seen) - set(names)))[:64]
+        out = sorted({i for i in ids if want is None or id_kind(i) == want} |
+                     {i for i in seen if want is None or id_kind(i) == want})
         return out[:64]
 
 
 _SKIP = object()
+
+
+def _singular(key: str) -> str:
+    if key.endswith("ies") and len(key) > 4:
+        return key[:-3] + "y"
+    if key.endswith("s") and not key.endswith("ss") and len(key) > 2:
+        return key[:-1]
+    return key

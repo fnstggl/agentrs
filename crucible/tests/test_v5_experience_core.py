@@ -196,6 +196,35 @@ def test_reference_learner_is_seeded_and_updates():
     assert L.params_hash() == h                                     # frozen: no weight change
 
 
+def test_reference_learner_draws_id_arguments_from_ids_it_has_seen(tmp_path):
+    """An id argument (``listing``, ``order``, ``seller``) draws from the ids the learner saw under that key in its
+    own results and visible events; the memory is checkpointed with its state and is not part of its weights."""
+    L = ReferenceLearner(seed=0)
+    L._harvest([{"listing": "xl_000005", "exchange": "xch_000001", "title": "Fan"}, {"listing": "xl_000011"}])
+    L._harvest({"orders": [{"id": "xo_000003", "status": "open"}], "sellers": ["p:trader04", "not an id"]})
+    L._harvest_events({"events": [{"type": "x", "payload": {"listing": "xl_000005", "invoice": "inv_000002"}}]})
+    assert L.ids["listing"] == ["xl_000011", "xl_000005"]               # most recent last
+    assert L.ids["order"] == ["xo_000003"] and L.ids["id"] == ["xo_000003"]
+    assert L.ids["seller"] == ["p:trader04"] and L.ids["invoice"] == ["inv_000002"] and "title" not in L.ids
+    tool = {"name": "xchg.buy", "inputSchema": {"type": "object", "required": ["listing"],
+                                                "properties": {"listing": {"type": "string"}}}}
+    obs = {"t": 0, "numbers": {}, "events": [], "tools": [tool], "entities": []}
+    picked = set()
+    for _ in range(40):
+        a = L.act(obs, [tool])
+        if a is not None:
+            picked.add(a["args"]["listing"])
+    assert picked and picked <= {"xl_000005", "xl_000011"}
+    p = tmp_path / "ref.pt"
+    L.save(str(p))
+    L2 = ReferenceLearner(seed=0)
+    L2.load(str(p))
+    assert L2.ids == L.ids
+    L3 = ReferenceLearner(seed=0)
+    L3.load_params(L.params_blob())
+    assert L3.ids == {}                                             # weights only: no world-specific episodic ids
+
+
 def test_v5_tiers_are_not_substituted():
     from crucible.experience.registry import civ_available, tier2_domains as domains
     if not domains():
