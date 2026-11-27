@@ -326,7 +326,7 @@
    "note": "first wave-3b agent (stopped by a usage limit 19:05 UTC): commits 33128e5..a980c73 - civic activities, display advertising, SP-2.3 migrations, gates SP-6.1b/SP-6.2/SP-6.6b, D-39..D-41, DEF-F-1..F-6; its verification runs (gate K incl. K.n1, civ core, civ probe) never ran (test_results was empty)."
   },
   "wave3b_part2": "second wave-3b agent (stopped 2026-11-26 ~22:00 UTC): commits de0b80c..61ab5d8 - xchg seller ratings, DEF-F-7 staffing fix + 12-week regression, one employment view, venue exit on own refunds, display holdout test.",
-  "wave3b_part3": "third agent (2026-11-27): orphan gate job read (13/14), jobs coexistence with I-2 (work_jobs, sim workers), typed labour events, primitive institution event fix, integration notes on I-2 overlaps."
+  "wave3b_part3": "third agent (2026-11-27): read the orphan gate job (13/14 on 61ab5d8); jobs activity coexists with I-2 (work_jobs column table, simulated workers left to their model, regression test); typed labour-market events labor.hired/quit/left; inst.charter as the institution primitive event (fixes test_v5_substrate_typed broken by the migration); simulated employees work the support queue (labor.work_queue); typed+strict econ world test; stricter SP-6.2 scan; integration notes on I-2/I-3/A overlaps. The civilisation probe it queued (3 profiles x 6 days) did not reach a GPU slot before it finished and was withdrawn."
  },
  "test_results": {
   "note": "wave 3b third continuation (2026-11-27): gate runs of a snapshot clone of 61ab5d8 in a slot (1 CPU, no GPU); unit tests single-threaded CPU on the head. Unofficial: official evidence comes from clean clones.",
@@ -354,6 +354,10 @@
   "tests/test_v5_econ_work.py + test_v5_commerce_modules.py + tests/test_kernel.py + tests/test_invariants.py (head a1194db)": "79 passed",
   "typed + strict startup world (seed 21, n=700, xchg/inst/labor, 40 days, head a1194db)": "0 proc.failed / rivals.failed / rejected, 0 invariant errors, 155,404 events (identical count untyped vs typed); 20 of 81 emitted types typed",
   "regression of touched packages, single-threaded CPU on the head (2606667)": "test_economy 15, test_goals 11, test_usefulness 52, test_open_security 7, test_hardening 25, test_open_society 6, test_open_industry 8, test_redteam 8, test_v5_security_redteam 3, test_fidelity 9 passed; test_ow_worlds 18 passed, 1 failed (test_end_to_end_only_working_software_earns_a_living - fails identically on 55433e7, the known qa/obs regression); tests/test_v5_econ_civic.py 12-week regression 1 passed; test_v5_substrate_modes and tests/v5/test_gate_SP_2_3.py need the population text path (GPU slot): queued in the slot job 'F: regression of packages touched'",
-  "tests/test_v5_econ_typed.py (head)": "1 passed (typed + strict civic startup world: 0 failures, same events as plain)"
+  "tests/test_v5_econ_typed.py (head)": "1 passed (typed + strict civic startup world: 0 failures, same events as plain)",
+  "tests/v5/test_gate_K.py -m \"not slow\" + tests/v5/test_gate_SP_6_1.py (head e814ff4)": "9 passed",
+  "tests/v5/test_gate_SP_6_2.py (head e814ff4)": "1 failed honestly (recurring_revenue_systems_of_record 2: subs + social/creators.py:109; stricter scan, same result)",
+  "K.n1 and SP-6.1b on the head": "not re-run after 61ab5d8: their worlds (startup_spec without extra modules) contain no labour market, exchanges or institutions, so none of the continuation's code paths (economy.jobs, labor, primitives typing, the SP-6.2 scan) runs in them; the 61ab5d8 slot results stand",
+  "queued (slot, started by the previous agent, snapshot of the branch head when it starts)": "'F: regression of packages touched (services, substrate, kernel)' -> scratchpad/w3b-econ1/reg.log: adds test_v5_substrate_modes and tests/v5/test_gate_SP_2_3.py (population text path, GPU) to the CPU runs above"
  }
 }
