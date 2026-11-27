@@ -463,6 +463,15 @@ def test_the_reference_runs_in_its_own_process_without_the_world(fixture_domain)
         pass
     with pytest.raises(base.ReferenceNotIsolated):
         base.IsolatedPolicy(NotImportable, "p:trader", {})
+    # a reference that rebuilds the world from a guessed spec can do so in the parent, never in its own process
+    rb = replace(F.DOMAIN, name="fixture_rebuild", reference=F.RebuildingReference)
+    base.register(rb)
+    try:
+        assert base.run("fixture_rebuild", "ring_standard", 0, policy="reference", days=0.25, isolate=False)
+        with pytest.raises(RuntimeError, match="cannot build, replay or load a world"):
+            base.run("fixture_rebuild", "ring_standard", 0, policy="reference", days=0.25)
+    finally:
+        base.unregister("fixture_rebuild")
 
 
 # ---------------------------------------------------------------------------------------------- exposure

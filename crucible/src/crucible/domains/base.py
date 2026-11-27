@@ -1212,12 +1212,30 @@ class IsolatedPolicy:
             pass
 
 
+def _no_world(*_a, **_k):
+    raise RuntimeError("a reference cannot build, replay or load a world: it runs in its own process with "
+                       "observations only (crucible.domains.base.IsolatedPolicy)")
+
+
+def _forbid_worlds() -> None:
+    """In the reference's process no World can be made: the policy cannot rebuild the episode's world from a guessed
+    spec (domain files never build a world at import, so this also enforces that)."""
+    from ..core import kernel as K
+    K.World.__init__ = _no_world
+    K.World.create = classmethod(lambda cls, *a, **k: _no_world())
+    K.World.replay = classmethod(lambda cls, *a, **k: _no_world())
+    for name in ("load", "fork", "from_blob", "regenerate"):
+        if hasattr(K.World, name):
+            setattr(K.World, name, classmethod(lambda cls, *a, **k: _no_world()))
+
+
 def _serve_policy() -> None:
     """Child side of `IsolatedPolicy` (JSON lines on stdin/stdout; policy prints go to stderr)."""
     import importlib
     import traceback
     out = os.fdopen(os.dup(1), "w", buffering=1)
     sys.stdout = sys.stderr
+    _forbid_worlds()
     pol, tools = None, None
     for line in sys.stdin:
         msg = json.loads(line)

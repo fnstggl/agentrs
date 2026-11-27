@@ -168,7 +168,8 @@ result, next_obs, done)` and `burst` (actions per decision point) - the learner 
 (`"reference"`), the null baseline (`"null"`), a probe (its name) or `"random_tools"`, other seats idle, for
 `horizon_days`, and returns the evaluator's verdict from `env.verify()`. The reference ALWAYS runs in its own
 process (`base.IsolatedPolicy`: JSON observations and results over a pipe; the child holds no World, environment
-or event log, so garbage-collector walks or string-built attribute names find nothing). Its factory must therefore
+or event log, so garbage-collector walks or string-built attribute names find nothing, and no World can be created,
+replayed or loaded there - rebuilding the episode from a guessed spec fails). Its factory must therefore
 be importable by module path (a module-level class or function of an importable module; not `__main__`, not a
 closure). It is called with `(principal, {"text": objective_text})`: exactly what the learner sees.
 

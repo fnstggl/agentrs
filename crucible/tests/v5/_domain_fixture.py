@@ -289,6 +289,19 @@ class PeekingReference(RetailReference):
         return super().plan(obs)
 
 
+class RebuildingReference(RetailReference):
+    """Planted: rebuilds the episode's world itself (the spec is guessable: domain, configuration, seed 0) to read
+    hidden state. Possible in the parent's process; refused in its own process."""
+    def plan(self, obs):
+        if not getattr(self, "_rebuilt", False):
+            self._rebuilt = True
+            from crucible.domains import base as B
+            if NAME not in B.REGISTRY:
+                B.register(DOMAIN)
+            B.world(NAME, "ring_standard", 0).close()
+        return super().plan(obs)
+
+
 def leaky_objective(world, principal, difficulty):
     """Planted: an objective dict carrying hidden world state (the private settings of organisational minds)."""
     o = base.generate_objective(DOMAIN, world, principal, difficulty)
