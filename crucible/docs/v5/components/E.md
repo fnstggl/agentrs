@@ -273,3 +273,17 @@ qualifying model.
   test users. The full-test number is the fit's own.
 * The register rows for E2 now use the cards' mechanism ids. Their categories are exactly one of the six; the
   qualifiers (observational, randomised experiment, validated on held-out users) moved to the evidence column.
+
+### Wave 3b repair pass (2026-11-27)
+
+The verifier's remaining calibration finding (low): `match_criteo` and `random_exposure_estimate` accepted a
+non-rejecting z test plus a powered estimate as a match, so an interval far wider than any useful agreement still
+"matched". A match now also needs equivalence: two one-sided tests at 5% (the 90% interval of world minus reference
+inside +-margin, `inworld.tost`) with margins fixed before any in-world run (`inworld.EQUIVALENCE`: Criteo's display
+shift 1.39 log-odds, margin 0.5; KuaiRand's random-exposure open rate 0.186, margin 0.03; own-topic log-odds ratio
+0.40, margin 0.2). A campaign of 6,000 individuals (interval 0.9-2.1, powered, z = -0.01) and 1,500 random insertions
+(powered, both z tests accept) are no longer matches; 500,000-individual campaigns at attention 1.0, 0.5 and 0.19
+and 60,000 insertions still are. Tests: `tests/test_v5_calibration_inworld.py::test_a_powered_campaign_too_imprecise_
+for_equivalence_is_not_a_match`, `::test_random_insertions_too_few_for_equivalence_are_not_a_match`. SP-5.0, SP-5.5b
+and SP-5.4 gates on the integration mirror (with the civ feed_config probe patch that J still has to make) are queued
+in the slot scheduler. MIND-small is authorised for experimental, non-commercial research (D-28).
