@@ -374,9 +374,11 @@ least one world per tier" is measured in the kernel tiers with the statistical r
 `experience.statistical.ToolValueLearner`, in Tier 2 in `crisis:storm_radial` (training seeds 1-4) and in Tier 3 in
 the `balanced` civilisation (training seeds 1-2, 4000 decisions each, a simulated minute apart; 3000 evaluation
 decisions); Tier 1 keeps the neural
-`ReferenceLearner` in `mech:scm_additive`. The improvement rule (mean and at least 3 of 4 held-out seeds 11-14, both
+`ReferenceLearner` in `mech:scm_additive`. The improvement rule (mean and at least 3 of 4 held-out seeds, both
 copies stochastic with one sampling seed, evaluator outcome, do-nothing reported) and the manifest criterion are
-unchanged. Evidence for the change, measured on this branch before it: the neural learner never moved its own money
+unchanged; the kernel tiers are evaluated on seeds 21-24, never used while their design (world, horizons, the
+learner's $0.50 temperature, chosen from the per-call values of a person's fees measured in a civilisation dev run)
+was developed on seeds 1-5 and 11-14. Evidence for the change, measured on this branch before it: the neural learner never moved its own money
 in a kernel world - every integer-argument tool call it made was rejected (it sent `2.0`; fixed) - and after the fix
 its near-uniform policy over 60-580 tools still spent the crisis coordinator's fund (trained below frozen on 3 of
 4 held-out seeds after 1200 decisions; after 2400 better on 2 of 4, mean $21,700 against the frozen copy's $30,700); in a 150-decision random scan of the fifteen first Part 9 configurations the seat's

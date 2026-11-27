@@ -15,7 +15,7 @@ Learner kinds (each must act through the interface and achieve the capability it
 Improvement over a frozen copy (the rule, unchanged since wave 3a): a reference learner is trained in worlds of the
 tier (observation-only, its own signal: the change of its own money as its observation shows it); then the trained
 parameters and the frozen initial parameters act with their own stochastic policies, without learning, on held-out
-seeds 11-14; the outcome is the evaluator's (Tier 1: the task's episode score against its private reference; kernel
+seeds (11-14 in Tier 1; 21-24 in the kernel tiers, whose design was developed on 1-5 and 11-14); the outcome is the evaluator's (Tier 1: the task's episode score against its private reference; kernel
 tiers: the evaluator's cash measure of the learner, from authoritative state). Improvement = the trained copy beats the
 frozen copy on the mean AND on at least 3 of 4 held-out seeds (both copies follow their stochastic policy with the same
 sampling seed). The do-nothing outcome is reported beside it, so that "learned to stop doing harm" is not mistaken
@@ -65,6 +65,9 @@ HOUR = 3600
 CIV = "balanced"
 T2_WORLD = "crisis:storm_radial"
 EVAL_SEEDS = (11, 12, 13, 14)
+# the kernel tiers' design (learner, world, horizons, temperature) was developed on seeds 1-5 and 11-14 on this branch;
+# their improvement is measured on seeds never used in that development
+KERNEL_EVAL_SEEDS = (21, 22, 23, 24)
 # Qwen3-0.6B only replied "wait" in six turns (measured on this branch); Qwen3-1.7B (LLMPolicy's default) acts
 LM_MODEL = "Qwen/Qwen3-1.7B"
 
@@ -145,7 +148,8 @@ class _Wait:
         return None
 
 
-def _improvement(make_learner, make_env, train_seeds, train_steps: int, eval_steps: int, think_s, outcome) -> dict:
+def _improvement(make_learner, make_env, train_seeds, train_steps: int, eval_steps: int, think_s, outcome,
+                 eval_seeds=EVAL_SEEDS) -> dict:
     """Both copies act with their own stochastic policy (the policy the learner actually follows), the same sampling
     seed, no learning; only the learned parameters differ."""
     L = make_learner()
@@ -157,7 +161,7 @@ def _improvement(make_learner, make_env, train_seeds, train_steps: int, eval_ste
         _close(env)
     trained = L.params_blob()
     per = []
-    for s in EVAL_SEEDS:
+    for s in eval_seeds:
         vals = []
         for blob in (trained, init):
             X = make_learner()
@@ -177,7 +181,7 @@ def _improvement(make_learner, make_env, train_seeds, train_steps: int, eval_ste
     out = {"improved": bool(mean_t > mean_f and wins >= 3), "wins": wins, "trained_mean": mean_t,
            "frozen_mean": mean_f, "wait_only_mean": mean_w, "beats_wait_only": bool(mean_t > mean_w),
            "per_seed": per, "learner": f"{L.name} ({L.kind})", "train_seeds": list(train_seeds),
-           "train_steps_per_seed": train_steps, "eval_steps": eval_steps}
+           "train_steps_per_seed": train_steps, "eval_steps": eval_steps, "eval_seeds": list(eval_seeds)}
     if isinstance(L, ToolValueLearner):
         out["learned_values"] = describe_values(L, 6)
     return out
@@ -211,14 +215,14 @@ def _statistical_learner():
 
 def _tier2():
     return _improvement(_statistical_learner, lambda s: make(2, T2_WORLD, s), (1, 2, 3, 4), 300, 120, HOUR,
-                        _kernel_outcome)
+                        _kernel_outcome, KERNEL_EVAL_SEEDS)
 
 
 def _tier3():
     # decisions a simulated minute apart: a person's money in a civilisation moves rarely (a purchase, a fee), so the
     # copies need many decisions to show it; a civilisation day costs ~20 s on the GPU text path, a decision little
     return _improvement(_statistical_learner, lambda s: make(3, CIV, s, agents=["learner"]), (1, 2), 4000, 3000,
-                        60, _kernel_outcome)
+                        60, _kernel_outcome, KERNEL_EVAL_SEEDS)
 
 
 def test_SP_11_6c_learner_kinds_and_improvement_over_frozen_copies():
@@ -245,7 +249,8 @@ def test_SP_11_6c_learner_kinds_and_improvement_over_frozen_copies():
            notes=f"learner kinds: {kinds}; could not run: {kind_err}; improvement over a frozen copy (trained vs "
                  f"initial parameters - Tier 1 the neural ReferenceLearner, Tiers 2 and 3 the statistical "
                  f"ToolValueLearner -, stochastic policies with one sampling seed, no learning, held-out seeds "
-                 f"{EVAL_SEEDS}; prespecified: mean better and >= 3 of 4 seeds; the do-nothing outcome beside it): "
+                 f"{EVAL_SEEDS} (Tier 1) / {KERNEL_EVAL_SEEDS} (Tiers 2-3); prespecified: mean better and >= 3 of 4 "
+                 f"seeds; the do-nothing outcome beside it): "
                  f"{imp}; tiers that could not be measured: {imp_err}")
     assert metrics["learner_kinds_validated"] == 4, (kinds, kind_err)
     assert metrics["tiers_with_learning_improvement"] == 3, (imp, imp_err)

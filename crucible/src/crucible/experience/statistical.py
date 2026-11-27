@@ -50,13 +50,13 @@ class ToolValueLearner(ArgumentMemory):
     kind = "statistical"
     version = VERSION
 
-    def __init__(self, seed: int = 0, reward_mode: str | None = None, *, temperature: float = 1.0,
+    def __init__(self, seed: int = 0, reward_mode: str | None = None, *, temperature: float = 0.5,
                  signal: str = "auto", signal_keys: str = MONEY_KEYS, signal_scale: float = 0.01,
                  recency: float = 0.05, shrink: float = 1.0, credit_horizon: int = 1, credit_decay: float = 0.9):
         """`temperature` is in signal units (default: dollars, `signal_scale` 0.01 per cent): a tool that loses
-        $1 a call more than the baseline is e times less likely than an untried one (the fees a person pays in a
-        civilisation are a few dollars a call on average: a $5 listing, a $20 domain, a $30 subscription that
-        succeeds one call in ten). `recency` is the smallest
+        50 cents a call more than the baseline is e times less likely than an untried one (measured in a
+        civilisation: a person's fees are worth $0.7-$6 a call on average - a $5 listing, a $20 domain, a $30
+        subscription that succeeds one call in ten - and at $10 the trained values hardly changed what it did). `recency` is the smallest
         weight of a new sample in a running mean (1/n before that). `credit_horizon` > 1 also credits a change to the
         actions of the previous steps, the j-th back with weight ``credit_decay ** j`` (for consequences that
         arrive later than the next observation); 1 credits only the step's own action."""
