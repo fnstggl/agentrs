@@ -341,7 +341,7 @@
     "src/crucible/social/popsocial.py"
    ],
    "notes": "",
-   "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
+   "status_claim": "criteria met, unofficial snapshot run of this branch at bf696ea (2026-11-27, GPU slot): 33 communities with population members (all founded by the population), 64 churn events, sustained_participation_days 34 (15 communities sustained 30 days); governance by members: 43 proposals (42 decided), 242 votes, 32 population moderators; 310 inactive members (14 days)",
    "tests": [
     "tests/v5/test_gate_SP_4_7b.py",
     "tests/test_v5_social_communities.py"
@@ -443,9 +443,9 @@
   "Behaviour models of the population on the social platforms (creation, messaging, subscriptions, communities, product discovery) are hand-set and unvalidated (FIDELITY_REGISTER rows); only content_open@1 on shorts is fitted.",
   "Relationship and community kinds keep copies outside this package: pop.contacts / pop.communities (B), forum.forum_follows / forum_boards (4.0 forum); in crowd-stand-in worlds aud still keeps follower sets. SP-2.3 shared_primitive_kinds is not raised to 19 by C alone (forum, population and F migrations are other owners' files; integration notes).",
   "Creator memberships (social.creators) still bill with their own bank.move of ledger kind subscription, not through commerce subs (F+G integration note: MRR/churn metrics of subs do not see them). Not changed this wave: products/subs offer no membership delivery type, and the change spans commerce.",
-  "Population governance of communities (wave 3b continuation, social.popsocial._govern): stewards appoint moderators, propose pruning and member votes, members vote; hand-set, no factions or strategic voting; tested by a unit test, not yet measured at 40-day scale (SP-4.7b reports it).",
+  "Population governance of communities (social.popsocial._govern): stewards appoint moderators, propose pruning and member votes, members vote; hand-set, no factions or strategic voting. Measured at 40 days (SP-4.7b on bf696ea: 43 proposals, 242 votes, 32 population moderators), not validated against data.",
   "The social browser pages are reachable only through social.web.make_social_web_app; the deployable entry point (crucible.web.app.main -> make_web_app) does not register them (audit C skeptic S6; web/ is not this package: integration note).",
-  "Measurement on this branch is unofficial (snapshot runs in shared slots) and partly pending: the four failures found on 2026-11-27 (C.3 provenance, D.3, SP-4.6b, SP-4.8b) are fixed with regression tests but their gate re-runs were still queued when this agent finished; SP-4.7b was running.",
+  "Measurement on this branch is unofficial (snapshot runs in shared slots): 35 of 39 gate tests passed in the runs read by the fourth agent; the four failures found (C.3 provenance, D.3, SP-4.6b, SP-4.8b) are fixed with regression tests but their gate re-runs were queued (C.3, D.3, SP-4.6b: GPU queue) or running (SP-4.8b, CPU) when this agent finished.",
   "Audience value (MASTER_SPEC 4.4, audit C skeptic S7): a viewer's satisfaction gain is fraction read x (affinity - reference), so a fully read blurb is worth as much as a fully read substantial piece; information received (e.g. seconds of non-redundant content read, redundancy from the bytes' compressibility) is not modelled. Changing it shifts every consumption-driven gate and needs a calibration pass; not done this wave."
  ],
  "integration_notes": [
@@ -482,7 +482,9 @@
    "tests/test_v5_social_letters.py (new, CPU direct)": "1 passed (fails on the previous creators.py: 120 forced impressions)",
    "tests/test_v5_social_communities.py::test_members_govern_their_community (CPU direct, after the rename)": "1 passed",
    "SP-4.6b static scan (CPU direct, after a173da2)": "0 hits",
-   "dev check of social leads (scratch scripts/leads_smoke.py, startup world, one post naming a host read by 40 members with that need)": "33 leads, 21 considered the named product (search), 17 adopted it; 0 invariant errors"
+   "dev check of social leads (scratch scripts/leads_smoke.py, startup world, one post naming a host read by 40 members with that need)": "33 leads, 21 considered the named product (search), 17 adopted it; 0 invariant errors",
+   "tests/v5/test_gate_SP_4_5b.py tests/v5/test_gate_SP_4_7b.py (snapshot bf696ea, GPU slot, 78 min)": "2 passed, 0 failed",
+   "tests/test_v5_social_security.py tests/test_v5_social_calibrated.py (CPU direct)": "8 passed, 0 failed"
   },
   "earlier agents of wave 3b (not re-verified)": {
    "tests/test_kernel.py tests/test_invariants.py (CPU, 1 thread, 2026-11-27, third agent)": "51 passed, 0 failed",
