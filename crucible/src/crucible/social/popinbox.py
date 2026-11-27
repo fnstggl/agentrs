@@ -320,6 +320,21 @@ def after_session(self, ctx: Ctx, out: dict, platform: str) -> np.ndarray:
 
 
 LEAD_DELAY_S = 1800        # a member who read about a service for its own work looks into it about half an hour later
+#: how likely a member who read about a service for a task of its own work looks into it, by what it uses for that
+#: task now (its own adoption records of `economy.work`): nothing yet, a provider that has not worked well (fewer
+#: than 2/3 of at least 3 uses accepted, or fewer than 3 uses), or one that works. Hand-set, unvalidated
+#: (FIDELITY_REGISTER population-subscription-model / population-product-discovery-model).
+LEAD_P = {"none": 0.9, "poor": 0.6, "working": 0.2}
+
+
+def lead_probability(current: list[dict]) -> float:
+    """P(look into a service one read about) given the adoption records of the providers one relies on now for
+    that task (each with `uses` and `ok`)."""
+    if not current:
+        return LEAD_P["none"]
+    if any(int(r["uses"]) >= 3 and float(r["ok"]) >= (2.0 / 3.0) * int(r["uses"]) for r in current):
+        return LEAD_P["working"]
+    return LEAD_P["poor"]
 
 
 def _hosts_of(world, cid: str) -> list[str]:
@@ -337,8 +352,9 @@ def _hosts_of(world, cid: str) -> list[str]:
 
 def _service_leads(ctx: Ctx, out: dict, vv, pp, rng) -> int:
     """Viewers who read about a launched service for a task of their own work (a launch post linking it, or an
-    item naming its address) look into it: a `shop` session of `economy.work` is scheduled for them, where they
-    search, weigh and maybe try it by work's own rules (MASTER_SPEC 4.8). Returns the number of leads."""
+    item naming its address) may look into it - more likely when nothing they use for that task works for them
+    (`lead_probability`): a `shop` session of `economy.work` is scheduled for them, where they search, weigh and
+    maybe try it by work's own rules (MASTER_SPEC 4.8). Returns the number of leads."""
     w = ctx.world
     st = ctx.state
     work = w.modules.get("work")
@@ -364,9 +380,16 @@ def _service_leads(ctx: Ctx, out: dict, vv, pp, rng) -> int:
             prods.append(L["target"])
         for h in _hosts_of(w, cid):
             prods += [pid for pid, p in st.scan("products") if (p["delivery"] or {}).get("host") == h]
+        if i in leads or not prods:
+            continue
         needs = {n for _, n in work._steps(i)}
-        relied = {r for n in needs for r, _ in work.relied(st, i, n)}
-        if any((st.get("products", pid) or {}).get("need") in needs and pid not in relied for pid in prods):
+        current = {n: work.relied(st, i, n) for n in needs}
+        p_look = 0.0
+        for pid in prods:
+            need = (st.get("products", pid) or {}).get("need")
+            if need in current and all(r != pid for r, _ in current[need]):
+                p_look = max(p_look, lead_probability([x for _, x in current[need]]))
+        if p_look > 0.0 and rng.random() < p_look:
             leads.add(i)
     if leads:
         population.wake(ctx, np.array(sorted(leads), np.int64), ctx.now + LEAD_DELAY_S, "shop")
