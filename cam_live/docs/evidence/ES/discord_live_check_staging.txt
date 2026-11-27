@@ -1,0 +1,69 @@
+$ .venv/bin/python cam_live/tools/discord_live_check.py --staging --await-reply-s 6 --run-dir <tmp> --out cam_live/docs/evidence/ES/discord_live_check_staging.json
+STAGING check against http://127.0.0.1:44317/api/v10 (gateway ws://127.0.0.1:45641), policy mode staging, run directory <tmp>
+01 discord.get_identity              auth=allow          -> ok             ok                   [staging] bot staging-app (1000000000000000001), application staging app (not public); privileged intents granted: GUILD_PRESENCES, GUILD_MEMBERS, MES
+02 discord.get_permissions           auth=allow          -> ok             ok                   [staging] the bot holds 18 permissions in the server: ADD_REACTIONS, ATTACH_FILES, CREATE_EVENTS, CREATE_INSTANT_INVITE, CREATE_PUBLIC_THREADS, EMBED_
+03 discord.get_guild_settings        auth=allow          -> ok             ok                   [staging] server settings: name 'staging guild', description None, verification level 1, notification default 0, content filter 0, system channel None
+04 discord.list_channels             auth=allow          -> ok             ok                   [staging] channels: general (1000000000000000005, type 0)
+05 discord.get_guild_stats           auth=allow          -> ok             ok                   [staging] server statistics: about 6 members, 1 present; listed 6: 3 people (0 pending), 2 bots, 1 declared test accounts
+06 discord.list_invites              auth=allow          -> ok             ok                   [staging] invites: none
+07 discord.create_channel            auth=allow          -> ok             ok                   [staging] channel created: cam-integration-test (1000000000000000011)
+08 discord.send_message              auth=allow          -> ok             ok                   [staging] message 1000000000000000013 posted in channel 1000000000000000011 (95 characters)
+09 discord.get_channel_activity      auth=allow          -> ok             ok                   [staging] channel 1000000000000000011: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)
+   waiting up to 6 s for a reply by a person in channel 1000000000000000011 (cam-integration-test) ...
+10 discord.get_channel_activity      auth=allow          -> ok             ok                   [staging] channel 1000000000000000011: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)
+11 discord.get_channel_activity      auth=allow          -> ok             ok                   [staging] channel 1000000000000000011: 2 recent messages, 1 by 1 people, 1 by bots; message text not retained (no data permission)
+   human reply arrived: yes (2 polls)
+12 discord.edit_message              auth=allow          -> ok             ok                   [staging] message 1000000000000000013 in channel 1000000000000000011 replaced (72 characters)
+13 discord.pin_message               auth=allow          -> ok             ok                   [staging] message 1000000000000000013 pinned in channel 1000000000000000011
+14 discord.unpin_message             auth=allow          -> ok             ok                   [staging] pin of message 1000000000000000013 removed in channel 1000000000000000011
+15 discord.create_invite             auth=allow          -> ok             ok                   [staging] invite 02c62bef to channel 1000000000000000011: https://discord.gg/02c62bef
+16 discord.list_invites              auth=allow          -> ok             ok                   [staging] invites: 02c62bef used 0 times
+17 discord.delete_invite             auth=allow          -> ok             ok                   [staging] invite 02c62bef to channel 1000000000000000011 deleted
+18 discord.modify_channel            auth=allow          -> ok             ok                   [staging] channel 1000000000000000011 changed (topic): name 'cam-integration-test', topic 'temporary channel of the CAM Live integration check'
+19 discord.set_channel_permissions   auth=allow          -> ok             ok                   [staging] channel 1000000000000000011: everyone allowed nothing more, denied SEND_MESSAGES
+20 discord.create_role               auth=allow          -> ok             ok                   [staging] role created: cam-integration-test-role (1000000000000000022) with no permissions; it is not given to anyone
+21 discord.modify_role               auth=allow          -> ok             ok                   [staging] role 1000000000000000022 changed (name, mentionable): cam-integration-test-role-renamed with no permissions
+22 discord.delete_role               auth=allow          -> ok             ok                   [staging] role cam-integration-test-role-renamed (1000000000000000022) deleted
+23 discord.modify_guild              auth=allow          -> ok             ok                   [staging] server settings changed (name): name 'staging guild (integration test)', description None, verification level 1, notification default 0, con
+24 discord.modify_guild              auth=allow          -> ok             ok                   [staging] server settings changed (name): name 'staging guild', description None, verification level 1, notification default 0, content filter 0, syst
+25 discord.get_member_events         auth=allow          -> ok             ok                   [staging] membership baseline established: 3 people, 2 bots, 1 declared test accounts; changes are reported from the next reading on
+26 discord.get_member_events         auth=allow          -> ok             ok                   [staging] membership since the previous reading (1 s): joined 1 people, 1 bots, 0 declared test accounts; left 0 people, 0 bots, 0 declared test accou
+27 discord.listen_events             auth=allow          -> ok             ok                   [staging] event window of 10.0 s (ended by window): 5 events (GUILD_CREATE 1, GUILD_MEMBER_ADD 1, GUILD_MEMBER_REMOVE 1, MESSAGE_CREATE 1, READY 1); 0
+28 discord.get_audit_summary         auth=allow          -> ok             ok                   [staging] audit log, 12 most recent entries: CHANNEL_CREATE 1, CHANNEL_OVERWRITE_CREATE 1, CHANNEL_UPDATE 1, GUILD_UPDATE 2, INVITE_CREATE 1, INVITE_D
+29 discord.delete_channel            auth=allow          -> ok             ok                   [staging] channel 1000000000000000011 deleted
+evidence: cam_live/docs/evidence/ES/discord_live_check_staging.json (free of vault secrets: yes)
+summary: {"ok": 29}; exit code 0
+exit code: 0
+
+$ .venv/bin/python cam_live/tools/discord_live_check.py --staging --live-policy --run-dir <tmp> --out cam_live/docs/evidence/ES/discord_live_check_staging_live_policy.json
+STAGING check against http://127.0.0.1:37993/api/v10 (gateway ws://127.0.0.1:44975), policy mode live, run directory <tmp>
+01 discord.get_identity              auth=allow          -> ok             ok                   [staging] bot staging-app (1000000000000000001), application staging app (not public); privileged intents granted: GUILD_PRESENCES, GUILD_MEMBERS, MES
+02 discord.get_permissions           auth=allow          -> ok             ok                   [staging] the bot holds 18 permissions in the server: ADD_REACTIONS, ATTACH_FILES, CREATE_EVENTS, CREATE_INSTANT_INVITE, CREATE_PUBLIC_THREADS, EMBED_
+03 discord.get_guild_settings        auth=allow          -> ok             ok                   [staging] server settings: name 'staging guild', description None, verification level 1, notification default 0, content filter 0, system channel None
+04 discord.list_channels             auth=allow          -> ok             ok                   [staging] channels: general (1000000000000000005, type 0)
+05 discord.get_guild_stats           auth=allow          -> ok             ok                   [staging] server statistics: about 6 members, 1 present; listed 6: 3 people (0 pending), 2 bots, 1 declared test accounts
+06 discord.list_invites              auth=allow          -> ok             ok                   [staging] invites: none
+07 discord.create_channel            auth=allow          -> ok             ok                   [staging] channel created: cam-integration-test (1000000000000000011)
+08 discord.send_message              auth=allow          -> ok             ok                   [staging] message 1000000000000000013 posted in channel 1000000000000000011 (95 characters)
+09 discord.get_channel_activity      auth=allow          -> ok             ok                   [staging] channel 1000000000000000011: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)
+10 discord.edit_message              auth=allow          -> ok             ok                   [staging] message 1000000000000000013 in channel 1000000000000000011 replaced (72 characters)
+11 discord.pin_message               auth=allow          -> ok             ok                   [staging] message 1000000000000000013 pinned in channel 1000000000000000011
+12 discord.unpin_message             auth=allow          -> ok             ok                   [staging] pin of message 1000000000000000013 removed in channel 1000000000000000011
+13 discord.create_invite             auth=allow          -> ok             ok                   [staging] invite 1312674a to channel 1000000000000000011: https://discord.gg/1312674a
+14 discord.list_invites              auth=allow          -> ok             ok                   [staging] invites: 1312674a used 0 times
+15 discord.delete_invite             auth=allow          -> ok             ok                   [staging] invite 1312674a to channel 1000000000000000011 deleted
+16 discord.modify_channel            auth=allow          -> ok             ok                   [staging] channel 1000000000000000011 changed (topic): name 'cam-integration-test', topic 'temporary channel of the CAM Live integration check'
+17 discord.set_channel_permissions   auth=allow          -> ok             ok                   [staging] channel 1000000000000000011: everyone allowed nothing more, denied SEND_MESSAGES
+18 discord.create_role               auth=allow          -> ok             ok                   [staging] role created: cam-integration-test-role (1000000000000000021) with no permissions; it is not given to anyone
+19 discord.modify_role               auth=allow          -> ok             ok                   [staging] role 1000000000000000021 changed (name, mentionable): cam-integration-test-role-renamed with no permissions
+20 discord.delete_role               auth=allow          -> ok             ok                   [staging] role cam-integration-test-role-renamed (1000000000000000021) deleted
+21 discord.modify_guild              auth=allow          -> ok             ok                   [staging] server settings changed (name): name 'staging guild (integration test)', description None, verification level 1, notification default 0, con
+22 discord.modify_guild              auth=allow          -> ok             ok                   [staging] server settings changed (name): name 'staging guild', description None, verification level 1, notification default 0, content filter 0, syst
+23 discord.get_member_events         auth=allow          -> ok             ok                   [staging] membership baseline established: 3 people, 2 bots, 1 declared test accounts; changes are reported from the next reading on
+24 discord.get_member_events         auth=allow          -> ok             ok                   [staging] membership since the previous reading (1 s): joined 1 people, 1 bots, 0 declared test accounts; left 0 people, 0 bots, 0 declared test accou
+25 discord.listen_events             auth=allow          -> ok             ok                   [staging] event window of 10.0 s (ended by window): 5 events (GUILD_CREATE 1, GUILD_MEMBER_ADD 1, GUILD_MEMBER_REMOVE 1, MESSAGE_CREATE 1, READY 1); 0
+26 discord.get_audit_summary         auth=allow          -> ok             ok                   [staging] audit log, 12 most recent entries: CHANNEL_CREATE 1, CHANNEL_OVERWRITE_CREATE 1, CHANNEL_UPDATE 1, GUILD_UPDATE 2, INVITE_CREATE 1, INVITE_D
+27 discord.delete_channel            auth=allow          -> ok             ok                   [staging] channel 1000000000000000011 deleted
+evidence: cam_live/docs/evidence/ES/discord_live_check_staging_live_policy.json (free of vault secrets: yes)
+summary: {"ok": 27}; exit code 0
+exit code: 0

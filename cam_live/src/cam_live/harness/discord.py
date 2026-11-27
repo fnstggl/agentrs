@@ -821,12 +821,19 @@ class DiscordExecutor:
     @classmethod
     def from_task(cls, task: TaskSpec, *, base_url: str = "", secrets: Any = None, **kw: Any) -> "DiscordExecutor":
         """Configuration from ``TaskSpec.resources["discord"]`` (``guild_id``, ``test_account_ids``, ``token_secret``,
-        ``base_url``, ``scope``, ``state_dir``) and ``TaskSpec.data_permissions``."""
-        r = dict(task.resources.get("discord") or {})
+        ``base_url``, ``scope``, ``state_dir``) and ``TaskSpec.data_permissions``. The flat keys of the task files
+        (``resources.discord_guild_id``, ``resources.discord_bot_credential_name``) are read when the nested ones
+        are absent."""
+        res = task.resources or {}
+        r = dict(res.get("discord") or {})
         kw.setdefault("scope", r.get("scope"))
         kw.setdefault("state_dir", r.get("state_dir") or "")
-        return cls(base_url or r.get("base_url") or LIVE_BASE_URL, guild_id=str(r.get("guild_id") or ""),
-                   token_secret=r.get("token_secret", "discord_bot_token"), secrets=secrets,
+        guild_id = r.get("guild_id") or res.get("discord_guild_id") or ""
+        secret = r.get("token_secret") or res.get("discord_bot_credential_name") or "discord_bot_token"
+        if not isinstance(guild_id, (str, int)) or not str(guild_id).isdigit():
+            guild_id = ""                                  # an unset item of a task file ("REQUIRED") is no guild
+        return cls(base_url or r.get("base_url") or LIVE_BASE_URL, guild_id=str(guild_id),
+                   token_secret=str(secret), secrets=secrets,
                    test_account_ids=r.get("test_account_ids") or (), data_permissions=task.data_permissions, **kw)
 
     # ---- availability --------------------------------------------------------------------------------------

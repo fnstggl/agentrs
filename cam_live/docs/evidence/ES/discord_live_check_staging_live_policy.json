@@ -1,0 +1,1756 @@
+{
+ "base_url": "http://127.0.0.1:37993/api/v10",
+ "ended_at": 1795746468.684949,
+ "environment": "staging",
+ "exit_code": 0,
+ "guild_id": "1000000000000000002",
+ "live_policy": {
+  "preauthorized": [
+   "account:discord:1000000000000000002",
+   "channel:discord:*"
+  ],
+  "read": [
+   "127.0.0.1:37993",
+   "127.0.0.1:44975"
+  ],
+  "record_id": "discord-live-check-1795746457",
+  "signed_with": "an operator key generated for this run"
+ },
+ "missing_capabilities": [],
+ "mode": "staging",
+ "policy": {
+  "id": "default-1+discord-live-check",
+  "sha256": "8115aa896d31d50b02f0b770d8d876e366b41d524a1c50e0dbab05e47d244043"
+ },
+ "policy_mode": "live",
+ "reply": null,
+ "scope": [
+  "CREATE_INSTANT_INVITE",
+  "MANAGE_CHANNELS",
+  "MANAGE_GUILD",
+  "ADD_REACTIONS",
+  "VIEW_AUDIT_LOG",
+  "VIEW_CHANNEL",
+  "SEND_MESSAGES",
+  "MANAGE_MESSAGES",
+  "EMBED_LINKS",
+  "ATTACH_FILES",
+  "READ_MESSAGE_HISTORY",
+  "MANAGE_ROLES",
+  "MANAGE_EVENTS",
+  "MANAGE_THREADS",
+  "CREATE_PUBLIC_THREADS",
+  "SEND_MESSAGES_IN_THREADS",
+  "CREATE_EVENTS",
+  "PIN_MESSAGES"
+ ],
+ "secrets_checked": 1,
+ "staging": true,
+ "staging_note": "STAGING ONLY: local imitation of the Discord REST API and Gateway (cam_live.harness.staging_discord). No request was sent to Discord. The human reply and the events inside the listening window were produced by staging hooks of this script, not by people.",
+ "staging_requests": {
+  "gateway_identifies": [
+   "ready"
+  ],
+  "total": 47,
+  "writes": 15
+ },
+ "staging_state_after": {
+  "channels": [
+   "general"
+  ],
+  "guild_name": "staging guild",
+  "invites": 0,
+  "roles": [
+   "@everyone",
+   "staging-app"
+  ]
+ },
+ "started_at": 1795746457.9085214,
+ "steps": [
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1000000000000000002"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.get_identity"
+   ],
+   "data": {
+    "application": {
+     "bot_public": false,
+     "intents": {
+      "GUILD_MEMBERS": true,
+      "GUILD_PRESENCES": true,
+      "MESSAGE_CONTENT": true
+     },
+     "name": "staging app"
+    },
+    "bot": {
+     "bot": true,
+     "id": "1000000000000000001",
+     "name": "staging-app"
+    },
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "in_guild": true,
+    "other_guilds": 0,
+    "requests": 3,
+    "staging": true,
+    "warnings": []
+   },
+   "duration_s": 0.097,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 1,
+   "note": "",
+   "operation": "discord.get_identity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.identity.in_guild": 1.0,
+    "discord.identity.intent.guild_members": 1.0,
+    "discord.identity.intent.guild_presences": 1.0,
+    "discord.identity.intent.message_content": 1.0,
+    "discord.identity.other_guilds": 0.0
+   },
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] bot staging-app (1000000000000000001), application staging app (not public); privileged intents granted: GUILD_PRESENCES, GUILD_MEMBERS, MESSAGE_CONTENT; member of the authorized server: yes; other servers: 0",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1000000000000000002"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.get_permissions"
+   ],
+   "data": {
+    "administrator": false,
+    "broader_than_scope": [],
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "missing_from_scope": [],
+    "permissions": [
+     "ADD_REACTIONS",
+     "ATTACH_FILES",
+     "CREATE_EVENTS",
+     "CREATE_INSTANT_INVITE",
+     "CREATE_PUBLIC_THREADS",
+     "EMBED_LINKS",
+     "MANAGE_CHANNELS",
+     "MANAGE_EVENTS",
+     "MANAGE_GUILD",
+     "MANAGE_MESSAGES",
+     "MANAGE_ROLES",
+     "MANAGE_THREADS",
+     "PIN_MESSAGES",
+     "READ_MESSAGE_HISTORY",
+     "SEND_MESSAGES",
+     "SEND_MESSAGES_IN_THREADS",
+     "VIEW_AUDIT_LOG",
+     "VIEW_CHANNEL"
+    ],
+    "requests": 2,
+    "scope": [
+     "ADD_REACTIONS",
+     "ATTACH_FILES",
+     "CREATE_EVENTS",
+     "CREATE_INSTANT_INVITE",
+     "CREATE_PUBLIC_THREADS",
+     "EMBED_LINKS",
+     "MANAGE_CHANNELS",
+     "MANAGE_EVENTS",
+     "MANAGE_GUILD",
+     "MANAGE_MESSAGES",
+     "MANAGE_ROLES",
+     "MANAGE_THREADS",
+     "PIN_MESSAGES",
+     "READ_MESSAGE_HISTORY",
+     "SEND_MESSAGES",
+     "SEND_MESSAGES_IN_THREADS",
+     "VIEW_AUDIT_LOG",
+     "VIEW_CHANNEL"
+    ],
+    "staging": true,
+    "timed_out": false
+   },
+   "duration_s": 0.025,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 2,
+   "note": "",
+   "operation": "discord.get_permissions",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.permissions.administrator": 0.0,
+    "discord.permissions.broader_than_scope": 0.0,
+    "discord.permissions.held": 18.0,
+    "discord.permissions.missing_from_scope": 0.0
+   },
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] the bot holds 18 permissions in the server: ADD_REACTIONS, ATTACH_FILES, CREATE_EVENTS, CREATE_INSTANT_INVITE, CREATE_PUBLIC_THREADS, EMBED_LINKS, MANAGE_CHANNELS, MANAGE_EVENTS, MANAGE_GUILD, MANAGE_MESSAGES, MANAGE_ROLES, MANAGE_THREADS, PIN_MESSAGES, READ_MESSAGE_HISTORY, SEND_MESSAGES, SEND_MESSAGES_IN_THREADS, VIEW_AUDIT_LOG, VIEW_CHANNEL; missing from the operator's scope: none; he",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1000000000000000002"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.get_guild_settings"
+   ],
+   "data": {
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "requests": 1,
+    "settings": {
+     "approximate_member_count": 6,
+     "approximate_presence_count": 1,
+     "default_message_notifications": 0,
+     "description": null,
+     "explicit_content_filter": 0,
+     "features": [],
+     "id": "1000000000000000002",
+     "name": "staging guild",
+     "preferred_locale": "en-US",
+     "public_updates_channel_id": null,
+     "rules_channel_id": null,
+     "system_channel_id": null,
+     "verification_level": 1
+    },
+    "staging": true
+   },
+   "duration_s": 0.022,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 3,
+   "note": "",
+   "operation": "discord.get_guild_settings",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.guild.verification_level": 1.0,
+    "discord.members.approximate": 6.0,
+    "discord.presence.approximate": 1.0
+   },
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] server settings: name 'staging guild', description None, verification level 1, notification default 0, content filter 0, system channel None, rules channel None, updates channel None, locale en-US, features none",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1000000000000000002"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.list_channels"
+   ],
+   "data": {
+    "channels": [
+     {
+      "guild_id": "1000000000000000002",
+      "id": "1000000000000000005",
+      "name": "general",
+      "parent_id": null,
+      "position": 0,
+      "type": 0
+     }
+    ],
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "requests": 1,
+    "staging": true
+   },
+   "duration_s": 0.022,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 4,
+   "note": "",
+   "operation": "discord.list_channels",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channels.count": 1.0
+   },
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] channels: general (1000000000000000005, type 0)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1000000000000000002"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.get_guild_stats"
+   ],
+   "data": {
+    "environment": "staging",
+    "guild": {
+     "approximate_member_count": 6,
+     "approximate_presence_count": 1,
+     "description": null,
+     "id": "1000000000000000002",
+     "name": "staging guild"
+    },
+    "guild_id": "1000000000000000002",
+    "member_counts": {
+     "bots": 2,
+     "distinct": 3,
+     "humans": 3,
+     "humans_not_pending": 3,
+     "pending": 0,
+     "test_accounts": 1,
+     "total": 6
+    },
+    "members_listed": true,
+    "requests": 2,
+    "staging": true
+   },
+   "duration_s": 0.026,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 5,
+   "note": "",
+   "operation": "discord.get_guild_stats",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.members.approximate": 6.0,
+    "discord.members.bots": 2.0,
+    "discord.members.distinct": 3.0,
+    "discord.members.humans": 3.0,
+    "discord.members.humans_not_pending": 3.0,
+    "discord.members.pending": 0.0,
+    "discord.members.test_accounts": 1.0,
+    "discord.members.total": 6.0,
+    "discord.presence.approximate": 1.0
+   },
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] server statistics: about 6 members, 1 present; listed 6: 3 people (0 pending), 2 bots, 1 declared test accounts",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1000000000000000002"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.list_invites"
+   ],
+   "data": {
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "invites": [],
+    "requests": 1,
+    "staging": true
+   },
+   "duration_s": 0.021,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 6,
+   "note": "",
+   "operation": "discord.list_invites",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.invites.count": 0.0,
+    "discord.invites.uses": 0.0
+   },
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] invites: none",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1000000000000000002",
+    "name": "cam-integration-test",
+    "type": "text"
+   },
+   "artifacts": {
+    "channel_id": "1000000000000000011"
+   },
+   "checked_ops": [
+    "discord.create_channel"
+   ],
+   "data": {
+    "channel": {
+     "guild_id": "1000000000000000002",
+     "id": "1000000000000000011",
+     "name": "cam-integration-test",
+     "parent_id": null,
+     "position": 1,
+     "type": 0
+    },
+    "channel_id": "1000000000000000011",
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "requests": 1,
+    "staging": true
+   },
+   "duration_s": 0.025,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 7,
+   "note": "",
+   "operation": "discord.create_channel",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] channel created: cam-integration-test (1000000000000000011)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1000000000000000011",
+    "content": "CAM Live integration check: this message was posted by the bot and is removed with its channel.",
+    "guild_id": "1000000000000000002"
+   },
+   "artifacts": {
+    "channel_id": "1000000000000000011",
+    "message_id": "1000000000000000013"
+   },
+   "checked_ops": [
+    "discord.send_message"
+   ],
+   "data": {
+    "channel_id": "1000000000000000011",
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "message": {
+     "channel_id": "1000000000000000011",
+     "content_length": 95,
+     "content_sha256": "2232696d00e4caf249891538d421908a3b90578b9da045c91dc266f3a36d3986",
+     "edited_timestamp": null,
+     "id": "1000000000000000013",
+     "timestamp": "2026-11-27T02:27:38.164486+00:00"
+    },
+    "message_id": "1000000000000000013",
+    "requests": 1,
+    "staging": true
+   },
+   "duration_s": 0.027,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 8,
+   "note": "",
+   "operation": "discord.send_message",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.message.length": 95.0
+   },
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] message 1000000000000000013 posted in channel 1000000000000000011 (95 characters)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1000000000000000011",
+    "guild_id": "1000000000000000002",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1000000000000000011"
+   },
+   "bot_message_read_back": true,
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T02:27:38.164486+00:00",
+     "oldest": "2026-11-27T02:27:38.164486+00:00"
+    },
+    "channel_id": "1000000000000000011",
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "requests": 1,
+    "staging": true
+   },
+   "duration_s": 0.023,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 9,
+   "note": "reads back the bot's message",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] channel 1000000000000000011: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1000000000000000011",
+    "content": "CAM Live integration check: edited by the bot; removed with its channel.",
+    "guild_id": "1000000000000000002",
+    "message_id": "1000000000000000013"
+   },
+   "artifacts": {
+    "channel_id": "1000000000000000011",
+    "message_id": "1000000000000000013"
+   },
+   "checked_ops": [
+    "discord.edit_message"
+   ],
+   "data": {
+    "channel_id": "1000000000000000011",
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "message": {
+     "channel_id": "1000000000000000011",
+     "content_length": 72,
+     "content_sha256": "db716a191065986f18eaf2bda68664c99ae4cf71c483caa9ca609ccd01dd444c",
+     "edited_timestamp": "2026-11-27T02:27:38.211817+00:00",
+     "id": "1000000000000000013",
+     "timestamp": "2026-11-27T02:27:38.164486+00:00"
+    },
+    "message_id": "1000000000000000013",
+    "requests": 1,
+    "staging": true
+   },
+   "duration_s": 0.022,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 10,
+   "note": "",
+   "operation": "discord.edit_message",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.message.length": 72.0
+   },
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] message 1000000000000000013 in channel 1000000000000000011 replaced (72 characters)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1000000000000000011",
+    "guild_id": "1000000000000000002",
+    "message_id": "1000000000000000013"
+   },
+   "artifacts": {
+    "channel_id": "1000000000000000011",
+    "message_id": "1000000000000000013"
+   },
+   "checked_ops": [
+    "discord.pin_message"
+   ],
+   "data": {
+    "channel_id": "1000000000000000011",
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "message_id": "1000000000000000013",
+    "pinned": true,
+    "requests": 1,
+    "staging": true
+   },
+   "duration_s": 0.022,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 11,
+   "note": "",
+   "operation": "discord.pin_message",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] message 1000000000000000013 pinned in channel 1000000000000000011",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1000000000000000011",
+    "guild_id": "1000000000000000002",
+    "message_id": "1000000000000000013"
+   },
+   "artifacts": {
+    "channel_id": "1000000000000000011",
+    "message_id": "1000000000000000013"
+   },
+   "checked_ops": [
+    "discord.unpin_message"
+   ],
+   "data": {
+    "channel_id": "1000000000000000011",
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "message_id": "1000000000000000013",
+    "pinned": false,
+    "requests": 1,
+    "staging": true
+   },
+   "duration_s": 0.021,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 12,
+   "note": "",
+   "operation": "discord.unpin_message",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] pin of message 1000000000000000013 removed in channel 1000000000000000011",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1000000000000000011",
+    "guild_id": "1000000000000000002",
+    "max_age_s": 600,
+    "max_uses": 1,
+    "unique": true
+   },
+   "artifacts": {
+    "channel_id": "1000000000000000011",
+    "invite_code": "1312674a"
+   },
+   "checked_ops": [
+    "discord.create_invite"
+   ],
+   "data": {
+    "channel_id": "1000000000000000011",
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "invite": {
+     "channel_id": "1000000000000000011",
+     "code": "1312674a",
+     "created_at": "2026-11-27T02:27:38.276022+00:00",
+     "expires_at": "2026-11-27T02:37:38.276022+00:00",
+     "inviter_is_bot": true,
+     "max_age": 600,
+     "max_uses": 1,
+     "temporary": false,
+     "url": "https://discord.gg/1312674a",
+     "uses": 0
+    },
+    "invite_code": "1312674a",
+    "requests": 1,
+    "staging": true
+   },
+   "duration_s": 0.021,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 13,
+   "note": "",
+   "operation": "discord.create_invite",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] invite 1312674a to channel 1000000000000000011: https://discord.gg/1312674a",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1000000000000000002"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.list_invites"
+   ],
+   "data": {
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "invites": [
+     {
+      "channel_id": "1000000000000000011",
+      "code": "1312674a",
+      "created_at": "2026-11-27T02:27:38.276022+00:00",
+      "expires_at": "2026-11-27T02:37:38.276022+00:00",
+      "inviter_is_bot": true,
+      "max_age": 600,
+      "max_uses": 1,
+      "temporary": false,
+      "uses": 0
+     }
+    ],
+    "requests": 1,
+    "staging": true
+   },
+   "duration_s": 0.021,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 14,
+   "note": "",
+   "operation": "discord.list_invites",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.invites.count": 1.0,
+    "discord.invites.uses": 0.0
+   },
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 998.0,
+    "reset_after_s": 0.818
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] invites: 1312674a used 0 times",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "code": "1312674a",
+    "guild_id": "1000000000000000002"
+   },
+   "artifacts": {
+    "channel_id": "1000000000000000011",
+    "invite_code": "1312674a"
+   },
+   "checked_ops": [
+    "discord.delete_invite"
+   ],
+   "data": {
+    "channel_id": "1000000000000000011",
+    "deleted": true,
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "invite_code": "1312674a",
+    "requests": 2,
+    "staging": true
+   },
+   "duration_s": 0.026,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 15,
+   "note": "",
+   "operation": "discord.delete_invite",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] invite 1312674a to channel 1000000000000000011 deleted",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1000000000000000011",
+    "guild_id": "1000000000000000002",
+    "topic": "temporary channel of the CAM Live integration check"
+   },
+   "artifacts": {
+    "channel_id": "1000000000000000011"
+   },
+   "checked_ops": [
+    "discord.modify_channel"
+   ],
+   "data": {
+    "changed": [
+     "topic"
+    ],
+    "channel": {
+     "guild_id": "1000000000000000002",
+     "id": "1000000000000000011",
+     "name": "cam-integration-test",
+     "nsfw": false,
+     "parent_id": null,
+     "position": 1,
+     "rate_limit_per_user": 0,
+     "topic": "temporary channel of the CAM Live integration check",
+     "type": 0
+    },
+    "channel_id": "1000000000000000011",
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "requests": 1,
+    "staging": true
+   },
+   "duration_s": 0.027,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 16,
+   "note": "",
+   "operation": "discord.modify_channel",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] channel 1000000000000000011 changed (topic): name 'cam-integration-test', topic 'temporary channel of the CAM Live integration check'",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1000000000000000011",
+    "deny": [
+     "SEND_MESSAGES"
+    ],
+    "guild_id": "1000000000000000002",
+    "role_id": "everyone"
+   },
+   "artifacts": {
+    "channel_id": "1000000000000000011",
+    "role_id": "1000000000000000002"
+   },
+   "checked_ops": [
+    "discord.set_channel_permissions"
+   ],
+   "data": {
+    "channel_id": "1000000000000000011",
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "overwrite": {
+     "allow": [],
+     "channel_id": "1000000000000000011",
+     "deny": [
+      "SEND_MESSAGES"
+     ],
+     "everyone": true,
+     "role_id": "1000000000000000002"
+    },
+    "requests": 3,
+    "role_id": "1000000000000000002",
+    "staging": true
+   },
+   "duration_s": 0.026,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 17,
+   "note": "",
+   "operation": "discord.set_channel_permissions",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] channel 1000000000000000011: everyone allowed nothing more, denied SEND_MESSAGES",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1000000000000000002",
+    "name": "cam-integration-test-role",
+    "permissions": []
+   },
+   "artifacts": {
+    "role_id": "1000000000000000021"
+   },
+   "checked_ops": [
+    "discord.create_role"
+   ],
+   "data": {
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "requests": 1,
+    "role": {
+     "color": 0,
+     "everyone": false,
+     "hoist": false,
+     "id": "1000000000000000021",
+     "managed": false,
+     "mentionable": false,
+     "name": "cam-integration-test-role",
+     "permissions": [],
+     "position": 1
+    },
+    "role_id": "1000000000000000021",
+    "staging": true
+   },
+   "duration_s": 0.02,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 18,
+   "note": "",
+   "operation": "discord.create_role",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] role created: cam-integration-test-role (1000000000000000021) with no permissions; it is not given to anyone",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1000000000000000002",
+    "mentionable": false,
+    "name": "cam-integration-test-role-renamed",
+    "role_id": "1000000000000000021"
+   },
+   "artifacts": {
+    "role_id": "1000000000000000021"
+   },
+   "checked_ops": [
+    "discord.modify_role"
+   ],
+   "data": {
+    "changed": [
+     "name",
+     "mentionable"
+    ],
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "requests": 5,
+    "role": {
+     "color": 0,
+     "everyone": false,
+     "hoist": false,
+     "id": "1000000000000000021",
+     "managed": false,
+     "mentionable": false,
+     "name": "cam-integration-test-role-renamed",
+     "permissions": [],
+     "position": 1
+    },
+    "role_id": "1000000000000000021",
+    "staging": true
+   },
+   "duration_s": 0.029,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 19,
+   "note": "",
+   "operation": "discord.modify_role",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] role 1000000000000000021 changed (name, mentionable): cam-integration-test-role-renamed with no permissions",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1000000000000000002",
+    "role_id": "1000000000000000021"
+   },
+   "artifacts": {
+    "role_id": "1000000000000000021"
+   },
+   "checked_ops": [
+    "discord.delete_role"
+   ],
+   "data": {
+    "deleted": true,
+    "deleted_role": {
+     "color": 0,
+     "everyone": false,
+     "hoist": false,
+     "id": "1000000000000000021",
+     "managed": false,
+     "mentionable": false,
+     "name": "cam-integration-test-role-renamed",
+     "permissions": [],
+     "position": 1
+    },
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "requests": 5,
+    "role_id": "1000000000000000021",
+    "staging": true
+   },
+   "duration_s": 0.032,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 20,
+   "note": "cleanup: the temporary role",
+   "operation": "discord.delete_role",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] role cam-integration-test-role-renamed (1000000000000000021) deleted",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1000000000000000002",
+    "name": "staging guild (integration test)"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.modify_guild"
+   ],
+   "data": {
+    "changed": [
+     "name"
+    ],
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "requests": 3,
+    "settings": {
+     "approximate_member_count": null,
+     "approximate_presence_count": null,
+     "default_message_notifications": 0,
+     "description": null,
+     "explicit_content_filter": 0,
+     "features": [],
+     "id": "1000000000000000002",
+     "name": "staging guild (integration test)",
+     "preferred_locale": "en-US",
+     "public_updates_channel_id": null,
+     "rules_channel_id": null,
+     "system_channel_id": null,
+     "verification_level": 1
+    },
+    "staging": true
+   },
+   "duration_s": 0.025,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 21,
+   "note": "rename",
+   "operation": "discord.modify_guild",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] server settings changed (name): name 'staging guild (integration test)', description None, verification level 1, notification default 0, content filter 0, system channel None, rules channel None, updates channel None, locale en-US, features none",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1000000000000000002",
+    "name": "staging guild"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.modify_guild"
+   ],
+   "data": {
+    "changed": [
+     "name"
+    ],
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "requests": 1,
+    "settings": {
+     "approximate_member_count": null,
+     "approximate_presence_count": null,
+     "default_message_notifications": 0,
+     "description": null,
+     "explicit_content_filter": 0,
+     "features": [],
+     "id": "1000000000000000002",
+     "name": "staging guild",
+     "preferred_locale": "en-US",
+     "public_updates_channel_id": null,
+     "rules_channel_id": null,
+     "system_channel_id": null,
+     "verification_level": 1
+    },
+    "staging": true
+   },
+   "duration_s": 0.02,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 22,
+   "note": "restore the original name",
+   "operation": "discord.modify_guild",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 998.0,
+    "reset_after_s": 0.98
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] server settings changed (name): name 'staging guild', description None, verification level 1, notification default 0, content filter 0, system channel None, rules channel None, updates channel None, locale en-US, features none",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1000000000000000002"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.get_member_events"
+   ],
+   "data": {
+    "baseline": true,
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "member_counts": {
+     "bots": 2,
+     "distinct": 3,
+     "humans": 3,
+     "humans_not_pending": 3,
+     "pending": 0,
+     "test_accounts": 1,
+     "total": 6
+    },
+    "persisted": true,
+    "previous_snapshot_unreadable": false,
+    "requests": 2,
+    "staging": true
+   },
+   "duration_s": 0.024,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 23,
+   "note": "first reading",
+   "operation": "discord.get_member_events",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.members.bots": 2.0,
+    "discord.members.distinct": 3.0,
+    "discord.members.humans": 3.0,
+    "discord.members.humans_not_pending": 3.0,
+    "discord.members.pending": 0.0,
+    "discord.members.test_accounts": 1.0,
+    "discord.members.total": 6.0
+   },
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 997.0,
+    "reset_after_s": 0.591
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] membership baseline established: 3 people, 2 bots, 1 declared test accounts; changes are reported from the next reading on",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1000000000000000002"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.get_member_events"
+   ],
+   "data": {
+    "baseline": false,
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "invites": [],
+    "invites_gone": 0,
+    "joined": {
+     "bots": 1,
+     "people": 1,
+     "test_accounts": 0
+    },
+    "joined_at": [
+     "2026-11-27T02:27:38.534127+00:00"
+    ],
+    "left": {
+     "bots": 0,
+     "people": 0,
+     "test_accounts": 0
+    },
+    "member_counts": {
+     "bots": 3,
+     "distinct": 4,
+     "humans": 4,
+     "humans_not_pending": 4,
+     "pending": 0,
+     "test_accounts": 1,
+     "total": 8
+    },
+    "persisted": true,
+    "previous_snapshot_unreadable": false,
+    "requests": 2,
+    "since_s": 1.0,
+    "staging": true
+   },
+   "duration_s": 0.024,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 24,
+   "note": "second reading",
+   "operation": "discord.get_member_events",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.invites.uses_delta": 0.0,
+    "discord.members.bots": 3.0,
+    "discord.members.distinct": 4.0,
+    "discord.members.humans": 4.0,
+    "discord.members.humans_not_pending": 4.0,
+    "discord.members.joined": 1.0,
+    "discord.members.joined_bots": 1.0,
+    "discord.members.joined_test_accounts": 0.0,
+    "discord.members.left": 0.0,
+    "discord.members.left_bots": 0.0,
+    "discord.members.left_test_accounts": 0.0,
+    "discord.members.pending": 0.0,
+    "discord.members.test_accounts": 1.0,
+    "discord.members.total": 8.0
+   },
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 996.0,
+    "reset_after_s": 0.567
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] membership since the previous reading (1 s): joined 1 people, 1 bots, 0 declared test accounts; left 0 people, 0 bots, 0 declared test accounts; now 4 people; invite uses: no change",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1000000000000000002",
+    "seconds": 10
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.listen_events"
+   ],
+   "data": {
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "requests": 1,
+    "staging": true,
+    "window": {
+     "close_code": null,
+     "configured_guild_listed": true,
+     "content_included": false,
+     "counts": {
+      "GUILD_CREATE": 1,
+      "GUILD_MEMBER_ADD": 1,
+      "GUILD_MEMBER_REMOVE": 1,
+      "MESSAGE_CREATE": 1,
+      "READY": 1
+     },
+     "dropped": {
+      "no_guild": 0,
+      "other_guild": 0,
+      "unreduced": {}
+     },
+     "ended_by": "window",
+     "events": [
+      {
+       "configured_guild_listed": true,
+       "event": "READY",
+       "guilds": 1
+      },
+      {
+       "channels": 2,
+       "event": "GUILD_CREATE",
+       "member_count": 8,
+       "unavailable": false
+      },
+      {
+       "bot": false,
+       "event": "GUILD_MEMBER_ADD",
+       "id_hash": "f70e9fee5d03a1b96f706d00100e3f2e",
+       "joined_at": "2026-11-27T02:27:38.586395+00:00",
+       "pending": false,
+       "test_account": false
+      },
+      {
+       "author_id_hash": "f70e9fee5d03a1b96f706d00100e3f2e",
+       "bot": false,
+       "channel_id": "1000000000000000005",
+       "event": "MESSAGE_CREATE",
+       "length": 0
+      },
+      {
+       "bot": false,
+       "event": "GUILD_MEMBER_REMOVE",
+       "id_hash": "f70e9fee5d03a1b96f706d00100e3f2e",
+       "test_account": false
+      }
+     ],
+     "guilds": 1,
+     "heartbeats": {
+      "acknowledged": 0,
+      "interval_s": 45.0,
+      "requested_by_gateway": 0,
+      "sent": 0
+     },
+     "intents": [
+      "GUILDS",
+      "GUILD_MEMBERS",
+      "GUILD_INVITES",
+      "GUILD_MESSAGES",
+      "GUILD_SCHEDULED_EVENTS"
+     ],
+     "requested_s": 10.0,
+     "resumable": null,
+     "session_ok": true,
+     "truncated": false,
+     "window_s": 10.001
+    }
+   },
+   "duration_s": 10.048,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 25,
+   "note": "",
+   "operation": "discord.listen_events",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.gateway.dropped_other_guild": 0.0,
+    "discord.gateway.events": 5.0,
+    "discord.gateway.guild_create": 1.0,
+    "discord.gateway.guild_member_add": 1.0,
+    "discord.gateway.guild_member_remove": 1.0,
+    "discord.gateway.heartbeats_sent": 0.0,
+    "discord.gateway.message_create": 1.0,
+    "discord.gateway.ready": 1.0,
+    "discord.gateway.session_starts_remaining": 999.0,
+    "discord.gateway.window_s": 10.001
+   },
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] event window of 10.0 s (ended by window): 5 events (GUILD_CREATE 1, GUILD_MEMBER_ADD 1, GUILD_MEMBER_REMOVE 1, MESSAGE_CREATE 1, READY 1); 0 events of other servers dropped; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1000000000000000002",
+    "limit": 50
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.get_audit_summary"
+   ],
+   "data": {
+    "audit": {
+     "by_action": {
+      "CHANNEL_CREATE": 1,
+      "CHANNEL_OVERWRITE_CREATE": 1,
+      "CHANNEL_UPDATE": 1,
+      "GUILD_UPDATE": 2,
+      "INVITE_CREATE": 1,
+      "INVITE_DELETE": 1,
+      "MESSAGE_PIN": 1,
+      "MESSAGE_UNPIN": 1,
+      "ROLE_CREATE": 1,
+      "ROLE_DELETE": 1,
+      "ROLE_UPDATE": 1
+     },
+     "entries": 12,
+     "newest": "2022-07-22T11:22:59.101000+00:00",
+     "oldest": "2022-07-22T11:22:59.101000+00:00"
+    },
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "requests": 1,
+    "staging": true
+   },
+   "duration_s": 0.032,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 26,
+   "note": "",
+   "operation": "discord.get_audit_summary",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.audit.channel_create": 1.0,
+    "discord.audit.channel_overwrite_create": 1.0,
+    "discord.audit.channel_update": 1.0,
+    "discord.audit.entries": 12.0,
+    "discord.audit.guild_update": 2.0,
+    "discord.audit.invite_create": 1.0,
+    "discord.audit.invite_delete": 1.0,
+    "discord.audit.message_pin": 1.0,
+    "discord.audit.message_unpin": 1.0,
+    "discord.audit.role_create": 1.0,
+    "discord.audit.role_delete": 1.0,
+    "discord.audit.role_update": 1.0
+   },
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] audit log, 12 most recent entries: CHANNEL_CREATE 1, CHANNEL_OVERWRITE_CREATE 1, CHANNEL_UPDATE 1, GUILD_UPDATE 2, INVITE_CREATE 1, INVITE_DELETE 1, MESSAGE_PIN 1, MESSAGE_UNPIN 1, ROLE_CREATE 1, ROLE_DELETE 1, ROLE_UPDATE 1; newest at 2022-07-22T11:22:59.101000+00:00",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1000000000000000011",
+    "guild_id": "1000000000000000002"
+   },
+   "artifacts": {
+    "channel_id": "1000000000000000011"
+   },
+   "checked_ops": [
+    "discord.delete_channel"
+   ],
+   "data": {
+    "channel_id": "1000000000000000011",
+    "deleted": true,
+    "deleted_channel": {
+     "guild_id": "1000000000000000002",
+     "id": "1000000000000000011",
+     "name": "cam-integration-test",
+     "parent_id": null,
+     "position": 1,
+     "type": 0
+    },
+    "environment": "staging",
+    "guild_id": "1000000000000000002",
+    "requests": 2,
+    "staging": true
+   },
+   "duration_s": 0.037,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 27,
+   "note": "cleanup: the temporary channel",
+   "operation": "discord.delete_channel",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "status": "ok",
+   "text": "[staging] channel 1000000000000000011 deleted",
+   "validation_errors": [],
+   "verdict": "allow"
+  }
+ ],
+ "summary": {
+  "by_outcome": {
+   "ok": 27
+  },
+  "not_ok": [],
+  "permission_refusals": [],
+  "scope_refusals": [],
+  "steps": 27
+ },
+ "task": {
+  "content_hash": "9385e6f1100657e98459ea7d10b6252f11b683c6e9ea99899068438cf367de6b",
+  "objective_id": "discord-live-check"
+ },
+ "token_free": true,
+ "tool": "cam_live/tools/discord_live_check.py",
+ "write_budget": {
+  "allowed": 60,
+  "enough": true,
+  "known": true,
+  "needed": 16,
+  "used": 0,
+  "window_s": 3600.0
+ }
+}
