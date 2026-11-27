@@ -38,6 +38,17 @@ PROBE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_v4probe.py")
 TIMING_KEY = re.compile(r"(_s|_ms|_sec|_seconds)$|wall|elapsed|throughput|per_s(ec)?\b|per_second|recorded_at|^generated$")
 SEALED_NAMES = ("sealed_salt", "sealed_access.jsonl", "sealed_sets.json", "sealed_tasks", "CRUCIBLE_SEALED_DIR",
                 "research.sealed", "research import sealed", "open_set(")
+# a name counts only as a whole token: `v5_sealed_salt` (the 5.0 evaluator's own sealed store, research/v5) or
+# `CRUCIBLE_V5_SEALED_DIR` are other names, not the 4.0 store's
+_SEALED_RE = re.compile("|".join(("(?<![A-Za-z0-9_])" if n[0].isalnum() or n[0] == "_" else "") + re.escape(n) +
+                                 ("(?![A-Za-z0-9_])" if n[-1].isalnum() or n[-1] == "_" else "")
+                                 for n in SEALED_NAMES))
+_SEALED_IMPORT_RE = re.compile(r"from\s+\S*research\S*\s+import\s+.*\bsealed\b")
+
+
+def sealed_reference(code: str) -> bool:
+    """Whether a line of code (comments stripped) names the 4.0 sealed store or imports its module."""
+    return bool(_SEALED_RE.search(code) or _SEALED_IMPORT_RE.search(code))
 
 
 def _git(root: str, *args: str) -> str:
@@ -496,13 +507,12 @@ def sealed(root: str | None = None, workload: str = "1:mech:scm_additive", steps
         deny = _denylist_strings(txt)
         for k, line in enumerate(txt.splitlines(), 1):
             code = line.split("#", 1)[0]
-            hit = any(n in code for n in SEALED_NAMES) or re.search(r"from\s+\S*research\S*\s+import\s+.*\bsealed\b", code)
+            hit = sealed_reference(code)
             if hit and k in deny:                    # a module-path denylist entry names the module without using it
                 rest = code
                 for d in deny[k]:
                     rest = rest.replace(repr(d), "").replace(f'"{d}"', "")
-                if not (any(n in rest for n in SEALED_NAMES) or
-                        re.search(r"from\s+\S*research\S*\s+import\s+.*\bsealed\b", rest)):
+                if not sealed_reference(rest):
                     denylisted.append(f"{f}:{k}")
                     continue
             if hit:

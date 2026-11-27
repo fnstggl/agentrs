@@ -161,3 +161,16 @@ def test_a_4_0_baseline_process_emits_only_4_0_events_from_4_0_tools(monkeypatch
     v4 = _fork_events(monkeypatch, historical=True)
     assert "code.forked" in v5 and "code.forked" not in v4
     assert [t for t in v5 if t != "code.forked"] == v4
+
+
+def test_the_sealed_store_scan_matches_the_4_0_names_as_whole_tokens():
+    """A.4's static scan names the 4.0 sealed store's files, variables and module. The 5.0 evaluator keeps its own
+    sealed store (`v5_sealed_salt` in a directory its caller chooses, CRUCIBLE_V5_SEALED_DIR); a substring match made
+    that a reference to the 4.0 store (research/v5/evaluator.py:78)."""
+    hits = ['os.path.join(d, "sealed_salt")', 'os.environ["CRUCIBLE_SEALED_DIR"]', "from crucible.research import sealed",
+            "import crucible.research.sealed as s", "S.open_set('x')", "p = root + '/sealed_tasks/a.json'",
+            "json.load(open(os.path.join(d, 'sealed_sets.json')))"]
+    misses = ['os.path.join(d, "v5_sealed_salt")', 'env["CRUCIBLE_V5_SEALED_DIR"] = d', "reopen_set(3)",
+              "unsealed_tasks = []"]
+    assert [B.sealed_reference(c) for c in hits] == [True] * len(hits)
+    assert [B.sealed_reference(c) for c in misses] == [False] * len(misses)
