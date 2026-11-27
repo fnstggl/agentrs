@@ -1,7 +1,7 @@
 {
  "workstream": "S",
- "commit": "d74f8108c418b6b2d788567b6c00e811c07bf686",
- "summary": "cam_live.eval built and committed with a prespecified protocol (docs/S/PROTOCOLS.md, committed before the main runs). Main experiments were launched from a frozen snapshot (commit a8444e6) and were still running when this status was written; no main result has been analysed yet, so no requirement is claimed as validated.",
+ "commit": "dcb9592ff5ba3f9f8fab385b4a968d4025304ef8",
+ "summary": "Protocol v3 (operator redirection) committed: all LabWorld / tiny-backbone / restricted-candidate runs are engineering diagnostics (docs/S/DIAGNOSIS.md, docs/evidence/S/diagnostics). Substantive families SW (hidden tests) and MECH (held-out R^2) built with independent signing verifiers; CU uses validation.StagingComputer. Substantive runs (real Qwen3-4B + 50m, open-ended generation on) are blocked by S-6: the proposer produced 0 valid backbone candidates in 15 decisions on SW (X0, snapshot 737996e). X0 seeds 1-2 and X4 (CU-33) queued; no substantive result yet.",
  "requirements": {
   "SV-01": {
    "state": "partial",
@@ -161,10 +161,14 @@
   "real_backbone_smoke": "frozen Qwen3-4B letter chooser (A) runs: 4 decisions, GPU peak 8.5 GB"
  },
  "not_done": [
-  "main_cpu batch (70 runs), real-backbone plan (E s0-2, A/B s0-3), scaling (5m-150m), transfer_cpu / frozen_cpu, integrity, meta: launched, not analysed; outputs under runs/cam_live/eval/snapshots/a8444e6a9838/runs/cam_live/eval and runs/cam_live/eval/{results,ckpts}/real; evidence JSON of integrity/meta is written inside the overlay snapshot's docs/evidence/S and must be copied",
-  "docs/S/RESULTS.md not written (no analysed results)",
-  "CU-33 (primitive vs skills with the learner in the loop) not implemented",
-  "500m / 1b instantiation not run"
+  "X0 remaining objectives/seeds and X4 CU-33 running in the GPU queue (scratchpad S/gpu_queue2.sh); X1-X3, X5 wait for S-6",
+  "docs/S/RESULTS.md, JUnit of tests/eval not yet written",
+  "integrity battery on current code running (diagnostic)"
  ],
- "scientific_failures": []
+ "scientific_failures": [
+  "Diagnostic (v2, debug scale): no condition beats uniform by a detectable margin; selection ignores the world model (shadow: greedy-on-prediction 5.05 vs behaviour 1.42 expected adopters/decision); 70-73% of internal reward goes to zero-value actions (S-5)",
+  "Diagnostic (v2): in E the learned reward changes psi (9.1 applied meta-updates/run, 10/10 runs) but has no effect on live inner updates (bootstrap mix 1.0 throughout); only E_mix0 lets psi act",
+  "Diagnostic (v2): CPU transfer S_q 0.86 [0.67, 0.98] (T1) and 0.97 [0.68, 1.47] (T2): no positive transfer",
+  "Substantive X0 (real, open-ended): 0 valid backbone candidates in 15 decisions on SW:rle; pass fraction 0.0 (S-6)"
+ ]
 }
