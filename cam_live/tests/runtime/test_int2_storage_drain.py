@@ -53,8 +53,9 @@ def test_runtime_pauses_instead_of_checkpointing_when_disk_is_low(tmp_path):
 
 def test_drain_after_exhaustion_waits_for_the_verdict(tmp_path):
     cfg = LabConfig(seed=3, target=200, outcome_horizon_s=3 * 3600.0)
+    # neither drain nor the settle window of INT3B (settle_after_finish_s=0): the run ends with outcomes unmeasured
     plain = make_lab(str(tmp_path / "plain"), lab_cfg=cfg, task_edit=lambda t: setattr(t.limits, "max_decisions", 4),
-                     rt_cfg=RuntimeConfig(fsync=False))
+                     rt_cfg=RuntimeConfig(fsync=False, settle_after_finish_s=0.0))
     for _ in range(30):
         plain.rt.step()
         if plain.rt.status != "running":

@@ -75,7 +75,7 @@ class LabHost:
     which is the environment-side guarantee the runtime relies on when it resolves an in-flight action."""
     ENV = ("observe", "discover_tools", "validate_action", "execute", "poll_events", "get_resource_state",
            "get_pending_outcomes", "get_observable_metrics", "get_capabilities", "measure")
-    METHODS = ENV + ("v_verify", "v_check_signature", "v_measure", "p_authorize", "p_check_grant", "p_record",
+    METHODS = ENV + ("v_verify", "v_check_signature", "v_check_measurement", "v_measure", "p_authorize", "p_check_grant", "p_record",
                      "p_approvals", "p_resolve_approval", "p_stopped", "p_limits_state", "clock_now",
                      "clock_advance")
 
@@ -112,6 +112,9 @@ class LabHost:
     def v_verify(self, task): return self.verifier.verify(task)
     def v_check_signature(self, outcome): return self.verifier.check_signature(outcome)
     def v_measure(self, queries): return self.verifier.measure(queries)
+    # signed measurements are checked like the verifier's outcomes (without it every verified measurement the runtime
+    # took over RPC was an error: harmless between decisions, a pause once an ended objective's outcomes are settled)
+    def v_check_measurement(self, o): return self.verifier.check_measurement(o)
     def p_authorize(self, action, task, context=None): return self.policy.authorize(action, task, context)
     def p_check_grant(self, action, decision): return self.policy.check_grant(action, decision)
     def p_record(self, action, result): return self.policy.record(action, result)

@@ -9,6 +9,9 @@
     cam-live preflight --task T             the readiness report alone
     cam-live run --task T                   preflight, then start the persistent runtime (detached, pid file)
     cam-live status | pause | resume | stop | approve ID | reject ID | journal | dashboard
+    cam-live plan-report [--run-dir R] [--out F] [--json]
+                                            CAM's objective, notes, predictions, experiments, operator requests,
+                                            actions and learning updates, verbatim with provenance (no summary)
     cam-live evaluate-transfer --checkpoint P
     cam-live export-checkpoint [--out P]
     cam-live verify-completion
@@ -675,6 +678,17 @@ def cmd_journal(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_plan_report(a: argparse.Namespace) -> int:
+    from .plan_report import write_report
+    run_dir = _run_dir(a)
+    if not os.path.exists(os.path.join(run_dir, RunFiles.STATE)):
+        print(f"cam-live plan-report: no runtime state in {run_dir}", file=sys.stderr)
+        return 1
+    path = write_report(run_dir, os.path.abspath(a.out) if a.out else "", as_json=a.json)
+    print(path)
+    return 0
+
+
 def cmd_dashboard(a: argparse.Namespace) -> int:
     from .dashboard import load_or_create_operator_token, load_or_create_token, serve
     cfg = _cfg(a.config)
@@ -792,6 +806,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", default="")
     p = add("journal", cmd_journal, "regenerate the research journal", run_dir=True)
     p.add_argument("--print", action="store_true")
+    p = add("plan-report", cmd_plan_report, "export CAM's objective, notes, predictions, experiments, operator requests, "
+            "actions and learning updates verbatim, with provenance", run_dir=True)
+    p.add_argument("--out", default="", help="output file (.md, or .json with --json; default <run-dir>/plan_report.*)")
     p = add("dashboard", cmd_dashboard, "serve the monitoring interface on 127.0.0.1", run_dir=True)
     p.add_argument("--port", type=int, default=8787)
     p.add_argument("--view-only", action="store_true", help="no operator actions (no operator credential is loaded)")

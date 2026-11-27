@@ -13,6 +13,13 @@ tasks get the harness' in-process authorization service and computer environment
 The agent comes from ``--agent-factory`` (default ``cam_live.agent:build_agent``), called with those of
 ``cfg, run_dir, clock, task, verifier`` it accepts (the verifier only to *check* signatures: in separated mode it is
 the ``RemoteVerifier`` client, which holds no key).
+
+Shared GPU (INT3B). ``runtime.gpu_lock`` (``auto``: when the configuration loads a pretrained backbone on CUDA;
+``on``; ``off``) makes this process hold the machine's shared GPU lock (``nn.gpu.gpu_lock``) from before the agent is
+built until it exits. ``runtime.gpu_hold_s`` > 0 bounds that hold: when it is used up the runtime commits its
+checkpoint, pauses (reason recorded) and the process exits, releasing the GPU; ``cam-live resume`` restarts it from
+the persisted state for the next hold. ``runtime.policy_file``: the authorization policy of an in-process run
+(default ``configs/authorization.yaml``), e.g. a staging rehearsal's policy.
 """
 from __future__ import annotations
 
@@ -74,7 +81,7 @@ def build_inproc(task: TaskSpec, cfg: CamLiveConfig, run_dir: str) -> Tuple[Any,
     from .tasks import evidence_source
     from .verifier import build_verifier, source_from_spec
     clock = WallClock()
-    policy = PolicyService(run_dir, clock=clock)
+    policy = PolicyService(run_dir, sec.get("policy_file") or None, clock=clock)
     policy.register_task(task, "operator")
     # the environment keeps its own state and execution log under <run_dir>/exec, apart from the runtime's records
     env = build_environment(os.path.join(run_dir, "exec"), policy, provenance=task.mode, clock=clock,
@@ -96,8 +103,41 @@ def build_remote(run_dir: str, connect_timeout: float = 60.0) -> Tuple[Any, Any,
             RemoteVerifier(os.path.join(sock, SOCK_VERIFY)), WallClock())
 
 
+def needs_gpu_lock(cfg: CamLiveConfig) -> bool:
+    """``runtime.gpu_lock``: on / off / auto (a pretrained backbone on CUDA)."""
+    mode = str(cfg.section("runtime").get("gpu_lock", "auto")).lower()
+    if mode in ("on", "true", "1", "yes"):
+        return True
+    if mode in ("off", "false", "0", "no"):
+        return False
+    try:
+        return cfg.backbone.name != "tiny" and cfg.resolved_device() == "cuda"
+    except Exception:  # noqa: BLE001 — no CUDA information: nothing heavy runs on a GPU
+        return False
+
+
 def run_service(run_dir: str, task: TaskSpec, cfg: CamLiveConfig, *, agent_factory: str, inproc: bool,
                 max_iterations: Optional[int] = None, block: Optional[bool] = None) -> str:
+    if not needs_gpu_lock(cfg):
+        return _run_service(run_dir, task, cfg, agent_factory=agent_factory, inproc=inproc,
+                            max_iterations=max_iterations, block=block)
+    from ..nn.gpu import free_gpu_memory, gpu_lock
+    sec = cfg.section("runtime")
+    hold = float(sec.get("gpu_hold_s", 0.0) or 0.0)
+    with gpu_lock(timeout_s=float(sec.get("gpu_lock_timeout_s", 1800.0))) as t0:
+        print(f"learner: shared GPU lock held (hold bound {hold:.0f} s)" if hold > 0 else
+              "learner: shared GPU lock held", flush=True)
+        try:
+            return _run_service(run_dir, task, cfg, agent_factory=agent_factory, inproc=inproc,
+                                max_iterations=max_iterations, block=block,
+                                hold_until=(t0 + hold) if hold > 0 else None)
+        finally:
+            free_gpu_memory()
+
+
+def _run_service(run_dir: str, task: TaskSpec, cfg: CamLiveConfig, *, agent_factory: str, inproc: bool,
+                 max_iterations: Optional[int] = None, block: Optional[bool] = None,
+                 hold_until: Optional[float] = None) -> str:
     run_dir = os.path.abspath(run_dir)
     os.makedirs(run_dir, exist_ok=True)
     env, policy, verifier, clock = build_inproc(task, cfg, run_dir) if inproc else build_remote(run_dir)
@@ -112,9 +152,42 @@ def run_service(run_dir: str, task: TaskSpec, cfg: CamLiveConfig, *, agent_facto
         for sig in (signal.SIGTERM, signal.SIGINT):
             signal.signal(sig, lambda s, _f: rt.request_stop(f"signal {signal.Signals(s).name}"))
     try:
-        return rt.run(max_iterations=max_iterations, block=block)
+        if hold_until is None:
+            return rt.run(max_iterations=max_iterations, block=block)
+        return run_held(rt, hold_until, wake, max_iterations=max_iterations)
     finally:
         rt.close()
+
+
+def run_held(rt: LiveRuntime, hold_until: float, wake: threading.Event,
+             max_iterations: Optional[int] = None) -> str:
+    """Steps until the GPU hold ends (then commit + pause, so that ``cam-live resume`` continues from disk), the run
+    is stopped, paused or finished, or ``max_iterations``. A sleep is cut short at the end of the hold."""
+    from .loop import PAUSED, RUNNING, STOPPED
+    timer = threading.Timer(max(0.0, hold_until - time.time()), wake.set)
+    timer.daemon = True
+    timer.start()
+    n = 0
+    try:
+        rt.start()
+        while True:
+            if time.time() >= hold_until and rt.status == RUNNING:
+                rt.log.event("gpu_hold_ended", {"hold_until": hold_until, "decisions": rt.counters["decisions"],
+                                                "reason": "the bounded hold of the shared GPU lock is used up"},
+                             consequential=True)
+                rt._pause("the bounded hold of the shared GPU lock is used up (runtime.gpu_hold_s); "
+                          "cam-live resume continues from the committed state")
+                break
+            rt.step()
+            n += 1
+            if rt.status in (STOPPED, PAUSED) or rt.status not in (RUNNING,):
+                break                       # finished, stopped or paused: release the GPU
+            if max_iterations is not None and n >= max_iterations:
+                break
+        rt.log.sync()
+        return rt.status
+    finally:
+        timer.cancel()
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:

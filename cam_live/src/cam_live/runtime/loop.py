@@ -102,6 +102,14 @@ class RuntimeConfig:
     drain_after_exhaustion: bool = False # S-1: when the decision budget is used up with the objective pending, keep
                                          # observing (no proposal, no execution) until the verifier's verdict is
                                          # terminal or the deadline passes, so the experience gets its outcomes
+    settle_after_finish_s: float = 7 * 86400.0  # INT3B: when an objective ends (signed verdict achieved / failed, or a
+                                         # limit other than the duration used up), outcomes still pending are
+                                         # measured for at most this many clock seconds — never past the deadline;
+                                         # nothing is proposed or executed meanwhile — so the objective's last
+                                         # decisions get their consequences in the same lifetime. Outcomes that
+                                         # cannot mature in that window (and those of a stopped run) are carried:
+                                         # they stay in the persisted pending-outcome queue (state.json) and are
+                                         # measured if the run continues. 0 = finish at once (carry everything).
     verify_every_s: float = 0.0          # minimum clock seconds between objective verifications
     evidence_poll_s: float = 0.0         # wake to poll the event stream this often while idle; 0 = only scheduled wakes
     approval_poll_s: float = 0.0         # re-check pending approvals at the policy this often while idle; 0 = on notice only
@@ -184,6 +192,7 @@ class LiveRuntime:
         self.guard = DiskGuard(self.run_dir, float(self.cfg.min_free_gb), float(self.cfg.warn_free_gb))
         self._storage_warned = False
         self._draining = False
+        self._settle: Optional[Dict[str, Any]] = None          # the ended objective whose outcomes are being measured
         self.box = PrivateBox(self.run_dir)
         self.log = RunLog(self.run_dir, clock, provenance=task.mode, durable=self._durable,
                           redactor=Redactor.from_config(self.cfg.redaction, load_salt(self.run_dir),
@@ -376,6 +385,7 @@ class LiveRuntime:
         self._seen_cmds = list(inner.get("seen_cmds") or [])
         self._last_verified = dict(st.get("last_verified", {}))
         self._refused_verified = int(st.get("refused_verified", 0))
+        self._settle = dict(inner["settle"]) if isinstance(inner.get("settle"), dict) else None
         self.obstacles.load_state(inner.get("obstacles_open"))
         c = self._committed = dict(inner.get("committed", {}))
         self.generation = int(c.get("generation", 0))
@@ -648,7 +658,7 @@ class LiveRuntime:
         red = self.log.redact
         inner = {"task": self.task.to_dict(), "committed": c, "approvals_raw": self._approval_raw,
                  "next_tasks": self._next_tasks, "obstacles_open": self.obstacles.to_state(),
-                 "seen_cmds": self._seen_cmds[-100000:]}
+                 "seen_cmds": self._seen_cmds[-100000:], "settle": self._settle}
         return {
             "version": STATE_VERSION, "run_id": self.log.run_id, "actor_id": self.actor_id, "pid": os.getpid(),
             "status": self.status, "status_reason": self._red(self.status_reason),
@@ -668,6 +678,7 @@ class LiveRuntime:
             "control_results": red(self._control_results), "activity": self._activity, "wake": self._wake_info,
             "last_verified": red(self._last_verified), "refused_verified": self._refused_verified,
             "obstacles_open": self.obstacles.open_count(), "errors": red(self._errors[-20:]),
+            "settling": None if self._settle is None else {**self._settle, "reason": self._red(self._settle["reason"])},
             "waiting": None if w is None else {"until": w["until"], "started": w["started"],
                                                 "action_id": w["decision"].chosen.action_id},
             "sealed": self.box.seal(inner),
@@ -857,8 +868,11 @@ class LiveRuntime:
             self._commit(force=True)
         self.status, self.status_reason = status, reason
         self._set_activity(status, reason)
+        settle, self._settle = self._settle, None
         self.log.event("halted", {"status": status, "reason": reason,
-                                  "checkpoint": (self._committed.get("ckpt") or {}).get("id", "")}, consequential=True)
+                                  "checkpoint": (self._committed.get("ckpt") or {}).get("id", ""),
+                                  "pending_outcomes_carried": len(self.pending),
+                                  "interrupted_settle": settle}, consequential=True)
         self._journal()
         self._save_state()
 
@@ -900,6 +914,7 @@ class LiveRuntime:
         return True, f"objective {task.objective_id} queued; it starts when the current objective ends"
 
     def _switch_objective(self, entry: Dict[str, Any]) -> None:
+        self._settle = None
         self._use_task(TaskSpec.from_dict(entry["task"]))
         self.counters = dict(_COUNTERS)
         self.started_at, self.paused_total_s, self.paused_at = self.clock.now(), 0.0, 0.0
@@ -1650,20 +1665,67 @@ class LiveRuntime:
         except Exception as e:  # noqa: BLE001 — the journal is derived; failing to render it must not stop the run
             self._note_error("runtime", "journal", e)
 
+    def _settle_until(self) -> Optional[float]:
+        """End of the settle window of an objective that ends now (None: no window — finish at once)."""
+        w = _finite(self.cfg.settle_after_finish_s) or 0.0
+        if w <= 0:
+            return None
+        until = self.clock.now() + w
+        d = self._deadline()
+        if d is not None:
+            until = min(until, d)
+        return until if until > self.clock.now() else None
+
+    def _maturing_by(self, until: float) -> int:
+        return sum(1 for i in self.pending.items() if i.ready_at <= until)
+
+    def _end_objective(self, status: str, reason: str) -> None:
+        """The objective has ended (``status``). If outcomes still pending can mature within the settle window, keep
+        measuring them first (no decision, no execution); otherwise finish now and carry them."""
+        until = self._settle_until() if self._settle is None else None
+        n = self._maturing_by(until) if until is not None else 0
+        if until is None or n == 0:
+            self._finish(status, reason)
+            return
+        now = self.clock.now()
+        self._settle = {"status": status, "reason": reason, "since": now, "until": until,
+                        "pending_at_end": len(self.pending), "maturing_in_window": n, "measured": 0, "cycles": 0}
+        self.log.event("settling", {"objective_id": self.task.objective_id, "status": status, "reason": reason,
+                                    "until": until, "pending_outcomes": len(self.pending), "maturing_in_window": n,
+                                    "why": "the objective ended with outcomes of its decisions still pending: they "
+                                           "are measured (nothing is proposed or executed) before it is closed"},
+                       consequential=True)
+        self.status_reason = f"settling after '{reason}': measuring {n} pending outcomes until {until:.0f}"
+        self._set_activity("settling", f"{n} pending outcomes; no new decisions")
+        self._commit(force=True)
+
+    def _settle_over(self) -> bool:
+        s = self._settle
+        if s is None:
+            return False
+        return self.clock.now() >= float(s["until"]) or self._maturing_by(float(s["until"])) == 0
+
     def _finish(self, status: str, reason: str) -> None:
         self._finish_wait()
+        settle, self._settle = self._settle, None
         self._commit(force=True)
         self.status, self.status_reason = status, reason
         self._set_activity("finished", reason)
+        carried = len(self.pending)
         self.lifetime["objectives"].append({"objective_id": self.task.objective_id, "status": status,
                                             "reason": reason, "at": self.clock.now(),
                                             "decisions": self.counters["decisions"],
-                                            "verified": (self._last_verified.get("outcome") or {}).get("value")})
+                                            "verified": (self._last_verified.get("outcome") or {}).get("value"),
+                                            "pending_outcomes_carried": carried})
         self.log.event("objective_finished", {"objective_id": self.task.objective_id, "status": status,
                                               "reason": reason, "counters": dict(self.counters),
                                               "limits": self._limit_state(),
                                               "checkpoint": (self._committed.get("ckpt") or {}).get("id", ""),
-                                              "verified_rid": self._last_verified.get("rid", "")}, consequential=True)
+                                              "verified_rid": self._last_verified.get("rid", ""),
+                                              "settle": None if settle is None else
+                                              {k: settle[k] for k in ("since", "until", "pending_at_end",
+                                                                      "maturing_in_window", "measured", "cycles")},
+                                              "pending_outcomes_carried": carried}, consequential=True)
         self._journal()
         self._save_state()
         if self._next_tasks:
@@ -1742,9 +1804,12 @@ class LiveRuntime:
         if self._refresh_approvals() or any(a["status"] in ("approved", "rejected") for a in self.approvals.values()):
             reasons.append("approval_resolved")
         exhausted = self._exhausted()
-        draining = self._may_drain(exhausted)
-        if exhausted and not draining:
+        settling = self._settle is not None
+        draining = not settling and self._may_drain(exhausted)
+        if exhausted and not draining and not settling:
             reasons.append(f"limit:{exhausted}")
+        if settling and self._settle_over():
+            reasons.append("settle_end")
         if draining and not self._draining:
             self._draining = True
             reasons.append("draining")
@@ -1774,7 +1839,13 @@ class LiveRuntime:
         self.cursor = cursor
         outcomes = list(self._redeliver) + self._measure(due)                      # step 4
         self._redeliver = []
-        verified = self._verify(force=bool(exhausted))
+        # while settling, a verdict that already ended the objective is final; after an exhausted limit the
+        # verifier is still asked (the last decisions' consequences may complete the objective)
+        verified = (None if settling and self._settle["status"] != EXHAUSTED
+                    else self._verify(force=bool(exhausted) and not settling))
+        if settling:
+            self._settle["measured"] += len(outcomes)
+            self._settle["cycles"] += 1
         if outcomes or verified is not None:
             info = self._agent_try("reconcile", outcomes, verified, default={})
             self.log.event("reconciled", {"n_outcomes": len(outcomes), "query_ids": [o.query_id for o in outcomes],
@@ -1792,7 +1863,7 @@ class LiveRuntime:
         self.log.event("beliefs_updated", {"learner_report": beliefs if isinstance(beliefs, dict) else
                                            {"value": str(beliefs)[:500]}})
         acted = False
-        if not terminal and not exhausted:
+        if not terminal and not exhausted and not settling:
             try:
                 acted = self._process_approvals()
                 if not self._exhausted() and not self._policy_stopped():
@@ -1822,13 +1893,21 @@ class LiveRuntime:
                 hook(self)
             except Exception as e:  # noqa: BLE001 — e.g. an unreachable central learner: recorded, the loop goes on
                 self._note_error("runtime", f"after_cycle hook {getattr(hook, '__name__', type(hook).__name__)}", e)
+        ended = False
         if terminal:                                                               # step 16
             vo = self._last_verified.get("outcome", {})
-            self._finish(terminal, f"verifier status {vo.get('status')}: value {vo.get('value')} "
-                                   f"against target {vo.get('target')}")
-        elif exhausted and not draining:
-            self._finish(EXHAUSTED, self._exhaust_text(exhausted))
-        else:
+            why = f"verifier status {vo.get('status')}: value {vo.get('value')} against target {vo.get('target')}"
+            if settling:                     # the settled objective's own decisions completed it
+                self._settle.update(status=terminal, reason=why)
+            else:
+                self._end_objective(terminal, why)
+                ended = True
+        elif exhausted and not draining and not settling:
+            self._end_objective(EXHAUSTED, self._exhaust_text(exhausted))
+            ended = True
+        if self._settle is not None and self.status == RUNNING and self._settle_over():
+            self._finish(self._settle["status"], self._settle["reason"])
+        elif not ended:
             self._commit()
             if (self.cycles % max(1, self.cfg.journal_every) == 0
                     and self.clock.now() - self._last_journal_at >= self.cfg.journal_min_interval_s):
@@ -1842,7 +1921,7 @@ class LiveRuntime:
             self._triggers.append("action_completed")
             if self.cfg.min_cycle_interval_s > 0 and not self._last_result_ok:
                 self.sleeper.sleep_until(self.clock.now() + self.cfg.min_cycle_interval_s, self._interrupted)
-        elif self._exhausted() and not self._may_drain(self._exhausted()):
+        elif self._settle is None and self._exhausted() and not self._may_drain(self._exhausted()):
             self._triggers.append("limit_check")
         if self._triggers:
             return rep
@@ -1873,6 +1952,7 @@ class LiveRuntime:
             "poll": now + self.cfg.evidence_poll_s if self.cfg.evidence_poll_s > 0 else None,
             "approval_check": now + self.cfg.approval_poll_s if pend_approvals and self.cfg.approval_poll_s > 0 else None,
             "deadline": self._deadline(),
+            "settle_end": None if self._settle is None else float(self._settle["until"]),
         })
         if t is not None:
             t = max(t, now + self.cfg.min_idle_sleep_s)
