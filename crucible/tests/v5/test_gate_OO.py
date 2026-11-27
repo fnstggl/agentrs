@@ -476,8 +476,9 @@ RETAIN = 300_000
 def _objective_free(env, days: int, limits: dict, label: str, violations: list, *, act=None) -> dict:
     """Run a kernel-world environment without any objective for `days` simulated days; check limits every day.
     Resident-memory growth is measured from the end of the run's first simulated day: one-time initialisation in a
-    fresh process (the population's text model and the GPU context are loaded on first use, about 0.7 GB measured on
-    a GPU slot) is reported as `first_day_rss_mb`, not counted as growth over operation."""
+    fresh process (the population's text model and the GPU context are loaded on first use; at b3a07b1 the first Tier 2
+    run of the process grew 776 MB on a GPU slot and every later run 0 MB) is reported as `first_day_rss_mb`, not
+    counted as growth over operation."""
     a = env.agents()[0]
     t0, r_start = time.perf_counter(), _rss_mb()
     r0 = peak = r_start
