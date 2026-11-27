@@ -505,7 +505,9 @@ def checks(r: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     return {
         "computer_environment_decisions": c(pa.get("counters", {}).get("decisions", 0) > 0,
                                             decisions=pa.get("counters", {}).get("decisions", 0)),
-        "lab_lifetimes_verified": c(len(verified_lab) >= 2, n=len(verified_lab)),
+        "lab_lifetimes_verified": c(len(verified_lab) >= 2, n=len(verified_lab),
+                                    closed=sum(1 for lt in verified_lab
+                                               if lt["verified"].get("status") in ("achieved", "failed"))),
         "predictions_before_outcomes": c(ev.get("prediction_resolutions", {}).get("n_resolved", 0) > 0 and
                                          ev["prediction_resolutions"]["all_resolved_after_registration"],
                                          n_resolved=ev.get("prediction_resolutions", {}).get("n_resolved", 0)),
@@ -514,7 +516,13 @@ def checks(r: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
                                           stats=wd.get("frequent:experiential")),
         "adapter_weights_changed": c(wd.get("slow_adapters:semantic_adapters", {}).get("nonzero", 0) > 0,
                                      stats=wd.get("slow_adapters:semantic_adapters")),
-        "meta_update_applied": c(ev.get("meta_applied", 0) > 0, applied=ev.get("meta_applied", 0),
+        "meta_update_applied": c(any(m.get("applied") and (m.get("meta_grad_norm") or 0.0) > 0
+                                     and m.get("reward_version_before") != m.get("reward_version_after")
+                                     for m in ev.get("meta_updates", [])),
+                                 applied=ev.get("meta_applied", 0),
+                                 applied_with_nonzero_gradient=sum(1 for m in ev.get("meta_updates", [])
+                                                                   if m.get("applied") and
+                                                                   (m.get("meta_grad_norm") or 0.0) > 0),
                                  skipped=ev.get("meta_skipped_reasons")),
         "delayed_outcomes_linked": c(ev.get("delayed_outcome_links", 0) > 0, n=ev.get("delayed_outcome_links", 0)),
         "behaviour_changed_on_held_out_context": c(bc.get("tv_before_after", 0.0) > 1e-6,
