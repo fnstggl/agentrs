@@ -110,7 +110,7 @@
  "CL-04": {
   "status": "partial",
   "by": "G-cl",
-  "notes": "The retention test functions and the mechanism reduces forgetting in D's experiment re-run on the current tree: NLL increase on family A +2.772 +- 0.655 (naive, replay of B only) vs -0.023 +- 0.077 (family-balanced replay + functional regulariser), two identical runs; with the pre-commit warm-up default (0) +2.537 vs +0.154. D's recorded +2.085 vs +0.150 is not regenerable from the committed code (m5). Single seed, single family pair; replay and regulariser not ablated separately (D discloses).",
+  "notes": "The retention test functions and the mechanism reduces forgetting in D's experiment re-run on the current tree: NLL increase on family A +2.772 +- 0.655 (naive, replay of B only) vs -0.023 +- 0.077 (family-balanced replay + functional regulariser), two identical runs; with the pre-commit warm-up default (0) +2.537 vs +0.154; inside the full diagnose run +2.346 +- 0.695 vs +0.058 +- 0.127 (the result depends on what ran earlier in the process). D's recorded +2.085 vs +0.150 is not regenerable from the committed code (m5). Single seed, single family pair; replay and regulariser not ablated separately (D discloses).",
   "evidence": [
    ".venv/bin/python -m cam_live.credit.diagnose --only retention --out OUT --work DIR",
    ".venv/bin/python cam_live/docs/verification/repro/cl/repro_retention.py --warmup 0 --work DIR"
@@ -127,11 +127,12 @@
  "CL-06": {
   "status": "partial",
   "by": "G-cl",
-  "notes": "Debug/CPU: kill -9 at random times during 196 checkpoint writes (10 kills): newest intact checkpoint >= last acknowledged, verifies and loads consistently; weights-only export reloaded in a fresh process gives bit-identical belief / latent / NLL / action probabilities (only with the same thread count: 2 vs 1 threads differ by 1e-6); optimizer state restored exactly into a fresh learner by parameter name. Real configuration (new evidence): the fresh-process reload on CUDA restores every group hash exactly (incl. frozen backbone) but predictions are not bit-exact (max |db| 0.053, |dNLL| 0.0014; see G_cl.md section on m7). Integrated agent / runtime restart not covered (D marks partial).",
+  "notes": "Debug/CPU: kill -9 at random times during 196 checkpoint writes (10 kills): newest intact checkpoint >= last acknowledged, verifies and loads consistently; D's restart experiment re-run (SIGKILL mid-update and mid-checkpoint, resume in a new process): 6/6 subsequent updates identical, final hashes identical; weights-only export reloaded in a fresh process gives bit-identical belief / latent / NLL / action probabilities (with equal thread counts; 2 vs 1 threads differ by 1e-6); optimizer state restored exactly into a fresh learner by parameter name. Real configuration (new evidence, CUDA): the fresh-process reload restores every group hash exactly (incl. frozen backbone), but predictions differ from the writer's by max |db| 0.053 because they depend on which batch each cached embedding was computed in (clearing the writer's embedding cache moves its own predictions by the same 0.052; G-nn D8); measured while nn/ had uncommitted edits by another workstream (m7, provisional). Integrated agent / runtime restart not covered (D marks partial).",
   "evidence": [
    ".venv/bin/python cam_live/docs/verification/repro/cl/probe_learner.py --only kill,export",
    ".venv/bin/python cam_live/docs/verification/repro/cl/probe_real.py --part read --dir DIR",
-   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_real.py --part within --dir DIR"
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_real.py --part within --dir DIR",
+   ".venv/bin/python -m cam_live.credit.diagnose --out OUT --work DIR  (restart, export blocks)"
   ]
  },
  "CL-08": {

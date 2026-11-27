@@ -195,6 +195,12 @@ def part_within(d):
         r = predictions(em.model, holder["world"], holder["policy"], st, ids[::-1])    # cold cache, reversed batch
         r = {k: v.flip(0) for k, v in r.items()}
         single = [predictions(em.model, holder["world"], holder["policy"], st, [i]) for i in ids]
+        # cache history: warm the embedding cache with one-record batches, then predict the 4-record batch from it
+        em.model.mark_adapters_updated()
+        for i in ids:
+            predictions(em.model, holder["world"], holder["policy"], st, [i])
+        h = predictions(em.model, holder["world"], holder["policy"], st, ids)
+        OUT["batch_from_single_record_cache_max_diff"] = {k: float((a[k] - h[k]).abs().max()) for k in a}
         st.close()
     OUT["same_order_warm_cache_max_diff"] = {k: float((a[k] - b2[k]).abs().max()) for k in a}
     OUT["reversed_order_cold_cache_max_diff"] = {k: float((a[k] - r[k]).abs().max()) for k in a}

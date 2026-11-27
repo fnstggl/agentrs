@@ -21,7 +21,7 @@ independently.
 | Providers on the real model class (debug) | `.../probe_providers.py` | 4 refuted (M1, m1, m2, m3) |
 | Learner, promotion, kill -9, export (debug) | `.../probe_learner.py` (`CL_THREADS=1`) | 25 hold, 1 refuted (m4) |
 | Temporally extended actions | `.../probe_smdp.py` | 8 / 8 hold |
-| Real configuration (Qwen3-4B + 50m, CUDA) | `.../probe_real.py --part write|read|within --dir DIR` | update checks hold; reload not bit-exact (m7) |
+| Real configuration (Qwen3-4B + 50m, CUDA) | `.../probe_real.py --part write|read|within --dir DIR` | update checks hold; predictions depend on cache history (m7) |
 | D's experiments re-run on the current tree | `.venv/bin/python -m cam_live.credit.diagnose --out OUT --work DIR`, `--only retention`, `.../repro_retention.py --warmup 0` | conclusions reproduce, recorded numbers do not (m5) |
 
 GPU probes held `cam_live.nn.gpu.gpu_lock` for one part each (longest hold about 4 min, peak 9.35 GB).
@@ -99,7 +99,10 @@ second counted assignment.
 **Reproduced measured numbers.** exact_rel_var_reinforce 23.458 (D 23.46); exact_rel_var_cocoa 10.517 (D 10.52);
 key-decision variance REINFORCE 8.03 / COCOA 0.0609 with an own sampler (D 8.09 / 0.0593); test counts 100 / 5 / 2;
 real-configuration weight deltas (above); credit experiment: measured arm differences, conservation error
-1.78e-15, 0 links to later decisions and 0 context leaks identical to D's; selected default 'rudder' again.
+1.78e-15, 0 links to later decisions and 0 context leaks identical to D's; selected default 'rudder' again;
+restart experiment (D's `exp_restart`, re-run): SIGKILL in the middle of an update and in the middle of a checkpoint
+write, resume in a new process: 6 / 6 subsequent updates identical, final hashes identical (D: 6/6, 6/6); export
+experiment: all eight probe outputs bit-exact (D: true).
 
 ## 3. Defects
 
@@ -167,7 +170,8 @@ step of 20 adapter tensors keep the rejected gradient), `sched_step` and `counte
 `docs/evidence/D/diagnostics.json` was committed together with a change of `LearnerSettings.warmup_steps` 0 -> 8
 (`85905d6`). Re-running D's own commands on the current tree (no change under `credit/` since):
 retention `--only retention`: naive +2.772 +- 0.655, with retention -0.023 +- 0.077 (two identical runs; D:
-+2.085 +- 0.580 / +0.150 +- 0.153); with warm-up 0: +2.537 / +0.154; learning: held-out mean NLL 2.863 -> 2.300
++2.085 +- 0.580 / +0.150 +- 0.153); with warm-up 0: +2.537 / +0.154; inside the full run (all experiments in one
+process, as D ran it): +2.346 +- 0.695 / +0.058 +- 0.127 — the result depends on what ran earlier in the process; learning: held-out mean NLL 2.863 -> 2.300
 (D 2.954 -> 2.284; even the pre-training value differs); credit: RUDDER RMSE 1.99, mean z^2 2.94 (D 1.52 / 1.90),
 COCOA 3.47 / 4.22 (D 3.06 / 3.84). The conclusions hold (forgetting strongly reduced, mean but not median NLL
 improves, 'rudder' selected), the numbers in D.json do not reproduce and `D.json.commit` is not the code they came
@@ -178,13 +182,20 @@ from.
 "r_psi"; a validation metric `heldout/neg_reward_return` is accepted. Retention metrics are still required, so a
 reward metric alone cannot promote.
 
-### m7 — minor (unexplained) — real-model weights-only reload is not prediction-exact (CL-06)
-Fresh process, CUDA, `load_exported_model`: every group hash (experiential, heads, adapters, reward, frozen backbone)
-equals the writer's, the load report is clean, yet predictions on the same 4 records differ from the writer's
-post-learning predictions by max |db| 0.053, |dz| 0.045, |dNLL| 0.0014, |dprobs| 6.7e-5. Inside the fresh
-process the predictions are exact under cache reset and reversed batch order (0.0) and differ by 1.4e-6 for
-one-record batches, so bf16 batch composition does not explain it. See section 4 for the in-writer cache check.
-D lists GPU / real-backbone restart as not verified; this is the first measurement.
+### m7 — minor — real-model predictions depend on the embedding-cache history; reload exact only in weights (CL-06)
+Fresh process, CUDA, `load_exported_model` of the real configuration after one frequent and one slow update: every
+group hash (experiential, heads, adapters, reward, frozen backbone) equals the writer's and the load report is
+clean, but predictions on the same 4 records differ from the writer's in-process ones by max |db| 0.053, |dz| 0.045,
+|dNLL| 0.0014. Isolated in a second writer run: clearing only the backbone's embedding cache after learning changes
+the writer's own predictions by the same amount (|db| 0.052) while resetting the dtype-cast LoRA weights changes
+nothing further; the adapter fingerprint matched and no bridge memory was attached. So the export is complete; what
+differs is which batch each cached (float16) embedding was computed in — the bf16 batch-composition dependence
+G-nn reported for workstream A (D8) — and D's evidence of "bit-exact reload" holds on the real model only for the
+weights, not for predictions, unless both sides start from an empty cache. Caveat: the second and third real runs
+(05:00-05:08) overlapped with uncommitted edits of `nn/` by another workstream (a later reload attempt failed with
+an architecture-signature mismatch), so this attribution is provisional. Repro:
+`.venv/bin/python cam_live/docs/verification/repro/cl/probe_real.py --part write --dir DIR` (check
+"writer: predictions after learning do not depend on inference caches"), then `--part read --dir DIR`.
 
 ### Observations (not counted as defects)
 * RUDDER and COCOA providers default to `verified_only=False`: unverified measurements enter G (spec 9.2 asks for
