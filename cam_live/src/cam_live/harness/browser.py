@@ -21,7 +21,8 @@
      redirect hop (each hop is checked before it is sent, so a redirect to a forbidden destination never reaches
      it), requests of workers, WebSocket tunnels and anything else — and forwards a request only when the route
      layer has just authorized exactly that request or the policy allows it now. HTTPS and WebSocket tunnels are
-     judged per host and port (the proxy cannot see inside TLS); plain HTTP per URL.
+     judged per host and port (the proxy cannot see inside TLS); plain HTTP per URL. A host name is resolved once
+     and the connection goes only to those addresses; a non-global answer is put to the policy as ``peer_ip``.
 
   Service workers are blocked, QUIC is off and WebRTC may not use unproxied UDP; ``WebTransport`` is removed from
   pages (none of them could be checked). A denial is final: the result is ``DENIED`` with a hard failure class.
@@ -44,18 +45,20 @@ import concurrent.futures
 import glob
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 import pwd
 import re
 import secrets as _secrets
 import shutil
+import socket
 import stat
 import subprocess
 import sys
 import threading
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import urlsplit, urlunsplit
 
 from ..contracts import (ActionResult, ActionSpec, AuthorizationDecision, AuthVerdict, Clock, Cost, ExecContext,
@@ -566,6 +569,13 @@ class _Session:
 
 _HOP_BY_HOP = ("connection", "keep-alive", "proxy-connection", "proxy-authorization", "proxy-authenticate", "te",
                "trailer")
+
+
+def _non_global(ip: str) -> bool:
+    try:
+        return not ipaddress.ip_address(ip).is_global
+    except ValueError:
+        return True
 _NO_BODY_STATUS = (204, 304)
 
 
@@ -664,17 +674,45 @@ class _NetGuard:
             return await self._tunnel(target, reader, writer)
         return await self._forward(method, target, version, headers, hmap, reader, writer)
 
+    @staticmethod
+    async def _resolve(host: str, port: int) -> Tuple[List[str], bool]:
+        """(addresses to connect to, IPv4 first; whether ``host`` was a name). The name is resolved once, here; the
+        connection goes to exactly these addresses, so what was checked is what is reached."""
+        h = host.strip("[]")
+        try:
+            return [str(ipaddress.ip_address(h))], False
+        except ValueError:
+            pass
+        infos = await asyncio.get_running_loop().getaddrinfo(h, port, type=socket.SOCK_STREAM)
+        addrs = list(dict.fromkeys(i[4][0] for i in sorted(infos, key=lambda i: i[0] != socket.AF_INET)))
+        return addrs, True
+
+    @staticmethod
+    async def _connect(addrs: List[str], port: int) -> Tuple[Any, Any]:
+        last: Optional[BaseException] = None
+        for ip in addrs:
+            try:
+                return await asyncio.wait_for(asyncio.open_connection(ip, port), 15)
+            except Exception as e:  # noqa: BLE001 — the next address of the same, checked answer
+                last = e
+        raise OSError(f"no address of the destination accepted the connection: {last!r}")
+
     async def _tunnel(self, target: str, reader: Any, writer: Any) -> None:
         m = re.match(r"^(\[[0-9A-Fa-f:.]+\]|[^:\[\]/\s]+):(\d{1,5})$", target)
         if not m:
             return await self._reply(writer, "400 Bad Request")
         host, port = m.group(1), int(m.group(2))
-        ok, why = await self.x._net_decide(self.sess, "CONNECT", f"https://{target}/", tunnel=target)
+        try:
+            addrs, named = await asyncio.wait_for(self._resolve(host, port), 15)
+        except Exception:  # noqa: BLE001
+            return await self._reply(writer, "502 Bad Gateway")
+        ok, why = await self.x._net_decide(self.sess, "CONNECT", f"https://{target}/", tunnel=target,
+                                           peer_ips=addrs if named else [])
         if not ok:
             self.stats["blocked"] += 1
             return await self._reply(writer, "403 Forbidden", body=f"blocked by the authorization layer: {why}".encode()[:300])
         try:
-            ur, uw = await asyncio.wait_for(asyncio.open_connection(host.strip("[]"), port), 15)
+            ur, uw = await self._connect(addrs, port)
         except Exception:  # noqa: BLE001
             return await self._reply(writer, "502 Bad Gateway")
         self.stats["tunnels"] += 1
@@ -692,13 +730,17 @@ class _NetGuard:
         except ValueError:
             return await self._reply(writer, "400 Bad Request")
         dest = hmap.get("sec-fetch-dest", "")
+        try:
+            addrs, named = await asyncio.wait_for(self._resolve(u.hostname, port), 15)
+        except Exception:  # noqa: BLE001 — a name that does not resolve: like a failed connection
+            addrs, named = [], True
         ok, why = await self.x._net_decide(self.sess, method, target, document=dest in ("document", "iframe", "frame"),
-                                           main=dest == "document", resource=dest)
+                                           main=dest == "document", resource=dest, peer_ips=addrs if named else [])
         if not ok:
             self.stats["blocked"] += 1
             return await self._reply(writer, "403 Forbidden", body=f"blocked by the authorization layer: {why}".encode()[:300])
         try:
-            ur, uw = await asyncio.wait_for(asyncio.open_connection(u.hostname, port), 15)
+            ur, uw = await self._connect(addrs, port)
         except Exception:  # noqa: BLE001 — the destination is down: the browser sees what it would see without
             try:                                # a proxy (an empty response, a transient network failure)
                 writer.close()
@@ -1481,9 +1523,24 @@ class BrowserExecutor:
                                      reasons=[] if cached[0] else ["request to this origin denied earlier in this action"])
 
     async def _net_decide(self, sess: _Session, method: str, url: str, *, tunnel: str = "", document: bool = False,
-                          main: bool = False, resource: str = "") -> Tuple[bool, str]:
-        """Network layer: may this request leave the browser now? (Called by the session's :class:`_NetGuard`.)"""
+                          main: bool = False, resource: str = "", peer_ips: Sequence[str] = ()) -> Tuple[bool, str]:
+        """Network layer: may this request leave the browser now? (Called by the session's :class:`_NetGuard`.)
+
+        ``peer_ips`` are the addresses a host *name* resolved to (the connection goes to them only). Each that is not
+        a global address (loopback, private, link-local, ...) is put to the policy as ``peer_ip``, whatever the route
+        layer decided for the name: a public name whose DNS answer points at this machine or its network (DNS
+        rebinding) is judged by the address actually reached."""
         now, method = self.clock.now(), method.upper()
+        for peer_ip in [p for p in peer_ips if _non_global(p)]:
+            op = PrimitiveOp(op="browser.request", modality=self.modality, started=now, ended=now,
+                             arguments={"url": url, "method": method, "peer_ip": peer_ip, "via": "network",
+                                        "resource_type": "tunnel" if tunnel else (resource or "other"),
+                                        "session": sess.name})
+            dec = await self._check(sess.ctx, op, sess.action)
+            if dec.verdict != AuthVerdict.ALLOW:
+                why = "; ".join(dec.reasons) or f"{url} resolves to {peer_ip}"
+                self._blocked(sess, url, why, dec.verdict, main, "network")
+                return False, why
         if tunnel:
             if sess.tunnel_ok.get(tunnel, 0.0) >= now:
                 return True, ""
@@ -1855,6 +1912,10 @@ class BrowserExecutor:
         finally:
             if sess.approved.get(key, 0) > 0:
                 sess.approved[key] -= 1
+        refused = [x for x in sess.blocked[n_blocked:] if x.get("main")]
+        if refused:                     # the network layer refused the document (a redirect hop, its address)
+            raise _Fail(*denial_class(AuthorizationDecision(refused[0]["verdict"], reasons=[
+                f"navigation to {refused[0]['url']} denied: {refused[0]['why']}"])))
         return (resp.status if resp is not None else 0), tab.page.url
 
     async def _post_nav_check(self, sess: _Session, tab: _Tab, ctx: ExecContext, action: ActionSpec, before: str) -> str:

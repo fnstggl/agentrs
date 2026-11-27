@@ -12,10 +12,13 @@ discord = DiscordExecutor.from_task(task, secrets=broker_handle, credential_prob
 publishing = PublishingExecutor.from_resources(task.resources, state_dir, discord=discord)
 env.register(ApiModality([HttpApiExecutor(), publishing, discord]))     # one executor for modality "api"
 skills = SkillExecutor(SkillLibrary(state_dir, clock))                  # steps go through ctx.dispatch
-env.register(skills); skills.inducer.set_tools(env.discover_tools())
-# after every env.execute(action, authorization) -> result:
-skills.observe_execution(action, result)                                # material for skill.induce
+env.register(skills)                # bind(env): induction sees every tool the environment offers
 ```
+
+All of this is what `cam_live.harness.factories.all_executors(run_dir, clock, env, policy, secrets, task)` builds
+(and what the environment service registers by default, see docs/HARNESS_ADAPTER_GUIDE.md §2). The environment
+calls `skills.observe_execution(action, result)` after every executed action itself (`ComputerEnvironment._learn`),
+and updates its own `ModalitySelector` with every result; nothing has to be called by hand.
 
 * `TaskSpec.resources`: `discord: {guild_id, test_account_ids, token_secret?, base_url?, scope?, state_dir?,
   channels: {name: id}}`, `owned_sites: [{name, root, base_url?, access_log?}]`.
@@ -28,6 +31,11 @@ skills.observe_execution(action, result)                                # materi
   * `state_dir` (or the constructor argument; else `<ExecContext.run_dir>/discord_state`; else memory only):
     where `discord.get_member_events` keeps its pseudonymous member snapshot (`member_snapshot_<hash>.json`,
     0600, atomic). It must not be readable by the learner uid if pseudonyms are to stay out of its reach.
+* Credentials are referenced as `auth: {secret: "secret:<name>"}` (`http.get` / `http.request`) — the only form
+  the authorization service accepts in a credential field; the executors strip the prefix before asking the vault.
+* Retries (`harness.failures.RetryPolicy`) stay bounded for transient classes, but a POST or PATCH is not re-sent
+  automatically after an uncertain failure (5xx, timeout or broken connection after sending) unless it carries an
+  `Idempotency-Key` header; GET / HEAD / PUT / DELETE and a failure to connect keep their bounded retries.
 * Operations put to `ExecContext.check` (all deterministic in their arguments, so an approval can be bound to
   them): `http.request {method, url, host, hop, body_sha256, body_bytes, auth_secret}`; `publish.write
   {destination (URL | file:/abs | channel:discord:<id>), destination_name, kind, location, url, content,
@@ -50,10 +58,21 @@ skills.observe_execution(action, result)                                # materi
   channel-membership lookup add no operation names beyond `discord.list_channels`;
   `<step operation> <bound arguments>` with `note="skill:<id>:v<n>:<step>"` for every skill step.
 * Approval: a refused publication keeps its draft (`pending_approval` / `rejected`); executing the same
-  `publish.submit` action again after the operator approved publishes it.
+  `publish.submit` action again after the operator approved publishes it. `publish.preview` returns
+  `submit_arguments` = `{draft_id, destination, content, content_sha256}`: submitted with them, the approval request
+  shows the operator the exact text and the grant covers only that text. A submission that names a content which
+  the draft no longer has is refused ("no longer has the content"), and a submission executed under an operator
+  approval (`ExecContext.authorization.approval_id`) that names no content is refused as well — so changing the text
+  after an approval always needs a new submission and a new approval. A static-site destination needs a
+  `base_url` under the default policy (the policy reads the destination of `publish.submit` as a URL; a `file:`
+  address is "no destination").
 * Modality selection is advisory bookkeeping for the decision-maker: `selector.choose(intent, [Realisation(kind,
   action)...], ExecContextFeatures.of(action, observation))`, then `selector.update_choice(choice, ctx, result)`.
-  A blocked choice (`choice.blocked`) means the intent was refused: do not execute any realisation.
+  A blocked choice (`choice.blocked`) means the intent was refused: do not execute any realisation. A refusal is
+  remembered under every key of the intent (`modality.block_keys`: the intent key, the same effect on the same
+  place under any decision id, the same operation on the same place, the refused action id), so the same operation
+  proposed under the next decision and another realisation offered as the intent are blocked too; `update()`
+  without an intent still blocks the refused action itself.
   `selector.authorization_changed(intent)` is for the runtime to call when the authorization service reports a new
   grant; nothing else lifts a block. `selector.quantities(ctx)` / `selector.annotate(evaluations)` expose the
   estimates to the learner.

@@ -217,3 +217,21 @@ def test_the_browser_itself_sends_nothing_a_page_did_not_cause(w):
             break
     feats = [x for x in cmd if x.startswith("--disable-features=")]
     assert len(feats) == 1 and "AutofillServerCommunication" in feats[0] and "PreconnectToSearch" in feats[0]
+
+
+def test_a_host_name_is_judged_by_the_address_it_resolves_to(w):
+    """DNS rebinding: the network layer resolves a name once, puts a non-global answer to the policy as peer_ip
+    and connects to exactly that address."""
+    a = w.a
+    a.page("/fine", html("fine", "<h1>fine</h1>"))
+    marker = '"peer_ip": "127.0.0.1"'            # this test policy refuses any request whose address is loopback
+    w.policy.deny_urls.append(marker)
+    try:
+        n = a.count("/fine")
+        res = w.do("browser.navigate", url=f"http://localhost:{a.port}/fine")
+        assert res.status == ResultStatus.DENIED and a.count("/fine") == n, (res.status, res.failure_class, res.failure_detail)
+        assert any(p[0] == "browser.request" and p[1].get("peer_ip") == "127.0.0.1" for p in w.policy.primitives)
+        assert w.do("browser.navigate", url=a.url + "/fine").status == ResultStatus.OK     # an address literal
+    finally:
+        w.policy.deny_urls.remove(marker)
+    assert w.do("browser.navigate", url=f"http://localhost:{a.port}/fine").status == ResultStatus.OK

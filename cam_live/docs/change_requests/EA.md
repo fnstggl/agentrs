@@ -136,3 +136,57 @@ tool class, HTTP method and exact destination as the declared action (or the pla
 logical operation), so report the real method and full URL; (3) a sub-step announced before dispatch carries
 `note="skill:<id>:..."`; (4) report `peer_ip` when known; (5) staging services must be registered
 (`register_local_service`) unless they run in the authorization service's own process. Text in docs/EA/README.md.
+
+## Requests from E
+
+Filed by the E-fix workstream (computer environment); each is worked around on the executor side.
+
+**E→EA-1. Classify the browser network layer's `CONNECT` as a read-level tunnel.** The browser's network guard
+(`harness/browser.py:_NetGuard`) reports a tunnel it was not told about by the page layer (an HTTPS or WebSocket
+redirect hop to a new host, a worker's connection) as `PrimitiveOp("browser.request", {"url": "https://host:port/",
+"method": "CONNECT", "resource_type": "tunnel", "via": "network"})`. `T-BROWSER-REQUEST` is `effect: by_method`, and
+`evaluate.py:361-364` turns an unknown method into `WRITE` / `external_write`, so each such tunnel is charged as an
+external write. Proposed (`default_policy.yaml` / `configs/authorization.yaml`, before `T-BROWSER-REQUEST`):
+```diff
++  - id: T-BROWSER-TUNNEL            # an HTTPS / WebSocket tunnel the browser opens; what it carries is judged by the
++    ops: [browser.request]          # page layer per request (path and method), the tunnel only by host and port
++    modalities: [structured_browser, visual]
++    when: {arguments.method: CONNECT}
++    effect: external_read
++    counts_as_action: false
++    dests: [{kind: url, from: [arguments.url], required: true}]
+```
+(or `_READ_METHODS += ("CONNECT",)` for `by_method` tools). Workaround: page-initiated HTTPS requests hand a
+token to the network layer, so only tunnels the page layer did not see are checked; in staging (plain HTTP on
+loopback) none occur.
+
+**E→EA-2. `T-PUBLISH` should accept the `file:` address of an owned static site.** `PublishingExecutor` addresses a
+site without `base_url` as `file:<absolute path>`; `T-PUBLISH` reads `arguments.destination` as `kind: url` only,
+so `publish.submit` is denied "names no destination" (`P-DEST-MISSING`). Proposed: add
+`{kind: file, from: [arguments.destination], when_prefix: "file:"}` (or let the url reader fall through to a file
+destination for `file:`). Workaround: configure owned sites with a `base_url` (documented in docs/ES/INTEGRATION.md).
+
+**E→EA-3. Approval previews: show the whole publication text, or say it was cut.** `policy.py:_preview` stores
+`ne.content[:4000]`. `publish.submit` now carries the exact text and its `content_sha256` (G-env M11), and the
+grant binds them, but an operator approving a longer text sees only its first 4000 characters without being told.
+Proposed: keep up to the policy's `structure.max_argument_bytes` for `kind: publish`, or add
+`"content_truncated": true, "content_chars": len(ne.content)` to the preview entry.
+
+**E→EA-4. A names-only secret probe for the executor uid.** `DiscordExecutor` reports availability with a
+`credential_probe(name) -> bool`; over AuthRPC the executor uid may not call `secret_names` (operator only), so
+`harness/factories.py:credential_probe` falls back to "the operator named it in the task". Proposed: an executor
+method `secret_has(name) -> bool` (no value, no binding information) — the `has(name)` that `contracts.SecretHandle`
+lists as optional (M-int-5).
+
+**E→EA-5. Scrub transformed echoes in the vault too.** The environment now scrubs case-changed, character-separated
+and half echoes of every value it released during its process (`harness/env.py:EchoScrubber`). After a restart, or
+for a value the environment never released, only `vault.variants` apply. Proposed: `vault.scrub` additionally
+matches case-insensitively, with separators between characters, and any run of at least half of a value of 12 or
+more characters (`env.echo_patterns` is a reference implementation).
+
+**E→EA-6 (re EA #10).** (a) Done for the browser: the network guard resolves a name once, connects only to those
+addresses and puts every non-global answer to `check_primitive` as `peer_ip` (test
+`tests/harness/env/test_e_fix_browser.py::test_a_host_name_is_judged_by_the_address_it_resolves_to`). Not done for
+`http_api.py` (httpx resolves again at connect time; pinning needs a custom transport with SNI). (b) The service's
+ready line already lists the staging sites it started (`"staging": {...}`); the exec uid cannot call
+`register_local_service`, so the operator / launcher registers them.
