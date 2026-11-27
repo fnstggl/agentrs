@@ -14,6 +14,7 @@ One append-only JSONL file per record family (names from ``contracts.RunFiles``)
 """
 from __future__ import annotations
 
+import functools
 import hashlib
 import hmac
 import json
@@ -73,8 +74,14 @@ DEFAULT_PERMISSION_KEYS: Dict[str, str] = {"message_content": "store_message_con
                                            "raw_messages": "store_message_content"}
 
 
+@functools.lru_cache(maxsize=4096)
 def _norm_key(k: str) -> str:
     return re.sub(r"[^a-z0-9]", "", k.lower())
+
+
+def _group(rx: str) -> str:
+    """A pattern as one alternative of a combined expression (a leading ``(?i)`` becomes a scoped flag)."""
+    return f"(?i:{rx[4:]})" if rx.startswith("(?i)") else f"(?:{rx})"
 
 
 class Redactor:
@@ -100,6 +107,10 @@ class Redactor:
         sp = DEFAULT_SECRET_PATTERNS if secret_patterns is None else secret_patterns
         pp = DEFAULT_PII_PATTERNS if pii_patterns is None else pii_patterns
         self._patterns = [(label, re.compile(rx)) for label, rx in list(sp.items()) + list(pp.items())]
+        # one pass decides whether any pattern can apply; most strings of a record (ids, numbers, names) need no more
+        self._any = re.compile("|".join([_group(rx) for _l, rx in list(sp.items()) + list(pp.items())]
+                                        + [_MENTION.pattern, _SNOWFLAKE.pattern, _USER_TAG.pattern]))
+        self._secret_key_cache: Dict[str, bool] = {}
         self._member_keys = {k.lower() for k in member_keys}
         self._secret_words = tuple(_norm_key(k) for k in secret_keys)
         self._permission_keys = dict(DEFAULT_PERMISSION_KEYS if permission_keys is None else permission_keys)
@@ -139,14 +150,21 @@ class Redactor:
         return "member:" + hmac.new(self._salt, str(value).encode(), hashlib.sha256).hexdigest()[:16]
 
     def _is_secret_key(self, key: str) -> bool:
-        k = _norm_key(key)
-        return bool(k) and any(w in k for w in self._secret_words)
+        hit = self._secret_key_cache.get(key)
+        if hit is None:
+            k = _norm_key(key)
+            hit = bool(k) and any(w in k for w in self._secret_words)
+            if len(self._secret_key_cache) < 20000:
+                self._secret_key_cache[key] = hit
+        return hit
 
     def text(self, s: str) -> str:
         for v in self._secrets:
             if v in s:
                 s = s.replace(v, "[REDACTED:secret]")
                 self._hit("secret")
+        if not self._any.search(s):
+            return s
         for label, rx in self._patterns:
             if label == "assignment":
                 s, n = rx.subn(lambda m: (f"{m.group(1)}{m.group(2)}{m.group(1)}{m.group(3)}"

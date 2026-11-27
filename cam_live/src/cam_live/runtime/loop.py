@@ -234,11 +234,20 @@ class LiveRuntime:
         self.log.redact.set_permissions(task.data_permissions)
         self.log.redact.set_keep_ids(self._keep_ids(task))
 
+    @staticmethod
+    def _view(task: TaskSpec) -> Dict[str, Any]:
+        """``learner_view(task)`` as plain JSON (a limit that is not a finite number is written as text)."""
+        d = learner_view(task).to_dict()
+        for k, v in list((d.get("limits") or {}).items()):
+            if isinstance(v, float) and not math.isfinite(v):
+                d["limits"][k] = f"invalid: {v!r}"
+        return d
+
     def _write_task_file(self) -> None:
         """``task.json``: what the learner received and the hash of the operator's task (the task file itself is
         ``task.yaml``; the full task is kept in the sealed state)."""
         atomic_write_json(os.path.join(self.run_dir, TASK_FILE),
-                          {"learner_view": learner_view(self.task).to_dict(), "task_sha256": self.task.content_hash(),
+                          {"learner_view": self._view(self.task), "task_sha256": self.task.content_hash(),
                            "withheld_from_learner": list(WITHHELD_FROM_LEARNER)}, durable=self._durable)
 
     # ==========================================================================================================
@@ -294,7 +303,7 @@ class LiveRuntime:
         self._write_task_file()
         invalid = limit_problems(self.task)
         unset = [f for f in LIMIT_FIELDS if f not in invalid and getattr(self.task.limits, f) <= 0]
-        self.log.event("run_started", {"task": learner_view(self.task).to_dict(), "task_sha256": self.task.content_hash(),
+        self.log.event("run_started", {"task": self._view(self.task), "task_sha256": self.task.content_hash(),
                                        "withheld_from_learner": list(WITHHELD_FROM_LEARNER),
                                        "limits_not_enforced": unset + sorted(invalid), "limits_invalid": invalid,
                                        "invalid_limit_policy": "an invalid limit is never treated as unlimited: the "
@@ -606,7 +615,7 @@ class LiveRuntime:
         return {
             "version": STATE_VERSION, "run_id": self.log.run_id, "actor_id": self.actor_id, "pid": os.getpid(),
             "status": self.status, "status_reason": self._red(self.status_reason),
-            "task": learner_view(self.task).to_dict(), "task_sha256": self.task.content_hash(),
+            "task": self._view(self.task), "task_sha256": self.task.content_hash(),
             "awaiting_operator": self.status in (PAUSED,) + TERMINAL,
             "next_tasks": [{"task": {"objective_id": (t.get("task") or {}).get("objective_id", ""),
                                      "mode": (t.get("task") or {}).get("mode", "")},
@@ -839,7 +848,7 @@ class LiveRuntime:
         self._last_verified, self._last_verify_at, self._agent_wake_at = {}, None, None
         self._agent("set_objective", learner_view(self.task))   # the learner's weights and lifetime context carry over
         self._write_task_file()
-        self.log.event("objective_assigned", {"task": learner_view(self.task).to_dict(),
+        self.log.event("objective_assigned", {"task": self._view(self.task),
                                               "task_sha256": self.task.content_hash(), "by": entry.get("by", ""),
                                               "path": entry.get("path", "")}, consequential=True, trust=Trust.OPERATOR)
         self._dirty = True
@@ -1116,6 +1125,8 @@ class LiveRuntime:
         return c, True
 
     def _clean_decision(self, decision: Decision) -> Decision:
+        if not any(self._clean_prediction(p)[1] for c in decision.candidates for p in c.predictions):
+            return decision
         d = Decision.from_dict(decision.to_dict())
         for c in d.candidates:
             c.predictions = [self._clean_prediction(p)[0] for p in c.predictions]
