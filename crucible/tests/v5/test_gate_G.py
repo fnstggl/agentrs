@@ -4,10 +4,12 @@ Class 2 runs in worlds of the one population (`crucible.population`, `population
 adaptive individuals share policy groups (one weight copy per group, batched inference), each with its own GRU memory;
 two groups start from IDENTICAL weights, one learns online from its members' own experienced utilities, the other is
 frozen. After phase 1 a controlled new condition (the two most visited rich sites fail, the two broken ones become
-rich) tests adaptation: G.6 against the identical-init frozen twin, G.n1 against a fork of the same world frozen at the
-switch (learning after the change only). Three seeds. Class-2 networks take two decisions: the activity of each session
-(which also steps the personal memory, trained through time) and the web resource to visit. Class 3 (G.4) runs its
-four strategic policy groups (population.strategic: ventures built through ordinary tools) in a world of its own.
+rich): G.6 measures the change-specific improvement against a fork of the same world in which the group stops
+learning at the switch (paired by member); G.n1 measures adaptation against the identical-init frozen twin, with the
+other decisions the networks take reported next to it (the activity of each session, class 3's policy change). Three
+seeds. Class-2 networks take two decisions: the activity of each session (which also steps the personal memory, trained
+through time) and the web resource to visit. Class 3 (G.4, G.n1) runs its four strategic policy groups
+(population.strategic: ventures built through ordinary tools) in a world of its own.
 G.7 compares the compact policies with small pretrained language models on the same held-out decisions.
 
 Metrics (docs/v5/ACCEPTANCE_MANIFEST.json):
@@ -18,7 +20,6 @@ G.5 weight_hash_changed, optimizer_updates >= 100, loss_decrease > 0 (held-out, 
 G.6 new_condition_improvement_ci_low > 0          G.7 compact_vs_language_comparison_rows >= 2
 G.n1 adaptation_effect_ci_low > 0
 """
-import time
 
 import numpy as np
 import pytest
@@ -130,35 +131,20 @@ def test_G5_parameter_changes_from_experience(runs):
 
 
 def test_G6_improvement_on_a_controlled_new_condition(runs):
-    lows = [r["phase2_difference"]["ci95"][0] for r in runs]
-    m = {"new_condition_improvement_ci_low": float(min(lows)),
-         "new_condition_improvement_mean": float(np.mean([r["phase2_difference"]["mean"] for r in runs])),
-         "phase1_improvement_mean": float(np.mean([r["phase1_difference"]["mean"] for r in runs])),
-         "share_failing_learning": float(np.mean([r["behaviour"]["learning"]["phase2"]["share_failing"] for r in runs])),
-         "share_failing_frozen": float(np.mean([r["behaviour"]["frozen"]["phase2"]["share_failing"] for r in runs]))}
-    evidence.record("G.6", m, command=CMD,
-                    notes="After the switch (two most visited rich sites fail, two broken become rich): realised "
-                          "utility of class-2 web visits, learning group minus its identical-init frozen twin, "
-                          "bootstrap 95% CI per seed; the criterion is the lowest CI bound of three seeds. The phase-1 "
-                          "difference is reported too: part of the improvement is general learning, not specific to "
-                          f"the change. Per seed: {[r['phase2_difference'] for r in runs]}")
-    assert len(lows) == 3
-    _check("G.6", m)
-
-
-def test_Gn1_actual_adaptation(runs):
-    """Change-specific adaptation (pre-registered, wave 3b): at the switch each seed's world is forked; in the fork
-    the learning group stops learning (same weights, memories, world state and random streams at the switch). The
-    effect is the phase-2 utility of each member of the learning group in the world where its policy keeps learning
-    minus its utility in the fork (paired by member); the criterion is the lower bound of the 95% bootstrap CI over
-    the members of the three seeds (resampled within each seed). This separates adaptation to the new condition from
-    the general advantage learned before it, which the identical-init comparison (G.6) also contains."""
+    """Change-specific improvement (pre-registered, D-32 addendum 2): at the switch each seed's world is forked; in
+    the fork the learning group stops learning (same weights, memories, world state and random streams at the switch).
+    The improvement is each learning-group member's phase-2 realised utility in the world where its policy keeps
+    learning minus its utility in the fork (paired by member); the criterion is the lower bound of the 95% bootstrap
+    CI over the members of the three seeds (resampled within each seed). This separates what learning under the new
+    condition did from the general advantage learned before it, which the identical-init comparison (G.n1) contains
+    too (audit B, G.6)."""
     ad = [r["adaptation_after_change"] for r in runs]
     d = np.concatenate([np.asarray(a["member_utility_diffs"], np.float64) for a in ad])
     strata = np.concatenate([np.full(len(a["member_utility_diffs"]), k) for k, a in enumerate(ad)])
     pooled = PX._paired_boot(d, strata, seed=7)
-    m = {"adaptation_effect_ci_low": float(pooled["ci95"][0]), "adaptation_effect_mean": float(pooled["mean"]),
-         "adaptation_effect_ci_high": float(pooled["ci95"][1]), "members_compared": int(pooled["units"]),
+    m = {"new_condition_improvement_ci_low": float(pooled["ci95"][0]),
+         "new_condition_improvement_mean": float(pooled["mean"]),
+         "new_condition_improvement_ci_high": float(pooled["ci95"][1]), "members_compared": int(pooled["units"]),
          "seeds": len(runs),
          "per_seed_ci_low": ",".join(f"{a['ci95'][0]:.4f}" for a in ad),
          "per_seed_mean": ",".join(f"{a['mean']:.4f}" for a in ad),
@@ -166,28 +152,28 @@ def test_Gn1_actual_adaptation(runs):
          "policy_updates_after_switch_frozen": int(sum(a["policy_updates_after_switch_frozen"] for a in ad)),
          "share_failing_learning": float(np.mean([a["share_failing_learning"] for a in ad])),
          "share_failing_frozen_at_switch": float(np.mean([a["share_failing_frozen_at_switch"] for a in ad])),
-         "identical_init_phase2_ci_low_min": float(min(r["phase2_difference"]["ci95"][0] for r in runs)),
          "weights_changed_after_switch_all_seeds": bool(all(a["hash_end_learning"] != a["hash_switch"] for a in ad)),
          "frozen_at_switch_unchanged_all_seeds": bool(all(a["hash_end_frozen_at_switch"] == a["hash_switch"]
                                                           for a in ad))}
-    evidence.record("G.n1", m, command=CMD, notes=(
-        "Actual adaptation, not the presence of networks: what the class-2 policy's learning AFTER a controlled "
-        "change (two most visited rich sites fail, two broken ones become rich) did under the new condition. Each "
-        "seed's world is forked at the switch; in the fork the learning group stops learning (same system call with "
-        "learning on in the main world keeps both worlds' random streams aligned until the first post-switch "
-        "update). Effect = phase-2 mean realised utility of each member's web visits, main world minus fork, paired "
-        "by member; pooled bootstrap CI over the members of three seeds (stratified by seed). Per-seed values and "
-        "the identical-init comparison of G.6 are reported next to it."))
+    evidence.record("G.6", m, command=CMD, notes=(
+        "Controlled new condition: after phase 1 the two most visited rich sites fail and the two broken ones become "
+        "rich (their operators' ordinary tools; scripted by the experimenter). Each seed's world is forked at the "
+        "switch; in the fork the learning group stops learning (the main world records the same system call with "
+        "learning on, so both worlds keep identical random streams until the first post-switch update). "
+        "Improvement = phase-2 mean realised utility of each learning-group member's web visits, main world minus "
+        "fork, paired by member; pooled bootstrap 95% CI over the members of three seeds (stratified by seed). "
+        "Post-switch updates also use the examples pending at the switch (at most one learning interval)."))
     assert m["seeds"] == 3 and m["members_compared"] > 0
     assert m["frozen_at_switch_unchanged_all_seeds"] and m["policy_updates_after_switch_frozen"] == 0
     assert m["weights_changed_after_switch_all_seeds"]
-    _check("G.n1", m)
+    _check("G.6", m)
 
 
-def test_G4_independent_strategic_groups():
+@pytest.fixture(scope="module")
+def strategic():
     """Class 3 (population.strategic): four policy groups in one market - A (MLP, REINFORCE, objective profit), A0 (a
     frozen copy of A's initial weights), B (GRU, A2C, objective reach), C (MLP, PPO, objective profit) - each
-    trained only on its own members' experience of building ventures with ordinary tools."""
+    trained only on its own members' experience of building ventures with ordinary tools; 8 simulated days."""
     import torch
     torch.set_num_threads(1)
     from crucible.core.kernel import World
@@ -200,25 +186,71 @@ def test_G4_independent_strategic_groups():
         w.advance_time(w.now + 8 * DAY)
         ups = [e.payload for e in w.log if e.type == "pop.policy_update" and str(e.payload["group"]).startswith(
             "strategic")]
-        by = {}
-        for u in ups:
-            by.setdefault(u["group"], []).append(u["weights_hash"])
-        final = {g: h[-1] for g, h in by.items()}
-        b = STR.behaviour(w)
         own = {g: sorted({r["member"] for r in w.state.tables["pop_strat_exp"].values() if r["group"] == g})
                for g in w.state.tables["pop_strat_groups"]}
-        m = {"independent_strategic_groups": int(sum(1 for h in by.values() if len(set(h)) > 1)),
-             "distinct_group_weight_hashes": int(len(set(final.values()))),
-             "strategic_policy_updates": int(len(ups)), "groups": ",".join(sorted(by)),
-             "frozen_control_unchanged": bool(len(set(by.get("strategic:A0", ["x"]))) == 1),
-             "strategic_decisions": int(b["decisions"])}
-        evidence.record("G.4", m, command=CMD, notes=(
-            "Four class-3 strategic policy groups (different architectures, algorithms and objectives) in one market, "
-            "8 simulated days; each update uses only its own members' decisions (members per group: "
-            f"{ {g: len(v) for g, v in own.items()} }); A0 is a frozen copy of A's initial weights. Behaviour: "
-            f"{b['kinds']}, outcomes {b['outcomes']}, successful actions {b['actions_ok']}."))
+        yield {"updates": ups, "behaviour": STR.behaviour(w), "own": own}
     finally:
         w.close()
+
+
+def test_Gn1_actual_adaptation(runs, strategic):
+    """Adaptation, not the presence of networks: identical initial weights, the learning group against its frozen twin
+    in the same world after the controlled change (three seeds; criterion: the lowest per-seed CI bound of the web
+    decisions' realised utility). Coverage of the other decisions the networks take is measured next to it: the
+    realised utility of the sessions whose activity the class-2 policy chose (learning vs frozen twin), and class 3's
+    lifetime adaptation (each learning strategic group's change of policy on its own recorded observations, first
+    checkpoint vs now; the frozen identical-init group A0 is the control)."""
+    lows = [r["phase2_difference"]["ci95"][0] for r in runs]
+    sb = strategic["behaviour"]
+    ad3 = sb["adapt"]
+    learned3 = {g: v for g, v in ad3.items() if v["learning"]}
+    m = {"adaptation_effect_ci_low": float(min(lows)), "seeds": len(runs),
+         "adaptation_effect_mean": float(np.mean([r["phase2_difference"]["mean"] for r in runs])),
+         "per_seed_ci_low": ",".join(f"{x:.4f}" for x in lows),
+         "phase1_difference_mean": float(np.mean([r["phase1_difference"]["mean"] for r in runs])),
+         "weight_hashes_changed_all_seeds": bool(all(r["hash_end"]["learning"] != r["hash_genesis"]["learning"]
+                                                     for r in runs)),
+         "activity_sessions_phase2_difference_mean": float(np.mean([r["session_phase2_difference"]["mean"]
+                                                                   for r in runs])),
+         "activity_sessions_phase2_ci_low_min": float(min(r["session_phase2_difference"]["ci95"][0] for r in runs)),
+         "strategic_learning_groups_policy_shift_min": float(min((v["policy_shift_tv"] or 0.0)
+                                                                 for v in learned3.values())) if learned3 else 0.0,
+         "strategic_frozen_policy_shift": float(max((v["policy_shift_tv"] or 0.0) for g, v in ad3.items()
+                                                    if not v["learning"])) if ad3 else 0.0,
+         "strategic_adapt_over_lifetime": bool(sb["kinds"]["adapt_over_lifetime"])}
+    shifts = {g: v["policy_shift_tv"] for g, v in ad3.items()}
+    evidence.record("G.n1", m, command=CMD, notes=(
+        "Actual adaptation, not the presence of networks: what experience did to the networks' decisions. Web "
+        "decisions (criterion): learning group minus its identical-init frozen twin after the controlled change, "
+        "bootstrap CI per seed, lowest of three. Activity decisions: realised session utility, learning vs frozen "
+        "twin (reported). Class 3: total-variation distance between each strategic group's action distributions on "
+        f"its own recorded observations under its first checkpoint and its current weights: {shifts}. "
+        f"Per seed (web): {[r['phase2_difference'] for r in runs]}; activity sessions: "
+        f"{[r['session_phase2_difference'] for r in runs]}."))
+    assert m["seeds"] == 3 and m["weight_hashes_changed_all_seeds"]
+    assert m["strategic_adapt_over_lifetime"] and m["strategic_frozen_policy_shift"] == 0.0, ad3
+    assert any(not v["learning"] for v in ad3.values()), ad3          # the frozen control was measured too
+    _check("G.n1", m)
+
+
+def test_G4_independent_strategic_groups(strategic):
+    """Class 3's policy groups update independently: each group's weights change only through updates on its own
+    members' decisions; the frozen copy A0 never changes."""
+    ups, b, own = strategic["updates"], strategic["behaviour"], strategic["own"]
+    by = {}
+    for u in ups:
+        by.setdefault(u["group"], []).append(u["weights_hash"])
+    final = {g: h[-1] for g, h in by.items()}
+    m = {"independent_strategic_groups": int(sum(1 for h in by.values() if len(set(h)) > 1)),
+         "distinct_group_weight_hashes": int(len(set(final.values()))),
+         "strategic_policy_updates": int(len(ups)), "groups": ",".join(sorted(by)),
+         "frozen_control_unchanged": bool(len(set(by.get("strategic:A0", ["x"]))) == 1),
+         "strategic_decisions": int(b["decisions"])}
+    evidence.record("G.4", m, command=CMD, notes=(
+        "Four class-3 strategic policy groups (different architectures, algorithms and objectives) in one market, "
+        "8 simulated days; each update uses only its own members' decisions (members per group: "
+        f"{ {g: len(v) for g, v in own.items()} }); A0 is a frozen copy of A's initial weights. Behaviour: "
+        f"{b['kinds']}, outcomes {b['outcomes']}, successful actions {b['actions_ok']}."))
     assert m["strategic_decisions"] > 0
     _check("G.4", m)
 

@@ -267,8 +267,8 @@
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "criteria met in an unofficial run at 4184cce (new-condition improvement CI low 0.135, 3 seeds); rerun queued",
-   "notes": ""
+   "status_claim": "implemented with the change-specific measure the audit asked for (D-32 addendum 2): learning-group utility after the switch in the main world minus a fork in which the group stops learning at the switch (paired by member, pooled over 3 seeds); 1-day CPU smoke run (seed 0): 19 members compared, mean -0.007, CI [-0.091, 0.074] (underpowered at 1 day); gate run queued. At 4184cce the identical-init measure (now G.n1's) gave CI low 0.135",
+   "notes": "Post-switch updates also use the examples pending at the switch (at most one learning interval); the fork and the main world share weights, memories, world state and random streams at the switch (the same set_learning system call is recorded in both; regression test test_learning_switch_forks_stay_aligned_until_the_first_update)."
   },
   "G.n1": {
    "implementation_files": [
@@ -293,8 +293,8 @@
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "implemented with a stricter pre-registered measure (D-32 addendum 2): change-specific adaptation = learning-group utility after the switch in the main world minus a fork frozen at the switch (paired by member, pooled over 3 seeds); gate run queued. The earlier measure (identical-init frozen twin after the switch, CI low 0.135 at 4184cce) is G.6's and is reported next to it",
-   "notes": "Caveat: post-switch updates also use examples recorded in the last learning interval before the switch (pending when the fork is taken); the fork and the main world share weights, memories, world state and random streams at the switch (the same set_learning system call is recorded in both)."
+   "status_claim": "criterion: identical-init learning group vs frozen twin after the controlled change (web decisions, lowest per-seed CI bound; met at 4184cce: 0.135); now also reports the activity decisions (session utility, learning vs frozen) and class 3's lifetime policy change (asserted: a learning strategic group shifted, the frozen control A0 did not); gate run queued",
+   "notes": ""
   },
   "G.4": {
    "implementation_files": [

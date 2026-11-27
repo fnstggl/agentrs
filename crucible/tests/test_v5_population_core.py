@@ -259,7 +259,7 @@ def test_projection_is_row_independent():
 
 
 def test_learning_switch_forks_stay_aligned_until_the_first_update(run2):
-    """The frozen-at-switch counterfactual of Gate G.n1 (population.experiments.adaptation): two forks of one snapshot
+    """The frozen-at-switch counterfactual of Gate G.6 (population.experiments.adaptation): two forks of one snapshot
     that record the same system call (`pop_adaptive.set_learning`, learning on in one, off in the other) record the
     same events, one for one, until the learning fork's first policy update of that group; the frozen fork records
     no update of it, so what differs afterwards is caused by learning after the switch."""
@@ -287,6 +287,23 @@ def test_learning_switch_forks_stay_aligned_until_the_first_update(run2):
     finally:
         a.close()
         b.close()
+
+
+def test_session_utilities_of_policy_groups(run2):
+    """Gate G.n1's activity-decision outcome: every class-2 session's realised utility, per policy group and phase,
+    exactly as the population's learning batches recorded it."""
+    from crucible.population import experiments as PX
+    from crucible.substrate import artifacts
+    _, w, _ = run2
+    pg = columns.col(w, "pop", "policy_group").astype(np.int64)
+    groups = {f"g{g}": g for g in sorted(set(pg[columns.col(w, "pop", "class") == 2].tolist()))}
+    t_mid = DAY
+    su = PX.session_utilities(w, groups, t_mid)
+    assert su and all(v.size > 0 for v in su.values())
+    members = np.flatnonzero(np.isin(pg, list(groups.values())) & (columns.col(w, "pop", "class") == 2))
+    n = sum(int(np.isin(artifacts.get_array_blob(w, e.payload["ref"])["idx"], members).sum())
+            for e in w.log if e.type == "cols.batch" and e.payload["kind"] == "pop.learn")
+    assert sum(v.size for v in su.values()) == n > 0
 
 
 def test_policy_updates_are_recorded(run2):

@@ -85,6 +85,26 @@ def _member_phase(log: dict, members: np.ndarray, t_switch: int, bad: set) -> di
     return out
 
 
+def session_utilities(world, groups: dict, t_switch: int) -> dict:
+    """{(arm, "phase1" | "phase2"): realised utilities of the sessions of each policy group's class-2 members}: the
+    outcome of the activity decision (class 2's policy chooses every session's activity), read from the population's
+    learning batch of each session's takers (`pop.learn`, column last_utility), split at `t_switch`."""
+    pg = columns.col(world, "pop", "policy_group").astype(np.int64)
+    c2 = columns.col(world, "pop", "class") == 2
+    out: dict = {}
+    for e in world.log:
+        if e.type == "cols.batch" and e.payload["kind"] == "pop.learn":
+            arr = artifacts.get_array_blob(world, e.payload["ref"])
+            ix = arr["idx"].astype(np.int64)
+            u = arr["v.last_utility"].astype(np.float64)
+            ph = "phase1" if int(e.payload["extra"]["t"]) < t_switch else "phase2"
+            for a, g in groups.items():
+                k = (pg[ix] == int(g)) & c2[ix]
+                if k.any():
+                    out.setdefault((a, ph), []).append(u[k])
+    return {k: np.concatenate(v) for k, v in out.items()}
+
+
 def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_light: int = 150,
                min_examples: int = 32, window_s: int = 14400, counterfactual: bool = False) -> dict:
     """See the module docstring. `arms` maps an arm name to a group config ({id, share, learning, memory, seed}).
@@ -184,11 +204,15 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
                 "hash_end_frozen_at_switch": cf.modules["pop_adaptive"].policy(cf, gid[la]).weights_hash()}
         finally:
             cf.close()
+    sess = session_utilities(w, gid, t_switch)
     names_ = list(gid)
     if len(names_) >= 2:
         a, b = names_[0], names_[1]
         out["phase2_difference"] = _boot(util[(a, "phase2")], util[(b, "phase2")])
         out["phase1_difference"] = _boot(util[(a, "phase1")], util[(b, "phase1")], seed=1)
+        e0 = np.zeros(0)
+        out["session_phase2_difference"] = _boot(sess.get((a, "phase2"), e0), sess.get((b, "phase2"), e0), seed=3)
+        out["session_phase1_difference"] = _boot(sess.get((a, "phase1"), e0), sess.get((b, "phase1"), e0), seed=4)
     st = w.state
     unused = [k for k, r in st.tables["pop_examples"].items() if r.get("used") is None]
     if unused:
