@@ -825,6 +825,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--kinds", default="bootstrap,learned,mixed,verified_pg")
     ap.add_argument("--workers", type=int, default=40)
     ap.add_argument("--skip-experiment", action="store_true")
+    ap.add_argument("--rerun-kinds", default="", help="re-run only these kinds (all --seeds) and keep the stored "
+                    "runs of the other kinds, e.g. after a change that cannot affect them")
     ap.add_argument("--gpu-cost", action="store_true", help="only measure the 50m meta-update cost on the GPU")
     a = ap.parse_args(argv)
     os.makedirs(a.out, exist_ok=True)
@@ -839,7 +841,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     torch.set_num_threads(4)
     path = os.path.join(a.out, "diagnostics.json")
     out: Dict[str, Any] = {}
-    if os.path.exists(path) and a.skip_experiment:
+    if os.path.exists(path) and (a.skip_experiment or a.rerun_kinds):
         with open(path) as f:
             out = json.load(f)
         if "experiment" in out:
@@ -852,7 +854,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     out["psi_isolation"] = psi_isolation_check()
     out["integrity"] = integrity_check()
     out["seconds_checks"] = time.time() - t0
-    if not a.skip_experiment:
+    if a.rerun_kinds and "experiment" in out and out["experiment"].get("runs"):
+        old = out["experiment"]
+        ec = ExperimentConfig(**old["config"])
+        again = [k for k in a.rerun_kinds.split(",") if k]
+        kept = [r for r in old["runs"] if r["kind"] not in again]
+        t1 = time.time()
+        new = labworld_experiment([int(x) for x in a.seeds.split(",")], ec, again, workers=a.workers)["runs"]
+        order = ("bootstrap", "learned", "mixed", "verified_pg")
+        runs = sorted(kept + new, key=lambda r: (r["seed"], order.index(r["kind"]) if r["kind"] in order else 9))
+        out["experiment"] = {**summarise(runs, ec, old.get("block", 20)), "config": old["config"], "runs": runs,
+                             "scripted_baselines": scripted_baselines(ec),
+                             "rerun": {"kinds": again, "kept_kinds": sorted({r["kind"] for r in kept}),
+                                       "seconds": time.time() - t1,
+                                       "command": "PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward."
+                                                  f"diagnose --seeds {a.seeds} --rerun-kinds {a.rerun_kinds}"}}
+        out["command"] = old.get("command_experiment", "") or old.get("command", "") or out["command"]
+    elif not a.skip_experiment:
         ec = ExperimentConfig(n_lifetimes=a.lifetimes)
         out["experiment"] = labworld_experiment([int(s) for s in a.seeds.split(",")], ec, a.kinds.split(","),
                                                 workers=a.workers)

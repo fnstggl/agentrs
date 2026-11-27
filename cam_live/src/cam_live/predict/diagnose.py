@@ -38,7 +38,7 @@ from ..diagnostics.memstore import MemoryStore
 from ..diagnostics.world import AllowAllPolicy, LabVerifier, LabWorld, lab_task
 from ..contracts import ExperienceItem, ItemKind, Trust
 from . import labdata as L
-from .calibration import binary_report, studentised_ci
+from .calibration import binary_report, logistic_recalibration, studentised_ci
 from .evaluator import action_quality, outcome_decomposition
 from .policy import DecisionMaker
 from .predictor import Predictor, at_horizons
@@ -331,7 +331,10 @@ def _cluster_ci(values: Sequence[float], clusters: Sequence[Any]) -> Dict[str, f
 
 
 def calibration(success: Dict[str, List[Tuple[float, float, str]]]) -> Dict[str, Any]:
-    """Experiment 3: prospectively registered success forecasts of held-out lifetimes, scored after resolution."""
+    """Experiment 3: prospectively registered success forecasts of held-out lifetimes, scored after resolution.
+    All forecasts of one lifetime share its outcome: every interval is clustered by lifetime (``binary_report``
+    with ``clusters``; slope / intercept cluster-robust). ``calibration_rows_iid_wald`` is the interval that treats
+    the rows as independent (reported before G-pr D5; not valid here), kept for comparison."""
     out: Dict[str, Any] = {}
     for who, rows in success.items():
         if not rows:
@@ -342,7 +345,9 @@ def calibration(success: Dict[str, List[Tuple[float, float, str]]]) -> Dict[str,
         base = float(np.mean(y))
         out[who] = {"n": len(rows), "n_lifetimes": len(set(cl)), "base_rate": base,
                     "mean_p": rep["mean_p"], "brier": rep["brier"], "nll": rep["nll"],
-                    "calibration": rep["calibration"], "ece": rep["ece"], "brier_of_base_rate": base * (1 - base)}
+                    "calibration": rep["calibration"], "ece": rep["ece"], "brier_of_base_rate": base * (1 - base),
+                    "calibration_rows_iid_wald": {k: v for k, v in logistic_recalibration(p, y, cov="iid").items()},
+                    "rows": [[float(a), float(b), str(c)] for a, b, c in rows]}     # (p, y, lifetime): re-scorable
     if out.get("trained", {}).get("n") and out.get("untrained", {}).get("n"):
         b0, b1 = out["untrained"]["brier"], out["trained"]["brier"]
         m0 = b0["mean"] if isinstance(b0, dict) else b0
