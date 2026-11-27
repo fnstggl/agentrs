@@ -185,12 +185,18 @@ def test_H_5_language_understanding(society):
 
 def test_H_6_consequential_world_actions(society):
     s, acts = society["summary"], society["actions"]
-    m = {"consequential_actions_executed": s["consequential"], "ok_calls": s["ok_calls"], "calls": s["calls"],
+    # a repeated identical call (same participant, tool and arguments: the audit's "8 bank.open_account calls by one
+    # participant") counts once
+    distinct = {(a["principal"], a["tool"], a["args"]) for a in acts if a["consequential"]}
+    m = {"consequential_actions_executed": len(distinct), "consequential_calls": s["consequential"],
+         "ok_calls": s["ok_calls"], "calls": s["calls"],
          "rejected_share": round(s["rejected_calls"] / max(1, s["calls"]), 4),
          "by_tool": json.dumps(s["consequential_by_tool"])[:1500],
          "participants_with_consequential_actions": len({a["principal"] for a in acts if a["consequential"]})}
     record("H.6", m, command=CMD, notes="Consequential = succeeded, not read-only, and emitted an event another "
-                                        "principal or the public can see (checked in the event log by the evaluator).")
+                                        "principal or the public can see (checked in the event log by the "
+                                        "evaluator); identical repeated calls (same participant, tool, arguments) "
+                                        "count once.")
     assert m["consequential_actions_executed"] >= 8
 
 
