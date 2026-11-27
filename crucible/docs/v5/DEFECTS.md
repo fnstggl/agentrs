@@ -1467,7 +1467,7 @@ B_population verdict) and P's own findings.
 ```json
 {
  "area": "N_research",
- "fixed_by": "c5c/w3b-research (wave 3b repair): compose._wandering draws the default uniformly over the lever range independently of c0, w and the path (n-compose/5); genref scans before tracking; T.4 re-measured on the unchanged sample",
+ "fixed_by": "c5c/w3b-research (wave 3b repair): compose._wandering draws the default uniformly over the lever range independently of c0, w and the path (n-compose/5); genref scans before tracking; regression tests tests/test_v5_research_adversarial.py::test_wandering_default_does_not_disclose_the_hidden_centre and ::test_wandering_reference_reads_no_hidden_parameter; T.4 re-measured with the sequential design of D-69 addendum 3 (the addendum-2 sample is the prefix of its stream and is reported on its own)",
  "id": "DEF-N-8",
  "owner": "N",
  "regression_tests": "tests/test_v5_research_adversarial.py::test_wandering_default_does_not_disclose_the_hidden_centre, tests/test_v5_research_adversarial.py::test_wandering_reference_reads_no_hidden_parameter",
