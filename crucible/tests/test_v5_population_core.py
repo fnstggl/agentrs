@@ -292,6 +292,28 @@ def test_learning_switch_forks_stay_aligned_until_the_first_update(run2):
         b.close()
 
 
+def test_class2_observation_counts_attention_a_web_session_has_not_recorded_yet(run2):
+    """A web session records its attention in one ledger batch at its end; until then class 2's observation subtracts
+    the minutes the session already used, so the network sees the attention actually left."""
+    from crucible.population import adaptive as AD
+    _, w, _ = run2
+    idx = np.flatnonzero(columns.col(w, "pop", "class") == 2)[:6]
+    left = columns.col(w, "pop", "attention_left_min")[idx].astype(np.float32)
+    bud = columns.col(w, "pop", "attention_budget_min")[idx].astype(np.float32)
+    base = AD.obs_features(w, idx)
+    # the observation's layout: interests, preferences, beliefs, satisfaction, then the attention ratio
+    col = sum(int(columns.col(w, "pop", k).shape[1]) for k in ("interests", "prefs", "beliefs")) + 1
+    assert np.allclose(base[:, col], left / np.maximum(bud, 1e-3))
+    w.runtime["popweb.defer"] = {"att": {int(idx[0]): 5.0, int(idx[1]): 1e6}}
+    try:
+        obs = AD.obs_features(w, idx)
+    finally:
+        w.runtime.pop("popweb.defer", None)
+    assert np.isclose(obs[0, col], max(left[0] - 5.0, 0.0) / max(bud[0], 1e-3), atol=1e-6)
+    assert obs[1, col] == 0.0 and np.allclose(obs[2:, col], base[2:, col])
+    assert np.allclose(np.delete(obs, col, axis=1), np.delete(base, col, axis=1))
+
+
 def test_session_utilities_of_policy_groups(run2):
     """Gate G.n1's activity-decision outcome: every class-2 session's realised utility, per policy group and phase,
     exactly as the population's learning batches recorded it."""
