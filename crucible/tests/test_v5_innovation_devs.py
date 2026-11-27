@@ -87,11 +87,37 @@ def test_developers_act_only_on_public_or_own_observables():
         return (isinstance(v, ast.Name) and v.id == "st") or (isinstance(v, ast.Attribute) and v.attr == "state")
     reads = [c for c in ast.walk(tree) if state_read(c)]
     tables = {c.args[0].value for c in reads if c.args and isinstance(c.args[0], ast.Constant)}
-    # its own projects and accounts (and, in check_invariants only, the hosts of live projects)
-    assert tables <= {"dev_projects", "accounts", "hosts"}, tables
+    # its own projects, notes and accounts (and, in check_invariants only, the hosts of live projects)
+    assert tables <= {"dev_projects", "dev_worked", "accounts", "hosts"}, tables
     tab = {s.value for n in ast.walk(tree) if isinstance(n, ast.Subscript) and isinstance(n.value, ast.Attribute)
            and n.value.attr == "tables" for s in [n.slice] if isinstance(s, ast.Constant)}
     assert tab <= {"dev_projects", "accounts"}, tab
+
+
+def test_developers_learn_undocumented_formats_from_worked_examples(world):
+    """FR-DEV-1 (verifier repair pass: "each program is a designer reference tier; the best tier implements the
+    generated category's hidden rule"): a developer's program for a task known only through worked examples is
+    written from what it induced from the worked examples requesters posted (its own notes): it covers only the
+    feeds its notes show, is none of the reference solvers, and was measured on its notes in the sandbox."""
+    from crucible.usefulness import category as C
+    w = world
+    st = w.state
+    posts = [e for e in w.log if e.type == "forum.post" and "What I make of my example by hand: " in e.payload["body"]]
+    assert posts and all(e.payload["title"].startswith(D.ASK) for e in posts)
+    induced = [(pid, r) for pid, r in st.scan("dev_projects") if r.get("kind") in ("induced", "mixed")
+               and r["status"] == "live" and r.get("prog")]
+    assert len(induced) >= 2, [(r["task"][:30], r.get("kind")) for _, r in st.scan("dev_projects")]
+    for pid, r in induced:
+        prog = r["prog"] if r["kind"] == "induced" else r["prog"]["a"]
+        fmt = r["need"] if r["kind"] == "induced" else C.category_of(r["need"]).parts[0].name
+        notes = st.get("dev_worked", f"{r['dev']}|{fmt}")
+        seen = {row["src"] for pr in notes["pairs"] for row in pr["input"]["rows"]}
+        assert set(prog["rule"]) <= seen, (pid, sorted(prog["rule"]), sorted(seen))
+        svc = w.modules["code"].files(st, r["repo"])["service.py"]
+        assert all(src not in svc and repr(src) not in svc for _, src in C.category_of(fmt).tiers)
+    # versions were measured on the developers' own examples in the sandbox (bench repositories, pkg.exec)
+    benches = [x for _, x in st.scan("pkg_execs") if x["repo"].endswith("bench")]
+    assert benches and all(ids.index(x["owner"]) is not None for x in benches)
 
 
 def test_garbage_programs_are_tried_and_dropped_replay_is_exact():
@@ -132,10 +158,13 @@ def test_a_developer_reply_says_what_the_service_does_and_ranks_above_off_topic_
         for k, q in enumerate(others):
             w.system_call("forum.reply", {"post": e.payload["post"], "body": f"Nice weather here today {k}."},
                           as_principal=q)
-        # what an individual searching for the task types: the words of its own request
-        sp, org, _ = w.modules["search"].search(w, task, None, 8)
-        top = [r["hosts"] for r in org[:3]]
-        assert any(host in h for h in top), [(r["hosts"], r["snippet"][:40]) for r in org]
+        # what an individual searching for the task types: the words of its own request. Several developers may
+        # serve the task (their replies are as relevant); none of the off-topic replies ranks above this one's
+        sp, org, _ = w.modules["search"].search(w, task, None, 40)
+        rank = next((k for k, r in enumerate(org) if host in (r["hosts"] or [])), None)
+        off = [k for k, r in enumerate(org) if "Nice weather" in (r.get("snippet") or "")]
+        assert rank is not None and rank < 8 and all(rank < k for k in off), \
+            (rank, off, [(r["hosts"], r["snippet"][:40]) for r in org[:10]])
     finally:
         w.close()
 

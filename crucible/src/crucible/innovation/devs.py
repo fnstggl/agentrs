@@ -14,16 +14,27 @@ developer decides from public observables and its own experience:
   guess of their value of time; it builds when the expected monthly margin clears its own hurdle, which falls with
   its interest in the task (semantic affinity of its interests to the task's description in the shared space,
   `semantic.space.text_vector`).
-* **Understanding a task** (public text only): a task is one the developer knows how to program when the request
-  names a documented format (public format documents, `docs.list`) or quotes the documentation of an
-  undocumented task in its body. Developer *labour* is modelled (fidelity record FR-DEV-1): a developer of craft
-  c writes one of the known approaches to that task - the reference implementations at increasing quality that
-  every format carries (`economy.needs`, `usefulness`; the same convention 4.0 uses for simulated developer
-  labour) - the approach drawn from its craft. For tasks whose rule is shown only through worked examples or must
-  be learnt from outcomes (`exemplified`, `experiential` categories) the best approach is out of reach of a first
-  version. Which approach it wrote is the developer's private knowledge; nobody else (and no evaluator metric)
-  reads it. The program is real code: it runs in the sandbox, its quality is whatever the world's physics makes
-  of its outputs (employers accept or reject the individuals' work), never declared.
+* **Understanding a task** (public text only): a task is one the developer knows when the request names a
+  documented format (public format documents, `docs.list`) or quotes the documentation of an undocumented task in
+  its body. How it programs the task depends on how the rule is known (fidelity record FR-DEV-1):
+  - a DOCUMENTED rule (published formats, `specified` generated categories): developer *labour* is modelled - a
+    developer of craft c writes one of the known approaches to that task (the reference implementations at
+    increasing quality that every format carries, `economy.needs`, `usefulness`; the convention 4.0 uses for
+    simulated developer labour), the approach drawn from its craft; a new version is better with probability
+    craft;
+  - a rule shown only through WORKED EXAMPLES (`exemplified` categories): the developer notes the worked examples
+    requesters post with their requests (`economy.work.Work.worked_example`: what they make of their own input by
+    hand; its notes, `dev_worked`) and INDUCES the rule from them (`innovation.induce`: per feed the layout, names,
+    type tags, null/boolean tokens and the value conventions consistent with every example, among the conventions
+    it knows - unusual ones come to mind with probability craft per attempt). Its program is written from what it
+    induced; nothing it writes contains the category's hidden rule or a reference solver. It measures each version
+    on its own examples in the sandbox (its bench repository, `pkg.exec`) and keeps a new one only if it does
+    better; it reviews pull requests to its package and decides to propose one the same way;
+  - a rule it has no worked example of, or no way to learn (other exemplified families, `experiential` ones): it
+    cannot write a program; it can still compose other providers' services.
+  Which program it wrote is the developer's private knowledge; nobody else (and no evaluator metric) reads it. The
+  program is real code: it runs in the sandbox, its quality is whatever the world's physics makes of its outputs
+  (employers accept or reject the individuals' work), never declared.
 * **Reuse** (public): before writing, a developer searches packages (`pkg.search`) for the task; with its reuse
   propensity it builds its service on a package whose API offers `solve` and whose tests (its own smoke tests on
   the posted examples, `pkg.ci`) pass - the CI run executes the package across the attested boundary, which is
@@ -38,8 +49,10 @@ developer decides from public observables and its own experience:
   many paid once and never again, and
   what compute cost it), and its support tickets (`support.list`: acknowledged once, resolved only after a change
   shipped after the ticket was opened). Overloads -> more cores; poor retention, errors, complaints or open issues
-  on its package from two or more users -> a new version (a better approach with a probability given by its craft;
-  redeployed on the same host, its package released as a new minor version); a newer release of a package it
+  on its package from two or more users -> a new version (a better approach with a probability given by its craft,
+  or, for a learnt rule, a new induction from its notes and the requests posted since, kept only when its bench
+  shows it does better; redeployed on the same host, its package released as a new minor version); a newer release
+  of a package it
   depends on -> `pkg.upgrade` (only if its tests pass) and a redeploy; a service that loses money with no paying
   customer for `loss_days` -> shut down (`cloud.release`).
 * **Collaboration** (public code and trackers): a dependent whose service does poorly on a package and finds no
@@ -72,12 +85,16 @@ import numpy as np
 from ..core.errors import CrucibleError
 from ..core.kernel import Module, applier, process, register_module
 from ..substrate import columns, ids
+from . import induce as IND
 
 DAY = 86400
 TABLE = "devs"
 MODEL = {"model_id": "devs.opportunity", "model_version": "1", "fidelity_id": "FR-DEV-1"}
 ASK = "Looking for a service: "
 EX_RE = re.compile(r"Example input: (\{.*\})", re.S)
+# what a requester makes of its example by hand (`economy.work.Work.worked_example`), posted before the example
+WORKED_RE = re.compile(r"What I make of my example by hand: (\{.*?\})\nExample input: ", re.S)
+KEEP_PAIRS, KEEP_CHARS = 6, 30_000      # training pairs a developer keeps per task format (its own notes)
 MIN_RE = re.compile(r"about (\d+(?:\.\d+)?) minutes")
 STOP = frozenset("a an the of for to and or in on by with from into per your my is are be as at this that it its "
                  "across each every all any".split())
@@ -87,7 +104,8 @@ DEFAULTS = {"share": 0.03, "min_devs": 8, "max_devs": 400, "period_h": [30.0, 60
             "value_cents_min": [4.0, 16.0], "price_share": 0.08, "reach": 3.0, "max_cores": 16,
             "improve_after_days": 4, "retention_floor": 0.5, "loss_days": 21, "read_posts": 6,
             "list_limit": 30, "hurdle": [0.3, 1.5], "min_trials": 8, "min_conversion": 0.1, "retry_days": 10,
-            "pr_wait_days": 8, "report_every_days": 7, "issue_floor": 2}
+            "pr_wait_days": 8, "report_every_days": 7, "issue_floor": 2, "bench_margin": 0.005,
+            "think": 1}
 
 
 def _tokens(text: str) -> list[str]:
@@ -277,6 +295,8 @@ class Developers(Module):
             "choice": ("int32", (), -1)})
         st = world.state
         st.declare_table("dev_projects", index=("dev", "host", "status", "task"))
+        # a developer's own notes: training pairs from the worked examples it read, per task format (private)
+        st.declare_table("dev_worked", index=("dev",))
         pb.register_activity(world, "develop", self.act_develop, owner="devs", prior=-1.0, goals=(5,))
 
     def genesis(self, ctx):
@@ -416,7 +436,7 @@ class Developers(Module):
 
     def _read(self, ctx, p, g: dict) -> dict:
         """Examples, stated minutes and full text of a task's requests (a few posts read)."""
-        ex, mins, bodies = [], [], []
+        ex, mins, bodies, worked = [], [], [], []
         for post in sorted(g["posts"], key=lambda x: (-x["t"], x["post"]))[:int(self.cfg("read_posts"))]:
             full = self._try(ctx, p, "forum.read", post=post["post"], replies=0)
             if not full:
@@ -424,15 +444,26 @@ class Developers(Module):
             body = full.get("body") or ""
             bodies.append(body)
             m = EX_RE.search(body)
+            inp = None
             if m:
                 try:
-                    ex.append(json.loads(m.group(1)))
+                    inp = json.loads(m.group(1))
+                    ex.append(inp)
                 except json.JSONDecodeError:
                     pass
+            wm = WORKED_RE.search(body)
+            if wm and isinstance(inp, dict):
+                try:
+                    wk = json.loads(wm.group(1))
+                except json.JSONDecodeError:
+                    wk = None
+                if isinstance(wk, dict):
+                    worked.append({**wk, "input": inp})
             mm = MIN_RE.search(body)
             if mm:
                 mins.append(float(mm.group(1)))
-        return {"examples": [e for e in ex if isinstance(e, dict)], "minutes": mins, "text": "\n".join(bodies)}
+        return {"examples": [e for e in ex if isinstance(e, dict)], "minutes": mins, "text": "\n".join(bodies),
+                "worked": worked}
 
     def _documented(self, ctx, p, task: str) -> set[str]:
         """Format names with a public format document (`Format <name>: <title>`) the search engine finds for the
@@ -516,6 +547,7 @@ class Developers(Module):
             need = self.understand(task, info["text"], self._documented(ctx, p, task))
             if need is None or any(fnmatch.fnmatchcase(need, b) for b in ban):
                 continue
+            self._learn(ctx, i, need, info)
             comp = self._competitors(ctx, p, task, info["examples"])
             minutes = float(np.median(info["minutes"])) if info["minutes"] else 20.0
             price = int(np.clip(round(float(self.cfg("price_share")) * minutes * float(self._col("vguess")[i])), 2, 80))
@@ -529,6 +561,8 @@ class Developers(Module):
             hurdle = float(self._col("hurdle")[i]) * (1.2 - 0.6 * max(0.0, aff)) * rent_m
             stages = stages_of(info["text"])
             plan = self._compose_plan(ctx, p, stages, info) if stages else None
+            if plan is None and self.kind_of(st, i, need) is None:
+                continue                      # an undocumented rule it has no worked example of, nothing to compose
             if plan is not None:
                 # composing existing services: no program to write, components' prices are a cost per call
                 price = int(max(price, plan["cost"] + 2))
@@ -641,6 +675,157 @@ class Developers(Module):
         self._announce(ctx, p, task, host, price, now)
         return pid
 
+    # ------------------------------------------------------------------ own programs (FR-DEV-1)
+    def _memory(self, st, i: int, fmt: str) -> list[dict]:
+        """The training pairs the developer noted for a task format (its own notes, `dev_worked`)."""
+        r = st.get("dev_worked", f"{int(i)}|{fmt}")
+        return list(r["pairs"]) if r else []
+
+    def _learn(self, ctx, i: int, need: str, info: dict) -> None:
+        """Note the training pairs the worked examples of a task's requests give for the formats the developer could
+        learn (the task itself, or the stages of a two-stage task); newest first, a few per format."""
+        if not info.get("worked"):
+            return
+        parts = _parts(need)
+        fmts = [need] if parts is None else [parts[0].name, parts[1].name]
+        st = ctx.state
+        for fmt in fmts:
+            new = IND.pairs_of(fmt, info["worked"])
+            if not new:
+                continue
+            old = self._memory(st, i, fmt)
+            seen, merged, size = set(), [], 0
+            for pr in new + old:
+                key = json.dumps(pr["input"], sort_keys=True)
+                if key in seen:
+                    continue
+                n = len(key) + len(json.dumps(pr["records"]))
+                if len(merged) >= KEEP_PAIRS or size + n > KEEP_CHARS:
+                    break
+                seen.add(key)
+                merged.append(pr)
+                size += n
+            if [json.dumps(x, sort_keys=True) for x in merged] != [json.dumps(x, sort_keys=True) for x in old]:
+                ctx.emit("devs.learned", {"id": f"{int(i)}|{fmt}", "dev": int(i), "fmt": fmt, "pairs": merged},
+                         vis="internal")
+
+    def kind_of(self, st, i: int, need: str) -> str | None:
+        """How the developer can program a task itself: "tier" (every stage is a documented rule: one of the known
+        approaches, labour model), "induced" (a rule it learns from worked examples, `innovation.induce`), "mixed"
+        (a two-stage task with an induced stage), or None (it cannot: an undocumented rule it has no worked example
+        or no way to learn from)."""
+        parts = _parts(need)
+        stages = [need] if parts is None else [parts[0].name, parts[1].name]
+        kinds = []
+        for fmt in stages:
+            if _relation(fmt) == "specified":
+                kinds.append("tier")
+            elif IND.can_induce(fmt) and self._memory(st, i, fmt):
+                kinds.append("induced")
+            else:
+                return None
+        if all(k == "tier" for k in kinds):
+            return "tier"
+        return "induced" if parts is None else "mixed"
+
+    def _stage_prog(self, st, i: int, fmt: str, rng, prev: dict | None) -> dict | None:
+        if _relation(fmt) == "specified":
+            n = len(_tier_list(fmt))
+            return {"tier": self._draw(i, n, n - 1, rng, None if prev is None else int(prev["tier"]))}
+        pairs = self._memory(st, i, fmt)
+        if not IND.can_induce(fmt) or not pairs:
+            return None
+        # values or names its hypotheses do not explain are visible to it in its own examples: it thinks again
+        # (each attempt may bring more conventions to mind), at most `think` times in one session
+        known, r = list((prev or {}).get("known") or ()), None
+        for _ in range(int(self.cfg("think"))):
+            known = IND.unusual_known(rng, float(self._col("craft")[i]), known)
+            r = IND.induce_pairs(fmt, pairs, known)
+            if r is not None and not r["unknown"]:
+                break
+        if r is None:
+            return None
+        return {"rule": r["rule"], "known": known, "n": int(r["pairs"]), "unknown": r["unknown"][:12]}
+
+    def program(self, st, i: int, need: str, rng, prev: dict | None = None, which: str | None = None) -> dict | None:
+        """The program the developer writes for a task: per stage a known approach (documented rule; a new version
+        is better with probability craft, labour model) or what it induces from its notes (exemplified rule; a new
+        attempt may think of more conventions). `which` ("a"/"b") redoes one stage of a two-stage program."""
+        parts = _parts(need)
+        if parts is None:
+            return self._stage_prog(st, i, need, rng, prev)
+        a, b, key = parts
+        pa, pb_ = (prev or {}).get("a"), (prev or {}).get("b")
+        sa = self._stage_prog(st, i, a.name, rng, pa) if prev is None or which == "a" else pa
+        sb = self._stage_prog(st, i, b.name, rng, pb_) if prev is None or which == "b" else pb_
+        if sa is None or sb is None:
+            return None
+        return {"a": sa, "b": sb, "key": key}
+
+    @staticmethod
+    def _stage_src(fmt: str, sp: dict) -> str:
+        if "tier" in sp:
+            return _tier_list(fmt)[int(sp["tier"])][1]
+        return IND.source_of(fmt, sp["rule"])
+
+    def source(self, need: str, prog: dict, example: dict) -> str:
+        parts = _parts(need)
+        if parts is None:
+            src = self._stage_src(need, prog)
+        else:
+            from ..usefulness.category import stage_source
+            a, b, key = parts
+            src = stage_source(self._stage_src(a.name, prog["a"]), self._stage_src(b.name, prog["b"]), key)
+        if self.cfg("program") == "garbage":
+            return garbage_source(src, example)
+        return src
+
+    @staticmethod
+    def index_of(need: str, prog: dict) -> int:
+        """The approach index of a program of known approaches only (`known_approach` order); -3 for a program
+        with an induced stage."""
+        parts = _parts(need)
+        if parts is None:
+            return int(prog["tier"]) if "tier" in prog else -3
+        if "tier" not in prog["a"] or "tier" not in prog["b"]:
+            return -3
+        return int(prog["a"]["tier"]) * len(parts[1].tiers) + int(prog["b"]["tier"])
+
+    @staticmethod
+    def prog_of_index(need: str, k: int) -> dict:
+        parts = _parts(need)
+        if parts is None:
+            return {"tier": int(k)}
+        ka, kb = divmod(int(k), len(parts[1].tiers))
+        return {"a": {"tier": ka}, "b": {"tier": kb}, "key": parts[2]}
+
+    def _bench(self, ctx, i: int, p: str, need: str, src: str | None) -> float | None:
+        """The developer's own test: `src` run IN THE SANDBOX (`pkg.exec` of its private bench repository) on the
+        training pairs it noted for the task's learnable stage; the share of fields equal to what the requesters
+        made by hand. None when it has nothing to test with."""
+        if not src:
+            return None
+        parts = _parts(need)
+        fmt = need if parts is None else parts[0].name
+        bench = IND.bench_source(src, self._memory(ctx.state, i, fmt))
+        if bench is None:
+            return None
+        repo = f"{p}/d{int(i)}bench"
+        if repo not in self._own_repos(ctx, p) and not self._try(ctx, p, "code.create_repo", name=f"d{int(i)}bench"):
+            return None
+        if not self._try(ctx, p, "code.commit", repo=repo, files={"bench.py": bench}, message="bench"):
+            return None
+        out = self._try(ctx, p, "pkg.exec", repo=repo, target="bench:score", input={})
+        if not out or not out.get("ok") or not isinstance(out.get("result"), dict):
+            return None
+        return float(out["result"].get("accuracy") or 0.0)
+
+    def _refresh(self, ctx, i: int, p: str, proj: dict, now: int) -> None:
+        """Read the open requests for its own task again (new worked examples since it built)."""
+        g = self._requests(ctx, p, now).get(proj["task"])
+        if g:
+            self._learn(ctx, i, proj["need"], self._read(ctx, p, g))
+
     # ------------------------------------------------------------------ building
     def _draw(self, i: int, n: int, top: int, rng, current: int | None) -> int:
         c = float(self._col("craft")[i])
@@ -723,7 +908,11 @@ class Developers(Module):
         from ..commerce.reference import service_files
         examples = info["examples"][:4]
         s = slug(task)
-        k = self.approach(i, need, rng)
+        prog = self.program(st, i, need, rng)
+        if prog is None:
+            raise DevError("I cannot write a program for this task")
+        kind = self.kind_of(st, i, need)
+        k = self.index_of(need, prog)
         uses = None
         # reuse: a package offering solve whose smoke tests pass on the posted examples
         if float(self._col("reuse")[i]) > 0:
@@ -735,7 +924,7 @@ class Developers(Module):
         repo_name = self._repo_name(ctx, p, f"d{i}{s}")
         repo = self._do(ctx, p, "code.create_repo", name=repo_name)["repo"]
         smoke = SMOKE.format(examples=json.dumps(examples, sort_keys=True))
-        src = self._source(need, k, examples[0])
+        src = self.source(need, prog, examples[0])
         files = service_files(src, task[:120], price=price)
         files["tests/test_service.py"] = smoke
         self._do(ctx, p, "code.commit", repo=repo, files=files, message="v1")
@@ -754,13 +943,16 @@ class Developers(Module):
                 uses = None
         if uses is None:
             ci = self._do(ctx, p, "pkg.ci", repo=repo)
-            while not ci["ok"] and k > 0:
+            while not ci["ok"] and kind == "tier" and k > 0:
                 k -= 1
-                src = self._source(need, k, examples[0])
+                prog = self.prog_of_index(need, k)
+                src = self.source(need, prog, examples[0])
                 self._do(ctx, p, "code.commit", repo=repo, files={"service.py": src}, message="simpler approach")
                 ci = self._do(ctx, p, "pkg.ci", repo=repo)
             if not ci["ok"]:
                 raise DevError("no approach passes my tests")
+        # what its own program gets right on the worked examples it noted (its sandboxed bench), for later versions
+        acc = self._bench(ctx, i, p, need, src) if kind in ("induced", "mixed") and uses is None else None
         out = self._try(ctx, p, "pkg.exec", repo=repo, target="service:solve", input=examples[0])
         outputs = infer_schema([out["result"]]) if out and out.get("ok") and isinstance(out.get("result"), dict) \
             else {"type": "object"}
@@ -788,10 +980,12 @@ class Developers(Module):
                                   "approach": int(k), "host": host, "repo": repo, "instance": inst, "decl": decl,
                                   "price": int(price), "cores": 1, "uses_package": uses["package"] if uses else None,
                                   "competitors": int(n_comp), "affinity": round(float(aff), 4),
-                                  "examples": examples[:2], "stages": list(stages_of(info["text"]) or []) or None},
+                                  "examples": examples[:2], "stages": list(stages_of(info["text"]) or []) or None,
+                                  "prog": prog if uses is None else None, "kind": kind, "acc": acc},
                  vis="internal")
         self._announce(ctx, p, task, host, price, now)
-        if uses is None and float(self._col("oss")[i]) > 0:
+        # (a two-stage program with a learnt stage is not published: its parts are not separable as one library)
+        if uses is None and kind != "mixed" and float(self._col("oss")[i]) > 0:
             self._publish_package(ctx, i, p, pid, task, src, examples)
         columns.batch(ctx, TABLE, "devs.built", np.array([int(i)]), {"builds": self._col("builds")[[int(i)]] + 1},
                       mode="set")
@@ -971,33 +1165,73 @@ class Developers(Module):
             plan = self._compose_plan(ctx, p, tuple(proj["stages"]), {"examples": list(proj.get("examples") or [])})
             if plan is not None and self._to_workflow(ctx, p, pid, proj, plan, now):
                 return True
-        k = self.approach(i, need, rng, current=int(proj["approach"]))
+        st = ctx.state
         ctx.emit("devs.project_update", {"id": pid, "improved_t": int(now), "attempts": int(proj.get("attempts", 0)) + 1},
                  vis="internal")
-        if k == int(proj["approach"]):
+        kind = proj.get("kind") or self.kind_of(st, i, need)
+        ex = (proj.get("examples") or [{}])[0]
+        cur = self._try(ctx, p, "code.read", repo=proj["repo"], path="service.py")
+        if not cur:
             return False
-        src = self._source(need, k, (proj.get("examples") or [{}])[0])
+        margin = float(self.cfg("bench_margin"))
+        acc = None
+        if kind in ("induced", "mixed"):
+            # learnt from worked examples: read the requests again (new examples), try again (it may think of more
+            # conventions), keep the new program only if it does better on its own examples (sandboxed bench)
+            self._refresh(ctx, i, p, proj, now)
+            prev = proj.get("prog")
+            acc_old = self._bench(ctx, i, p, need, cur["content"])
+            which = None
+            if kind == "mixed" and prev:
+                which = "a" if acc_old is None or acc_old < 1.0 - margin else "b"
+            prog = self.program(st, i, need, rng, prev=prev if prev else None, which=which)
+            if prog is None:
+                return False
+            src = self.source(need, prog, ex)
+            if src == cur["content"]:
+                return False
+            if which != "b":
+                acc = self._bench(ctx, i, p, need, src)
+                if acc is None or (acc_old is not None and acc <= acc_old + margin):
+                    return False
+        else:
+            prev = proj.get("prog") or (self.prog_of_index(need, int(proj["approach"]))
+                                        if int(proj["approach"]) >= 0 else None)
+            if prev is None:
+                return False
+            prog = self.program(st, i, need, rng, prev=prev)
+            if prog is None or self.index_of(need, prog) == self.index_of(need, prev):
+                return False
+            src = self.source(need, prog, ex)
+        k = self.index_of(need, prog)
         if not self._try(ctx, p, "code.commit", repo=proj["repo"], files={"service.py": src}, message="improve"):
             return False
         ci = self._try(ctx, p, "pkg.ci", repo=proj["repo"])
         if not ci or not ci["ok"]:
-            self._try(ctx, p, "code.commit", repo=proj["repo"], files={"service.py": self._source(
-                need, int(proj["approach"]), (proj.get("examples") or [{}])[0])}, message="revert")
+            self._try(ctx, p, "code.commit", repo=proj["repo"], files={"service.py": cur["content"]}, message="revert")
             return False
         dep = self._try(ctx, p, "cloud.deploy", repo=proj["repo"], host=proj["host"], instance=proj["instance"])
         if not dep or dep.get("status") != "live":
             return False
         reg = self._try(ctx, p, "caps.declaration", declaration=proj["decl"]) or {}
-        ctx.emit("devs.project_update", {"id": pid, "approach": int(k), "trials_at": int(reg.get("trials") or 0),
-                                         "changed_t": int(now), "change": "new version"}, vis="internal")
+        ctx.emit("devs.project_update", {"id": pid, "approach": int(k), "prog": prog, "acc": acc,
+                                         "trials_at": int(reg.get("trials") or 0), "changed_t": int(now),
+                                         "change": "new version"}, vis="internal")
         self._announce(ctx, p, proj["task"], proj["host"], int(proj["price"]), now, new_version=True)
-        if proj.get("package") and int(k) > int(proj.get("pkg_approach") if proj.get("pkg_approach") is not None
-                                                 else proj["approach"]):
-            # (never over a better approach merged into the package from someone else's pull request)
-            nv = _bump(proj.get("pkg_version") or "1.0.0")
-            if self._try(ctx, p, "code.commit", repo=proj["pkg_repo"], files={"lib.py": src}, message="improve") and \
-                    self._try(ctx, p, "pkg.release", package=proj["package"], version=nv, notes="improved results"):
-                ctx.emit("devs.project_update", {"id": pid, "pkg_version": nv, "pkg_approach": int(k)}, vis="internal")
+        if proj.get("package"):
+            if kind == "tier":
+                better = int(k) > int(proj.get("pkg_approach") if proj.get("pkg_approach") is not None
+                                      else proj["approach"])
+            else:
+                better = acc is not None and acc > float(proj.get("pkg_acc") if proj.get("pkg_acc") is not None
+                                                         else (proj.get("acc") or 0.0)) + margin
+            # (never over a better program merged into the package from someone else's pull request)
+            if better:
+                nv = _bump(proj.get("pkg_version") or "1.0.0")
+                if self._try(ctx, p, "code.commit", repo=proj["pkg_repo"], files={"lib.py": src}, message="improve") \
+                        and self._try(ctx, p, "pkg.release", package=proj["package"], version=nv, notes="improved results"):
+                    ctx.emit("devs.project_update", {"id": pid, "pkg_version": nv, "pkg_approach": int(k),
+                                                     "pkg_acc": acc}, vis="internal")
         return True
 
     @staticmethod
@@ -1119,7 +1353,18 @@ class Developers(Module):
         need = proj["need"]
         k_pkg = self.known_approach(need, lib["content"]) if lib else None
         ex = (proj.get("examples") or [None])[0]
-        if not proj.get("pr") and k_pkg is not None:
+        st = ctx.state
+        if not proj.get("pr") and lib and self.kind_of(st, i, need) == "induced":
+            # a rule learnt from worked examples: its own program (induced from its notes) against the package's, both
+            # on its own examples in the sandbox; propose it only when it does better
+            self._refresh(ctx, i, p, proj, now)
+            prog = self.program(st, i, need, rng)
+            src = self.source(need, prog, ex or {}) if prog else None
+            a_new, a_pkg = self._bench(ctx, i, p, need, src), self._bench(ctx, i, p, need, lib["content"])
+            if a_new is not None and a_pkg is not None and a_new > a_pkg + float(self.cfg("bench_margin")) and \
+                    self._propose(ctx, i, p, pid, proj, info, module, -3, ex, now, src=src):
+                return True
+        elif not proj.get("pr") and k_pkg is not None:
             k = self.approach(i, need, rng, current=k_pkg)
             if k > k_pkg and self._propose(ctx, i, p, pid, proj, info, module, k, ex, now):
                 return True
@@ -1134,13 +1379,14 @@ class Developers(Module):
             ctx.emit("devs.project_update", {"id": pid, "issue_t": int(now)}, vis="internal")
         return False
 
-    def _propose(self, ctx, i, p, pid, proj, info, module, k, ex, now) -> bool:
+    def _propose(self, ctx, i, p, pid, proj, info, module, k, ex, now, src: str | None = None) -> bool:
         pkgname = info["package"]
         base = re.sub(r"[^a-z0-9_-]", "", f"{pkgname[:30]}-d{i}")
         fork = self._try(ctx, p, "pkg.fork", package=pkgname, name=self._repo_name(ctx, p, base)[:40])
         if not fork:
             return False
-        src = self._source(proj["need"], k, ex or {})
+        if src is None:
+            src = self._source(proj["need"], k, ex or {})
         if not self._try(ctx, p, "code.commit", repo=fork["repo"], files={f"{module}.py": src},
                          message="a better approach"):
             return False
@@ -1217,11 +1463,21 @@ class Developers(Module):
             if not d:
                 continue
             cur = self._try(ctx, p, "code.read", repo=proj["pkg_repo"], path="lib.py")
-            k_cur = self.known_approach(need, cur["content"]) if cur else None
             ch = d.get("changes") or {}
-            k_new = self.known_approach(need, ch.get("lib.py")) if set(ch) == {"lib.py"} else None
-            good = d["tests"]["passed"] > 0 and not d["tests"]["failed"] and k_new is not None and \
-                (k_cur is None or k_new > k_cur)
+            only_lib = set(ch) == {"lib.py"} and isinstance(ch.get("lib.py"), str)
+            tests_ok = d["tests"]["passed"] > 0 and not d["tests"]["failed"]
+            a_new = a_cur = None
+            if proj.get("kind") == "induced":
+                # a rule learnt from worked examples: the proposal against the current library, both on the
+                # maintainer's own examples in the sandbox
+                a_new = self._bench(ctx, i, p, need, ch["lib.py"]) if only_lib and tests_ok else None
+                a_cur = self._bench(ctx, i, p, need, cur["content"]) if cur and a_new is not None else None
+                good = a_new is not None and a_cur is not None and a_new > a_cur + float(self.cfg("bench_margin"))
+                k_new = -3
+            else:
+                k_cur = self.known_approach(need, cur["content"]) if cur else None
+                k_new = self.known_approach(need, ch.get("lib.py")) if only_lib else None
+                good = tests_ok and k_new is not None and (k_cur is None or k_new > k_cur)
             self._try(ctx, p, "pkg.pr_review", pr=pr["pr"], verdict="approve" if good else "request_changes",
                       comment="Tests pass and the approach is better - thanks." if good else
                       "I cannot take this: it does not pass the tests or is not better than the current code.")
@@ -1232,11 +1488,18 @@ class Developers(Module):
                 continue
             nv = _bump(proj.get("pkg_version") or "1.0.0")
             if self._try(ctx, p, "pkg.release", package=proj["package"], version=nv, notes=f"merged {pr['pr']}"):
-                ctx.emit("devs.project_update", {"id": pid, "pkg_version": nv, "pkg_approach": int(k_new)},
-                         vis="internal")
+                ctx.emit("devs.project_update", {"id": pid, "pkg_version": nv, "pkg_approach": int(k_new),
+                                                 "pkg_acc": a_new}, vis="internal")
                 choice = 2
-                # its own service runs its own program: it moves to the merged approach when that is better
-                if int(proj.get("approach", -1)) >= 0 and int(k_new) > int(proj["approach"]) and not proj.get("composes"):
+                # its own service runs its own program: it moves to the merged program when that is better
+                if proj.get("composes") or proj.get("uses_package"):
+                    pass
+                elif proj.get("kind") == "induced":
+                    svc = self._try(ctx, p, "code.read", repo=proj["repo"], path="service.py")
+                    a_svc = self._bench(ctx, i, p, need, svc["content"]) if svc else None
+                    if a_svc is not None and a_new > a_svc + float(self.cfg("bench_margin")):
+                        self._ship(ctx, p, pid, proj, ch["lib.py"], -3, now, f"merged {pr['pr']}", acc=a_new)
+                elif int(proj.get("approach", -1)) >= 0 and int(k_new) > int(proj["approach"]):
                     self._ship(ctx, p, pid, proj, ch["lib.py"], int(k_new), now, f"merged {pr['pr']}")
         info = self._try(ctx, p, "pkg.info", package=proj["package"]) or {}
         last = info.get("last_release_t")
@@ -1252,7 +1515,7 @@ class Developers(Module):
             ctx.emit("devs.project_update", {"id": pid, "acked": sorted(acked)[-50:]}, vis="internal")
         return choice
 
-    def _ship(self, ctx, p, pid, proj, src: str, k: int, now: int, change: str) -> bool:
+    def _ship(self, ctx, p, pid, proj, src: str, k: int, now: int, change: str, acc: float | None = None) -> bool:
         """Commit `src` as its service's program, keep it only if its tests pass, redeploy on the same host."""
         old = self._try(ctx, p, "code.read", repo=proj["repo"], path="service.py")
         if not old or not self._try(ctx, p, "code.commit", repo=proj["repo"], files={"service.py": src}, message=change):
@@ -1264,7 +1527,9 @@ class Developers(Module):
         dep = self._try(ctx, p, "cloud.deploy", repo=proj["repo"], host=proj["host"], instance=proj["instance"])
         if not dep or dep.get("status") != "live":
             return False
-        ctx.emit("devs.project_update", {"id": pid, "approach": int(k), "changed_t": int(now), "change": change},
+        # someone else's code: its own notes no longer describe the program it runs
+        upd = {"prog": None, "acc": acc} if int(k) < 0 else {"prog": self.prog_of_index(proj["need"], int(k))}
+        ctx.emit("devs.project_update", {"id": pid, "approach": int(k), "changed_t": int(now), "change": change, **upd},
                  vis="internal")
         self._announce(ctx, p, proj["task"], proj["host"], int(proj["price"]), now, new_version=True)
         return True
@@ -1294,6 +1559,16 @@ class Developers(Module):
     def ap_project_update(self, ev):
         p = dict(ev.payload)
         self.world.state.patch("dev_projects", p.pop("id"), **p)
+
+    @applier("devs.learned")
+    def ap_learned(self, ev):
+        p = dict(ev.payload)
+        st = self.world.state
+        k = p.pop("id")
+        if st.has("dev_worked", k):
+            st.patch("dev_worked", k, pairs=p["pairs"], t=ev.t)
+        else:
+            st.insert("dev_worked", k, dict(p, t=ev.t))
 
     def check_invariants(self, world):
         errs = []

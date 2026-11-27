@@ -48,7 +48,10 @@ Activities registered with the population (`popbridge.register_activity`):
 Daily process `work.day`: deposits the accrued income of individuals that pay standing charges, wakes
 professionals for their next working day, and lets an occupation's need end now and then (exogenous churn).
 
-Nothing here reads a provider's code, a generator's hidden truth for a decision, or evaluator verdicts. Decisions
+Nothing here reads a provider's code, a generator's hidden truth for a decision, or evaluator verdicts. (The one
+use of an instance's hidden truth is the CONTENT of an individual's own hand work: a request for help with a task
+known only through worked examples shows what the individual makes of its own example by hand,
+`Work.worked_example`; wave 3b, workstream G.) Decisions
 carry the model id `work.value` (fidelity register row FR-WORK-1, an uncalibrated documented assumption).
 """
 from __future__ import annotations
@@ -599,7 +602,7 @@ class Work(Module):
             for s, need in steps:
                 if need not in wanted:
                     continue
-                sample, _ = _needs()[need].generate(w.rng_for("work-sample", i, need), float(self._col("size")[i]))
+                sample, hid = _needs()[need].generate(w.rng_for("work-sample", i, need), float(self._col("size")[i]))
                 cands = self._candidates(ctx, p, i, need, contacts[k], sample)
                 best, best_ev = None, 0.0
                 d = float(self._col("diy")[i, s])
@@ -628,7 +631,7 @@ class Work(Module):
                     evs.append(best_ev)
                     util[r] += 0.3
                 elif not cands and ctx.rng("work.ask", i).random() < float(self.cfg("ask_p")):
-                    if self._ask(ctx, p, i, need, sample, d):
+                    if self._ask(ctx, p, i, need, sample, d, hidden=hid):
                         asked.append(i)
         if shopped:
             columns.batch(ctx, TABLE, "work.shopped", np.array(shopped),
@@ -641,20 +644,47 @@ class Work(Module):
                                 {"choice": np.ones(len(set(asked)), np.int32)}, table=TABLE, **MODEL)
         return util
 
-    def _ask(self, ctx, p, i, need, sample, minutes) -> bool:
+    @staticmethod
+    def worked_example(need: str, sample, hidden) -> dict | None:
+        """What an individual makes of its own example by hand, for a task whose rule nobody documented and that is
+        known only through worked examples (an `exemplified` generated category): the correct result of its own
+        input (and, for a two-stage task, the result of its first stage) - the individual does this work by hand
+        and its hand work is accepted. None for every other task (documented formats, rules learnt only from
+        outcomes). Added in wave 3b (workstream G, additive): it is the only source of worked examples in worlds
+        without a published example pool."""
+        if not str(need).startswith("gen.") or hidden is None:
+            return None
+        from ..usefulness import category as C
+        cat = C.category_of(need)
+        if cat is None or cat.relation != "exemplified":
+            return None
+        out: dict = {}
+        if cat.truth is not None:
+            out["output"] = cat.truth(sample, hidden)
+        if cat.example_extra is not None:
+            out.update(cat.example_extra(sample, hidden))
+        return out or None
+
+    def _ask(self, ctx, p, i, need, sample, minutes, hidden=None) -> bool:
         """Post a public request for help with an unserved task: what it is and an example of the individual's own
-        input (truncated) - the demand signal an entrepreneur can read."""
+        input (truncated) - the demand signal an entrepreneur can read - and, for a task known only through worked
+        examples, what the individual makes of that input by hand (`worked_example`; left out when the input had to
+        be truncated or the result is long)."""
         import json
         ex = json.dumps(sample, sort_keys=True)
-        if len(ex) > 6000:
+        whole = len(ex) <= 6000
+        if not whole:
             ex = ex[:6000]
         nd = _needs()[need]
         what = nd.doc[:1500] if need.startswith("gen.") else ""      # nobody documented it: say what the task is
+        worked = self.worked_example(need, sample, hidden) if whole else None
+        mine = json.dumps(worked, sort_keys=True) if worked else ""
+        hand = f"What I make of my example by hand: {mine}\n" if mine and len(mine) <= 6000 else ""
         try:
             ctx.call("forum.post", {"board": self.cfg("ask_board"),
                                     "title": f"Looking for a service: {self.task_text(need)[:120]}",
                                     "body": f"I do this by hand and it takes me about "
-                                            f"{float(minutes):.0f} minutes a task. {what}\n"
+                                            f"{float(minutes):.0f} minutes a task. {what}\n{hand}"
                                             f"Example input: {ex}"},
                      as_principal=p)
             return True

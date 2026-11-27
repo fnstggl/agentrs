@@ -910,6 +910,32 @@ B_population verdict) and P's own findings.
 }
 ```
 
+### DEF-G-15 (high, fixed): Developers never wrote a program for an undocumented task: every program was a designer reference tier whose source embe
+
+```json
+{
+ "area": "G_innovation",
+ "fixed_by": "this pass (FR-DEV-1 repair): requesters of a task known only through worked examples post what they make of their own input by hand (economy.work.Work.worked_example, additive); developers note those examples (dev_worked) and induce the rule from them (innovation.induce: layout, names, type tags, tokens and the value conventions consistent with every example among those they know, unusual conventions coming to mind with probability craft per attempt), write their program from what they induced, measure every version, proposal and package on their own notes in the sandbox (bench repository, pkg.exec) and keep, merge or propose only what measures better; exemplified families without an induction model are out of reach of own programs (composition only). Documented rules keep the labour model (reference algorithms), recorded in FR-DEV-1.",
+ "id": "DEF-G-15",
+ "owner": "G (ECON)",
+ "regression_tests": "tests/test_v5_innovation_induce.py; tests/test_v5_innovation_devs.py::test_developers_learn_undocumented_formats_from_worked_examples; tests/test_v5_innovation_devs.py::test_developers_collaborate_through_issues_pull_requests_review_and_forks",
+ "requirements": [
+  "J.1",
+  "J.5",
+  "J.n1",
+  "SP-6.3b",
+  "L.4"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "independent verifier of c5c/w3b-econ2 at f94ce3f1 (wave 3b repair pass)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Developers never wrote a program for an undocumented task: every program was a designer reference tier whose source embeds the generated category's hidden rule (transform: every tier, even the generic parser, carries the world's wire formats), the first version drawn from craft and an improvement one tier up with probability craft, with no learning from outcomes; code review and proposals compared tier indices (designer knowledge of which approach is better), so 'novel category' services were designer code."
+}
+```
+
 ### DEF-H-1 (critical, open): Gate M below threshold on independent admission: 51/60 train and 18/20 eval (seeds 0-2); only 48/17 also pass 
 
 ```json
