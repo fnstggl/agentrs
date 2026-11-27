@@ -13,7 +13,9 @@ the population's everyday practice, so the scientific result and the economic ou
   its own money; it tunes its own setting by occasional trial and error on its own noisy bills; it learns of advisor
   products from promotions, contacts who kept one and the catalogue; it tries a product when its bills are high,
   compares its bills during the trial with its bills before and keeps paying only while its own savings are worth
-  the price to it (price sensitivity); it cancels when they are not.
+  the price to it (price sensitivity); it cancels when they are not. When the product stops running (suspended:
+  its hosting went unpaid) the user falls back on its own practice and, once what it paid for runs out, its
+  subscription lapses - it pays nothing more and may try another product.
 * **The participant** is a founder (seat `p:founder`, little money) acting only through tools: research and
   experimentation (`sci.*`: runs, data, publish), technical development of an advisor (`rc.prototype`: a model -
   an expression in the law language from the condition variables to a setting - built at a development cost and
@@ -32,7 +34,8 @@ save, so nobody keeps it, investors refuse and the product does not sustain itse
 
 The independent evaluator (`evaluate`) reads the recorded log: the discovery's validation (the founder's paper and
 its independent replications), independent paying adopters and their retention, subscription revenue against
-hosting and promotion costs over the last 30 days, and the founder's solvency.
+hosting and promotion costs over the last 30 days, and the founder's solvency. A retained adopter is one that
+renewed and whose last payment covers the present (`paying_now`); the investors' public record counts the same.
 """
 from __future__ import annotations
 
@@ -234,6 +237,7 @@ class Commercialization(Module):
         price_sens = np.clip(f["prefs"][:, 0].astype(np.float64), 0, 1)
         novelty = np.clip(f["prefs"][:, 1].astype(np.float64), 0, 1)
         prods = {r["slot"]: (pid, r) for pid, r in st.scan("rc_products") if r["status"] == "live"}
+        slots = {r["slot"]: pid for pid, r in st.scan("rc_products")}
         pilots = {r["slot"]: (pid, r) for pid, r in st.scan("rc_pilots") if r["status"] == "running"}
         contacts = columns.col(w, "pop", "contacts")
         kept_all = columns.col(w, TABLE, "kept_ok")
@@ -295,6 +299,16 @@ class Commercialization(Module):
                         subs_ev.append([i, pid, "cancel", 0, round(saving, 1)])
                         using[j] = -1
                         kept_ok[j] = -1
+            elif using[j] >= 0 and int(using[j]) not in prods:
+                # the product is not running (suspended): the user falls back on its own practice, and once the
+                # trial or the month it paid for has run out its subscription lapses (it stops paying and is free
+                # to try another product)
+                if now >= trial_until[j] and now >= paid_until[j]:
+                    pid_k = slots.get(int(using[j]))
+                    if pid_k is not None:
+                        subs_ev.append([i, pid_k, "lapse", 0, 0.0])
+                    using[j] = -1
+                    kept_ok[j] = -1
             elif using[j] < 0 and pilot[j] < 0:
                 # learn of products: a contact who kept one; then maybe try one it knows
                 if rng.random() < 0.2:
@@ -516,6 +530,7 @@ class Commercialization(Module):
                           "paying": sum(1 for s in subs if s["status"] == "paying"),
                           "trials": sum(1 for s in subs if s["status"] == "trial"),
                           "cancelled": sum(1 for s in subs if s["status"] == "cancelled"),
+                          "lapsed": sum(1 for s in subs if s["status"] == "lapsed"),
                           "revenue_cents": int(r["revenue"]), "hosting_paid_cents": int(r["hosting"])})
         return {"cash_cents": int(bank.available(st, bank.primary_account(st, me))),
                 "prototypes": [{"prototype": k, "name": p["name"], "ready": p["ready_t"] <= ctx.now}
@@ -575,7 +590,7 @@ class Commercialization(Module):
         for pid, r in st.scan("rc_products"):
             if r["owner"] == venture:
                 mine.add(pid)
-                paying += sum(1 for s in st.find("rc_subs", "product", pid) if s["status"] == "paying" and s["renewals"] >= 1)
+                paying += sum(1 for s in st.find("rc_subs", "product", pid) if paying_now(s, self.world.now))
         t0 = self.world.now - 30 * DAY
         revenue = sum(x["cents"] for x in st.find("rc_ledger", "kind", "revenue") if x["product"] in mine and x["t"] >= t0)
         hosting = sum(x["cents"] for x in st.find("rc_ledger", "kind", "hosting") if x["product"] in mine and x["t"] >= t0)
@@ -648,10 +663,11 @@ class Commercialization(Module):
         st = self.world.state
         key = f"{p['product']}|{p['user']}"
         cur = st.get("rc_subs", key)
-        status = {"trial": "trial", "renew": "paying", "cancel": "cancelled"}[p["kind"]]
+        status = {"trial": "trial", "renew": "paying", "cancel": "cancelled", "lapse": "lapsed"}[p["kind"]]
         renewals = (cur["renewals"] if cur else 0) + (1 if p["kind"] == "renew" else 0)
+        paid_until = ev.t + 30 * DAY if p["kind"] == "renew" else (cur or {}).get("paid_until", 0)
         st.put("rc_subs", key, {"product": p["product"], "user": p["user"], "status": status, "renewals": renewals,
-                                "t": ev.t, "first_t": cur["first_t"] if cur else ev.t})
+                                "t": ev.t, "first_t": cur["first_t"] if cur else ev.t, "paid_until": int(paid_until)})
         if p["kind"] == "renew":
             r = st.tables["rc_products"][p["product"]]
             st.patch("rc_products", p["product"], revenue=r["revenue"] + int(p["cents"]))
@@ -702,6 +718,12 @@ class Commercialization(Module):
 
 
 # ====================================================================== evaluator side (recorded log only)
+def paying_now(sub: dict, now: int) -> bool:
+    """A retained adopter: renewed at least once, still subscribed, and its last payment covers now (users settle
+    on their weekly practice day, so a renewal is at most a week late)."""
+    return sub["status"] == "paying" and sub["renewals"] >= 1 and int(sub.get("paid_until", 0)) + 7 * DAY >= int(now)
+
+
 @K.cached_evaluator
 def evaluate(world, principal: str, objective: dict) -> dict:
     st = world.state
@@ -717,7 +739,7 @@ def evaluate(world, principal: str, objective: dict) -> dict:
         return rel[u]
     subs = [s for _, s in st.scan("rc_subs") if s["product"] in mine and indep(s["user"])]
     adopters = [s for s in subs if s["renewals"] >= 1]
-    retained = [s for s in adopters if s["status"] == "paying"]
+    retained = [s for s in adopters if paying_now(s, now)]
     t0 = now - 30 * DAY
     led = [x for _, x in st.scan("rc_ledger") if x["product"] in mine and x["t"] >= t0]
     revenue = sum(x["cents"] for x in led if x["kind"] == "revenue")

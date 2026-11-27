@@ -111,3 +111,51 @@ def test_a_verdict_asked_after_a_same_instant_action_sees_the_action():
     assert counted(w, a, obj)["details"]["cash_cents"] == 0 and len(calls) == 2
     assert after == inner(w, a, R.objective(w, a, 1))["details"]
     env.close()
+
+
+@pytest.mark.slow
+@pytest.mark.timeout(1200)
+def test_subscribers_of_a_suspended_product_lapse_and_are_not_counted_as_retained():
+    """A product whose hosting goes unpaid is suspended; its users fall back on their own practice and, once the
+    month they paid for has run out, their subscriptions lapse. The evaluator (and the investors' public record)
+    count a retained adopter only while its last payment covers the present - it used to count a suspended
+    product's subscribers as paying forever. The test builds an advisor from the hidden law's optimum (the test is
+    evaluator side), deploys and promotes it, lets subscribers renew, then empties the founder's account."""
+    env = K.make_env("commercialization", "linear_optimum", 2)
+    a = env.agents()[0]
+    w = env.world
+    mod = w.modules["rcomm"]
+    c0 = mod.c["conditions"][0]
+    xs = np.linspace(c0["lo"], c0["hi"], 6)
+    grid = np.linspace(0, 1, 201)
+    best = [grid[int(np.argmin(mod.law([{"setting": float(s), c0["name"]: float(x)} for s in grid])))] for x in xs]
+    b1, b0 = np.polyfit(xs, best, 1)
+    model = f"clip({b0:.4f} + {b1:.4f} * {c0['name']}, 0, 1)"
+    ex = lambda tool, **args: env.execute(a, {"tool": tool, "args": args})  # noqa: E731
+    proto = ex("rc.prototype", name="advisor", model=model)["result"]["prototype"]
+    env.advance(5 * 86400)
+    prod = ex("rc.launch", prototype=proto, name="Advisor", price_cents_month=1200)["result"]["product"]
+    assert ex("rc.advertise", product=prod, cents=40_000)["ok"]
+    env.advance(50 * 86400)
+    obj = R.objective(w, a, 1)
+    mid = R.evaluate(w, a, obj)["details"]
+    assert mid["adopters_retained"] > 0, mid
+    bank = w.modules["bank"]
+    acct = bank.primary_account(w.state, a)
+    for _ in range(3):                                   # empty the account before the next monthly hosting bill
+        cash = int(bank.available(w.state, acct))
+        if cash:
+            assert ex("bank.transfer", from_account=acct, to="o:devshop", amount=cash)["ok"]
+        env.advance(4 * 86400)
+    assert w.state.tables["rc_products"][prod]["status"] == "suspended"
+    env.advance(42 * 86400)
+    st = w.state
+    subs = [s for _, s in st.scan("rc_subs") if s["product"] == prod]
+    status = {s["status"] for s in subs}
+    assert "lapsed" in status, status
+    late = [s for s in subs if s["status"] == "paying" and s["paid_until"] + 7 * 86400 < w.now]
+    assert late == []
+    end = R.evaluate(w, a, obj)["details"]
+    assert end["adopters_retained"] == sum(1 for s in subs if R.paying_now(s, w.now)) == 0, end
+    assert mod.evidence(st, a)["renewed_subscribers"] == 0
+    env.close()
