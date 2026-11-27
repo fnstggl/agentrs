@@ -356,6 +356,23 @@ that learned regularity for blogs a reader has not tried since (exploration of b
 rich guide covers), which a reader's per-site experience cannot do for a frozen policy. G.n1 and G.2/G.5/G.7 use the
 same three runs. The "sites" condition stays available (SP-3.4 uses it). No pilot of the category condition produced
 a result (one CPU probe was stopped by its own timeout before finishing); its gate run is the first.
+Addendum 4 (2026-11-27, result of the addendum-3 run; no further protocol change by workstream B): the gate run of
+the category condition (unofficial, snapshot of 5cfe1482, governed CPU slot, three seeds, 5-day phases) FAILED G.6
+again: change-specific improvement -0.0018, pooled 95% CI [-0.020, +0.016] over 304 members (per-seed means +0.0005,
++0.0001, -0.0065). Learning after the change DID change behaviour in the direction of the new condition in every seed:
+share of the learning members' phase-2 visits to the sites the switch made rich 0.357 / 0.387 / 0.489 with learning vs
+0.258 / 0.257 / 0.315 frozen at the switch; but realised utility did not rise (visit-weighted 0.494 / 0.490 / 0.490 vs
+0.502 / 0.523 / 0.521), because (1) on the first day after the switch the learning members visited the failing guides
+about three times as often (12-19% of visits vs 4-5%): a broken site shows no title, so the perceived category of the
+formerly broken blogs that became rich and of the guides that failed is the same "unknown" (kind 0) until a reader
+fetches them again, and the first post-switch updates learned from the formerly broken blogs' good visits that kind-0
+candidates are good; (2) the newly rich blogs are not more useful to these members than the three rich guides left
+(their interests had drifted towards what they read in phase 1). The other Gate G measures passed in the same run
+(G.1 256, G.2 256, G.3 174, G.5 held-out loss decrease 0.036, G.n1 lowest per-seed CI bound 0.181, G.4 3 groups / 4
+hashes). The two failed protocols are reported as failed. A next protocol would need a condition in which a reader's
+own per-site state cannot do what learning does and the change carries utility headroom (e.g. a stream of newly
+launched sites whose category predicts their quality, with every poor site perceivable as such); choosing it after two
+results is a decision for the orchestrator, not made here.
 
 ## D-48 The Tier 2 domain contract `domains-framework/2` (2026-11-26, workstream I, wave 3b)
 Resolves the contract split of audit I_domains section 2 (DEF-I-3) on the D-17 side: `crucible.domains.base.Domain`

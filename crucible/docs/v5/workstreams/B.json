@@ -163,7 +163,7 @@
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "implemented (D-32 addendum: class-2 day review); failed at 4184cce (207 took sessions in a 4-day run); CPU probe on 85ae921's code (256 adaptive, 1.6 days): 256/256 members' policies stepped their memory on each day; gate run queued; passed in the unofficial gate run at 9d3f98b0 (snapshot 9585d10, 2026-11-27 04:5x; G.1-G.3, G.5 tests passed; the run was stopped for RAM at 7.7 GB of 6 GB during G.7); rerun with the category condition queued",
+   "status_claim": "criteria met in the unofficial gate run at 5cfe1482 (category condition, governed CPU slot): simultaneously_active_adaptive 256 (policy active per day 256,256,256,256,64; 218 took sessions during the run, 163 on one day)",
    "notes": ""
   },
   "G.2": {
@@ -189,7 +189,7 @@
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "implemented; failed at 4184cce (251 distinct: members never activated kept the zero state); CPU probe: 256 distinct, 256 changed from the initial state; gate run queued; passed in the unofficial gate run at 9d3f98b0 (snapshot 9585d10, 2026-11-27 04:5x; G.1-G.3, G.5 tests passed; the run was stopped for RAM at 7.7 GB of 6 GB during G.7); rerun with the category condition queued",
+   "status_claim": "criteria met in the unofficial gate run at 5cfe1482 (category condition, governed CPU slot): distinct_personal_states 256 in each of 3 seeds, 256 changed from the initial state",
    "notes": ""
   },
   "G.3": {
@@ -215,7 +215,7 @@
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "implemented; failed at 4184cce (34: only the resource-choice batch was reported); now the largest forward pass per decision kind (CPU probe: day review 174, activity 59, resource 36); gate run queued; passed in the unofficial gate run at 9d3f98b0 (snapshot 9585d10, 2026-11-27 04:5x; G.1-G.3, G.5 tests passed; the run was stopped for RAM at 7.7 GB of 6 GB during G.7); rerun with the category condition queued",
+   "status_claim": "criteria met in the unofficial gate run at 5cfe1482 (category condition, governed CPU slot): shared_weight_copies 1, max_inference_batch 174 (day review; activity choice 85, resource choice 44), decisions through the shared batching service",
    "notes": ""
   },
   "G.5": {
@@ -241,7 +241,7 @@
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "criteria met in an unofficial run at 4184cce (weights changed, 1,456 optimizer steps, held-out loss decrease 0.0435); rerun queued; passed in the unofficial gate run at 9d3f98b0 (snapshot 9585d10, 2026-11-27 04:5x; G.1-G.3, G.5 tests passed; the run was stopped for RAM at 7.7 GB of 6 GB during G.7); rerun with the category condition queued",
+   "status_claim": "criteria met in the unofficial gate run at 5cfe1482 (category condition, governed CPU slot): weight hash changed, frozen twin unchanged, 1,456 optimizer steps (91 policy updates), held-out MSE 0.0660 learned vs 0.1272 initial (loss_decrease 0.036 mean over 3 seeds)",
    "notes": ""
   },
   "G.6": {
@@ -267,7 +267,7 @@
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "FAILED in its first gate run under the addendum-2 condition 'sites' (unofficial, snapshot of 9d3f98b0, 3 seeds, 5-day phases): new_condition_improvement_ci_low -0.0216 (mean +0.0014, CI high +0.0261, 291 members; per-seed means -0.0166, +0.0167, +0.0059); failing-site visits 0.228 learning vs 0.204 frozen at the switch; class-1 phase-2 utility 0.400 vs learning group 0.483. Diagnosis and new controlled condition 'category' fixed before its gate run (D-32 addendum 3; measure unchanged); gate run of the category condition queued (/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_G3.full).",
+   "status_claim": "FAILED under both pre-registered conditions (unofficial gate runs; D-32 addenda 3 and 4). 'sites' (snapshot of 9d3f98b0): new_condition_improvement_ci_low -0.0216 (mean +0.0014, 291 members). 'category' (snapshot of 5cfe1482, governed CPU slot): new_condition_improvement_ci_low -0.0200 (mean -0.0018, CI high +0.0163, 304 members; per-seed means +0.0005, +0.0001, -0.0065). Behaviour adapted in every seed (phase-2 share of visits to the sites the switch made rich 0.36/0.39/0.49 learning vs 0.26/0.26/0.32 frozen at the switch) but realised utility did not rise; diagnosis in D-32 addendum 4 (kind-0 confound of broken sites on day 1; no utility headroom over the remaining rich guides). Not claimed.",
    "notes": "Post-switch updates also use the examples pending at the switch (at most one learning interval); the fork and the main world share weights, memories, world state and random streams at the switch (the same set_learning system call is recorded in both; regression test test_learning_switch_forks_stay_aligned_until_the_first_update). Condition 'category' (wave 3b continuation 3): guides rich and blogs poor before the switch; two most visited guides redeployed broken and every blog rewritten rich after it (experiments.adaptation(condition='category')); per member also the share of phase-2 visits to the switched sites (learning vs frozen at the switch)."
   },
   "G.n1": {
@@ -293,7 +293,7 @@
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "unofficial run at 9d3f98b0 (snapshot 9585d10, 2026-11-27 04:58): adaptation_effect_ci_low 0.208 (per seed 0.264, 0.209, 0.208; mean 0.249; phase 1 0.160), activity sessions phase-2 difference mean 0.253 (lowest per-seed CI bound 0.165), strategic learning groups' policy shift min 0.073 TV, frozen A0 0.0 - under the 'sites' condition; the gate now uses the 'category' condition (D-32 addendum 3), rerun queued",
+   "status_claim": "criteria met in the unofficial gate run of the category condition (snapshot of 5cfe1482, governed CPU slot): adaptation_effect_ci_low 0.181 (per seed 0.234, 0.214, 0.181; mean 0.232; phase 1 0.148), activity sessions phase-2 difference mean 0.261 (lowest per-seed CI bound 0.169), strategic learning groups' policy shift min 0.073 TV, frozen A0 0.0; earlier under 'sites' (9d3f98b0) 0.208",
    "notes": ""
   },
   "G.4": {
@@ -319,7 +319,7 @@
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "unofficial run at 9d3f98b0 (snapshot 9585d10, 2026-11-27 04:58): independent_strategic_groups 3, distinct_group_weight_hashes 4, 52 policy updates, 272 strategic decisions, frozen control unchanged (criteria met); rerun queued with the gate",
+   "status_claim": "criteria met in the unofficial gate run at 5cfe1482 (governed CPU slot): independent_strategic_groups 3, distinct_group_weight_hashes 4, 52 policy updates, 272 strategic decisions, frozen control A0 unchanged",
    "notes": ""
   },
   "G.7": {
@@ -368,7 +368,7 @@
    "tests": [
     "tests/v5/test_gate_SP_3_1.py"
    ],
-   "status_claim": "criteria met in an unofficial run at 96920ab (18 identity/state fields, heterogeneity and drift > 0)",
+   "status_claim": "criteria met in an unofficial gate run at e05f5266 (snapshot snapR_head): 18 identity/state fields represented, 1,165 individuals with drift, preference drift from experience 0.79, same-situation heterogeneity 0.139",
    "notes": ""
   },
   "SP-3.2": {
@@ -418,7 +418,7 @@
    "tests": [
     "tests/v5/test_gate_SP_3_2c.py"
    ],
-   "status_claim": "criteria met in an unofficial run at 96920ab (class 2 237,506 parameters, class 3 2.10-2.38M, 4 behaviour kinds, 0 identical copies)",
+   "status_claim": "criteria met in an unofficial gate run at e05f5266 (snapshot snapR_head, governed slot): class 2 237,506 parameters, class 3 2,102,035-2,384,099, 4 behaviour kinds (compete, cooperate, unrelated objectives, adapt over lifetime), 0 identical policy copies, policy shift TV A 0.23 / B 0.76 / C 0.44 / A0 0.0",
    "notes": ""
   },
   "SP-3.3": {
@@ -440,7 +440,7 @@
    "tests": [
     "tests/v5/test_gate_SP_3_3.py"
    ],
-   "status_claim": "criteria met in an unofficial run at 4184cce (4 profiles: 1,042 / 10,296 / 101,120 / 10,001,120 rows)",
+   "status_claim": "criteria met in an unofficial gate run at a50d20da (snapshot snapQ, governed CPU slot, 1 passed in 372 s): 4 profiles matching the spec (development 1,042 / standard 10,296 / large 101,120 / internet 10,001,120 rows; internet created in 51.5 s, 9 simulated hours in 311 s with 2,567,673 sessions)",
    "notes": ""
   },
   "SP-3.4": {
@@ -513,7 +513,7 @@
    "tests": [
     "tests/v5/test_gate_SP_4_1.py"
    ],
-   "status_claim": "criteria met in an unofficial run at 96920ab (13 browsing behaviours, 0 attention violations)",
+   "status_claim": "FAILED in the unofficial gate run at e05f5266 (snapshot snapR_head): browsing_behaviours 12 of 13 - purchase_services 3 (< 10 in 6 days; 25 product evaluations), attention_violations 0; it had met the threshold exactly at d6e49a29 (10 purchases). Cause found and repaired at 351ded23: since D-30 the fitted article-open decision on pages with an article slate made the shop link of home pages unreachable (a purchase needed home -> article -> shop -> product within 3 steps); readers who open no headline and want products now go to the page's products or shop (probe: product evaluations 8 -> 22, purchases 2 -> 6). Rerun queued (snapshot snapS).",
    "notes": ""
   },
   "SP-4.4": {
