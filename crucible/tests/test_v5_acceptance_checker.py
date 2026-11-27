@@ -595,3 +595,23 @@ def test_gate_A4_scan_tells_a_module_denylist_from_a_use():
     deny = B._denylist_strings(src)
     assert deny == {1: ["crucible.realworld", "crucible.research.sealed"], 2: ["crucible.acceptance"]}
     assert 3 not in deny and 4 not in deny                  # an import and a lone module string still count
+
+
+def test_generated_and_frozen_code_of_the_implementation_is_not_a_patch():
+    """Wave 3b repair pass: patched_functions rejected every record of a process that imported crucible.mechanisms.sim
+    (4.0 generates `_pcg64_state` with compile(..., "<pcg64-seed>", "exec") in its own source) or crucible.storage.base
+    (it re-exports abc.abstractmethod, whose co_filename is "<frozen abc>"). A function compiled from a string by a
+    test is still a patch, and the code-object check finds nothing on the real imports."""
+    import crucible.mechanisms.sim as sim
+    import crucible.storage.base  # noqa: F401
+    root = M.crucible_root()
+    found = evidence.patched_functions(root) + evidence.code_object_patches(root)
+    assert not [f for f in found if "mechanisms.sim" in f or "storage.base" in f], found
+    ns = {}
+    exec(compile("def _pcg64_state(*a):\n    return 0, 1\n", "<evil>", "exec"), ns)
+    orig = sim._pcg64_state
+    sim._pcg64_state = ns["_pcg64_state"]
+    try:
+        assert any("mechanisms.sim._pcg64_state" in f and "<evil>" in f for f in evidence.patched_functions(root))
+    finally:
+        sim._pcg64_state = orig

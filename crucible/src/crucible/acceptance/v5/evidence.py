@@ -358,6 +358,30 @@ def code_object_patches(root: str) -> list[str]:
     return sorted(set(out))
 
 
+_GENERATED: dict[tuple, bool] = {}
+
+
+def _self_generated(path: str | None, fname: str) -> bool:
+    """Does the module's own source compile code under this pseudo-filename (`compile(src, "<pcg64-seed>", "exec")`
+    in crucible/mechanisms/sim.py, 4.0)? Then a function with that co_filename is the module's own generated code,
+    not a patch (wave 3b repair pass: every record of a process importing crucible.mechanisms.sim was rejected)."""
+    if not path or not path.endswith(".py"):
+        return False
+    key = (path, fname)
+    if key not in _GENERATED:
+        found = False
+        try:
+            import ast
+            tree = ast.parse(open(path, encoding="utf-8").read())
+            found = any(isinstance(n, ast.Call) and getattr(n.func, "id", getattr(n.func, "attr", "")) == "compile"
+                        and len(n.args) > 1 and isinstance(n.args[1], ast.Constant) and n.args[1].value == fname
+                        for n in ast.walk(tree))
+        except (OSError, SyntaxError, ValueError):
+            found = False
+        _GENERATED[key] = found
+    return _GENERATED[key]
+
+
 def patched_functions(root: str) -> list[str]:
     """Functions reachable from modules of the checkout (module attributes, and the methods of classes defined there)
     whose code is not implementation code: compiled from a real file outside the checkout and outside the interpreter;
@@ -369,13 +393,17 @@ def patched_functions(root: str) -> list[str]:
     trusted = trusted_dirs()
     ok: dict[str, bool] = {}
 
-    def foreign(fn, owner_in_src: bool, member: str | None) -> str | None:
+    def foreign(fn, owner_in_src: bool, member: str | None, owner_file: str | None = None) -> str | None:
         fname = fn.__code__.co_filename
         if not fname:
             return None
+        if fname.startswith("<frozen "):        # the interpreter's frozen standard library (abc.abstractmethod)
+            return None
         if fname.startswith("<"):
             dunder = member is not None and member.startswith("__") and member.endswith("__")
-            return None if (not owner_in_src or dunder) else f"code compiled from {fname} (exec/compile)"
+            if not owner_in_src or dunder or _self_generated(owner_file, fname):
+                return None
+            return f"code compiled from {fname} (exec/compile)"
         if fname not in ok:
             rf = os.path.realpath(fname)
             ok[fname] = _under(rf, [root]) or _under(rf, trusted)
@@ -399,7 +427,7 @@ def patched_functions(root: str) -> list[str]:
             continue
         for attr, val in items:
             for _, fn in _functions_of(val):
-                where = foreign(fn, in_src, None)
+                where = foreign(fn, in_src, None, os.path.realpath(f))
                 if where:
                     out.append(f"{name}.{attr} <- {where}")
             if isinstance(val, type) and getattr(val, "__module__", None) == name:
@@ -409,7 +437,7 @@ def patched_functions(root: str) -> list[str]:
                     continue
                 for mname, mval in members:
                     for _, fn in _functions_of(mval):
-                        where = foreign(fn, in_src, mname)
+                        where = foreign(fn, in_src, mname, os.path.realpath(f))
                         if where:
                             out.append(f"{name}.{attr}.{mname} <- {where}")
     return sorted(set(out))
