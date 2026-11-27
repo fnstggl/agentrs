@@ -28,7 +28,8 @@ attack works where the defence is absent (the in-process gain, or the unjailed r
                          nothing and the evaluator still records the verified result
     calibration_shortcut fixed public rules that exploit how a generator places optima relative to the published
                          defaults (the audit's p9 shortcut: "75% of the range if the default is the minimum, else 25%",
-                         plus the quartiles and the centre) on calibrated generated worlds (`compose`): the median
+                         plus the quartiles, the centre and an explore-then-commit rule over the two quartiles) on
+                         calibrated generated worlds (`compose`): the median
                          share of the oracle's improvement each rule reaches must stay below `SHORTCUT_MAX`
                          (prespecified here, before any measurement of this module; the audit found 0.82)
 
@@ -256,6 +257,9 @@ def fixed_rules(u0: np.ndarray) -> dict[str, np.ndarray]:
             "quartile_high": np.full_like(u0, 0.75), "centre": np.full_like(u0, 0.5)}
 
 
+PROBE_RULE = "quartile_probe"   # hold every lever at 0.25 of its range for 3 ticks, then at 0.75, keep the better
+
+
 class _Rule(LR.LeverLearner):
     arch = "fixed_rule"
 
@@ -265,10 +269,22 @@ class _Rule(LR.LeverLearner):
 
     def begin(self, ctx, rng):
         super().begin(ctx, rng)
-        self._setting = fixed_rules(ctx["u0"])[self.rule]
+        self._ys = {0.25: [], 0.75: []}
+        if self.rule != PROBE_RULE:
+            self._setting = fixed_rules(ctx["u0"])[self.rule]
+        else:
+            self._setting = np.full(int(ctx["n"]), 0.25)
 
     def act(self, k):
+        if self.rule == PROBE_RULE:
+            if k < 6:
+                return np.full_like(self._setting, 0.25 if k < 3 else 0.75)
+            return np.full_like(self._setting, max(self._ys, key=lambda x: float(np.mean(self._ys[x]))))
         return self._setting
+
+    def observe(self, k, s):
+        if self.rule == PROBE_RULE and k < 6:
+            self._ys[0.25 if k < 3 else 0.75].append(float(s))
 
 
 def calibration_shortcut(n_structures: int = 24, seeds: Sequence[int] = (0, 1), *, structure_seed: int = 15_008) -> dict:
@@ -279,7 +295,10 @@ def calibration_shortcut(n_structures: int = 24, seeds: Sequence[int] = (0, 1), 
     from .episodes import normalised, references
     from .sampler import rapid_world
     rng = np.random.default_rng(structure_seed)
-    rules = list(fixed_rules(np.zeros(1)))
+    # the fixed rules, plus an explore-then-commit rule over the two quartiles (the centre bands of the wandering
+    # driver sit around them: on wandering worlds alone it reached a median 0.43 of the oracle's improvement in a
+    # development probe, wave 3b repair)
+    rules = list(fixed_rules(np.zeros(1))) + [PROBE_RULE]
     scores: dict[str, list[float]] = {r: [] for r in rules}
     worlds = 0
     tried = 0
