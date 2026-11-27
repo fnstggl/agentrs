@@ -34,7 +34,8 @@ from ..contracts import (ActionResult, ActionSpec, Clock, Cost, ExecContext, Fai
                          ToolDescriptor, Trust, WallClock, new_id)
 from .failures import (FailureEvidence, RetryPolicy, authorization_result, classify, failed_result,
                        run_with_retries, wait)
-from .http_api import RateLimiter, RateLimitInfo, parse_rate_limit, resolve_secret, schema_errors
+from .http_api import (RateLimiter, RateLimitInfo, grant_bound, granted_action, parse_rate_limit, resolve_secret,
+                       schema_errors)
 
 LIVE_BASE_URL = "https://discord.com/api/v10"
 #: TaskSpec.data_permissions key that must be true before message text may leave the client. Setting it asserts
@@ -310,7 +311,7 @@ def evidence_of(err: BaseException) -> FailureEvidence:
 # --------------------------------------------------------------------------------------------------------------
 _SNOWFLAKE = {"type": "string", "pattern": r"^\d{5,25}$"}
 _SCHEMAS: Dict[str, Dict[str, Any]] = {
-    "discord.guild_stats": {"type": "object", "additionalProperties": False, "properties": {}},
+    "discord.get_guild_stats": {"type": "object", "additionalProperties": False, "properties": {}},
     "discord.list_channels": {"type": "object", "additionalProperties": False, "properties": {}},
     "discord.create_channel": {"type": "object", "additionalProperties": False, "required": ["name"], "properties": {
         "name": {"type": "string", "minLength": 1, "maxLength": 100},
@@ -323,7 +324,7 @@ _SCHEMAS: Dict[str, Dict[str, Any]] = {
                              "required": ["channel_id", "message_id", "content"],
                              "properties": {"channel_id": _SNOWFLAKE, "message_id": _SNOWFLAKE,
                                             "content": {"type": "string", "minLength": 1, "maxLength": 2000}}},
-    "discord.channel_activity": {"type": "object", "additionalProperties": False, "required": ["channel_id"],
+    "discord.get_channel_activity": {"type": "object", "additionalProperties": False, "required": ["channel_id"],
                                  "properties": {"channel_id": _SNOWFLAKE,
                                                 "limit": {"type": "integer", "minimum": 1, "maximum": 100}}},
     "discord.list_invites": {"type": "object", "additionalProperties": False, "properties": {}},
@@ -340,7 +341,7 @@ _SCHEMAS: Dict[str, Dict[str, Any]] = {
                                             "channel_id": _SNOWFLAKE}},
 }
 _DESCRIPTIONS = {
-    "discord.guild_stats": ("external_read", "Read aggregate statistics of the authorized server: approximate member "
+    "discord.get_guild_stats": ("external_read", "Read aggregate statistics of the authorized server: approximate member "
                             "and presence counts and, where the members intent is granted, exact counts of human, "
                             "bot, pending and operator-declared test accounts."),
     "discord.list_channels": ("external_read", "List the channels of the authorized server: identifier, name, type, parent."),
@@ -348,7 +349,7 @@ _DESCRIPTIONS = {
                                "authorized server."),
     "discord.send_message": ("external_write", "Post a message as the bot in a channel of the authorized server."),
     "discord.edit_message": ("external_write", "Replace the text of a message the bot posted earlier."),
-    "discord.channel_activity": ("external_read", "Read aggregate activity of a channel of the authorized server: number "
+    "discord.get_channel_activity": ("external_read", "Read aggregate activity of a channel of the authorized server: number "
                                  "of recent messages, of messages by bots and by people, and of distinct human "
                                  "authors. Message text is included only where the task's data permissions allow it."),
     "discord.list_invites": ("external_read", "List the invites of the authorized server with their use counts."),
@@ -358,7 +359,7 @@ _DESCRIPTIONS = {
     "discord.create_event": ("external_write", "Create a scheduled event in the authorized server, at an external "
                              "location or in one of its voice channels."),
 }
-_IDEMPOTENT = ("discord.guild_stats", "discord.list_channels", "discord.channel_activity", "discord.list_invites",
+_IDEMPOTENT = ("discord.get_guild_stats", "discord.list_channels", "discord.get_channel_activity", "discord.list_invites",
                "discord.list_events", "discord.send_message", "discord.edit_message")
 
 
@@ -368,19 +369,29 @@ class DiscordExecutor:
     modality = Modality.API
 
     def __init__(self, base_url: str = LIVE_BASE_URL, *, guild_id: str = "", token_secret: str = "discord_bot_token",
-                 secrets: Any = None, test_account_ids: Sequence[str] = (),
-                 data_permissions: Optional[Mapping[str, bool]] = None, id_salt: str = "",
-                 transport: Optional[httpx.BaseTransport] = None, sleep: Optional[Callable[[float], None]] = None,
-                 retry: Optional[RetryPolicy] = None, user_agent: str = "DiscordBot (https://localhost, 1.0)"):
+                 secrets: Any = None, credential_probe: Optional[Callable[[str], bool]] = None,
+                 test_account_ids: Sequence[str] = (), data_permissions: Optional[Mapping[str, bool]] = None,
+                 id_salt: str = "", transport: Optional[httpx.BaseTransport] = None,
+                 sleep: Optional[Callable[[float], None]] = None, retry: Optional[RetryPolicy] = None,
+                 user_agent: str = "DiscordBot (https://localhost, 1.0)"):
+        """``secrets`` is a broker handle used when ``ExecContext.secrets`` is absent. ``credential_probe(name)``
+        says whether the named secret exists without releasing it (needed to report availability when the broker
+        releases secrets only to a granted, executing action)."""
         self.base_url, self.guild_id, self.token_secret = base_url.rstrip("/"), str(guild_id or ""), token_secret
         self.environment = environment_of(self.base_url)
-        self._secrets, self.test_account_ids = secrets, tuple(str(t) for t in test_account_ids)
+        self._secrets, self._probe = secrets, credential_probe
+        self.test_account_ids = tuple(str(t) for t in test_account_ids)
         self.data_permissions = dict(data_permissions or {})
         self.id_salt, self._transport, self._sleep, self.user_agent = id_salt, transport, sleep, user_agent
         self.retry = retry or RetryPolicy()
         self._client: Optional[DiscordClient] = None
-        self._broker: Any = None
+        self._token_ctx: Tuple[Any, Any, Any] = (secrets, None, None)      # broker, granted action, its decision
         self._channels: Dict[str, Dict[str, Any]] = {}
+        gid = {"type": "string", "const": self.guild_id} if self.guild_id else {"type": "string"}
+        self.schemas: Dict[str, Dict[str, Any]] = {}
+        for name, sch in _SCHEMAS.items():                 # every tool names the server it acts on, explicitly
+            self.schemas[name] = dict(sch, properties=dict(sch["properties"], guild_id=gid),
+                                      required=list(sch.get("required", [])) + (["guild_id"] if self.guild_id else []))
 
     @classmethod
     def from_task(cls, task: TaskSpec, *, base_url: str = "", secrets: Any = None, **kw: Any) -> "DiscordExecutor":
@@ -392,29 +403,40 @@ class DiscordExecutor:
                    test_account_ids=r.get("test_account_ids") or (), data_permissions=task.data_permissions, **kw)
 
     # ---- availability --------------------------------------------------------------------------------------
+    def _no_token(self) -> str:
+        return f"blocked: no Discord bot token provided (secret {self.token_secret!r})"
+
     def availability(self, secrets: Any = None) -> Tuple[bool, str]:
+        """Whether the tools can be used at all, and the exact reason if not; never contacts anything. With a
+        ``credential_probe`` the token is not released to answer. ``secrets`` is the broker of an execution in
+        progress: a grant-bound broker is then asked only at the moment of the request."""
         if not self.guild_id:
             return False, "blocked: no owner-authorized Discord guild is configured"
-        if resolve_secret(secrets if secrets is not None else self._secrets, self.token_secret) is None:
-            return False, f"blocked: no Discord bot token provided (secret {self.token_secret!r})"
-        return True, ""
-
-    def client(self, secrets: Any = None, clock: Optional[Clock] = None) -> DiscordClient:
         broker = secrets if secrets is not None else self._secrets
-        if self._client is None or broker is not self._broker:
-            if self._client is not None:
-                self._client.close()
-            self._broker = broker
-            self._client = DiscordClient(self.base_url, lambda: resolve_secret(broker, self.token_secret), clock=clock,
-                                         sleep=self._sleep, transport=self._transport, id_salt=self.id_salt,
-                                         user_agent=self.user_agent)
+        if self._probe is not None:
+            present = bool(self._probe(self.token_secret))
+        elif secrets is not None and grant_bound(broker):
+            present = True
+        else:
+            present = resolve_secret(broker, self.token_secret) is not None
+        return (True, "") if present else (False, self._no_token())
+
+    def _token(self) -> Optional[str]:
+        broker, action, decision = self._token_ctx
+        return resolve_secret(broker, self.token_secret, action=action, decision=decision, destination=self.base_url)
+
+    def client(self, clock: Optional[Clock] = None) -> DiscordClient:
+        """The REST client. Its token is fetched from the broker at the moment of each request."""
+        if self._client is None:
+            self._client = DiscordClient(self.base_url, self._token, clock=clock, sleep=self._sleep,
+                                         transport=self._transport, id_salt=self.id_salt, user_agent=self.user_agent)
         return self._client
 
     # ---- ModalityExecutor ----------------------------------------------------------------------------------
     def tools(self) -> List[ToolDescriptor]:
         ok, why = self.availability()
         out = []
-        for name, schema in _SCHEMAS.items():
+        for name, schema in self.schemas.items():
             effect, text = _DESCRIPTIONS[name]
             out.append(ToolDescriptor(name=name, modality=Modality.API, description=text, arg_schema=schema,
                                       level=Level.PRIMITIVE, side_effects=effect,
@@ -423,7 +445,7 @@ class DiscordExecutor:
         return out
 
     def validate(self, action: ActionSpec) -> List[str]:
-        schema = _SCHEMAS.get(action.operation)
+        schema = self.schemas.get(action.operation)
         if schema is None:
             return [f"unknown operation {action.operation!r} for the Discord executor"]
         errs = schema_errors(schema, action.arguments)
@@ -443,11 +465,13 @@ class DiscordExecutor:
         errs = self.validate(action)
         if errs:
             return failed_result(action, classify(FailureEvidence(arg_errors=errs, modality=Modality.API)), clock, started)
+        broker = ctx.secrets if ctx.secrets is not None else self._secrets
         ok, why = self.availability(ctx.secrets)
         if not ok:                                    # no credential or no authorized guild: nothing is sent
             rep = classify(FailureEvidence(exception=PermissionError(why), detail=why, modality=Modality.API))
             return failed_result(action, rep, clock, started, status=ResultStatus.DENIED)
-        client = self.client(ctx.secrets, clock)
+        self._token_ctx = (broker, granted_action(ctx, action), getattr(ctx, "authorization", None))
+        client = self.client(clock)
         name = action.operation
         policy = self.retry if name in _IDEMPOTENT else RetryPolicy({FailureClass.RESOURCE_LIMIT:
                                                                      RetryPolicy.DEFAULT_RULES[FailureClass.RESOURCE_LIMIT]})
@@ -475,9 +499,20 @@ class DiscordExecutor:
         check_args = {k: v for k, v in a.items()}
         if "content" in a:
             check_args["content_sha256"] = hashlib.sha256(a["content"].encode()).hexdigest()
+        keep = name == "discord.get_channel_activity" and bool(self.data_permissions.get(CONTENT_PERMISSION, False))
+        if name == "discord.get_guild_stats":
+            check_args.update(reads="guild counts and member list", aggregate_only=True)
+        if name == "discord.get_channel_activity":
+            check_args.update(reads="message history", aggregate_only=not keep)
         refused = self._checked(action, ctx, started, ops, name, check_args)
         if refused is not None:
             return refused
+        if keep:        # message text will leave the adapter: that is a different data class and is judged as such
+            refused = self._checked(action, ctx, started, ops, "discord.read_messages",
+                                    {"channel_id": a["channel_id"], "content_retained": True},
+                                    note="message text retained under the task's data permission")
+            if refused is not None:
+                return refused
         sent_before = client.requests_sent
         try:
             if "channel_id" in a:
@@ -497,7 +532,8 @@ class DiscordExecutor:
             for op in ops:
                 op.ended = op.ended or clock.now()
             ops[-1].status, ops[-1].failure_class = ResultStatus.FAILED, rep.failure_class
-            return failed_result(action, rep, clock, started, ops=ops)
+            return failed_result(action, rep, clock, started, ops=ops,
+                                 status=ResultStatus.DENIED if isinstance(e, DiscordUnavailable) else "")
         now = clock.now()
         for op in ops:
             op.ended = op.ended or now
@@ -519,7 +555,7 @@ class DiscordExecutor:
               action: ActionSpec) -> Tuple[str, List[Quantity], Dict[str, Any]]:
         g, label = self.guild_id, f"[{self.environment}] "
         count = OutcomeKind.COUNT
-        if name == "discord.guild_stats":
+        if name == "discord.get_guild_stats":
             info = client.guild(g, with_counts=True)
             q = [Quantity("discord.members.approximate", float(info["approximate_member_count"] or 0), kind=count),
                  Quantity("discord.presence.approximate", float(info["approximate_presence_count"] or 0), kind=count)]
@@ -559,7 +595,7 @@ class DiscordExecutor:
             return (f"{label}message {m['id']} in channel {m['channel_id']} replaced ({m['content_length']} characters)",
                     [Quantity("discord.message.length", float(m["content_length"]), kind=count)],
                     {"message": m, "message_id": m["id"], "channel_id": m["channel_id"]})
-        if name == "discord.channel_activity":
+        if name == "discord.get_channel_activity":
             keep = bool(self.data_permissions.get(CONTENT_PERMISSION, False))
             act = client.channel_activity(a["channel_id"], a.get("limit", 100), guild_id=g, keep_content=keep)
             q = [Quantity("discord.channel.messages", float(act["messages"]), kind=count),

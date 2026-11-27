@@ -20,6 +20,7 @@ from __future__ import annotations
 import base64
 import email.utils
 import hashlib
+import inspect
 import json
 import re
 import time as _time
@@ -104,21 +105,43 @@ def schema_errors(schema: Mapping[str, Any], value: Any, path: str = "arguments"
     return errs
 
 
-def resolve_secret(secrets: Any, name: str) -> Optional[str]:
-    """Fetch a secret value by name from an executor-side broker handle. Accepts a mapping, a callable or an object
-    with ``get(name)``. Returns ``None`` when there is no broker or no such secret. The value must only ever be
-    used to build the outgoing request."""
+def granted_action(ctx: Any, action: ActionSpec) -> ActionSpec:
+    """The top-level action whose grant covers what is being executed (a skill sets ``ctx.granted_action`` while
+    it runs its steps; otherwise it is the action itself)."""
+    return getattr(ctx, "granted_action", None) or action
+
+
+def grant_bound(secrets: Any) -> bool:
+    """True for a broker handle whose ``get`` needs the granted action, its decision and a destination."""
+    get = None if isinstance(secrets, Mapping) else (getattr(secrets, "get", None) or (secrets if callable(secrets) else None))
+    if get is None:
+        return False
+    try:
+        required = [p for p in inspect.signature(get).parameters.values()
+                    if p.default is p.empty and p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]
+    except (TypeError, ValueError):
+        return False
+    return len(required) >= 4
+
+
+def resolve_secret(secrets: Any, name: str, *, action: Optional[ActionSpec] = None, decision: Any = None,
+                   destination: str = "") -> Optional[str]:
+    """Fetch a secret value by name from the executor-side broker handle at the moment of use.
+
+    Two handle shapes are supported: a grant-bound broker ``get(name, action, decision, destination)`` (the
+    authorization service releases the secret only for the granted action that is executing and only for a
+    destination the secret is bound to), and a plain ``get(name)`` / mapping / callable. Returns ``None`` when
+    there is no broker, no such secret, or the broker refuses. The value must only be used to build the request."""
     if secrets is None or not name:
         return None
     try:
         if isinstance(secrets, Mapping):
             v = secrets.get(name)
-        elif hasattr(secrets, "get"):
-            v = secrets.get(name)
-        elif callable(secrets):
-            v = secrets(name)
         else:
-            return None
+            get = getattr(secrets, "get", None) or (secrets if callable(secrets) else None)
+            if get is None:
+                return None
+            v = get(name, action, decision, destination) if grant_bound(secrets) else get(name)
     except (KeyError, LookupError, PermissionError):
         return None
     return str(v) if v else None
@@ -471,7 +494,8 @@ class HttpApiExecutor:
                 wait(clock, pause, self.sleep)
             headers, send_url, secret_values = dict(req.headers), url, []
             if send_auth:
-                value = resolve_secret(ctx.secrets, req.auth["secret"])
+                value = resolve_secret(ctx.secrets, req.auth["secret"], action=granted_action(ctx, action),
+                                       decision=getattr(ctx, "authorization", None), destination=url)
                 if value is None:
                     op.status, op.failure_class, op.ended = ResultStatus.FAILED, FailureClass.MISSING_PERMISSION, clock.now()
                     rep = classify(FailureEvidence(exception=PermissionError(

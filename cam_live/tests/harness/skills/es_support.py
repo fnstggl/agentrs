@@ -335,3 +335,31 @@ def create_and_publish(http, ctx, url: str, title: str, body: str, generation: i
     r2 = run(a2)
     after = run(listing_probe(url, generation))
     return [(a1, r1), (a2, r2)], before_obs, after.observations
+
+
+class GrantBoundBroker:
+    """A secret broker of the shape the authorization service hands to executors: a secret is released only for
+    the granted top-level action that is executing, its decision, and a destination the secret is bound to."""
+
+    def __init__(self, values: Dict[str, str], bound_to: Dict[str, str]):
+        self.values, self.bound_to = values, bound_to
+        self.granted: Dict[str, AuthorizationDecision] = {}          # action hash -> decision
+        self.calls: List[Dict[str, Any]] = []
+
+    def grant(self, action: ActionSpec) -> AuthorizationDecision:
+        d = AuthorizationDecision(AuthVerdict.ALLOW, action.content_hash(), grant="signed")
+        self.granted[action.content_hash()] = d
+        return d
+
+    def get(self, name: str, action: Any, decision: Any, destination: str) -> str:
+        self.calls.append({"name": name, "action_id": getattr(action, "action_id", None), "destination": destination})
+        if not isinstance(action, ActionSpec) or decision is None or self.granted.get(action.content_hash()) is not decision:
+            raise PermissionError("the decision does not authorize this action")
+        if name not in self.values or not destination.startswith(self.bound_to.get(name, "\x00")):
+            raise PermissionError(f"secret {name!r} is not bound to this destination")
+        return self.values[name]
+
+    def scrub(self, text: str) -> str:
+        for v in self.values.values():
+            text = text.replace(v, "[REDACTED]")
+        return text

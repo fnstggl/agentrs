@@ -270,6 +270,7 @@ _OPS = {
     "ge": lambda a, b: a >= b, "le": lambda a, b: a <= b, "gt": lambda a, b: a > b, "lt": lambda a, b: a < b,
     "contains": lambda a, b: str(b) in str(a),
 }
+_OPS.update({"==": _OPS["eq"], "!=": _OPS["ne"], ">=": _OPS["ge"], "<=": _OPS["le"], ">": _OPS["gt"], "<": _OPS["lt"]})
 
 
 def evaluate_condition(cond: VerificationCondition, observations: Sequence[Observation],
@@ -1016,6 +1017,9 @@ class SkillExecutor:
     def _dispatch(self, step: ActionSpec, ctx: ExecContext) -> ActionResult:
         if self._dispatch_fn is not None:
             return self._dispatch_fn(step, ctx)
+        env_dispatch = getattr(ctx, "dispatch", None)      # the environment's own sub-step path, when it offers one
+        if callable(env_dispatch):
+            return env_dispatch(step)
         for e in self.executors:
             if any(t.name == step.operation for t in e.tools()):
                 errs = e.validate(step)
@@ -1116,11 +1120,24 @@ class SkillExecutor:
     # ---- running a skill -----------------------------------------------------------------------------------
     def run_skill(self, skill: Skill, args: Dict[str, Any], ctx: ExecContext, *, action: Optional[ActionSpec] = None,
                   validating: bool = False) -> ActionResult:
-        clock, started, t_wall = ctx.clock, ctx.clock.now(), _time.perf_counter()
+        """Execute a skill. The steps run under the grant of ``action`` (the ``skill.run`` / ``skill.induce``
+        action being executed); each one is still checked individually."""
         action = action or ActionSpec(action_id=new_id("act"), operation="skill.run", modality=Modality.SKILL,
                                       level=Level.PROCEDURE, target=skill.skill_id,
                                       arguments={"skill_id": skill.skill_id, "arguments": args},
                                       auth_scope=" ".join(skill.required_scopes), provenance="skill_library")
+        had = getattr(ctx, "granted_action", None)
+        if had is None:
+            ctx.granted_action = action       # executors of the steps ask the secret broker in this action's name
+        try:
+            return self._run_skill(skill, args, ctx, action, validating)
+        finally:
+            if had is None:
+                ctx.granted_action = None
+
+    def _run_skill(self, skill: Skill, args: Dict[str, Any], ctx: ExecContext, action: ActionSpec,
+                   validating: bool) -> ActionResult:
+        clock, started, t_wall = ctx.clock, ctx.clock.now(), _time.perf_counter()
         ops: List[PrimitiveOp] = []
         observations: List[Observation] = []
         step_log: List[Dict[str, Any]] = []
@@ -1297,7 +1314,7 @@ class SkillExecutor:
 
     # ---- validation, registration, repair ------------------------------------------------------------------
     def validate_candidate(self, skill: Skill, ctx: ExecContext, arg_sets: Optional[Sequence[Dict[str, Any]]] = None,
-                           *, environment: str = "staging") -> Dict[str, Any]:
+                           *, environment: str = "staging", action: Optional[ActionSpec] = None) -> Dict[str, Any]:
         """Execute a candidate with fresh arguments through the normal path. Returns the validation report; the
         candidate becomes ``validated`` only if every run succeeded with its postconditions holding."""
         seen = set(skill.provenance.get("source_args_sha256", []))
@@ -1313,7 +1330,7 @@ class SkillExecutor:
                 runs.append({"ts": ctx.clock.now(), "ok": False, "fresh": False, "version": skill.version,
                              "args_sha256": _args_sha(a), "termination": "not_fresh", "failure_class": FailureClass.NONE})
                 continue
-            res = self.run_skill(skill, a, ctx, validating=True)
+            res = self.run_skill(skill, a, ctx, validating=True, action=action)
             confirmed = res.verified is True or not nontrivial
             runs.append({"ts": ctx.clock.now(), "ok": res.status == ResultStatus.OK and confirmed,
                          "fresh": True, "version": skill.version, "args_sha256": _args_sha(a),
@@ -1334,13 +1351,14 @@ class SkillExecutor:
     def induce_validate_register(self, traces: Sequence[Trace], ctx: ExecContext, *,
                                  validation_arguments: Optional[Sequence[Dict[str, Any]]] = None, name: str = "",
                                  description: str = "", probe: Optional[ActionSpec] = None,
-                                 environment: str = "staging") -> Tuple[Optional[Skill], Dict[str, Any]]:
+                                 environment: str = "staging",
+                                 action: Optional[ActionSpec] = None) -> Tuple[Optional[Skill], Dict[str, Any]]:
         """Induce -> validate by execution -> register. Returns (skill or None, report)."""
         try:
             skill = self.inducer.induce(traces, name=name, description=description, probe=probe)
         except SkillInductionError as e:
             return None, {"passed": False, "reason": f"induction failed: {e}", "runs": []}
-        report = self.validate_candidate(skill, ctx, validation_arguments, environment=environment)
+        report = self.validate_candidate(skill, ctx, validation_arguments, environment=environment, action=action)
         if not report["passed"]:
             self.library.log_rejected(skill, report)
             return None, report
@@ -1349,7 +1367,7 @@ class SkillExecutor:
 
     def repair(self, skill_id: str, traces: Sequence[Trace], ctx: ExecContext, *,
                validation_arguments: Optional[Sequence[Dict[str, Any]]] = None, probe: Optional[ActionSpec] = None,
-               environment: str = "staging") -> Tuple[Optional[Skill], Dict[str, Any]]:
+               environment: str = "staging", action: Optional[ActionSpec] = None) -> Tuple[Optional[Skill], Dict[str, Any]]:
         """Replace a stale skill by a new version induced from new successful traces. A failed repair is counted;
         after ``max_repairs`` failures the skill is retired."""
         old = self.library.get(skill_id)
@@ -1364,7 +1382,7 @@ class SkillExecutor:
         new.version, new.parent_version, new.created_at = old.version + 1, old.version, old.created_at
         new.provenance["repaired_from_version"] = old.version
         new.provenance["repair_reason"] = old.status_reason
-        report = self.validate_candidate(new, ctx, validation_arguments, environment=environment)
+        report = self.validate_candidate(new, ctx, validation_arguments, environment=environment, action=action)
         if not report["passed"]:
             self.library.log_rejected(new, report)
             self.library.note_repair_failed(skill_id, report["reason"])
@@ -1393,7 +1411,7 @@ class SkillExecutor:
                 return failed_result(action, rep, clock, started)
             probe = ActionSpec(action_id="probe", operation=tool.name, modality=tool.modality,
                                arguments=dict(a["probe"].get("arguments") or {}), auth_scope=tool.auth_scope)
-        kw = dict(validation_arguments=a.get("validation_arguments"), probe=probe)
+        kw = dict(validation_arguments=a.get("validation_arguments"), probe=probe, action=action)
         if a.get("repair_skill_id"):
             skill, report = self.repair(a["repair_skill_id"], traces, ctx, **kw)
         else:

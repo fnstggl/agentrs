@@ -23,7 +23,7 @@ PAGE = "<!doctype html>\n<title>Notes</title>\n<h1>Tide tables</h1>\n<p>High wat
 
 def pact(name, args):
     scope = {"draft": "publish.draft", "preview": "publish.draft", "update": "publish.draft", "submit": "publish.write",
-             "status": "publish.read", "analytics": "publish.read"}[name]
+             "status": "publish.read", "get_analytics": "publish.read"}[name]
     return act(f"publish.{name}", args, scope=scope)
 
 
@@ -50,7 +50,7 @@ def test_draft_preview_submit_publishes_exactly_what_was_written(site):
     pub, root, _ = site
     assert isinstance(pub, ModalityExecutor) and pub.modality == Modality.API
     assert {t.name for t in pub.tools()} == {"publish.draft", "publish.preview", "publish.submit", "publish.update",
-                                              "publish.status", "publish.analytics"}
+                                              "publish.status", "publish.get_analytics"}
     pol = ScopedPolicy(scopes=SCOPES)
     ctx = make_ctx(pol)
     d = pub.execute(pact("draft", {"destination": "site", "path": "guides/tides.html", "content": PAGE}), ctx)
@@ -60,19 +60,25 @@ def test_draft_preview_submit_publishes_exactly_what_was_written(site):
     # submitting before previewing is refused
     early = pub.execute(pact("submit", {"draft_id": draft_id}), ctx)
     assert early.failure_class == FailureClass.INVALID_ARGUMENTS and "previewed" in early.failure_detail
+    # a submit that names another destination than the draft's is refused before anything is checked or written
+    pub.execute(pact("preview", {"draft_id": draft_id}), ctx)
+    wrong = pub.execute(pact("submit", {"draft_id": draft_id, "destination": "https://elsewhere.example/x.html"}), ctx)
+    assert wrong.failure_class == FailureClass.INVALID_ARGUMENTS and pol.checks == [] and not (root / "guides").exists()
     # the preview is the exact rendering and the exact place
     p = pub.execute(pact("preview", {"draft_id": draft_id}), ctx).observations[0]
     assert p.data["content"] == PAGE and p.data["content_complete"] and p.data["bytes"] == len(PAGE.encode())
     assert p.data["where"] == {"kind": "static_site", "destination": "site", "location": str(root / "guides" / "tides.html"),
-                               "url": "https://owned.example/guides/tides.html", "replaces_sha256": None}
+                               "url": "https://owned.example/guides/tides.html",
+                               "address": "https://owned.example/guides/tides.html", "replaces_sha256": None}
     assert p.provenance.content_sha256 == hashlib.sha256(PAGE.encode()).hexdigest() and PAGE in p.text
     assert not (root / "guides").exists()
-    s = pub.execute(pact("submit", {"draft_id": draft_id}), ctx)
+    s = pub.execute(pact("submit", {"draft_id": draft_id, "destination": p.data["where"]["address"]}), ctx)
     assert s.status == ResultStatus.OK and s.verified is True
     # exactly the agent's bytes: no template, header, footer or tracking was added
     assert (root / "guides" / "tides.html").read_bytes() == PAGE.encode()
     op = pol.checks[-1]
-    assert op.op == "publish.write" and op.arguments["content"] == PAGE and op.arguments["url"] == "https://owned.example/guides/tides.html"
+    assert op.op == "publish.write" and op.arguments["content"] == PAGE
+    assert op.arguments["destination"] == op.arguments["url"] == "https://owned.example/guides/tides.html"
     assert op.arguments["content_sha256"] == hashlib.sha256(PAGE.encode()).hexdigest() and len(pol.checks) == 1
     st = pub.execute(pact("status", {"draft_id": draft_id}), ctx).observations[0]
     row = st.data["drafts"][0]
@@ -194,6 +200,7 @@ def test_publishing_to_an_owned_channel_goes_through_the_discord_adapter(tmp_pat
         p = pub.execute(pact("preview", {"draft_id": d}), ctx).observations[0]
         assert p.data["content"] == text and p.data["where"]["channel_id"] == st.general_id
         assert p.data["where"]["location"] == f"discord channel {st.general_id}" and st.request_log == []
+        assert p.data["where"]["address"] == f"channel:discord:{st.general_id}"
         res = pub.execute(pact("submit", {"draft_id": d}), ctx)
         assert res.status == ResultStatus.NEEDS_APPROVAL and st.messages[st.general_id] == []
         assert pol.approvals()[0]["op"]["arguments"]["content"] == text
@@ -271,8 +278,8 @@ def test_analytics_from_the_access_log_of_the_owned_site(site):
     finally:
         http.close()
         server.close()
-    res = pub.execute(pact("analytics", {"destination": "site"}), ctx)
-    assert res.status == ResultStatus.OK and pol.checks[-1].op == "publish.analytics"
+    res = pub.execute(pact("get_analytics", {"destination": "site"}), ctx)
+    assert res.status == ResultStatus.OK and pol.checks[-1].op == "publish.get_analytics"
     obs = res.observations[0]
     q = {x.name: x for x in obs.quantities}
     assert q["site.site.requests"].value == 12.0 and q["site.site.page_views"].value == 8.0
@@ -286,9 +293,9 @@ def test_analytics_from_the_access_log_of_the_owned_site(site):
     assert obs.provenance.retrieved_at > 0 and "127.0.0.1" not in json.dumps(obs.to_dict())
     # denied by policy -> nothing is read; no log -> a classified failure
     strict = ScopedPolicy(scopes=("publish.draft",))
-    assert pub.execute(pact("analytics", {"destination": "site"}), make_ctx(strict)).status == ResultStatus.DENIED
+    assert pub.execute(pact("get_analytics", {"destination": "site"}), make_ctx(strict)).status == ResultStatus.DENIED
     os.remove(tmp / "access.log")
-    assert pub.execute(pact("analytics", {"destination": "site"}), ctx).failure_class == FailureClass.WRONG_SITE_ASSUMPTION
+    assert pub.execute(pact("get_analytics", {"destination": "site"}), ctx).failure_class == FailureClass.WRONG_SITE_ASSUMPTION
 
 
 def test_access_log_aggregation_rules():

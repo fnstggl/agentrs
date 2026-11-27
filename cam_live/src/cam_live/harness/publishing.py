@@ -14,7 +14,7 @@ server (through :class:`cam_live.harness.discord.DiscordExecutor`).
                        submitting a waiting draft again publishes it once the operator has approved it
     publish.update  -> a new revision of a draft or of something already published (needs preview and submit again)
     publish.status  -> state of the drafts, and whether what is live still equals what was published
-    publish.analytics -> aggregate visit counts of an owned site from its access log, as exact quantities
+    publish.get_analytics -> aggregate visit counts of an owned site from its access log, as exact quantities
 
 The adapter adds nothing to the content: no template, no schedule, no wording. It gives no signal about whether
 publishing was useful; it reports what happened.
@@ -65,13 +65,16 @@ _SCHEMAS: Dict[str, Dict[str, Any]] = {
     "publish.preview": {"type": "object", "additionalProperties": False, "required": ["draft_id"],
                         "properties": {"draft_id": {"type": "string", "minLength": 1}}},
     "publish.submit": {"type": "object", "additionalProperties": False, "required": ["draft_id"],
-                       "properties": {"draft_id": {"type": "string", "minLength": 1}}},
+                       "properties": {"draft_id": {"type": "string", "minLength": 1},
+                                      "destination": {"type": "string", "minLength": 1,
+                                                      "description": "the destination address shown by the preview "
+                                                                     "(where.address); if given it must be the draft's"}}},
     "publish.update": {"type": "object", "additionalProperties": False, "required": ["draft_id", "content"],
                        "properties": {"draft_id": {"type": "string", "minLength": 1},
                                       "content": {"type": "string", "minLength": 1}}},
     "publish.status": {"type": "object", "additionalProperties": False,
                        "properties": {"draft_id": {"type": "string", "minLength": 1}}},
-    "publish.analytics": {"type": "object", "additionalProperties": False, "required": ["destination"],
+    "publish.get_analytics": {"type": "object", "additionalProperties": False, "required": ["destination"],
                           "properties": {"destination": {"type": "string", "minLength": 1},
                                          "since_s": {"type": "number", "minimum": 0,
                                                      "description": "only requests at most this many seconds old"}}},
@@ -86,7 +89,7 @@ _TOOLS = {
                        "with a new revision, which must be previewed and submitted again."),
     "publish.status": ("none", "publish.read", "Report the state of drafts: draft, previewed, waiting for approval, "
                        "published or rejected, and whether the live content still equals what was published."),
-    "publish.analytics": ("external_read", "publish.read", "Read aggregate visit counts of an owned static site from "
+    "publish.get_analytics": ("external_read", "publish.read", "Read aggregate visit counts of an owned static site from "
                           "its access log: requests, page views, distinct visitors and views per page."),
 }
 
@@ -168,7 +171,7 @@ class PublishingExecutor:
         errs = schema_errors(schema, a)
         if errs:
             return errs
-        if "destination" in a:
+        if "destination" in a and action.operation in ("publish.draft", "publish.get_analytics"):
             dest = self.destinations.get(a["destination"])
             if dest is None:
                 return [f"arguments.destination: {a['destination']!r} is not an owned destination "
@@ -183,7 +186,7 @@ class PublishingExecutor:
                         errs.append(f"arguments.path: {e}")
                 elif len(a["content"]) > 2000:
                     errs.append("arguments.content: a channel message holds at most 2000 characters")
-            if action.operation == "publish.analytics" and (dest.kind != STATIC_SITE or not dest.access_log):
+            if action.operation == "publish.get_analytics" and (dest.kind != STATIC_SITE or not dest.access_log):
                 errs.append("arguments.destination: no access log is configured for this destination")
         if "draft_id" in a and a["draft_id"] not in self._drafts:
             errs.append(f"arguments.draft_id: no draft {a['draft_id']!r}")
@@ -201,7 +204,10 @@ class PublishingExecutor:
         errs = self.validate(action)
         if errs:
             return failed_result(action, classify(FailureEvidence(arg_errors=errs, modality=Modality.API)), clock, started)
-        return getattr(self, "_" + action.operation.split(".", 1)[1])(action, ctx, started)
+        handler = {"publish.draft": self._draft, "publish.preview": self._preview, "publish.submit": self._submit,
+                   "publish.update": self._update, "publish.status": self._status,
+                   "publish.get_analytics": self._analytics}[action.operation]
+        return handler(action, ctx, started)
 
     # ---- helpers -------------------------------------------------------------------------------------------
     def _ok(self, action: ActionSpec, ctx: ExecContext, started: float, text: str, data: Dict[str, Any],
@@ -226,10 +232,12 @@ class PublishingExecutor:
             if os.path.isfile(full):
                 with open(full, "rb") as f:
                     existing = hashlib.sha256(f.read()).hexdigest()
-            return {"kind": STATIC_SITE, "destination": dest.name, "location": full, "url": url, "replaces_sha256": existing}
+            return {"kind": STATIC_SITE, "destination": dest.name, "location": full, "url": url,
+                    "address": url or f"file:{full}", "replaces_sha256": existing}
         pub = d.get("published") or {}
         return {"kind": DISCORD_CHANNEL, "destination": dest.name, "location": f"discord channel {dest.channel_id}",
-                "channel_id": dest.channel_id, "replaces_message_id": pub.get("message_id")}
+                "address": f"channel:discord:{dest.channel_id}", "channel_id": dest.channel_id,
+                "replaces_message_id": pub.get("message_id")}
 
     def _public(self, d: Dict[str, Any]) -> Dict[str, Any]:
         return {k: d.get(k) for k in ("draft_id", "destination", "path", "revision", "state", "content_sha256",
@@ -310,6 +318,11 @@ class PublishingExecutor:
                                                        f"previewed; publish.preview shows what would be published"]))
             return failed_result(action, rep, clock, started)
         dest, where = self.destinations[d["destination"]], self._where(d)
+        stated = action.arguments.get("destination")
+        if stated is not None and stated not in (where["address"], dest.name):
+            rep = classify(FailureEvidence(arg_errors=[f"arguments.destination: draft {d['draft_id']} goes to "
+                                                       f"{where['address']!r}, not {stated!r}"]))
+            return failed_result(action, rep, clock, started)
 
         def refused(res: ActionResult) -> ActionResult:
             now = clock.now()
@@ -340,6 +353,7 @@ class PublishingExecutor:
                              target=dest.channel_id, auth_scope="discord.write", timeout_s=action.timeout_s,
                              parent_decision_id=action.parent_decision_id, experiment_id=action.experiment_id,
                              arguments=dict({"channel_id": dest.channel_id, "content": d["content"]},
+                                            **({"guild_id": self.discord.guild_id} if getattr(self.discord, "guild_id", "") else {}),
                                             **({"message_id": prior} if prior else {})))
             res = self.discord.execute(sub, ctx)          # the Discord primitive is what the policy judges
             res.action_id = action.action_id
@@ -354,7 +368,8 @@ class PublishingExecutor:
             ops, uri = res.ops, f"discord:{dest.channel_id}/{msg['id']}"
         else:
             op = PrimitiveOp(op="publish.write", modality=Modality.API, started=clock.now(),
-                             arguments={"destination": dest.name, "kind": dest.kind, "location": where["location"],
+                             arguments={"destination": where["address"], "destination_name": dest.name,
+                                        "kind": dest.kind, "location": where["location"],
                                         "url": where.get("url", ""), "content_sha256": d["content_sha256"],
                                         "bytes": len(d["content"].encode("utf-8")), "content": d["content"][:65536],
                                         "draft_id": d["draft_id"], "revision": d["revision"]})
@@ -391,8 +406,8 @@ class PublishingExecutor:
     def _analytics(self, action: ActionSpec, ctx: ExecContext, started: float) -> ActionResult:
         clock, a = ctx.clock, action.arguments
         dest = self.destinations[a["destination"]]
-        op = PrimitiveOp(op="publish.analytics", modality=Modality.API, started=clock.now(),
-                         arguments={"destination": dest.name, "access_log": dest.access_log, "aggregate_only": True})
+        op = PrimitiveOp(op="publish.get_analytics", modality=Modality.API, started=clock.now(),
+                         arguments={"destination_name": dest.name, "path": dest.access_log, "aggregate_only": True})
         res0 = authorization_result(action, ctx.check(op, action), clock, started, ops=[op])
         if res0 is not None:
             return res0

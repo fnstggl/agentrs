@@ -20,6 +20,7 @@ SCOPES = ("discord.read", "discord.write")
 @pytest.fixture
 def staging():
     server = StagingDiscordServer(StagingDiscord(rate_limit=(1000, 1.0)))
+    GUILD["id"] = server.state.guild_id
     yield server
     server.close()
 
@@ -34,9 +35,16 @@ def executor_for(staging, **kw):
     return DiscordExecutor(staging.base_url, **kw)
 
 
-def dact(name, args=None):
-    return act(f"discord.{name}", args or {}, scope="discord.read" if name in (
-        "guild_stats", "list_channels", "channel_activity", "list_invites", "list_events") else "discord.write")
+GUILD = {"id": ""}
+
+
+def dact(name, args=None, guild=None):
+    """A Discord tool action. Every action names the server it acts on (the schema fixes it to the authorized one)."""
+    args = dict(args or {})
+    if (guild or GUILD["id"]):
+        args.setdefault("guild_id", guild or GUILD["id"])
+    return act(f"discord.{name}", args, scope="discord.read" if name in (
+        "get_guild_stats", "list_channels", "get_channel_activity", "list_invites", "list_events") else "discord.write")
 
 
 # ---- the client ---------------------------------------------------------------------------------------------------
@@ -191,11 +199,11 @@ def test_executor_tools_describe_capabilities_only(staging):
     ex = executor_for(staging)
     assert isinstance(ex, ModalityExecutor) and ex.modality == Modality.API
     tools = {t.name: t for t in ex.tools()}
-    assert set(tools) == {"discord.guild_stats", "discord.list_channels", "discord.create_channel", "discord.send_message",
-                          "discord.edit_message", "discord.channel_activity", "discord.list_invites",
+    assert set(tools) == {"discord.get_guild_stats", "discord.list_channels", "discord.create_channel", "discord.send_message",
+                          "discord.edit_message", "discord.get_channel_activity", "discord.list_invites",
                           "discord.create_invite", "discord.list_events", "discord.create_event"}
     assert all(t.available and not t.unavailable_reason for t in tools.values())
-    assert tools["discord.send_message"].side_effects == "external_write" and tools["discord.guild_stats"].side_effects == "external_read"
+    assert tools["discord.send_message"].side_effects == "external_write" and tools["discord.get_guild_stats"].side_effects == "external_read"
     # descriptions say what a tool does; there is no advice on when or why, and no direct-message or user-account tool
     text = " ".join(t.description.lower() for t in tools.values())
     for word in ("should", "grow", "attract", "engage", "promot", "best", "strategy", "schedule a post", "tip", "recommend"):
@@ -214,7 +222,7 @@ def test_stats_messages_invites_through_the_executor(staging):
     st.add_test_account("t")
     ex, pol = executor_for(staging, test_account_ids=st.test_account_ids), ScopedPolicy(scopes=SCOPES)
     ctx = make_ctx(pol)
-    res = ex.execute(dact("guild_stats"), ctx)
+    res = ex.execute(dact("get_guild_stats"), ctx)
     assert res.status == ResultStatus.OK
     obs = res.observations[0]
     q = {x.name: x.value for x in obs.quantities}
@@ -223,7 +231,7 @@ def test_stats_messages_invites_through_the_executor(staging):
     # every observation says it is a staging result
     assert obs.provenance.source == "discord:staging" and obs.data["staging"] is True and obs.text.startswith("[staging]")
     assert obs.provenance.trust == "untrusted"
-    assert pol.checks[0].op == "discord.guild_stats" and pol.checks[0].arguments["environment"] == "staging"
+    assert pol.checks[0].op == "discord.get_guild_stats" and pol.checks[0].arguments["environment"] == "staging"
     made = ex.execute(dact("create_channel", {"name": "notes", "type": "text"}), ctx)
     cid = made.artifacts["channel_id"]
     sent = ex.execute(dact("send_message", {"channel_id": cid, "content": "written by the agent"}), ctx)
@@ -255,7 +263,7 @@ def test_message_content_is_dropped_by_default(staging):
     st.post_member_message(st.general_id, bob, "bob's sentence")
     pol = ScopedPolicy(scopes=SCOPES)
     ex = executor_for(staging)
-    res = ex.execute(dact("channel_activity", {"channel_id": st.general_id}), make_ctx(pol))
+    res = ex.execute(dact("get_channel_activity", {"channel_id": st.general_id}), make_ctx(pol))
     assert res.status == ResultStatus.OK
     q = {x.name: x.value for x in res.observations[0].quantities}
     assert q["discord.channel.messages"] == 3.0 and q["discord.channel.human_messages"] == 3.0
@@ -272,14 +280,14 @@ def test_message_content_is_dropped_by_default(staging):
     task = TaskSpec(objective_id="o", objective="x", resources={"discord": {"guild_id": st.guild_id}},
                     data_permissions={CONTENT_PERMISSION: True})
     allowed = DiscordExecutor.from_task(task, base_url=staging.base_url, secrets={"discord_bot_token": st.token})
-    res = allowed.execute(dact("channel_activity", {"channel_id": st.general_id}), make_ctx(pol))
+    res = allowed.execute(dact("get_channel_activity", {"channel_id": st.general_id}), make_ctx(pol))
     assert "pineapples" in res.observations[0].text and res.observations[0].data["activity"]["content_included"] is True
     assert "alice" not in json.dumps(res.to_dict()) and alice not in json.dumps(res.to_dict())
     denied = DiscordExecutor.from_task(TaskSpec(objective_id="o", objective="x",
                                                 resources={"discord": {"guild_id": st.guild_id}},
                                                 data_permissions={CONTENT_PERMISSION: False}),
                                        base_url=staging.base_url, secrets={"discord_bot_token": st.token})
-    assert "pineapples" not in json.dumps(denied.execute(dact("channel_activity", {"channel_id": st.general_id}),
+    assert "pineapples" not in json.dumps(denied.execute(dact("get_channel_activity", {"channel_id": st.general_id}),
                                                          make_ctx(pol)).to_dict())
     for x in (ex, allowed, denied):
         x.close()
@@ -289,8 +297,8 @@ def test_direct_messages_and_other_servers_are_never_touched(staging):
     st = staging.state
     dm = st.add_dm_channel()
     ex, pol = executor_for(staging), ScopedPolicy(scopes=SCOPES)
-    for name, args in (("channel_activity", {"channel_id": dm}), ("send_message", {"channel_id": dm, "content": "hello"}),
-                       ("create_invite", {"channel_id": dm}), ("channel_activity", {"channel_id": "999999999999"})):
+    for name, args in (("get_channel_activity", {"channel_id": dm}), ("send_message", {"channel_id": dm, "content": "hello"}),
+                       ("create_invite", {"channel_id": dm}), ("get_channel_activity", {"channel_id": "999999999999"})):
         res = ex.execute(dact(name, args), make_ctx(pol))
         assert res.status == ResultStatus.DENIED and res.failure_class == FailureClass.MISSING_PERMISSION
         assert "not a channel of the authorized server" in res.failure_detail and res.retries == 0
@@ -317,7 +325,7 @@ def test_tools_are_unavailable_without_credentials_and_nothing_is_sent(staging, 
     for label, (ex, reason) in cases.items():
         tools = ex.tools()
         assert len(tools) == 10 and all(not t.available and t.unavailable_reason == reason for t in tools), label
-        for name, args in (("guild_stats", {}), ("send_message", {"channel_id": st.general_id, "content": "x"})):
+        for name, args in (("get_guild_stats", {}), ("send_message", {"channel_id": st.general_id, "content": "x"})):
             res = ex.execute(dact(name, args), make_ctx(pol))
             assert res.status == ResultStatus.DENIED and res.failure_class == FailureClass.MISSING_PERMISSION, label
             assert res.failure_detail == reason and res.retries == 0 and res.ops == []
@@ -357,7 +365,7 @@ def test_denials_platform_rules_and_missing_permissions_are_hard_failures(stagin
     assert res.failure_class == FailureClass.PLATFORM_RESTRICTION and res.retries == 0 and "30013" in res.failure_detail
     # without the members intent, statistics degrade to the approximate counts and say so
     st.members_intent = False
-    res = ex.execute(dact("guild_stats"), make_ctx(pol))
+    res = ex.execute(dact("get_guild_stats"), make_ctx(pol))
     assert res.status == ResultStatus.OK and res.observations[0].data["members_listed"] is False
     assert "discord.members.humans" not in {x.name for x in res.observations[0].quantities}
     ex.close()
@@ -374,7 +382,7 @@ def test_rate_limited_and_unreachable_service_through_the_executor(staging):
     ex.close()
     down = DiscordExecutor("http://127.0.0.1:9/api/v10", guild_id=st.guild_id, secrets={"discord_bot_token": "t"},
                            sleep=lambda s: None)
-    res = down.execute(dact("guild_stats"), make_ctx(pol))
+    res = down.execute(dact("get_guild_stats"), make_ctx(pol))
     assert res.failure_class == FailureClass.TRANSIENT_NETWORK and res.retries == 3
     # a write that is not idempotent is not repeated after an uncertain failure
     res = down.execute(dact("create_channel", {"name": "x"}), make_ctx(pol))
