@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 [ "$(git rev-parse --abbrev-ref HEAD)" = "feat/cam-live" ] || { echo "not on feat/cam-live"; exit 2; }
-HELPER=${CAM_LIVE_CRED_HELPER:-/root/.config/agentrs/cred_helper.sh}
+HELPER=${CAM_LIVE_CRED_HELPER:-/root/.config/camlive/gh_cred_helper.sh}
 SHA=$(git rev-parse HEAD)
 BASE=$(git ls-remote --heads origin feat/cam-live | cut -f1)
 BASE=${BASE:-3968583}
@@ -12,7 +12,7 @@ git cat-file -e "$BASE" 2>/dev/null || BASE=3968583
 PAT='ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|gho_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY|xox[baprs]-[A-Za-z0-9-]{10,}|[MN][A-Za-z0-9_-]{23,25}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,}|hf_[A-Za-z0-9]{30,}'
 # 1) exact check against the real secrets held on this machine (never printed): any occurrence aborts the push
 REAL=$(mktemp); trap 'rm -f "$REAL"' EXIT
-for f in /root/.config/camlive/discord_bot_token /root/.config/agentrs/gh_token; do
+for f in /root/.config/camlive/discord_bot_token /root/.config/camlive/gh_token /root/.config/agentrs/gh_token; do
   [ -r "$f" ] && tr -d '\n' < "$f" >> "$REAL" && echo >> "$REAL"
 done
 [ -r /root/.config/camlive/discord_account.json ] && python3 -c "import json;print(json.load(open('/root/.config/camlive/discord_account.json'))['password'])" >> "$REAL"
