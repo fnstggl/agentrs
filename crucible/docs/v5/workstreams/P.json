@@ -158,7 +158,7 @@
     "tests/v5/test_gate_X.py"
    ],
    "status_claim": "implemented; fails honestly until integration completes",
-   "notes": "Needs crucible.civ.generate (workstream CIV); until then every world workstream measures as disconnected."
+   "notes": "Needs crucible.civ.generate (workstream CIV); until then every world workstream measures as disconnected. Local run at 7716c425: disconnected H, J, K (see integration notes); X.9 passes; X.1/X.5/X.6/X.7/X.n1 fail honestly."
   },
   "X.9": {
    "implementation_files": [
@@ -421,7 +421,9 @@
   "Gate tests and the D-83 third addendum: the review's ablation now judges by what was blocked and when. A producing test must run into its implementation before it records; a record made after a blocked implementation call in the same process (finally/with/except) is rejected, as is a record made before anything was blocked; tests that measure through child processes are judged by the blocks in those children (every criteria metric must change). Records now also list code-object patches of src/ functions (patched_functions), at about 0.4 s per 60 imported modules on first record.",
   "Owners of tests that measure inside official clones: a clone's own refs are not the repository's (branches only as origin/*, origin = the source repository). Use crucible.acceptance.v5.qa.ref_repository(root) for any measurement of branches, remotes or reflogs (X.n1 and RP.3-RP.6 do).",
   "Gate test authors (D-83 fourth addendum): official records now carry executed_implementation (functions of the requirement's implementation files that returned in the recording process during the test). A test that measures only through child processes is accepted only through blocks in those children; a test whose record shows no implementation function executed in-process and whose ablated children are not blocked cannot pass the review.",
-  "Workstream O (sandbox/boot.py): the D-82 second addendum adds _v4_fixed_filenames (4.0 historical baseline only: boot's own code filenames become the working directory) and a traceback-free failed load in that mode; keep both when editing boot.py, or Gate A.1/A.5 counts depend on the checkout's directory permissions again."
+  "Workstream O (sandbox/boot.py): the D-82 second addendum adds _v4_fixed_filenames (4.0 historical baseline only: boot's own code filenames become the working directory) and a traceback-free failed load in that mode; keep both when editing boot.py, or Gate A.1/A.5 counts depend on the checkout's directory permissions again.",
+  "Workstream D (DEF-P-25, measured root cause): crucible.semantic.space computes SPACE_VERSION at import (_version() -> lm.identity() -> lm.device() -> torch.cuda.is_available()), which initialises the CUDA driver and starts its native thread ('cuda0000...') in every process that imports crucible with a GPU visible. Gate A.1's slot run (GPU visible) failed exactly the two single-threaded-worker tests of tests/test_scale.py because of it. torch.cuda.device_count() (NVML-based in torch 2.14) answers without starting the thread (measured): use it in lm.device(), or resolve the identity lazily, keeping identity() and service() on the same answer.",
+  "Gate X.8 at this branch (local, 3-day development civ): disconnected H (rapid: imported, no function executed), K (multiagent: imported, no function executed) and J (civ: 62 functions executed while generating, but its world modules crucible.civ.couplings/genesis/goods emit no event in 3 days). Owners H, K and J: connect the package to crucible.civ.generate's worlds (X.8 needs 0 disconnected)."
  ],
  "wave": "3b repair pass (fifth agent on the branch: second repair agent, after the fourth agent's usage-limit stop)",
  "history": [
@@ -504,7 +506,8 @@
   "P gate tests (local, unofficial)": "A.2 pass, A.4 pass, SP-19.7 pass, SP-21b pass, X.9 pass, OO.13 pass, RP.2/RP.5/RP.6 pass, SP-1.3/SP-1.5/SP-1.5b/SP-20b pass; failing honestly: RP.1 (6 L-owned CAM imports), RP.3, RP.4, SP-1.3b (130 entries without implementation files, 354 without a verified commit), SP-18, SP-20, X.1 (342 unverified), X.5 (5 component docs missing), X.6 (96 open critical/high), X.7 (17 flagged tests, 68 ids unrecorded), X.n1 (17 unmerged branches), OO.15 (0/8 reviewed); SP-21 runs every probe (~30 min): queued as a slot job",
   "Gate A.1 fast feedback (CPU, < 290 s groups, predecessor code)": "1,063 of 1,076 ran, 1,057 passed, 4 failed (3 fixed since and re-checked on the 4.0 bytes), 2 skipped (GPU)",
   "Gate A.5 fast feedback (per record, fresh clone each)": "16 of 17 attempted records reproduce (A-M and P exactly, O v4-self-irreproducible with v5 == c07098b); N did not finish in 295 s; demo_lifetime (4 days) event-for-event equal to c07098b except one recorded API-catalogue hash",
-  "Gate A.1 slot run at 74e9bc38 (GPU, one process, unofficial)": "1,076 ran, 1,074 passed, 2 failed (tests/test_scale.py: workers recycled; keyboard interrupt 600 s timeout - DEF-P-25), 0 skipped"
+  "Gate A.1 slot run at 74e9bc38 (GPU, one process, unofficial)": "1,076 ran, 1,074 passed, 2 failed (tests/test_scale.py: workers recycled; keyboard interrupt 600 s timeout - DEF-P-25), 0 skipped",
+  "Gate X local (X.1, X.5-X.9, X.n1) at 7716c425": "1 passed (X.9), 6 failed honestly: X.1 (nothing verified yet), X.5, X.6, X.7 (17 flagged tests), X.8 (H, J, K disconnected), X.n1 (17 of 59 branches unmerged)"
  },
  "slot_jobs": [
   "finished: P: Gate A.1 4.0 baseline as historical baseline (D-82) - rc 1, 1,074/1,076 passed (see A.1 notes)",
