@@ -55,7 +55,7 @@ from . import isolation
 MAX_REPLY = 16 * 2**20           # a control reply larger than this is a protocol violation
 MAX_CKPT_FILE = 256 * 2**20      # largest arch.json / params.npz the host copies out of the jail
 NPROC = 512                      # tasks (threads) a learner process's own uid may hold
-DISK_POLL_S = 0.25               # how often the host measures the learner's private directory
+DISK_POLL_S = 0.05               # how often the host measures the learner's private directory (was 0.25 s: 3x a 32 MiB quota written before a poll)
 
 _BOOT = r"""
 import json, os, sys
