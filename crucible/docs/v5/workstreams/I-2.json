@@ -32,7 +32,7 @@
     "tests/test_v5_domains_infrastructure.py"
    ],
    "status_claim": "implemented and verified (unofficial) at a061a47: tests/v5/test_gate_SP_9_7.py passed (167 s): 9/9 mechanics; reference single_site_tou seeds 0, 1 succeed (cost reduction 0.136 at attainment 0.9995); controls: no repair crew -> repair backlog 44 vs 8 (evaluator rejects), no headroom -> attainment 0.694. base.check: implemented True.",
-   "notes": "fleet repaired (DEF-I-4): cost structure, replay-only experiments, population end users (activity apps), seats as operator engineers; evaluator against a deterministic shadow world (same spec, nobody acts)."
+   "notes": "fleet repaired (DEF-I-4): cost structure, replay-only experiments, population end users (activity apps), seats as operator engineers; evaluator against a deterministic shadow world (same spec, nobody acts). Delayed effects beyond the 35-day window (audit I, skeptic S.7a), measured on the reference run single_site_tou seed 0 at the end of the window (evaluator-side hidden wear; probe, not a gate metric): mean wear of machines in service 0.60 vs 0.42 in the idle shadow (power cycling wears machines), but the high-wear machines are the ones it keeps off: the expected failure rate of the running fleet at unit load is 0.66/day vs 1.48/day in the shadow (106 vs 281 machines on, their mean wear 0.46 vs 0.42), so the saving is not borrowed from the next weeks' failures; no run beyond the window was made. The evaluator's health criterion (repair backlog at most the shadow's + 2) rejects the staffing shortcut inside the window."
   },
   "SP-9.8": {
    "implementation_files": [
