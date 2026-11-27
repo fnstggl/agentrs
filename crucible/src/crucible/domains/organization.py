@@ -1057,6 +1057,24 @@ class CouncilConvener(K.ReadingReference):
             (0 if any(p["status"] in ("building", "done") for p in tl["projects"]) else 1)
         if self.pledges and short > 0 and "levy" not in open_kinds and t >= self.proposed.get("levy", 0):
             cents = self._levy_price(members, hours, short)
+            # price discovery on the public record of the council's decisions: a levy that passed shows the members
+            # would pay at least that much, so ask twice as much next time; stay under the last rejected price of
+            # the last three days (what members accept grows with their congestion)
+            levies = [(int(d.get("closes") or 0), int(((d.get("action") or {}).get("args") or {})
+                                                       .get("cents_per_customer") or 0), d["status"])
+                      for d in decs if (d.get("action") or {}).get("tool") == "orgs.levy"]
+            ok = [c for _, c, st_ in levies if st_ == "executed"]
+            bad = [c for closes, c, st_ in levies if st_ == "rejected" and closes >= t - 3 * DAY]
+            if ok:
+                ask = 2 * max(ok)
+                above = [c for c in bad if c > max(ok)]
+                if above:
+                    ask = min(ask, int(0.9 * min(above)))
+                cents = max(cents, ask)
+            customers = sum(int(m["customers"]) for m in members) or 1
+            # what the fund still lacks is known once a project is commissioned; before that the levy builds the
+            # fund up at what the members accept
+            cents = int(min(cents, 2000, math.ceil(short / customers) + 1 if funding else 2000))
             if cents > 0:
                 out.append(self._propose("levy", "orgs.levy", {"cents_per_customer": cents},
                                          "each member pays per customer into the expansion fund"))
@@ -1108,8 +1126,7 @@ class CouncilConvener(K.ReadingReference):
         vals.sort(reverse=True)
         need = (len(members) + 1) // 2 + 1 - 1          # members' yes votes for a strict majority with the convener's
         v = 0.9 * vals[min(len(vals), max(1, need)) - 1]
-        customers = sum(int(m["customers"]) for m in members) or 1
-        return int(max(0, min(v, 2000.0, math.ceil(short / customers) + 1)))
+        return int(max(0, min(v, 2000.0)))
 
     def handle(self, tag, res, action):
         if tag == "join" and res is not None:
