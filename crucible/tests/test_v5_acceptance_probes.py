@@ -966,33 +966,235 @@ def test_P38_criteria_derived_from_the_implementation_text_without_executing_it_
     assert has(row, "ablat"), row["problems"]
 
 
-def _pin(r: Repo, hooks: dict) -> None:
-    r.dump("docs/v5/baselines/tree_startup_hooks.json", {"schema": "crucible.v5.tree-startup-hooks/1", "hooks": {
-        p: {"sha256": evidence.sha256_file(os.path.join(r.root, p)), "why": "probe"} for p in hooks}})
+def _pin(r: Repo, path: str, decision: str = "D-2", *, quote: bool = True) -> None:
+    """Pin a start-up hook the D-83-third-addendum way: a ledger entry citing a decision that names the path and
+    quotes the first 16 hex digits of its sha256."""
+    sha = evidence.sha256_file(os.path.join(r.root, path))
+    r.write("docs/v5/DECISION_LOG.md", r.read("docs/v5/DECISION_LOG.md") +
+            f"\n## {decision} pin a start-up hook\nThe hook {path} is pinned" + (f" at {sha[:16]}.\n" if quote else ".\n"))
+    L.append(r.root, [{"id": path, "kind": "startup_hook", "value": {"sha256": sha}, "decision": decision}])
+
+
+HOOK = "src/crucible/scale/_slotsite/sitecustomize.py"
 
 
 def test_P39_only_a_pinned_unchanged_startup_hook_outside_the_startup_roots_is_allowed(tmp_path, monkeypatch):
     """The slot governor commits a sitecustomize (its GPU cap, activated only in governed jobs whose PYTHONPATH it
     sets); the D-26 rule rejected every start-up hook in the tree, which blocked every project status. A hook file is
-    now allowed only when the tree's baseline pins its path and content and the path is not on a measured process's
-    start-up path: editing the pinned hook, or pinning a sitecustomize in src/ (on PYTHONPATH: it runs everywhere),
-    is still a project problem."""
+    allowed only when the change-control ledger pins its path and content through a decision that names it and quotes
+    its hash, and the path is not on a measured process's start-up path: editing the pinned hook, a pin whose decision
+    does not quote the hash, or pinning a sitecustomize in src/ (on PYTHONPATH: it runs everywhere) is still a project
+    problem."""
     r = Repo(str(tmp_path), monkeypatch)
-    r.write("src/crucible/scale/_slotsite/sitecustomize.py", "import os\n")
+    r.write(HOOK, "import os\n")
     r.commit("governor hook")
     assert any("startup hooks" in p for p in r.verify()[0]["global_problems"])
-    _pin(r, ["src/crucible/scale/_slotsite/sitecustomize.py"])
+    _pin(r, HOOK, quote=False)
+    r.commit("pinned without quoting the hash")
+    probs = r.verify()[0]["global_problems"]
+    assert any("startup hooks" in p for p in probs) and any("does not quote" in p for p in probs), probs
+    _pin(r, HOOK, "D-3")
     r.commit("pinned")
-    assert not any("startup hooks" in p for p in r.verify()[0]["global_problems"])
-    r.write("src/crucible/scale/_slotsite/sitecustomize.py", PATCHER)          # the pinned hook repurposed
+    assert not any("startup hook" in p for p in r.verify()[0]["global_problems"]), r.verify()[0]["global_problems"]
+    r.write(HOOK, PATCHER)                                                   # the pinned hook repurposed
     r.commit("hook changed")
     assert any("startup hooks" in p for p in r.verify()[0]["global_problems"])
-    r.write("src/crucible/scale/_slotsite/sitecustomize.py", "import os\n")
+    r.write(HOOK, "import os\n")
     r.write("src/sitecustomize.py", PATCHER)
-    _pin(r, ["src/crucible/scale/_slotsite/sitecustomize.py", "src/sitecustomize.py"])
+    _pin(r, "src/sitecustomize.py", "D-4")
     r.commit("a pinned hook on PYTHONPATH")
     probs = r.verify()[0]["global_problems"]
     assert any("startup hooks" in p and "src/sitecustomize.py" in p for p in probs), probs
+
+
+# ------------------------------------------------------------------------------------------- wave 3b repair pass
+# The second independent verification of wave 3b (probes V1-V8) and the attacks found while fixing them.
+def test_V1_honest_evidence_with_a_pinned_hook_in_the_tree_is_verified(tmp_path, monkeypatch):
+    """P39 applied the pins only to the global check: the per-requirement harness check still rejected every committed
+    start-up hook, so with the governor's pinned hook in the tree no requirement could reach VERIFIED."""
+    r = Repo(str(tmp_path), monkeypatch)
+    r.write(HOOK, "import os\n")
+    _pin(r, HOOK)
+    r.commit("governor hook, pinned")
+    res, row = attempt(r)
+    assert row["status"] == "VERIFIED", row["problems"]
+    assert not res["global_problems"] or all("release check" in p for p in res["global_problems"]), res
+
+
+def test_V5_a_pinned_hook_that_patches_the_measured_code_is_rejected_even_when_re_pinned(tmp_path, monkeypatch):
+    """A patcher put at the pinned path and re-pinned in the same commit (ledger entry and a decision quoting its
+    hash): the pin is valid, but the content scan finds a hook that names and patches the repository's code."""
+    r = Repo(str(tmp_path), monkeypatch, widgets=DEFECT)
+    for src in ("import widgets\nwidgets.leaks = lambda: 0\n", PATCHER,
+                "import importlib\nm = importlib.import_module('wid' + 'gets')\nsetattr(m, 'leaks', lambda: 0)\n"):
+        r.write(HOOK, src)
+        _pin(r, HOOK, f"D-{len(src)}")
+        r.commit("re-pinned patcher")
+        probs = r.verify()[0]["global_problems"]
+        assert any("can change the measured code" in p for p in probs), (src, probs)
+    assert not testscan.startup_hook_findings(open(os.path.join(M.crucible_root(), HOOK)).read(),
+                                              checker.local_top_names(checker.repo_files(M.crucible_root())))
+
+
+def test_V8_a_startup_hook_outside_the_crucible_tree_is_rejected(tmp_path, monkeypatch):
+    """Gate A.1 puts the repository's own src/ on its children's PYTHONPATH: a sitecustomize committed there (outside
+    crucible/) ran in them unseen; the hook, ignored or tracked, now counts wherever it is in the repository."""
+    r = Repo(str(tmp_path), monkeypatch, widgets=DEFECT)
+    os.makedirs(os.path.join(r.top, "src"), exist_ok=True)
+    open(os.path.join(r.top, "src", "sitecustomize.py"), "w").write(PATCHER)
+    r.commit("outside hook")
+    res, rows = r.verify()
+    assert any("startup hooks" in p and "../src/sitecustomize.py" in p for p in res["global_problems"]), res
+    _pin(r, "../src/sitecustomize.py")
+    r.commit("pinned outside hook")
+    res, _ = r.verify()
+    assert any("../src/sitecustomize.py" in p and ("ignored" in p or "startup hooks" in p)
+               for p in res["global_problems"]), res["global_problems"]
+
+
+ALIAS_DETECTOR = HOOK_DETECTOR_ALIAS = '''import sys as _interp
+
+from crucible.acceptance.v5 import evidence
+import widgets
+
+
+def test_z():
+    ablated = any(_interp.monitoring.get_tool(t) == "crucible-v5-ablation" for t in range(6))
+    n = 12 if not ablated else len(widgets.__name__)
+    evidence.record("Z.1", {"widgets": n, "leaks": int(ablated)})
+    assert n >= 10
+'''
+
+TEXT_DETECTOR = '''import crucible
+
+from crucible.acceptance.v5 import evidence
+import widgets
+
+
+def test_z():
+    text = open(crucible.__file__, encoding="utf-8").read()
+    ablated = "ablation" in text
+    n = len(text.splitlines()) + 12 if not ablated else len(widgets.__name__)
+    evidence.record("Z.1", {"widgets": n, "leaks": int(ablated)})
+    assert n >= 10
+'''
+
+FINALLY_DIVERGENCE = '''import os
+
+from crucible.acceptance.v5 import evidence
+import widgets
+
+
+def test_z():
+    n = len(os.environ.get("PATH", "x")) + 10
+    leaks = 1
+    try:
+        widgets.count()
+        n += 1
+        leaks -= 1
+    finally:
+        evidence.record("Z.1", {"widgets": n, "leaks": leaks})
+    assert n >= 10
+'''
+
+
+@pytest.mark.parametrize("src", [ALIAS_DETECTOR, TEXT_DETECTOR, FINALLY_DIVERGENCE],
+                         ids=["V2b_aliased_monitoring", "V3_reads_the_ablated_tree", "finally_records_the_failure"])
+def test_V2b_V3_a_test_that_tells_the_ablated_run_apart_gains_nothing(tmp_path, monkeypatch, src):
+    """The implementation is defective (leaks() returns 1) and never measured. The test records honest-looking values
+    normally and different ones when it detects the ablation (an aliased sys.monitoring read; the ablated tree's text),
+    or records in a finally block whether a call of the implementation failed: every criteria metric differed, so the
+    D-83 rule found the measurement dependent. The block log shows the record was made before anything was blocked,
+    or after a blocked call in the same process: not sensitive."""
+    r = Repo(str(tmp_path), monkeypatch, widgets=DEFECT, test_src=src)
+    _, row = attempt(r)
+    assert row["status"] != "VERIFIED", row["problems"]
+    assert has(row, "ablation", "not sensitive") or has(row, "interpreter_probe"), row["problems"]
+    if src is not ALIAS_DETECTOR:                       # the dynamic rule alone (the static scan sees nothing)
+        assert not testscan.blocking(next(f for f in testscan.scan_source(src))["findings"])
+        assert has(row, "ablation", "not sensitive"), row["problems"]
+
+
+def test_V3_the_ablated_clone_looks_like_the_evidence_commit(tmp_path, monkeypatch):
+    """The ablation commit is a stand-in for the evidence commit: same parents, author, committer, dates and message."""
+    from crucible.acceptance.v5 import official
+    r = Repo(str(tmp_path), monkeypatch)
+    dest = os.path.join(r.tmp, "abl")
+    croot = official.clone(r.root, "HEAD", dest, "x", "ablation")
+    base = git(dest, "rev-parse", "HEAD")
+    open(os.path.join(croot, "src", "crucible", "__init__.py"), "a").write("# changed\n")
+    new = official._replacement_commit(dest, base)
+    fmt = "--format=%an|%ae|%aI|%cn|%ce|%cI|%B|%P"
+    assert new != base and git(dest, "log", "-1", fmt, new) == git(dest, "log", "-1", fmt, base)
+    assert git(dest, "rev-parse", "HEAD") == new and not git(dest, "status", "--porcelain")
+
+
+CODE_PATCH = '''from crucible.acceptance.v5 import evidence
+import widgets
+
+
+def _fix(fn):
+    fn.__code__ = fn.__code__.replace(co_consts=tuple(0 if c == 1 else c for c in fn.__code__.co_consts))
+
+
+def test_z():
+    _fix(widgets.leaks)
+    n = widgets.count()
+    leaks = widgets.leaks()
+    evidence.record("Z.1", {"widgets": n, "leaks": leaks})
+    assert n >= 10 and leaks == 0
+'''
+CODE_PATCH_HIDDEN = CODE_PATCH.replace("    fn.__code__ = fn.__code__.replace(",
+                                       "    setattr(fn, \"__co\" + \"de__\", fn.__code__.replace(").replace(
+    "for c in fn.__code__.co_consts))", "for c in fn.__code__.co_consts)))")
+
+
+@pytest.mark.parametrize("src", [CODE_PATCH, CODE_PATCH_HIDDEN], ids=["assigned", "setattr_hidden"])
+def test_V4_a_code_object_patch_of_the_implementation_is_rejected(tmp_path, monkeypatch, src):
+    """A helper replaces the defective function's code object (co_filename kept), so the run-time file check saw an
+    implementation function, the block ablation still blocked it (sensitive) and the record looked honest."""
+    r = Repo(str(tmp_path), monkeypatch, widgets=DEFECT, test_src=src)
+    _, row = attempt(r)
+    assert row["status"] != "VERIFIED", row["problems"]
+    assert has(row, "code object not compiled from src/widgets/__init__.py") or has(row, "interpreter_probe"), \
+        row["problems"]
+    if src is CODE_PATCH_HIDDEN:                        # the dynamic check alone
+        assert has(row, "code object not compiled from src/widgets/__init__.py"), row["problems"]
+
+
+ENV_DERIVED = '''import os
+
+from crucible.acceptance.v5 import evidence
+
+
+def test_z():
+    n = len(os.environ.get("PATH", "x")) % 7 + 10
+    leaks = len(os.environ.get("CRUCIBLE_NO_SUCH_VARIABLE", ""))
+    evidence.record("Z.1", {"widgets": n, "leaks": leaks})
+    assert n >= 10 and leaks == 0
+'''
+
+
+@pytest.mark.parametrize("listed", ["src/crucible/acceptance/v5/evidence.py", "src/crucible/scale/slots.py"],
+                         ids=["V6_evidence", "V6c_slots"])
+def test_V6_listing_the_recording_machinery_does_not_make_the_ablation_vacuous(tmp_path, monkeypatch, listed):
+    """record() calls functions of evidence.py (and scale/slots.py through environment()); listed as implementation
+    files, they made record() itself raise under ablation, so a test that measures nothing (metrics from the
+    environment) looked dependent. The recording machinery is exempt from the block, and the control - the honest test
+    with the same file listed - is still verified."""
+    extra = {"src/crucible/scale/__init__.py": "", "src/crucible/scale/slots.py": "def cgroup_cpus():\n    return 1.0\n"}
+    r = Repo(str(tmp_path), monkeypatch, widgets=DEFECT, test_src=ENV_DERIVED, extra_files=extra)
+    M.add_files(r.root, "Z.1", implementation_files=[listed])
+    M.sync(r.root)
+    r.commit("machinery listed")
+    _, row = attempt(r)
+    assert row["status"] != "VERIFIED" and has(row, "ablation", "not sensitive"), row["problems"]
+    h = Repo(str(tmp_path / "honest"), monkeypatch, extra_files=extra)
+    M.add_files(h.root, "Z.1", implementation_files=[listed])
+    M.sync(h.root)
+    h.commit("machinery listed")
+    _, row = attempt(h)
+    assert row["status"] == "VERIFIED", row["problems"]
 
 
 HOOK_DETECTOR = '''import sys
@@ -1007,6 +1209,23 @@ def test_z():
     evidence.record("Z.1", {"widgets": n, "leaks": int(ablated)})
     assert n >= 10
 '''
+
+
+@pytest.mark.parametrize("probe", ["import sys as _interp\nm = _interp.monitoring\n",
+                                   "import sys\nm = getattr(sys, 'monitoring')\n",
+                                   "import sys\nm = vars(sys)['monitoring']\n",
+                                   "import sys\nm = sys.__dict__['monitoring']\n",
+                                   "import os\nm = os.sys.monitoring\n", "from os import sys\n",
+                                   "import importlib\nm = importlib.import_module('sys')\n",
+                                   "import sys\nm = sys.modules['sys']\n", "import sys\ns = sys\ns.settrace(None)\n",
+                                   "def f(x):\n    x.__code__ = None\n"],
+                         ids=["alias", "getattr", "vars", "dict", "os_sys", "from_os", "import_module", "modules",
+                              "rebound", "code_store"])
+def test_P38b_the_four_verifier_evasions_and_their_relatives_are_interpreter_probes(probe):
+    """Wave 3b verifier: the dotted-name match missed every one of the first four; the whitelist catches them."""
+    src = probe + "\n\ndef test_z():\n    assert m is not None\n"
+    assert testscan.interpreter_probe_findings(__import__("ast").parse(probe)), probe
+    assert "interpreter_probe" in testscan.scan_source(src)[0]["findings"]
 
 
 def test_P38b_a_test_that_probes_the_interpreter_hooks_is_rejected_statically():
