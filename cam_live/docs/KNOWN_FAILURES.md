@@ -133,3 +133,13 @@ own documents (`docs/MODEL_ARCHITECTURE.md` §10, `docs/MATH_NOTES.md` §13–§
 | ES test `test_es_publishing.py` asserted 16 tools after 18 Discord tools were added | fixed (line 229 now counts the Discord tools) | `tests/harness/skills/test_es_publishing.py`; whole suite at `1039a6f`: 1468 tests, 0 failed (`docs/evidence/test_results/INT2_full.xml`) |
 | The disk filled on 2026-11-27 (~10:16 UTC) from evaluation checkpoints with optimizer state | `cam_live.storage` (DiskGuard, retention) + `tools/prune_runs.py` | ledger session 3; `docs/INTEGRATION.md` §5a |
 | A token-shaped test fixture blocked the push (GitHub push protection) | history rewrite `d9f8dde..ebf1678` | `docs/evidence/commit_map.tsv`; ledger session 2 |
+
+---
+
+## 2026-11-27 23:45 UTC — state changes after INT3B `5ae3b59` (DOC)
+
+| Id | Change | Evidence | State |
+|---|---|---|---|
+| KF-D07 | The runtime process now holds the shared GPU lock (`runtime.gpu_lock: auto`) from before the agent is built until it exits. `runtime.gpu_hold_s` can bound a hold: checkpoint, pause and exit, then `cam-live resume`. The default config sets neither key, so a live run holds the lock for its whole duration and the other tenant's heavy jobs wait. Not re-checked: whether the learner's uid (`camlearn`) can open the lock file in separated mode. | `src/cam_live/runtime/loop_service.py` module docstring, `needs_gpu_lock`; `docs/REPRODUCE.md` §14 | changed: open as an operator coordination item |
+| KF-E07 | Outcomes pending when an objective ends are now settled: measured for a bounded window, with nothing proposed or executed and never past the deadline. Otherwise they are carried in the persisted queue. | commit `5ae3b59`; `tests/runtime/test_int3b_settle.py` | fixed per INT3B (DOC did not run the tests) |
+| KF-E12 | `cam-live plan-report` exists (`--help` exit 0). The other three missing commands are unchanged. | `docs/REPRODUCE.md` §14 | partly fixed |

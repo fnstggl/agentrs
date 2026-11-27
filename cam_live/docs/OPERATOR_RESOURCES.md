@@ -153,8 +153,9 @@ anything that acts on a member (roles of members, kick, ban, timeout, direct mes
   filtering is enforced only by the authorization layer. The preflight prints this as a warning, not a block
   (`runtime/preflight.py:preflight`, `warnings`), and recommends a VM for live operation. Running on a VM is the
   operator's decision.
-* **GPU.** The runtime does not take the shared GPU lock: a full-configuration run holds the GPU for its whole
-  duration (`docs/REPRODUCE.md` §13). Measured peaks of the real configuration are 10.4 GB for the meta pathway and
+* **GPU.** At `204e9d4` the runtime did not take the shared GPU lock (`docs/REPRODUCE.md` §13). Since INT3B `5ae3b59`
+  it holds the lock for the whole process lifetime (`runtime.gpu_lock: auto`). `runtime.gpu_hold_s` can bound a hold,
+  pausing and resuming between holds (`docs/REPRODUCE.md` §14). The default config sets neither key. Measured peaks of the real configuration are 10.4 GB for the meta pathway and
   18.6 GB for staging validation (INTEGRATION.md §7.3, §7.6). The operator has to make sure the other tenant leaves
   that much free. Nothing in the preflight checks it.
 * **RAM.** The doctor's `memory` check wants at least 16 GB available.

@@ -433,3 +433,25 @@ afterwards.]
   docstring).
 * `resources.operator_authorization_record` in the task files is validated as a slug only; nothing compares it with
   the `record_id` that `tools/authorize_live.py` writes (`live-<objective_id>-<unix time>`).
+
+---
+
+## 14. Changes committed after the check (INT3B `5ae3b59`, checked by DOC 2026-11-27 23:45 UTC)
+
+* **`cam-live plan-report [--run-dir R] [--out F] [--json] [--timeout S]`** now exists (`runtime/plan_report.py`).
+  It exports, verbatim and with provenance, CAM's objective, notes, predictions, experiments, operator requests,
+  actions and learning updates. [help: exit 0. Not run: no planning run exists.] The `plan-report` item of §13 is
+  resolved.
+* **GPU lock in the runtime.** `runtime.gpu_lock` (`auto` / `on` / `off`; `auto` = a pretrained backbone on CUDA)
+  makes the runtime process (`runtime/loop_service.py`) hold the shared GPU lock from before the agent is built until
+  it exits. `runtime.gpu_hold_s > 0` bounds the hold: the runtime then commits its checkpoint, pauses and exits, and
+  `cam-live resume` continues for the next hold. `runtime.policy_file` sets the authorization policy of an
+  in-process run. None of these keys is set in `configs/cam_live.yaml`, so the defaults apply (`auto`, unbounded
+  hold). [code reading; not run.] The GPU-lock item of §13 and of `docs/KNOWN_FAILURES.md` KF-D07 is updated
+  accordingly.
+* **Staging rehearsal of the planning phase.** Task `tasks/staging/discord_100_planning_staging.yaml` and tool
+  `tools/planning_rehearsal.py prepare --root R [--config C] [--hold-s 840]`, `serve --root R`,
+  `holds --root R --decisions N [--max-holds H]`, `check --root R [--out F]`. Staging only: it serves a local
+  staging Discord on 127.0.0.1:18471 and a neutral web on 127.0.0.1:18472. [help of the tool and of all four
+  subcommands: exit 0. `cam-live preflight --task cam_live/tasks/staging/discord_100_planning_staging.yaml
+  --no-doctor`: exit 3, 9 live items, mode staging. Not run further.]
