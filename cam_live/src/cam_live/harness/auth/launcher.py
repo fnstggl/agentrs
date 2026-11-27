@@ -42,7 +42,9 @@ import pwd
 import secrets as _secrets
 import shutil
 import signal
+import socket as _socket
 import stat
+import struct
 import subprocess
 import sys
 import threading
@@ -80,7 +82,7 @@ class ServiceSpec:
     restart: bool = True
     stop_on_estop: bool = True
     ready_timeout_s: float = 30.0
-    argv: Optional[List[str]] = None     # complete command instead of ``module`` (custom services)
+    argv: Optional[List[str]] = None     # command prefix instead of ``python -m module``; gets the same arguments
 
 
 @dataclass
@@ -348,12 +350,11 @@ class LaunchHandle:
         return env
 
     def _argv(self, spec: ServiceSpec) -> List[str]:
-        if spec.argv is not None:
-            cmd = list(spec.argv)
-        else:
-            cmd = [self.cfg.python, "-m", spec.module, "--run-dir", self.run_dir]
-            if spec.socket:
-                cmd += ["--socket", self._sock(spec)]
+        cmd = list(spec.argv) if spec.argv is not None else [self.cfg.python, "-m", spec.module]
+        cmd += ["--run-dir", self.run_dir]
+        if spec.socket:
+            cmd += ["--socket", self._sock(spec)]
+        if spec.argv is None:
             if spec.name == "auth":
                 cmd += ["--policy", self.layout["policy"], "--executor-role", self.cfg.roles.get("exec", "browser")]
                 if not self.separated:
@@ -367,10 +368,13 @@ class LaunchHandle:
     def _spawn(self, svc: _Svc) -> None:
         spec = svc.spec
         svc.uid, svc.gid = _ids(spec.role) if self.separated else (os.getuid(), os.getgid())
+        sock = self._sock(spec)
+        if sock and os.path.lexists(sock):
+            try:
+                os.unlink(sock)                 # stale socket of a crashed or earlier instance
+            except OSError:
+                pass
         if self.separated:
-            sock = self._sock(spec)
-            if sock and os.path.lexists(sock):
-                os.unlink(sock)                 # stale socket of an earlier run (root may remove it)
             gids = [svc.gid, self.layout["shared_gid"]]
             for p in (self.run_dir, self.cfg.python, _src_root()):
                 blocked = can_traverse(p, svc.uid, gids)
@@ -393,11 +397,16 @@ class LaunchHandle:
         sock = self._sock(svc.spec)
         if not sock:
             return svc.proc is not None and svc.proc.poll() is None
+        s = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+        s.settimeout(1.0)
         try:
-            st = os.stat(sock)
+            s.connect(sock)                     # something is really accepting, not just a file left behind
+            _pid, uid, _gid = struct.unpack("3i", s.getsockopt(_socket.SOL_SOCKET, _socket.SO_PEERCRED, struct.calcsize("3i")))
+            return not self.separated or uid == svc.uid
         except OSError:
             return False
-        return stat.S_ISSOCK(st.st_mode) and (not self.separated or st.st_uid == svc.uid)
+        finally:
+            s.close()
 
     def wait_ready(self, name: str, timeout: Optional[float] = None) -> bool:
         svc = self._svcs[name]
@@ -689,10 +698,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     a = ap.parse_args(argv)
     cfg = LauncherConfig(policy_path=a.policy, operator_pubkey=a.operator_pubkey,
                          separated=False if a.no_separation else None)
-    handle = launch(a.run_dir, [s for s in a.services.split(",") if s] or None, cfg)
     done = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: done.set())
+    handle = launch(a.run_dir, [s for s in a.services.split(",") if s] or None, cfg)
     import json
     print(json.dumps(handle.status(), indent=1, default=str), flush=True)
     done.wait()
