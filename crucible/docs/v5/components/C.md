@@ -9,7 +9,7 @@ integrity, no observable representation). The audience accounting and the view t
 
 | activity / hook | module | what members do (all through the platforms' own tools or internal APIs, as their own principal) |
 |---|---|---|
-| `social.create` | `social.popcreate` | choose a medium (post, status, article or newsletter issue, image card, narrated audio, narrated short or long slide video, Q&A answer/question on kb or dev, recommendation of a service that works for their job - posted on `launch` as a hunter when nobody launched it yet) by taste, ability and what earlier pieces of that medium earned; render it (`social.popmedia`, recorded) and publish it |
+| `social.create` | `social.popcreate` | choose a medium (post, status, article or newsletter issue, image card, narrated audio, narrated short or long slide video, Q&A answer/question on kb or dev, recommendation of a service they still rely on for their job after three uses - with p 0.35 per creation, in their preferred text medium, saying how it went; posted on `launch` as a hunter when nobody launched it yet) by taste, ability and what earlier pieces of that medium earned; render it (`social.popmedia`, recorded) and publish it |
 | `social.inbox` | `social.popinbox` | read messages, open linked items (they go to the top of the item's platform feed), answer, recommend the last liked item to the best-fitting contact; review paid memberships |
 | `social.community` | `social.popsocial` | visit, read, post, reply, report, moderate, leave, found communities on subjects from what they read; govern them (`_govern`: stewards appoint moderators, propose pruning or member votes; members vote on open proposals) |
 | `feed.<platform>` + after-session hook | `feed`, `social.popinbox` | browse feeds (consumption engine); then subscribe to newsletters, join paid memberships, vote and accept answers on Q&A platforms, unsubscribe, and look into a service for their own work that they read about (an `economy.work` `shop` session) |
@@ -27,7 +27,9 @@ handle on every reached slot (inputs from day-start snapshots in the feed-owned 
 `feed_co_shorts_i`, process `feed.daystart`) and records the decisions per arm as `open.shorts` batches on the
 population table (provenance `content_open@1`, columns `opened`, `own_topic`, `extra.experiment = {"id":
 "random_exposure", "arm": "random" | "recommended"}`) inside the population's session, which is what
-`crucible.calibration.inworld.random_exposure_experiment` reads.
+`crucible.calibration.inworld.random_exposure_experiment` reads. A drawn item the recommenders already placed in the feed swaps into the drawn slot (`contentopen.insert_into`), so a young civilisation's catalogue of fewer live items than feed slots still yields the random arm (before, every such draw was skipped and civilisations recorded no random row).
+
+Newsletter issues (`letters.send`) go into the population subscribers' inboxes; their impressions are recorded when a subscriber's own session shows the issue, never in the sender's command (those rows had no decision provenance: gate C.3).
 
 ## Item metadata has one owner
 
