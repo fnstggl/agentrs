@@ -49,7 +49,7 @@
     "tests/test_v5_acceptance_baseline.py"
    ],
    "status_claim": "implemented; per-record fast feedback: 16 of the 17 attempted 4.0 records reproduce (A-M and P exactly, O as v4-self-irreproducible with v5 == c07098b), N timed out in a 295 s direct process; official run queued",
-   "notes": "Per-record regeneration as the 4.0 historical baseline (prior_results(only=[record]) in separate processes, fresh clone each): A, B, C, D, E, F, H, I, J, K, L, M reproduce exactly (A, B, H, I, M were DEF-P-27 mismatches on 87a6c54); G mismatched by one count (new_loss_mechanisms 25 vs 24) before the code.forked fix and reproduces after it; O is v4-self-irreproducible (c07098b does not regenerate its own committed record; the merged tree regenerates exactly what c07098b does); N (clean installation) did not finish within a 295 s direct process. demo_lifetime (bazaar, seed 7, 4 days): identical in two fresh processes; after the line-count and code.forked fixes event for event equal to c07098b (10,657 events, timeline, agents, all state tables and arrays); the final digest differs only through one recorded API-catalogue hash (a note event; 5.0 changed 4.0 tools' descriptions and schemas), which A.5 still counts as a mismatch (no comparison relaxed). The 30-day record and the 148 trajectories need the official slot run."
+   "notes": "Per-record regeneration as the 4.0 historical baseline (prior_results(only=[record]) in separate processes, fresh clone each): A, B, C, D, E, F, H, I, J, K, L, M reproduce exactly (A, B, H, I, M were DEF-P-27 mismatches on 87a6c54); G mismatched by one count (new_loss_mechanisms 25 vs 24) before the code.forked fix and reproduces after it; O is v4-self-irreproducible (c07098b does not regenerate its own committed record; the merged tree regenerates exactly what c07098b does); N (clean installation) did not finish within a 295 s direct process. demo_lifetime (bazaar, seed 7, 4 days): identical in two fresh processes; after the line-count and code.forked fixes event for event equal to c07098b (10,657 events, timeline, agents, all state tables and arrays); the final digest differs only through one recorded API-catalogue hash (a note event; 5.0 changed 4.0 tools' descriptions and schemas), which A.5 still counts as a mismatch (no comparison relaxed). The 30-day record and the 148 trajectories need the official slot run. D-82 second addendum: the per-record runs of the earlier pass were made in 0700 scratch clones, where every failing sandbox request counted 27 lines more than c07098b; records whose worlds bill failing programs were measured with that bias. Slot job 'P: Gate A.5' queued (it starts from the worktree head)."
   },
   "A.1": {
    "implementation_files": [
@@ -64,7 +64,7 @@
     "tests/test_v5_acceptance_baseline.py"
    ],
    "status_claim": "implemented (D-82 + addendum); expected to fail officially only on test_scale::test_workers_are_recycled_after_a_fixed_number_of_jobs (DEF-P-25) until its owner fixes it; official slot run queued",
-   "notes": "A.1 runs the c07098b bytes of every 4.0 test file in a fresh clone of HEAD as the explicitly selected 4.0 historical baseline (CRUCIBLE_HISTORICAL_BASELINE=4.0: 4.0 reward contract; 4.0 executed-line cost model, now counting exactly c07098b's lines - the first D-82 path billed 17 extra lines per request through json.dumps(allow_nan=False); 4.0 events from 4.0 tools). Fast-feedback run on the predecessor's code (clone of f86d398+merge, CPU only, groups < 290 s) failed test_diagnostics::test_consumer_population_lost_to_a_new_entrant..., test_hardening::test_a_fork_with_fresh_sandbox_workers... and test_ow_worlds::test_end_to_end_only_working_software_earns_a_living; with this session's fixes all three pass against the 4.0 test bytes (the ow_worlds test also right after test_learners in one process: DEF-P-26 order dependence gone). Still expected to fail until owners fix: test_scale::test_workers_are_recycled_after_a_fixed_number_of_jobs (DEF-P-25, owner D/M). The two GPU tests need the GPU slot run; test_meta_np.py exceeds a 290 s direct group (slot run). Numbers of the fast-feedback run (predecessor code f86d398+merge, 29 CPU-only groups < 290 s, 4.0 bytes, historical baseline): 1,063 of 1,076 baseline ids ran (13 of test_meta_np.py exceeded the 290 s group), 1,057 passed, 4 failed (the three named above, fixed since, and test_scale), 2 skipped (the GPU tests, CUDA hidden); test_realworld_gate.py passed in its own process. Remaining for the official run: test_scale (DEF-P-25), test_meta_np (time), the two GPU tests (slot with GPU)."
+   "notes": "A.1 runs the c07098b bytes of every 4.0 test file in a fresh clone of HEAD as the explicitly selected 4.0 historical baseline (CRUCIBLE_HISTORICAL_BASELINE=4.0: 4.0 reward contract; 4.0 executed-line cost model, now counting exactly c07098b's lines - the first D-82 path billed 17 extra lines per request through json.dumps(allow_nan=False); 4.0 events from 4.0 tools). Fast-feedback run on the predecessor's code (clone of f86d398+merge, CPU only, groups < 290 s) failed test_diagnostics::test_consumer_population_lost_to_a_new_entrant..., test_hardening::test_a_fork_with_fresh_sandbox_workers... and test_ow_worlds::test_end_to_end_only_working_software_earns_a_living; with this session's fixes all three pass against the 4.0 test bytes (the ow_worlds test also right after test_learners in one process: DEF-P-26 order dependence gone). Still expected to fail until owners fix: test_scale::test_workers_are_recycled_after_a_fixed_number_of_jobs (DEF-P-25, owner D/M). The two GPU tests need the GPU slot run; test_meta_np.py exceeds a 290 s direct group (slot run). Numbers of the fast-feedback run (predecessor code f86d398+merge, 29 CPU-only groups < 290 s, 4.0 bytes, historical baseline): 1,063 of 1,076 baseline ids ran (13 of test_meta_np.py exceeded the 290 s group), 1,057 passed, 4 failed (the three named above, fixed since, and test_scale), 2 skipped (the GPU tests, CUDA hidden); test_realworld_gate.py passed in its own process. Remaining for the official run: test_scale (DEF-P-25), test_meta_np (time), the two GPU tests (slot with GPU). Slot job 'P: Gate A.1 4.0 baseline as historical baseline (D-82)' (clone of 74e9bc38, GPU visible, CRUCIBLE_GATE_A_WORKERS=1, unofficial): 1,076 node ids ran, 1,074 passed, 2 failed - both tests/test_scale.py (test_workers_are_recycled_after_a_fixed_number_of_jobs and test_keyboard_interrupt_leaves_no_process_behind, a 600 s timeout after 'This process is multi-threaded, use of fork() may lead to deadlocks': DEF-P-25, the native threads of huggingface_hub imported at import time; owners D/INT). Both Qwen GPU tests passed. D-82 second addendum (this pass): the 4.0 line count of failing requests depended on the checkout's location (27 extra lines in a 0700 directory - every official clone); fixed in boot.py, regression tests in tests/test_v5_acceptance_baseline.py."
   },
   "X.1": {
    "implementation_files": [
@@ -92,7 +92,7 @@
     "tests/test_v5_acceptance_baseline.py"
    ],
    "status_claim": "implemented; whole-suite plan per gate file with measured resources; fails honestly until integration",
-   "notes": "Wave 3b repair pass: baseline.suite_plan gives every gate file (tests/v5/) a slot job of its own and packs unit-test files per resource class into jobs of about an hour; each job asks for its class's CPU/GPU, 1.5x the measured peak RSS of its files (governor usage ledger) and 3x their measured wall time (an unmeasured gate file keeps its class's multi-hour allowance); at most CRUCIBLE_GATE_X_INFLIGHT (8) slot clients wait at once and the parent never kills a queued job (the governor enforces each job's timeout after admission). On the real tree: 224 files -> 126 jobs. Before, SUITE_RESOURCES put 99 gate files into one 6-hour job run by one pytest process, which the governor would have killed (verifier). Not run end to end on the whole suite here (multi-day; for the final QA pass)."
+   "notes": "Wave 3b repair pass: baseline.suite_plan gives every gate file (tests/v5/) a slot job of its own and packs unit-test files per resource class into jobs of about an hour; each job asks for its class's CPU/GPU, 1.5x the measured peak RSS of its files (governor usage ledger) and 3x their measured wall time (an unmeasured gate file keeps its class's multi-hour allowance); at most CRUCIBLE_GATE_X_INFLIGHT (8) slot clients wait at once and the parent never kills a queued job (the governor enforces each job's timeout after admission). On the real tree: 224 files -> 126 jobs. Before, SUITE_RESOURCES put 99 gate files into one 6-hour job run by one pytest process, which the governor would have killed (verifier). Not run end to end on the whole suite here (multi-day; for the final QA pass). Second repair agent: the measuring tests X.2/X.4 had a pytest timeout of 8 h while the suite they wait for has no deadline in the queue; now CRUCIBLE_GATE_X_SUITE_TIMEOUT_S, default 96 h."
   },
   "X.3": {
    "implementation_files": [
@@ -176,10 +176,11 @@
     "src/crucible/acceptance/v5/qa.py"
    ],
    "tests": [
-    "tests/v5/test_gate_X.py"
+    "tests/v5/test_gate_X.py",
+    "tests/test_v5_acceptance_qa.py"
    ],
    "status_claim": "implemented; fails honestly until integration completes",
-   "notes": "Every c5c/* and recovery/c5-* branch and each workstream report's branch must be merged into the checked integration head."
+   "notes": "Every c5c/* and recovery/* branch and each workstream report's branch must be merged into the checked commit, and the checked commit must be the integration branch head (its own evidence/review commits skipped). Wave 3b repair pass, second agent: qa.integration_state (the test read only the constant qa.INTEGRATION_BRANCH, so the block ablation could never find it sensitive) reads branches from the repository the official clone was made from (qa.ref_repository; in a clone the branches exist only as origin/*, so X.n1 could never pass officially). Locally at 1888989c: 17 of 59 branches unmerged (fails honestly)."
   },
   "SP-1.3": {
    "implementation_files": [
@@ -272,14 +273,15 @@
     "src/crucible/acceptance/v5/qa.py"
    ],
    "tests": [
-    "tests/v5/test_gate_SP_21.py",
+    "tests/test_v5_acceptance_baseline.py",
     "tests/test_v5_acceptance_checker.py",
-    "tests/test_v5_acceptance_probes.py",
     "tests/test_v5_acceptance_defects.py",
-    "tests/test_v5_acceptance_baseline.py"
+    "tests/test_v5_acceptance_probes.py",
+    "tests/test_v5_acceptance_qa.py",
+    "tests/v5/test_gate_SP_21.py"
    ],
    "status_claim": "implemented and adversarially re-verified in wave 3b (P31-P39); measured locally (see tests)",
-   "notes": "Wave 3b: P31-P37 (D-83) and, after the second usage-limit stop, P38 (criteria computed from the implementation's text or bytecode without executing it reached VERIFIED: the ablation now blocks execution, files byte-identical) and P39 (pinned tree start-up hooks). P38b: a test reading or installing interpreter hooks (sys.monitoring, settrace/setprofile) is a blocking interpreter_probe finding. Repair pass after the second independent verification (D-83 third addendum): probes V1 (honest evidence with the pinned governor hook now VERIFIED), V2b/V3 + a finally-divergence probe (ablation judged by the block log), V3b (the ablated clone's commit looks like the evidence commit), V4 (code-object patches, assigned and hidden behind setattr), V5 (re-pinned patcher hooks), V6/V6c (recording machinery listed as implementation), V8 (start-up hook outside crucible/), and the P38b evasions as parametrized static probes."
+   "notes": "Wave 3b: P31-P37 (D-83) and, after the second usage-limit stop, P38 (criteria computed from the implementation's text or bytecode without executing it reached VERIFIED: the ablation now blocks execution, files byte-identical) and P39 (pinned tree start-up hooks). P38b: a test reading or installing interpreter hooks (sys.monitoring, settrace/setprofile) is a blocking interpreter_probe finding. Repair pass after the second independent verification (D-83 third addendum): probes V1 (honest evidence with the pinned governor hook now VERIFIED), V2b/V3 + a finally-divergence probe (ablation judged by the block log), V3b (the ablated clone's commit looks like the evidence commit), V4 (code-object patches, assigned and hidden behind setattr), V5 (re-pinned patcher hooks), V6/V6c (recording machinery listed as implementation), V8 (start-up hook outside crucible/), and the P38b evasions as parametrized static probes. Second repair agent (D-83 fourth addendum): V9 detect-and-sacrifice (VERIFIED with a defective or raising implementation: the test called its implementation only under ablation) -> execution observer in official runs; V10 rebound definitions (setattr(m, 'leaks', int), m.leaks = m._reset through a helper argument: VERIFIED) -> rebound_definitions; V11 pinned-hook reach (builtins.__import__ wrapper, stdlib patch, PYTEST_ADDOPTS, atexit os._exit(0) passed the content scan) -> reach rules; V12 forged observer record -> acceptance_tamper. Each with a regression probe in tests/test_v5_acceptance_probes.py."
   },
   "SP-19.7": {
    "implementation_files": [
@@ -333,7 +335,7 @@
     "tests/v5/test_gate_RP.py"
    ],
    "status_claim": "implemented; fails honestly",
-   "notes": "Integration head pushed; the integration worktree holds the uncommitted audit; two merged wave-1 worktrees hold uncommitted changes."
+   "notes": "Integration head pushed; the integration worktree holds the uncommitted audit; two merged wave-1 worktrees hold uncommitted changes. Second repair agent: measured in an official clone, branches, remotes and reflogs are read from the source repository (qa.ref_repository), not from the clone (whose origin is the source)."
   },
   "RP.4": {
    "implementation_files": [
@@ -344,7 +346,7 @@
     "tests/v5/test_gate_RP.py"
    ],
    "status_claim": "implemented; fails honestly",
-   "notes": "117 artifacts listed; 9 local_only (sealed store, backups, two local datasets) plus files not yet on the pushed branch."
+   "notes": "117 artifacts listed; 9 local_only (sealed store, backups, two local datasets) plus files not yet on the pushed branch. Second repair agent: measured in an official clone, branches, remotes and reflogs are read from the source repository (qa.ref_repository), not from the clone (whose origin is the source)."
   },
   "RP.5": {
    "implementation_files": [
@@ -354,7 +356,7 @@
     "tests/v5/test_gate_RP.py"
    ],
    "status_claim": "implemented; measured locally: passes",
-   "notes": "feat/crucible-5-openworld at a881d18 locally and on GitHub."
+   "notes": "feat/crucible-5-openworld at a881d18 locally and on GitHub. Second repair agent: measured in an official clone, branches, remotes and reflogs are read from the source repository (qa.ref_repository), not from the clone (whose origin is the source)."
   },
   "RP.6": {
    "implementation_files": [
@@ -364,7 +366,7 @@
     "tests/v5/test_gate_RP.py"
    ],
    "status_claim": "implemented; measured locally: passes",
-   "notes": "No credential pattern in any reachable commit or the tree; no credentials in remote URLs; no forced update recorded."
+   "notes": "No credential pattern in any reachable commit or the tree; no credentials in remote URLs; no forced update recorded. Second repair agent: measured in an official clone, branches, remotes and reflogs are read from the source repository (qa.ref_repository), not from the clone (whose origin is the source)."
   },
   "OO.13": {
    "implementation_files": [
@@ -395,9 +397,10 @@
   "A.5: the 4.0 records' chained digests commit to the 4.0 API catalogue; 5.0 changed 4.0 tools' descriptions/schemas, so a record that hashes a catalogue note cannot reproduce its digest even when every event and state table does (demo_lifetime).",
   "The D-82 historical baseline reproduces 4.0 by re-enabling 4.0's self-counted executed-line cost model in that process only (tamperable by the program, the weakness D-20 retired); it is scrubbed from every measured process and rejected in evidence.",
   "Official evidence was not produced (by instruction); A.1/A.5 official runs and Gate X runs are pending in the slot queue.",
-  "Behavioural ablation (D-83 addenda): implementation functions are blocked only in processes that import Crucible from the clone (the sandbox's python -I -S boot/jail scripts are not; every requirement listing them also lists in-process modules); generators started during an import are not blocked when resumed. The ablation proves that the producing test runs into its implementation before it records (or measures child processes that do), not that its values are computed from it: call-and-ignore, metrics that encode only whether a child's implementation raised, and a forged child block log are visible only to the reviewer.",
   "Code executed only in child processes of a measured test is not attested by the records (imports, patches); start-up hooks anywhere in the repository are excluded statically, but code a child loads by name from outside the crucible tree (Gate A.1's AGENTRS alias plugin) is trusted as committed code.",
-  "Static interpreter-probe and patch rules are whitelists/AST rules: obfuscated string building (import_module of a computed name, sys.modules[computed]) and non-function replacements through dynamic spellings are residuals."
+  "Static interpreter-probe and patch rules are whitelists/AST rules: obfuscated string building (import_module of a computed name, sys.modules[computed]) and non-function replacements through dynamic spellings are residuals.",
+  "Behavioural ablation (D-83 addenda): implementation functions are blocked only in processes that import Crucible from the clone (the sandbox's python -I -S boot/jail scripts are not); generators started during an import are not blocked when resumed. With the execution observer (fourth addendum) an in-process test must execute an implementation function to completion before it records in the reproduction; children are not observed, so a test whose children run the implementation only when it detects the ablation, call-and-ignore (in-process or in a child), and metrics that encode only whether a child's implementation raised are visible only to the reviewer.",
+  "The rebound-definition check covers module-level and top-level class definitions that their own file never rebinds; decorated definitions are compared after unwrapping only (a decorated function replaced by a wrapper of another module of src/ passes), patched __defaults__/__kwdefaults__ and rebound module data remain uncovered."
  ],
  "integration_notes": [
   "Ledger: merge-workstreams was run on this branch (a8436f0 and again in wave 3b for P's additions); no other branch appends to the ledger. After merging other wave-3b branches, run `python -m crucible.acceptance.v5 merge-workstreams` on the integration branch (additions only).",
@@ -415,9 +418,12 @@
   "Workstream L / merge order: on this branch RP.1's relocation breaks L's CAM probes - experience/probes.py probe_sl/probe_cam2 import the removed crucible.integrations.agentrs_sl/_cam2, so probes.run_all(['sl','cam2'], errors='record') reports reward_leaks_found=2 and surfaces_failed_to_run=2 (ModuleNotFoundError): tests/v5/test_gate_OO.py::test_OO2 (asserts reward_leaks_found == 0), the Gate R probe tests (_probe_leaks adds len(errors)) and the two unit tests tests/test_v5_experience_oo.py::test_sl_adapter_pays_nothing_and_never_ends_on_the_verifier_by_default and tests/test_v5_experience_core.py::test_cam2_adapter_reward_modes fail here. c5c/w3b-obs commit 2d25a0d5 replaces both surfaces with architecture-neutral stand-ins and removes the imports: merge it with (or before) this branch.",
   "SP-1.3b: all 130 requirements without implementation files on this branch are listed with implementation files by the c5c/w3b-* branches' workstreams JSONs (counted 2026-11-27); after merging them run `python -m crucible.acceptance.v5 merge-workstreams` on the integration branch (additions only, recorded in the ledger).",
   "Gate X.2/X.4 (final QA pass): run tests/v5/test_gate_X.py -k 'X_2 or X_4' in a small slot (e.g. --cpu 1 --gpu-mb 0 --ram-mb 4000; the suite itself is submitted job by job: baseline.suite_plan, one slot job per gate file, about an hour of unit-test files per job, RAM/timeout from the governor's usage ledger, at most CRUCIBLE_GATE_X_INFLIGHT=8 queued at once). Expect a multi-day wall time with today's queue.",
-  "Gate tests and the D-83 third addendum: the review's ablation now judges by what was blocked and when. A producing test must run into its implementation before it records; a record made after a blocked implementation call in the same process (finally/with/except) is rejected, as is a record made before anything was blocked; tests that measure through child processes are judged by the blocks in those children (every criteria metric must change). Records now also list code-object patches of src/ functions (patched_functions), at about 0.4 s per 60 imported modules on first record."
+  "Gate tests and the D-83 third addendum: the review's ablation now judges by what was blocked and when. A producing test must run into its implementation before it records; a record made after a blocked implementation call in the same process (finally/with/except) is rejected, as is a record made before anything was blocked; tests that measure through child processes are judged by the blocks in those children (every criteria metric must change). Records now also list code-object patches of src/ functions (patched_functions), at about 0.4 s per 60 imported modules on first record.",
+  "Owners of tests that measure inside official clones: a clone's own refs are not the repository's (branches only as origin/*, origin = the source repository). Use crucible.acceptance.v5.qa.ref_repository(root) for any measurement of branches, remotes or reflogs (X.n1 and RP.3-RP.6 do).",
+  "Gate test authors (D-83 fourth addendum): official records now carry executed_implementation (functions of the requirement's implementation files that returned in the recording process during the test). A test that measures only through child processes is accepted only through blocks in those children; a test whose record shows no implementation function executed in-process and whose ablated children are not blocked cannot pass the review.",
+  "Workstream O (sandbox/boot.py): the D-82 second addendum adds _v4_fixed_filenames (4.0 historical baseline only: boot's own code filenames become the working directory) and a traceback-free failed load in that mode; keep both when editing boot.py, or Gate A.1/A.5 counts depend on the checkout's directory permissions again."
  ],
- "wave": "3b repair pass (fourth agent on the branch, after the second independent verification)",
+ "wave": "3b repair pass (fifth agent on the branch: second repair agent, after the fourth agent's usage-limit stop)",
  "history": [
   {
    "wave": "3 (independent adversarial verification of wave 1's hardened checker; c5c/w1-qa's verifier never ran)",
@@ -481,6 +487,11 @@
    "wave": "3b repair pass",
    "date": "2026-11-27",
    "summary": "Fixed every finding of the wave-3b second verification: P39 applied at the evidence commit and pins moved into the ledger with a decision quoting the hash plus a content scan of pinned hooks (V1, V5); interpreter probes by whitelist (P38b); ablation verdict from a block log, replacement ablation commit (V2b, V3); code-object patch detection (V4); recording machinery exempt from ablation (V6, V6c); whole-repository hook/ignored/compiled scans (V8); RP.1 scan follows what gates run (A.1 found); Gate X per-file slot plan; DEF-P-27 triage corrected; SP-1.3b count corrected."
+  },
+  {
+   "wave": "3b repair pass, second agent",
+   "date": "2026-11-27",
+   "summary": "Verified the fourth agent's fixes of the second verification with new probes and fixed what they found: V9 detect-and-sacrifice (execution observer), V10 rebound definitions, V11 pinned-hook reach, V12 forged observer record; the 4.0 line count's dependence on the checkout location (D-82 second addendum); X.n1/RP measured in official clones (qa.ref_repository, qa.integration_state); X.2/X.4 test timeouts; merged feat/crucible-5-complete 629584a2. A.1 slot run at 74e9bc38: 1,074/1,076 passed (2 test_scale failures, DEF-P-25)."
   }
  ],
  "test_results_unofficial": {
@@ -492,12 +503,12 @@
   "AGENTRS side: tests/cam2/test_crucible_adapter.py tests/test_sl_crucible_world.py": "6 passed, 1 skipped (the Qwen GPU replay test, CUDA hidden)",
   "P gate tests (local, unofficial)": "A.2 pass, A.4 pass, SP-19.7 pass, SP-21b pass, X.9 pass, OO.13 pass, RP.2/RP.5/RP.6 pass, SP-1.3/SP-1.5/SP-1.5b/SP-20b pass; failing honestly: RP.1 (6 L-owned CAM imports), RP.3, RP.4, SP-1.3b (130 entries without implementation files, 354 without a verified commit), SP-18, SP-20, X.1 (342 unverified), X.5 (5 component docs missing), X.6 (96 open critical/high), X.7 (17 flagged tests, 68 ids unrecorded), X.n1 (17 unmerged branches), OO.15 (0/8 reviewed); SP-21 runs every probe (~30 min): queued as a slot job",
   "Gate A.1 fast feedback (CPU, < 290 s groups, predecessor code)": "1,063 of 1,076 ran, 1,057 passed, 4 failed (3 fixed since and re-checked on the 4.0 bytes), 2 skipped (GPU)",
-  "Gate A.5 fast feedback (per record, fresh clone each)": "16 of 17 attempted records reproduce (A-M and P exactly, O v4-self-irreproducible with v5 == c07098b); N did not finish in 295 s; demo_lifetime (4 days) event-for-event equal to c07098b except one recorded API-catalogue hash"
+  "Gate A.5 fast feedback (per record, fresh clone each)": "16 of 17 attempted records reproduce (A-M and P exactly, O v4-self-irreproducible with v5 == c07098b); N did not finish in 295 s; demo_lifetime (4 days) event-for-event equal to c07098b except one recorded API-catalogue hash",
+  "Gate A.1 slot run at 74e9bc38 (GPU, one process, unofficial)": "1,076 ran, 1,074 passed, 2 failed (tests/test_scale.py: workers recycled; keyboard interrupt 600 s timeout - DEF-P-25), 0 skipped"
  },
  "slot_jobs": [
-  "P: Gate A.1 4.0 baseline as historical baseline (D-82) - queued by the previous agent, kept (it clones HEAD when it starts)",
-  "P: Gate A.5 (D-82 addendum, historical baseline) - queued",
-  "P: Gate SP-21 (probes P1-P39, wave 3b) - queued",
-  "cancelled: P: acceptance checker + probe tests (w3b baseline) - obsolete (measured the tree before the predecessor's changes)"
+  "finished: P: Gate A.1 4.0 baseline as historical baseline (D-82) - rc 1, 1,074/1,076 passed (see A.1 notes)",
+  "P: Gate A.5 (D-82 addendum, historical baseline) - queued (starts from the worktree head)",
+  "P: Gate SP-21 (probes P1-P39, wave 3b) - queued (starts from the worktree head)"
  ]
 }
