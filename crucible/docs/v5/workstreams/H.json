@@ -133,7 +133,14 @@
      "cxc_balancing_constraint (eval)"
     ]
    },
-   "probe_tools": "scratchpad w3b-rapid/r3: predprobe.py (generic predictors vs reference), admchunk.py (full admission), riskprobe.py (identification and claims), pe_det.py (program determinism), c810.py (8.10 check)"
+   "probe_tools": "scratchpad w3b-rapid/r3: predprobe.py (generic predictors vs reference), admchunk.py (full admission), riskprobe.py (identification and claims), pe_det.py (program determinism), c810.py (8.10 check)",
+   "tests_run_directly": {
+    "rapid_unit": "433 passed (tests/test_v5_rapid_*.py, two single-CPU runs: 252 + 181; includes the 26 new tests of tests/test_v5_rapid_repair.py)",
+    "kernel_invariants": "51 passed (tests/test_kernel.py tests/test_invariants.py)",
+    "gate_tests": "M.5, M.8, M.n1, SP-0.9, SP-7.0, SP-7.1, SP-7.2, SP-8.12b passed (single-CPU, worktree)",
+    "other_areas": "tests/test_v5_substrate_modes.py -k rapid and tests/test_v5_experience_wave3.py rapid cases passed (3); tests/test_v5_research_unit.py not run (more than five minutes, research workstream)",
+    "twin": "scalar twin agrees with the vectorised engine on all 64 supported primitive-graph family instances tried (32 families x 2 seeds, 30 ticks)"
+   }
   }
  },
  "requirements": {
