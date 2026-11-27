@@ -181,6 +181,15 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
                 r[ph]["share_failing"] = float(np.isin(log["res"][m], list(bad_after)).mean()) if m.any() else 0.0
             util[(a, ph)] = log["util"][m].astype(np.float64)
         out.setdefault("behaviour", {})[a] = r
+    # baseline: the class-1 individuals of the same world (hand-set plausible decisions, no network), same phases
+    m1 = (log["cls"] == 1) & (log["activity"] == "web")
+    c1 = {}
+    for ph, sel in (("phase1", log["t"] < t_switch), ("phase2", log["t"] >= t_switch)):
+        m = m1 & sel
+        c1[ph] = {"visits": int(m.sum()), "mean_util": float(log["util"][m].mean()) if m.any() else 0.0}
+        if ph == "phase2":
+            c1[ph]["share_failing"] = float(np.isin(log["res"][m], list(bad_after)).mean()) if m.any() else 0.0
+    out["class1_baseline"] = c1
     if cf is not None:
         try:
             cf.advance_time(cf.now + phase_days * DAY)

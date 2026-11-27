@@ -154,7 +154,11 @@ def test_G6_improvement_on_a_controlled_new_condition(runs):
          "share_failing_frozen_at_switch": float(np.mean([a["share_failing_frozen_at_switch"] for a in ad])),
          "weights_changed_after_switch_all_seeds": bool(all(a["hash_end_learning"] != a["hash_switch"] for a in ad)),
          "frozen_at_switch_unchanged_all_seeds": bool(all(a["hash_end_frozen_at_switch"] == a["hash_switch"]
-                                                          for a in ad))}
+                                                          for a in ad)),
+         "class1_phase2_mean_util": float(np.mean([r["class1_baseline"]["phase2"]["mean_util"] for r in runs])),
+         "class1_phase2_share_failing": float(np.mean([r["class1_baseline"]["phase2"]["share_failing"] for r in runs])),
+         "learning_phase2_mean_util": float(np.mean([r["behaviour"]["learning"]["phase2"]["mean_util"]
+                                                     for r in runs]))}
     evidence.record("G.6", m, command=CMD, notes=(
         "Controlled new condition: after phase 1 the two most visited rich sites fail and the two broken ones become "
         "rich (their operators' ordinary tools; scripted by the experimenter). Each seed's world is forked at the "
