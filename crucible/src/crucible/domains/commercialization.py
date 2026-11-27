@@ -769,6 +769,7 @@ def evaluate(world, principal: str, objective: dict) -> dict:
 
 MECHANICS = ("Research", "Experimentation", "Technical development", "Product creation", "Financing", "Deployment",
              "Independent adoption", "Commercial sustainability")
+PARTICIPANT_MECHANICS = MECHANICS          # all measured on the founder's own venture
 
 
 def mechanics(world) -> dict:
@@ -776,30 +777,77 @@ def mechanics(world) -> dict:
 
 
 def mechanics_report(world, since_seq: int = 0) -> dict:
+    """Each required mechanic of 9.15, measured on the founder's own venture (all are PARTICIPANT_MECHANICS; the
+    rival labs' research and the population's own practice are the world it works in): its papers and their
+    replications, its apparatus runs and pilots, its prototypes, products, financing, deployment (hosting and trials
+    of its products), renewals of its products by independent people, and a 30-day window in which its products'
+    revenue exceeded their hosting and promotion costs."""
     st = world.state
-    c = K.event_counts(world, since_seq)
-    subs = K.batch_records(world, "rc.practice", "subscriptions", since_seq)
-    renews = [x for x in subs if x[2] == "renew"]
+    me = set(K.seats_in(world, DOMAIN))
+    prods = {pid for pid, r in st.scan("rc_products") if r["owner"] in me}
+    papers: set[str] = set()
+    n = {"sci.paper": 0, "sci.replication": 0, "sci.booked": 0, "rc.pilot": 0, "rc.pilot_done": 0, "rc.prototype": 0,
+         "rc.product": 0, "rc.product_update": 0, "rc.pitch": 0, "rc.equity": 0, "rc.hosting": 0}
+    pilots: set[str] = set()
+    for ev in world.events_range(since_seq):
+        p = ev.payload
+        t = ev.type
+        if t == "sci.paper" and p["author"] in me and p["phenomenon"] == PHEN:
+            papers.add(p["id"])
+            n[t] += 1
+        elif t == "sci.replication" and p["paper"] in papers:
+            n[t] += 1
+        elif t == "sci.booked" and p["owner"] in me:
+            n[t] += 1
+        elif t == "rc.pilot" and p["owner"] in me:
+            pilots.add(p["id"])
+            n[t] += 1
+        elif t == "rc.pilot_done" and p["id"] in pilots:
+            n[t] += 1
+        elif t in ("rc.prototype", "rc.product") and p["owner"] in me:
+            n[t] += 1
+        elif t in ("rc.product_update", "rc.hosting") and p["id"] in prods:
+            n[t] += 1
+        elif t == "rc.pitch" and p.get("by") in me:
+            n[t] += 1
+        elif t == "rc.equity" and p["venture"] in me:
+            n[t] += 1
+    subs = [x for x in K.batch_records(world, "rc.practice", "subscriptions", since_seq) if x[1] in prods]
+    rel: dict[str, bool] = {}
+
+    def indep(u):
+        if u not in rel:
+            rel[u] = all(not K.related(world, a, u) for a in me)
+        return rel[u]
+    renews = [x for x in subs if x[2] == "renew" and indep(f"p{x[0]}")]
     trials = [x for x in subs if x[2] == "trial"]
-    led = [x for _, x in st.scan("rc_ledger")]
+    # commercial sustainability: a 30-day window (ending on a day boundary) with revenue above costs
+    led = [x for _, x in st.scan("rc_ledger") if x["product"] in prods]
+    windows = 0
+    if led:
+        last = int(world.now // DAY)
+        for d in range(30, last + 1):
+            t1, t0 = d * DAY, (d - 30) * DAY
+            rev = sum(x["cents"] for x in led if x["kind"] == "revenue" and t0 <= x["t"] < t1)
+            cost = sum(x["cents"] for x in led if x["kind"] in ("hosting", "advertising") and t0 <= x["t"] < t1)
+            if rev > 0 and rev > cost:
+                windows += 1
     return {
-        "Research": {"exercised": c["sci.paper"] > 0 and c["sci.replication"] > 0,
-                     "events": {"sci.paper": c["sci.paper"], "sci.replication": c["sci.replication"]}},
-        "Experimentation": {"exercised": c["sci.booked"] > 0 and (c["rc.pilot"] > 0 or c["sci.replication"] > 0),
-                            "events": {"sci.booked": c["sci.booked"], "rc.pilot": c["rc.pilot"],
-                                       "rc.pilot_done": c["rc.pilot_done"]}},
-        "Technical development": {"exercised": c["rc.prototype"] > 0, "events": {"rc.prototype": c["rc.prototype"]}},
-        "Product creation": {"exercised": c["rc.product"] > 0, "events": {"rc.product": c["rc.product"],
-                                                                          "rc.product_update": c["rc.product_update"]}},
-        "Financing": {"exercised": c["rc.equity"] > 0, "events": {"rc.pitch": c["rc.pitch"], "rc.equity": c["rc.equity"]}},
-        "Deployment": {"exercised": c["rc.hosting"] > 0 and len(trials) > 0,
-                       "events": {"rc.hosting": c["rc.hosting"], "trials": len(trials)}},
-        "Independent adoption": {"exercised": len(renews) > 0, "events": {"renewals": len(renews),
+        "Research": {"exercised": n["sci.paper"] > 0 and n["sci.replication"] > 0,
+                     "events": {"sci.paper": n["sci.paper"], "sci.replication": n["sci.replication"]}},
+        "Experimentation": {"exercised": n["sci.booked"] > 0 and (n["rc.pilot"] > 0 or n["sci.replication"] > 0),
+                            "events": {"sci.booked": n["sci.booked"], "rc.pilot": n["rc.pilot"],
+                                       "rc.pilot_done": n["rc.pilot_done"]}},
+        "Technical development": {"exercised": n["rc.prototype"] > 0, "events": {"rc.prototype": n["rc.prototype"]}},
+        "Product creation": {"exercised": n["rc.product"] > 0, "events": {"rc.product": n["rc.product"],
+                                                                          "rc.product_update": n["rc.product_update"]}},
+        "Financing": {"exercised": n["rc.equity"] > 0, "events": {"rc.pitch": n["rc.pitch"], "rc.equity": n["rc.equity"]}},
+        "Deployment": {"exercised": n["rc.hosting"] > 0 and len(trials) > 0,
+                       "events": {"rc.hosting": n["rc.hosting"], "trials": len(trials)}},
+        "Independent adoption": {"exercised": len(renews) > 0, "events": {"independent_renewals": len(renews),
                                                                           "trials": len(trials)}},
-        "Commercial sustainability": {"exercised": any(x["kind"] == "revenue" for x in led) and
-                                      any(x["kind"] in ("hosting", "advertising") for x in led),
-                                      "events": {"revenue_entries": sum(x["kind"] == "revenue" for x in led),
-                                                 "cost_entries": sum(x["kind"] != "revenue" for x in led)}},
+        "Commercial sustainability": {"exercised": windows > 0,
+                                      "events": {"profitable_30d_windows": windows}},
     }
 
 

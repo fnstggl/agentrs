@@ -8,7 +8,8 @@ observation_only by default, reachable through `crucible.experience.make(2, ...)
 connect scientific discovery and economic outcomes, confirmed by counterfactual removal of the discovery.
 
 Mechanics: measured by the framework (`base.section_metrics`) on reference runs of every configuration (seed 15;
-a mechanic counts only when exercised in every configuration's run, tests/v5/_dom3_gate.py).
+a mechanic counts only when exercised in every configuration's run, tests/v5/_dom3_gate.py); every mechanic is
+measured on the founder's own venture, and the null baseline (idle seat) exercises none of them and fails.
 Counterfactual removal: the same world (configuration and seed) driven by the same founder with the discovery
 removed - it builds its advisor from common practice (the population's habitual setting, the most generous
 knowledge available without the phenomenon's data, handed to it by the test) instead of from its measurements -
@@ -24,7 +25,7 @@ from crucible.acceptance.v5.evidence import record
 from crucible.domains import base
 from crucible.domains import commercialization as R
 
-from _dom3_gate import section
+from _dom3_gate import assert_participant_needed, section
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(4 * 3600)]
 
@@ -57,4 +58,5 @@ def test_SP_9_15_research_commercialization_mechanics_and_discovery_link():
     record("SP-9.15", m, labels={"scripted": True}, notes=(" | ".join(extra) + " || " + notes)[:8000])
     assert len(R.MECHANICS) == 8 and tuple(R.DOMAIN.required_mechanics) == R.MECHANICS
     assert m["clean_runs"] == m["configurations_run"] == 5, notes[:3000]
+    assert_participant_needed(m, notes)
     assert not checker.unmet("SP-9.15", m), (m, extra)

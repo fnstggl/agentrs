@@ -91,7 +91,8 @@ DEFAULTS = {"districts": 7, "hazard": "storm", "topology": "radial", "at_h": 6, 
             "coordinator_trucks": 2, "coordinator_fuel_l": 3000, "operator_asks": {"powerco": 16, "waterco": 0,
                                                                                     "telco": 8, "works": 0},
             "volunteers": False, "supplier_lead_h": 60, "store_stock": 120, "emergency_fund": 6_000_000,
-            "aid_cents_crew_day": 120_000, "aid_arrival_h": 24}
+            "aid_cents_crew_day": 120_000, "aid_arrival_h": 24,
+            "pump_teams": 2, "dewater_cents": 90_000, "dewater_h": 20, "min_expected_damage": 10.0}
 
 
 def generate_instance(rng, cfg: dict) -> dict:
@@ -145,9 +146,37 @@ def generate_instance(rng, cfg: dict) -> dict:
     for k, d in enumerate(depots):
         add(f"depot{k}", "depot", d, {"kind": "generator", "cap_l": 300, "burn_lph": 10}, stock_l=30_000)
     add("hospital", "hospital", hosp, {"kind": "generator", "cap_l": 900, "burn_lph": 35}, water_tank_h=16)
-    # the event strikes the region: its centre lies near a district drawn by population (a major disruption)
-    k0 = int(rng.choice(D, p=hh))
-    center = xy[k0] + rng.normal(0, 1.0, 2)
+    # the event strikes the region: its centre lies near a district drawn by population, and it is a major
+    # disruption - among a few draws the first whose expected damage (the fragility curves at the main event's
+    # intensity) reaches `min_expected_damage` facilities, else the most damaging one
+    def expected_damage(cxy) -> float:
+        kind, frag = c["hazard"], FRAGILITY[c["hazard"]]
+        I0, tot = float(c["intensity"]), 0.0
+        sites = [(f["type"], f["district"]) for f in fac] + [("road", r["a"]) for r in roads] + \
+            [("line", ln["a"]) for ln in lines]
+        for kd, dist in sites:
+            if kd not in frag:
+                continue
+            k = int(dist[1:])
+            if kind in ("storm", "quake"):
+                I = I0 * math.exp(-math.hypot(xy[k, 0] - cxy[0], xy[k, 1] - cxy[1]) / (6.0 if kind == "storm" else 4.5))
+            elif kind == "flood":
+                I = I0 * (1.4 if elev[k] < 0.35 * I0 else 0.4 * (1.0 - elev[k]))
+            else:
+                I = I0 * 0.8
+            med, beta = frag[kd]
+            tot += _phi((math.log(max(I, 1e-6)) - math.log(med)) / beta)
+        return tot
+    best = None
+    for _ in range(12):
+        k0 = int(rng.choice(D, p=hh))
+        cand = xy[k0] + rng.normal(0, 1.0, 2)
+        e = expected_damage(cand)
+        if best is None or e > best[0]:
+            best = (e, cand)
+        if e >= float(c["min_expected_damage"]):
+            break
+    center = best[1]
     c.update({"districts": districts, "roads": roads, "lines": lines, "facilities": fac,
               "center": [round(float(x), 3) for x in center], "n_districts": D})
     return c
@@ -183,7 +212,7 @@ class Crisis(Module):
                       ("cr_parts", ("owner",)), ("cr_orders", ("owner",)), ("cr_known", ("observer",)),
                       ("cr_operators", ()), ("cr_help", ("operator",)), ("cr_requests", ("operator",)),
                       ("cr_reports", ("district",)), ("cr_invest", ("owner",)), ("cr_stores", ()),
-                      ("cr_hist", ())):
+                      ("cr_hist", ()), ("cr_pumping", ("status",))):
             st.declare_table(t, index=ix)
         from .. import population as P
         n = P.n_individuals(world)
@@ -306,6 +335,19 @@ class Crisis(Module):
                     best[v] = nd
                     heapq.heappush(pq, (nd, v))
         return None
+
+    def entry(self, st, flooded: set | None = None) -> str:
+        """Where help from outside the region comes in: its edge, district d0 - or, while d0 is under water, the dry
+        district nearest to it."""
+        flooded = self.flooded(st) if flooded is None else flooded
+        d0 = self.districts[0]
+        if d0 not in flooded:
+            return d0
+        dm = {d["id"]: d for d in self.c["districts"]}
+        dry = [d for d in self.districts if d not in flooded]
+        if not dry:
+            return d0
+        return min(dry, key=lambda d: (math.hypot(dm[d]["x"] - dm[d0]["x"], dm[d]["y"] - dm[d0]["y"]), d))
 
     def flooded(self, st) -> set:
         m = st.get("cr_operators", "_flood")
@@ -525,6 +567,14 @@ class Crisis(Module):
     def _arrivals(self, ctx):
         st = ctx.state
         now = ctx.now
+        # crews called in from outside arrive at the region's edge; while the edge is under water they come in at
+        # the dry district nearest to it
+        flooded = self.flooded(st)
+        if flooded:
+            for cid, cr in sorted(st.scan("cr_crews")):
+                if now - HOUR < int(cr.get("arrive_t") or 0) <= now and cr["at"] in flooded and not cr["task"]:
+                    ctx.emit("crisis.crew_task", {"id": cid, "task": None, "at": self.entry(st, flooded)},
+                             vis="public")
         for oid, o in sorted(st.scan("cr_orders")):
             if o["status"] == "open" and o["arrive_t"] <= now:
                 ctx.emit("crisis.parts", {"owner": o["owner"], "part": o["part"], "delta": int(o["qty"])},
@@ -790,7 +840,7 @@ class Crisis(Module):
     def ep_join(self, ctx):
         """Register as the region's emergency coordinator: you get your own general crews, fuel tankers with a
         fuel reserve, and the coordinator's tools (dispatch, lend, buy_parts, give_parts, deliver_fuel, refill,
-        agree, request, invest)."""
+        agree, request, invest, mutual_aid, dewater, volunteers)."""
         self._coordinator(ctx)
         st = ctx.state
         return {"crews": [cid for cid, c in sorted(st.scan("cr_crews")) if c["owner"] == ctx.actor],
@@ -879,7 +929,9 @@ class Crisis(Module):
                 "my_fuel_l": res.get("fuel_l", 0.0) if res else 0.0,
                 "operators": [{"operator": oid, "kind": o["kind"], "agreed": bool(o.get("agreed"))}
                               for oid, o in sorted(st.scan("cr_operators")) if oid.startswith("o:")],
-                "flooded": sorted(flood["districts"]) if flood and flood["until"] > ctx.now else []}
+                "flooded": sorted(flood["districts"]) if flood and flood["until"] > ctx.now else [],
+                "pumping": [{"district": j["district"], "by": j["by"], "done_t": j["done_t"]}
+                            for _, j in sorted(st.scan("cr_pumping")) if j["status"] == "pumping"]}
 
     def _my_crew(self, ctx, crew: str) -> dict:
         c = ctx.state.get("cr_crews", crew)
@@ -944,7 +996,8 @@ class Crisis(Module):
                                   ["trade", "crews", "days"]), cost_s=600)
     def ep_mutual_aid(self, ctx, trade, crews, days):
         """Call in specialist crews of a trade from outside the region through the mutual aid network: paid in
-        advance per crew-day; they arrive at the region's edge (district d0) after about a day, work under your
+        advance per crew-day; they arrive at the region's edge (district d0, or the dry district nearest to it while
+        d0 is under water) after about a day, work under your
         direction (or lent on) and leave when their days are up."""
         self._coordinator(ctx)
         st = ctx.state
@@ -1160,6 +1213,58 @@ class Crisis(Module):
         ctx.emit("crisis.level", {"id": inv["asset"], "changes": ch}, vis="internal")
         ctx.emit("crisis.installed", {"id": id, "asset": inv["asset"], "kind": inv["kind"]}, vis="public")
 
+    @endpoint("dewater", S.obj({"district": S.s_str(maxLength=10)}, ["district"]), cost_s=600)
+    def ep_dewater(self, ctx, district):
+        """Hire a portable pump team (paid now) to drain a flooded district: it comes in at the region's edge
+        (district d0, or the dry district nearest to it while d0 is under water) and travels over open roads to a dry
+        neighbour of the district, then pumps for about a day; the district is
+        then dry and its roads open - until another flood wave covers it again. A few teams can pump at once."""
+        self._coordinator(ctx)
+        st = ctx.state
+        if district not in self.districts:
+            raise NotFound(f"no district {district}")
+        flooded = self.flooded(st)
+        if district not in flooded:
+            raise Conflict(f"{district} is not under water")
+        busy = [j for j in st.find("cr_pumping", "status", "pumping")]
+        if any(j["district"] == district for j in busy):
+            raise Conflict(f"a pump team is already draining {district}")
+        if len(busy) >= int(self.c["pump_teams"]):
+            raise Conflict(f"all {int(self.c['pump_teams'])} pump teams are at work")
+        # the water's edge: a dry district next to it, reached from where help enters the region over open roads
+        edge = None
+        src0 = self.entry(st, flooded)
+        for r in self.roads.values():
+            if district not in (r["a"], r["b"]):
+                continue
+            n = r["b"] if r["a"] == district else r["a"]
+            t = self.travel_h(st, src0, n, flooded)
+            if t is not None and (edge is None or t < edge):
+                edge = t
+        if edge is None:
+            raise Conflict(f"no open road to the edge of {district}")
+        bank = ctx.world.modules["bank"]
+        src = bank.primary_account(st, ctx.actor)
+        price = int(self.c["dewater_cents"])
+        if src is None or bank.available(st, src) < price:
+            raise InvalidAction(f"a pump team costs {price} cents")
+        bank.move(ctx, src, bank.primary_account(st, "o:mutualaid"), price, "purchase", f"pump team for {district}")
+        jid = st.new_id("crpump")
+        done = int(ctx.now + (edge + float(self.c["dewater_h"])) * HOUR)
+        ctx.emit("crisis.dewater", {"id": jid, "district": district, "by": ctx.actor, "done_t": done}, vis="public")
+        ctx.schedule(done, "crisis.drain", {"id": jid}, prio=32)
+        return {"job": jid, "dry_in_h": round(edge + float(self.c["dewater_h"]), 1)}
+
+    @process("drain")
+    def pr_drain(self, ctx, id):
+        st = ctx.state
+        j = st.tables["cr_pumping"][id]
+        m = st.get("cr_operators", "_flood")
+        left = [d for d in (m["districts"] if m else []) if d != j["district"]]
+        if m is not None and j["district"] in m["districts"] and m["until"] > ctx.now:
+            ctx.emit("crisis.flood", {"districts": left, "until": int(m["until"])}, vis="public")
+        ctx.emit("crisis.drained", {"id": id, "district": j["district"]}, vis="public")
+
     @endpoint("volunteers", S.obj({"district": S.s_str(maxLength=10), "road": S.s_str(maxLength=10)},
                                   ["district", "road"]), cost_s=300)
     def ep_volunteers(self, ctx, district, road):
@@ -1363,6 +1468,15 @@ class Crisis(Module):
         # the facility-state history the evaluator integrates (recorded state: equal on a world rebuilt from the log)
         st.put("cr_hist", f"{int(ev.t):012d}|{len(st.tables['cr_hist']):06d}",
                {"t": int(ev.t), "services": ev.payload["services"], "up": dict(ev.payload["up"])})
+
+    @applier("crisis.dewater")
+    def ap_dewater(self, ev):
+        p = dict(ev.payload)
+        self.world.state.insert("cr_pumping", p.pop("id"), p | {"status": "pumping", "t": ev.t})
+
+    @applier("crisis.drained")
+    def ap_drained(self, ev):
+        self.world.state.patch("cr_pumping", ev.payload["id"], status="done")
 
     @applier("crisis.flood")
     def ap_flood(self, ev):
@@ -1593,6 +1707,9 @@ def evaluate(world, principal: str, objective: dict) -> dict:
 
 MECHANICS = ("Cascading disruptions", "Scarce resources", "Prioritization", "Coordination", "Recovery", "Resilience",
              "Independent service-restoration metrics")
+# mechanics measured on what the coordinator's own decisions brought about; the disruption's cascades and the
+# restoration metrics are the world's physics and the evaluator's measurement
+PARTICIPANT_MECHANICS = ("Scarce resources", "Prioritization", "Coordination", "Recovery", "Resilience")
 
 
 def mechanics(world) -> dict:
@@ -1611,6 +1728,41 @@ def mechanics_report(world, since_seq: int = 0) -> dict:
     for ev in world.events_range(since_seq):
         if ev.type == "crisis.priority":
             reasons[ev.payload["reason"]] = reasons.get(ev.payload["reason"], 0) + 1
+    # PARTICIPANT_MECHANICS are measured on what the coordinator's own decisions brought about: operators working its
+    # priority requests, agreements with it and its help, restorations by its crews, its resilience investments
+    # installed, the scarce parts, fuel and crews it allocated
+    me = set(K.seats_in(world, DOMAIN))
+    mine = {"requests": 0, "request_priorities": 0, "agreed": 0, "help": 0, "restored": 0, "installed": 0,
+            "parts_given": 0, "parts_bought": 0, "fuelled": 0, "lent": 0}
+    my_req: set[str] = set()
+    my_inv: set[str] = set()
+    my_crews = {cid for cid, x in world.state.scan("cr_crews") if x["owner"] in me}
+    for ev in world.events_range(since_seq):
+        p = ev.payload
+        t = ev.type
+        if t == "crisis.request" and p.get("by") in me:
+            mine["requests"] += 1
+            my_req.add(f"{p['operator']}|{p['target']}")
+        elif t == "crisis.priority" and p["reason"] == "request" and f"{p['operator']}|{p['target']}" in my_req:
+            mine["request_priorities"] += 1
+        elif t == "crisis.agreed" and p.get("with") in me:
+            mine["agreed"] += 1
+        elif t == "crisis.help" and p.get("by") in me:
+            mine["help"] += 1
+        elif t == "crisis.restored" and p.get("by") in me:
+            mine["restored"] += 1
+        elif t == "crisis.invest" and p.get("owner") in me:
+            my_inv.add(p["id"])
+        elif t == "crisis.installed" and p["id"] in my_inv:
+            mine["installed"] += 1
+        elif t == "crisis.parts" and p["owner"] in me and int(p["delta"]) < 0:
+            mine["parts_given"] += 1
+        elif t == "crisis.order" and p["owner"] in me:
+            mine["parts_bought"] += 1
+        elif t == "crisis.fuelled" and p.get("by") in me:
+            mine["fuelled"] += 1
+        elif t == "crisis.lend" and p.get("to") and p["id"] in my_crews:
+            mine["lent"] += 1
     mod = world.modules["crisis"]
     r = restoration(world, int(mod.c["at_h"]) * HOUR, world.now) if history(world) else None
     # scarcity binds when more assets are damaged at once than there are crews to work on them
@@ -1635,24 +1787,22 @@ def mechanics_report(world, since_seq: int = 0) -> dict:
         "Cascading disruptions": {"exercised": c["crisis.damage"] > 0 and led["cascaded"] > 0,
                                   "events": {"crisis.damage": c["crisis.damage"],
                                              "undamaged_facilities_down": led["cascaded"]}},
-        "Scarce resources": {"exercised": peak > crews and (c["crisis.part_fitted"] + c["crisis.wait_part"] +
-                                                           c["crisis.order"] + c["crisis.backup_dry"] +
-                                                           c["crisis.fuelled"]) > 0,
+        "Scarce resources": {"exercised": peak > crews and (mine["parts_given"] + mine["fuelled"] + mine["lent"]) > 0,
                              "events": {"peak_damaged_assets": peak, "crews": crews,
-                                        "crisis.part_fitted": c["crisis.part_fitted"],
+                                        "parts_given": mine["parts_given"], "parts_bought": mine["parts_bought"],
+                                        "fuel_deliveries": mine["fuelled"], "crews_lent": mine["lent"],
                                         "crisis.wait_part": c["crisis.wait_part"],
-                                        "crisis.backup_dry": c["crisis.backup_dry"], "crisis.order": c["crisis.order"],
-                                        "crisis.fuelled": c["crisis.fuelled"]}},
-        "Prioritization": {"exercised": reasons.get("request", 0) + reasons.get("customers", 0) > 0 and
-                                        c["crisis.priority"] > 0,
-                           "events": {"crisis.request": c["crisis.request"], **{f"priority:{k}": v
-                                                                               for k, v in reasons.items()}}},
-        "Coordination": {"exercised": c["crisis.agreed"] > 0 and c["crisis.help"] > 0,
-                         "events": {"crisis.agreed": c["crisis.agreed"], "crisis.help": c["crisis.help"],
-                                    "crisis.fuelled": c["crisis.fuelled"]}},
-        "Recovery": {"exercised": c["crisis.restored"] > 0, "events": {"crisis.restored": c["crisis.restored"]}},
-        "Resilience": {"exercised": on_backup > 0 and c["crisis.installed"] > 0,
-                       "events": {"facility_states_on_backup": on_backup, "crisis.installed": c["crisis.installed"]}},
+                                        "crisis.backup_dry": c["crisis.backup_dry"]}},
+        "Prioritization": {"exercised": mine["requests"] > 0 and mine["request_priorities"] > 0,
+                           "events": {"its_requests": mine["requests"],
+                                      "operator_tasks_on_its_requests": mine["request_priorities"],
+                                      **{f"priority:{k}": v for k, v in reasons.items()}}},
+        "Coordination": {"exercised": mine["agreed"] > 0 and mine["help"] > 0,
+                         "events": {"agreements_with_it": mine["agreed"], "its_help": mine["help"]}},
+        "Recovery": {"exercised": mine["restored"] > 0, "events": {"restored_by_its_crews": mine["restored"],
+                                                                   "crisis.restored": c["crisis.restored"]}},
+        "Resilience": {"exercised": on_backup > 0 and mine["installed"] > 0,
+                       "events": {"facility_states_on_backup": on_backup, "its_investments_installed": mine["installed"]}},
         "Independent service-restoration metrics": {
             "exercised": r is not None and len(led["states"]) > 1 and r["households"] > 0,
             "events": {"crisis.state": c["crisis.state"], "households": r["households"] if r else 0,
@@ -1752,6 +1902,9 @@ class CrisisCoordinator(K.ReadingReference):
         self.watered = 0
         self.bought: set[str] = set()
         self.aid = False
+        self.wet: set[str] = set()
+        self.hardened: dict[str, int] = {}
+        self.extra_hardened = 0
 
     def handle(self, tag, res, action):
         if res is None:
@@ -1801,7 +1954,7 @@ class CrisisCoordinator(K.ReadingReference):
         # chain first, then by households per repair hour, matching trades first), then unknown chain assets
         if not self.aid:
             self.aid = True
-            for trade, n, days in (("power", 3, 6), ("water", 2, 5), ("telecom", 1, 4), ("roads", 2, 4)):
+            for trade, n, days in (("power", 3, 4), ("water", 2, 4), ("telecom", 1, 4), ("roads", 2, 3)):
                 out.append(A("crisis.mutual_aid", trade=trade, crews=n, days=days))
         hh = {d["district"]: d["households_share"] for d in s["districts"]}
         worked = {c["target"] for c in s["crews"] if c.get("target")}
@@ -1867,12 +2020,43 @@ class CrisisCoordinator(K.ReadingReference):
             out.append(A("crisis.deliver_fuel", truck=free.pop(0), asset=aid, liters=300))
             reserve -= 300
             self.fuelled[aid] = now + 8 * HOUR
-        # resilience, early
+        # resilience, early: backups for the hospital district's pump and the core district's tower; and hardening
+        # of the facilities everyone depends on where this event struck them - damaged by it or under its water -
+        # before aftershocks or later flood waves strike there again (twice for the core exchange)
+        self.wet |= set(s.get("flooded") or [])
         if now < 2 * DAY:
             for aid, kind in ((f"pump{hd[1:]}", "generator"), (f"tower{assets['core']['district'][1:]}", "battery")):
                 if aid not in self.invested and aid in assets:
                     self.invested.add(aid)
                     out.append(A("crisis.invest", asset=aid, kind=kind))
+            for aid in ("core", "core", "hospital", f"sub{hd[1:]}", f"pump{hd[1:]}", "depot0", "plant0", "plant1",
+                        f"sub{assets['core']['district'][1:]}"):
+                a = assets.get(aid)
+                if a is None or self.hardened.get(aid, 0) >= (2 if aid == "core" else 1):
+                    continue
+                if a["status"] == "damaged" or a["district"] in self.wet:
+                    self.hardened[aid] = self.hardened.get(aid, 0) + 1
+                    out.append(A("crisis.invest", asset=aid, kind="harden"))
+        # where the event struck (districts with damaged facilities or under water), aftershocks and later waves
+        # strike again: harden those districts' substations and pumps too, the most households first (a few)
+        # (under water the next wave hits again for sure: there twice)
+        if now < 4 * DAY:
+            hit = {a["district"] for a in s["assets"] if a["status"] == "damaged" and a["kind"] != "road"} | self.wet
+            cand = sorted((-hh.get(a["district"], 0.0), a["asset"]) for a in s["assets"]
+                          if a["kind"] in ("substation", "pump") and a["district"] in hit and
+                          self.hardened.get(a["asset"], 0) < (2 if a["district"] in self.wet else 1))
+            for _, aid in cand[:max(0, 8 - self.extra_hardened)]:
+                self.hardened[aid] = self.hardened.get(aid, 0) + 1
+                self.extra_hardened += 1
+                out.append(A("crisis.invest", asset=aid, kind="harden"))
+        # floods: drain the districts under water, the hospital's chain first, then by households
+        pumping = {j["district"] for j in s.get("pumping") or []}
+        dfac = {a["asset"]: a["district"] for a in s["assets"]}
+        first = [dfac.get(x) for x in ("hospital", "core", "depot0", f"sub{hd[1:]}", "plant0", "plant1")]
+        wet = sorted((0 if d in first else 1, first.index(d) if d in first else -hh.get(d, 0.0), d)
+                     for d in s.get("flooded") or [] if d not in pumping)
+        for _, _, d in wet[:max(0, 4 - 2 * len(pumping))]:
+            out.append(A("crisis.dewater", district=d))
         # volunteers (where the region has a volunteer network) for blocked roads
         for a in blocked:
             if a["asset"] not in self.called:

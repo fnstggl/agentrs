@@ -855,6 +855,7 @@ def evaluate(world, principal: str, objective: dict) -> dict:
 
 MECHANICS = ("Two-sided participation", "Discovery", "Transactions", "Trust", "Quality", "Disputes", "Pricing",
              "Network effects", "Retention")
+PARTICIPANT_MECHANICS = MECHANICS          # all measured on the participant's own exchanges
 
 
 def mechanics(world) -> dict:
@@ -862,42 +863,61 @@ def mechanics(world) -> dict:
 
 
 def mechanics_report(world, since_seq: int = 0) -> dict:
+    """Each required mechanic of 9.13, measured on the participant's own exchanges (every mechanic is in
+    PARTICIPANT_MECHANICS: the incumbent exchange's market is the world the participant competes in, not its
+    work): both sides trading there, individuals finding and choosing it, its orders, trust updates and ratings from
+    its buyers, the measured quality of the units sold there, its disputes and their resolution, traders' pricing
+    on it (and its operator's fee changes), traders joining it on its buyer counts, and its repeat buyers."""
     st = world.state
-    c = K.event_counts(world, since_seq)
-    shop = K.batch_records(world, "mkt.shop", "shopping", since_seq)
-    bought = [r for r in shop if len(r) > 4 and r[4] == "bought"]
-    outcomes = [r for r in shop if len(r) > 4 and r[4] == "outcome"]
-    by_ex: dict[str, set] = {}
-    for _, o in st.scan("xchg_orders"):
-        by_ex.setdefault(o["exchange"], set()).add(o["seller"])
-    two_sided = sum(1 for ex, sel in by_ex.items() if sel and any(
-        K.population_index(o["buyer"]) is not None for _, o in st.scan("xchg_orders") if o["exchange"] == ex))
-    q = [u["quality"] for _, u in st.scan("mkt_units")]
-    disputed = sum(1 for _, o in st.scan("xchg_orders") if o["disputed"])
-    resolved = sum(1 for _, o in st.scan("xchg_orders") if o["disputed"] and o["status"] != "disputed")
-    reviews = [ev.payload for ev in world.events_range(since_seq) if ev.type == "mkt.review"]
-    reprices = sum(1 for r in reviews for d in r["decisions"] if d["action"] == "reprice")
-    joins = [d for r in reviews for d in r["decisions"] if d["action"] == "join" and d.get("buyers_30d", 0) > 0]
+    mine: set[str] = set()
+    for a in K.seats_in(world, DOMAIN):
+        mine |= set(operated(world, a))
+    shop = [r for r in K.batch_records(world, "mkt.shop", "shopping", since_seq) if len(r) > 4 and r[2] in mine]
+    bought = [r for r in shop if r[4] == "bought"]
+    outcomes = [r for r in shop if r[4] == "outcome"]
+    orders = [o for _, o in st.scan("xchg_orders") if o["exchange"] in mine]
+    sellers = {o["seller"] for o in orders}
+    pop_buyers = {o["buyer"] for o in orders if K.population_index(o["buyer"]) is not None}
+    units = [u for _, u in st.scan("mkt_units") if u.get("exchange") in mine]
+    q = [u["quality"] for u in units]
+    disputed = sum(1 for o in orders if o["disputed"])
+    resolved = sum(1 for o in orders if o["disputed"] and o["status"] != "disputed")
+    reprices = joins = ratings = fee_changes = promotions = n_orders = 0
+    for ev in world.events_range(since_seq):
+        p = ev.payload
+        if ev.type == "mkt.review":
+            for d in p["decisions"]:
+                if d.get("exchange") in mine:
+                    reprices += int(d["action"] == "reprice")
+                    joins += int(d["action"] == "join" and d.get("buyers_30d", 0) > 0)
+        elif ev.type == "xchg.rating" and p.get("exchange") in mine:
+            ratings += 1
+        elif ev.type == "xchg.order" and p.get("exchange") in mine:
+            n_orders += 1
+        elif ev.type == "xchg.exchange_update" and p["id"] in mine and "take_rate_bps" in p["changes"]:
+            fee_changes += 1
+        elif ev.type == "cols.batch" and p.get("kind") == "mkt.promotion" and \
+                (p.get("extra") or {}).get("exchange") in mine:
+            promotions += 1
     per: dict[tuple, int] = {}
     for r in bought:
         per[(r[0], r[2])] = per.get((r[0], r[2]), 0) + 1
     repeat = sum(1 for v in per.values() if v >= 2)
     return {
-        "Two-sided participation": {"exercised": two_sided >= 1 and len(by_ex) >= 1,
-                                    "events": {"exchanges_with_both_sides": two_sided,
-                                               "xchg.listing": c["xchg.listing"]}},
-        "Discovery": {"exercised": len(shop) > 0 and (c["batch:mkt.promotion"] > 0 or c["batch:mkt.shop"] > 0),
-                      "events": {"shopping_decisions": len(shop), "batch:mkt.promotion": c["batch:mkt.promotion"]}},
-        "Transactions": {"exercised": c["xchg.order"] > 0, "events": {"xchg.order": c["xchg.order"]}},
-        "Trust": {"exercised": len(outcomes) > 0 and c["xchg.rating"] > 0,
-                  "events": {"trust_updates": len(outcomes), "xchg.rating": c["xchg.rating"]}},
+        "Two-sided participation": {"exercised": len(sellers) >= 2 and len(pop_buyers) >= 2,
+                                    "events": {"sellers_with_sales": len(sellers),
+                                               "population_buyers": len(pop_buyers)}},
+        "Discovery": {"exercised": len(shop) > 0, "events": {"shopping_decisions_on_it": len(shop),
+                                                             "batch:mkt.promotion": promotions}},
+        "Transactions": {"exercised": n_orders > 0, "events": {"xchg.order": n_orders}},
+        "Trust": {"exercised": len(outcomes) > 0 and ratings > 0,
+                  "events": {"trust_updates": len(outcomes), "xchg.rating": ratings}},
         "Quality": {"exercised": len(q) > 1 and min(q) < GRADE_Q["B"] <= max(q),
-                    "events": {"mkt.unit": c["mkt.unit"]}},
+                    "events": {"mkt.unit": len(units)}},
         "Disputes": {"exercised": disputed > 0 and resolved > 0, "events": {"disputed": disputed,
                                                                             "resolved_or_refunded": resolved}},
-        "Pricing": {"exercised": reprices > 0, "events": {"reprices": reprices,
-                                                          "xchg.exchange_update": c["xchg.exchange_update"]}},
-        "Network effects": {"exercised": len(joins) > 0, "events": {"joins_on_buyer_counts": len(joins)}},
+        "Pricing": {"exercised": reprices > 0, "events": {"reprices": reprices, "fee_changes": fee_changes}},
+        "Network effects": {"exercised": joins > 0, "events": {"joins_on_buyer_counts": joins}},
         "Retention": {"exercised": repeat > 0, "events": {"repeat_buyer_exchange_pairs": repeat}},
     }
 
