@@ -109,3 +109,30 @@ def test_self_goals_never_supervise_and_usefulness_needs_later_independent_objec
     u = gf.usefulness()
     assert u["n"] == 5 and u["se"] is not None
     assert u["mean_gain"] == pytest.approx(sum(verified_return(lt) for lt in lts) / 5 - 0.2)
+
+
+def test_pending_goal_free_goals_hold_budget_until_resolved_or_abandoned():
+    """G-pr D4 on GoalFreeMode: proposed goals reserve the budget; resolve / abandon / abandon_pending release it."""
+    torch.manual_seed(0)
+    model = build_model(CamLiveConfig.debug())
+    world = LabWorld(LabConfig(n_channels=4, seed=5))
+    gf = GoalFreeMode(model, model.new_fast_state(), GoalFreeBudget(seconds=1e6, decisions=3, money=100.0))
+    b = torch.zeros(1, model.d_model)
+    first = gf.propose(b, _pairs(world), k=2)
+    assert len(first) == 2 and gf.budget.n_reserved == 2
+    assert len(gf.propose(b, _pairs(world), k=2)) == 1 and gf.propose(b, _pairs(world), k=2) == []
+    gf.abandon(first[0])
+    assert first[0].status == "abandoned" and gf.budget.n_reserved == 2
+    again = gf.propose(b, _pairs(world), k=2)
+    assert len(again) == 1
+    res = world.execute(first[1].action, AllowAllPolicy().authorize(first[1].action, lab_task(world), {}))
+    gf.resolve(first[1], res.observations[0].quantities[0].value, res.cost)
+    assert gf.budget.n_decisions == 1 and gf.budget.n_reserved == 2       # one spent + two still pending = 3
+    assert gf.propose(b, _pairs(world), k=2) == []
+    twin = GoalFreeMode(model, model.new_fast_state(), GoalFreeBudget(seconds=1e6, decisions=3, money=100.0))
+    twin.load_state_dict(gf.state_dict())
+    assert twin.budget.n_reserved == 2 and twin.propose(b, _pairs(world)) == []      # restored: still held
+    assert twin.abandon_pending() == 2 and twin.budget.n_reserved == 0 and len(twin.propose(b, _pairs(world))) == 1
+    assert gf.abandon_pending() == 2 and gf.budget.n_reserved == 0
+    rep = gf.report()
+    assert rep["abandoned"] == 3 and rep["resolved"] == 1 and rep["pending"] == 0

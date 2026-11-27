@@ -405,7 +405,8 @@ class GoalFreeMode:
 ```
 The chosen `goal.action` goes through authorization and execution like any other action; `resolve` is called with
 what was observed; `abandon(goal)` for a proposed goal that is not executed (it releases the budget reservation;
-change request C-11). `report()` counts `pending` and `abandoned` goals too. A goal's outcome is never admitted to
+change request C-11); `abandon_pending() -> int` abandons every pending goal of this process and, after a restart,
+releases reservations that no live goal holds. `report()` counts `pending` and `abandoned` goals too. A goal's outcome is never admitted to
 the outcome ledger (its objective is never registered as an operator objective).
 
 ### reward.diagnose

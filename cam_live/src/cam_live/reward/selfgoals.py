@@ -376,6 +376,22 @@ class GoalFreeMode:
         goal.status = "abandoned"
         return goal
 
+    def abandon_pending(self) -> int:
+        """Abandon every pending goal of this process and release reservations no live goal holds (e.g. of goals
+        that were pending when the checkpoint was written: after ``load_state_dict`` they are unknown here).
+        Returns the number of reservations released."""
+        n = 0
+        for g in self.goals:
+            if g.status == GoalStatus.PENDING:
+                self.abandon(g)
+                n += 1
+        held = sum(1 for g in self.goals if g.status == GoalStatus.PENDING and g.selected is not None
+                   and g.selected.reserved is not None)
+        if held == 0 and self.budget.n_reserved:
+            n += self.budget.n_reserved
+            self.budget.reserved, self.budget.n_reserved = Cost(), 0
+        return n
+
     def resolve(self, goal: SelfGoal, value: Optional[float], cost: Cost, *, censored: Optional[bool] = None
                 ) -> SelfGoal:
         """Close a goal with what was actually observed (``value=None``: nothing was observed)."""

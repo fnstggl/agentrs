@@ -158,9 +158,9 @@ after about `goal_free_decisions / goal_free_k` decisions, goal-free mode select
 +                self.goal_free.abandon(v)            # not executed: release its reservation, nothing charged
 +                del self.active_goals[k]
 ```
-Also abandon the active goals when an action is refused before execution, and after `load()` for goals that were
-pending at the checkpoint and will not be resolved (`GoalFreeMode.abandon(goal)`; reservations are checkpointed in
-`SelfGoalSelector.state_dict()` as `reserved` / `n_reserved`).
+Also abandon the active goals when an action is refused before execution, and after `load()` call
+`self.goal_free.abandon_pending()` for goals that were pending at the checkpoint (their `SelfGoal` objects are not
+checkpointed; reservations are, in `SelfGoalSelector.state_dict()` as `reserved` / `n_reserved`).
 
 ## C-12 `contracts.VerifiedOutcome` / verifiers: sign the objective's origin (G-pr D3, defence in depth)
 
