@@ -66,7 +66,19 @@ def _paired(before: torch.Tensor, after: torch.Tensor) -> Dict[str, float]:
     d = (after - before)[ok]
     n = int(d.numel())
     return {"n": n, "before": float(before[ok].mean()), "after": float(after[ok].mean()), "change": float(d.mean()),
-            "se": float(d.std(unbiased=True) / math.sqrt(n)) if n > 1 else float("nan")}
+            "se": float(d.std(unbiased=True) / math.sqrt(n)) if n > 1 else float("nan"),
+            "median_before": float(before[ok].median()), "median_after": float(after[ok].median()),
+            "median_change": float(d.median()), "share_improved": float((d < 0).float().mean())}
+
+
+def _fresh(work: str, name: str) -> str:
+    """Path of a store that does not exist yet (an experiment never continues an earlier run's experience)."""
+    path = os.path.join(work, name)
+    for suffix in ("", "-wal", "-shm", ".lock"):
+        if os.path.exists(path + suffix):
+            os.remove(path + suffix)
+    shutil.rmtree(path + ".blobs", ignore_errors=True)
+    return path
 
 
 def _cfg(lr_exp: float = 1e-4, lr_heads: float = 1e-3, adapter_every: int = 8, seed: int = 0) -> CamLiveConfig:
@@ -77,9 +89,9 @@ def _cfg(lr_exp: float = 1e-4, lr_heads: float = 1e-3, adapter_every: int = 8, s
 
 
 # ================================================================================================ (1) + (2) learning
-def exp_learning(work: str, *, n_worlds: int = 60, n_decisions: int = 10, steps: int = 120, seed: int = 0) -> Dict[str, Any]:
+def exp_learning(work: str, *, n_worlds: int = 150, n_decisions: int = 10, steps: int = 160, seed: int = 0) -> Dict[str, Any]:
     cfg = _cfg(seed=seed)
-    lab = build_lab(os.path.join(work, "learning.sqlite"), cfg, credit=False, bridge=True,
+    lab = build_lab(_fresh(work, "learning.sqlite"), cfg, credit=False, bridge=True,
                     settings=LearnerSettings.from_cfg(cfg, val_fraction=0.2, val_batch=256, min_independent_outcomes=8))
     try:
         learner, model, store = lab.learner, lab.model, lab.store
@@ -160,7 +172,7 @@ def exp_learning(work: str, *, n_worlds: int = 60, n_decisions: int = 10, steps:
 def exp_credit(work: str, *, n_experiments: int = 6, n_per: int = 48, n_decisions: int = 5, steps: int = 400,
                seed: int = 0) -> Dict[str, Any]:
     cfg = _cfg(lr_heads=2e-3, seed=seed)
-    lab = build_lab(os.path.join(work, "credit.sqlite"), cfg, world=False, policy=False, credit=True, beta=BETA,
+    lab = build_lab(_fresh(work, "credit.sqlite"), cfg, world=False, policy=False, credit=True, beta=BETA,
                     settings=LearnerSettings.from_cfg(cfg, batch_size=32, val_fraction=0.15),
                     selector=EstimatorSelector(min_experiments=5))
     try:
@@ -204,6 +216,9 @@ def exp_credit(work: str, *, n_experiments: int = 6, n_per: int = 48, n_decision
         t_train = time.perf_counter() - t0
         val1 = learner.validate()
         up = assigner.assign(reason="estimators_trained")
+        trace["unlock_credit_after_estimators_trained"] = dict(store.get(r0.exp_id).credit)
+        trace["unlock_credit_history"] = [{k: h[k] for k in ("estimator", "version", "value", "reason")}
+                                          for h in store.credit_history(r0.exp_id)]
         links = [OutcomeLink.from_dict(l) for l in store.links()]
         unlock_first = [lt.exp_ids[0] for lts in runs.values() for lt in lts if lt.arm == "unlock"]
         wait_first = [lt.exp_ids[0] for lts in runs.values() for lt in lts if lt.arm == "wait"]
@@ -251,7 +266,7 @@ def exp_credit(work: str, *, n_experiments: int = 6, n_per: int = 48, n_decision
 def exp_retention(work: str, *, n_worlds: int = 40, n_decisions: int = 10, steps_a: int = 120, steps_b: int = 120,
                   seed: int = 0, weight: float = 20.0) -> Dict[str, Any]:
     cfg = _cfg(lr_exp=3e-4, adapter_every=10 ** 9, seed=seed)
-    lab = build_lab(os.path.join(work, "retention.sqlite"), cfg, credit=False,
+    lab = build_lab(_fresh(work, "retention.sqlite"), cfg, credit=False,
                     settings=LearnerSettings.from_cfg(cfg, val_fraction=0.25, val_batch=256))
     try:
         learner, model, store = lab.learner, lab.model, lab.store
@@ -571,7 +586,7 @@ def exp_real(work: str, *, n_worlds: int = 6, n_decisions: int = 6, batch_size: 
     cfg.core.max_context = 64
     torch.cuda.reset_peak_memory_stats()
     t0 = time.perf_counter()
-    lab = build_lab(os.path.join(work, "real.sqlite"), cfg, bridge=True, beta=BETA,
+    lab = build_lab(_fresh(work, "real.sqlite"), cfg, bridge=True, beta=BETA,
                     settings=LearnerSettings.from_cfg(cfg, batch_size=batch_size, slow_batch_size=slow_batch,
                                                       grad_last=grad_last, val_fraction=0.2, slow_guard=True,
                                                       probe_size=4, val_batch=8))
