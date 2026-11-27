@@ -96,18 +96,24 @@ def junk_text(text: str, names: set, goal: str) -> bool:
     return bool(goal) and restates(text, goal)
 
 
-def _job_runs(world) -> dict:
-    """Events of each scheduled job's runs (a run lies between its ``proc`` event and the next ``proc`` or ``cmd``
-    event), by job id - as `provenance` delimits them."""
+def _job_runs(world, seeds: set) -> dict:
+    """Events of the runs of the jobs in `seeds` and of the jobs those runs schedule (a run lies between its ``proc``
+    event and the next ``proc`` or ``cmd`` event, as `provenance` delimits them), by job id; one pass over the log
+    that keeps only the tracked jobs' events."""
     runs: dict = {}
+    tracked = set(seeds)
     cur = None
+    if not tracked:
+        return runs
     for ev in world.events_range(0, world.seq):
         if ev.type == "proc":
             cur = ev.payload.get("id")
         elif ev.type == "cmd":
             cur = None
-        if cur is not None:
+        if cur is not None and cur in tracked:
             runs.setdefault(cur, []).append(ev)
+            if ev.type == "sched.add" and isinstance(ev.payload, dict):
+                tracked.add(ev.payload.get("id"))
     return runs
 
 
@@ -135,28 +141,31 @@ def actions(world) -> list[dict]:
     after mail.send)."""
     out = []
     tools = {}
-    runs = _job_runs(world)
+    calls = []
     for r in rows(world):
+        for h in r["history"]:
+            seq = h.get("seq")
+            calls.append((r, h, world.events_range(int(seq[0]) - 1, int(seq[1])) if seq else []))
+    runs = _job_runs(world, {e.payload.get("id") for _, h, evs in calls if h["ok"] for e in evs
+                             if e.type == "sched.add" and isinstance(e.payload, dict)})
+    for r, h, evs in calls:
         p = r["principal"]
         if p not in tools:
             ns = {t["name"].lower() for t in world.available_tools(p)}
             tools[p] = ns | {n.split(".", 1)[0] for n in ns}
         goals = {g["id"]: g["text"] for g in r["goals"]}
-        for h in r["history"]:
-            rec = dict(h, principal=p, i=int(r["i"]))
-            seq = h.get("seq")
-            evs = world.events_range(int(seq[0]) - 1, int(seq[1])) if seq else []
-            later = _consequences(evs, runs) if h["ok"] else []
-            rec["events"] = len(evs)
-            rec["scheduled_events"] = len(later)
-            rec["shared"] = any(_visible_to_others(e, p) for e in evs + later)
-            rec["consequential"] = bool(h["ok"] and not h.get("read_only") and rec["shared"])
-            vals, arts = written(world, evs, p) if rec["consequential"] else ([], [])
-            main = max(arts, key=len) if arts else (max(vals, key=len) if vals else None)
-            rec["written"] = bool(main)
-            rec["junk"] = bool(main is not None and junk_text(main, tools[p], goals.get(h.get("goal"), "")))
-            rec["signature"] = json.dumps([p, h["tool"], _norm(main)[:400] if main else h.get("args")])
-            out.append(rec)
+        rec = dict(h, principal=p, i=int(r["i"]))
+        later = _consequences(evs, runs) if h["ok"] else []
+        rec["events"] = len(evs)
+        rec["scheduled_events"] = len(later)
+        rec["shared"] = any(_visible_to_others(e, p) for e in evs + later)
+        rec["consequential"] = bool(h["ok"] and not h.get("read_only") and rec["shared"])
+        vals, arts = written(world, evs, p) if rec["consequential"] else ([], [])
+        main = max(arts, key=len) if arts else (max(vals, key=len) if vals else None)
+        rec["written"] = bool(main)
+        rec["junk"] = bool(main is not None and junk_text(main, tools[p], goals.get(h.get("goal"), "")))
+        rec["signature"] = json.dumps([p, h["tool"], _norm(main)[:400] if main else h.get("args")])
+        out.append(rec)
     return out
 
 
