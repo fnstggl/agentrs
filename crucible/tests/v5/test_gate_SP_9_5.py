@@ -65,6 +65,8 @@ def test_SP_9_5_scientific_research_mechanics():
                           f"without population researchers: {no_pop['mechanics']['counts']}; other training "
                           f"configurations (seat idle, 12 days): {others}")
     assert m["required_mechanics_missing"] == 0, [r["mechanics"]["missing"] for r in runs]
+    # domains-framework/3: every evidence function returned recorded events, no two mechanics share evidence
+    assert m["unverified_evidence"] == "none" and m["indistinct_mechanics"] == "none", m
     assert m["mechanics_exercised_without_seat"] >= 7 and m["autonomous_actors_active"] == len(d.actors)
     assert prov["batches"] > 0 and prov["forced"] == 0, prov
     assert researchers >= 10 and pop_papers >= 3

@@ -432,8 +432,7 @@ def _cost_kinds() -> set:
 
 def costs(world, since: int) -> list[int]:
     """Compute, hosting and advertising payments through the bank."""
-    kinds = _cost_kinds()
-    return events_where(world, since, ("bank.txn",), lambda e: e.payload.get("kind") in kinds)
+    return events_where(world, since, tuple(f"bank.txn{{kind={k}}}" for k in sorted(_cost_kinds())))
 
 
 def competing_products(world, since: int) -> list[int]:

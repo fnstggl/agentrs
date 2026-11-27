@@ -65,6 +65,8 @@ def test_SP_9_3_content_ecosystem_mechanics():
                           f"counts {[r['mechanics']['counts'] for r in runs]}; null {null['mechanics']['counts']}; "
                           f"outcomes {[r['outcome'].get('details') for r in runs]}; spam {spam['outcome'].get('details')}")
     assert m["required_mechanics_missing"] == 0, [r["mechanics"]["missing"] for r in runs]
+    # domains-framework/3: every evidence function returned recorded events, no two mechanics share evidence
+    assert m["unverified_evidence"] == "none" and m["indistinct_mechanics"] == "none", m
     assert m["levels_feasible_by_population"] == len(levels) and m["max_difficulty_population"] >= 10_000_000
     assert m["autonomous_actors_active"] == len(d.actors) and m["population_activity_decisions_without_seat"] > 0
     assert m["process_failures_all_runs"] == 0 and m["invariant_violations"] == 0
