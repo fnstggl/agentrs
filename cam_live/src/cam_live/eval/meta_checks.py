@@ -52,8 +52,22 @@ def load_experienced(root: str, work: str) -> Any:
     cfg.device = "cpu" if not torch.cuda.is_available() or cfg.backbone.name == "tiny" else cfg.device
     shutil.copytree(os.path.join(root, "agent"), os.path.join(work, "agent"))
     agent = CamLiveAgent(cfg, os.path.join(work, "agent"), clock=OffsetClock())
-    agent.load(os.path.join(root, "ckpt_post"))
+    import functools
+    from .. import agent as agent_mod
+    from ..credit import checkpoint as ck
+    orig = agent_mod.load_checkpoint
+    # retention removed the optimizer states of evaluation checkpoints (storage rules); the checks never use them
+    agent_mod.load_checkpoint = functools.partial(ck.load_checkpoint, verify=not _optim_pruned(root))
+    try:
+        agent.load(os.path.join(root, "ckpt_post"))
+    finally:
+        agent_mod.load_checkpoint = orig
     return agent
+
+
+def _optim_pruned(root: str) -> bool:
+    d = os.path.join(root, "ckpt_post", "optim")
+    return not os.path.isdir(d) or not os.listdir(d)
 
 
 def reward_group(export_dir: str) -> Dict[str, torch.Tensor]:

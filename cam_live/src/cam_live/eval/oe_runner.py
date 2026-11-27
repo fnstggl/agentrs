@@ -167,6 +167,69 @@ def run_objective(agent: Any, oc: Any, family: str, problem: str, wseed: int, ob
             "counters": dict(rt.counters), "errors": rt._errors[-5:], "decisions_detail": rows}
 
 
+def load_export(agent: Any, export_dir: str) -> Dict[str, Any]:
+    """Spec 16.8 steps 4-8 inside a fresh process: only the weights-only export's tensors are loaded (strict) into a
+    newly built agent; fast beliefs reset to the loaded prior. Returns what the process had before its first
+    decision (empty store / registries / fast state, the files in its working directory)."""
+    from ..credit.checkpoint import collect_weights, load_weights, load_weights_only, tensor_hash
+    weights, meta = load_weights_only(export_dir, map_location="cpu")
+    rep = load_weights(agent.model, weights, strict=True)
+    agent.model.mark_adapters_updated()
+    agent.learner.reset_fast()
+    agent.predictor.set_fast_state(agent.learner.fast_state)
+    hashes = {g: tensor_hash(d) for g, d in collect_weights(agent.model).items() if d}
+    return {"export": os.path.abspath(export_dir), "cwd_files_at_start": sorted(os.listdir(os.getcwd())),
+            "store_records": agent.store.count(), "predictions_registered": len(agent.predictions),
+            "experiments": len(agent.experiments.records()),
+            "fast_state_updates": {k: agent.learner.fast_state.n_updates(k) for k in ("count", "real", "binary")},
+            "load_clean": rep.clean, "tensors_loaded": len(rep.loaded), "pid": os.getpid(),
+            "hashes_match_export": all(hashes.get(g) == h for g, h in meta.get("group_hashes", {}).items())}
+
+
+def cmd_transfer(a: argparse.Namespace) -> int:
+    """Fresh vs experienced in independent processes (16.8): each (version, seed) is a new Python process started in
+    an empty working directory with an empty CAM_LIVE_HOME, given only a copy of one weights-only export."""
+    import subprocess
+    import tempfile
+    from .experiments import EVAL_HOME
+    out_dir = os.path.abspath(a.out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+    codes = []
+    for seed in [int(x) for x in a.seeds.split(",")]:
+        for version in ("initial", "experienced"):
+            src = os.path.join(a.writer_root.format(seed=seed), "export_pre" if version == "initial" else
+                               "export_post")
+            res = os.path.join(out_dir, f"{version}_s{seed}.json")
+            if os.path.exists(res) and json.load(open(res)).get("executed"):
+                continue
+            work = tempfile.mkdtemp(prefix=f"camlive_oe_transfer_{version}_{seed}_", dir=os.path.join(EVAL_HOME, "tmp")
+                                    if os.path.isdir(os.path.join(EVAL_HOME, "tmp")) else None)
+            own = os.path.join(work, "export")
+            shutil.copytree(src, own)
+            cwd, home = os.path.join(work, "cwd"), os.path.join(work, "home")
+            os.makedirs(cwd)
+            os.makedirs(home)
+            env = {k: v for k, v in os.environ.items() if not k.startswith("CAM_LIVE_") or k.startswith("CAM_LIVE_EVAL")
+                   or k == "CAM_LIVE_GPU_LOCK"}
+            env["CAM_LIVE_HOME"] = home
+            cmd = [sys.executable, "-m", "cam_live.eval.oe_runner", "sequence", "--condition", "E", "--seed",
+                   str(seed), "--plan", a.plan, "--decisions", str(a.decisions), "--out", res, "--root",
+                   os.path.join(work, "run"), "--from-export", own, "--tag", f"transfer_{version}"]
+            if a.cpu:
+                cmd.append("--cpu")
+            print(f"{time.strftime('%H:%M:%S')} {version} s{seed}", flush=True)
+            p = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, timeout=6 * 3600)
+            codes.append(p.returncode)
+            if p.returncode != 0:
+                print(p.stderr[-2000:], file=sys.stderr)
+            elif os.path.exists(res):
+                d = json.load(open(res))
+                d["version"] = version
+                json.dump(d, open(res, "w"), default=str)
+            shutil.rmtree(os.path.join(work, "run", "agent", "learner", "embed_cache"), ignore_errors=True)
+    return 0 if all(c == 0 for c in codes) else 1
+
+
 def _meta_records(run_dir: str) -> List[Dict[str, Any]]:
     from ..contracts import RunFiles
     from .experiments import _records
@@ -233,6 +296,9 @@ def cmd_sequence(a: argparse.Namespace) -> int:
             ck = os.path.join(root, "ckpt_latest")
             if i > 0 and os.path.exists(ck):
                 agent.load(ck)
+            elif i == 0 and a.from_export:
+                res["fresh_process"] = load_export(agent, a.from_export)
+                res["configuration"] = describe(agent)
             elif i == 0:
                 res["configuration"] = describe(agent)
                 if a.save_exports:
@@ -356,7 +422,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     s.add_argument("--cpu", action="store_true", help="tiny CPU backbone: plumbing check only, never substantive")
     s.add_argument("--no-skills", dest="no_skills", action="store_true",
                    help="CU: primitive-only operation (skill executor excluded) - arm of X4")
+    s.add_argument("--from-export", dest="from_export", default="",
+                   help="16.8 child: start from this weights-only export only (fresh process)")
     s.set_defaults(fn=cmd_sequence)
+    t = sub.add_parser("transfer", help="fresh vs experienced in independent processes (16.8)")
+    t.add_argument("--writer-root", dest="writer_root", required=True,
+                   help="run root of the writer with {seed}, holding export_pre / export_post")
+    t.add_argument("--seeds", default="0,1,2")
+    t.add_argument("--plan", required=True)
+    t.add_argument("--decisions", type=int, default=20)
+    t.add_argument("--out-dir", dest="out_dir", required=True)
+    t.add_argument("--cpu", action="store_true")
+    t.set_defaults(fn=cmd_transfer)
     a = ap.parse_args(list(sys.argv[1:] if argv is None else argv))
     return int(a.fn(a) or 0)
 
