@@ -157,33 +157,42 @@ def family_config(target: int = 22, **over: Any) -> Any:
 
 
 def train_family(*, n_train: int, n_decisions: int, steps: int, seed: int = 0, lr: float = 2e-3,
-                 log_every: int = 0, target: int = 22) -> Dict[str, Any]:
+                 log_every: int = 0, target: int = 22, n_eval_lifetimes: int = 0) -> Dict[str, Any]:
     """A model trained with all three frequent providers on lifetimes from many different mechanisms, and an
-    identically initialised untrained twin for before / after comparisons."""
+    identically initialised untrained twin for before / after comparisons.
+
+    The world model and the fast prior train on batches of many records from few lifetimes (the fast prior needs
+    several outcomes per world). One objective outcome labels a whole lifetime, so the evaluator additionally
+    trains on batches of few records from *many* lifetimes (``n_eval_lifetimes`` further lifetimes are collected
+    for it): with only tens of independent labels it memorised lifetimes instead of generalising."""
     torch.manual_seed(seed)
     model, heads = L.build(seed)
     twin, twin_heads = L.build(seed)
     store = MemoryStore()
     base = family_config(target)
     lts = L.collect(store, range(n_train), n_decisions, base=base)
+    more = L.collect(store, range(50_000, 50_000 + n_eval_lifetimes), n_decisions, base=base)
+    labelled = lts + more
 
     def check(o: Any) -> bool:
-        return any(LabVerifier(lt.world).check_signature(o) for lt in lts)
+        return any(LabVerifier(lt.world).check_signature(o) for lt in labelled)
 
     wm, fp, ev = WorldModelLoss(heads), FastPriorLoss(heads), EvaluatorLoss(heads, check)
-    for lt in lts:
+    for lt in labelled:
         ev.add_outcome(lt.verified, deadline=lt.world.t0 + lt.world.cfg.horizon_s, trajectory=lt.records)
     t0 = time.time()
-    hist = L.train(model, [wm, fp, ev], store, L.lifetime_sampler(lts, 2, 14, seed=seed), steps, lr=lr,
-                   log_every=log_every)
+    hist = L.train(model, [wm, fp], store, L.lifetime_sampler(lts, 2, 14, seed=seed), steps, lr=lr,
+                   log_every=log_every, extra=[([ev], L.lifetime_sampler(labelled, 12, 2, seed=seed + 1))])
     tail = hist[-30:]
     return {"model": model, "heads": heads, "twin": twin, "twin_heads": twin_heads, "store": store, "base": base,
             "train_lifetimes": lts, "n_decisions": n_decisions,
-            "info": {"n_train_lifetimes": n_train, "steps": steps, "train_seconds": round(time.time() - t0, 1),
-                     "train_success_rate": float(np.mean([lt.verified.status == GoalStatus.ACHIEVED for lt in lts])),
+            "info": {"n_train_lifetimes": n_train, "n_evaluator_lifetimes": len(labelled), "steps": steps,
+                     "train_seconds": round(time.time() - t0, 1),
+                     "train_success_rate": float(np.mean([lt.verified.status == GoalStatus.ACHIEVED
+                                                          for lt in labelled])),
                      "final": {k: float(np.mean([h[k] for h in tail if k in h])) for k in
                                ("world_nll_count", "fast_online_nll_count", "fast_online_nll_first_count",
-                                "fast_online_nll_later_count", "evaluator_loss", "transition_nmse")
+                                "fast_online_nll_later_count", "evaluator_loss", "eval_brier", "transition_nmse")
                                if any(k in h for h in tail)}}}
 
 
@@ -512,9 +521,9 @@ def run(quick: bool = False, only: Optional[Sequence[str]] = None, log_every: in
     want = lambda k: only is None or k in only                                             # noqa: E731
     t0 = time.time()
     sz = dict(n_train=24, n_test=10, n_decisions=16, steps=250, fam_train=24, fam_steps=250, held=8, loop=4,
-              max_decisions=20) if quick else \
-        dict(n_train=40, n_test=20, n_decisions=16, steps=1500, fam_train=60, fam_steps=1200, held=24, loop=12,
-             max_decisions=30)
+              max_decisions=20, eval_lifetimes=48) if quick else \
+        dict(n_train=40, n_test=20, n_decisions=16, steps=1500, fam_train=60, fam_steps=1200, held=40, loop=12,
+             max_decisions=30, eval_lifetimes=340)
     out: Dict[str, Any] = {
         "scale": "debug (tiny random backbone, 4096 hash buckets; debug core)", "provenance": "diagnostic",
         "quick": quick, "command": "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m "
@@ -525,7 +534,7 @@ def run(quick: bool = False, only: Optional[Sequence[str]] = None, log_every: in
             steps=sz["steps"], log_every=log_every)
     if any(want(k) for k in ("1b", "2", "3", "4", "5")):
         fam = train_family(n_train=sz["fam_train"], n_decisions=sz["n_decisions"], steps=sz["fam_steps"],
-                           log_every=log_every)
+                           log_every=log_every, n_eval_lifetimes=sz["eval_lifetimes"])
         out["family_model"] = fam["info"]
         if want("1b"):
             out["1b_world_vs_marginal_new_mechanisms"] = family_world_vs_marginal(

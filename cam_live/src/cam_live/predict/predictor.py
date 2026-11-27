@@ -418,7 +418,7 @@ class Predictor:
             js = [j for j in range(qm.shape[1]) if bool(qm[i, j]) and self._supports(fast, kinds[i][j])]
             if not bool(feasible[i]) or (not js and i not in slow):
                 continue
-            after = []
+            after, per_sample = [], []
             for s in range(s_n):
                 f = fast.clone()
                 kl = 0.0
@@ -443,10 +443,17 @@ class Predictor:
                         info = f.update(view.phi[i, j], -math.log(u) * math.exp(-max(min(lin, 30.0), -30.0)), kind)
                     kl += float(info["kl"])
                 v_after = slow[i][s] if i in slow else view
-                after.append(float(values(v_after, f)[feasible].max()))
+                vals = values(v_after, f)
+                per_sample.append(vals)
+                after.append(float(vals[feasible].max()))
                 gain[i] += kl / s_n
             t = torch.tensor(after, dtype=F64)
-            gross[i] = t.mean() - base
+            # Baseline: the best value obtainable *without* seeing the outcome. Under the fast posterior alone the
+            # expected updated value equals the current one, so that is the current best. When the imagined result
+            # also enters the context, the context changes even if the result says nothing; the baseline is then the
+            # best expected value over the samples, which removes that systematic shift (E[max] - max E >= 0).
+            base_i = torch.stack(per_sample).mean(0)[feasible].max() if i in slow else base
+            gross[i] = (t - base_i).mean()                        # exactly 0 when no sample changes the best value
             stderr[i] = t.std() / math.sqrt(len(t)) if len(t) > 1 else 0.0
         voi = gross.clamp_min(0.0)
         return voi, {"voi_fast": voi, "voi_stderr": stderr, "info_gain_nats": gain,

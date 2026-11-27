@@ -1,0 +1,50 @@
+{
+ "backbone": "Qwen/Qwen3-4B",
+ "command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict/test_gpu_real_config.py -m gpu -q --rootdir=cam_live",
+ "d_model": 768,
+ "decision_rationale": "thompson: chose candidate 1 (lab.act) with probability 0.585 among 6 feasible; q_goal 4.81 (best 4.82 at candidate 5), epistemic sd 7.28, p_success 0.498, voi 2.05, estimated cost 2 / 3600 s",
+ "evaluate_seconds_cached_embeddings": 0.76,
+ "evaluate_seconds_first": 1.22,
+ "fast_update": {
+  "belief_change_kl_nats": 2.0210307993695724,
+  "surprise_nats": 7.466672631278596
+ },
+ "frequent": {
+  "grad_norms": {
+   "backbone_frozen": 0.0,
+   "experiential": 1.8349263668060303,
+   "heads": 1.2848093509674072,
+   "reward": 0.0,
+   "semantic_adapters": 0.0
+  },
+  "loss": 2.7766685485839844,
+  "n_targets": 7.0
+ },
+ "head_parameters": {
+  "predict_downstream": 84195,
+  "predict_evaluator": 783192,
+  "predict_policy": 702339,
+  "predict_transition": 1977600,
+  "predict_world": 1022954
+ },
+ "heads_total": 4570280,
+ "load_seconds": 10.2,
+ "n_features": 128,
+ "peak_gpu_gb": 8.15,
+ "policy_kl_under_belief_permutation_init": 7.40667083031444e-05,
+ "scale": "50m",
+ "slow_adapters": {
+  "adapter_grad_last": 2,
+  "adapter_max_records": 4,
+  "extra_peak_gb": 0.12,
+  "grad_norms": {
+   "backbone_frozen": 0.0,
+   "experiential": 1.8336399793624878,
+   "heads": 1.283469796180725,
+   "reward": 0.0,
+   "semantic_adapters": 0.035999707877635956
+  },
+  "loss": 2.776920795440674,
+  "n_targets": 7.0
+ }
+}

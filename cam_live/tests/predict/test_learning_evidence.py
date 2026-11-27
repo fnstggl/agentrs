@@ -30,7 +30,7 @@ def test_world_model_learns_action_conditioned_counts_at_two_horizons(measure):
 @pytest.fixture(scope="module")
 def family():
     torch.set_num_threads(1)
-    fam = G.train_family(n_train=16, n_decisions=14, steps=150)
+    fam = G.train_family(n_train=16, n_decisions=14, steps=150, n_eval_lifetimes=24)
     hp = G.heldout_pass(fam, range(20_000, 20_006))
     return fam, hp
 
@@ -91,7 +91,8 @@ def test_value_of_information_fast_path_ignores_the_noisy_gauge(family, measure)
     fam, _ = family
     rep = G.voi_probe_vs_gauge(fam, range(30_000, 30_003), samples=6)
     fast = rep["fast"]
-    assert fast["voi_noisy_gauge"]["mean"] == 0.0                            # unpredictable but decision-irrelevant
+    assert abs(fast["voi_noisy_gauge"]["mean"]) < 1e-12                      # unpredictable but decision-irrelevant
+    assert abs(fast["voi_probe"]["mean"]) < 1e-12                            # (and so is the probe: see status)
     assert fast["voi_act"]["mean"] > 0.0                                     # acting on an uncertain channel informs
     assert rep["slow"]["voi_probe"]["mean"] >= 0.0 and rep["slow"]["voi_noisy_gauge"]["mean"] >= 0.0
     measure("slow_voi_probe_minus_gauge_slow_path", rep["slow"]["probe_minus_gauge"]["mean"])

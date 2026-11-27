@@ -1,0 +1,10 @@
+{
+ "slow_brier_trained": 0.24305877910229348,
+ "slow_brier_untrained": 0.2500941040373753,
+ "slow_fast_adaptation_nll_gain_after_first_observation": 0.09673634466930126,
+ "slow_outcome_vs_true_luck": 0.42727111043972515,
+ "slow_quality_vs_true_luck": -0.023993051927305723,
+ "slow_voi_probe_minus_gauge_slow_path": -0.2809336943796607,
+ "slow_world_gain_vs_marginal_2d": 0.3885890169065425,
+ "slow_world_gain_vs_marginal_6h": 0.17424057528566908
+}

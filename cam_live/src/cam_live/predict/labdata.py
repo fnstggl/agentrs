@@ -125,23 +125,28 @@ def collect(store: MemoryStore, seeds: Sequence[int], n_decisions: int, *, base:
 
 def train(model: LatentModelAPI, providers: Sequence[Any], store: Any,
           sample: Callable[[int], Sequence[ExperienceRecord]], steps: int, *, lr: float = 2e-3,
-          clip: float = 1.0, log_every: int = 0) -> List[Dict[str, float]]:
-    """Plain Adam over the ``experiential`` and ``heads`` groups with per-group clipping. Returns per-step metrics."""
+          clip: float = 1.0, log_every: int = 0,
+          extra: Sequence[Tuple[Sequence[Any], Callable[[int], Sequence[ExperienceRecord]]]] = ()
+          ) -> List[Dict[str, float]]:
+    """Plain Adam over the ``experiential`` and ``heads`` groups with per-group clipping. ``extra`` adds further
+    (providers, sampler) streams whose losses join the same step — e.g. the evaluator on batches drawn from many
+    objectives while the fast prior needs batches from few. Returns per-step metrics."""
     groups = model.param_groups()
     opt = torch.optim.Adam([{"params": groups[GROUP_EXPERIENTIAL]}, {"params": groups[GROUP_HEADS]}], lr=lr)
-    with_next = any(p.batch_kwargs.get("with_next") for p in providers)
+    streams = [(list(providers), sample)] + [(list(p), s) for p, s in extra]
     history: List[Dict[str, float]] = []
     for step in range(steps):
-        recs = list(sample(step))
-        if not recs:
-            continue
-        batch = encode_decisions(model, store, recs, with_next=with_next)
         total, metrics = None, {}
-        for p in providers:
-            loss, m = p.loss(model, batch, store)
-            metrics.update(m)
-            if loss is not None:
-                total = p.weight * loss if total is None else total + p.weight * loss
+        for provs, smp in streams:
+            recs = list(smp(step))
+            if not recs:
+                continue
+            batch = encode_decisions(model, store, recs, with_next=any(p.batch_kwargs.get("with_next") for p in provs))
+            for p in provs:
+                loss, m = p.loss(model, batch, store)
+                metrics.update(m)
+                if loss is not None:
+                    total = p.weight * loss if total is None else total + p.weight * loss
         if total is None:
             continue
         opt.zero_grad(set_to_none=True)
@@ -152,7 +157,7 @@ def train(model: LatentModelAPI, providers: Sequence[Any], store: Any,
         history.append(metrics)
         if log_every and step % log_every == 0:
             print(f"step {step}: " + " ".join(f"{k}={v:.3f}" for k, v in sorted(metrics.items())
-                                              if k in ("loss", "world_nll_count", "evaluator_loss",
+                                              if k in ("loss", "world_nll_count", "evaluator_loss", "eval_brier",
                                                        "fast_online_nll_count", "transition_nmse")), flush=True)
     return history
 

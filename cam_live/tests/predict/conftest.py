@@ -8,7 +8,7 @@ import torch
 def _seed():
     torch.manual_seed(0)
     np.random.seed(0)
-    torch.set_num_threads(4)
+    torch.set_num_threads(1)          # tiny models: one thread is as fast and immune to a busy machine
     yield
 
 

@@ -6,12 +6,12 @@
  "downstream_reference_misspecified_spearman": -0.3351073197425549,
  "evaluator_overconfident_after": {
   "base_rate": 0.324,
-  "brier": 0.18600375075545816,
-  "ece": 0.06803710239976646,
-  "intercept": -0.06915883515784227,
-  "mean_p": 0.29827901598364115,
-  "nll": 0.5526147711053521,
-  "slope": 0.6931262403607342
+  "brier": 0.18565686024099193,
+  "ece": 0.070551622897014,
+  "intercept": -0.042223647833240945,
+  "mean_p": 0.29453333637155593,
+  "nll": 0.550748452015196,
+  "slope": 0.7110407090074146
  },
  "evaluator_overconfident_before": {
   "base_rate": 0.324,
@@ -44,14 +44,14 @@
  ],
  "imagination_allowed_horizon": 3,
  "imagination_open_loop_nmse_by_steps": [
-  0.0012556765965806942,
-  0.0027572627179324625,
-  0.0046016707783564925,
-  0.006779503698150317,
-  0.009284863714128733
+  0.0012556760921142995,
+  0.0027572606690227986,
+  0.0046016661217436194,
+  0.006779494695365429,
+  0.009284847881644964
  ],
  "info_gain_spearman_vs_realised_regret_reduction_mean": 0.8538810045586237,
- "labworld_count_nll_after_learning": 1.9101063227168276,
+ "labworld_count_nll_after_learning": 1.9103303632702955,
  "labworld_count_nll_before_learning": 2.156872868995266,
  "labworld_count_nll_oracle": 1.8993648815636053,
  "labworld_cover90_after_learning": 0.9666666666666667,
@@ -61,29 +61,36 @@
  ],
  "labworld_experiment_estimated_difference": 2.5982142857142856,
  "labworld_experiment_true_difference": 2.5397634689911106,
- "labworld_predicted_vs_true_mean_corr": 0.9849009776753656,
+ "labworld_predicted_vs_true_mean_corr": 0.9848767035600715,
  "policy_accuracy_permuted_belief": 0.25,
  "policy_accuracy_true_belief": 0.984375,
  "policy_kl_under_belief_permutation_at_init": 0.0002561377455693792,
- "policy_kl_under_belief_permutation_trained": 15.655890642998441,
+ "policy_kl_under_belief_permutation_real_model_init": 5.8883581370431185e-05,
+ "policy_kl_under_belief_permutation_real_model_trained": 4.4242819312638835,
+ "policy_kl_under_belief_permutation_trained": 15.655890568755819,
  "policy_meta_gradient_max_rel_error_vs_finite_difference": 1.5542732962484487e-08,
+ "policy_tv_after_experiential_only_change": 0.9573760808998486,
+ "policy_tv_under_belief_permutation_real_model_trained": 0.9691192087096473,
  "surprise_spearman_vs_realised_regret_reduction_mean": -0.22895188958716525,
- "transition_nmse": 0.005289477833281063,
+ "transition_heldout_error_k1_trained": 1.4373240013917288,
+ "transition_heldout_error_k1_untrained": 1.7986942179501055,
+ "transition_heldout_error_k2_trained": 1.7325625044328195,
+ "transition_nmse": 0.005289478226060182,
  "transition_persistence_nmse": 0.15103715658187866,
  "voi_spearman_vs_realised_regret_reduction_mean": 0.9743267731439639,
- "world_count_mean_relative_error": 0.07100296765565872,
- "world_count_pred_true_corr": 0.9944304823875427,
+ "world_count_mean_relative_error": 0.07100288569927216,
+ "world_count_pred_true_corr": 0.994430661201477,
  "world_epistemic_std_n2048_in_dist": [
-  0.09737424552440643,
-  0.09500590711832047
+  0.09737417101860046,
+  0.09500586986541748
  ],
  "world_epistemic_std_n2048_off_dist": [
-  0.4066387414932251,
-  0.7019236087799072
+  0.40663862228393555,
+  0.7019238471984863
  ],
  "world_epistemic_std_n24_in_dist": [
-  0.16561874747276306,
-  0.23591738939285278
+  0.1790814846754074,
+  0.2170485109090805
  ],
  "world_nll_by_kind": {
   "binary": 0.5895,

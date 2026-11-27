@@ -243,3 +243,28 @@ def test_voi_is_decision_relevant_not_surprise(lab_rig):
         rig.predictor.observe_outcomes(outs)
     evs2 = rig.predictor.evaluate_candidates(rig.context(), rig.task.objective, cands, queries, generator=gen)
     assert sum(e.voi for e in _acts(evs2)) < 0.6 * v0
+
+
+def test_voi_slow_path_lets_the_imagined_result_enter_a_copy_of_the_context(lab_rig):
+    """With ``voi_slow_path`` the belief is also updated by the core: the imagined reading is appended to a copy
+    of the context. The estimate is E[max] - max E over the samples, so it is never negative, and nothing imagined
+    is registered, stored or absorbed."""
+    rig = lab_rig(n_lifetimes=0, voi_samples=6, voi_slow_path=True)
+    count = at_horizons(OutcomeQuery("", "lab.adopters.from.{action}", OutcomeKind.COUNT, goal_relevant=True), [2 * DAY])
+    gauge = [OutcomeQuery("", "lab.static", OutcomeKind.REAL, 600.0, description="static gauge reading")]
+
+    def queries(a):
+        return count if a.operation == "lab.act" else gauge if a.operation == "lab.noise" else []
+
+    cands = [c for c in rig.candidates() if c.operation in ("lab.act", "lab.noise", "wait")]
+    ctx = rig.context()
+    n_ctx = len(ctx)
+    evs = rig.predictor.evaluate_candidates(ctx, rig.task.objective, cands, queries,
+                                            generator=torch.Generator().manual_seed(0))
+    assert len(ctx) == n_ctx                                          # the real context was not touched
+    assert all(e.voi is not None and e.voi >= 0.0 for e in evs)
+    assert max(e.voi for e in _acts(evs)) > 0
+    assert all(math.isfinite(e.extras["voi_stderr"]) for e in evs)
+    assert rig.fast.n_updates(OutcomeKind.COUNT) == 0 and rig.fast.n_updates(OutcomeKind.REAL) == 0
+    assert len(rig.registry) == sum(len(e.predictions) for e in evs)  # only the real forecasts were registered
+    assert not any("imagined" in p.query.query_id for e in evs for p in e.predictions)
