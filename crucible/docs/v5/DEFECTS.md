@@ -719,10 +719,10 @@ B_population verdict) and P's own findings.
 ```json
 {
  "area": "F_commerce",
- "fixed_by": "c5c/w3b-econ1 8b9acf17 (the scan follows every crucible class of each module's MRO and the file-level helpers; the rolling-sales check adds an independent ledger bound)",
+ "fixed_by": "c5c/w3b-econ1 8b9acf17 (the scan follows every crucible class of each module's MRO and the file-level helpers; the rolling-sales check adds an independent ledger bound) and 6f01b906 (it also follows helpers of other files called by imported name or module attribute, 3 calls deep; unit test)",
  "id": "DEF-F-12",
  "owner": "F (ECON)",
- "regression_tests": "tests/v5/test_gate_SP_6_2.py::test_SP_6_2_genuine_recurring_revenue",
+ "regression_tests": "tests/test_v5_econ_sp62_scan.py (synthetic positive/negative controls: direct, inherited, same-file and imported helpers, population pay memo, one-time payments not flagged), tests/v5/test_gate_SP_6_2.py::test_SP_6_2_genuine_recurring_revenue",
  "requirements": [],
  "severity": "medium",
  "source": {
