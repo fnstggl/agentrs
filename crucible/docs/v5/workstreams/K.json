@@ -388,11 +388,11 @@
   "note": "single seeds; proxy only"
  },
  "tests_run_final": {
-  "commit": "c32f6f2 (unit 12 passed after the last change; the rest at 4e9108e, same code otherwise)",
-  "unit": "tests/test_v5_selfplay_multiagent.py + tests/test_v5_selfplay_obsonly.py + tests/test_selfplay.py: 49 passed (CPU)",
-  "regression": "tests/test_kernel.py + tests/test_invariants.py + tests/test_v5_experience_oo.py: 62 passed (CPU); tests/test_acceptance.py::test_E_autonomous_competition, ::test_F_cooperation with test_v5_experience_oo.py: 13 passed",
-  "gates_on_civilisation": "unofficial lane runs (scratch lane 2, GPU slot): test_gate_Q.py 9 passed @eb6f1d7; SP_12_0 passed @7eb39d1 (11 kinds) and @c212a6f (10); SP_12_1 passed @2cb805c, @c212a6f; SP_12_1b passed @76b2a93; SP_12_2 passed @093a05d; SP_12_3b passed @093a05d, @c212a6f; SP_12_3 failed @093a05d, @7eb39d1 on its positive control (criterion metric 0), changed in 5be64e6 (CPU kernel-world dry run passed); Q and SP_12_3 at the final head queued as scratch lane 3 (slot job 'K: selfplay lane 3', results in the scratch gates/lane.log)",
-  "dry_runs_cpu_kernel_world": "test_gate_SP_12_3.py 1 passed; test_gate_Q.py -k 'Q_8 or Q_1' 2 passed (tiny sizes, open_digital)"
+  "commit": "24c3fa1",
+  "unit": "tests/test_v5_selfplay_multiagent.py (22) + tests/test_v5_selfplay_obsonly.py + tests/test_selfplay.py: passed; with tests/test_kernel.py + tests/test_invariants.py + tests/test_v5_experience_oo.py: 119 passed, 0 failed (CPU, single thread, 143 s)",
+  "dry_runs": "CPU kernel world open_digital, tiny sizes (verifier plugin, assertions not converted): test_gate_SP_12_0.py ran end to end (threshold miss 4 < 10 expected at that size); test_gate_Q.py 5 passed, 4 threshold misses (Q.2/Q.3 no competition at 24 h, Q.7 45 < 100 updates, Q.n1 by the plugin's is_civilisation patch). Real civilisation (infrastructure_constrained) on CPU, tiny sizes, no semantic: SP-12.0 path through seed 7 (learning run, 4-branch strategy switch, frozen control) and seed 8's learning run, then stopped by its 45-minute timeout (the population's text path on CPU)",
+  "gates_on_civilisation": "pending at the branch head: scratch lane 3 (slot job 'K: selfplay lane 3', queued since 03:40 UTC: Q, SP_12_0, SP_12_3) and lane 4 ('K: selfplay lane 4': SP_12_0 if lane 3 did not finish it, SP_12_3, SP_12_1b, SP_12_2, SP_12_3b, SP_12_1); results in the scratch gates/lane.log and gates/evidence/<file>_<rev>/",
+  "earlier_gates_on_civilisation": "test_gate_Q.py 9 passed @eb6f1d7; SP_12_0 passed @7eb39d1 (11, old measures) and @c212a6f (10); SP_12_1 @2cb805c, @c212a6f; SP_12_1b @76b2a93; SP_12_2 @093a05d; SP_12_3b @093a05d, @c212a6f; SP_12_3 failed @093a05d, @7eb39d1 on its old positive control"
  },
  "defects_open": [
   "DEF-K-7 (medium): SP-12.0 not established on the civilisation at the branch head (replication pending)"
