@@ -1223,6 +1223,7 @@ class SandboxDiskQuotaCountsFilesHeldOpen(V5Probe):
 BLOAT_RPC_MB = 2           # MiB of junk in each world call's arguments
 BLOAT_RPCS = 40            # world calls of one program (below the runner's 50 per job)
 BLOAT_RESULT_MB = 6        # MiB the program returns
+BLOAT_NESTED = 40          # nested code.run calls of one program, each returning just under 1 MiB
 RECORDED_BOUND = 4 << 20   # what one code.run may add to the world's recorded outcomes (ordinary tools: a 2 MiB commit)
 BLOAT = r'''
 import crucible_sdk
@@ -1236,6 +1237,18 @@ def bloat(args, caller):
             pass
         n += 1
     return {"calls": n, "blob": "r" * (int(args["result_mb"]) << 20)}
+def leaf(args, caller):
+    return "l" * (int(args["kb"]) << 10)
+def fan(args, caller):
+    got = 0
+    for i in range(int(args["n"])):
+        try:
+            r = crucible_sdk.call("code.run", repo=args["repo"], target="b.py:leaf", input={"kb": args["kb"], "i": i},
+                                  timeout_s=5)
+            got += len((r or {}).get("result") or "")
+        except Exception:
+            pass
+    return {"nested_bytes_seen": got}
 '''
 
 
@@ -1252,33 +1265,44 @@ class RecordedOutcomesAreBounded(V5Probe):
                    "per job, and the bridge recorded both whole. One `code.run` makes 40 world calls with 2 MiB of "
                    "junk in their arguments (each call is refused by the tool's schema - after the bridge logged its "
                    "arguments) and returns 6 MiB: about 86 MiB written into the world's memory and event store per "
-                   "tool call, which ordinary tools cap at a 2 MiB commit. Checked: what one call adds to the recorded "
-                   "outcomes stays within 4 MiB.")
+                   "tool call, which ordinary tools cap at a 2 MiB commit; a second program fans out to 40 nested "
+                   "code.run calls of a program returning just under 1 MiB each (every nested outcome is recorded in "
+                   "the same command). Checked: what one call adds to the recorded outcomes stays within 4 MiB.")
 
     def setup(self, op: Operator) -> None:
         self.att = op.join("bloater", 2_000_000)
 
     def attack(self, a: Attacker) -> None:
+        import json as _json
         rid = repo(a, self.att, "bloat", {"b.py": BLOAT})
-        self.out = run(a, self.att, rid, "b.py:bloat", input={"mb": BLOAT_RPC_MB, "rpcs": BLOAT_RPCS,
-                                                              "result_mb": BLOAT_RESULT_MB}, timeout_s=30)
+        self.out = {}
+        for k, target, inp in (("direct", "b.py:bloat", {"mb": BLOAT_RPC_MB, "rpcs": BLOAT_RPCS,
+                                                         "result_mb": BLOAT_RESULT_MB}),
+                               ("nested", "b.py:fan", {"repo": rid, "n": BLOAT_NESTED, "kb": 1000})):
+            r = run(a, self.att, rid, target, input=inp, timeout_s=30)
+            res = r.get("result")
+            self.out[k] = {"ok": r.get("ok"), "error": str(r.get("error"))[:300],
+                           "returned_bytes": len(_json.dumps(res, default=str)) if res is not None else 0,
+                           "result": res if k == "nested" else None}
 
     def verdict(self, ev: Evaluator) -> Verdict:
         import json as _json
+        # one `ext` event per command holds the outcomes of every sandboxed job of that command (nested ones too)
         recs = [e for e in ev.events("") if e.type == "ext" or "ext" in (e.payload or {})]   # since the attack began
-        size = sum(len(_json.dumps(e.payload, default=str)) for e in recs)
-        res = self.out.get("result")
-        evd = {"recorded_bytes": size, "bound_bytes": RECORDED_BOUND, "ext_events": len(recs),
-               "ok": self.out.get("ok"), "error": str(self.out.get("error"))[:300],
-               "returned_bytes": len(_json.dumps(res, default=str)) if res is not None else 0,
-               "attempted_bytes": (BLOAT_RPC_MB * BLOAT_RPCS + BLOAT_RESULT_MB) << 20,
-               "resource_limit_escapes": int(size > RECORDED_BOUND)}
-        if size > RECORDED_BOUND:
-            return Verdict(INTEGRITY_BREAK, f"one code.run recorded {size / 2**20:.1f} MiB in the world's event log "
-                           f"(bound {RECORDED_BOUND >> 20} MiB)", evd, severity="high",
+        sizes = sorted((len(_json.dumps(e.payload, default=str)) for e in recs), reverse=True)
+        worst = sizes[0] if sizes else 0
+        evd = {"recorded_bytes_per_command": sizes[:4], "bound_bytes": RECORDED_BOUND, "ext_events": len(recs),
+               "attack": self.out, "attempted_bytes_direct": (BLOAT_RPC_MB * BLOAT_RPCS + BLOAT_RESULT_MB) << 20,
+               "attempted_bytes_nested": BLOAT_NESTED * 1000 << 10,
+               "resource_limit_escapes": sum(1 for x in sizes if x > RECORDED_BOUND)}
+        if worst > RECORDED_BOUND:
+            return Verdict(INTEGRITY_BREAK, f"one code.run recorded {worst / 2**20:.1f} MiB in the world's event log "
+                           f"(bound {RECORDED_BOUND >> 20} MiB; per command {[round(x / 2**20, 1) for x in sizes[:2]]})",
+                           evd, severity="high",
                            fix="sandbox/bridge.py: cap the recorded result and the logged world-call arguments of a "
-                               "job; refuse (unlogged) world calls beyond the cap")
-        return Verdict(HELD, f"one code.run recorded {size / 2**20:.2f} MiB (bound {RECORDED_BOUND >> 20} MiB)", evd)
+                               "job and of all jobs of one command; refuse (unlogged) world calls beyond the cap")
+        return Verdict(HELD, f"one code.run recorded at most {worst / 2**20:.2f} MiB (bound {RECORDED_BOUND >> 20} MiB; "
+                             f"direct and nested fan-out)", evd)
 
 
 def probes() -> list:

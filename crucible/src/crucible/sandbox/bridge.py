@@ -16,6 +16,7 @@ a world bill identical computations identically); otherwise it is the measured C
 """
 from __future__ import annotations
 
+import threading
 from typing import Any, Callable
 
 from ..core.errors import CrucibleError
@@ -79,7 +80,19 @@ def _lines_off() -> int:
 # v5.sandbox.recorded_outcomes_are_bounded), where ordinary tools stop at a 2 MiB commit (services/code.py MAX_REPO).
 RECORD_RESULT_MAX = 1 << 20            # JSON bytes of a recorded result; larger results fail as ResultTooLarge
 RECORD_RPC_ARGS_MAX = 5 << 19          # JSON bytes of all world-call arguments one job logs (2.5 MiB: a full commit)
+RECORD_TREE_MAX = 7 << 19              # results + logged arguments of one top-level job and every sandboxed job
+#                                        nested in it (3.5 MiB): nested code.run calls are recorded in the same
+#                                        command (40 nested jobs of just under 1 MiB each recorded 39 MiB)
 _ERR_FIELDS = {"type": 200, "message": 2000, "traceback": 4000, "code": 200}
+_TREE = threading.local()              # byte count of the enclosing top-level job's call tree (None: not nested)
+
+
+def _tree_budget() -> list:
+    """The running byte count of the current call tree: the enclosing top-level job's, or a new one for a job that
+    is not nested (each job a world process starts on its own, e.g. one request of a population's hourly session,
+    has its own). Regeneration returns recorded outcomes before any of this is consulted."""
+    cur = getattr(_TREE, "cur", None)
+    return cur if cur is not None else [0]
 
 
 def _json_size(x: Any) -> int:
@@ -90,17 +103,21 @@ def _json_size(x: Any) -> int:
         return 1 << 62
 
 
-def _rpc_fn(ctx: Ctx, principal: str, log: list, replies: list | None = None) -> Callable[[str, dict], tuple[bool, Any]]:
+def _rpc_fn(ctx: Ctx, principal: str, log: list, replies: list | None = None,
+            tree: list | None = None) -> Callable[[str, dict], tuple[bool, Any]]:
     used = [0]
+    command = tree if tree is not None else [0]
 
     def rpc(tool: str, args: dict) -> tuple[bool, Any]:
         n = _json_size(args) + len(str(tool))
-        if used[0] + n > RECORD_RPC_ARGS_MAX:
+        if used[0] + n > RECORD_RPC_ARGS_MAX or command[0] + n > RECORD_TREE_MAX:
             # refused before it reaches the world and not logged: it has no effect, so regeneration (which re-issues
             # the logged calls) needs nothing of it; the program sees an ordinary refusal
             return False, {"code": "too_large", "message": f"world-call arguments of this program exceed "
-                                                            f"{RECORD_RPC_ARGS_MAX} bytes"}
+                                                            f"{RECORD_RPC_ARGS_MAX} bytes (or its call tree's "
+                                                            f"{RECORD_TREE_MAX})"}
         used[0] += n
+        command[0] += n
         log.append({"tool": tool, "args": args})
         try:
             ok, val = True, ctx.call(tool, args, as_principal=principal, brokered=True)
@@ -138,14 +155,21 @@ def run_in_ctx(ctx: Ctx, kind: str, worker_fn: Callable[[], Worker], job: dict, 
         # replay and regeneration see the same refusal)
         return ctx.fill(slot, kind, recorded_outcome(nested_refusal(left), [], None))
     log: list = []
+    tree = _tree_budget()
+    outer = getattr(_TREE, "cur", None)
     w = worker_fn()
     try:
-        broker = rpc_fn if rpc_fn is not None else (_rpc_fn(ctx, principal, log, rpc_results) if world_access else None)
-        res = w.run(job, rpc=broker, timeout=timeout)
+        broker = rpc_fn if rpc_fn is not None else (_rpc_fn(ctx, principal, log, rpc_results, tree)
+                                                    if world_access else None)
+        _TREE.cur = tree                  # jobs started by this job's world calls share its budget
+        try:
+            res = w.run(job, rpc=broker, timeout=timeout)
+        finally:
+            _TREE.cur = outer
     finally:
         if close_after:
             w.close()
-    out = recorded_outcome(res, log, post)
+    out = recorded_outcome(res, log, post, tree)
     return ctx.fill(slot, kind, out)
 
 
@@ -169,16 +193,25 @@ def _bounded_error(err: Any) -> dict | None:
             if (v := err.get(k)) is not None}
 
 
-def recorded_outcome(res: dict, log: list, post: Callable[[Any], Any] | None = None) -> dict:
+def recorded_outcome(res: dict, log: list, post: Callable[[Any], Any] | None = None,
+                     command: list | None = None) -> dict:
+    """What the world records of one sandboxed job. `command` (from `_tree_budget`) is the running byte count of the
+    current call tree's recorded outcomes: a result that would take it past RECORD_TREE_MAX fails like one above
+    RECORD_RESULT_MAX."""
     result = res.get("result")
     ok = bool(res.get("ok"))
     if post is not None and ok:
         result = post(result)      # e.g. score the output and record only the score
     error = _bounded_error(res.get("error"))
-    if ok and _json_size(result) > RECORD_RESULT_MAX:
-        n = _json_size(result)
-        ok, result, error = False, None, {"type": "ResultTooLarge",
-                                          "message": f"the result ({n} bytes) exceeds {RECORD_RESULT_MAX} bytes"}
+    n = _json_size(result) if ok else 0
+    left = RECORD_TREE_MAX - command[0] if command is not None else RECORD_RESULT_MAX
+    if ok and n > min(RECORD_RESULT_MAX, left):
+        why = (f"exceeds {RECORD_RESULT_MAX} bytes" if n > RECORD_RESULT_MAX else
+               f"exceeds what its call tree may still record ({max(0, left)} of {RECORD_TREE_MAX} bytes)")
+        ok, result, error = False, None, {"type": "ResultTooLarge", "message": f"the result ({n} bytes) {why}"}
+        n = 0
+    if command is not None:
+        command[0] += n
     out = {"ok": ok, "result": result, "error": error,
            "stdout": (res.get("stdout") or "")[:4000], "cpu_ms": billed_cpu_ms(res), "rpcs": log}
     killed = (res.get("meter") or {}).get("killed")

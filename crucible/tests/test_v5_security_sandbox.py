@@ -764,7 +764,7 @@ def test_recorded_outcomes_of_a_job_are_bounded():
     """Second repair pass (W.n1): the bridge recorded a program's result and every world call's arguments whole
     (one code.run wrote 86 MiB into the event log; probe v5.sandbox.recorded_outcomes_are_bounded). A result above
     RECORD_RESULT_MAX fails as ResultTooLarge, world calls beyond RECORD_RPC_ARGS_MAX are refused before they reach
-    the world and are not logged, and error fields are bounded."""
+    the world and are not logged, error fields are bounded, and a job's nested jobs share its RECORD_TREE_MAX."""
     from crucible.sandbox import bridge as B
     big = {"ok": True, "result": "r" * (B.RECORD_RESULT_MAX + 10), "error": None, "stdout": "", "cpu_ms": 1.0}
     out = B.recorded_outcome(big, [])
@@ -782,11 +782,19 @@ def test_recorded_outcomes_of_a_job_are_bounded():
         def call(self, tool, args, as_principal=None, brokered=False):
             self.calls.append(tool)
             return {"ok": 1}
-    ctx, log = Ctx(), []
-    rpc = B._rpc_fn(ctx, "p", log)
+    ctx, log, tree = Ctx(), [], [0]
+    rpc = B._rpc_fn(ctx, "p", log, None, tree)
     half = "h" * (B.RECORD_RPC_ARGS_MAX // 2 - 100)
     assert rpc("t.a", {"x": half})[0] and rpc("t.b", {"x": half})[0]
     ok, err = rpc("t.c", {"x": half})
     assert not ok and err["code"] == "too_large"
     assert ctx.calls == ["t.a", "t.b"] and [r["tool"] for r in log] == ["t.a", "t.b"]
     assert rpc("t.d", {"x": 1})[0]                       # small calls still fit
+    # a job and the jobs nested in it (code.run through a world call) share RECORD_TREE_MAX
+    assert tree[0] > B.RECORD_RPC_ARGS_MAX - 300
+    near = {"ok": True, "result": "n" * (B.RECORD_RESULT_MAX - 100), "cpu_ms": 1.0}
+    assert B.recorded_outcome(near, [], None, tree)["ok"]
+    late = B.recorded_outcome(near, [], None, tree)
+    assert not late["ok"] and "call tree" in late["error"]["message"]
+    assert B._tree_budget() == [0]                       # a job that is not nested starts its own tree
+    assert B.recorded_outcome(near, [], None, B._tree_budget())["ok"]
