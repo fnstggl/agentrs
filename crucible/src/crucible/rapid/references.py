@@ -534,8 +534,9 @@ SPECIFIC = {"sci_functional_law": science, "sci_instruments": science, "srch_fie
             "srch_distractors": distractors, "srch_tools": tools, "coop_split_info": coop,
             "posm_fault_diagnosis": fault, "posm_unlock": unlock, "posm_sign_switch": sign_switch,
             "des_maintenance": maintenance, "des_bottleneck": bottleneck, "des_inventory": inventory,
-            "des_perishable": inventory, "net_diffusion": diffusion, "net_cascade": cascade, "net_repair": repair,
-            "eng_delayed_controller": controller}
+            "des_perishable": inventory, "net_diffusion": diffusion, "net_cascade": cascade, "net_repair": repair}
+# (eng_delayed_controller's version-2 reference is its family hook refs_adapt.delayed_plant_predict; `controller` is
+#  kept as the closed-loop baseline of its version 1)
 
 
 def practice_constant(env) -> dict | None:

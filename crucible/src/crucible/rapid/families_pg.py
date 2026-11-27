@@ -296,30 +296,42 @@ def dl_short_term_damage(rng, d):
 
 # ====================================================================== 8.3 complex engineering (control)
 @family("eng_delayed_controller", engine="primitive_graph", category="8.3", item="8.3.3", split="train",
-        doc="Keep a process variable inside a hidden band while an unobserved disturbance drifts; the heater acts "
-            "only after a delay. A controller program can be deployed to act every tick.",
-        distinct_because="closed-loop control through a delayed first-order (decay) plant with band-pass payoff "
-                         "(two thresholds); offers sandboxed controller programs",
-        axes={"horizon": 80, "observation_noise": 0.5}, objective="maximize_net",
-        claims=(C + "controller_delay",), identify=I + "lever_sign", lever_view=True)
+        doc="A heated process whose heater acts only after a hidden delay, through a first-order (decay) plant, "
+            "while an unobserved disturbance drifts. Predict where the process temperature settles at heater "
+            "powers above what can be set: short tests mislead (the response has not arrived yet, or has not "
+            "settled), and the drifting disturbance confounds readings taken at different times.",
+        distinct_because="identification of a delayed first-order (decay) plant with an unobserved drifting "
+                         "disturbance and a band-pass payoff (two thresholds) on its output; scored by the settled "
+                         "response at held-out heater powers above the settable range (the closed-loop control "
+                         "of the same item is pe_deadtime_control)",
+        axes={"horizon": 80, "observation_noise": 0.5}, objective="predict_heldout",
+        claims=(C + "controller_delay",), identify="crucible.rapid.claims_w3b:identify_heater_delay", lever_view=True,
+        reference="crucible.rapid.refs_adapt:delayed_plant_predict", oracle="crucible.rapid.oracles:science_oracle",
+        version="2")
 def eng_delayed_controller(rng, d):
     gb = GraphBuilder(rng)
-    heat = gb.lever(0.0, 10.0, 3.0, cost=u(rng, 15, 30))
+    heat = gb.lever(0.0, 10.0, 3.0, cost=0.0)
     dist = gb.prim("hidden_confounding", {"mean": 0.0, "sd": u(rng, 0.2, 0.3), "ar": 0.95}, role="disturbance")
     lag = int(rng.integers(2, 5))
-    T = gb.prim("decay", {"rate": 0.2, "init": 10.0}, role="temperature", bias={"x": 2.0},
-                x=[(heat, lag, 0.8), (dist, 0, 1.0)])
+    T = gb.prim("decay", {"rate": u(rng, 0.12, 0.3), "init": 10.0}, role="temperature", bias={"x": u(rng, 1.0, 3.0)},
+                x=[(heat, lag, u(rng, 0.5, 1.0)), (dist, 0, 1.0)])
     sp = u(rng, 16, 25) if rng.random() < 0.5 else u(rng, 35, 44)
     band = u(rng, 1.5, 2.5)
     lo = gb.prim("threshold", {"theta": sp - band, "lo": 0.0, "hi": 1.0}, x=[(T, 0, 1.0)])
     hi = gb.prim("threshold", {"theta": sp + band, "lo": 1.0, "hi": 0.0}, x=[(T, 0, 1.0)])
     inband = gb.prim("multiplicative", {"k": 1.0}, role="outcome", a=[(lo, 0, 1.0)], b=[(hi, 0, 1.0)])
-    gb.gauge(T, [("measurement_noise", {"sd": float(d["observation_noise"])})])
+    gt = gb.gauge(T, [("measurement_noise", {"sd": float(d["observation_noise"])})])
     gb.gauge(inband, [])
+    held = [{gb.name_of(heat): x} for x in (10.5, 11.5, 12.5, 14.0, 16.0)]
+    text = ("Predict where the process temperature would settle if the heater were held at these powers (above "
+            f"what you can set): {held}. File predictions with the journal: message to 'journal' with content "
+            "{\"predictions\": [{\"set\": <condition>, \"value\": <number>}, ...]}. Only the last filing counts.")
     return gb.build(horizon=int(d["horizon"]), money={"revenue_node": inband, "price": 3000.0, "cap": 1.0},
-                    affordances=["levers", "program"], endowment=200_000, program_max_ticks=int(d["horizon"]),
-                    objective={"type": "maximize_net", "text": "You are paid every tick the process is in "
-                                                               "specification; heating costs money."},
+                    affordances=["levers", "program", "message"], endowment=200_000,
+                    program_max_ticks=int(d["horizon"]),
+                    objective={"type": "predict_heldout", "heldout": held, "gauge": gt, "text": text,
+                               "settle_ticks": 200},
+                    journal=True,
                     brief="A heated process. Lever: heater power. Gauges: process temperature and an "
                           "in-specification signal.",
                     claim={"lever": heat, "outcome": T, "lag": lag, "setpoint": sp})

@@ -1431,3 +1431,63 @@ def held_hub_predict(view, env, hold: int = 6, use: int = 2, seed: int = 0) -> N
         view.step({"kind": "message", "to": "journal", "content": {"predictions": out}})
     while not view.done:
         view.step(None)
+
+
+# ====================================================================== a delayed first-order plant
+def step_hold_design(view, name: str, gauge: str, lo: float, hi: float, hold: int = 14, reserve: int = 2):
+    """Hold the setting at its low end, its high end and mid-range in turn (`hold` ticks each, long enough for a
+    delayed first-order response to arrive and mostly settle); returns the settings and readings."""
+    levels = [lo, hi, 0.5 * (lo + hi), hi, lo, 0.5 * (lo + hi), hi, lo]
+    U, Y = [], []
+    k = 0
+    while view.t < view.horizon - reserve and not view.done:
+        x = levels[(k // hold) % len(levels)]
+        k += 1
+        r = view.step({"kind": "levers", "values": {name: x}})
+        U.append(x)
+        Y.append(r["observation"]["numbers"].get(gauge, np.nan))
+    return np.asarray(U, dtype=float), np.asarray(Y, dtype=float)
+
+
+def first_order_fit(U, Y, max_lag: int = 6) -> tuple[int, float, float, float]:
+    """Least-squares fit of a delayed first-order plant y[t] = a y[t-1] + b u[t-1-L] + c over a grid of the dead
+    time L and the persistence a (b and c by least squares); returns (L, a, b, c). The steady state at setting u is
+    (c + b u) / (1 - a)."""
+    best = None
+    ok = np.isfinite(Y)
+    for L in range(0, max_lag + 1):
+        idx = [t for t in range(L + 1, len(Y)) if ok[t] and ok[t - 1]]
+        if len(idx) < 6:
+            continue
+        F = np.c_[U[[t - 1 - L for t in idx]], np.ones(len(idx))]
+        for a in np.arange(0.50, 0.97, 0.01):
+            T = Y[idx] - a * Y[[t - 1 for t in idx]]
+            coef = np.linalg.lstsq(F, T, rcond=None)[0]
+            sse = float(np.sum((F @ coef - T) ** 2))
+            if best is None or sse < best[0]:
+                best = (sse, L, float(a), float(coef[0]), float(coef[1]))
+    if best is None:
+        return 0, 0.5, 0.0, 0.0
+    return best[1], best[2], best[3], best[4]
+
+
+def delayed_plant_predict(view, env, hold: int = 14) -> None:
+    """Scripted public reference for predicting where a delayed process settles at settings above the settable
+    range: a step-and-hold design over the settable range (`step_hold_design`), a delayed first-order plant fitted
+    to the readings (`first_order_fit`: the dead time and persistence on grids), and the plant's steady state at the
+    held-out settings, filed once with the journal. Assumes the plant class (linear, first order, a dead time); the
+    unobserved drifting disturbance is left in the residual, so its average over the episode biases the level."""
+    obj = env._config["objective"]
+    held = obj["heldout"]
+    name = list(held[0])[0]
+    p = view.action_space().kinds["levers"]["properties"]["values"]["properties"][name]
+    U, Y = step_hold_design(view, name, obj["gauge"], float(p["minimum"]), float(p["maximum"]), hold)
+    if len(Y) < 12 or view.done:
+        while not view.done:
+            view.step(None)
+        return
+    L, a, b, c = first_order_fit(U, Y)
+    preds = [{"set": cnd, "value": float((c + b * float(cnd[name])) / (1.0 - a))} for cnd in held]
+    view.step({"kind": "message", "to": "journal", "content": {"predictions": preds}})
+    while not view.done:
+        view.step(None)

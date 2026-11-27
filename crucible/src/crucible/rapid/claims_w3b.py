@@ -916,3 +916,20 @@ def oracle_diffusion_openings(env) -> dict:
     res = best_of(env, pols)
     gen = graph_oracle(env)
     return res if res["value"] >= gen["value"] else gen
+
+
+# ====================================================================== eng_delayed_controller (8.3.3, version 2)
+def identify_heater_delay(env) -> dict:
+    """Question: after how many ticks does a change of heater power start to move the process temperature (the
+    plant's dead time)? Public: the step-and-hold design of the prediction reference and a delayed first-order fit
+    (its dead time L is counted from the tick after the setting, so the delay is L + 1); truth: the hidden lag."""
+    from .refs_adapt import first_order_fit, step_hold_design
+    view = PublicView(env)
+    obj = env._config["objective"]
+    name = list(obj["heldout"][0])[0]
+    p = view.action_space().kinds["levers"]["properties"]["values"]["properties"][name]
+    U, Y = step_hold_design(view, name, obj["gauge"], float(p["minimum"]), float(p["maximum"]), hold=14, reserve=0)
+    L, a, b, c = first_order_fit(U, Y)
+    truth = int(env._config["claim"]["lag"])
+    return {"question": "the heater's dead time in ticks", "estimate": int(L + 1), "truth": truth,
+            "ok": bool(L + 1 == truth)}
