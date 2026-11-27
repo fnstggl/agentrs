@@ -180,15 +180,14 @@ class LiveRuntime:
         if self._started:
             return
         st = read_json(self._state_path)
-        if isinstance(st, dict) and st.get("version") == STATE_VERSION and st.get("status"):
-            self._guard_live(TaskSpec.from_dict(st["task"]))
-            self._started = True
+        resume = isinstance(st, dict) and st.get("version") == STATE_VERSION and bool(st.get("status"))
+        self._guard_live(TaskSpec.from_dict(st["task"]) if resume else self.task)
+        atomic_write_text(os.path.join(self.run_dir, PID_FILE), str(os.getpid()), durable=self._durable)
+        self._started = True
+        if resume:
             self._restore(st)
         else:
-            self._guard_live(self.task)
-            self._started = True
             self._fresh()
-        atomic_write_text(os.path.join(self.run_dir, PID_FILE), str(os.getpid()))
 
     def _guard_live(self, task: TaskSpec) -> None:
         problems = check_runnable(task)

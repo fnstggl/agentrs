@@ -359,7 +359,7 @@ def cmd_run(a: argparse.Namespace) -> int:
         pid = _spawn_detached(argv, log, _child_env())
     end = time.monotonic() + a.start_timeout
     state_path = os.path.join(run_dir, RunFiles.STATE)
-    while time.monotonic() < end and not os.path.exists(state_path) and pid_alive(pid):
+    while time.monotonic() < end and pid_alive(pid) and not (os.path.exists(state_path) and read_pid(run_dir)):
         time.sleep(0.1)
     started = os.path.exists(state_path)
     out = {"run_dir": run_dir, "mode": task.mode, "separated": separated, "launcher_pid": pid,
@@ -548,12 +548,12 @@ def cmd_export_checkpoint(a: argparse.Namespace) -> int:
         print(f"cam-live export-checkpoint: no committed checkpoint in {run_dir}", file=sys.stderr)
         return 1
     dest = os.path.abspath(a.out) if a.out else os.path.join(run_dir, "exports", f"export_{ckpt['id']}")
-    how = "copy of the committed checkpoint"
     try:
         export = importlib.import_module("cam_live.credit.checkpoint").export_weights
-        export(ckpt["path"], dest)
-        how = "cam_live.credit.checkpoint.export_weights (weights only)"
-    except (ImportError, AttributeError):
+        export(ckpt["path"], dest, config={"task": st.get("task")})
+        how = "cam_live.credit.checkpoint.export_weights (weights, adapters and compatible configuration only)"
+    except Exception as e:  # noqa: BLE001 — not a checkpoint of that format (or the module is absent): say so and copy
+        how = f"complete copy of the committed checkpoint (weights-only export not applicable: {type(e).__name__})"
         if os.path.isdir(ckpt["path"]):
             shutil.copytree(ckpt["path"], dest, dirs_exist_ok=True)
         else:
