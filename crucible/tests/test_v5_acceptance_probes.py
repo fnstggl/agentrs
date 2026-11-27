@@ -1423,3 +1423,37 @@ def test_V10_the_rebound_check_accepts_what_a_module_does_to_its_own_definitions
         assert any("rbmod.K.m <- bound to a builtin_function_or_method" in f for f in found), found
     finally:
         sys.modules.pop("rbmod", None)
+
+
+TORCH_GUARD = ("import sys\nclass F:\n    def find_spec(self, name, path=None, target=None):\n        if name != 'torch':\n"
+               "            return None\n        {body}\n        return None\nsys.meta_path.insert(0, F())\n")
+
+
+@pytest.mark.parametrize("src", [
+    "import builtins\n_o = builtins.__import__\ndef imp(name, *a, **k):\n    m = _o(name, *a, **k)\n"
+    "    if hasattr(m, 'leaks'):\n        m.leaks = lambda: 0\n    return m\nbuiltins.__import__ = imp\n",
+    "import builtins\nvars(builtins)['__import__'] = None\n",
+    "import sys\ndef h(ev, args):\n    pass\nsys.addaudithook(h)\n",
+    "import atexit, os\natexit.register(lambda: os._exit(0))\n",
+    "import os\nos.environ['PYTEST_ADDOPTS'] = '-p evil'\n",
+    "import json\njson.loads = lambda s, **k: {}\n",
+    "import json\ndef f(m):\n    m.loads = None\nf(json)\n",
+    "import importlib\nm = importlib.import_module('json')\nm.loads = None\n",
+    "import sys\nm = sys.modules['json']\nm.loads = None\n",
+    "import json\nm = json\nm.loads = None\n",
+    "import sys\nsys.path.insert(0, '/tmp/evil')\n",
+    "import gc\ngc.callbacks.append(lambda *a: None)\n",
+    TORCH_GUARD.format(body="import builtins; builtins.__import__ = None"),
+], ids=["import_wrapper", "vars_builtins", "audit_hook", "atexit_exit0", "environ", "stdlib_patch", "module_passed",
+        "import_module_patch", "sys_modules_patch", "aliased", "sys_path", "gc_callbacks", "patch_after_the_guard"])
+def test_V11_a_pinned_hook_that_reaches_beyond_its_guarded_module_is_rejected(src):
+    """The V5 content scan only rejected hooks naming the repository's modules: a re-pinned hook could still wrap
+    builtins.__import__ to patch whatever it imports, patch the standard library the measurement uses, set
+    PYTEST_ADDOPTS for child processes, or end every process with exit status 0 from atexit. A pinned hook may now
+    import a few standard modules and its finders' guarded modules only, name no other module, never store into,
+    mutate or pass on a module it imported (sys.meta_path aside) and never end or signal the process. The governor's
+    real hook (and c5c/w3b-perf's) passes."""
+    local = checker.local_top_names(checker.repo_files(M.crucible_root()))
+    assert testscan.startup_hook_findings(src, local), src
+    real = open(os.path.join(M.crucible_root(), HOOK)).read()
+    assert testscan.startup_hook_findings(real, local) == []

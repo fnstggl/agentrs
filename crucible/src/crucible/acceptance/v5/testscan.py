@@ -888,6 +888,77 @@ def _finder_guard(fn) -> str | None:
     return t.comparators[0].value
 
 
+HOOK_MODULES_OK = {"os", "sys", "json", "time", "threading", "importlib", "atexit"}   # what a pinned hook may import
+HOOK_SPEC_NAMES_OK = {"sitecustomize"}          # chaining to the next sitecustomize keeps Python's default behaviour
+HOOK_MUTATORS = {"insert", "append", "extend", "remove", "pop", "clear", "update", "setdefault", "__setitem__",
+                 "__delitem__", "putenv", "unsetenv"}
+HOOK_FORBIDDEN_CALLS = {"os._exit", "sys.exit", "os.kill", "os.abort", "sys.addaudithook", "sys.setrecursionlimit",
+                        "os.execv", "os.execve", "os.system", "sys.set_asyncgen_hooks", "sys.setswitchinterval"}
+
+
+def _hook_reach_findings(tree: ast.Module, guards: set[str]) -> list[str]:
+    """Wave 3b repair pass (second round, probe V11): what a pinned start-up hook may reach. It may import only a few
+    standard modules and the modules its meta-path finders are restricted to (`guards`); every module it names by a
+    constant (sys.modules[...], import_module, find_spec) is one of those; it never stores into, mutates or passes on
+    a module it imported (json.loads = ..., vars(builtins)[...] = ..., os.environ[...] = ..., sys.path.insert(...),
+    f(json)) - only sys.meta_path, which the finder rule judges - and it never ends or signals the process (an atexit
+    os._exit(0) turned every failing run into exit status 0). The governor's hook wraps its guarded module (torch) by
+    design: patching the guarded installed module stays a stated residual."""
+    out = []
+    aliases: set[str] = set()
+    allowed = HOOK_MODULES_OK | guards
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Import):
+            for a in n.names:
+                if a.name.split(".")[0] not in allowed:
+                    out.append(f"hook_import:{a.name}")
+                aliases.add((a.asname or a.name).split(".")[0])
+        elif isinstance(n, ast.ImportFrom):
+            if (n.module or "").split(".")[0] not in allowed:
+                out.append(f"hook_import:{n.module}")
+            aliases.update(a.asname or a.name for a in n.names)
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Call):
+            d = _dotted(n.func)
+            if d in HOOK_FORBIDDEN_CALLS:
+                out.append(f"hook_call:{d}")
+            last = d.split(".")[-1]
+            if last in ("import_module", "__import__", "find_spec", "find_module", "find_loader") and n.args:
+                c = _const_str(n.args[0])
+                if c is not None and c.split(".")[0] not in guards | HOOK_SPEC_NAMES_OK:
+                    out.append(f"hook_names_module:{c}")
+            root = _root_name(n.func)
+            if isinstance(n.func, ast.Attribute) and n.func.attr in HOOK_MUTATORS and root in aliases and \
+                    not d.startswith("sys.meta_path."):
+                out.append(f"hook_mutates:{d}")
+            for a in list(n.args) + [k.value for k in n.keywords]:
+                if isinstance(a, ast.Name) and a.id in aliases:
+                    out.append(f"hook_passes_module:{a.id}")
+            if d in ("vars", "getattr", "setattr", "delattr") and n.args and isinstance(n.args[0], ast.Name) and \
+                    n.args[0].id in aliases and d != "getattr":
+                out.append(f"hook_passes_module:{n.args[0].id}")
+        elif isinstance(n, (ast.Assign, ast.AnnAssign, ast.NamedExpr)) and isinstance(n.value, ast.Name) and \
+                n.value.id in aliases:
+            out.append(f"hook_aliases_module:{n.value.id}")
+        elif isinstance(n, ast.Subscript) and isinstance(n.ctx, (ast.Store, ast.Del)):
+            r = _root_name(n.value)
+            if r in aliases or (isinstance(n.value, ast.Call) and _dotted(n.value.func) == "vars"):
+                out.append(f"hook_store:{_dotted(n.value) or 'vars(...)'}[...]")
+        elif isinstance(n, ast.Attribute) and isinstance(n.ctx, (ast.Store, ast.Del)):
+            r = _root_name(n)
+            if r in aliases:
+                out.append(f"hook_store:{_dotted(n)}")
+        elif isinstance(n, ast.Subscript) and _dotted(n.value) == "sys.modules":
+            c = _const_str(n.slice)
+            if c is not None and c.split(".")[0] not in guards:
+                out.append(f"hook_names_module:{c}")
+        elif isinstance(n, ast.Compare) and len(n.comparators) == 1 and _dotted(n.comparators[0]) == "sys.modules":
+            c = _const_str(n.left)
+            if c is not None and c.split(".")[0] not in guards:
+                out.append(f"hook_names_module:{c}")
+    return out
+
+
 def startup_hook_findings(src: str, local: set[str]) -> list[str]:
     """What a start-up hook pinned in the tree (D-83 third addendum) may not do: anything `harness_findings` reports
     except installing a meta-path finder, and that only when every finder's `find_spec` acts on exactly one module that
@@ -922,6 +993,7 @@ def startup_hook_findings(src: str, local: set[str]) -> list[str]:
                 _const_str(p.left) is not None and not _names_local(_const_str(p.left), local))
             if not ok:
                 out.add("sys.modules scanned (only a constant lookup of an installed module is allowed)")
+    guards: set[str] = set()
     for n in ast.walk(tree):
         if isinstance(n, ast.ClassDef):
             for m in n.body:
@@ -929,7 +1001,11 @@ def startup_hook_findings(src: str, local: set[str]) -> list[str]:
                     g = _finder_guard(m)
                     if g is None or _names_local(g, local):
                         out.add(f"import_hook:{n.name}.{m.name} (not restricted to one installed module)")
-        elif isinstance(n, ast.Name) and _names_local(n.id, local):
+                    else:
+                        guards.add(g)
+    out.update(_hook_reach_findings(tree, guards))
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Name) and _names_local(n.id, local):
             out.add(f"names_local:{n.id}")
         elif isinstance(n, ast.Constant) and isinstance(n.value, str) and _names_local(n.value, local):
             out.add(f"names_local:{n.value!r}")

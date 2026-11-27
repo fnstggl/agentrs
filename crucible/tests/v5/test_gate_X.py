@@ -26,6 +26,10 @@ from crucible.acceptance.v5.checker import X_EXCLUDED, unmet, verify_all
 from crucible.acceptance.v5.evidence import record
 
 CMD = "PYTHONPATH=src python -m crucible.acceptance.v5 run --gate X --agent <qa agent>"
+# X.2/X.4 wait for the whole suite, submitted job by job to the shared slot queue (baseline.suite_plan; no deadline
+# while queued): the measuring test must outlive that wait. 8 h - the earlier limit - is less than the queue's own
+# waits on a busy day, so the test was killed before the suite finished (wave 3b repair pass). Default 96 h.
+SUITE_TEST_TIMEOUT_S = int(os.environ.get("CRUCIBLE_GATE_X_SUITE_TIMEOUT_S", str(96 * 3600)))
 ROOT = M.crucible_root()
 SELF = ("tests/v5/test_gate_X.py", "tests/v5/test_gate_A.py")
 
@@ -76,7 +80,7 @@ def test_X_1_all_manifest_requirements_verified():
 
 
 @pytest.mark.slow
-@pytest.mark.timeout(8 * 3600)
+@pytest.mark.timeout(SUITE_TEST_TIMEOUT_S)
 def test_X_2_all_required_tests_executed():
     s = _suite()
     man = M.load(ROOT)
@@ -103,7 +107,7 @@ def test_X_3_clean_checkout_reproduction():
 
 
 @pytest.mark.slow
-@pytest.mark.timeout(8 * 3600)
+@pytest.mark.timeout(SUITE_TEST_TIMEOUT_S)
 def test_X_4_working_integrated_branch():
     s = _suite()
     o = s["outcomes"]
