@@ -39,15 +39,24 @@ world can rebuild it in its own process and read the hidden configuration (`cruc
 that attack; its positive control shows that it succeeds with a small seed). Processes of one uid are kept apart by
 the kernel's ptrace rules (Yama scope >= 1: a sibling cannot read the world process's memory); stronger isolation
 (another uid, seccomp) is the sandbox's job (`crucible.sandbox.isolation`).
+
+The world and learner processes are started without the calling program's ``__main__`` module (`_without_main`):
+multiprocessing's spawn method would otherwise re-run an evaluator script's unguarded top-level code in both, and
+whatever that code builds (a world, its hidden parameters, the seed) would sit in the learner's process. Evaluator
+scripts therefore need no ``if __name__ == "__main__"`` guard for isolation (a learner named "__main__:fn" cannot be
+loaded: name a module or a file).
 """
 from __future__ import annotations
 
+import contextlib
 import importlib
 import json
 import multiprocessing as mp
 import os
+import sys
 import time
 import traceback
+import types
 from typing import Any
 
 PARTICIPANT_OPS = ("agents", "observe", "execute", "observe_since", "tools", "advance", "reward", "reward_mode",
@@ -273,6 +282,21 @@ class RemoteEvaluator(_Side):
             self._proc.terminate()
 
 
+@contextlib.contextmanager
+def _without_main():
+    """While a spawned process starts, the calling program's ``__main__`` is replaced by an empty module, so the
+    spawn preparation data name no main script or module and the child never re-imports it (its unguarded top-level
+    code - an evaluator script building a world - would otherwise run in the world's and the learner's process).
+    The swap lasts only for `Process.start` in this thread."""
+    main = sys.modules.get("__main__")
+    sys.modules["__main__"] = types.ModuleType("__main__")
+    try:
+        yield
+    finally:
+        if main is not None:
+            sys.modules["__main__"] = main
+
+
 def host(ref: dict, timeout: float = 300.0) -> tuple[RemoteParticipant, RemoteEvaluator]:
     """Start a child process that builds ``make(ref["tier"], ref["name"], ref.get("seed"), ref.get("reward_mode"),
     **ref.get("kw", {}))``; return (participant handle, evaluator handle)."""
@@ -280,7 +304,8 @@ def host(ref: dict, timeout: float = 300.0) -> tuple[RemoteParticipant, RemoteEv
     p_parent, p_child = ctx.Pipe()
     e_parent, e_child = ctx.Pipe()
     proc = ctx.Process(target=_serve, args=(dict(ref), p_child, e_child), daemon=True)
-    proc.start()
+    with _without_main():
+        proc.start()
     p_child.close()
     e_child.close()
     if not p_parent.poll(timeout):
@@ -371,7 +396,8 @@ def evaluate(ref: dict, learner: str, learner_kw: dict | None = None, *, timeout
     r_parent, r_child = ctx.Pipe(duplex=False)
     lp = ctx.Process(target=_learn, args=(str(learner), dict(learner_kw or {}), part._conn, r_child), daemon=True)
     try:
-        lp.start()
+        with _without_main():
+            lp.start()
     except BaseException:
         ev.close()
         raise

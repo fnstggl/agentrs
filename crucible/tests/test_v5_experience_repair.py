@@ -75,3 +75,67 @@ def test_controller_labels_reach_tier2_seats_or_raise():
     b = env.add_agent("second", controller="learner-X")
     assert b in related_set(env.world, a)
     assert "learner-X" not in leakage.dump([env.observe(b), env.observe_since(b, 0), env.observe(a)])
+
+
+_EVALUATOR_SCRIPT = '''
+import os, sys
+sys.path.insert(0, {src!r})
+open(os.path.join({marks!r}, f"ran-{{os.getpid()}}"), "w").close()      # top-level code outside any guard
+HIDDEN = {{"grader_note": {secret!r}}}                                   # evaluator data built at import time
+if __name__ == "__main__":                                              # only the evaluation call is guarded
+    import contextlib, json
+    from crucible.experience import remote
+    if {control!r}:                               # positive control: the processes started as before the fix
+        remote._without_main = contextlib.nullcontext
+    out = remote.evaluate({{"tier": 1, "name": "rapid:net_routing"}}, {learner!r}, {{"hint": {secret!r}}})
+    print(json.dumps({{"pid": os.getpid(), "status": out["learner_status"], "result": out["learner_result"],
+                      "error": out["learner_error"], "processes": out["processes"]}}))
+'''
+
+_LEARNER = '''
+import gc, os, sys
+def learn(part, hint):
+    a = part.agents()[0]
+    part.observe(a)
+    # dicts of atomic values are not tracked by the garbage collector: scan module globals as well
+    pool = [o for o in gc.get_objects() if isinstance(o, dict)]
+    pool += [v for m in list(sys.modules.values()) if m is not None for v in list(vars(m).values())
+             if isinstance(v, dict)]
+    found = [o for o in pool if any(isinstance(v, str) and v.startswith(hint) for v in list(o.values()))]
+    return {"pid": os.getpid(), "found": len(found)}
+'''
+
+
+def test_an_unguarded_evaluator_script_never_runs_in_the_learner_process(tmp_path):
+    """The verifier's nit: spawn re-imported the evaluator's __main__ in the learner (and world) process, so an
+    evaluator script without a __main__ guard put the objects its top-level code built (a world, hidden values) in
+    the learner's process, where a garbage-collector scan found them. The processes now start without the caller's
+    __main__: the script's top-level code runs once (the evaluator) and the learner finds nothing."""
+    import json
+    import os
+    import subprocess
+    import sys
+    import uuid
+    src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
+    (tmp_path / "learner.py").write_text(_LEARNER)
+    env = dict(os.environ, OMP_NUM_THREADS="1", PYTHONPATH=src)
+
+    def run(control):
+        marks = tmp_path / f"marks-{int(control)}"
+        marks.mkdir()
+        secret = f"SECRET-{uuid.uuid4().hex}"
+        script = tmp_path / f"evaluate_me_{int(control)}.py"
+        script.write_text(_EVALUATOR_SCRIPT.format(src=src, marks=str(marks), secret=secret, control=control,
+                                                   learner=f"{tmp_path / 'learner.py'}:learn"))
+        p = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, timeout=600, env=env)
+        assert p.returncode == 0, p.stderr[-3000:]
+        out = json.loads(p.stdout.strip().splitlines()[-1])
+        assert out["status"] == "ok", out["error"]
+        assert out["result"]["pid"] == out["processes"]["learner"] != out["pid"]
+        return out, sorted(os.listdir(marks))
+
+    out, ran = run(False)
+    assert ran == [f"ran-{out['pid']}"]                     # neither the world nor the learner ran the script
+    assert out["result"]["found"] == 0
+    out, ran = run(True)                                    # control: the old start re-ran it in both children
+    assert len(ran) == 3 and out["result"]["found"] >= 1
