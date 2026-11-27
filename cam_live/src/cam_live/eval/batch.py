@@ -127,6 +127,28 @@ def make_snapshot(commit: str = "HEAD") -> str:
     return dest
 
 
+def make_overlay(base_snapshot: str, eval_commit: str = "HEAD") -> str:
+    """A snapshot whose learner code is ``base_snapshot`` and whose ``cam_live/eval`` (measurement code only, it
+    changes nothing the agent does) comes from ``eval_commit``: lets later analyses rebuild agents from the code
+    the runs used."""
+    repo = os.path.abspath(os.path.join(EVAL_HOME, "..", "..", ".."))
+    sha = subprocess.run(["git", "-C", repo, "rev-parse", eval_commit], capture_output=True, text=True,
+                         check=True).stdout.strip()
+    base = os.path.abspath(base_snapshot)
+    dest = base + f"+eval{sha[:12]}"
+    if not os.path.exists(os.path.join(dest, "COMMIT")):
+        import shutil
+        shutil.copytree(base, dest)
+        ev = os.path.join(dest, "cam_live", "src", "cam_live", "eval")
+        shutil.rmtree(ev)
+        arch = subprocess.run(["git", "-C", repo, "archive", sha, "cam_live/src/cam_live/eval"], capture_output=True,
+                              check=True).stdout
+        subprocess.run(["tar", "-x", "-C", dest], input=arch, check=True)
+        with open(os.path.join(dest, "COMMIT"), "w") as f:
+            f.write(open(os.path.join(base, "COMMIT")).read().strip() + f"+eval:{sha}\n")
+    return dest
+
+
 def run_plan(plan: str, n_jobs: int, threads: int, snapshot: str = "") -> int:
     res_dir = os.path.join(EVAL_HOME, "results", plan)
     log_dir = os.path.join(EVAL_HOME, "logs", plan)

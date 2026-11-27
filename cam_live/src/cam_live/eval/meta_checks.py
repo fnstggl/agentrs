@@ -158,6 +158,10 @@ def run_checks(root: str, result: Dict[str, Any], *, max_support: int = 16) -> D
                                    if not x.get("applied"))}
         hp, hq = group_hashes(os.path.join(root, "export_pre")), group_hashes(os.path.join(root, "export_post"))
         out["group_changed_pre_to_post"] = {g: hp.get(g) != hq.get(g) for g in sorted(set(hp) | set(hq))}
+        try:
+            out["shadow_checkpoints"] = shadow_checkpoints(agent, root, result)
+        except Exception as e:  # noqa: BLE001
+            out["shadow_checkpoints"] = {"error": f"{type(e).__name__}: {e}"}
         return out
     finally:
         try:
@@ -165,6 +169,66 @@ def run_checks(root: str, result: Dict[str, Any], *, max_support: int = 16) -> D
         except Exception:  # noqa: BLE001
             pass
         shutil.rmtree(work, ignore_errors=True)
+
+
+def shadow_checkpoints(agent: Any, root: str, result: Dict[str, Any], *, eps: float = 1e-12) -> Dict[str, Any]:
+    """Spec 11.2 for checkpoints: the trainable policy of the pre-experience and of the experienced checkpoint
+    evaluated on the *recorded* decisions (their stored contexts and candidate sets) without acting. Columns kept
+    apart: importance-weighted estimates from the observed consequences (IPS, SNIPS, ESS), the model-based
+    prediction (sum pi * predicted goal mean) and, diagnostic only, the ground truth on the same contexts."""
+    from ..contracts import ItemKind
+    from ..credit.checkpoint import load_weights, load_weights_only
+    truth = {d["decision_id"]: d for rows in result.get("decision_rows", []) for d in rows}
+    recs = [r for r in sorted(agent.store.all(), key=lambda r: r.seq)
+            if r.decision is not None and r.decision.decision_id in truth and r.decision.probabilities]
+    if not recs:
+        return {"n": 0}
+    rows = []
+    for r in recs:
+        refs = list(r.decision.diagnostics.get("context_item_refs") or [])
+        items = agent.store.items(refs)
+        goal = next((it.text for it in items if it.kind == ItemKind.GOAL), None)
+        cands = [c.action for c in r.decision.candidates]
+        if not items or len(cands) != len(truth[r.decision.decision_id]["candidates"]):
+            continue
+        ch = r.decision.chosen
+        obs = [o.value for o in r.outcomes if o.value is not None]
+        rew = float(obs[0]) if (ch.operation == "lab.act" and obs) else 0.0
+        rows.append((items, cands, goal, list(r.decision.probabilities), r.decision.chosen_index, rew,
+                     truth[r.decision.decision_id]["candidates"]))
+    post = [agent.policy_distribution(it, c, goal_text=g) for it, c, g, *_ in rows]
+    saved = {n: p.detach().clone() for n, p in agent.model.named_parameters() if p.requires_grad}
+    w_pre, _ = load_weights_only(os.path.join(root, "export_pre"))
+    load_weights(agent.model, w_pre, strict=False)
+    agent.model.mark_adapters_updated()
+    pre = [agent.policy_distribution(it, c, goal_text=g) for it, c, g, *_ in rows]
+    with torch.no_grad():
+        params = dict(agent.model.named_parameters())
+        for n, t in saved.items():
+            params[n].copy_(t)
+    agent.model.mark_adapters_updated()
+    out: Dict[str, Any] = {"n_decisions": len(rows)}
+    for name, pis in (("pre_experience_checkpoint", pre), ("experienced_checkpoint", post)):
+        ws, num, mod, tru = [], 0.0, 0.0, 0.0
+        for pi, (_, _, _, mu, i, rew, tc) in zip(pis, rows):
+            pi = [float(x) for x in pi]
+            if mu[i] <= eps:
+                continue
+            w = pi[i] / mu[i]
+            ws.append(w)
+            num += w * rew
+            mod += sum(p * (c.get("goal_mean") or 0.0) for p, c in zip(pi, tc))
+            tru += sum(p * c["truth"] for p, c in zip(pi, tc))
+        n = len(ws)
+        out[name] = {"ips_observed": num / n if n else None,
+                     "snips_observed": (num / sum(ws)) if ws and sum(ws) > 0 else None,
+                     "ess_fraction": ((sum(ws) ** 2) / sum(w * w for w in ws) / n) if ws else None,
+                     "max_weight": max(ws) if ws else None, "model_prediction": mod / n if n else None,
+                     "ground_truth_same_contexts": tru / n if n else None}
+    beh = [rew for *_, rew, _ in rows]
+    out["behaviour_observed_mean"] = sum(beh) / len(beh)
+    out["tv_pre_vs_post_mean"] = sum(0.5 * float((a - b).abs().sum()) for a, b in zip(pre, post)) / len(rows)
+    return out
 
 
 def _count(xs: Any) -> Dict[str, int]:
