@@ -1767,3 +1767,96 @@ def spoilage_predict(view, env, seed: int = 0) -> None:
     view.step({"kind": "message", "to": "journal", "content": {"predictions": preds}})
     while not view.done:
         view.step(None)
+
+
+# ====================================================================== a serial chain of saturating stages
+def _sat_fit(S_prev, P):
+    """P = cap S / (S + half): half on a grid, cap by least squares through the origin."""
+    ok = np.isfinite(S_prev) & np.isfinite(P)
+    Sp, Pp = np.maximum(S_prev[ok], 0.0), P[ok]
+    best = None
+    for h in np.geomspace(1.0, 60.0, 50):
+        g = Sp / (Sp + h)
+        cap = float(np.sum(g * Pp) / max(1e-9, np.sum(g * g)))
+        sse = float(np.sum((cap * g - Pp) ** 2))
+        if best is None or sse < best[0]:
+            best = (sse, cap, float(h))
+    return best[1], best[2]
+
+
+def _transit_lag(S_next, P_up, P_next, max_lag: int = 6) -> int:
+    """Inflow into the next stage at t = upstream output at t - L: (dS + P_next)[t] against P_up[t - L]."""
+    dS = np.diff(S_next)
+    tgt = dS + P_next[1:]
+    best = None
+    for L in range(0, max_lag + 1):
+        idx = [t for t in range(1, len(S_next)) if t - L >= 0]
+        x = np.asarray([P_up[t - L] for t in idx])
+        y = np.asarray([tgt[t - 1] for t in idx])
+        ok = np.isfinite(x) & np.isfinite(y)
+        sse = float(np.sum((y[ok] - x[ok]) ** 2)) / max(1, ok.sum())
+        if best is None or sse < best[0]:
+            best = (sse, L)
+    return best[1]
+
+
+def chain_design(view, name: str, reserve: int = 2):
+    levels = [10.0, 2.0, 7.0, 0.0, 10.0, 5.0, 8.0, 3.0, 10.0]
+    rows = []
+    k = 0
+    while view.t < view.horizon - reserve and not view.done:
+        r = levels[min(len(levels) - 1, k // 6)]
+        k += 1
+        x = view.step({"kind": "levers", "values": {name: r}})["observation"]["numbers"]
+        rows.append((r, x))
+    return rows
+
+
+def chain_fit(rows, gauges: list[str]):
+    """gauges: [shipments, queue0, queue1, queue2, processed0, processed1] (the brief's order)."""
+    R = np.asarray([r for r, _ in rows])
+    G = {g: np.asarray([x.get(g, np.nan) for _, x in rows], dtype=float) for g in gauges}
+    ship, q0, q1, q2, p0, p1 = (G[g] for g in gauges)
+    Q, P = [q0, q1, q2], [p0, p1, ship]
+    laws = [_sat_fit(np.r_[0.0, Q[k][:-1]], P[k]) for k in range(3)]
+    lags = [_transit_lag(Q[1], P[0], P[1]), _transit_lag(Q[2], P[1], P[2])]
+    return R, laws, lags
+
+
+def chain_simulate(laws, lags, r: float, ticks: int) -> float:
+    S = [0.0, 0.0, 0.0]
+    hist = [[], []]
+    out = 0.0
+    for t in range(ticks):
+        prev = list(S)
+        p = [cap * max(x, 0.0) / (max(x, 0.0) + h) for (cap, h), x in zip(laws, prev)]
+        hist[0].append(p[0])
+        hist[1].append(p[1])
+        inflow = [r, hist[0][t - lags[0]] if t - lags[0] >= 0 else 0.0,
+                  hist[1][t - lags[1]] if t - lags[1] >= 0 else 0.0]
+        S = [max(0.0, prev[k] + inflow[k] - p[k]) for k in range(3)]
+        out = p[2]
+    return float(out)
+
+
+def serial_chain_predict(view, env) -> None:
+    """Scripted public reference for predicting a serial chain's shipments after a held-out constant release:
+    release levels held six ticks each (high ones fill the queues and saturate the slow stage), each stage's
+    saturating processing law fitted to its queue and output readings (`_sat_fit`), the transit lags from the flow
+    balance of each downstream queue (`_transit_lag`), and the chain simulated from empty at each held-out rate.
+    Assumes the model class of the brief's chain (queues drained by saturating processing, fixed transit times)."""
+    obj = env._config["objective"]
+    held = obj["heldout"]
+    name = list(held[0])[0]
+    gauges = [g["name"] for g in env._config["gauges"]]
+    rows = chain_design(view, name)
+    if len(rows) < 20 or view.done:
+        while not view.done:
+            view.step(None)
+        return
+    R, laws, lags = chain_fit(rows, gauges)
+    T = int(obj.get("settle_ticks", 40))
+    preds = [{"set": c, "value": chain_simulate(laws, lags, float(c[name]), T)} for c in held]
+    view.step({"kind": "message", "to": "journal", "content": {"predictions": preds}})
+    while not view.done:
+        view.step(None)

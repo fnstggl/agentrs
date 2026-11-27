@@ -271,7 +271,35 @@ PAIR_PROTOCOLS: dict[frozenset, str] = {
     frozenset(("sci_dose_response", "sci_competing_hypotheses")): "crucible.rapid.distinct:law_turns_over",
     frozenset(("des_inventory", "des_perishable")): "crucible.rapid.distinct:overstock_expires",
     frozenset(("net_routing", "net_topology_shift")): "crucible.rapid.distinct:latency_profile_changes",
+    frozenset(("plan_serial_stages", "plan_spoilage")): "crucible.rapid.distinct:pulse_reaches_output_later",
 }
+
+
+def _first_output_response(family: str, seed: int) -> int:
+    """The first tick at which a one-tick pulse of the lever (its top, then zero) moves the reading the objective
+    is scored on, against no pulse on the same noise (-1: never within twelve ticks)."""
+    from .oracles import fork
+    env = make(family, seed)
+    sp = env.action_space()
+    props = sp.kinds["levers"]["properties"]["values"]["properties"]
+    name = sorted(props)[0]
+    g = env._config["objective"]["gauge"]
+    a, b = fork(env), fork(env)
+    for t in range(12):
+        xa = a.step({"kind": "levers", "values": {name: float(props[name]["maximum"]) if t == 0 else 0.0}})
+        xb = b.step({"kind": "levers", "values": {name: 0.0}})
+        if abs(xa["observation"]["numbers"].get(g, 0.0) - xb["observation"]["numbers"].get(g, 0.0)) > 1e-9:
+            return t
+    return -1
+
+
+def pulse_reaches_output_later(seed: int) -> dict:
+    """plan_serial_stages vs plan_spoilage (both a lever feeding stocks with saturating outflows, scored on the
+    final outflow): the same intervention - a one-tick pulse of the lever - reaches the scored reading of the
+    serial chain only after its processing steps and transit times, but the perishing stock's sales at once."""
+    chain, single = _first_output_response("plan_serial_stages", seed), _first_output_response("plan_spoilage", seed)
+    return {"ok": bool(single >= 0 and chain >= single + 2), "first_response_chain": chain,
+            "first_response_single_stock": single}
 
 
 def _expired_after_overstock(family: str, seed: int) -> int:

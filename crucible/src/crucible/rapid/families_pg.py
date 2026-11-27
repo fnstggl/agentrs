@@ -377,7 +377,10 @@ def plan_spoilage(rng, d):
     make = gb.lever(0.0, 10.0, 0.0, cost=0.0)
     spoil = u(rng, 0.15, 0.35)
     stock = gb.prim("stock", {"init": 0.0, "cap": 1e6}, role="stock", inflow=[(make, 0, 1.0)], outflow=[])
-    sales = gb.prim("saturation", {"cap": u(rng, 6.0, 10.0), "half": u(rng, 5.0, 15.0)}, role="outcome",
+    cap = u(rng, 6.0, 10.0)
+    # sales never exceed what is on the shelf: cap / half <= 0.56 and spoilage <= 0.35, so sales + waste stay below
+    # the stock of the previous tick (no phantom units)
+    sales = gb.prim("saturation", {"cap": cap, "half": cap * u(rng, 1.8, 3.0)}, role="outcome",
                     x=[(stock, 1, 1.0)])
     waste = gb.prim("linear_nonlinear", {"form": "linear", "a": spoil, "b": 0.0}, x=[(stock, 1, 1.0)])
     gb.nodes[int(stock[1:])]["ports"]["outflow"] = [[sales, 0, 1.0], [waste, 0, 1.0]]
@@ -395,6 +398,58 @@ def plan_spoilage(rng, d):
                     journal=True,
                     brief="A perishable good. Lever: units made per tick. Gauges: units sold and units thrown away.",
                     claim={"lever": make, "outcome": sales, "stock": stock, "spoil": spoil, "waste": waste})
+
+
+@family("plan_serial_stages", engine="primitive_graph", category="8.4", item="8.4.3", split="train",
+        doc="Raw material released into a three-stage chain: each stage works off its queue with diminishing "
+            "returns up to a hidden capacity, and goods take a hidden transit time between stages. Predict what the "
+            "chain ships per tick forty ticks after a constant release, at rates partly above what can be set: the "
+            "slowest stage caps the chain, the queue in front of it grows, and short tests mislead because goods "
+            "are still in transit.",
+        distinct_because="a serial chain of three queue stocks, each drained by a saturating processing rate of "
+                         "hidden capacity, joined by hidden transit lags; a bottleneck stage caps throughput and "
+                         "accumulates work in process; scored by shipments after a held-out constant release",
+        axes={"horizon": 60, "observation_noise": 0.3}, objective="predict_heldout",
+        claims=("crucible.rapid.claims_w3b:claim_serial_bottleneck",),
+        identify="crucible.rapid.claims_w3b:identify_bottleneck_stage", lever_view=True,
+        reference="crucible.rapid.refs_adapt:serial_chain_predict", oracle="crucible.rapid.oracles:science_oracle")
+def plan_serial_stages(rng, d):
+    gb = GraphBuilder(rng)
+    rel = gb.lever(0.0, 10.0, 0.0, cost=0.0)
+    caps = [u(rng, 8.0, 14.0) for _ in range(3)]
+    caps[int(rng.integers(3))] = u(rng, 4.5, 7.0)              # one stage is the bottleneck
+    lags = [int(rng.integers(1, 4)), int(rng.integers(1, 4))]
+    noise = float(d["observation_noise"])
+    stocks, procs = [], []
+    prev, prev_lag = rel, 0
+    for k in range(3):
+        st = gb.prim("stock", {"init": 0.0, "cap": 1e6}, role=f"queue{k}", inflow=[(prev, prev_lag, 1.0)], outflow=[])
+        # a stage never processes more than its queue held (cap / half <= 1): no phantom goods downstream
+        pr = gb.prim("saturation", {"cap": caps[k], "half": caps[k] * u(rng, 1.0, 2.0)},
+                     role="outcome" if k == 2 else f"processed{k}", x=[(st, 1, 1.0)])
+        gb.nodes[int(st[1:])]["ports"]["outflow"] = [[pr, 0, 1.0]]
+        stocks.append(st)
+        procs.append(pr)
+        prev, prev_lag = pr, (lags[k] if k < 2 else 0)
+    gship = gb.gauge(procs[2], [("measurement_noise", {"sd": noise})])
+    for k in range(3):
+        gb.gauge(stocks[k], [("measurement_noise", {"sd": noise * 2})])
+    for k in range(2):
+        gb.gauge(procs[k], [("measurement_noise", {"sd": noise})])
+    held = [{gb.name_of(rel): x} for x in (2.0, 4.0, 6.0, 9.0, 12.0, 15.0)]
+    text = ("Predict what the chain would ship per tick forty ticks after a constant release of raw material at "
+            f"these rates (partly above what you can set): {held}. File predictions with the journal: message to "
+            "'journal' with content {\"predictions\": [{\"set\": <condition>, \"value\": <number>}, ...]}. Only the "
+            "last filing counts.")
+    return gb.build(horizon=int(d["horizon"]), money={"revenue_node": procs[2], "price": 10.0, "cap": 20.0},
+                    affordances=["levers", "message"], endowment=100_000,
+                    objective={"type": "predict_heldout", "heldout": held, "gauge": gship, "text": text,
+                               "settle_ticks": 40},
+                    journal=True,
+                    brief="A three-stage chain. Lever: raw material released per tick. Gauges: goods shipped by the last "
+                          "stage, the queue at each stage, and the goods processed by the first two stages.",
+                    claim={"lever": rel, "outcome": procs[2], "stocks": stocks, "procs": procs, "caps": caps,
+                           "lags": lags})
 
 
 @family("dl_short_term_damage", engine="primitive_graph", category="8.6", item="8.6.6", split="train",

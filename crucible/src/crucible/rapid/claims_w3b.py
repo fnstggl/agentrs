@@ -1120,3 +1120,52 @@ def identify_spoilage_rate(env) -> dict:
     truth = float(c["claim"]["spoil"])
     return {"question": "the share of the stock that spoils each tick", "estimate": round(r, 4),
             "truth": round(truth, 4), "ok": bool(abs(r - truth) <= 0.25 * truth)}
+
+
+# ====================================================================== plan_serial_stages (8.4.3)
+def claim_serial_bottleneck(env) -> dict:
+    """(1) The slowest stage caps the chain: with release held at 10 for forty ticks, shipments stay below its
+    capacity and the queue in front of it keeps growing (it holds more after forty ticks than after twenty);
+    (2) goods take the hidden transit time: a one-tick release reaches the second stage's queue 1 + lag ticks later
+    (same noise, against no release)."""
+    from .oracles import fork
+    c = env._config
+    cl = c["claim"]
+    eng = env._engine
+    name = next(n["lever"]["name"] for n in c["nodes"] if n["id"] == cl["lever"])
+    k = int(np.argmin(cl["caps"]))
+    e = fork(env)
+    q20 = None
+    for t in range(40):
+        e.step({"kind": "levers", "values": {name: 10.0}})
+        if t == 19:
+            q20 = float(e._state["h"][0, -1, eng.idx[cl["stocks"][k]]])
+    qs = [float(e._state["h"][0, -1, eng.idx[s_]]) for s_ in cl["stocks"]]
+    ship = float(e._state["h"][0, -1, eng.idx[cl["outcome"]]])
+    a, b = fork(env), fork(env)
+    i2 = eng.idx[cl["stocks"][1]]
+    d = []
+    for t in range(10):
+        a.step({"kind": "levers", "values": {name: 10.0 if t == 0 else 0.0}})
+        b.step({"kind": "levers", "values": {name: 0.0}})
+        d.append(float(a._state["h"][0, -1, i2] - b._state["h"][0, -1, i2]))
+    first = int(np.argmax(np.abs(np.asarray(d)) > 1e-9)) if np.any(np.abs(np.asarray(d)) > 1e-9) else -1
+    ok = ship <= float(cl["caps"][k]) + 1e-9 and qs[k] > q20 + 1.0 and first == 1 + int(cl["lags"][0])
+    return {"ok": bool(ok), "queues_after_forty_ticks_at_10": qs, "slowest_queue_after_twenty": q20,
+            "shipments": ship,
+            "slowest_capacity": float(cl["caps"][k]), "pulse_reaches_stage_two_after": first,
+            "transit_lag": int(cl["lags"][0])}
+
+
+def identify_bottleneck_stage(env) -> dict:
+    """Question: which stage of the chain is the slowest (lowest processing capacity)? Public: the reference's
+    design and its fitted processing laws."""
+    from .refs_adapt import chain_design, chain_fit
+    view = PublicView(env)
+    c = env._config
+    name = list(c["objective"]["heldout"][0])[0]
+    rows = chain_design(view, name, reserve=0)
+    R, laws, lags = chain_fit(rows, [g["name"] for g in c["gauges"]])
+    est = int(np.argmin([cap for cap, _ in laws]))
+    truth = int(np.argmin(c["claim"]["caps"]))
+    return {"question": "the slowest stage", "estimate": est, "truth": truth, "ok": est == truth}
