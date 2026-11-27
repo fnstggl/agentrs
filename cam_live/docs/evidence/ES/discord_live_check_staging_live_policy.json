@@ -1,6 +1,6 @@
 {
- "base_url": "http://127.0.0.1:39271/api/v10",
- "ended_at": 1795747070.5559616,
+ "base_url": "http://127.0.0.1:38355/api/v10",
+ "ended_at": 1795747641.736304,
  "environment": "staging",
  "exit_code": 0,
  "guild_id": "1000000000000000002",
@@ -10,10 +10,10 @@
    "channel:discord:*"
   ],
   "read": [
-   "127.0.0.1:39271",
-   "127.0.0.1:38191"
+   "127.0.0.1:38355",
+   "127.0.0.1:34285"
   ],
-  "record_id": "discord-live-check-1795747059",
+  "record_id": "discord-live-check-1795747628",
   "signed_with": "an operator key generated for this run"
  },
  "missing_capabilities": [],
@@ -65,7 +65,7 @@
    "staging-app"
   ]
  },
- "started_at": 1795747059.3188415,
+ "started_at": 1795747628.2180583,
  "steps": [
   {
    "approval_id": "",
@@ -99,7 +99,7 @@
     "staging": true,
     "warnings": []
    },
-   "duration_s": 0.147,
+   "duration_s": 0.609,
    "failure_class": "none",
    "failure_detail": "",
    "n": 1,
@@ -125,6 +125,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] bot staging-app (1000000000000000001), application staging app (not public); privileged intents granted: GUILD_PRESENCES, GUILD_MEMBERS, MESSAGE_CONTENT; member of the authorized server: yes; other servers: 0",
    "validation_errors": [],
@@ -189,7 +190,7 @@
     "staging": true,
     "timed_out": false
    },
-   "duration_s": 0.063,
+   "duration_s": 0.112,
    "failure_class": "none",
    "failure_detail": "",
    "n": 2,
@@ -214,6 +215,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] the bot holds 18 permissions in the server: ADD_REACTIONS, ATTACH_FILES, CREATE_EVENTS, CREATE_INSTANT_INVITE, CREATE_PUBLIC_THREADS, EMBED_LINKS, MANAGE_CHANNELS, MANAGE_EVENTS, MANAGE_GUILD, MANAGE_MESSAGES, MANAGE_ROLES, MANAGE_THREADS, PIN_MESSAGES, READ_MESSAGE_HISTORY, SEND_MESSAGES, SEND_MESSAGES_IN_THREADS, VIEW_AUDIT_LOG, VIEW_CHANNEL; missing from the operator's scope: none; he",
    "validation_errors": [],
@@ -249,7 +251,7 @@
     },
     "staging": true
    },
-   "duration_s": 0.023,
+   "duration_s": 0.091,
    "failure_class": "none",
    "failure_detail": "",
    "n": 3,
@@ -273,6 +275,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] server settings: name 'staging guild', description None, verification level 1, notification default 0, content filter 0, system channel None, rules channel None, updates channel None, locale en-US, features none",
    "validation_errors": [],
@@ -303,7 +306,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.022,
+   "duration_s": 0.026,
    "failure_class": "none",
    "failure_detail": "",
    "n": 4,
@@ -325,6 +328,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] channels: general (1000000000000000005, type 0)",
    "validation_errors": [],
@@ -362,7 +366,7 @@
     "requests": 2,
     "staging": true
    },
-   "duration_s": 0.062,
+   "duration_s": 0.159,
    "failure_class": "none",
    "failure_detail": "",
    "n": 5,
@@ -392,6 +396,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] server statistics: about 6 members, 1 present; listed 6: 3 people (0 pending), 2 bots, 1 declared test accounts",
    "validation_errors": [],
@@ -413,7 +418,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.021,
+   "duration_s": 0.101,
    "failure_class": "none",
    "failure_detail": "",
    "n": 6,
@@ -436,6 +441,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] invites: none",
    "validation_errors": [],
@@ -469,7 +475,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.023,
+   "duration_s": 0.1,
    "failure_class": "none",
    "failure_detail": "",
    "n": 7,
@@ -489,6 +495,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] channel created: cam-integration-test (1000000000000000011)",
    "validation_errors": [],
@@ -518,13 +525,13 @@
      "content_sha256": "2232696d00e4caf249891538d421908a3b90578b9da045c91dc266f3a36d3986",
      "edited_timestamp": null,
      "id": "1000000000000000013",
-     "timestamp": "2026-11-27T02:37:39.724650+00:00"
+     "timestamp": "2026-11-27T02:47:09.436447+00:00"
     },
     "message_id": "1000000000000000013",
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.054,
+   "duration_s": 0.035,
    "failure_class": "none",
    "failure_detail": "",
    "n": 8,
@@ -546,6 +553,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] message 1000000000000000013 posted in channel 1000000000000000011 (95 characters)",
    "validation_errors": [],
@@ -572,8 +580,8 @@
      "distinct_human_authors": 0,
      "human_messages": 0,
      "messages": 1,
-     "newest": "2026-11-27T02:37:39.724650+00:00",
-     "oldest": "2026-11-27T02:37:39.724650+00:00"
+     "newest": "2026-11-27T02:47:09.436447+00:00",
+     "oldest": "2026-11-27T02:47:09.436447+00:00"
     },
     "channel_id": "1000000000000000011",
     "environment": "staging",
@@ -581,7 +589,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.024,
+   "duration_s": 0.094,
    "failure_class": "none",
    "failure_detail": "",
    "n": 9,
@@ -606,6 +614,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] channel 1000000000000000011: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
    "validation_errors": [],
@@ -634,15 +643,15 @@
      "channel_id": "1000000000000000011",
      "content_length": 72,
      "content_sha256": "db716a191065986f18eaf2bda68664c99ae4cf71c483caa9ca609ccd01dd444c",
-     "edited_timestamp": "2026-11-27T02:37:39.773327+00:00",
+     "edited_timestamp": "2026-11-27T02:47:09.623043+00:00",
      "id": "1000000000000000013",
-     "timestamp": "2026-11-27T02:37:39.724650+00:00"
+     "timestamp": "2026-11-27T02:47:09.436447+00:00"
     },
     "message_id": "1000000000000000013",
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.066,
+   "duration_s": 0.092,
    "failure_class": "none",
    "failure_detail": "",
    "n": 10,
@@ -664,6 +673,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] message 1000000000000000013 in channel 1000000000000000011 replaced (72 characters)",
    "validation_errors": [],
@@ -692,7 +702,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.024,
+   "duration_s": 0.099,
    "failure_class": "none",
    "failure_detail": "",
    "n": 11,
@@ -712,6 +722,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] message 1000000000000000013 pinned in channel 1000000000000000011",
    "validation_errors": [],
@@ -740,7 +751,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.024,
+   "duration_s": 0.088,
    "failure_class": "none",
    "failure_detail": "",
    "n": 12,
@@ -760,6 +771,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] pin of message 1000000000000000013 removed in channel 1000000000000000011",
    "validation_errors": [],
@@ -788,8 +800,8 @@
     "invite": {
      "channel_id": "1000000000000000011",
      "code": "1312674a",
-     "created_at": "2026-11-27T02:37:39.924142+00:00",
-     "expires_at": "2026-11-27T02:47:39.924142+00:00",
+     "created_at": "2026-11-27T02:47:09.858293+00:00",
+     "expires_at": "2026-11-27T02:57:09.858293+00:00",
      "inviter_is_bot": true,
      "max_age": 600,
      "max_uses": 1,
@@ -801,7 +813,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.061,
+   "duration_s": 0.113,
    "failure_class": "none",
    "failure_detail": "",
    "n": 13,
@@ -821,6 +833,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] invite 1312674a to channel 1000000000000000011: https://discord.gg/1312674a",
    "validation_errors": [],
@@ -842,8 +855,8 @@
      {
       "channel_id": "1000000000000000011",
       "code": "1312674a",
-      "created_at": "2026-11-27T02:37:39.924142+00:00",
-      "expires_at": "2026-11-27T02:47:39.924142+00:00",
+      "created_at": "2026-11-27T02:47:09.858293+00:00",
+      "expires_at": "2026-11-27T02:57:09.858293+00:00",
       "inviter_is_bot": true,
       "max_age": 600,
       "max_uses": 1,
@@ -854,7 +867,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.022,
+   "duration_s": 0.084,
    "failure_class": "none",
    "failure_detail": "",
    "n": 14,
@@ -871,12 +884,13 @@
    "rate_limit": {
     "limit": 1000.0,
     "remaining": 998.0,
-    "reset_after_s": 0.702
+    "reset_after_s": 0.289
    },
    "reasons": [
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] invites: 1312674a used 0 times",
    "validation_errors": [],
@@ -904,7 +918,7 @@
     "requests": 2,
     "staging": true
    },
-   "duration_s": 0.024,
+   "duration_s": 0.104,
    "failure_class": "none",
    "failure_detail": "",
    "n": 15,
@@ -924,6 +938,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] invite 1312674a to channel 1000000000000000011 deleted",
    "validation_errors": [],
@@ -963,7 +978,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.059,
+   "duration_s": 0.093,
    "failure_class": "none",
    "failure_detail": "",
    "n": 16,
@@ -983,6 +998,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] channel 1000000000000000011 changed (topic): name 'cam-integration-test', topic 'temporary channel of the CAM Live integration check'",
    "validation_errors": [],
@@ -1022,7 +1038,7 @@
     "role_id": "1000000000000000002",
     "staging": true
    },
-   "duration_s": 0.027,
+   "duration_s": 0.13,
    "failure_class": "none",
    "failure_detail": "",
    "n": 17,
@@ -1042,6 +1058,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] channel 1000000000000000011: everyone allowed nothing more, denied SEND_MESSAGES",
    "validation_errors": [],
@@ -1078,7 +1095,7 @@
     "role_id": "1000000000000000021",
     "staging": true
    },
-   "duration_s": 0.06,
+   "duration_s": 0.09,
    "failure_class": "none",
    "failure_detail": "",
    "n": 18,
@@ -1098,6 +1115,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] role created: cam-integration-test-role (1000000000000000021) with no permissions; it is not given to anyone",
    "validation_errors": [],
@@ -1139,7 +1157,7 @@
     "role_id": "1000000000000000021",
     "staging": true
    },
-   "duration_s": 0.031,
+   "duration_s": 0.181,
    "failure_class": "none",
    "failure_detail": "",
    "n": 19,
@@ -1159,6 +1177,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] role 1000000000000000021 changed (name, mentionable): cam-integration-test-role-renamed with no permissions",
    "validation_errors": [],
@@ -1195,7 +1214,7 @@
     "role_id": "1000000000000000021",
     "staging": true
    },
-   "duration_s": 0.068,
+   "duration_s": 0.123,
    "failure_class": "none",
    "failure_detail": "",
    "n": 20,
@@ -1215,6 +1234,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] role cam-integration-test-role-renamed (1000000000000000021) deleted",
    "validation_errors": [],
@@ -1254,7 +1274,7 @@
     },
     "staging": true
    },
-   "duration_s": 0.027,
+   "duration_s": 0.103,
    "failure_class": "none",
    "failure_detail": "",
    "n": 21,
@@ -1274,6 +1294,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] server settings changed (name): name 'staging guild (integration test)', description None, verification level 1, notification default 0, content filter 0, system channel None, rules channel None, updates channel None, locale en-US, features none",
    "validation_errors": [],
@@ -1313,7 +1334,7 @@
     },
     "staging": true
    },
-   "duration_s": 0.022,
+   "duration_s": 0.102,
    "failure_class": "none",
    "failure_detail": "",
    "n": 22,
@@ -1327,12 +1348,13 @@
    "rate_limit": {
     "limit": 1000.0,
     "remaining": 998.0,
-    "reset_after_s": 0.978
+    "reset_after_s": 0.9
    },
    "reasons": [
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] server settings changed (name): name 'staging guild', description None, verification level 1, notification default 0, content filter 0, system channel None, rules channel None, updates channel None, locale en-US, features none",
    "validation_errors": [],
@@ -1365,7 +1387,7 @@
     "requests": 2,
     "staging": true
    },
-   "duration_s": 0.059,
+   "duration_s": 0.165,
    "failure_class": "none",
    "failure_detail": "",
    "n": 23,
@@ -1386,13 +1408,14 @@
    },
    "rate_limit": {
     "limit": 1000.0,
-    "remaining": 997.0,
-    "reset_after_s": 0.326
+    "remaining": 999.0,
+    "reset_after_s": 1.0
    },
    "reasons": [
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] membership baseline established: 3 people, 2 bots, 1 declared test accounts; changes are reported from the next reading on",
    "validation_errors": [],
@@ -1419,7 +1442,7 @@
      "test_accounts": 0
     },
     "joined_at": [
-     "2026-11-27T02:37:40.334167+00:00"
+     "2026-11-27T02:47:11.117113+00:00"
     ],
     "left": {
      "bots": 0,
@@ -1441,7 +1464,7 @@
     "since_s": 1.0,
     "staging": true
    },
-   "duration_s": 0.027,
+   "duration_s": 0.123,
    "failure_class": "none",
    "failure_detail": "",
    "n": 24,
@@ -1469,13 +1492,14 @@
    },
    "rate_limit": {
     "limit": 1000.0,
-    "remaining": 996.0,
-    "reset_after_s": 0.299
+    "remaining": 998.0,
+    "reset_after_s": 0.889
    },
    "reasons": [
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] membership since the previous reading (1 s): joined 1 people, 1 bots, 0 declared test accounts; left 0 people, 0 bots, 0 declared test accounts; now 4 people; invite uses: no change",
    "validation_errors": [],
@@ -1529,7 +1553,7 @@
        "bot": false,
        "event": "GUILD_MEMBER_ADD",
        "id_hash": "f70e9fee5d03a1b96f706d00100e3f2e",
-       "joined_at": "2026-11-27T02:37:40.427330+00:00",
+       "joined_at": "2026-11-27T02:47:11.434556+00:00",
        "pending": false,
        "test_account": false
       },
@@ -1568,7 +1592,7 @@
      "window_s": 10.001
     }
    },
-   "duration_s": 10.078,
+   "duration_s": 10.197,
    "failure_class": "none",
    "failure_detail": "",
    "n": 25,
@@ -1599,6 +1623,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] event window of 10.0 s (ended by window): 5 events (GUILD_CREATE 1, GUILD_MEMBER_ADD 1, GUILD_MEMBER_REMOVE 1, MESSAGE_CREATE 1, READY 1); 0 events of other servers dropped; message text not retained (no data permission)",
    "validation_errors": [],
@@ -1638,7 +1663,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.03,
+   "duration_s": 0.169,
    "failure_class": "none",
    "failure_detail": "",
    "n": 26,
@@ -1671,6 +1696,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] audit log, 12 most recent entries: CHANNEL_CREATE 1, CHANNEL_OVERWRITE_CREATE 1, CHANNEL_UPDATE 1, GUILD_UPDATE 2, INVITE_CREATE 1, INVITE_DELETE 1, MESSAGE_PIN 1, MESSAGE_UNPIN 1, ROLE_CREATE 1, ROLE_DELETE 1, ROLE_UPDATE 1; newest at 2022-07-22T11:22:59.101000+00:00",
    "validation_errors": [],
@@ -1704,7 +1730,7 @@
     "requests": 2,
     "staging": true
    },
-   "duration_s": 0.067,
+   "duration_s": 0.101,
    "failure_class": "none",
    "failure_detail": "",
    "n": 27,
@@ -1724,6 +1750,7 @@
     "permitted by policy default-1+discord-live-check"
    ],
    "retries": 0,
+   "retry_after_s": null,
    "status": "ok",
    "text": "[staging] channel 1000000000000000011 deleted",
    "validation_errors": [],
@@ -1740,7 +1767,7 @@
   "steps": 27
  },
  "task": {
-  "content_hash": "a18831f83b923825a2c14212e598389cd4bf45aed47c03584575ba3aeb5e6bdd",
+  "content_hash": "e04816a9668a3f7d7c579fc36c33a6b5cbfa2d3c25dce82b86f4eab4731f5cb0",
   "objective_id": "discord-live-check"
  },
  "token_free": true,

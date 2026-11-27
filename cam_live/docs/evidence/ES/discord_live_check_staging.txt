@@ -1,5 +1,5 @@
 $ .venv/bin/python cam_live/tools/discord_live_check.py --staging --await-reply-s 6 --run-dir <tmp> --out cam_live/docs/evidence/ES/discord_live_check_staging.json
-STAGING check against http://127.0.0.1:43337/api/v10 (gateway ws://127.0.0.1:36211), policy mode staging, run directory <tmp>
+STAGING check against http://127.0.0.1:36161/api/v10 (gateway ws://127.0.0.1:43511), policy mode staging, run directory <tmp>
 01 discord.get_identity              auth=allow          -> ok             ok                   [staging] bot staging-app (1000000000000000001), application staging app (not public); privileged intents granted: GUILD_PRESENCES, GUILD_MEMBERS, MES
 02 discord.get_permissions           auth=allow          -> ok             ok                   [staging] the bot holds 18 permissions in the server: ADD_REACTIONS, ATTACH_FILES, CREATE_EVENTS, CREATE_INSTANT_INVITE, CREATE_PUBLIC_THREADS, EMBED_
 03 discord.get_guild_settings        auth=allow          -> ok             ok                   [staging] server settings: name 'staging guild', description None, verification level 1, notification default 0, content filter 0, system channel None
@@ -36,7 +36,7 @@ summary: {"ok": 29}; exit code 0
 exit code: 0
 
 $ .venv/bin/python cam_live/tools/discord_live_check.py --staging --live-policy --run-dir <tmp> --out cam_live/docs/evidence/ES/discord_live_check_staging_live_policy.json
-STAGING check against http://127.0.0.1:39271/api/v10 (gateway ws://127.0.0.1:38191), policy mode live, run directory <tmp>
+STAGING check against http://127.0.0.1:38355/api/v10 (gateway ws://127.0.0.1:34285), policy mode live, run directory <tmp>
 01 discord.get_identity              auth=allow          -> ok             ok                   [staging] bot staging-app (1000000000000000001), application staging app (not public); privileged intents granted: GUILD_PRESENCES, GUILD_MEMBERS, MES
 02 discord.get_permissions           auth=allow          -> ok             ok                   [staging] the bot holds 18 permissions in the server: ADD_REACTIONS, ATTACH_FILES, CREATE_EVENTS, CREATE_INSTANT_INVITE, CREATE_PUBLIC_THREADS, EMBED_
 03 discord.get_guild_settings        auth=allow          -> ok             ok                   [staging] server settings: name 'staging guild', description None, verification level 1, notification default 0, content filter 0, system channel None

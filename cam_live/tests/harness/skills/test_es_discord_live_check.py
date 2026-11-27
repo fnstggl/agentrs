@@ -34,7 +34,7 @@ def staging_run(tmp_path, *extra, mutate=None, name="run"):
     args = lc.main.__globals__["argparse"].Namespace(
         run_dir=str(tmp_path / name), task="", policy=None, skip_writes=False, await_reply_s=0.0, approve_wait_s=0.0,
         listen_s=1, out=out, staging=True, live_policy=False, print_record_template=False, print_policy_rule=False,
-        write_policy="")
+        write_policy="", cleanup_wait_s=900.0)
     for flag in extra:
         if isinstance(flag, tuple):
             setattr(args, flag[0], flag[1])
@@ -85,21 +85,27 @@ def test_full_sequence_in_staging_leaves_the_server_as_it_was(tmp_path, capsys):
     assert audit.count('"authorize"') >= len(ev["steps"]) and st.token not in audit
 
 
-def test_the_policys_live_mode_with_a_signed_record(tmp_path):
-    code, ev, st, raw = staging_run(tmp_path, "live_policy")
-    assert code == 0 and ev["policy_mode"] == "live" and ev["environment"] == "staging"       # live rules, staging services
-    assert ev["summary"]["by_outcome"] == {"ok": len(ev["steps"])} and ev["live_policy"]["record_id"].startswith("discord-live-check-")
+def test_the_policys_live_mode_with_a_signed_record_and_a_narrower_scope(tmp_path):
+    narrow = [n for n in DEFAULT_SCOPE if n != "MANAGE_ROLES"]                      # the operator leaves role management out
+    code, ev, st, raw = staging_run(tmp_path, "live_policy", mutate=lambda st, r: r["discord"].update(scope=narrow))
+    assert ev["policy_mode"] == "live" and ev["environment"] == "staging"           # live rules, staging services
+    # nothing that the scope allows failed: exit code 0, and the refusals are reported as such
+    assert code == 0 and ev["scope"] == narrow and "permission_refusal" not in ev["summary"]["by_outcome"]
+    assert ev["summary"]["by_outcome"] == {"ok": len(ev["steps"]) - 3, "scope_refusal": 2, "skipped": 1}
+    assert ev["summary"]["scope_refusals"] == ["discord.set_channel_permissions", "discord.create_role"]
+    assert all(s["verdict"] == "allow" for s in ev["steps"] if s["outcome"] == "ok")
+    assert ev["live_policy"]["record_id"].startswith("discord-live-check-")
     assert ev["live_policy"]["preauthorized"] == [f"account:discord:{st.guild_id}", "channel:discord:*"]
     assert ev["staging_state_after"]["guild_name"] == "staging guild" and st.token not in raw
-    # without the record the same task is refused by the authorization service before anything is sent
-    args = lc.main.__globals__["argparse"].Namespace(run_dir=str(tmp_path / "bare"), task="", policy=None)
+    assert ev["live_policy"]["read"] == [ev["base_url"].split("//")[1].split("/")[0], ev["live_policy"]["read"][1]]
+    # the record the script proposes for a live task names discord.com and the gateway host instead
     task = C.TaskSpec(objective_id="t", objective="x", mode="live", interfaces=["api"],
                       resources={"discord": {"guild_id": st.guild_id}},
                       limits=C.Limits(duration_s=60, max_external_actions=5, max_decisions=5))
     record = lc.record_template(task, st.guild_id)
     assert record["task_hash"] == task.content_hash() and record["task_id"] == "t"
     assert record["read"] == ["discord.com", "gateway.discord.gg"] and record["budgets"]["max_external_actions"] > 0
-    assert args.run_dir.endswith("bare")
+    assert record["not_after"] - record["not_before"] <= 3700 and "signature" not in record
 
 
 def test_scope_and_permission_refusals_are_reported_and_cleanup_still_runs(tmp_path):
@@ -123,10 +129,6 @@ def test_scope_and_permission_refusals_are_reported_and_cleanup_still_runs(tmp_p
                                          "guild_name": "staging guild", "invites": 0}
     assert ops_of(ev)[-1] == "delete_channel" and ev["steps"][-1]["outcome"] == "ok"
     assert not [r for r in st.request_log if "/pins/" in r["path"] or "/roles" in r["path"] and r["method"] != "GET"]
-    # with only the scope narrowed (nothing the scope allows fails) the exit code is 0
-    code, ev, st, raw = staging_run(tmp_path, mutate=lambda st, r: r["discord"].update(
-        scope=[n for n in DEFAULT_SCOPE if n != "MANAGE_ROLES"]), name="scope_only")
-    assert code == 0 and ev["summary"]["by_outcome"]["scope_refusal"] == 2 and "permission_refusal" not in ev["summary"]["by_outcome"]
 
 
 def test_stops_after_identity_when_the_bot_is_not_in_the_server(tmp_path, capsys):
@@ -288,3 +290,36 @@ def test_the_documented_live_preparation_yields_grants_and_releases_the_token_on
             policy.secret_get("discord_bot_token", action, decision, elsewhere)
     policy.close()
     assert attempts == []
+
+
+def test_a_rate_limited_restore_is_issued_again_after_the_stated_wait(tmp_path, monkeypatch):
+    """The rename went through and the bucket of the route is then exhausted for longer than the adapter waits by
+    itself: the restore must not be given up."""
+    seen, waits = {}, []
+    real_step = lc.Check.step
+
+    def step(self, name, args=None, **kw):
+        if kw.get("note") == "restore the original name" and not waits:
+            seen["st"].block_globally(120.0)                 # the service answers 429 with retry_after = 120 s
+        return real_step(self, name, args, **kw)
+
+    def sleep(self, seconds):
+        waits.append(seconds)
+        seen["st"].global_block_until = 0.0                  # ... and the time passes: for the service,
+        self.discord.client().limiter._until.clear()         # and for the adapter, which remembered the stated wait
+
+    monkeypatch.setattr(lc.Check, "step", step)
+    monkeypatch.setattr(lc.Check, "__init__", _init_with_sleep(lc.Check.__init__, sleep))
+    code, ev, st, raw = staging_run(tmp_path, mutate=lambda st, r: seen.update(st=st))
+    restores = [s for s in ev["steps"] if s.get("note", "").startswith("restore the original name")]
+    assert [s["outcome"] for s in restores] == ["failed", "ok"] and restores[0]["failure_class"] == "resource_limit"
+    assert len(waits) == 1 and 100 < waits[0] <= 122 and restores[1]["note"].endswith("(again)")
+    assert st.guild["name"] == "staging guild" and code == 1          # restored; the failed attempt is still reported
+    assert ev["staging_state_after"]["channels"] == ["general"]
+
+
+def _init_with_sleep(real_init, sleep):
+    def init(self, *a, **kw):
+        real_init(self, *a, **kw)
+        self.sleep = lambda seconds: sleep(self, seconds)
+    return init

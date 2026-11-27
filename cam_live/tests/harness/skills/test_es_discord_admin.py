@@ -654,7 +654,9 @@ def test_identity_other_guilds_and_missing_capabilities(staging):
     assert res.failure_class == FailureClass.MISSING_PERMISSION and sent(st, n) == []
     assert res.failure_detail == "the bot is not a member of the authorized server; the server owner must add it"
     assert fresh.missing_capabilities()[0]["capability"] == "discord"
-    assert run(fresh, staging, pol, "get_guild_settings").failure_class in (FailureClass.WRONG_SITE_ASSUMPTION, FailureClass.MISSING_PERMISSION)
+    res = run(fresh, staging, pol, "get_guild_settings")                       # a route that needs no permission: 404 Unknown Guild
+    assert res.failure_class == FailureClass.MISSING_PERMISSION and res.retries == 0 and "10004" in res.failure_detail
+    assert res.failure_detail.startswith("the bot is not a member of the authorized server; the server owner must add it")
     # no token, no guild: one entry, and nothing is contacted to say so
     n = len(st.request_log)
     no_token = DiscordExecutor(staging.base_url, guild_id=st.guild_id, secrets={})

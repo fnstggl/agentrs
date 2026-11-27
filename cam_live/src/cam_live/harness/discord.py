@@ -1165,6 +1165,11 @@ class DiscordExecutor:
                 self._perm_state = None            # what was cached about the bot's permissions is out of date
                 client.overwrites.clear()
             rep = classify(evidence_of(e))
+            if isinstance(e, DiscordAPIError) and e.status == 404 and e.code == 10004:      # Unknown Guild
+                self.facts["in_guild"] = False
+                why = ("the bot is not a member of the authorized server; the server owner must add it "
+                       f"(Discord 404 code 10004: {e.message})")
+                rep = classify(FailureEvidence(exception=PermissionError(why), detail=why, modality=Modality.API))
             for op in ops:
                 op.ended = op.ended or clock.now()
             ops[-1].status, ops[-1].failure_class = ResultStatus.FAILED, rep.failure_class
@@ -1207,6 +1212,7 @@ class DiscordExecutor:
             except DiscordAPIError as e:
                 if e.status != 403:
                     raise
+                self._perm_state = None            # any 403: what was cached about the bot's standing is dropped
                 self.facts["members_list"] = False
                 data["members_unavailable"] = f"member list not available ({e.message}); only approximate counts"
             else:
@@ -1404,7 +1410,7 @@ class DiscordExecutor:
         if role["everyone"] or role["managed"]:
             raise _Refusal("the @everyone role and roles managed by an integration are never modified or deleted",
                            denied=True)
-        if role["position"] >= st.get("highest", 0):
+        if role["position"] > st.get("highest", 0):        # equal positions are ordered by id: left to the service
             raise _Refusal("the bot can only change roles below its own highest role; the server owner must move "
                            "the bot's role above this one")
         return role

@@ -116,11 +116,31 @@ def write_policy(path: str, guild_id: str) -> str:
 
 class Check:
     def __init__(self, policy: PolicyService, env: ComputerEnvironment, discord: DiscordExecutor, task: C.TaskSpec,
-                 *, approve_wait_s: float = 0.0, echo: Callable[[str], None] = print):
+                 *, approve_wait_s: float = 0.0, cleanup_wait_s: float = 900.0, echo: Callable[[str], None] = print,
+                 sleep: Callable[[float], None] = time.sleep):
         self.policy, self.env, self.discord, self.task = policy, env, discord, task
         self.guild_id = discord.guild_id
-        self.approve_wait_s, self.echo = approve_wait_s, echo
+        self.approve_wait_s, self.cleanup_wait_s, self.echo, self.sleep = approve_wait_s, cleanup_wait_s, echo, sleep
         self.steps: List[Dict[str, Any]] = []
+
+    def cleanup(self, name: str, args: Dict[str, Any], note: str) -> Dict[str, Any]:
+        """A step that undoes a change. A rate limit or a network fault does not end it: the identical step is
+        issued again after the stated wait (at most ``cleanup_wait_s`` in total, at most three more times)."""
+        waited = 0.0
+        rec = self.step(name, args, note=note)
+        for _ in range(3):
+            if rec["outcome"] == "ok" or rec.get("failure_class") not in (C.FailureClass.RESOURCE_LIMIT,
+                                                                           C.FailureClass.TRANSIENT_NETWORK):
+                break
+            pause = float(rec.get("retry_after_s") or 5.0) + 1.0
+            if waited + pause > self.cleanup_wait_s:
+                self.echo(f"   {note}: the stated wait of {pause:.0f} s exceeds what this check waits for a cleanup")
+                break
+            self.echo(f"   {note}: not done ({rec['failure_class']}); trying again in {pause:.0f} s")
+            self.sleep(pause)
+            waited += pause
+            rec = self.step(name, args, note=note + " (again)")
+        return rec
 
     # ---- one step -------------------------------------------------------------------------------------------------
     def step(self, name: str, args: Optional[Dict[str, Any]] = None, *, note: str = "", timeout_s: float = 60.0,
@@ -154,11 +174,11 @@ class Check:
         obs = next((o for o in res.observations if o.kind != "error"), None)
         q = {x.name: x.value for o in res.observations for x in o.quantities}
         rec.update(status=res.status, failure_class=res.failure_class, failure_detail=res.failure_detail,
-                   quantities={k: v for k, v in q.items() if not k.startswith("discord.ratelimit.")},
+                   quantities={k: v for k, v in q.items() if k.startswith("discord.") and not k.startswith("discord.ratelimit.")},
                    rate_limit={k.rsplit(".", 1)[-1]: v for k, v in q.items() if k.startswith("discord.ratelimit.")},
                    text=(obs.text if obs is not None else "")[:400], artifacts=dict(res.artifacts),
                    data=dict(obs.data) if obs is not None else {}, retries=res.retries,
-                   checked_ops=[o.op for o in res.ops])
+                   checked_ops=[o.op for o in res.ops], retry_after_s=q.get("exec.failure.retry_after_s"))
         if res.status == C.ResultStatus.OK:
             rec["outcome"] = "ok"
         elif res.status == C.ResultStatus.NEEDS_APPROVAL:
@@ -260,7 +280,7 @@ class Check:
             self.step("get_audit_summary", {"limit": 50})
         finally:
             if channel_id:
-                gone = self.step("delete_channel", {"channel_id": channel_id}, note="cleanup: the temporary channel")
+                gone = self.cleanup("delete_channel", {"channel_id": channel_id}, "cleanup: the temporary channel")
                 if gone["outcome"] != "ok":
                     self.echo(f"!! the temporary channel {channel_id} ({CHANNEL_NAME}) was NOT deleted: delete it by hand")
         return self.exit_code()
@@ -323,7 +343,7 @@ class Check:
         try:
             self.step("modify_role", {"role_id": rid, "name": ROLE_NAME + "-renamed", "mentionable": False})
         finally:
-            gone = self.step("delete_role", {"role_id": rid}, note="cleanup: the temporary role")
+            gone = self.cleanup("delete_role", {"role_id": rid}, "cleanup: the temporary role")
             if gone["outcome"] != "ok":
                 self.echo(f"!! the temporary role {rid} ({ROLE_NAME}) was NOT deleted: delete it by hand")
 
@@ -339,7 +359,7 @@ class Check:
             untouched = renamed is not None and renamed["outcome"] in ("scope_refusal", "authorization_denied", "invalid",
                                                                       "needs_approval", "permission_refusal")
             if not untouched:
-                back = self.step("modify_guild", {"name": original}, note="restore the original name")
+                back = self.cleanup("modify_guild", {"name": original}, "restore the original name")
                 if back["outcome"] != "ok":
                     self.echo(f"!! the server name was NOT restored: set it back to {original!r} by hand")
 
@@ -450,7 +470,7 @@ def run_live(a: argparse.Namespace) -> int:
         env.close()
         return 2
     started = time.time()
-    check = Check(policy, env, discord, task, approve_wait_s=a.approve_wait_s, echo=echo)
+    check = Check(policy, env, discord, task, approve_wait_s=a.approve_wait_s, cleanup_wait_s=a.cleanup_wait_s, echo=echo)
     echo(f"LIVE check against {base_url}, server {guild_id}, run directory {os.path.abspath(a.run_dir)}")
     try:
         code = check.run(skip_writes=a.skip_writes, await_reply_s=a.await_reply_s, listen_s=a.listen_s)
@@ -569,6 +589,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--skip-writes", action="store_true", help="read-only steps only")
     ap.add_argument("--await-reply-s", type=float, default=0.0, help="wait this long for a human reply in the test channel")
     ap.add_argument("--approve-wait-s", type=float, default=0.0, help="wait this long for the operator to approve a step")
+    ap.add_argument("--cleanup-wait-s", type=float, default=900.0,
+                    help="longest total wait for a rate limit before a cleanup step is given up (default 900)")
     ap.add_argument("--listen-s", type=int, default=10, choices=range(1, 61), metavar="1..60",
                     help="length of the listening window in seconds (default 10)")
     ap.add_argument("--out", default="", help="evidence file (JSON)")
