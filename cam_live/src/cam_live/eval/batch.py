@@ -45,7 +45,10 @@ def transfer_jobs(plan: str, writer_plan: str, seeds: List[int], *, frozen: bool
 
 
 def run_transfer_batch(name: str, writer_plan: str, seeds: List[int], *, frozen: bool, n_jobs: int,
-                       threads: int) -> int:
+                       threads: int, snapshot: str = "") -> int:
+    if snapshot:                                      # spawn() passes os.environ on to the child processes
+        os.environ.update({k: v for k, v in snapshot_env(snapshot).items()
+                           if k in ("PYTHONPATH", "CAM_LIVE_EVAL_SNAPSHOT", "CAM_LIVE_EVAL_COMMIT")})
     import json
     from concurrent.futures import ThreadPoolExecutor
     from .transfer import spawn, summarise
@@ -79,7 +82,9 @@ def run_transfer_batch(name: str, writer_plan: str, seeds: List[int], *, frozen:
 def cmd_transfer_batch(a: argparse.Namespace) -> int:
     seeds = [int(x) for x in a.seeds.split(",")] if "," in a.seeds or "-" not in a.seeds else \
         list(range(int(a.seeds.split("-")[0]), int(a.seeds.split("-")[1]) + 1))
-    return run_transfer_batch(a.name, a.writer_plan, seeds, frozen=a.frozen, n_jobs=a.jobs, threads=a.threads)
+    snap = make_snapshot(a.commit) if a.commit else a.snapshot
+    return run_transfer_batch(a.name, a.writer_plan, seeds, frozen=a.frozen, n_jobs=a.jobs, threads=a.threads,
+                              snapshot=snap)
 
 
 def jobs_of(plan: str) -> List[Dict[str, Any]]:
@@ -90,7 +95,39 @@ def jobs_of(plan: str) -> List[Dict[str, Any]]:
     return out
 
 
-def run_plan(plan: str, n_jobs: int, threads: int) -> int:
+def snapshot_env(snapshot: str) -> Dict[str, str]:
+    """Environment for child processes that import ``cam_live`` from a frozen snapshot of the committed tree
+    (``tools``: ``git archive <commit> cam_live | tar -x -C <snapshot>``), so every job of a batch runs the same
+    code even while other workstreams edit the working tree."""
+    env = dict(os.environ)
+    if snapshot:
+        src = os.path.join(os.path.abspath(snapshot), "cam_live", "src")
+        if not os.path.isdir(os.path.join(src, "cam_live")):
+            raise FileNotFoundError(f"{snapshot} is not a snapshot (no cam_live/src/cam_live)")
+        env["PYTHONPATH"] = src + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+        env["CAM_LIVE_EVAL_SNAPSHOT"] = os.path.abspath(snapshot)
+        commit_file = os.path.join(snapshot, "COMMIT")
+        if os.path.exists(commit_file):
+            env["CAM_LIVE_EVAL_COMMIT"] = open(commit_file).read().strip()
+    return env
+
+
+def make_snapshot(commit: str = "HEAD") -> str:
+    """``runs/cam_live/eval/snapshots/<sha>``: the committed ``cam_live/`` tree of ``commit``."""
+    repo = os.path.abspath(os.path.join(EVAL_HOME, "..", "..", ".."))
+    sha = subprocess.run(["git", "-C", repo, "rev-parse", commit], capture_output=True, text=True,
+                         check=True).stdout.strip()
+    dest = os.path.join(EVAL_HOME, "snapshots", sha[:12])
+    if not os.path.exists(os.path.join(dest, "COMMIT")):
+        os.makedirs(dest, exist_ok=True)
+        arch = subprocess.run(["git", "-C", repo, "archive", sha, "cam_live"], capture_output=True, check=True).stdout
+        subprocess.run(["tar", "-x", "-C", dest], input=arch, check=True)
+        with open(os.path.join(dest, "COMMIT"), "w") as f:
+            f.write(sha + "\n")
+    return dest
+
+
+def run_plan(plan: str, n_jobs: int, threads: int, snapshot: str = "") -> int:
     res_dir = os.path.join(EVAL_HOME, "results", plan)
     log_dir = os.path.join(EVAL_HOME, "logs", plan)
     os.makedirs(res_dir, exist_ok=True)
@@ -116,8 +153,8 @@ def run_plan(plan: str, n_jobs: int, threads: int) -> int:
         while todo and len(running) < n_jobs:
             name, cmd = todo.pop(0)
             log = open(os.path.join(log_dir, name + ".log"), "w")
-            p = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, env={**os.environ,
-                                                                                    "OMP_NUM_THREADS": str(threads)})
+            p = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT,
+                                 env={**snapshot_env(snapshot), "OMP_NUM_THREADS": str(threads)})
             running.append((name, p, log))
         time.sleep(2.0)
         for item in list(running):
@@ -132,7 +169,9 @@ def run_plan(plan: str, n_jobs: int, threads: int) -> int:
 
 
 def cmd_batch(a: argparse.Namespace) -> int:
-    return run_plan(a.plan, a.jobs, a.threads)
+    snap = make_snapshot(a.commit) if a.commit else a.snapshot
+    print(f"snapshot: {snap or '(working tree)'}", flush=True)
+    return run_plan(a.plan, a.jobs, a.threads, snap)
 
 
 def add_commands(sub: Any) -> None:
@@ -140,6 +179,8 @@ def add_commands(sub: Any) -> None:
     b.add_argument("--plan", required=True, choices=sorted(PLANS))
     b.add_argument("--jobs", type=int, default=8)
     b.add_argument("--threads", type=int, default=3)
+    b.add_argument("--commit", default="", help="run every job from a snapshot of this commit (git archive)")
+    b.add_argument("--snapshot", default="")
     b.set_defaults(fn=cmd_batch)
     t = sub.add_parser("transfer-batch", help="fresh-process transfer / before-after runs of saved E checkpoints")
     t.add_argument("--name", required=True)
@@ -148,4 +189,6 @@ def add_commands(sub: Any) -> None:
     t.add_argument("--frozen", action="store_true")
     t.add_argument("--jobs", type=int, default=10)
     t.add_argument("--threads", type=int, default=3)
+    t.add_argument("--commit", default="")
+    t.add_argument("--snapshot", default="")
     t.set_defaults(fn=cmd_transfer_batch)

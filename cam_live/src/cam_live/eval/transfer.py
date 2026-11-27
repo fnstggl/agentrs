@@ -145,7 +145,9 @@ def child(a: argparse.Namespace) -> int:
         lts.append(lt)
     preds = [{"kind": p.query.kind, "nll": p.nll, "goal_relevant": bool(p.query.goal_relevant)}
              for p in agent.predictions.records() if p.nll is not None]
+    from .experiments import code_identity
     out = {"executed": True, "version": a.version, "domain": a.domain, "agent_seed": int(a.agent_seed),
+           "code": code_identity(),
            "world_base": int(a.world_base), "frozen": bool(a.frozen), "fresh_process": fresh,
            "pid": os.getpid(), "lifetimes": lts, "prediction_nll": preds,
            "compute": {"seconds": dict(timed.seconds), "cpu_seconds": dict(timed.cpu_seconds)},
@@ -170,7 +172,7 @@ def spawn(export: str, version: str, domain: str, seed: int, *, lifetimes: int, 
            "--domain", domain, "--agent-seed", str(seed), "--world-base", str(EVAL_WORLD_BASE[domain] + 100 * seed),
            "--lifetimes", str(lifetimes), "--decisions", str(decisions), "--k", str(k), "--result", res,
            "--threads", str(threads)] + (["--frozen"] if frozen else []) + (["--device", device] if device else [])
-    env = {k2: v for k2, v in os.environ.items() if not k2.startswith("CAM_LIVE_")}
+    env = {k2: v for k2, v in os.environ.items() if not k2.startswith("CAM_LIVE_") or k2.startswith("CAM_LIVE_EVAL_")}
     env["CAM_LIVE_HOME"] = home
     env["OMP_NUM_THREADS"] = str(threads)
     if "CAM_LIVE_GPU_LOCK" in os.environ:

@@ -50,6 +50,24 @@ def _records(run_dir: str, name: str) -> List[Dict[str, Any]]:
     return list(iter_jsonl(p)) if os.path.exists(p) else []
 
 
+def code_identity() -> Dict[str, Any]:
+    """Which code ran: the imported package location, the snapshot it came from (``CAM_LIVE_EVAL_SNAPSHOT``) and
+    content hashes of the modules whose behaviour the results depend on."""
+    import hashlib
+    import cam_live
+    base = os.path.dirname(os.path.abspath(cam_live.__file__))
+    out: Dict[str, Any] = {"cam_live_dir": base, "snapshot": os.environ.get("CAM_LIVE_EVAL_SNAPSHOT", ""),
+                           "snapshot_commit": os.environ.get("CAM_LIVE_EVAL_COMMIT", "")}
+    for rel in ("agent.py", "reward/metalearner.py", "credit/learner.py", "predict/predictor.py", "runtime/loop.py",
+                "nn/model.py", "eval/conditions.py", "eval/runner.py"):
+        try:
+            with open(os.path.join(base, rel), "rb") as f:
+                out[rel] = hashlib.sha256(f.read()).hexdigest()[:16]
+        except OSError:
+            out[rel] = None
+    return out
+
+
 def _f(x: Any) -> Optional[float]:
     try:
         v = float(x)
@@ -128,6 +146,7 @@ def run_condition(condition: str, family: str, seed: int, *, n_lifetimes: int, m
     res: Dict[str, Any] = {"executed": False, "condition": condition, "family": family, "seed": seed,
                            "real_backbone": bool(real), "backbone": base.backbone.name, "scale": base.core.scale,
                            "n_lifetimes": n_lifetimes, "max_decisions": max_decisions, "k": k, "root": root,
+                           "code": code_identity(),
                            "parameters": {k2: v for k2, v in agent.model.count_parameters().items()
                                           if k2 != "experiential_breakdown"}}
     s0 = agent.model.trainable_state()

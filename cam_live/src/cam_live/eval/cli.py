@@ -90,8 +90,68 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     an.set_defaults(fn=cmd_anchors)
     from . import batch as _batch
     _batch.add_commands(sub)
+    _add_analyse(sub)
+    from . import extra as _extra
+    _extra.add_commands(sub)
     a = ap.parse_args(list(sys.argv[1:] if argv is None else argv))
     return int(a.fn(a) or 0)
+
+
+
+# ------------------------------------------------------------------------------------------------ analyse
+EVIDENCE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "docs", "evidence", "S")
+
+
+def _write(name: str, obj: dict) -> str:
+    path = os.path.abspath(os.path.join(EVIDENCE, name))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(obj, f, indent=1, sort_keys=True, default=str)
+    return path
+
+
+def cmd_analyse(a: argparse.Namespace) -> int:
+    from . import analysis
+    from .experiments import EVAL_HOME
+    from .integrity import reward_vs_progress
+    from .runner import run_anchor
+    res_dir = os.path.join(EVAL_HOME, "results", a.plan)
+    by = analysis.load(res_dir)
+    if not by:
+        print(f"no executed results in {res_dir}", file=sys.stderr)
+        return 1
+    seeds = sorted({r["seed"] for rs in by.values() for r in rs})
+    n_lt = max(len(r["lifetimes"]) for rs in by.values() for r in rs)
+    fam = next(iter(by.values()))[0]["family"]
+    from .experiments import WORLD_BASE
+    worlds = [WORLD_BASE[fam] + 100 * s + i for s in seeds for i in range(n_lt)]
+    anchors = {"anchors": {k: [run_anchor(k, fam, w, max_decisions=16) for w in worlds] for k in ("uniform", "oracle")}}
+    common = {"executed": True, "plan": a.plan, "results_dir": res_dir, "seeds": seeds, "family": fam,
+              "conditions": {c: [r["seed"] for r in rs] for c, rs in by.items()},
+              "scale": {c: {"backbone": rs[0]["backbone"], "core": rs[0]["scale"], "real": rs[0]["real_backbone"]}
+                        for c, rs in by.items()}}
+    tag = a.tag or a.plan
+    out = []
+    out.append(_write(f"{tag}_baselines.json", {**common, **analysis.baselines(by, anchors)}))
+    learners = [c for c in ("E", "D", "E_mix0", "E_no_credit", "C") if c in by]
+    out.append(_write(f"{tag}_calibration.json", {**common, **{c: analysis.calibration(by[c]) for c in learners}}))
+    out.append(_write(f"{tag}_action_quality.json", {**common, **{c: analysis.action_quality(by[c])
+                                                                for c in learners}}))
+    if "E" in by:
+        out.append(_write(f"{tag}_delayed_credit.json", {**common, **analysis.delayed_credit(
+            by["E"], by.get("E_no_credit", []))}))
+        out.append(_write(f"{tag}_shadow.json", {**common, **{c: analysis.shadow(by[c]) for c in learners}}))
+        out.append(_write(f"{tag}_reward_vs_progress.json", {**common, **{c: reward_vs_progress(by[c])
+                                                                          for c in ("E", "E_mix0", "D") if c in by}}))
+    print("\n".join(out))
+    return 0
+
+
+def _add_analyse(sub) -> None:
+    an = sub.add_parser("analyse", help="prespecified analyses of a results plan -> docs/evidence/S/*.json")
+    an.add_argument("--plan", default="main_cpu")
+    an.add_argument("--tag", default="")
+    an.set_defaults(fn=cmd_analyse)
 
 
 if __name__ == "__main__":
