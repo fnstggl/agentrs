@@ -24,7 +24,7 @@ requirement: `docs/v5/workstreams/N.json`.
 | `proposal` | world proposals validated for safety, feasibility, diversity, resources, difficulty and usefulness inside the evaluator |
 | `comparison` | A/B/C/D arms with matched experience or compute (arms C and D with the architecture-neutral ReferenceLearner, which acts in every tier) and seven control kinds |
 | `integrity` | clause-level claim scanners with planted controls; banned-proxy checks; failure classification |
-| `compose`, `genadmit` | structural composition of Tier 1 worlds (calibration without the anti-default shortcut) and their full rapid admission |
+| `compose`, `genadmit` | structural composition of Tier 1 worlds (calibration without the anti-default shortcut) and their full rapid admission; `genadmit.admit_until` is the sequential generate-then-admit walk T.4 uses (stop when enough worlds validate; counts the stream prefix only, independent of parallelism) |
 | `genref` | scripted public reference of generated worlds whose optimum wanders (a scan of each lever's range, then a perturbation tracker on observed net income that rescans when it has lost the optimum; knows only that the optimum moves) |
 | `hosted` | the driver for untrusted learners: `HostedLearner(entry, kw)` constructs and runs the learner only in a jailed child; the harness relays only the participant operations of one ticket; `run_hosted_episode` returns the evaluator's verified result (DEF-O-10) |
 
