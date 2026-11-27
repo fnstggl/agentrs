@@ -345,7 +345,16 @@ Amendment (second continuation, 2026-11-27): 8.6.3 (delayed product adoption) ha
 that no public reference could make beat waiting on the held-out seeds. A second family for the item,
 `dl_delayed_adoption` (primitive_graph), composes a delayed fading awareness stock, a hidden awareness gate, saturating
 trial, word of mouth from the installed base and a finite market, and is scored by adopters after a held-out constant
-launch (fidelity record `rapid.delayed_adoption`); `pe_rollout_targeting` is kept unchanged (not admitted).
+launch (fidelity record `rapid.delayed_adoption`); `pe_rollout_targeting` is kept unchanged (not admitted). In the
+same way the other items whose families could not be admitted got one compact primitive-graph family each, scored by
+held-out predictions (D-63) with a model-class reference (D-64) and an intervention claim: 8.4.2 `plan_spoilage`
+(a perishing stock with saturating sales), 8.4.3 `plan_serial_stages` (three saturating queues in series with transit
+lags and one bottleneck), 8.7.1 `net_congestion_routes` (BPR delays on two routes sharing a link), all training, and
+8.7.4 `net_interdependent` (two coupled cascading-failure rings), evaluation split. The planning, graph and program
+families of these items (`plan_perishable`, `des_perishable`, `plan_supply_chain`, `net_routing`, `net_cascade`,
+`pe_rollout_targeting`) are kept unchanged and not admitted; they remain the richer worlds to redesign. Two new pair
+protocols (`distinct.pulse_reaches_output_later`, `distinct.small_input_is_gated`) verify by intervention the
+differences between new families whose nearest registered family has the same interface.
 
 ## D-28 MIND-small used for experimental research by decision of the project owner (2026-11-26, orchestrator)
 The project owner resolved blocker B-1 (option 2) with the instruction: "disregard the MIND license. use MIND dataset

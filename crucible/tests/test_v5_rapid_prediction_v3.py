@@ -114,3 +114,16 @@ def test_new_pair_protocols_verify_the_nearest_differences():
     from crucible.rapid import distinct as D
     assert D.verify("plan_serial_stages", "plan_spoilage")["ok"]
     assert D.verify("dl_delayed_adoption", "plan_spoilage")["ok"]
+
+
+def test_interdependent_networks_cascade_and_carry_failure():
+    for seed in (0, 11):
+        r = CW.claim_interdependent_cascade(F.make("net_interdependent", seed))
+        assert r["ok"], r
+        assert CW.identify_first_threshold(F.make("net_interdependent", seed))["ok"]
+    env = F.make("net_interdependent", 0)
+    assert F.REGISTRY["net_interdependent"]["partition"] == "v5-eval-1"
+    t = _truth(env)
+    assert set(t) <= {0.0, 1.0} and 0.0 in t and 1.0 in t           # some demand pairs collapse, some do not
+    v_ref = play(F.make("net_interdependent", 0))["value"]
+    assert v_ref > 0.9
