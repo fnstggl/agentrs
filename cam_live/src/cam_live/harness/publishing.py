@@ -34,8 +34,8 @@ from urllib.parse import urlsplit
 from ..contracts import (ActionResult, ActionSpec, Clock, Cost, ExecContext, Level, Modality,
                          Observation, OutcomeKind, PrimitiveOp, Provenance, Quantity, ResultStatus, ToolDescriptor,
                          Trust, new_id)
-from .failures import FailureEvidence, authorization_result, classify, failed_result
-from .http_api import schema_errors
+from .failures import FailureEvidence, authorization_result, classify, failed_result, failure_of
+from .http_api import acting_under, schema_errors
 
 DRAFT, PREVIEWED, PENDING, PUBLISHED, REJECTED = "draft", "previewed", "pending_approval", "published", "rejected"
 STATIC_SITE, DISCORD_CHANNEL = "static_site", "discord_channel"
@@ -71,7 +71,10 @@ _SCHEMAS: Dict[str, Dict[str, Any]] = {
                                                                      "(where.address); if given it must be the draft's"}}},
     "publish.update": {"type": "object", "additionalProperties": False, "required": ["draft_id", "content"],
                        "properties": {"draft_id": {"type": "string", "minLength": 1},
-                                      "content": {"type": "string", "minLength": 1}}},
+                                      "content": {"type": "string", "minLength": 1},
+                                      "destination": {"type": "string", "minLength": 1,
+                                                      "description": "the draft's destination address (where.address); "
+                                                                     "if given it must be the draft's"}}},
     "publish.status": {"type": "object", "additionalProperties": False,
                        "properties": {"draft_id": {"type": "string", "minLength": 1}}},
     "publish.get_analytics": {"type": "object", "additionalProperties": False, "required": ["destination"],
@@ -281,8 +284,11 @@ class PublishingExecutor:
     def _update(self, action: ActionSpec, ctx: ExecContext, started: float) -> ActionResult:
         a, now = action.arguments, ctx.clock.now()
         d = self._drafts[a["draft_id"]]
-        if len(a["content"].encode("utf-8")) > self.max_content_bytes:
-            return failed_result(action, classify(FailureEvidence(arg_errors=["arguments.content: too large"])), ctx.clock, started)
+        errs = ["arguments.content: too large"] if len(a["content"].encode("utf-8")) > self.max_content_bytes else []
+        if a.get("destination") is not None and a["destination"] not in (self._where(d)["address"], d["destination"]):
+            errs.append(f"arguments.destination: draft {d['draft_id']} goes to {self._where(d)['address']!r}")
+        if errs:
+            return failed_result(action, classify(FailureEvidence(arg_errors=errs)), ctx.clock, started)
         d.update(content=a["content"], content_sha256=_sha(a["content"]), revision=d["revision"] + 1, state=DRAFT,
                  preview_sha256="", approval_id="", reasons=[], updated_at=now)
         d["history"].append({"ts": now, "event": "updated", "revision": d["revision"]})
@@ -355,11 +361,13 @@ class PublishingExecutor:
                              arguments=dict({"channel_id": dest.channel_id, "content": d["content"]},
                                             **({"guild_id": self.discord.guild_id} if getattr(self.discord, "guild_id", "") else {}),
                                             **({"message_id": prior} if prior else {})))
-            res = self.discord.execute(sub, ctx)          # the Discord primitive is what the policy judges
+            with acting_under(ctx, action):               # the Discord primitive is what the policy judges
+                res = self.discord.execute(sub, ctx)
             res.action_id = action.action_id
-            if res.status in (ResultStatus.NEEDS_APPROVAL, ResultStatus.DENIED):
+            judged = res.status == ResultStatus.NEEDS_APPROVAL or "authorization_denied" in failure_of(res).get("signals", [])
+            if judged:
                 return refused(res)
-            if res.status != ResultStatus.OK:
+            if res.status != ResultStatus.OK:             # a fault, not a decision about the content: the draft stays
                 return res
             msg = res.observations[0].data["message"]
             published = {"revision": d["revision"], "content_sha256": d["content_sha256"], "ts": clock.now(),

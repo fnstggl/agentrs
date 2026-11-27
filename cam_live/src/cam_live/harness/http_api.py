@@ -18,6 +18,7 @@ Also exported for the other ES executors: :func:`schema_errors` (JSON-Schema sub
 from __future__ import annotations
 
 import base64
+import contextlib
 import email.utils
 import hashlib
 import inspect
@@ -109,6 +110,20 @@ def granted_action(ctx: Any, action: ActionSpec) -> ActionSpec:
     """The top-level action whose grant covers what is being executed (a skill sets ``ctx.granted_action`` while
     it runs its steps; otherwise it is the action itself)."""
     return getattr(ctx, "granted_action", None) or action
+
+
+@contextlib.contextmanager
+def acting_under(ctx: Any, action: ActionSpec):
+    """While an executor runs sub-steps on behalf of ``action`` (a skill run, a publication through another
+    adapter), the executors of those steps ask the secret broker in the name of this granted action."""
+    had = getattr(ctx, "granted_action", None)
+    if had is None:
+        ctx.granted_action = action
+    try:
+        yield ctx
+    finally:
+        if had is None:
+            ctx.granted_action = None
 
 
 def grant_bound(secrets: Any) -> bool:

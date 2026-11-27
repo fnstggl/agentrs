@@ -9,7 +9,7 @@ from cam_live.harness.discord import CONTENT_PERMISSION, DiscordExecutor
 from cam_live.harness.http_api import HttpApiExecutor, grant_bound, resolve_secret
 from cam_live.harness.skills import SkillExecutor, SkillLibrary, Trace, evaluate_condition
 from cam_live.harness.staging_discord import StagingDiscord, StagingDiscordServer
-from es_support import GrantBoundBroker, NotesApp, ScopedPolicy, act, listing_probe, make_ctx
+from es_support import GrantBoundBroker, NotesApp, ScopedPolicy, act, make_ctx
 
 
 def test_grant_bound_broker_releases_only_for_the_granted_action_and_destination(notes):
@@ -134,6 +134,38 @@ def test_retaining_message_text_is_put_to_the_policy_as_its_own_operation():
         assert len(st.request_log) == n and "words of a member" not in json.dumps(res.to_dict())
         for x in (keep, drop):
             x.close()
+
+
+def test_publishing_to_a_channel_under_a_grant_bound_broker(tmp_path):
+    from cam_live.harness.publishing import DISCORD_CHANNEL, Destination, PublishingExecutor
+    with StagingDiscordServer(StagingDiscord(rate_limit=(1000, 1.0))) as staging:
+        st = staging.state
+        broker = GrantBoundBroker({"discord_bot_token": st.token}, {"discord_bot_token": staging.base_url})
+        discord = DiscordExecutor(staging.base_url, guild_id=st.guild_id, credential_probe=lambda n: True)
+        pub = PublishingExecutor(str(tmp_path), [Destination("news", DISCORD_CHANNEL, channel_id=st.general_id)], discord=discord)
+        pol = ScopedPolicy(scopes=("publish.draft", "publish.write", "discord.write", "discord.read"))
+        plain = make_ctx(pol, secrets=broker)
+        d = pub.execute(act("publish.draft", {"destination": "news", "content": "words"}, scope="publish.draft"), plain)
+        draft_id = d.artifacts["draft_id"]
+        addr = pub.execute(act("publish.preview", {"draft_id": draft_id}, scope="publish.draft"), plain).observations[0].data["where"]["address"]
+        submit = act("publish.submit", {"draft_id": draft_id, "destination": addr}, scope="publish.write")
+        # the broker does not know this action's grant: no token, nothing sent - and that is a fault, not a rejection
+        res = pub.execute(submit, plain)
+        assert res.status == ResultStatus.DENIED and st.messages[st.general_id] == [] and pub.drafts()[0]["state"] == "previewed"
+        # with the grant on the context the token is released in the name of the publish.submit action
+        ctx = make_ctx(pol, secrets=broker)
+        ctx.authorization = broker.grant(submit)
+        res = pub.execute(submit, ctx)
+        assert res.status == ResultStatus.OK and [m["content"] for m in st.messages[st.general_id]] == ["words"]
+        assert broker.calls[-1]["action_id"] == submit.action_id and pub.drafts()[0]["state"] == "published"
+        assert getattr(ctx, "granted_action", None) is None                  # restored afterwards
+        # an update may state the draft's destination; another one is refused
+        ok = pub.execute(act("publish.update", {"draft_id": draft_id, "content": "w2", "destination": addr}, scope="publish.draft"), ctx)
+        bad = pub.execute(act("publish.update", {"draft_id": draft_id, "content": "w3", "destination": "channel:discord:1"},
+                              scope="publish.draft"), ctx)
+        assert ok.status == ResultStatus.OK and bad.failure_class == FailureClass.INVALID_ARGUMENTS
+        assert pub.drafts()[0]["revision"] == 2
+        discord.close()
 
 
 def test_condition_operators_accept_both_spellings():

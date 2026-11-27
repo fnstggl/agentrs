@@ -40,7 +40,7 @@ from ..contracts import (ActionResult, ActionSpec, AuthVerdict, Clock, Cost, Exe
                          Modality, Observation, OutcomeKind, PrimitiveOp, Provenance, Quantity, Record, ResultStatus,
                          RunFiles, ToolDescriptor, Trust, VerificationCondition, new_id)
 from .failures import FailureEvidence, authorization_result, classify, failed_result
-from .http_api import schema_errors, structure_hash
+from .http_api import acting_under, schema_errors, structure_hash
 
 STATUS_CANDIDATE, STATUS_VALIDATED, STATUS_STALE, STATUS_RETIRED = "candidate", "validated", "stale", "retired"
 
@@ -1126,14 +1126,8 @@ class SkillExecutor:
                                       level=Level.PROCEDURE, target=skill.skill_id,
                                       arguments={"skill_id": skill.skill_id, "arguments": args},
                                       auth_scope=" ".join(skill.required_scopes), provenance="skill_library")
-        had = getattr(ctx, "granted_action", None)
-        if had is None:
-            ctx.granted_action = action       # executors of the steps ask the secret broker in this action's name
-        try:
+        with acting_under(ctx, action):       # executors of the steps ask the secret broker in this action's name
             return self._run_skill(skill, args, ctx, action, validating)
-        finally:
-            if had is None:
-                ctx.granted_action = None
 
     def _run_skill(self, skill: Skill, args: Dict[str, Any], ctx: ExecContext, action: ActionSpec,
                    validating: bool) -> ActionResult:
