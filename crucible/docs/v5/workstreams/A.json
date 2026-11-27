@@ -191,6 +191,18 @@
     "families_checked_for_duplicates": 74,
     "families_with_duplicate_facts": 0,
     "typed_event_types": 109
+   },
+   "sp23b_commerce_trace_on_scratch_merge": {
+    "world": "commerce.worlds.startup_spec(0, n=600), 24 simulated hours, one CPU",
+    "modules": 23,
+    "writes_traced": 5784,
+    "writers": 13,
+    "targets": 74,
+    "cross_module_state_writes": 0,
+    "handler_writes": 0,
+    "column_writes_refused_by_rule": 0,
+    "replay_exact": true,
+    "events": 3137
    }
   }
  },

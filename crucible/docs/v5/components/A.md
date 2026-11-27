@@ -314,3 +314,19 @@ Measured in wave 3b (one CPU, CUDA hidden; unofficial):
   retention, data-level facts, `history.state_at`) need the slot scheduler (a civilisation runs 12 simulated hours
   in more than 5 minutes on one CPU without the GPU); they were queued and are reported in docs/v5/workstreams/A.json
   when they ran.
+
+### Wave 3b, third session (after the second usage-limit stop)
+
+* Mandatory fact scan on a fresh scratch merge (this branch + c5c/w3b-pop, -soc, -econ1, -civ, -dom1, -dom2, -dom3,
+  -econ2, -sem, -perf; 2026-11-27 01:50 UTC): dom3's `orgeco.org_use` was unreviewed and the `orgeco.org_props`
+  allow-list entry stale (dom3 now governs its backbone council through an `inst` charter); classified and removed.
+  Then 387 items over 115 modules, 0 problems. `measure_primitives` of gate SP-2.3 on that merge (26 s on one CPU):
+  shared_primitive_kinds 16 of 19 - product (dom3's `rcomm.rc_products`, allow-listed for I-3), relationship and
+  community keep known copies; 74 4.0 families without duplicate facts.
+* The sec/kcal conflict in `sandbox/metering.py` and `sandbox/runner.py` (per-lineage memo eviction vs D-80) has a
+  tested resolution (A.json integration_notes): sandbox and security sandbox tests 36 passed and the D-80 and disk-memo
+  tests passed on a trial merge.
+* SP-2.3b's commerce kind on the scratch merge (one CPU): 5,784 traced writes by 13 writers into 74 targets, 0
+  cross-module writes, 0 handler writes, exact replay (3,137 events). The population, social and civilisation kinds
+  need the GPU slot (a population world of 400 individuals did not finish 24 simulated hours in 280 s on the loaded
+  machine).
