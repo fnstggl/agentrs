@@ -2830,11 +2830,11 @@
   },
   {
    "workstream": "P (qa)",
-   "interrupted": "wave-3b continuation run wf_1e11fa88-ad3 (first resume): repair:qa stopped by a usage limit (2026-11-27 ~03:00-05:00 UTC); commits on the branch",
+   "interrupted": "wave-3b repair pass (fourth agent) stopped by a usage limit after commit 74e9bc38 (2026-11-27 ~05:00 UTC); a second repair agent resumed from 74e9bc38 at 07:03 UTC: verified the previous fixes with new probes (V9-V12), fixed the 4.0 line-count location dependence, X.n1/RP clone measurements",
    "recovery_branch": "c5c/w3b-qa",
-   "reassigned_to": "wave-3b continuation run resumed again (resumeFromRunId wf_1e11fa88-ad3): repair:qa reruns from the branch head + refreshed handoff notes",
-   "status": "reassigned",
-   "recorded_at": "2026-11-27T07:03:05+00:00",
+   "reassigned_to": "wave-3b repair pass, second agent (same branch), resumed from 74e9bc38 + feat/crucible-5-complete 629584a2",
+   "status": "resumed",
+   "recorded_at": "2026-11-27T07:57:12+00:00",
    "history": [
     {
      "interrupted": "wave-3b implementation agent impl:qa refused at start by a usage limit (2026-11-26 ~19:05 UTC); no work done",
@@ -2865,6 +2865,12 @@
      "reassigned_to": "wave-3b repair pass (fourth agent), same branch",
      "status": "resumed",
      "until": "2026-11-27T07:03:05+00:00"
+    },
+    {
+     "interrupted": "wave-3b continuation run wf_1e11fa88-ad3 (first resume): repair:qa stopped by a usage limit (2026-11-27 ~03:00-05:00 UTC); commits on the branch",
+     "reassigned_to": "wave-3b continuation run resumed again (resumeFromRunId wf_1e11fa88-ad3): repair:qa reruns from the branch head + refreshed handoff notes",
+     "status": "reassigned",
+     "until": "2026-11-27T07:57:12+00:00"
     }
    ]
   },
