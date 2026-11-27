@@ -162,6 +162,29 @@ def test_curriculum_history_statistics_are_computed_and_read_the_learner():
     assert mm["weakness"]["forgetting"] <= 0.1
 
 
+def test_t5_permutation_test_is_calibrated_and_has_power():
+    """T.5's learner-label permutation test (`curriculum_lab.permutation_pvalue`), adversarially: on null matrices
+    (a curriculum that does not read the learner - every learner's weights equally related to every truth, plus
+    category-bias columns that favour some truths whatever the learner is) the p-value is at most 0.05 in about 5%
+    of draws; with five learners (120 relabellings) and a diagonal effect it is small. Exactness: with ties in the
+    truths (two learners sharing a weakest category) the identity's sum is matched by the swap, so p >= 2/L!."""
+    from crucible.research.v5 import curriculum_lab as CL
+    rng = np.random.default_rng(5)
+    L = 5
+    ps = []
+    for _ in range(300):
+        M = rng.normal(0, 1, (L, L)) + rng.normal(0, 2, (1, L))       # truth-column bias, no learner effect
+        ps.append(CL.permutation_pvalue(M)[1])
+    ps = np.array(ps)
+    assert 0.02 <= float(np.mean(ps <= 0.05)) <= 0.09, float(np.mean(ps <= 0.05))
+    hit = np.mean([CL.permutation_pvalue(rng.normal(0, 1, (L, L)) + 2.5 * np.eye(L))[1] <= 0.05 for _ in range(100)])
+    assert hit >= 0.8, hit
+    M = np.eye(L) * 3.0
+    M[:, 1] = M[:, 0]                                                    # learners 0 and 1 share their truth
+    obs, p, n = CL.permutation_pvalue(M)
+    assert n == 120 and p >= 2 / 120 - 1e-12
+
+
 def test_proposal_safety_refuses_partition_fields_and_free_text(reg):
     v = P.validate_proposal(reg, {"topology": "chain", "split": "val"})
     assert not v["accepted"] and not v["checks"]["safety"]
