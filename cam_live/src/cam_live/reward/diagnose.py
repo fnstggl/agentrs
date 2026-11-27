@@ -34,7 +34,7 @@ from ..contracts import (ActionSpec, ExperienceRecord, GoalStatus, OutcomeObserv
                          SimClock, Trust, VerifiedOutcome)
 from ..diagnostics.collect import LabCollector, Lifetime, uniform_policy, verified_return
 from ..diagnostics.memstore import MemoryStore
-from ..diagnostics.world import LabConfig, LabVerifier, LabWorld
+from ..diagnostics.world import LabConfig, LabVerifier, LabWorld, lab_task
 from .inner import GroupClip, InnerBatch, InnerConfig, POLICY_PREFIX, TRUNK_PREFIX
 from .integrity import params_hash
 from .meta import MetaGradient, QueryData, finite_difference, flat
@@ -231,7 +231,8 @@ def run_learner(kind: str, seed: int, ec: ExperimentConfig, profile: bool = True
                 ml.policy_update(list(buf))
                 buf.clear()
         lt = LabCollector(store, max_context=ec.max_context, seq_start=L * 1000).run(
-            world, act, ec.n_decisions, seed=seed * 100_003 + L, on_step=on_step)
+            world, act, ec.n_decisions, seed=seed * 100_003 + L, on_step=on_step,
+            task=lab_task(world, objective_id=f"obj_lab_s{seed}_l{L}"))      # deterministic outcome-group keys
         if kind != "verified_pg" and len(buf) >= 2:
             ml.policy_update(list(buf))
         U = verified_return(lt)
@@ -468,7 +469,8 @@ def lab_lifetime(ml: MetaLearner, store: MemoryStore, clock: SimClock, ec: Exper
             updates.append(ml.policy_update(list(buf)))
             buf.clear()
     lt = LabCollector(store, max_context=ec.max_context, seq_start=int(ml.stats["policy_updates"]) * 1000 + 1).run(
-        world, act, n_decisions or ec.n_decisions, seed=seed, on_step=on_step)
+        world, act, n_decisions or ec.n_decisions, seed=seed, on_step=on_step,
+        task=lab_task(world, objective_id=f"obj_lab_{seed}"))
     return lt, world, updates
 
 

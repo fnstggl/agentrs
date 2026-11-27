@@ -145,11 +145,13 @@ def test_promotion_moves_the_mix_only_on_held_out_evidence():
                                          min_independent=2)
     ml.mixer.min_independent = 2
     recs = []
-    for i in range(10):
+    for i in range(30):                                           # until the held-out buffer allowed a decision
         _lifetimes(ml, store, clock, ec, 1, 70 + i)
         m = ml.meta_update()
         if m.applied:
             recs.append(m)
+        if ml.mixer.decisions:
+            break
     assert recs and ml.mixer.decisions
     dec = ml.mixer.decisions[0]
     assert dec.n_independent >= 2 and dec.action == "lower" and dec.mix_after == 0.75   # margin 1.0: no harm shown
@@ -159,11 +161,14 @@ def test_promotion_moves_the_mix_only_on_held_out_evidence():
     assert held and len(held) < len(ml.ledger)                    # some groups were reserved, not all
     # demanding superiority by an impossible margin moves the mix back up
     ml.mixer.tolerance = -1e9
-    before = ml.mixer.mix
-    for i in range(8):
-        _lifetimes(ml, store, clock, ec, 1, 90 + i)
+    before, n0 = ml.mixer.mix, len(ml.mixer.decisions)
+    for i in range(30):
+        _lifetimes(ml, store, clock, ec, 1, 200 + i)
         ml.meta_update()
-    assert ml.mixer.decisions[-1].action == "raise" and ml.mixer.mix >= before
+        if len(ml.mixer.decisions) > n0:
+            break
+    assert len(ml.mixer.decisions) > n0
+    assert ml.mixer.decisions[-1].action == "raise" and ml.mixer.mix == min(1.0, before + 0.25)
 
 
 def test_external_optimizer_path_and_unroll_across_two_events():
