@@ -188,7 +188,8 @@ def test_registered_randomised_experiment_recovers_the_true_difference(tmp_path,
         question="Do the two channels differ in adopters per unit effort within the attribution window?",
         hypothesis=f"{arms[0]} yields more adopters than {arms[1]}",
         predictions=[PredictionRecord(new_id("pred"), exp_pred_query, D.Normal(0.0, 3.0).to_record(), lab.clock.now())],
-        arms=arms, assignment="randomized", intervention="lab.act effort 1", comparison=arms[1], horizon_s=3 * DAY)
+        arms=arms, assignment="randomized", intervention="lab.act effort 1", comparison=arms[1], horizon_s=3 * DAY,
+        experiment_id="exp_lab_channels")                             # fixed id: the assignment draw is reproducible
     eid = rec.experiment_id
     units = []
     for t in range(60):

@@ -219,7 +219,7 @@ def _register(er, clock, **kw):
 
 def test_experiment_lifecycle_with_randomised_assignment(exps):
     er, preds, clock, tmp = exps
-    rec = _register(er, clock)
+    rec = _register(er, clock, experiment_id="exp_variant")             # fixed id: reproducible assignment
     assert isinstance(rec, ExperimentRecord) and rec.status == "registered" and rec.supported is None
     assert rec.predicted[0].query.experiment_id == rec.experiment_id
     assert "p100" in preds and preds.get("p100").resolved_status == OutcomeStatus.PENDING   # registered before acting

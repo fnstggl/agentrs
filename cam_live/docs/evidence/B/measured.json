@@ -56,10 +56,10 @@
  "labworld_count_nll_oracle": 1.8993648815636053,
  "labworld_cover90_after_learning": 0.9666666666666667,
  "labworld_experiment_ci": [
-  2.0776838646763123,
-  3.788982801990355
+  1.9448145790168967,
+  3.2516139924116745
  ],
- "labworld_experiment_estimated_difference": 2.9333333333333336,
+ "labworld_experiment_estimated_difference": 2.5982142857142856,
  "labworld_experiment_true_difference": 2.5397634689911106,
  "labworld_predicted_vs_true_mean_corr": 0.9849009776753656,
  "policy_accuracy_permuted_belief": 0.25,
