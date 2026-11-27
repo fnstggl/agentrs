@@ -207,34 +207,51 @@ def _topic_for(coords: np.ndarray, rng, tech: bool, k: int) -> np.ndarray:
     return np.argmax(score, axis=1)
 
 
-REVIEW_P = 0.35            # a member who relies on a provider that works for it recommends it this often
+REVIEW_P = 0.35            # a member with a provider that pays off for it writes about it this often when it creates
 HUNT_P = 0.5               # ... and, when nobody has launched it yet, posts it on the product-discovery platform
+TEXT_MEDIA = ("post", "status", "article")     # the media a recommendation is written in
 
 
-def _recommendation(ctx: Ctx, i: int, rng) -> tuple[str, str, dict, str] | None:
-    """(title, body, link, name) of a recommendation of a service the member relies on in its work and that works for it
-    (its own adoption record of `economy.work`: at least 3 uses, at least 2/3 accepted), naming the service's
-    address - or None. `link` is what a launch post of it would link (the product, else the service host). Read-only
-    use of the member's own experience; the text is the member's (no score, no bonus)."""
+def _recommendable(ctx: Ctx, i: int) -> list[tuple[str, dict, dict]]:
+    """[(provider id, adoption record, public description)] of the services the member still relies on for its work
+    after at least 3 uses, at least one of them accepted downstream (its own adoption records of `economy.work`).
+    `economy.work` drops a provider once the member's own valuation of it turns negative after three outcomes
+    (`_after_session`: cancel when uses >= 3 and the expected value < 0), so still relying on one after three uses is
+    the member's revealed judgement that it pays off for its work - also when not every task is accepted (it saves
+    hand work on the others). Read-only use of the member's own records."""
     st = ctx.state
     work = ctx.world.modules.get("work")
     if work is None or "work_exp" not in st.tables:
-        return None
+        return []
     good = []
     for key in st.find_ids("work_exp", "i", int(i)):
         r = st.tables["work_exp"][key]
-        if r["active"] and r["uses"] >= 3 and r["ok"] >= (2.0 / 3.0) * r["uses"]:
+        if r["active"] and r["uses"] >= 3 and r["ok"] >= 1:
             prov = work._provider(st, r["prov"])
             if prov is not None and prov.get("host"):
                 good.append((r["prov"], r, prov))
-    if not good or rng.random() >= REVIEW_P:
-        return None
+    return good
+
+
+def _recommendation(ctx: Ctx, i: int, rng, good: list[tuple[str, dict, dict]]) -> tuple[str, str, dict, str]:
+    """(title, body, link, name) of the member's recommendation of one of the services in `good`
+    (`_recommendable`), naming the service's address and saying how it went for the member (its own counts). `link`
+    is what a launch post of it would link (the product, else the service host). The text is the member's (no score,
+    no bonus)."""
+    st = ctx.state
+    work = ctx.world.modules["work"]
     pid, r, prov = good[int(rng.integers(0, len(good)))]
     task = work.task_text(r["step_need"])
     name = (st.get("products", pid) or {}).get("name") or prov["host"]
+    ok, uses = int(r["ok"]), int(r["uses"])
     title = f"How I get my {task.split()[0].lower()} work done"[:C.MAX_TITLE]
-    body = (f"For my work I need {task}. I use {name} (http://{prov['host']}.crucible/): it handled {int(r['ok'])} "
-            f"of my last {int(r['uses'])} tasks well enough for my employer. Recommended if you do the same work.")
+    if ok >= (2.0 / 3.0) * uses:
+        verdict = (f"it handled {ok} of my last {uses} tasks well enough for my employer. Recommended if you do the "
+                   "same work.")
+    else:
+        verdict = (f"{ok} of my last {uses} tasks went through with it and I redo the others by hand - still faster "
+                   "than doing everything myself. Worth a try if you do the same work.")
+    body = f"For my work I need {task}. I use {name} (http://{prov['host']}.crucible/): {verdict}"
     pr = st.get("products", pid) if "products" in st.tables else None
     link = {"product": pid} if pr is not None and pr.get("status") == "launched" else {"host": prov["host"]}
     return title, body, link, name
@@ -281,9 +298,18 @@ def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
     spent = np.zeros(n)
     u = np.zeros(n)
     media_made: list[str] = []
+    text_media = [MEDIUM_NAMES.index(x) for x in TEXT_MEDIA if avail[MEDIUM_NAMES.index(x)]]
     for j in range(n):
         i = int(idx[j])
-        m = MEDIUM_NAMES[int(choice[j])]
+        cj = int(choice[j])
+        rec_post = None
+        good = _recommendable(ctx, i) if writer[j] and text_media else []
+        if good and rng.random() < REVIEW_P:
+            # a member with a service that pays off for its work sometimes writes about it instead of its usual
+            # piece, in the text medium it likes best right now (its own logits over this world's text media)
+            cj = max(text_media, key=lambda c: float(logits[j, c]))
+            rec_post = _recommendation(ctx, i, rng, good)
+        m = MEDIUM_NAMES[cj]
         plat, kind, (lo, hi), (s_lo, s_hi) = MEDIA[m]
         minutes = min(left[j], lo + (hi - lo) * rng.random() * (0.5 + skills[j, 1]))
         if minutes < lo * 0.5 or not writer[j]:
@@ -311,7 +337,6 @@ def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
         skill = float(skills[j, 1])
         n_sent = int(rng.integers(s_lo, s_hi + 1))
         cid = None
-        rec_post = _recommendation(ctx, i, rng) if m in ("post", "status", "article") else None
         try:
             if rec_post is not None:
                 # a recommendation of a service that works for the member (text naming its address); a service
@@ -344,7 +369,7 @@ def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
             cid = None
         if cid is None:
             u[j] = -0.1
-            value[j, int(choice[j])] += VALUE_RATE * (-0.2 - value[j, int(choice[j])])
+            value[j, cj] += VALUE_RATE * (-0.2 - value[j, cj])
             continue
         rec = ctx.state.tables["content"][cid]
         if rec.get("aud_item") is not None:
