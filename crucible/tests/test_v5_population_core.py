@@ -349,6 +349,21 @@ def test_category_condition_sites_carry_a_perceivable_regularity_the_switch_reve
         PX.adaptation(0, 1, condition="nonsense")
 
 
+def test_class2_and_class3_decisions_go_through_the_batching_service(run2):
+    """Every class-2 decision (resource choice, activity choice, day review) and every class-3 decision is a row of a
+    call of the shared batching service (substrate.inference_batch), accounted per participant class."""
+    from crucible.substrate import inference_batch as IB
+    _, w, _ = run2
+    rep = IB.report(IB.stats(w))
+    assert rep["by_class"]["2"]["rows"] > 0 and rep["by_class"]["3"]["rows"] > 0
+    ops = rep["by_op"]
+    st = w.runtime["pop_adaptive.stats"]
+    assert ops["method.scores(obs,mem,cand)->scores,memory[scores]"]["rows"] == st["resource_decisions"] > 0
+    assert ops["method.act_scores(obs,mem,acand)->scores,memory"]["rows"] == st["act_decisions"] > 0
+    assert ops["method.step_memory(obs,mem)->memory"]["rows"] == st["day_reviews"] > 0
+    assert ops["strategic.logits"]["rows"] == sum(1 for e in w.log if e.type == "pop_strategic.exp") > 0
+
+
 def test_policy_updates_are_recorded(run2):
     _, w, _ = run2
     ups = [e for e in w.log if e.type == "pop.policy_update"]
