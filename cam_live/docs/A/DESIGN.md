@@ -67,12 +67,12 @@ Probes: `docs/verification/repro/nn/`; numbers below are from running them on th
 |---|---|---|---|
 | D1 GLM update not converged far from the prior predictor (rate off x1.9-x339) | Monotone safeguarded mode search to `|step| <= 1e-11 (1 + |eta|)`, cap 100, iterations and convergence returned; implicit-function gradient; `online_nll` and `fast_compare` use it | `probe_fast.py`: all 11 "Laplace mode reached" rows hold (error 0.000 nats; 30 days / one year of censoring in seconds, 3 in 1e7, 0 at 1e9, 1e6 of 1e6 trials) | — |
 | D2 count dispersion tempered binary / time-to-event | Dispersion applied to counts only; `exp(disp_raw)`, exactly 1 at init (was 1.018); the Cholesky jitter is a floor, so the default prior is `prior_var * I` | stateful binary / time-to-event == untempered Laplace (1.3e-10); 50 updates at dispersion 7.4: eta 2.527 == exact | — |
-| D3 bf16 LM head | float32 final norm + float32 head (see the table above) | head error on the same hidden states 0.143 -> 0.0000 max per token | vs the float32 **model** the bf16 trunk still gives -0.16 / -0.36 / +0.12 / -0.05 / -0.00 nats for completions of 1 / 1 / 11 / 1 / 2 tokens (was -0.21 / -0.31 / +0.13 / -0.02 / +0.01): the head was not the main error. KV-cache sampler vs `generation_logprob` on the same tokens: max 0.073 per token (was 0.10). The probe checks "within 0.05 nats per token of the float32 model" and "sampler agrees to 0.05" still fail. |
+| D3 bf16 LM head | float32 final norm + float32 head (see the table above); costs ~4 % of generation speed (same-process A/B: 22.1 vs 23.0 tokens/s at batch 1, 177.4 vs 184.3 at batch 8) | head error on the same hidden states 0.143 -> 0.0000 max per token | vs the float32 **model** the bf16 trunk still gives -0.16 / -0.36 / +0.12 / -0.05 / -0.00 nats for completions of 1 / 1 / 11 / 1 / 2 tokens (was -0.21 / -0.31 / +0.13 / -0.02 / +0.01): the head was not the main error. KV-cache sampler vs `generation_logprob` on the same tokens: max 0.073 per token (was 0.10). The probe checks "within 0.05 nats per token of the float32 model" and "sampler agrees to 0.05" still fail. |
 | D4 NIG `predict()` variance | epistemic + noise = `(b / (a - 1)) (1 + q)` (Student-t variance), `linear()` likewise | ratio 1.000 (was 0.5 at the default prior) | the probe's Student-t calibration check standardises by `predict()` and compares with Student-t quantiles, which apply to the *scale* `(b / a)(1 + q)`: it now reads 0.924 instead of 0.899 — that check and the D4 check cannot both hold for a < infinity |
 | D5 impossible observations absorbed | `check_observations` in `update` and `online_nll` (masked rows ignored); state untouched on rejection | holds | — |
 | D6 conditioning tested on white noise | test on realistic pipeline inputs; numbers reported (table above) | probe check (< 1e4) still fails: 2.3e4 (was 5.4e4) | not fixed: an initialisation property; the fast layer stays exact on such features |
 | D7 one-argument candidates indistinguishable | argument value channel | cos(z) e3 / e4 0.747 (was 0.9997), two operations 0.584 | the recorded init diagnostics `z_cos_between_two_actions` / `action_embedding_cos_between_two_actions` changed to 0.586 / 0.405 by design |
-| D8 batch-composition dependence | fixed-shape embedding forwards | embedding alone vs in a batch 0.0 (was 0.011); b 0.0 (was 0.014); `with_grad` vs cache 0.0 (was 1.6e-4) | — |
+| D8 batch-composition dependence | fixed-shape embedding forwards | embedding alone vs in a batch 0.0 (was 0.011); b 0.0 (was 0.014); `with_grad` vs cache 0.0 (was 1.6e-4) | cost (same-process A/B, loaded machine): uncached embedding throughput 67-79 % of dynamic padding for large calls (256 x 32, 128 x 128, 64 x 384 tokens), 40-70 % for calls of one to four short texts |
 | D9 `arch_signature` incomplete | backbone settings incl. `max_text_tokens`, tiny-LM seed, dropout, encoding version | `probe_saveload_cpu.py` 8 / 8 | — |
 | D10 stale caches after `.data` writes | content check per call; `mark_adapters_updated` clears the LoRA casts | `probe_stale_cache.py` 3 / 3 | — |
 | D11 weak tests | causality with a live time bias (and shown to catch a leaking time basis); real-backbone gradients checked by finite differences on the float32 backbone (`test_gpu_qwen_fp32.py`); GLM updates against scipy references far from the prior; save -> fresh process -> load | — | `test_fast_compare.py` still checks the recorded JSON's structure only |
@@ -100,20 +100,27 @@ the tap capture are instance state).
 
 ## Measured: fast adaptation (`docs/evidence/A/fast_adaptation.json`, `fast_adaptation_noise_mode.json`)
 
+Regenerated with the final code (converged GLM updates, count-only dispersion `exp(disp_raw)` = 1 at init): the
+Gaussian numbers and the noise-mode ablation are unchanged to 4 decimals; the count numbers changed — most for the
+BLR baseline, which is itself a Laplace GLM (held-out NLL 3.3037 -> 2.9467; its in-distribution RMSE 95.75 -> 26.45:
+the unconverged updates had broken it).
+
 Mean prequential NLL over support sizes 1..31 (nats; lower is better; 2 seeds x 600 tasks per split):
 
 | Target / split | learned-prior Bayes | BLR on raw inputs | GRU | running statistics |
 |---|---:|---:|---:|---:|
 | Gaussian, held-out families | 0.8909 | 1.1149 | 1.1196 | 1.4483 |
 | Gaussian, training families | 0.2132 | 0.7996 | 0.5753 | 1.4447 |
-| Count, held-out families | 2.6201 | 3.3037 | 2.6381 | 5.7539 |
-| Count, training families | 2.275 | 3.2697 | 2.3903 | 6.2771 |
+| Count, held-out families | 2.6237 | 2.9467 | 2.6381 | 5.7539 |
+| Count, training families | 2.2748 | 2.8260 | 2.3903 | 6.2771 |
 
 Where the learned prior does **not** win:
 
 * Gaussian targets before about three observations: held-out NLL at k=0 is 1.6995 against 1.4188 (GRU) and 1.467 (running statistics); at k=1 1.5156 against 1.3854. It leads from k=3 (1.3269 vs 1.3325). The conjugate normal-inverse-gamma prior ties weight uncertainty to the unknown noise scale, so its prior predictive is heavy-tailed.
+* Gaussian, held-out families, point accuracy: the GRU has the lower RMSE of the predictive mean (0.8185 against 0.8629); the learned prior wins on calibrated uncertainty, not on point accuracy.
+* Gaussian, training families: the lead over the recorded GRU (hidden 64, 8000 steps) is not an advantage of the Bayesian layer — the verifier's GRU of hidden 256 trained 16000 steps reached 0.1825 against 0.2206 on seed 0 (`docs/verification/G_nn.md`, not re-run here); wider GRUs transfer worse to held-out families.
 * With a fixed learned noise variance instead (ablation) the k=0 prediction is calibrated (1.4005) but the layer becomes over-confident on held-out families: mean NLL 1.9933 against 0.8909. Inferred noise is therefore the default (`nn.fast_noise_mode = "nig"`).
-* Counts on held-out families: 2.6201 against 2.6381 for the GRU with a negative-binomial head — a margin of -0.018 nats (z = -2.31), and the GRU is ahead at k=31. Not a robust win.
+* Counts on held-out families: 2.6237 against 2.6381 for the GRU with a negative-binomial head — a margin of -0.0144 +- 0.0080 nats (z = -1.8, tasks pooled over seeds), and the GRU is ahead at k=31 (2.4892 vs 2.5081). Not a significant win.
 
 Consequence for the world model (Workstream B): at very small support the head's own prediction should carry the
 forecast and the fast layer should act as the correction that takes over as evidence accumulates.
@@ -122,5 +129,8 @@ forecast and the fast layer should act as the correction that takes over as evid
 
 Frozen 4,022,468,096 · experiential 50,953,765 ·
 adapters 16,713,856 (LoRA 11,796,480 + bridge 4,917,376) ·
-total persistent trainable 67,667,621. Load 6.22 s,
-7.804 GB after load, peak 13.141 GB over the whole benchmark.
+total persistent trainable 67,667,621. 7.805 GB after load, peak 12.83 GB over the whole benchmark (re-run on the
+final code at CPU load average ~26 on the shared GPU: load 15.6 s, generation 11.8 / 94.8 tokens/s at batch 1 / 8 —
+lower bounds; the earlier recording at load ~5 gave 6.22 s and 24.1 / 192.7). Adapter backward (batch 4, 256
+tokens, checkpointing): generation 0.65 GB extra (was 1.06: the log-probabilities no longer materialise
+[positions, vocabulary] logits), embedding path 0.31 GB.

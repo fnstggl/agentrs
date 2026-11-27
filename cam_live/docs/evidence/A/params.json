@@ -1,13 +1,13 @@
 {
- "command": "python -m cam_live.nn.bench ",
- "written_at_unix": 1795742015.9,
+ "command": "python -m cam_live.nn.bench --out /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/A/params_final.json",
+ "written_at_unix": 1795762132.6,
  "environment": {
   "torch": "2.15.0+cu132",
   "python": "3.12.15",
   "cpu_load_average_at_start": [
-   2.93,
-   6.25,
-   7.49
+   25.83,
+   24.99,
+   28.31
   ],
   "note": "the machine and the GPU are shared with other jobs; speeds are lower bounds",
   "cuda": true,
@@ -48,9 +48,9 @@
    "nn_overrides": {
     "sem_rank": 96
    },
-   "master_preset_d_ff": 640,
-   "cpu_build_s": 0.07,
-   "cpu_core_forward_ms_b4_t64": 25.9
+   "master_preset_d_ff": 320,
+   "cpu_build_s": 0.41,
+   "cpu_core_forward_ms_b4_t64": 7208.6
   },
   "20m": {
    "experiential_params": 20087333,
@@ -75,9 +75,9 @@
    "nn_overrides": {
     "sem_rank": 192
    },
-   "master_preset_d_ff": 1280,
-   "cpu_build_s": 0.27,
-   "cpu_core_forward_ms_b4_t64": 73.5
+   "master_preset_d_ff": 576,
+   "cpu_build_s": 0.92,
+   "cpu_core_forward_ms_b4_t64": 8662.4
   },
   "50m": {
    "experiential_params": 50953765,
@@ -102,9 +102,9 @@
    "nn_overrides": {
     "sem_rank": 384
    },
-   "master_preset_d_ff": 1792,
-   "cpu_build_s": 0.65,
-   "cpu_core_forward_ms_b4_t64": 107.1
+   "master_preset_d_ff": 1024,
+   "cpu_build_s": 1.73,
+   "cpu_core_forward_ms_b4_t64": 4992.0
   },
   "150m": {
    "experiential_params": 151022853,
@@ -127,8 +127,8 @@
     "n_features": 192
    },
    "nn_overrides": {},
-   "master_preset_d_ff": 2560,
-   "cpu_build_s": 1.75
+   "master_preset_d_ff": 2048,
+   "cpu_build_s": 2.11
   },
   "500m": {
    "experiential_params": 502708549,
@@ -152,7 +152,7 @@
    },
    "nn_overrides": {},
    "master_preset_d_ff": 4096,
-   "cpu_build_s": 5.67
+   "cpu_build_s": 10.62
   },
   "1b": {
    "experiential_params": 1000547333,
@@ -175,8 +175,8 @@
     "n_features": 256
    },
    "nn_overrides": {},
-   "master_preset_d_ff": 5376,
-   "cpu_build_s": 11.37
+   "master_preset_d_ff": 5504,
+   "cpu_build_s": 24.41
   },
   "debug": {
    "experiential_params": 202421,
@@ -203,9 +203,9 @@
  },
  "real_configuration": {
   "status": "measured",
-  "load_s": 6.22,
-  "gpu_memory_after_load_gb": 7.804,
-  "gpu_peak_during_load_gb": 7.804,
+  "load_s": 15.6,
+  "gpu_memory_after_load_gb": 7.805,
+  "gpu_peak_during_load_gb": 7.805,
   "parameters": {
    "frozen": 4022468096,
    "experiential": 50953765,
@@ -230,12 +230,15 @@
    "pretrained": true,
    "hidden": 2560,
    "n_layers": 36,
+   "vocab": 151936,
    "d_sem": 7680,
    "tap_layer_ids": [
     17,
     26,
     35
    ],
+   "max_text_tokens": 384,
+   "max_prompt_tokens": 2048,
    "lora": {
     "rank": 32,
     "alpha": 32.0,
@@ -268,19 +271,20 @@
    "n_slots": 8,
    "n_features": 128,
    "max_context": 256,
-   "max_values": 4
+   "max_values": 4,
+   "dropout": 0.0
   },
   "init_diagnostics": {
-   "token_cos_plus1_minus1": 0.18,
+   "token_cos_plus1_minus1": 0.1803,
    "token_cos_100_103": 0.9749,
-   "token_cos_same_value_two_metrics": 0.5591,
-   "belief_cos_between_contexts": 0.1356,
-   "z_cos_under_permuted_belief": 0.7213,
-   "belief_relative_change_under_permutation": 1.3149,
-   "z_relative_change_under_permuted_belief": 0.7466,
-   "z_cos_between_two_actions": 0.8256,
-   "action_embedding_cos_between_two_actions": 0.7628,
-   "state_constant_fraction_after_one_call": 0.4006,
+   "token_cos_same_value_two_metrics": 0.5592,
+   "belief_cos_between_contexts": 0.1366,
+   "z_cos_under_permuted_belief": 0.7165,
+   "belief_relative_change_under_permutation": 1.3141,
+   "z_relative_change_under_permuted_belief": 0.753,
+   "z_cos_between_two_actions": 0.5857,
+   "action_embedding_cos_between_two_actions": 0.4057,
+   "state_constant_fraction_after_one_call": 0.4018,
    "slot_gate_mean": 0.1242,
    "phi_norm": 0.999999
   },
@@ -288,109 +292,109 @@
    "32_tokens": {
     "texts": 256,
     "tokens": 8192,
-    "texts_per_s": 325.3,
-    "tokens_per_s": 10409.0,
-    "peak_extra_gb": 0.875
+    "texts_per_s": 212.8,
+    "tokens_per_s": 6810.0,
+    "peak_extra_gb": 0.162
    },
    "128_tokens": {
     "texts": 128,
     "tokens": 16384,
-    "texts_per_s": 83.0,
-    "tokens_per_s": 10625.0,
-    "peak_extra_gb": 1.75
+    "texts_per_s": 53.2,
+    "tokens_per_s": 6804.0,
+    "peak_extra_gb": 0.158
    },
    "384_tokens": {
     "texts": 64,
     "tokens": 24576,
-    "texts_per_s": 27.8,
-    "tokens_per_s": 10657.0,
-    "peak_extra_gb": 1.723
+    "texts_per_s": 18.3,
+    "tokens_per_s": 7038.0,
+    "peak_extra_gb": 0.116
    },
-   "cached_384_tokens_texts_per_s": 47335.0
+   "cached_384_tokens_texts_per_s": 36858.0
   },
   "generation": {
    "batch1_no_bridge": {
     "new_tokens": 128,
-    "tokens_per_s": 24.1,
-    "seconds": 5.308,
-    "peak_extra_gb": 0.031
+    "tokens_per_s": 11.8,
+    "seconds": 10.854,
+    "peak_extra_gb": 0.056
    },
    "batch1_with_bridge": {
     "new_tokens": 128,
-    "tokens_per_s": 22.8,
-    "seconds": 5.609,
-    "peak_extra_gb": 0.031
+    "tokens_per_s": 9.8,
+    "seconds": 13.08,
+    "peak_extra_gb": 0.056
    },
    "batch8_no_bridge": {
     "new_tokens": 1024,
-    "tokens_per_s": 192.7,
-    "seconds": 5.313,
-    "peak_extra_gb": 0.19
+    "tokens_per_s": 94.8,
+    "seconds": 10.797,
+    "peak_extra_gb": 0.196
    },
    "batch8_with_bridge": {
     "new_tokens": 1024,
-    "tokens_per_s": 181.3,
-    "seconds": 5.648,
-    "peak_extra_gb": 0.19
+    "tokens_per_s": 91.0,
+    "seconds": 11.252,
+    "peak_extra_gb": 0.195
    }
   },
   "bridge_noop_check": {
    "bridge_max_abs_logit_diff_at_init": 0.0,
    "bridge_logits_bit_identical_at_init": true,
-   "literal_zero_prefix_max_abs_logit_diff": 1.0469,
-   "literal_zero_prefix_total_variation": 3e-05,
+   "literal_zero_prefix_max_abs_logit_diff": 1.0513,
+   "literal_zero_prefix_total_variation": 2e-05,
    "note": "8 all-zero embeddings prepended to the sequence change the next-token distribution (they take softmax attention mass and shift positions); the cross-attention bridge is exactly neutral at init"
   },
   "adapter_backward": {
    "generation_logprob_gradient_checkpointing": {
-    "seconds": 0.378,
-    "peak_extra_gb": 1.057,
-    "peak_total_gb": 8.927,
-    "grad_norm_adapters": 1.15271,
-    "grad_norm_lora": 0.88412,
-    "grad_norm_bridge": 0.73965
+    "seconds": 0.954,
+    "peak_extra_gb": 0.65,
+    "peak_total_gb": 8.567,
+    "grad_norm_adapters": 1.14604,
+    "grad_norm_lora": 0.87877,
+    "grad_norm_bridge": 0.73563
    },
    "embedding_path_gradient_checkpointing": {
-    "seconds": 0.388,
-    "peak_extra_gb": 0.304,
-    "peak_total_gb": 8.174,
-    "grad_norm_adapters": 0.11491
+    "seconds": 0.821,
+    "peak_extra_gb": 0.308,
+    "peak_total_gb": 8.224,
+    "grad_norm_adapters": 0.1141
    },
    "generation_logprob_no_checkpointing": {
-    "seconds": 0.284,
-    "peak_extra_gb": 5.266,
-    "peak_total_gb": 13.141,
-    "grad_norm_adapters": 1.15153,
-    "grad_norm_lora": 0.88354,
-    "grad_norm_bridge": 0.7385
+    "seconds": 0.424,
+    "peak_extra_gb": 4.904,
+    "peak_total_gb": 12.823,
+    "grad_norm_adapters": 1.15075,
+    "grad_norm_lora": 0.88263,
+    "grad_norm_bridge": 0.73836
    },
    "embedding_path_no_checkpointing": {
-    "seconds": 0.275,
-    "peak_extra_gb": 4.408,
-    "peak_total_gb": 12.283,
-    "grad_norm_adapters": 0.11491
+    "seconds": 0.331,
+    "peak_extra_gb": 4.448,
+    "peak_total_gb": 12.369,
+    "grad_norm_adapters": 0.11411
    },
    "shape": "batch 4, 256 tokens per row (generation: 128 prompt + 128 completion tokens)",
    "adapter_params": 16713856
   },
   "joint_loss_grad_norms": {
-   "experiential": 597.7935791015625,
-   "semantic_adapters": 3.5810763835906982,
-   "adapters_over_experiential": 0.006,
+   "experiential": 568.5054931640625,
+   "semantic_adapters": 3.3101580142974854,
+   "adapters_over_experiential": 0.0058,
    "note": "random-probe loss on phi at initialisation; adapters see the newest 2 of 8 items"
   },
   "experiential_core_step_b16_t256": {
-   "seconds": 0.088,
+   "seconds": 0.091,
    "peak_extra_gb": 1.556,
-   "peak_total_gb": 9.531
+   "peak_total_gb": 9.577
   },
   "experiential_core_forward_b16_t256": {
-   "seconds": 0.033,
+   "seconds": 0.034,
    "peak_extra_gb": 0.369,
-   "peak_total_gb": 8.345
+   "peak_total_gb": 8.39
   },
-  "gpu_peak_total_gb": 13.141,
+  "gpu_peak_total_gb": 12.83,
   "gpu_memory_after_release_gb": 0.065,
-  "gpu_lock_held_s": 37.9
+  "gpu_lock_held_s": 78.5
  }
 }

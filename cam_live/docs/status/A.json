@@ -1,6 +1,6 @@
 {
  "workstream": "A",
- "commit": "40b55ab",
+ "commit": "a517478",
  "summary": "Neural architecture: frozen Qwen3-4B with float32 LoRA adapters and a zero-initialised cross-attention latent bridge; experience tokenizer with a separate exact-value channel; causal experiential core with gated persistent slots and a direct current-event path; decision trunk and unit-norm feature map; Bayesian fast state (exact Gaussian / NIG, Laplace GLM with censoring, forgetting, change detection) with a learned prior; CamLiveModel implementing nn.api.LatentModelAPI; measured presets 5M-1B; benchmark and fast-adaptation comparison with recorded evidence.",
  "requirements": {
   "NA-01": {
@@ -104,7 +104,9 @@
     "tests/nn/test_api.py::test_parameter_groups_are_disjoint_and_cover_everything",
     "tests/nn/test_api.py::test_group_hashes_change_after_an_optimizer_step",
     "tests/nn/test_bench.py::test_recorded_parameter_evidence_matches_the_code",
-    "tests/nn/test_gpu_qwen.py::test_parameter_counts_of_the_real_configuration"
+    "tests/nn/test_gpu_qwen.py::test_parameter_counts_of_the_real_configuration",
+    "tests/nn/test_api.py::test_arch_signature_covers_every_behaviour_relevant_setting",
+    "tests/nn/test_api.py::test_trainable_state_round_trips_into_a_fresh_process"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
@@ -132,11 +134,14 @@
     "tests/nn/test_api.py::test_permuted_belief_changes_the_decision_latent",
     "tests/nn/test_api.py::test_experiential_weights_change_decisions_with_the_backbone_fixed",
     "tests/nn/test_api.py::test_shared_encode_decisions_runs_on_the_model",
-    "tests/nn/test_api.py::test_feature_gram_is_well_conditioned",
     "tests/nn/test_core.py::test_h_is_causal",
     "tests/nn/test_core.py::test_belief_reads_the_current_event_directly",
     "tests/nn/test_core.py::test_state_is_gated_input_dependent_and_carried",
-    "tests/nn/test_gpu_qwen.py::test_real_tokens_keep_numbers_and_the_latent_drives_decisions"
+    "tests/nn/test_gpu_qwen.py::test_real_tokens_keep_numbers_and_the_latent_drives_decisions",
+    "tests/nn/test_api.py::test_features_on_realistic_inputs_conditioning_and_fast_layer_numerics",
+    "tests/nn/test_api.py::test_candidates_differing_in_one_argument_are_distinguishable",
+    "tests/nn/test_gpu_qwen.py::test_one_argument_changes_the_decision_latent_on_the_real_backbone",
+    "tests/nn/test_gpu_qwen.py::test_features_on_realistic_inputs_real_configuration"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
@@ -146,7 +151,7 @@
     "docs/evidence/A/params.json",
     "docs/A/DESIGN.md"
    ],
-   "limitations": "Verified at initialisation and on small synthetic learning problems (8-step recall); whether the representations become useful abstractions that transfer across objectives is a question for training on real experience (Workstreams D / S), not shown here."
+   "limitations": "Verified at initialisation and on small synthetic learning problems (8-step recall); whether the representations become useful abstractions is a question for training on real experience (Workstreams D / S). phi is bounded (unit norm) but NOT well-conditioned on realistic inputs at initialisation: real configuration, 2304 realistic combinations: Gram max/min eigenvalue 2.3e4, 90 % of the mass in 23 of 128 directions; one query alone 4.5e5 (participation ratio 2.0). The float64 fast layer stays exact on such features (tested). Candidates that differ in one argument: cos(z) 0.747 on Qwen3-4B (was 0.9997); one of several argument leaves changing moves z less (bag of leaves)."
   },
   "NA-07": {
    "state": "implemented",
@@ -165,13 +170,18 @@
     "tests/nn/test_fast.py::test_nig_matches_closed_form_and_learns_noise",
     "tests/nn/test_fast.py::test_glm_updates_converge_to_generating_weights",
     "tests/nn/test_fast.py::test_censoring_is_used_not_ignored",
-    "tests/nn/test_fast.py::test_laplace_update_is_the_exact_posterior_mode",
     "tests/nn/test_fast.py::test_forgetting_and_change_detection_track_a_mechanism_change",
     "tests/nn/test_fast.py::test_change_detector_false_alarm_rate_is_low_under_the_model",
     "tests/nn/test_fast.py::test_kl_and_surprise_are_the_stated_quantities",
     "tests/nn/test_fast.py::test_functional_form_is_differentiable_alpaca_style",
     "tests/nn/test_fast.py::test_gradcheck_of_the_functional_updates",
-    "tests/nn/test_fast.py::test_sample_weights_clone_reset_and_state_dict"
+    "tests/nn/test_fast.py::test_sample_weights_clone_reset_and_state_dict",
+    "tests/nn/test_fast.py::test_laplace_mode_is_exact_far_from_the_prior",
+    "tests/nn/test_fast.py::test_glm_surprise_matches_accurate_quadrature_for_extreme_observations",
+    "tests/nn/test_fast.py::test_dispersion_tempers_counts_only",
+    "tests/nn/test_fast.py::test_mode_search_reports_iterations_and_non_convergence",
+    "tests/nn/test_fast.py::test_impossible_observations_are_rejected_without_touching_the_state",
+    "tests/nn/test_fast.py::test_nig_predict_variance_is_the_student_t_variance"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live"
@@ -179,7 +189,7 @@
    "evidence": [
     "docs/evidence/A/fast_adaptation.json"
    ],
-   "limitations": "One posterior per outcome kind (real, count, binary, time-to-event); categorical outcomes are not modelled by the fast layer (change request A-5). Non-Gaussian updates are Laplace approximations (exact mode, Gaussian shape). Time-to-event uses a constant-hazard (exponential) likelihood. Count over-dispersion is a single learned tempering factor."
+   "limitations": "One posterior per outcome kind (real, count, binary, time-to-event); categorical outcomes are not modelled by the fast layer (change request A-5). Non-Gaussian updates are Laplace approximations: the mode is exact (monotone safeguarded search to |step| <= 1e-11 (1 + |eta|), cap 100 iterations, measured <= 7 iterations for counts / time-to-event and <= 16 for 1e9 binomial trials; iterations and convergence are returned), the shape is Gaussian. Time-to-event uses a constant-hazard (exponential) likelihood. The learned dispersion exp(disp_raw) (1 at init) tempers count likelihoods only. Inferred-noise Gaussian: predict() returns the Student-t predictive variance (b/(a-1))(1+q); posterior()['cov'] / ['noise'] are the scale (b/a)V and b/a. Impossible observations raise ValueError (stateful update and online_nll)."
   },
   "NA-09": {
    "state": "implemented",
@@ -198,7 +208,14 @@
     "tests/nn/test_backbone.py::test_lora_and_bridge_get_gradient_from_generation_logprob",
     "tests/nn/test_backbone.py::test_gradient_checkpointing_gives_the_same_gradients",
     "tests/nn/test_backbone.py::test_embedding_cache_bypass_and_invalidation",
-    "tests/nn/test_gpu_qwen.py::test_adapters_get_gradient_through_both_paths_and_the_bridge_conditions"
+    "tests/nn/test_gpu_qwen.py::test_adapters_get_gradient_through_both_paths_and_the_bridge_conditions",
+    "tests/nn/test_backbone.py::test_caches_are_invalidated_by_any_change_of_what_they_depend_on",
+    "tests/nn/test_backbone.py::test_embedding_is_independent_of_the_other_texts_in_the_call",
+    "tests/nn/test_backbone.py::test_float32_head_matches_a_float64_reference_with_its_gradient",
+    "tests/nn/test_gpu_qwen.py::test_generation_logprob_has_a_float32_output_layer",
+    "tests/nn/test_gpu_qwen.py::test_embeddings_and_beliefs_do_not_depend_on_batch_composition",
+    "tests/nn/test_gpu_qwen.py::test_adapter_caches_follow_writes_through_data",
+    "tests/nn/test_gpu_qwen_fp32.py::test_float32_backbone_gradients_and_bf16_logprob_accuracy"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
@@ -208,7 +225,7 @@
    "evidence": [
     "docs/evidence/A/params.json"
    ],
-   "limitations": "What is shown: on Qwen3-4B all 72 LoRA modules receive non-zero gradient through the embedding path (tokens -> core -> loss) and through generation_logprob, frozen weights have requires_grad=False and no .grad, and one optimizer step changes outputs. NOT shown here: adapter updates driven by real experience - the slow adapter schedule that calls these paths belongs to Workstream D."
+   "limitations": "Shown on Qwen3-4B: all 72 LoRA modules and every bridge tensor receive gradient through the embedding path and through generation_logprob, and with the backbone loaded in float32 central finite differences along the analytic gradient equal its norm to 3 % for every path (embedding -> LoRA-B, generation -> LoRA-B, -> zero-init bridge, -> latent, -> all adapters, -> bridge -> b -> experiential weights). generation_logprob / the sampler use a float32 output layer (head error on the same hidden states 0.0000 nats, was up to 0.143); the bf16 decoder trunk still differs from the float32 model by up to 0.36 nats on a one-token completion, and the KV-cache sampler differs from generation_logprob by up to 0.073 nats per token. Caches follow the adapter content (also .data writes). NOT shown here: adapter updates driven by real experience (Workstream D's schedule)."
   },
   "NA-10": {
    "state": "implemented",
@@ -258,7 +275,8 @@
     "tests/nn/test_tokens.py::test_time_encoding_resolves_seconds_and_months",
     "tests/nn/test_tokens.py::test_token_time_and_padding",
     "tests/nn/test_tokens.py::test_stable_hash_is_process_independent",
-    "tests/nn/test_gpu_qwen.py::test_real_tokens_keep_numbers_and_the_latent_drives_decisions"
+    "tests/nn/test_gpu_qwen.py::test_real_tokens_keep_numbers_and_the_latent_drives_decisions",
+    "tests/nn/test_api.py::test_candidates_differing_in_one_argument_are_distinguishable"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
@@ -267,7 +285,7 @@
    "evidence": [
     "docs/evidence/A/params.json"
    ],
-   "limitations": "A token carries at most max_values (4) quantities; to_items continues longer lists in further items, while the candidate-action encoder keeps the first 4 cost quantities (dropped ones are counted in tokenizer.stats). Metric names are hashed into 2 x 2048 buckets (collisions possible). Relations and entities are text items; there is no graph structure."
+   "limitations": "A token carries at most max_values (4) quantities; to_items continues longer lists in further items, while the candidate-action encoder keeps the first 4 cost quantities (dropped ones are counted in tokenizer.stats). Action targets / arguments: up to 16 leaves through the value channel (numbers exact + hashed identity of every leaf), further leaves dropped and counted (stats['dropped_arguments']). Metric names are hashed into 2 x 2048 buckets (collisions possible). Relations and entities are text items; there is no graph structure."
   },
   "NA-12": {
    "state": "implemented",
@@ -321,7 +339,7 @@
     "docs/evidence/A/fast_adaptation.json",
     "docs/evidence/A/fast_adaptation_noise_mode.json"
    ],
-   "limitations": "See scientific_failures for where the learned prior loses (small support on Gaussian targets; fixed-noise variant; only a marginal lead on held-out counts). Synthetic meta-regression only (2-d inputs, 4 training and 3 held-out function families, 2 seeds, 600 evaluation tasks per split); it says nothing yet about real experience. The significance figures pool tasks that share one trained model per seed. Verdicts: {\"gaussian\": \"held-out families: winner = learned_prior_bayes; ranking = ['learned_prior_bayes', 'blr_raw', 'gru', 'running_stats']; learned prior WINS\", \"count\": \"held-out families: winner = learned_prior_bayes; ranking = ['learned_prior_bayes', 'gru', 'blr_raw', 'running_stats']; learned prior WINS\"}"
+   "limitations": "See scientific_failures for where the learned prior loses (small support on Gaussian targets; fixed-noise variant; point accuracy on held-out Gaussian families; in-distribution ranking against a larger GRU; only a marginal lead on held-out counts). Synthetic meta-regression only (2-d inputs, 4 training and 3 held-out function families, 2 seeds, 600 evaluation tasks per split); it says nothing yet about real experience. The significance figures pool tasks that share one trained model per seed. Re-run with the converged GLM updates and the count-only dispersion (exp(disp_raw), 1 at init): Gaussian numbers unchanged to 4 decimals; count numbers changed (the BLR baseline, a Laplace GLM, improved most). Verdicts: {\"gaussian\": \"held-out families: winner = learned_prior_bayes; ranking = ['learned_prior_bayes', 'blr_raw', 'gru', 'running_stats']; learned prior WINS\", \"count\": \"held-out families: winner = learned_prior_bayes; ranking = ['learned_prior_bayes', 'gru', 'blr_raw', 'running_stats']; learned prior WINS\"}"
   }
  },
  "public_api": [
@@ -341,16 +359,20 @@
   "cam_live.nn.tokens.relation_item(subject, predicate, obj, ts=0.0, ref='', trust='untrusted', quantities=None) -> ExperienceItem",
   "cam_live.nn.tokens.time_item(now, started=None, deadline=None, ref='') -> ExperienceItem; resource_items(state: dict, ts=0.0, ref='', prefix='resource', max_values=4) -> List[ExperienceItem]",
   "cam_live.nn.fast.FastPrior(n_features, *, prior_var=1.0, noise=0.5, a0=2.0, noise_mode='nig', kinds=FAST_KINDS)  # .prior(kind) -> dict of float64 tensors",
-  "cam_live.nn.fast.FastBeliefState(prior: FastPrior, *, forgetting=1.0, change_k=1.0, change_h=12.0, change_clip=9.0, change_forget=0.1, n_newton=12, device=None)",
+  "cam_live.nn.fast.FastBeliefState(prior: FastPrior, *, forgetting=1.0, change_k=1.0, change_h=12.0, change_clip=9.0, change_forget=0.1, n_newton=100, device=None)  # n_newton: iteration cap of the converged GLM mode search",
   "FastBeliefState.predict(phi, kind, exposure=None) -> (mean, epistemic_variance, noise)  # shaped like phi[..., 0], phi's device/dtype, outcome units",
-  "FastBeliefState.update(phi, y, kind, exposure=None, censored=None) -> {'surprise', 'kl', 'z2', 'change_detected', 'n', 'surprises', 'kls'}",
+  "FastBeliefState.update(phi, y, kind, exposure=None, censored=None) -> {'surprise', 'kl', 'z2', 'change_detected', 'n', 'surprises', 'kls'} + for GLM kinds 'newton_iters', 'converged'; ValueError on impossible observations",
   "FastBeliefState.sample_weights(n, kind, generator=None) -> Tensor[n, F] float64; .linear(phi, kind) -> (eta_mean, eta_var); .nll(phi, y, kind, exposure=None, censored=None)",
   "FastBeliefState.reset(kind=None, prior=None); .clone(); .state_dict(); .load_state_dict(sd); .posterior(kind); .kl_from_prior(kind); .supports(kind); .n_updates(kind)",
-  "cam_live.nn.fast.online_nll(prior: dict, phi[..., T, F], y[..., T], kind, *, mask=None, exposure=None, censored=None, noise_mode='nig', n_newton=6, update_mask=None) -> Tensor[..., T]",
-  "cam_live.nn.fast.gaussian_update(mu, cov, phi, y, noise) -> (mu, cov, info); nig_update(mu, V, a, b, phi, y) -> (mu, V, a, b, info); glm_update(mu, cov, phi, y, kind, exposure=None, censored=None, dispersion=1.0, n_newton=8) -> (mu, cov, info)",
+  "cam_live.nn.fast.online_nll(prior: dict, phi[..., T, F], y[..., T], kind, *, mask=None, exposure=None, censored=None, noise_mode='nig', n_newton=100, update_mask=None) -> Tensor[..., T]",
+  "cam_live.nn.fast.gaussian_update(mu, cov, phi, y, noise) -> (mu, cov, info); nig_update(mu, V, a, b, phi, y) -> (mu, V, a, b, info); glm_update(mu, cov, phi, y, kind, exposure=None, censored=None, dispersion=1.0 (counts only), n_newton=100, tol=1e-11) -> (mu, cov, info incl. 'newton_iters', 'converged')",
   "cam_live.nn.gpu.gpu_lock(timeout_s=1800.0, min_free_gb=0.0) -> context manager (raises GpuUnavailable)",
   "python -m cam_live.nn.bench [--skip-gpu] [--out PATH]; python -m cam_live.nn.fast_compare [--steps N] [--seeds ...] [--out PATH]",
-  "config section 'nn' (all optional): see cam_live.nn.presets.NNConfig"
+  "config section 'nn' (all optional): see cam_live.nn.presets.NNConfig",
+  "cam_live.nn.fast.check_observations(kind, y, exposure=None, censored=None, mask=None) -> None  # ValueError on impossible observations",
+  "CamLiveModel.backbone.sync_caches() -> bool  # content check run by every embedding / generation call",
+  "cam_live.nn.tokens.argument_quantities(action, max_leaves=16, stats=None) -> List[Quantity]",
+  "CamLiveModel.arch_signature() -> JSON-normalised dict (core, nn, backbone settings incl. max_text_tokens, backbone identity, encoding_version, heads)"
  ],
  "change_requests": 5,
  "extra_packages": [],
@@ -380,76 +402,76 @@
    "1b": 1000547333,
    "debug": 202421
   },
-  "backbone_load_s": 6.22,
-  "gpu_memory_after_load_gb": 7.804,
-  "gpu_peak_total_gb": 13.141,
+  "backbone_load_s": 15.6,
+  "gpu_memory_after_load_gb": 7.805,
+  "gpu_peak_total_gb": 12.83,
   "embedding_tokens_per_s": {
-   "32_tokens": 10409.0,
-   "128_tokens": 10625.0,
-   "384_tokens": 10657.0
+   "32_tokens": 6810.0,
+   "128_tokens": 6804.0,
+   "384_tokens": 7038.0
   },
   "embedding_texts_per_s": {
-   "32_tokens": 325.3,
-   "128_tokens": 83.0,
-   "384_tokens": 27.8
+   "32_tokens": 212.8,
+   "128_tokens": 53.2,
+   "384_tokens": 18.3
   },
   "generation_tokens_per_s": {
-   "batch1_no_bridge": 24.1,
-   "batch1_with_bridge": 22.8,
-   "batch8_no_bridge": 192.7,
-   "batch8_with_bridge": 181.3
+   "batch1_no_bridge": 11.8,
+   "batch1_with_bridge": 9.8,
+   "batch8_no_bridge": 94.8,
+   "batch8_with_bridge": 91.0
   },
   "adapter_backward_b4_t256": {
    "generation_logprob_gradient_checkpointing": {
-    "seconds": 0.378,
-    "peak_extra_gb": 1.057,
-    "peak_total_gb": 8.927
+    "seconds": 0.954,
+    "peak_extra_gb": 0.65,
+    "peak_total_gb": 8.567
    },
    "embedding_path_gradient_checkpointing": {
-    "seconds": 0.388,
-    "peak_extra_gb": 0.304,
-    "peak_total_gb": 8.174
+    "seconds": 0.821,
+    "peak_extra_gb": 0.308,
+    "peak_total_gb": 8.224
    },
    "generation_logprob_no_checkpointing": {
-    "seconds": 0.284,
-    "peak_extra_gb": 5.266,
-    "peak_total_gb": 13.141
+    "seconds": 0.424,
+    "peak_extra_gb": 4.904,
+    "peak_total_gb": 12.823
    },
    "embedding_path_no_checkpointing": {
-    "seconds": 0.275,
-    "peak_extra_gb": 4.408,
-    "peak_total_gb": 12.283
+    "seconds": 0.331,
+    "peak_extra_gb": 4.448,
+    "peak_total_gb": 12.369
    }
   },
   "experiential_core_step_b16_t256": {
-   "seconds": 0.088,
+   "seconds": 0.091,
    "peak_extra_gb": 1.556,
-   "peak_total_gb": 9.531
+   "peak_total_gb": 9.577
   },
   "bridge_noop_check": {
    "bridge_max_abs_logit_diff_at_init": 0.0,
    "bridge_logits_bit_identical_at_init": true,
-   "literal_zero_prefix_max_abs_logit_diff": 1.0469,
-   "literal_zero_prefix_total_variation": 3e-05
+   "literal_zero_prefix_max_abs_logit_diff": 1.0513,
+   "literal_zero_prefix_total_variation": 2e-05
   },
   "init_diagnostics_real_configuration": {
-   "token_cos_plus1_minus1": 0.18,
+   "token_cos_plus1_minus1": 0.1803,
    "token_cos_100_103": 0.9749,
-   "token_cos_same_value_two_metrics": 0.5591,
-   "belief_cos_between_contexts": 0.1356,
-   "z_cos_under_permuted_belief": 0.7213,
-   "belief_relative_change_under_permutation": 1.3149,
-   "z_relative_change_under_permuted_belief": 0.7466,
-   "z_cos_between_two_actions": 0.8256,
-   "action_embedding_cos_between_two_actions": 0.7628,
-   "state_constant_fraction_after_one_call": 0.4006,
+   "token_cos_same_value_two_metrics": 0.5592,
+   "belief_cos_between_contexts": 0.1366,
+   "z_cos_under_permuted_belief": 0.7165,
+   "belief_relative_change_under_permutation": 1.3141,
+   "z_relative_change_under_permuted_belief": 0.753,
+   "z_cos_between_two_actions": 0.5857,
+   "action_embedding_cos_between_two_actions": 0.4057,
+   "state_constant_fraction_after_one_call": 0.4018,
    "slot_gate_mean": 0.1242,
    "phi_norm": 0.999999
   },
   "joint_loss_grad_norms": {
-   "experiential": 597.7935791015625,
-   "semantic_adapters": 3.5810763835906982,
-   "adapters_over_experiential": 0.006
+   "experiential": 568.5054931640625,
+   "semantic_adapters": 3.3101580142974854,
+   "adapters_over_experiential": 0.0058
   },
   "fast_adaptation": {
    "gaussian": {
@@ -464,6 +486,12 @@
      "blr_raw": 0.7996,
      "gru": 0.5753,
      "running_stats": 1.4447
+    },
+    "held_out_families_mean_rmse": {
+     "learned_prior_bayes": 0.8629,
+     "blr_raw": 0.8975,
+     "gru": 0.8185,
+     "running_stats": 1.0148
     },
     "held_out_winner": "learned_prior_bayes",
     "learned_prior_minus_baseline_held_out": {
@@ -483,30 +511,36 @@
    },
    "count": {
     "held_out_families_mean_nll": {
-     "learned_prior_bayes": 2.6201,
-     "blr_raw": 3.3037,
+     "learned_prior_bayes": 2.6237,
+     "blr_raw": 2.9467,
      "gru": 2.6381,
      "running_stats": 5.7539
     },
     "in_distribution_mean_nll": {
-     "learned_prior_bayes": 2.275,
-     "blr_raw": 3.2697,
+     "learned_prior_bayes": 2.2748,
+     "blr_raw": 2.826,
      "gru": 2.3903,
      "running_stats": 6.2771
+    },
+    "held_out_families_mean_rmse": {
+     "learned_prior_bayes": 18.3184,
+     "blr_raw": 18.6309,
+     "gru": 18.1002,
+     "running_stats": 27.694
     },
     "held_out_winner": "learned_prior_bayes",
     "learned_prior_minus_baseline_held_out": {
      "blr_raw": {
-      "mean_diff_nll": -0.6836,
-      "z": -10.05
+      "mean_diff_nll": -0.323,
+      "z": -8.4
      },
      "gru": {
-      "mean_diff_nll": -0.018,
-      "z": -2.31
+      "mean_diff_nll": -0.0144,
+      "z": -1.8
      },
      "running_stats": {
-      "mean_diff_nll": -3.1339,
-      "z": -11.69
+      "mean_diff_nll": -3.1303,
+      "z": -11.67
      }
     }
    }
@@ -570,33 +604,146 @@
    }
   },
   "commands": {
+   "default_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
+   "slow_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m slow",
+   "gpu_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m gpu",
    "params_and_gpu_numbers": "cd /workspace/camlive/cam_live && PYTHONPATH=src ../.venv/bin/python -m cam_live.nn.bench",
-   "fast_adaptation": "cd /workspace/camlive/cam_live && PYTHONPATH=src ../.venv/bin/python -m cam_live.nn.fast_compare --steps 2000 --seeds 0 1 --threads 8",
-   "default_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/A.xml",
-   "gpu_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/nn/test_gpu_qwen.py -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/A_gpu.xml"
+   "fast_adaptation": "cd /workspace/camlive/cam_live && PYTHONPATH=src ../.venv/bin/python -m cam_live.nn.fast_compare --steps 2000 --seeds 0 1 --threads 12",
+   "noise_ablation": "cd /workspace/camlive/cam_live && PYTHONPATH=src ../.venv/bin/python -m cam_live.nn.fast_compare --noise-ablation --steps 2000 --seeds 0 1 --threads 8"
   },
   "test_results": {
-   "docs/evidence/test_results/A.xml": {
-    "tests": 68,
-    "failures": 0,
-    "errors": 0,
-    "skipped": 7,
-    "time_s": 33.812
-   },
-   "docs/evidence/test_results/A_gpu.xml": {
-    "tests": 6,
+   "docs/evidence/test_results/A_fix.xml": {
+    "tests": 112,
     "failures": 0,
     "errors": 0,
     "skipped": 0,
-    "time_s": 11.279
-   },
-   "docs/evidence/test_results/A_slow.xml": {
-    "tests": 1,
-    "failures": 0,
-    "errors": 0,
-    "skipped": 0,
-    "time_s": 23.071
+    "time_s": 257.475,
+    "command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m 'gpu or slow or not (gpu or slow)' --junitxml=cam_live/docs/evidence/test_results/A_fix.xml",
+    "content": "default (99) + slow (1) + gpu (12: Qwen3-4B in bf16, then in float32) suites in one run"
    }
+  },
+  "speed_note": "params.json was measured at CPU load average ~26 on a GPU shared with another tenant: speeds are lower bounds (the earlier recording ran at load ~5: 24.1 / 192.7 generation tokens/s). The cost of the fixes was measured in the same process instead: float32 output layer ~4 % of generation speed; batch-invariant embedding forwards 67-79 % of dynamic-padding throughput for large uncached calls, 40-70 % for one to four short texts; cached call of 64 texts 1.5 ms.",
+  "embedding_batch_invariance_ab_tokens_per_s": {
+   "256x32": {
+    "fixed_shape": 8228,
+    "dynamic": 10419
+   },
+   "128x128": {
+    "fixed_shape": 8364,
+    "dynamic": 10619
+   },
+   "64x384": {
+    "fixed_shape": 7065,
+    "dynamic": 10586
+   },
+   "4x24": {
+    "fixed_shape": 667,
+    "dynamic": 959
+   },
+   "1x100": {
+    "fixed_shape": 787,
+    "dynamic": 1934
+   },
+   "note": "same process, best of 3, loaded machine (before the extra padding column, +1 position per row)"
+  },
+  "float32_output_layer": {
+   "head_error_same_hidden_states_max_per_token_nats": {
+    "before": 0.143,
+    "after": 0.0
+   },
+   "bf16_model_minus_float32_model_logprob_per_completion": {
+    "tokens": [
+     1,
+     1,
+     11,
+     1,
+     2
+    ],
+    "before": [
+     -0.21,
+     -0.31,
+     0.13,
+     -0.02,
+     0.01
+    ],
+    "after": [
+     -0.1587,
+     -0.3553,
+     0.1227,
+     -0.0489,
+     -0.0022
+    ]
+   },
+   "kv_cache_sampler_vs_generation_logprob_max_per_token_nats": {
+    "before": 0.1,
+    "after": 0.073
+   },
+   "generation_tokens_per_s_same_process_ab": {
+    "float32_output_layer": {
+     "batch1": 22.1,
+     "batch8": 177.4
+    },
+    "bf16_head": {
+     "batch1": 23.0,
+     "batch8": 184.3
+    },
+    "output_layer_ms_per_position": {
+     "float32": 2.5,
+     "bf16": 1.1
+    },
+    "note": "same process, interleaved, best of 3 x 96 greedy tokens; the float32 output layer costs about 4 %"
+   },
+   "source": "docs/verification/repro/nn/probe_real_backbone.py --part gradsave / fd32 / misc (rerun on the final code)"
+  },
+  "batch_composition": {
+   "embedding_alone_vs_in_batch_relative": {
+    "before": 0.011,
+    "after": 0.0
+   },
+   "belief_alone_vs_in_batch_relative": {
+    "before": 0.014,
+    "after": 0.0
+   },
+   "with_grad_vs_cached_relative": {
+    "before": 0.00016,
+    "after": 0.0
+   }
+  },
+  "argument_distinguishability_real_configuration": {
+   "z_cos_click_e3_vs_e4": {
+    "before": 0.9997,
+    "after": 0.7467
+   },
+   "z_cos_two_operations": {
+    "before": 0.82,
+    "after": 0.5844
+   }
+  },
+  "phi_conditioning_real_inputs_real_configuration": {
+   "all_queries_max_over_min_eigenvalue": {
+    "before": 54000.0,
+    "after": 23000.0
+   },
+   "directions_holding_90pct_of_128": {
+    "before": 15,
+    "after": 23
+   },
+   "single_query_max_over_min_eigenvalue": {
+    "before": 1900000.0,
+    "after": 452000.0
+   },
+   "single_query_participation_ratio": {
+    "before": 1.6,
+    "after": 2.02
+   },
+   "white_noise_inputs_as_in_the_old_test": 10.2,
+   "source": "probe_real_backbone.py --part cond"
+  },
+  "fast_layer_mode_search_iterations": {
+   "count_and_time_to_event_max": 7,
+   "binomial_1e9_trials_max": 16,
+   "cap": 100,
+   "tolerance": "|step| <= 1e-11 (1 + |eta|)"
   }
  },
  "not_done": [
@@ -608,13 +755,121 @@
   "The fast layer does not model categorical outcomes; time-to-event is constant-hazard only; one posterior per outcome kind (not per metric).",
   "The fast-adaptation comparison is synthetic (no real experience data).",
   "tokenize(with_grad=True) over whole contexts is memory-heavy; grad_last=k is provided but encode_decisions (master-owned) does not pass it yet (change request A-3).",
-  "No merged-LoRA inference path: with trained adapters generation is about 15 % slower than the bare backbone (measured); the tiny test backbone has no KV cache.",
   "The backbone wrapper keeps the active bridge memory and capture buffers as instance state: one model must not run generation / embedding from several threads at once.",
-  "Long texts are truncated (head 3/4 + tail 1/4 of max_text_tokens), not chunked; truncation is counted in backbone.stats['truncated_tokens']."
+  "Long texts are truncated (head 3/4 + tail 1/4 of max_text_tokens), not chunked; truncation is counted in backbone.stats['truncated_tokens'].",
+  "No merged-LoRA inference path: with non-zero adapters generation is 8-9 % slower than the bare backbone (measured by the verifier's probe on the final code); the float32 output layer costs another ~4 % (same-process A/B: 22.1 vs 23.0 tokens/s at batch 1, 177.4 vs 184.3 at batch 8). The tiny test backbone has no KV cache.",
+  "The bf16 trunk is not made more precise: generation_logprob vs the float32 model up to 0.36 nats on a one-token completion (see scientific_failures).",
+  "tests/nn/test_fast_compare.py still checks only the structure of the recorded comparison (a full re-run takes ~1 h); the recorded numbers were regenerated with the final code."
  ],
  "scientific_failures": [
   "Gaussian targets, small support: the learned-prior Bayesian layer is WORSE than the recurrent baseline before it has seen about three points - held-out families NLL at k=0: 1.6995 vs GRU 1.4188 vs running statistics 1.467 (a unit normal scores 1.4189); at k=1: 1.5156 vs GRU 1.3854; in-distribution k=0: 1.6896 vs GRU 1.3495. It wins from k=3 on (k=3: 1.3269 vs 1.3325; k=8: 1.0869 vs 1.1449; k=31: 0.6137 vs 1.0467). Cause: the conjugate normal-inverse-gamma prior ties the weight uncertainty to the uncertain noise scale, which makes the prior predictive heavy-tailed. (docs/evidence/A/fast_adaptation.json)",
   "Gaussian targets, fixed learned noise instead of inferred noise: FAILS on held-out families - mean NLL 1.9933 (per seed [1.9935, 1.9931]) vs 0.8909 with inferred noise, and worse than running statistics (1.4483); it becomes over-confident as evidence accumulates (k=31: 2.1035). In-distribution it is calibrated at k=0 (1.3458) but still behind overall (0.2988 vs 0.2132). The inferred-noise mode is therefore the default. (docs/evidence/A/fast_adaptation_noise_mode.json)",
-  "Count targets, held-out families: the learned-prior layer is only marginally ahead of the GRU with a negative-binomial head - mean NLL 2.6201 vs 2.6381 (difference -0.018 +- 0.0078, z = -2.31 with tasks pooled over 2 seeds), and the GRU is ahead at the largest support size (k=31: 2.4892 vs 2.5073; RMSE 18.1002 vs 18.2307). This is not a robust win. An earlier run in which the GRU had a plain Poisson head (no way to express uncertainty) showed a large gap (GRU 3.82) that was an artefact of that head; the head was corrected before the recorded run."
- ]
+  "Count targets, held-out families: the learned-prior layer is only marginally ahead of / level with the GRU with a negative-binomial head - mean NLL 2.6237 vs 2.6381 (difference -0.0144 +- 0.008, z = -1.8, tasks pooled over 2 seeds). Not a robust win. (docs/evidence/A/fast_adaptation.json, re-run with the converged GLM updates)",
+  "Gaussian targets, held-out families, point accuracy: the GRU has the lower RMSE of the predictive mean (0.8185 vs 0.8629 for the learned prior, mean over support sizes >= 1); the learned prior wins on calibrated uncertainty (NLL), not on point accuracy.",
+  "Gaussian targets, training families: the recorded lead (learned prior 0.2132 vs GRU 0.5753) reflects the size of the recorded GRU (hidden 64, 8000 steps), not an advantage of the Bayesian layer: the verifier's run with a GRU of hidden 256 trained 16000 steps reached 0.1825 vs 0.2206 on seed 0 (docs/verification/G_nn.md section 4; not re-run here). On held-out families the wider GRUs transfer worse (1.38 / 1.93 vs 0.89).",
+  "Ill-conditioned features at initialisation (not fixed): on realistic inputs of the real configuration the phi Gram has max/min eigenvalue 2.3e4 over all queries (4.5e5 for one query, participation ratio 2.0); only the numerical exactness of the fast layer on such features is shown.",
+  "generation_logprob is not accurate to 0.05 nats per token against the same model in float32: with the float32 output layer the bf16 decoder trunk still gives -0.16 / -0.36 / +0.12 / -0.05 / -0.00 nats for completions of 1 / 1 / 11 / 1 / 2 tokens (the head was not the main error); the KV-cache sampler and generation_logprob differ by up to 0.073 nats per token."
+ ],
+ "verification_fixes": {
+  "report": "docs/verification/G_nn.md",
+  "D1": {
+   "state": "fixed",
+   "change": "monotone safeguarded mode search to |step| <= 1e-11 (1 + |eta|), cap 100, iterations / convergence reported, implicit-function gradient; online_nll and fast_compare use it",
+   "probe": "probe_fast.py: all 11 'Laplace mode reached' rows PASS (error 0.000)",
+   "tests": [
+    "tests/nn/test_fast.py::test_laplace_mode_is_exact_far_from_the_prior",
+    "tests/nn/test_fast.py::test_mode_search_reports_iterations_and_non_convergence"
+   ]
+  },
+  "D2": {
+   "state": "fixed",
+   "change": "dispersion applied to counts only; exp(disp_raw), 1 at init; Cholesky jitter replaced by a floor",
+   "probe": "probe_fast.py dispersion checks PASS (|dmu| 1.3e-10)",
+   "tests": [
+    "tests/nn/test_fast.py::test_dispersion_tempers_counts_only"
+   ]
+  },
+  "D3": {
+   "state": "partly fixed",
+   "change": "float32 final norm + float32 head for generation_logprob, the sampler and next_token_logits",
+   "probe": "gradsave: head error 0.0000 (PASS, was 0.143); fd32 'within 0.05 nats per token of the float32 model' still FAILS (0.355: bf16 trunk); misc 'sampler agrees to 0.05' still FAILS (0.073, was 0.10)",
+   "tests": [
+    "tests/nn/test_gpu_qwen.py::test_generation_logprob_has_a_float32_output_layer",
+    "tests/nn/test_backbone.py::test_float32_head_matches_a_float64_reference_with_its_gradient",
+    "tests/nn/test_gpu_qwen_fp32.py::test_float32_backbone_gradients_and_bf16_logprob_accuracy"
+   ]
+  },
+  "D4": {
+   "state": "fixed",
+   "change": "predict() / linear() report the Student-t variance (b/(a-1))(1+q)",
+   "probe": "probe_fast.py NIG predict check PASS (ratio 1.000); its NIG calibration check now reads 0.924 because it standardises by predict() and uses Student-t quantiles that apply to the scale (b/a)(1+q) - the two probe checks are mutually exclusive",
+   "tests": [
+    "tests/nn/test_fast.py::test_nig_predict_variance_is_the_student_t_variance"
+   ]
+  },
+  "D5": {
+   "state": "fixed",
+   "change": "check_observations in update() and online_nll()",
+   "probe": "PASS",
+   "tests": [
+    "tests/nn/test_fast.py::test_impossible_observations_are_rejected_without_touching_the_state"
+   ]
+  },
+  "D6": {
+   "state": "not fixed (reported)",
+   "change": "test on realistic inputs with measured bounds; numerical exactness of the fast layer on them tested",
+   "probe": "cond: FAIL, 2.3e4 (was 5.4e4) vs the old bound 1e4",
+   "tests": [
+    "tests/nn/test_api.py::test_features_on_realistic_inputs_conditioning_and_fast_layer_numerics",
+    "tests/nn/test_gpu_qwen.py::test_features_on_realistic_inputs_real_configuration"
+   ]
+  },
+  "D7": {
+   "state": "fixed",
+   "change": "target and argument leaves through the exact value channel (numbers + hashed identity), no new parameters",
+   "probe": "phi: cos(z) same operation, other argument 0.7467 (was 0.9997); two operations 0.5844 (was 0.82)",
+   "tests": [
+    "tests/nn/test_api.py::test_candidates_differing_in_one_argument_are_distinguishable",
+    "tests/nn/test_gpu_qwen.py::test_one_argument_changes_the_decision_latent_on_the_real_backbone"
+   ],
+   "side_effect": "values probe 'init diagnostics reproduce' FAILS on the two action numbers, which changed by design (z_cos_between_two_actions 0.8256 -> 0.5858, action_embedding_cos 0.7628 -> 0.4054)"
+  },
+  "D8": {
+   "state": "fixed",
+   "change": "fixed-shape embedding forwards per length bucket; with_grad returns the canonical value with the gradient of a filler-free forward",
+   "probe": "phi: b relative difference 0.00000 (PASS, was 0.014); values: embedding 0.0 (was 0.011)",
+   "tests": [
+    "tests/nn/test_backbone.py::test_embedding_is_independent_of_the_other_texts_in_the_call",
+    "tests/nn/test_gpu_qwen.py::test_embeddings_and_beliefs_do_not_depend_on_batch_composition"
+   ]
+  },
+  "D9": {
+   "state": "fixed",
+   "change": "arch_signature records every backbone setting except cache size / offline flag / checkpointing, the tiny-LM seed, dropout, encoding version",
+   "probe": "probe_saveload_cpu.py 8/8",
+   "tests": [
+    "tests/nn/test_api.py::test_arch_signature_covers_every_behaviour_relevant_setting"
+   ]
+  },
+  "D10": {
+   "state": "fixed",
+   "change": "content check of every cache input on every call; mark_adapters_updated clears the LoRA casts",
+   "probe": "probe_stale_cache.py 3/3",
+   "tests": [
+    "tests/nn/test_backbone.py::test_caches_are_invalidated_by_any_change_of_what_they_depend_on",
+    "tests/nn/test_gpu_qwen.py::test_adapter_caches_follow_writes_through_data"
+   ]
+  },
+  "D11": {
+   "state": "fixed for the three named tests",
+   "change": "causality with a live time bias (and shown to detect a leaking time basis); real-backbone gradients by finite differences on the float32 backbone; GLM updates against scipy references; plus save -> fresh process -> load",
+   "tests": [
+    "tests/nn/test_core.py::test_h_is_causal",
+    "tests/nn/test_gpu_qwen_fp32.py",
+    "tests/nn/test_fast.py::test_laplace_mode_is_exact_far_from_the_prior",
+    "tests/nn/test_api.py::test_trainable_state_round_trips_into_a_fresh_process"
+   ],
+   "still": "tests/nn/test_fast_compare.py checks the recorded JSON's structure only"
+  }
+ }
 }

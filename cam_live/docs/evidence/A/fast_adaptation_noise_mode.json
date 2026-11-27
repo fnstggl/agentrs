@@ -646,6 +646,6 @@
    }
   }
  ],
- "runtime_s": 694.8,
- "command": "python -m cam_live.nn.fast_compare --noise-ablation --steps 2000 --seeds 0 1 --threads 8"
+ "runtime_s": 1005.2,
+ "command": "python -m cam_live.nn.fast_compare --noise-ablation --steps 2000 --seeds 0 1 --threads 8 --out /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/A/fast_adaptation_noise_mode.json"
 }
