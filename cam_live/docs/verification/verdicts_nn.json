@@ -1,0 +1,111 @@
+{
+ "NA-01": {
+  "status": "verified",
+  "by": "G-nn",
+  "notes": "Qwen/Qwen3-4B at the pinned revision is loaded, frozen (4,022,468,096 parameters counted independently, all requires_grad=False, bf16), used for embeddings (multi-depth pooled, cached, cache invalidated on adapter updates) and for generation; A's 6 GPU tests pass; load 6-13 s, 7.804 GB. Not checked: Qwen3-8B (never loaded). Numerical caveats of bf16 operation: generation log-probabilities are accurate to 0.1-0.3 nats per token only (defect D3), an embedding depends on batch composition at the 1 % level (D8).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m gpu",
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_real_backbone.py --part params",
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_real_backbone.py --part throughput",
+   "cam_live/docs/verification/G_nn.md"
+  ]
+ },
+ "NA-02": {
+  "status": "verified",
+  "by": "G-nn",
+  "notes": "Experiential group = 50,953,765 trainable parameters on the real configuration (d_model 768, 6 blocks, 12 heads, RMSNorm, SwiGLU, causal attention with rotary + elapsed-time bias, cross-attention to 8 persistent gated slots, direct current-event path). Causality is exact (bit-identical prefix latents with the time bias randomised), padding / batch / time-shift invariance hold, state is carried, saved and restored exactly, finite differences confirm the gradient of every experiential tensor path (float32 backbone, < 1 %). The cross-attention is to persistent state slots; semantic and structured tokens enter as the token stream (as the architecture contract specifies).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_invariants.py --scale 50m",
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_real_backbone.py --part params",
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_real_backbone.py --part fd32 --dir DIR",
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_presets.py"
+  ]
+ },
+ "NA-03": {
+  "status": "verified",
+  "by": "G-nn",
+  "notes": "LoRA rank 32 on q_proj / v_proj of all 36 layers = 11,796,480 float32 parameters (formula and tree count agree); latent bridge 4,917,376; adapters 16,713,856. Both LoRA alone and the group are inside 10-20 M. k_proj / o_proj / MLP carry no adapter.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_real_backbone.py --part params"
+  ]
+ },
+ "NA-04": {
+  "status": "verified",
+  "by": "G-nn",
+  "notes": "count_parameters() equals independent counts for frozen / experiential / LoRA / bridge / reward / per-head / total (67,667,621 persistent trainable); param_groups() keys are exactly nn.api.GROUPS, groups disjoint, union = all parameters, requires_grad set = union of trainable groups; registered heads are counted under their group; trainable_state() holds no frozen tensor (0.252 GB). Every number in docs/status/A.json for parameters and the experiential breakdown reproduces exactly.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_real_backbone.py --part params",
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_presets.py"
+  ]
+ },
+ "NA-05": {
+  "status": "partial",
+  "by": "G-nn",
+  "notes": "Verified on the real configuration: shapes / dtypes of the tensor contract, exact causality, padding / batch / candidate / query independence, time conditioning, persistent state, value channel (cos(+1,-1) <= 0.19 for texts of 1-380 tokens; held-out linear probe recovers asinh(value) from the token with R^2 0.993 and from b with 0.997), z depends on b / action / goal, gradients of z / phi / generation losses reach experiential weights, LoRA and bridge with magnitudes confirmed by finite differences. Gaps: (1) phi is not well-conditioned on real inputs at initialisation (Gram max/min eigenvalue 5.4e4 over 2304 real combinations, 1.9e6 for a single query; the unit test uses white-noise inputs) - D6; (2) candidates that differ only in an argument are almost identical in z (cos 0.9997 for click e3 vs e4) - D7; (3) text -> belief depends on batch composition at 1.4 % on the bf16 backbone - D8; (4) whether the representations become useful abstractions after training is not shown here (A states this too).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_invariants.py --scale 50m",
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_real_backbone.py --part values",
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_real_backbone.py --part phi",
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_real_backbone.py --part cond",
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_real_backbone.py --part grads"
+  ]
+ },
+ "NA-07": {
+  "status": "partial",
+  "by": "G-nn",
+  "notes": "Exact where checked: Gaussian known-noise and normal-inverse-gamma recursions equal independent float64 closed forms to 1e-15, surprises sum to the exact log marginal likelihood, order invariance, Joseph form stays PSD over 50k collinear updates, GLM Laplace updates (count / binary / time-to-event with censoring) equal a reference solution to 4e-15 for moderate data, predictive NLL equals brute-force quadrature, forgetting / change detection behave as stated, calibration on synthetic data. Refuted: (D1, major) the Newton iteration is not converged for observations far below the prior predictor - time-to-event censored at 30 days in seconds gives a rate 1.86x too high, at one year 13.5x with a surprise of 192 instead of 122 nats, count 0 with exposure 1e9 339x; the training path online_nll (6 steps) fails already for a mode 6 nats below the prior; (D2) the count dispersion tempers binary and time-to-event updates; (D4) NIG predict() under-states the predictive variance by a/(a-1); (D5) impossible observations (negative count, successes > trials, negative time) are absorbed.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_fast.py",
+   ".venv/bin/python -m pytest cam_live/tests/nn/test_fast.py -q --rootdir=cam_live"
+  ]
+ },
+ "NA-09": {
+  "status": "partial",
+  "by": "G-nn",
+  "notes": "Mechanism verified on the real backbone: all 72 LoRA modules receive finite non-zero gradient through the embedding path (tokens -> core -> z / phi) and through generation_logprob; with the backbone in float32 finite differences match the analytic gradient to < 1 % for LoRA-B at initialisation, for all LoRA A/B and bridge tensors away from it, and for a loss on z via tokenize / encode_actions / encode_goals(with_grad=True); the bf16 gradients used in operation have cosine 0.995-0.999 and norm ratio 0.975-0.999 against float32; checkpointing on/off gives identical gradients; frozen weights never get gradient; one optimizer step changes embeddings and generation. Gap (stated by A as well): updates of the adapters driven by real experience are the slow schedule of workstream D and are not exercised by this lens.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_real_backbone.py --part grads",
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_real_backbone.py --part gradsave --dir DIR",
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_real_backbone.py --part fd32 --dir DIR"
+  ]
+ },
+ "NA-10": {
+  "status": "verified",
+  "by": "G-nn",
+  "notes": "Presets 5m / 20m / 50m / 150m / 500m / 1b instantiated with real weights on CPU: 5,044,741 / 20,087,333 / 50,953,765 / 151,022,853 / 502,708,549 / 1,000,547,333 parameters (claimed counts exactly, all within 1 % of target); forward finite for all, backward for <= 150m; same module tree at every scale. Only 50m was run on the GPU; presets above 50m were never trained; config.SCALE_PRESETS still holds the superseded d_ff values (change request A-1, corrected inside nn/presets.py).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_presets.py",
+   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m slow"
+  ]
+ },
+ "NA-11": {
+  "status": "verified",
+  "by": "G-nn",
+  "notes": "to_items covers every contract record type and all 17 item kinds (A's test passes); TokenBatch.values carries exact float64 values (1e15+1, a denormal, the largest double); the separate value channel keeps numbers visible beside texts of any length (cos(+1,-1) <= 0.19, cos(1e15,-1e15) 0.11, zero vs missing 0.72, 3 vs 4 0.65); non-finite quantities are dropped and counted; more than 4 quantities continue in further items via to_items and are dropped-but-counted when passed to tokenize directly. Values 0.1 % apart (1000 vs 1001) are indistinguishable in the embedding (cos 0.99999) and exist exactly only in TokenBatch.values.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_real_backbone.py --part values",
+   ".venv/bin/python -m pytest cam_live/tests/nn/test_tokens.py -q --rootdir=cam_live"
+  ]
+ },
+ "NA-12": {
+  "status": "verified",
+  "by": "G-nn",
+  "notes": "Latent bridge on Qwen3-4B: bit-identical logits / log-probabilities / generations with and without a latent at initialisation (latent norms 1e-3..1e3), non-zero gradient on the zero-initialised output projections at step 0 (finite differences 1.002 in float32), one Adam step changes the generated text and makes the next-token distribution depend on the latent (TV 0.42 between latent and -latent), 40 bridge-only steps make two latents produce two different answers while the unconditioned output is unchanged, and the generation loss reaches the experiential weights through latent=b (finite differences 0.996). Not shown: that a bridge trained on experience improves candidate actions (A states this); credit/providers.py:633 detaches the latent.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_real_backbone.py --part bridge",
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_real_backbone.py --part fd32 --dir DIR",
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_real_backbone.py --part grads"
+  ]
+ },
+ "NA-13": {
+  "status": "verified",
+  "by": "G-nn",
+  "notes": "The comparison (learned-prior Bayes vs exact BLR on raw inputs vs GRU vs running statistics, Gaussian and count targets, training and held-out families) exists and is reproducible: a full-length rerun of seed 0 reproduces every recorded per-seed number (mean and per-support NLL and RMSE, 4 methods x 2 targets x 2 splits) with zero difference at 4 decimals. The failures are reported: worse than the GRU below 3 observations, fixed-noise variant fails on held-out families, count margin over the GRU -0.018 nats (seed 0 alone: -0.0186 +- 0.0105, z = -1.76). Not stated in the status file: on held-out Gaussian families the GRU has the lower RMSE (0.8185 vs 0.8629). Synthetic tasks only.",
+  "evidence": [
+   "cd cam_live && PYTHONPATH=src ../.venv/bin/python -m cam_live.nn.fast_compare --steps 2000 --seeds 0 --threads 8 --out /tmp/fast_seed0.json",
+   "cd cam_live && PYTHONPATH=src ../.venv/bin/python -m cam_live.nn.fast_compare --noise-ablation --steps 2000 --seeds 0 --threads 8 --out /tmp/noise_seed0.json",
+   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_fast_compare_gru.py --hidden 256 --steps 16000 --kind real",
+   "cam_live/docs/evidence/A/fast_adaptation.json"
+  ]
+ }
+}
