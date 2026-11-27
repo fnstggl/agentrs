@@ -144,6 +144,8 @@ def oracle_distribution(env) -> dict:
                             c["order_name"], c["ship_cap"])
             ship = _dist_act(near, L, s["depot"], sum(q for _, q in s["pipe"]), s["sites"], z_d, z_s, cover,
                              names, c["order_name"], c["ship_cap"])
+            if e.t + L + 2 >= e.horizon:          # an order placed now cannot reach a customer before the end
+                act["steps"][0]["values"][c["order_name"]] = 0.0
             return {"kind": "sequence", "steps": act["steps"][:1] + ship["steps"][1:]}
         return fn
     return best_of(env, {f"base_stock z={zd},{zs} cover={cv}": pol(zd, zs, cv) for zd in (0.0, 1.0, 2.0)
@@ -154,7 +156,8 @@ def reference_distribution(view, env):
     """Public: track each site's demand from censored sales (a sold-out site's demand is at least what it sold, so
     the estimate is raised; a run of sell-outs raises it faster) and learn the lead time from the first delivery to
     the depot; then a base-stock rule for the depot and order-up-to shipments to sites. The tracker forgets old
-    sales quickly because a site's demand can shift at any time."""
+    sales quickly because a site's demand can shift at any time. Near the end it stops ordering: units that arrive
+    too late to be shipped and sold are a pure loss (bought at the unit cost, never sold)."""
     sp = view.action_space()
     order = _levers(sp)[0]
     names = _targets(sp)
@@ -184,8 +187,11 @@ def reference_distribution(view, env):
         if tot > cap:                                  # the depot cannot ship more than its capacity per period
             lam = [v * cap / tot for v in lam]
         stocks = [x.get(f"{n}.stock", 0.0) for n in names] if x else [0.0] * len(names)
-        act = _dist_act(lam, L if L is not None else 3, x.get("depot_stock", 20.0) if x else 20.0,
+        LL = L if L is not None else 3
+        act = _dist_act(lam, LL, x.get("depot_stock", 20.0) if x else 20.0,
                         x.get("on_order", 0.0) if x else 0.0, stocks, 0.5, 0.5, 1.5, names, order, cap)
+        if view.t + LL + 2 >= view.horizon:            # an order now cannot reach a customer in time
+            act["steps"][0]["values"][order] = 0.0
         obs = view.step(act)["observation"]
 
 
