@@ -1,7 +1,7 @@
 {
  "workstream": "ES",
  "commit": "8a25439",
- "summary": "Skill library (induction from traces, validation by execution, per-step authorization, Beta reliability, staleness, repair / retire, versioned storage), adaptive modality selector, failure taxonomy with bounded retries, generic HTTP API executor, authorized publishing adapter, Discord bot adapter with a local staging service. Added 2026-11-27: 18 Discord administration tools (identity, permissions, guild settings, channels, role objects, messages, invites, member-event diff, audit summary), the operator's permission scope, a permission pre-check, one bounded receive-only Gateway window (discord_gateway.GatewayWindow), a staging Gateway, and tools/discord_live_check.py. 142 of 143 CPU tests pass (the one failure is a hard-coded tool count in test_es_publishing.py, see not_done). Discord and all external effects were exercised on local staging services only: no request was sent to Discord.",
+ "summary": "Skill library (induction from traces, validation by execution, per-step authorization, Beta reliability, staleness, repair / retire, versioned storage), adaptive modality selector, failure taxonomy with bounded retries, generic HTTP API executor, authorized publishing adapter, Discord bot adapter with a local staging service. Added 2026-11-27: 18 Discord administration tools (identity, permissions, guild settings, channels, role objects, messages, invites, member-event diff, audit summary), the operator's permission scope, a permission pre-check, one bounded receive-only Gateway window (discord_gateway.GatewayWindow), a staging Gateway, and tools/discord_live_check.py. 142 of 143 CPU tests pass (the one failure is a hard-coded tool count in test_es_publishing.py, see not_done). Discord and all external effects were exercised on local staging services only: no request was sent to Discord. E-fix (2026-11-27): secret references, no automatic re-send of non-idempotent requests, content-bound publication approvals, bound-step protected guard, wider selector block, environment wiring of skills and selector, evidence no longer overwritten by tests.",
  "requirements": {
   "IH-04": {
    "state": "implemented",
@@ -22,17 +22,24 @@
     "tests/harness/skills/test_es_publishing.py::test_approval_required_then_rejected",
     "tests/harness/skills/test_es_publishing.py::test_denied_destination_and_invalid_requests",
     "tests/harness/skills/test_es_publishing.py::test_publishing_to_an_owned_channel_goes_through_the_discord_adapter",
-    "tests/harness/skills/test_es_integration_shapes.py::test_publishing_to_a_channel_under_a_grant_bound_broker"
+    "tests/harness/skills/test_es_integration_shapes.py::test_publishing_to_a_channel_under_a_grant_bound_broker",
+    "tests/harness/skills/test_e_fix_api.py::test_a_post_that_may_have_been_applied_is_not_re_sent",
+    "tests/harness/skills/test_e_fix_api.py::test_secret_references_resolve_against_the_vault_name",
+    "tests/harness/skills/test_e_fix_api.py::test_a_publication_approval_binds_and_shows_the_exact_text",
+    "tests/harness/skills/test_e_fix_api.py::test_the_real_authorization_service_shows_the_text_of_a_publication_awaiting_approval"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml",
-    "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/ES/integration_smoke.py"
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/ES/integration_smoke.py",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml"
    ],
    "evidence": [
     "docs/evidence/test_results/ES.xml",
-    "docs/evidence/ES/integration_smoke.txt"
+    "docs/evidence/ES/integration_smoke.txt",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "Destinations: an owned static-site directory and channels of the authorized Discord server (staging service only; never run against Discord). The approval queue itself belongs to the authorization service; the adapter keeps the draft state (pending_approval / rejected) and publishes when the same publish.submit action is executed again after approval. With the current default policy publish.update is classified as an external write (change request ES-3)."
+   "limitations": "Destinations: an owned static-site directory and channels of the authorized Discord server (staging service only; never run against Discord). The approval queue itself belongs to the authorization service; the adapter keeps the draft state (pending_approval / rejected) and publishes when the same publish.submit action is executed again after approval. With the current default policy publish.update is classified as an external write (change request ES-3). E-fix: credentials are referenced as 'secret:<name>' and resolve with the real broker (HT-SECRET-REFERENCE HOLDS); POST / PATCH are not re-sent after an uncertain failure without an Idempotency-Key (HT-POST-RETRY HOLDS); a publication submitted with preview's submit_arguments shows the operator the exact text and the grant binds it; changed text or an approved submission without content is refused (PB-APPROVAL-BINDING / -ES3 HOLD). Remaining: the approval preview shows at most 4000 characters (E->EA-3); a static site needs base_url under the default policy (E->EA-2); http_api does not pin resolved addresses."
   },
   "IH-05": {
    "state": "implemented",
@@ -146,12 +153,15 @@
     "tests/harness/skills/test_es_discord.py::test_message_content_is_dropped_by_default"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/ES.xml"
+    "docs/evidence/test_results/ES.xml",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "Site analytics come from a combined-format access log of an owned site (real log written by a local web server in the test). Discord aggregates were measured on the staging service only. Automated clients are recognised only when their user agent declares it."
+   "limitations": "Site analytics come from a combined-format access log of an owned site (real log written by a local web server in the test). Discord aggregates were measured on the staging service only. Automated clients are recognised only when their user agent declares it. E-fix: PB-ANALYTICS HOLDS with the EA-fix policy."
   },
   "CU-15": {
    "state": "implemented",
@@ -172,17 +182,21 @@
     "tests/harness/skills/test_es_skills.py::test_induction_needs_a_common_successful_segment",
     "tests/harness/skills/test_es_skills.py::test_trace_from_one_action_result_and_template_binding",
     "tests/harness/skills/test_es_skills.py::test_skill_tools_induce_list_describe",
-    "tests/harness/skills/test_es_skills.py::test_skill_generation_cannot_touch_authorization_or_the_verifier"
+    "tests/harness/skills/test_es_skills.py::test_skill_generation_cannot_touch_authorization_or_the_verifier",
+    "tests/harness/skills/test_e_fix_api.py::test_a_protected_resource_named_by_a_run_time_argument_is_refused"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml",
-    "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/ES/integration_smoke.py"
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/ES/integration_smoke.py",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml"
    ],
    "evidence": [
     "docs/evidence/test_results/ES.xml",
-    "docs/evidence/ES/integration_smoke.txt"
+    "docs/evidence/ES/integration_smoke.txt",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "Induction finds one contiguous common segment; no loops, branches or gaps. Exercised on HTTP-API workflows of a local application (and once through the real environment in the smoke check); not exercised on browser or visual traces, whose per-observation element references would rely on the untested-there $lookup capture. The environment does not yet feed executions to observe_execution (change request ES-4). When induction is triggered is the agent's decision; nothing in ES triggers it automatically."
+   "limitations": "Induction finds one contiguous common segment; no loops, branches or gaps. Exercised on HTTP-API workflows of a local application (and once through the real environment in the smoke check); not exercised on browser or visual traces, whose per-observation element references would rely on the untested-there $lookup capture. The environment does not yet feed executions to observe_execution (change request ES-4). When induction is triggered is the agent's decision; nothing in ES triggers it automatically. E-fix: the protected-resource guard is applied to every bound step at run time, not only to templates (SK-PROTECTED-GUARD HOLDS); skill steps are charged like single actions by the EA-fix policy (SK-RATE-LIMIT HOLDS)."
   },
   "CU-16": {
    "state": "implemented",
@@ -200,12 +214,15 @@
     "tests/harness/skills/test_es_skills.py::test_a_skill_cannot_run_a_step_its_caller_may_not_run"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/ES.xml"
+    "docs/evidence/test_results/ES.xml",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "Validation = execution with fresh arguments through the normal executor path with every step authorized and every derived postcondition holding. It has real effects in the environment it runs in (it is an authorized execution), and it is as strong as the derived postconditions: without a probe or before/after observations only the weak 'every step reported success' plus argument-in-result conditions are available."
+   "limitations": "Validation = execution with fresh arguments through the normal executor path with every step authorized and every derived postcondition holding. It has real effects in the environment it runs in (it is an authorized execution), and it is as strong as the derived postconditions: without a probe or before/after observations only the weak 'every step reported success' plus argument-in-result conditions are available. E-fix: induction is reachable through the environment as built: ComputerEnvironment calls observe_execution after every action and the skill executor binds to the environment's tools (SK-WIRING HOLDS)."
   },
   "CU-17": {
    "state": "implemented",
@@ -298,12 +315,15 @@
     "tests/harness/skills/test_es_modality.py::test_estimates_are_exposed_as_quantities_and_persist"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml"
    ],
    "evidence": [
-    "docs/evidence/ES/modality_calibration.json"
+    "docs/evidence/ES/modality_calibration.json",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "Calibration and the shift of selection were measured on a seeded SIMULATED mix of modalities, not on real browser / visual executors. The selector is not yet called by the decision loop: wiring it (choose / update / annotate) is integration work outside ES paths. Estimates are conjugate statistics per generic context with hierarchical back-off, not a learned function of the latent."
+   "limitations": "Calibration and the shift of selection were measured on a seeded SIMULATED mix of modalities, not on real browser / visual executors. The selector is not yet called by the decision loop: wiring it (choose / update / annotate) is integration work outside ES paths. Estimates are conjugate statistics per generic context with hierarchical back-off, not a learned function of the latent. E-fix: the environment updates its own ModalitySelector with every executed action and exposes the estimates (exec.modality.<kind>.*) in observe()'s metrics observation and get_capabilities(); a refusal blocks every realisation of the intent (block_keys: intent, same effect / same operation on the same place under any decision id, the refused action id) - MS-BLOCK-SCOPE HOLDS. The decision loop still does not call choose() (runtime integration)."
   },
   "CU-32": {
    "state": "implemented",
@@ -331,15 +351,19 @@
     "tests/harness/skills/test_es_failures.py::test_failure_observation_is_structured_for_the_learner",
     "tests/harness/skills/test_es_failures.py::test_real_transient_failure_is_retried_and_a_real_refusal_is_not",
     "tests/harness/skills/test_es_modality.py::test_a_refusal_never_causes_a_modality_switch",
-    "tests/harness/skills/test_es_http_api.py::test_denied_request_never_reaches_the_server"
+    "tests/harness/skills/test_es_http_api.py::test_denied_request_never_reaches_the_server",
+    "tests/harness/skills/test_e_fix_api.py::test_a_post_that_may_have_been_applied_is_not_re_sent"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/ES.xml"
+    "docs/evidence/test_results/ES.xml",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "Classification is a fixed evidence-voting table; VISUAL_GROUNDING, STALE_OBSERVATION, PAGE_CHANGED and STRATEGIC are classified only from evidence fields that the browser / visual executors and the runtime must fill in, which was tested with constructed evidence, not with those executors. Only the ES executors (http, discord, publishing, skills) use it so far."
+   "limitations": "Classification is a fixed evidence-voting table; VISUAL_GROUNDING, STALE_OBSERVATION, PAGE_CHANGED and STRATEGIC are classified only from evidence fields that the browser / visual executors and the runtime must fill in, which was tested with constructed evidence, not with those executors. Only the ES executors (http, discord, publishing, skills) use it so far. E-fix: a refusal whose every reason is a limit ('resource: ...') is classified RESOURCE_LIMIT with the stated wait (refusal_class, retry_after_of); run_with_retries takes a may_retry veto."
   }
  },
  "public_api": [
@@ -395,7 +419,9 @@
   "discord_live_check.staging.requests": 49,
   "discord_live_check.staging_live_policy.steps_ok": 27,
   "discord_live_check.staging_live_policy.exit_code": 0,
-  "discord_live_check.live.runs": 0
+  "discord_live_check.live.runs": 0,
+  "e_fix_tests": 6,
+  "e_fix_note": "tests/harness/skills in the E-fix final run: 149 tests, 145 passed, 4 failed (all in test_es_discord_live_check.py, Discord paths - see change request E-4; three of them started failing with commit ddb0f27 during the run). test_es_skills / test_es_modality now write their evidence to a temporary file and compare it with the committed record (CAM_LIVE_WRITE_EVIDENCE=1 regenerates)."
  },
  "measured_commands": {
   "tests_*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live  (final run 2026-11-27 on the shared machine while other workstreams ran CPU jobs: a 3-million-iteration Python loop took 0.7-1.2 s; the same suite with one test fewer took 32.7 s and 41.5 s earlier in the session. 1 failed = test_es_publishing.py::test_publishing_to_an_owned_channel_goes_through_the_discord_adapter, the hard-coded tool count)",

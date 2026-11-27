@@ -1,7 +1,7 @@
 {
  "workstream": "EC",
  "commit": "4beca03eed2ad1a78a9403b9d7b4caad10332507",
- "summary": "Sandboxed code execution (modality 'code'), bounded background jobs, visual computer use (modality 'visual') and a replaceable visual-grounding interface with GoClick-Base, MAI-UI-2B, Vocaela-2-500M and a non-neural baseline, plus a benchmark of all four. Both executors implement contracts.ModalityExecutor and use only ExecContext; neither is wired into harness/env.py by EC (that is the integrator's step) and the authorization layer in the tests is a recording stand-in for PolicyEngine.check_primitive, not workstream EA's service.",
+ "summary": "Sandboxed code execution (modality 'code'), bounded background jobs, visual computer use (modality 'visual') and a replaceable visual-grounding interface with GoClick-Base, MAI-UI-2B, Vocaela-2-500M and a non-neural baseline, plus a benchmark of all four. Both executors implement contracts.ModalityExecutor and use only ExecContext; neither is wired into harness/env.py by EC (that is the integrator's step) and the authorization layer in the tests is a recording stand-in for PolicyEngine.check_primitive, not workstream EA's service. E-fix: composed into the environment by harness.factories.",
  "requirements": {
   "IH-03": {
    "state": "implemented",
@@ -81,15 +81,19 @@
     "tests/harness/compute/test_ec_sandbox.py::test_executor_runs_code_and_reports_what_happened",
     "tests/harness/compute/test_ec_sandbox.py::test_executor_file_tools",
     "tests/harness/compute/test_ec_sandbox.py::test_generated_code_cannot_read_or_write_outside_its_workspace",
-    "tests/harness/compute/test_ec_sandbox.py::test_dedicated_uid_cannot_read_files_of_other_service_uids"
+    "tests/harness/compute/test_ec_sandbox.py::test_dedicated_uid_cannot_read_files_of_other_service_uids",
+    "tests/harness/env/test_e_fix_factories.py::test_all_executors_registers_every_modality_configured_from_the_task"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EC.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EC.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/EC.xml"
+    "docs/evidence/test_results/EC.xml",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "Same as IH-03. Each call is a new process; state persists only as files in the workspace. Without root the executor refuses to run (tools available=False with the reason) unless SandboxConfig.allow_same_uid=True, which is reported as weak."
+   "limitations": "Same as IH-03. Each call is a new process; state persists only as files in the workspace. Without root the executor refuses to run (tools available=False with the reason) unless SandboxConfig.allow_same_uid=True, which is reported as weak. E-fix: SandboxExecutor is registered by factories.all_executors (workspace <run>/sandbox) and by the environment service by default; in the separated deployment the executor runs as cambrowser, so the sandbox reports itself unavailable (no uid drop) unless the launcher runs the executor as root (EA change request 3)."
   },
   "CU-23": {
    "state": "implemented",
@@ -139,13 +143,18 @@
    "tests": [
     "tests/harness/compute/test_ec_visual.py::test_click_is_validated_delivered_and_verified_on_a_software_screen",
     "tests/harness/compute/test_ec_visual.py::test_crop_and_full_page_on_a_software_screen",
-    "tests/harness/compute/test_ec_visual.py::test_browser_scroll_full_page_and_crop"
+    "tests/harness/compute/test_ec_visual.py::test_browser_scroll_full_page_and_crop",
+    "tests/harness/env/test_e_fix_factories.py::test_all_executors_registers_every_modality_configured_from_the_task",
+    "tests/harness/env/test_e_fix_factories.py::test_the_composed_visual_executor_acts_on_the_browsers_screen"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EC.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EC.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/EC.xml"
+    "docs/evidence/test_results/EC.xml",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
    "limitations": "Browser viewport, full page and crops. No desktop screen provider exists (this host has no display server); a desktop would be another ScreenProvider. Full-page capture stitches half-screen scrolls: content repeating exactly with a period under half a screen comes out too short, and a featureless overlap at the page end is padded. Screenshots are stored as PNG files and referenced from the observation; turning pixels into experience tokens is not EC's part."
   },
@@ -171,15 +180,20 @@
     "tests/harness/compute/test_ec_visual.py::test_browser_type_key_drag_and_double_click_on_canvas_controls",
     "tests/harness/compute/test_ec_visual.py::test_browser_scroll_full_page_and_crop",
     "tests/harness/compute/test_ec_visual.py::test_browser_grounded_click_with_the_reference_grounder_and_policy",
-    "tests/harness/compute/test_ec_visual.py::test_browser_multi_step_visual_workflow_with_verification"
+    "tests/harness/compute/test_ec_visual.py::test_browser_multi_step_visual_workflow_with_verification",
+    "tests/harness/env/test_e_fix_factories.py::test_all_executors_registers_every_modality_configured_from_the_task",
+    "tests/harness/env/test_e_fix_factories.py::test_the_composed_visual_executor_acts_on_the_browsers_screen"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EC.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EC.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/EC.xml"
+    "docs/evidence/test_results/EC.xml",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "Tested on EC's own Playwright-backed ScreenProvider and a software frame buffer, not on workstream EB's BrowserScreen (same method names; EB's scroll(x=, y=) is used when present). Staleness for pointer actions compares a 73x73 pixel patch around the target (a change elsewhere does not block); keyboard and wheel actions compare the whole frame with a 2 % tolerance. Verification from pixels supports element_state {color_at | changed} and url_matches when the screen has url(); other kinds return verified=None. No OCR."
+   "limitations": "Tested on EC's own Playwright-backed ScreenProvider and a software frame buffer, not on workstream EB's BrowserScreen (same method names; EB's scroll(x=, y=) is used when present). Staleness for pointer actions compares a 73x73 pixel patch around the target (a change elsewhere does not block); keyboard and wheel actions compare the whole frame with a 2 % tolerance. Verification from pixels supports element_state {color_at | changed} and url_matches when the screen has url(); other kinds return verified=None. No OCR. E-fix: the composed visual executor (factories.visual) now runs on EB's BrowserScreen inside ComputerEnvironment: visual.screenshot and visual.click on a browser page, the click's request passing the browser's network guard (test_the_composed_visual_executor_acts_on_the_browsers_screen)."
   },
   "CU-07": {
    "state": "implemented",
@@ -373,7 +387,6 @@
   "/var/tmp/cam-live-sbx/_support (interpreter links, network shim, approved-package links) and /var/tmp/cam-live-sbx/ws/{dev,measure} were created by manual runs; test directories were removed"
  ],
  "not_done": [
-  "SandboxExecutor and VisualExecutor are not registered in harness/env.py (ComputerEnvironment) and were never run through ExecRPC or the separated-process launcher: EC did not edit those files.",
   "No test uses workstream EA's PolicyService or SecretBroker; the authorization check in every EC test is a recording callable with the check_primitive signature. The primitive names EC sends are listed in docs/change_requests/EC.md for EA.",
   "No test drives VisualExecutor through workstream EB's BrowserScreen; EC's tests use their own Playwright page wrapper as instructed.",
   "No desktop (non-browser) ScreenProvider: this host has no display server.",
@@ -383,7 +396,9 @@
   "The lightweight-to-advanced escalation with the real models inside one visual.click_target call is not covered by a pytest (it needs both models and the shared GPU lock); the benchmark's recovery phase measures the same thing with a reproduced failure.",
   "The grounding benchmark was run once, on EC's generated pages only (not on EB's staging sites), without repeated seeds or confidence intervals.",
   "Grounder confidence values are not calibrated; VisualConfig.min_confidence defaults to 0 (no gating).",
-  "docs/evidence/EC/grounding_bench.json records the repository HEAD at run time (6d568fe), which predates the final EC commit; the grounding code did not change afterwards except for an internal cleanup hook (close/_release)."
+  "docs/evidence/EC/grounding_bench.json records the repository HEAD at run time (6d568fe), which predates the final EC commit; the grounding code did not change afterwards except for an internal cleanup hook (close/_release).",
+  "E-fix registered SandboxExecutor and VisualExecutor in the composed environment (harness/factories.py) and ran the visual executor on the browser's screen; the sandbox was not exercised through ExecRPC in the separated deployment (it is unavailable there while the executor runs as cambrowser).",
+  "E-fix made tests/harness/compute/test_ec_jobs.py::test_status_is_observable_while_running_and_cancel_stops_the_job wait (bounded, 15 s) for the job's child process before counting it: under load average ~25 the child appeared after the job's first output and the test failed once; jobs.py is unchanged."
  ],
  "scientific_failures": [
   "The assumption that the larger model is at least as good everywhere did not hold: MAI-UI-2B reached 0.50 on dense forms (it clicked the label instead of the input field in 5 of 10 tasks) where GoClick-Base reached 0.90; overall 0.938 vs 0.925 on 80 targets is not a meaningful difference at this sample size.",

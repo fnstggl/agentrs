@@ -1,0 +1,95 @@
+{
+ "claimed_in_EB_json_before": {
+  "click_with_navigation_median_ms": 298.5,
+  "fill_median_ms": 39.7,
+  "first_action_including_chromium_launch_ms": 937.3,
+  "inspect_diff_unchanged_median_ms": 26.1,
+  "inspect_full_with_a11y_median_ms": 29.0,
+  "navigate_median_ms": 234.5,
+  "observation_diff_after_fill_text_chars": 138,
+  "observation_diff_unchanged_text_chars": 97,
+  "observation_full_text_chars": 574,
+  "rpc_inspect_full_median_ms": 27.9,
+  "rpc_ping_median_ms": 0.2,
+  "wait_schedule_median_ms": 5.6
+ },
+ "command": "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/repro_eb_latency.py <out.json>",
+ "conditions": "shared machine, load average 20-27 on 48 cores during all three runs (2026-11-27 05:25-05:27 UTC)",
+ "runs": {
+  "click_with_navigation_median_ms": [
+   489.6,
+   419.0,
+   479.8
+  ],
+  "fill_median_ms": [
+   87.3,
+   50.8,
+   87.2
+  ],
+  "first_action_including_chromium_launch_ms": [
+   1282.8,
+   1368.5,
+   1692.8
+  ],
+  "inspect_diff_unchanged_median_ms": [
+   76.1,
+   32.0,
+   64.7
+  ],
+  "inspect_full_with_a11y_median_ms": [
+   76.0,
+   29.8,
+   71.8
+  ],
+  "navigate_median_ms": [
+   292.4,
+   267.3,
+   219.9
+  ],
+  "observation_diff_after_fill_text_chars": [
+   138,
+   138,
+   138
+  ],
+  "observation_diff_unchanged_text_chars": [
+   97,
+   97,
+   97
+  ],
+  "observation_full_text_chars": [
+   574,
+   574,
+   574
+  ],
+  "rpc_inspect_full_median_ms": [
+   77.2,
+   76.1,
+   22.5
+  ],
+  "rpc_ping_median_ms": [
+   0.1,
+   0.1,
+   0.1
+  ],
+  "wait_schedule_median_ms": [
+   8.1,
+   7.4,
+   5.5
+  ]
+ },
+ "verdict": {
+  "click_with_navigation_median_ms": "does not hold under this load (median of runs 479.8)",
+  "fill_median_ms": "does not hold under this load (median of runs 87.2)",
+  "first_action_including_chromium_launch_ms": "does not hold under this load (median of runs 1368.5)",
+  "inspect_diff_unchanged_median_ms": "does not hold under this load (median of runs 64.7)",
+  "inspect_full_with_a11y_median_ms": "does not hold under this load (median of runs 71.8)",
+  "navigate_median_ms": "holds (median of runs 267.3)",
+  "observation_diff_after_fill_text_chars": "holds",
+  "observation_diff_unchanged_text_chars": "holds",
+  "observation_full_text_chars": "holds",
+  "rpc_inspect_full_median_ms": "does not hold under this load (median of runs 76.1)",
+  "rpc_ping_median_ms": "holds (median of runs 0.1)",
+  "wait_schedule_median_ms": "does not hold under this load (median of runs 7.4)"
+ },
+ "what": "EB latency re-measured by E-fix with docs/evidence/EB/measure_latency.py (unchanged, output path redirected by docs/verification/repro/env/repro_eb_latency.py), after the network guard (every browser request through the policy-checking proxy) was added"
+}

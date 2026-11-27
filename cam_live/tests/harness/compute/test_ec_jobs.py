@@ -124,6 +124,9 @@ def test_status_is_observable_while_running_and_cancel_stops_the_job(manager, pr
         time.sleep(0.02)
     live = m.status(rec.job_id)
     assert live.state == J.JobState.RUNNING and live.stdout_tail == "phase one\n" and live.pgid > 0
+    # the job prints before it starts its child: on a loaded machine the child may appear a moment later
+    while time.monotonic() < end and not procs_matching(marker):
+        time.sleep(0.05)
     assert live.wall_s > 0 and not live.done and len(procs_matching(marker)) == 1
     t0 = time.monotonic()
     m.cancel(rec.job_id)

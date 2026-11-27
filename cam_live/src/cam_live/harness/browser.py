@@ -53,7 +53,6 @@ import re
 import secrets as _secrets
 import shutil
 import socket
-import stat
 import subprocess
 import sys
 import threading
@@ -1025,11 +1024,12 @@ class BrowserExecutor:
             if not auto:
                 raise RuntimeError(plan["reason"])
             return plan
+        if pw.pw_uid == os.getuid():
+            plan["reason"] = f"the executor itself runs as {want}: Chromium has that uid"
+            plan["same_uid"] = True
+            return plan
         if os.geteuid() != 0:
             plan["reason"] = "not root: cannot switch uid"
-            return plan
-        if pw.pw_uid == os.getuid():
-            plan["reason"] = "already running as the browser user"
             return plan
         setpriv = shutil.which("setpriv")
         if not setpriv:
@@ -1202,7 +1202,9 @@ class BrowserExecutor:
                 "session_kinds": ["identity (persistent profile)", "research (isolated, read-only requests)",
                                   "cdp (externally supplied Chromium)"],
                 "cdp_sessions": sorted(self.cfg.cdp_endpoints), "sessions": sessions, "screenshots": "on demand",
-                "uid_separation": {"enabled": bool(self._launch["user"]), "user": self._launch["user"],
+                "uid_separation": {"enabled": bool(self._launch["user"]) or bool(self._launch.get("same_uid")),
+                                   "user": self._launch["user"] or (SERVICE_USERS["browser"]
+                                                                    if self._launch.get("same_uid") else ""),
                                    "reason": self._launch["reason"]},
                 "chromium_executable": self._launch.get("exe") or "playwright default",
                 "network_guard": {"proxy": "every request leaves through a policy-checking proxy (per session)",

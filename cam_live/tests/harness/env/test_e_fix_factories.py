@@ -159,6 +159,7 @@ def test_separated_service_as_cam_live_run_starts_it_registers_everything_and_ru
         assert res.observations[0].data["url"] == s + "/items"
         bcaps = env.get_capabilities()["executors"]["structured_browser"]
         assert bcaps["version"] and bcaps["chromium_executable"].startswith(SHARED_BROWSERS_DIR)
+        assert bcaps["uid_separation"]["enabled"] is True and bcaps["uid_separation"]["user"] == "cambrowser"
         chrome = []
         for st in os.listdir("/proc"):
             if not st.isdigit():
@@ -177,3 +178,35 @@ def test_separated_service_as_cam_live_run_starts_it_registers_everything_and_ru
             sites.stop()
             time.sleep(0.3)
             shutil.rmtree(R, ignore_errors=True)
+
+
+@pytest.mark.browser
+def test_the_composed_visual_executor_acts_on_the_browsers_screen(tmp_path):
+    """visual.screenshot / visual.click through the composed environment on the browser executor's BrowserScreen;
+    the click's effect is seen by the site and every gesture is a checked primitive."""
+    from e_fix_support import CountingServer, html
+    srv = CountingServer()
+    srv.routes["/hit"] = lambda *a: (200, {"Content-Type": "application/json"}, "{}")
+    srv.page("/v", html("visual", "<button id=b style='position:absolute;left:100px;top:100px;width:200px;"
+                                  "height:80px' onclick=\"fetch('/hit',{method:'POST'})\">PRESS</button>"))
+    pol = GrantPolicy()
+    env = build_environment(str(tmp_path / "run"), pol, compose="all", task=task(tmp_path))
+    try:
+        d = Driver(env, pol, TaskSpec("o", "x"))
+        d.ok("browser.navigate", url=srv.url + "/v")
+        shot = make_action("visual.screenshot")
+        shot.modality = Modality.VISUAL
+        r = env.execute(shot, pol.authorize(shot, None))
+        assert r.status == ResultStatus.OK and r.observations[0].kind == "image", r.failure_detail
+        oid = r.observations[0].obs_id
+        click = make_action("visual.click", observation_id=oid, x=200, y=140)
+        click.modality = Modality.VISUAL
+        rc = env.execute(click, pol.authorize(click, None))
+        time.sleep(0.5)
+        assert rc.status == ResultStatus.OK, (rc.failure_class, rc.failure_detail)
+        assert srv.count("/hit", "POST") == 1
+        assert any(p[0] == "visual.click" for p in pol.primitives)
+        assert any(p[0] == "browser.request" and "/hit" in p[1].get("url", "") for p in pol.primitives)
+    finally:
+        env.close()
+        srv.close()

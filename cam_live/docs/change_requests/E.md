@@ -43,3 +43,8 @@ Fails in the current tree with `discord.get_identity -> denied: blocked: no Disc
 with a signed record). It also fails with the environment's recording secret broker switched off (checked); the
 token is not released by the authorization service in this live-mode sequence. Not investigated further: the
 Discord paths and live-mode secret release are outside E's paths. Owner: ES / EA.
+In the final E-fix run three more tests of that file failed (`test_full_sequence_in_staging_leaves_the_server_as_it_was`,
+`test_stops_before_any_write_when_the_policy_write_rate_is_too_low`,
+`test_the_documented_live_preparation_yields_grants_and_releases_the_token_only_to_discord`, e.g. `listen_events: data
+permission 'member_list' is not granted`); they passed in the run before, and the master's policy commit `ddb0f27`
+('per-member Discord events need the member_list data permission') landed in between.

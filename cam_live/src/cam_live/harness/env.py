@@ -36,7 +36,7 @@ import os
 import re
 import threading
 import time as _time
-from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from ..contracts import (CONTRACT_VERSION, EXEC_INTERFACE_VERSION, ActionResult, ActionSpec, AuthorizationDecision,
                          AuthVerdict, Clock, Cost, ExecContext, FailureClass, Level, Limits, Modality, ModalityExecutor,

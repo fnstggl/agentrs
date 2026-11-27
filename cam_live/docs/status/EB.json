@@ -1,7 +1,7 @@
 {
  "workstream": "EB",
- "commit": "4d527ba",
- "summary": "Computer environment core: ComputerEnvironment (EnvironmentAdapter over registered modality executors with grant verification, per-primitive checks, staleness, at-most-once, serialised writes, verification, events, outcomes, accounting, execution log, restart recovery), ExecRPC v1 service + RemoteEnvironment/RemotePolicy, structured browser on Playwright Chromium (persistent / research / CDP sessions, screen() for visual control), unified perception, internal executor, five local staging sites, adapter guide. 66 tests: 43 in the default suite (no Chromium), 23 gated by the browser/privileged markers, of which 22 launch real Chromium (the 2 privileged tests additionally need root and the cambrowser user). Everything runs against local staging services only.",
+ "commit": "E-fix (see git log 'cam live [E-fix]')",
+ "summary": "Computer environment core: ComputerEnvironment (EnvironmentAdapter over registered modality executors with grant verification, per-primitive checks, staleness, at-most-once, serialised writes, verification, events, outcomes, accounting, execution log, restart recovery), ExecRPC v1 service + RemoteEnvironment/RemotePolicy, structured browser on Playwright Chromium (persistent / research / CDP sessions, screen() for visual control), unified perception, internal executor, five local staging sites, adapter guide. 66 tests: 43 in the default suite (no Chromium), 23 gated by the browser/privileged markers, of which 22 launch real Chromium (the 2 privileged tests additionally need root and the cambrowser user). Everything runs against local staging services only. E-fix (2026-11-27): browser network guard (policy-checking proxy + route layer, every request incl. redirect hops / WebSockets / workers checked before it leaves), at-most-once under concurrency and restart, bounded observations with blobs, popup race and number-parser crash fixed, secret references, transformed-echo scrubbing, harness.factories composition used by the service by default, shared Chromium for the cambrowser uid. G-env probes: all EB properties HOLD (docs/EB/FIXES.md).",
  "requirements": {
   "IH-01": {
    "state": "implemented",
@@ -27,15 +27,24 @@
     "tests/harness/env/test_env_core.py::test_event_stream_cursor_and_scheduled_wait",
     "tests/harness/env/test_env_core.py::test_resource_accounting_and_limits",
     "tests/harness/env/test_service_rpc.py::test_rpc_round_trip_of_the_whole_adapter",
-    "tests/harness/env/test_service_rpc.py::test_version_negotiation_rules"
+    "tests/harness/env/test_service_rpc.py::test_version_negotiation_rules",
+    "tests/harness/env/test_e_fix_core.py::test_one_action_id_with_two_valid_grants_executes_once_under_concurrency",
+    "tests/harness/env/test_e_fix_core.py::test_a_claim_whose_admission_fails_is_released_for_a_valid_submission",
+    "tests/harness/env/test_e_fix_core.py::test_a_duplicate_during_a_long_execution_gets_in_progress_and_later_the_recorded_result",
+    "tests/harness/env/test_e_fix_core.py::test_the_claim_is_persisted_before_execution_and_survives_a_crash",
+    "tests/harness/env/test_e_fix_core.py::test_a_rate_limit_refusal_is_classified_resource_limit"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live   # 43 passed, 23 skipped in 11.77s (default: no Chromium)"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live   # 43 passed, 23 skipped in 11.77s (default: no Chromium)",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/<probe>.py   # see docs/EB/FIXES.md"
    ],
    "evidence": [
-    "docs/evidence/test_results/EB.xml"
+    "docs/evidence/test_results/EB.xml",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "All ten EnvironmentAdapter methods plus typed records, in process and over ExecRPC v1. Outcome measurements from the environment are unverified by design; verification is a separate service (not EB)."
+   "limitations": "All ten EnvironmentAdapter methods, in process and over ExecRPC v1. E-fix: an action id executes at most once also under concurrent submissions with separate valid grants (an in-memory claim taken before authorization, released when that caller's admission fails, persisted to the fsynced journal before execution; a duplicate waits for the recorded result for at most the action's timeout + 30 s, otherwise gets timeout 'being executed'); a refusal whose every reason is a limit is DENIED/resource_limit. G probes ENV-ONCE-1/2, ENV-RESTART, ENV-AUTH-*: HOLDS. Outcome measurements from the environment remain unverified by design."
   },
   "IH-02": {
    "state": "implemented",
@@ -55,22 +64,33 @@
     "tests/harness/env/test_browser.py::test_untrusted_page_text_is_data_and_changes_nothing",
     "tests/harness/env/test_browser.py::test_denied_url_prevents_navigation_with_a_hard_failure_and_no_fallback",
     "tests/harness/env/test_browser.py::test_research_sessions_are_isolated_and_read_only",
-    "tests/harness/env/test_browser_sessions.py::test_environment_with_the_authorization_service_of_this_project"
+    "tests/harness/env/test_browser_sessions.py::test_environment_with_the_authorization_service_of_this_project",
+    "tests/harness/env/test_e_fix_browser.py::test_redirect_hops_are_checked_before_they_are_sent",
+    "tests/harness/env/test_e_fix_browser.py::test_websockets_and_unseen_tunnels_are_checked",
+    "tests/harness/env/test_e_fix_browser.py::test_writes_of_scripts_are_reported_and_service_workers_are_blocked",
+    "tests/harness/env/test_e_fix_browser.py::test_a_click_that_opens_a_tab_is_reported_ok",
+    "tests/harness/env/test_e_fix_browser.py::test_the_browser_itself_sends_nothing_a_page_did_not_cause",
+    "tests/harness/env/test_e_fix_browser.py::test_a_host_name_is_judged_by_the_address_it_resolves_to"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/<probe>.py   # see docs/EB/FIXES.md"
    ],
    "evidence": [
     "docs/evidence/test_results/EB.xml",
-    "docs/evidence/EB/latency.json"
+    "docs/evidence/EB/latency.json",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "Exercised only against the local staging sites; no public website was contacted and live operation stays blocked until the operator authorizes it. Elements inside iframes / closed shadow roots are not listed. A redirect hop is checked after it happened (tab reset to about:blank on refusal)."
+   "limitations": "Exercised only against local servers (staging sites, test servers); nothing public was contacted. E-fix: every request the browser makes is checked before it leaves: route layer (context.route + route_web_socket: navigations, popups, downloads and writes per URL, reads per origin and action, WebSockets per URL) and network layer (Chromium's only way out is a password-protected policy-checking proxy in the executor: every redirect hop before it is sent, worker requests, HTTPS/WebSocket tunnels per host:port; names resolved once, connection pinned, non-global answers judged as peer_ip). Service workers blocked, QUIC off, WebRTC UDP proxied only, WebTransport removed, Chromium background requests switched off. Remaining: inside TLS only host:port is judged for traffic the route layer did not see; cdp: sessions have the route layer only (redirect hops judged after the fact); iframes / closed shadow roots are not listed in observations; a navigation a page starts after the action returned is refused when the finished grant no longer covers it (fail closed)."
   },
   "IH-12": {
    "state": "implemented",
    "files": [
     "docs/HARNESS_ADAPTER_GUIDE.md",
-    "tests/harness/env/test_adapter_contract.py"
+    "tests/harness/env/test_adapter_contract.py",
+    "src/cam_live/harness/factories.py"
    ],
    "integration_points": [
     "cam_live.harness.env.ComputerEnvironment.register",
@@ -80,22 +100,28 @@
     "tests/harness/env/test_adapter_contract.py::test_adapter_satisfies_the_environment_contract",
     "tests/harness/env/test_adapter_contract.py::test_adapter_validates_and_refuses_without_authorization",
     "tests/harness/env/test_adapter_contract.py::test_adapter_returns_no_reward",
-    "tests/harness/env/test_env_core.py::test_executor_failures_do_not_kill_the_environment"
+    "tests/harness/env/test_env_core.py::test_executor_failures_do_not_kill_the_environment",
+    "tests/harness/env/test_e_fix_factories.py::test_all_executors_registers_every_modality_configured_from_the_task"
    ],
    "commands": [
-    "CAM_LIVE_ADAPTER_FACTORY=module:factory .venv/bin/python -m pytest cam_live/tests/harness/env/test_adapter_contract.py -q --rootdir=cam_live"
+    "CAM_LIVE_ADAPTER_FACTORY=module:factory .venv/bin/python -m pytest cam_live/tests/harness/env/test_adapter_contract.py -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/<probe>.py   # see docs/EB/FIXES.md"
    ],
    "evidence": [
-    "docs/evidence/test_results/EB.xml"
+    "docs/evidence/test_results/EB.xml",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "The contract kit is run here against two adapters (ComputerEnvironment and the diagnostic LabWorld); no third-party harness was plugged in."
+   "limitations": "Guide updated by E-fix: secret references 'secret:<name>', at-most-once semantics under concurrency, observation bound and blobs, the network guard, the non-idempotent retry rule, observe_execution hook, the factory names of cam_live.harness.factories and the shared Chromium install. The contract kit runs against ComputerEnvironment and LabWorld; no third-party harness was plugged in."
   },
   "CU-01": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
     "src/cam_live/harness/env.py",
     "src/cam_live/harness/service.py",
-    "src/cam_live/harness/internal.py"
+    "src/cam_live/harness/internal.py",
+    "src/cam_live/harness/factories.py"
    ],
    "integration_points": [
     "cam_live.harness.service.main",
@@ -106,15 +132,21 @@
     "tests/harness/env/test_env_core.py::test_one_environment_per_run_directory",
     "tests/harness/env/test_env_core.py::test_crash_retry_never_repeats_a_state_changing_action",
     "tests/harness/env/test_service_rpc.py::test_service_process_with_authorization_socket_and_restart",
-    "tests/harness/env/test_service_rpc.py::test_service_refuses_to_start_without_authorization"
+    "tests/harness/env/test_service_rpc.py::test_service_refuses_to_start_without_authorization",
+    "tests/harness/env/test_e_fix_factories.py::test_the_service_composes_everything_and_scrubs_through_the_authorization_service",
+    "tests/harness/env/test_e_fix_factories.py::test_separated_service_as_cam_live_run_starts_it_registers_everything_and_runs_chromium_as_the_browser_uid"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live   # 43 passed, 23 skipped in 11.77s (default: no Chromium)"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live   # 43 passed, 23 skipped in 11.77s (default: no Chromium)",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/<probe>.py   # see docs/EB/FIXES.md"
    ],
    "evidence": [
-    "docs/evidence/test_results/EB.xml"
+    "docs/evidence/test_results/EB.xml",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "EB delivers the persistent environment process, workspace, state, browser and the versioned execution interface. Python/shell sandbox and background jobs (EC), API/skill executors (ES) and the uid launcher / vault (EA) are other workstreams; EB did not compose or test the environment with those executors (only with internal, browser, and a test-directory HTTP executor). The boundary is separate uids in a container, not a VM."
+   "limitations": "E-fix: the environment service as cam-live run starts it (no --executor/--secrets) composes every executor (internal, structured_browser, code, visual, api = http + publishing + discord, skill), configured from the run's task.yaml, and scrubs through the authorization service's broker over AuthRPC (probe_separated: SEP-COMPOSITION HOLDS; SEP-BROWSER HOLDS once the probe registers its staging site as a local service, which the EA-fix local-address rule now requires - unmodified probe: authorization denies before execution). Remaining: in the separated deployment the service runs as cambrowser, so the sandbox cannot drop to camsbx (its tools report unavailable with the reason) unless the launcher runs the executor as root (EA change request 3); in-process composition in runtime/loop_service.py still builds internal + browser only (change request E-2); boundary is uids in a container, not a VM."
   },
   "CU-02": {
    "state": "implemented",
@@ -128,15 +160,21 @@
     "tests/harness/env/test_browser.py::test_the_browser_is_a_full_chromium_build",
     "tests/harness/env/test_browser.py::test_page_observation_has_the_structured_representation",
     "tests/harness/env/test_browser_uid.py::test_chromium_runs_under_the_browser_uid_with_a_private_profile",
-    "tests/harness/env/test_browser_uid.py::test_fallback_reason_is_reported_when_chromium_is_not_reachable_by_the_browser_uid"
+    "tests/harness/env/test_browser_uid.py::test_fallback_reason_is_reported_when_chromium_is_not_reachable_by_the_browser_uid",
+    "tests/harness/env/test_e_fix_browser.py::test_a_service_uid_finds_a_chromium_it_can_execute",
+    "tests/harness/env/test_e_fix_factories.py::test_separated_service_as_cam_live_run_starts_it_registers_everything_and_runs_chromium_as_the_browser_uid"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/<probe>.py   # see docs/EB/FIXES.md"
    ],
    "evidence": [
-    "docs/evidence/test_results/EB.xml"
+    "docs/evidence/test_results/EB.xml",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "Chromium 159.0.8154.6 (full build, new headless mode; --no-sandbox because the container has no user namespaces). Headed mode exists (--headed) but was not run (no display). Uid separation needs a Chromium install readable by cambrowser: Playwright's copy under /root is not, so the default launch on this machine falls back to the service's own uid and says so in capabilities; the separated path is tested with a temporary shared copy."
+   "limitations": "Chromium 159.0.8154.6 (full build, new headless; --no-sandbox, no user namespaces in the container). E-fix: a shared copy for service uids (python -m cam_live.harness.browser --install-shared, done on this machine: <venv>/share/cam_live/ms-playwright/chromium-1255); the executor picks the first Chromium the browser uid can execute ($CAM_LIVE_CHROMIUM, $PLAYWRIGHT_BROWSERS_PATH, shared copy, Playwright's download) and checks that the run directory is reachable for it; proven separated under the launcher with -m privileged (Chromium processes run as cambrowser). Headed mode not run (no display)."
   },
   "CU-03": {
    "state": "implemented",
@@ -159,16 +197,22 @@
     "tests/harness/env/test_browser.py::test_dynamic_changes_are_observed_as_diffs",
     "tests/harness/env/test_browser.py::test_duplicate_submission_of_a_click_executes_once",
     "tests/harness/env/test_browser.py::test_screen_object_operates_the_canvas_site",
-    "tests/harness/env/test_browser.py::test_secret_is_typed_only_into_a_password_field_and_never_comes_back"
+    "tests/harness/env/test_browser.py::test_secret_is_typed_only_into_a_password_field_and_never_comes_back",
+    "tests/harness/env/test_e_fix_browser.py::test_a_click_that_opens_a_tab_is_reported_ok",
+    "tests/harness/env/test_e_fix_browser.py::test_a_stored_secret_is_typed_by_reference"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/<probe>.py   # see docs/EB/FIXES.md"
    ],
    "evidence": [
     "docs/evidence/test_results/EB.xml",
-    "docs/evidence/EB/latency.json"
+    "docs/evidence/EB/latency.json",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "16 tools: navigate, open_tab, close_tab, select_tab, inspect, read, click, fill, select_option, press, scroll, upload, download, wait_for, screenshot, close_session. No hover / drag / history-back primitive in the structured executor (drag and raw mouse exist on screen())."
+   "limitations": "16 tools. E-fix: the popup race is gone (tab list copied before awaiting); browser.fill takes a secret by reference 'secret:<name>' and works with the real PolicyService (BR-SECRET-USABLE HOLDS); with EA-fix policy data uploads from the workspace, programs and repeated interactions run under the default policy (BR-UPLOAD-DEFAULT, BR-WORKFLOW-REAL-POLICY, PG-PROGRAMS-REAL-POLICY HOLD). No hover / drag / history-back primitive in the structured executor."
   },
   "CU-04": {
    "state": "implemented",
@@ -206,15 +250,23 @@
     "tests/harness/env/test_browser.py::test_stale_references_are_detected",
     "tests/harness/env/test_browser.py::test_dynamic_changes_are_observed_as_diffs",
     "tests/harness/env/test_env_core.py::test_outdated_observation_reference_fails_before_any_executor_runs",
-    "tests/harness/env/test_perception.py::test_page_observation_full_then_compact_diff"
+    "tests/harness/env/test_perception.py::test_page_observation_full_then_compact_diff",
+    "tests/harness/env/test_e_fix_browser.py::test_pages_with_unparseable_numbers_and_huge_fields_are_observable_and_bounded",
+    "tests/harness/env/test_e_fix_core.py::test_large_observation_data_is_bounded_and_stored_as_a_blob",
+    "tests/harness/env/test_e_fix_core.py::test_non_finite_quantities_are_rejected",
+    "tests/harness/env/test_e_fix_core.py::test_number_parser_edges"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/<probe>.py   # see docs/EB/FIXES.md"
    ],
    "evidence": [
-    "docs/evidence/test_results/EB.xml"
+    "docs/evidence/test_results/EB.xml",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "Staleness = the document was replaced, the element left the DOM, or its role/name changed since the named observation; a value change alone does not outdate a ref. Refs are DOM attributes (data-camlive-ref), visible to page scripts. The observation ledger is per process: every observation from before a restart is outdated."
+   "limitations": "E-fix: Observation size is bounded (256 KB JSON per observation by default, ComputerEnvironment(max_observation_bytes)); larger payloads are stored as blobs (<run_dir>/env/blobs, readable with internal.inspect what=blob); page fields are clipped at extraction (hrefs / form actions / iframe src 1024, title 300, table width 30 / 600 cells); hidden <dl> not read; numbers that are no finite float (1e999..., 1e-400) are not quantities and never crash observation; non-finite quantities are rejected. Refs are DOM attributes visible to page scripts; observations from before a restart are outdated."
   },
   "CU-11": {
    "state": "implemented",
@@ -237,12 +289,16 @@
     "tests/harness/env/test_browser.py::test_multi_step_workflow_on_the_structured_site"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live   # 43 passed, 23 skipped in 11.77s (default: no Chromium)"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live   # 43 passed, 23 skipped in 11.77s (default: no Chromium)",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/<probe>.py   # see docs/EB/FIXES.md"
    ],
    "evidence": [
-    "docs/evidence/test_results/EB.xml"
+    "docs/evidence/test_results/EB.xml",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "ActionSpec fields used by the environment: operation, modality, level, target (navigate URL fallback), arguments, timeout_s, verify, steps, parent_decision_id / experiment_id (copied onto expected outcomes), est_cost.money (limit check). prerequisites, expected and auth_scope are carried and logged but not interpreted here. Argument validation covers a JSON-Schema subset."
+   "limitations": "E-fix: programs are authorized by the default policy since the EA-fix policy data (PG-PROGRAMS-REAL-POLICY HOLDS; PG-RATE-LIMIT HOLDS: steps are charged individually). prerequisites, expected and auth_scope are carried but not interpreted here."
   },
   "CU-13": {
    "state": "implemented",
@@ -261,15 +317,21 @@
     "tests/harness/env/test_env_core.py::test_executor_failures_do_not_kill_the_environment",
     "tests/harness/env/test_env_core.py::test_writes_are_serialised_reads_run_concurrently",
     "tests/harness/env/test_browser.py::test_denied_url_prevents_navigation_with_a_hard_failure_and_no_fallback",
-    "tests/harness/env/test_browser.py::test_screen_object_operates_the_canvas_site"
+    "tests/harness/env/test_browser.py::test_screen_object_operates_the_canvas_site",
+    "tests/harness/env/test_e_fix_factories.py::test_all_executors_registers_every_modality_configured_from_the_task",
+    "tests/harness/env/test_e_fix_core.py::test_executions_feed_skill_induction_and_the_selector_estimates"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/<probe>.py   # see docs/EB/FIXES.md"
    ],
    "evidence": [
-    "docs/evidence/test_results/EB.xml"
+    "docs/evidence/test_results/EB.xml",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "Routing, authorization, logging and programs across modalities are tested with three real executors (internal, structured_browser, and an api-modality HTTP executor that lives in the test directory). The visual, code, api and skill executors of EC/ES were not registered or run by EB."
+   "limitations": "E-fix: one composition with internal, structured_browser, code, visual, api (HTTP, publishing, Discord) and skill executors (factories.all_executors); every executed action feeds the skill executor (observe_execution) and the modality selector, whose estimates are exposed as exec.modality.* quantities and capabilities. The visual executor uses the browser's screens; desktop screens do not exist on this host."
   },
   "CU-14": {
    "state": "implemented",
@@ -288,12 +350,16 @@
     "tests/harness/env/test_browser.py::test_secret_is_typed_only_into_a_password_field_and_never_comes_back"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/<probe>.py   # see docs/EB/FIXES.md"
    ],
    "evidence": [
-    "docs/evidence/test_results/EB.xml"
+    "docs/evidence/test_results/EB.xml",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "Persistence shown with a staging sign-in cookie only; no real account was connected. Profile directory mode 0700 and session-cookie file 0600; unreadable by the learner uid only in the uid-separated launch."
+   "limitations": "E-fix: stored secrets are used by reference 'secret:<name>' with the real authorization service (BR-SECRET-USABLE, HT-SECRET-REFERENCE HOLD); released values' transformed echoes (case, separators, halves) are scrubbed from observations and the log (BR-SECRET-TRANSFORMED, HT-SECRET-SCRUB HOLD) - only for values released during the current process (vault-side request E->EA-5). Persistence shown with a staging cookie only."
   },
   "CU-21": {
    "state": "implemented",
@@ -339,12 +405,16 @@
     "tests/harness/env/test_browser.py::test_denied_url_prevents_navigation_with_a_hard_failure_and_no_fallback"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live   # 43 passed, 23 skipped in 11.77s (default: no Chromium)"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live   # 43 passed, 23 skipped in 11.77s (default: no Chromium)",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/compute cam_live/tests/harness/skills -q --rootdir=cam_live -m \"privileged or browser or not (gpu or slow or network)\"   # E-fix final run: 310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/<probe>.py   # see docs/EB/FIXES.md"
    ],
    "evidence": [
-    "docs/evidence/test_results/EB.xml"
+    "docs/evidence/test_results/EB.xml",
+    "docs/EB/FIXES.md",
+    "docs/evidence/test_results/E_fix.xml"
    ],
-   "limitations": "The log covers what passes through the environment (submission, refusal, start, every primitive check, every primitive op, every observation, result, events, measurements). Raw mouse/keyboard gestures made through screen() are logged only if the visual executor reports them as ops. Screenshot pixels and downloaded files are referenced by path, not embedded. Secret scrubbing needs a broker handle; events.jsonl, env/actions.jsonl and env/stream.jsonl grow without rotation."
+   "limitations": "E-fix: in the separated deployment the service now has the broker handle over AuthRPC, so observations and the log are scrubbed (secret_scrubbing true); a whole object is scrubbed in one call. The log holds bounded observations; blobs hold the rest. Raw screen gestures are logged only as the visual executor reports them."
   },
   "CU-29": {
    "state": "implemented",
@@ -374,7 +444,6 @@
   }
  },
  "public_api": [
-  "cam_live.harness.env.ComputerEnvironment(run_dir: str, policy: PolicyEngine, *, clock=None, secrets=None, limits: Optional[Limits]=None, provenance='staging', record_results=True, perception=None, events_log=None, name='computer')  # implements contracts.EnvironmentAdapter",
   "ComputerEnvironment.register(executor: ModalityExecutor) -> None; .add_source(source) -> None  # source: pending() / measure(query, now) / metrics(); .annotate(key, value) -> None; .executor(modality) -> Optional[ModalityExecutor]",
   "ComputerEnvironment.emit_event(obs: Observation) -> str; .is_stale(obs_id: str) -> Optional[str]; .cancel_action(action_id: str) -> bool; .add_pending(query: OutcomeQuery) -> None; .drop_pending(query_id: str) -> bool; .records(kind='', limit=50, action_id='') -> List[dict]; .close() -> None",
   "cam_live.harness.env.validate_args(schema: dict, value: Any, path='arguments') -> List[str]; cam_live.harness.env.PROGRAM == 'program'  # ActionSpec(operation='program', steps=[...]) runs steps through their own modalities",
@@ -393,16 +462,20 @@
   "cam_live.harness.service.serve(env, socket_path, *, allowed_uids=None, group='camlive', on_close=None) -> RpcServer; build_environment(run_dir, policy, *, provenance='staging', clock=None, secrets=None, executors=(), browser=True, browser_config=None, limits=None) -> ComputerEnvironment",
   "python -m cam_live.harness.service --run-dir R --socket R/sock/exec.sock --auth-socket R/sock/auth.sock [--provenance staging|live|diagnostic] [--executor MODULE:FACTORY]... [--secrets MODULE:FACTORY] [--cdp NAME=ENDPOINT]... [--no-browser] [--headed] [--staging-sites] [--diagnostic-allow-all] [--allow-uid N]",
   "cam_live.harness.staging.StagingSites(*, lab_config=None, clock: Optional[SimClock]=None, host='127.0.0.1', ports=None): .start() / .stop() / context manager; .urls[name], .sites[name] for name in structured|canvas|dynamic|variants|labsite; .outcome_source() -> LabSiteSource; .capabilities() -> dict",
-  "cam_live.harness.staging.CANVAS_LAYOUT[screen][control] = {rect: [x, y, w, h], label, kind}; canvas_center(screen, control) -> [x, y]; VariantSite.set_layout(layout: 'a'|'b', after: Optional[int]=None); also GET <canvas>/layout.json and GET <variants>/control/layout?set=b[&after=N]"
+  "cam_live.harness.staging.CANVAS_LAYOUT[screen][control] = {rect: [x, y, w, h], label, kind}; canvas_center(screen, control) -> [x, y]; VariantSite.set_layout(layout: 'a'|'b', after: Optional[int]=None); also GET <canvas>/layout.json and GET <variants>/control/layout?set=b[&after=N]",
+  "cam_live.harness.env.ComputerEnvironment(run_dir: str, policy: PolicyEngine, *, clock=None, secrets=None, limits: Optional[Limits]=None, provenance='staging', record_results=True, perception=None, events_log=None, name='computer', max_observation_bytes=262144, selector='default', duplicate_wait_s=None)  # EnvironmentAdapter; read_blob(blob_id, offset, max_chars); modality_estimates()",
+  "cam_live.harness.factories.all_executors(run_dir, clock=None, env=None, policy=None, secrets=None, task=None, *, browser_enabled=True, browser_config=None, sandbox_config=None, visual_config=None, sandbox_workspace='', discord_base_url='', exclude=()) -> List[ModalityExecutor]  # also internal / browser / code / visual / api / skills",
+  "cam_live.harness.service.build_environment(run_dir, policy, *, provenance='staging', clock=None, secrets=None, executors=(), browser=True, browser_config=None, limits=None, compose='minimal'|'all', task=None)",
+  "python -m cam_live.harness.service --run-dir R --socket S [--auth-socket A] [--compose all|minimal] [--task T] [--executor MOD:FACTORY]... [--secrets MOD:FACTORY | --no-secrets]  # default without --executor: compose all, broker over --auth-socket, task R/../task.yaml",
+  "python -m cam_live.harness.browser --install-shared [--dest D] | --find USER   # shared Chromium for service uids",
+  "cam_live.harness.browser.find_chromium(uid=None, gid=None, bundled='') -> str; install_shared_chromium(dest='', source='') -> str; SHARED_BROWSERS_DIR"
  ],
  "change_requests": 7,
  "measured": {
-  "tests_total": 66,
-  "tests_passed": 66,
-  "tests_default_suite_passed": 43,
-  "tests_default_suite_skipped_without_marker": 23,
-  "full_suite_seconds": 57.33,
-  "default_suite_seconds": 11.77,
+  "tests_total": 91,
+  "tests_passed": 91,
+  "tests_default_suite_skipped_without_marker": 33,
+  "default_suite_seconds": 26.45,
   "chromium_version": "159.0.8154.6",
   "playwright_version": "1.65.2",
   "first_action_including_chromium_launch_ms": 937.3,
@@ -418,25 +491,71 @@
   "observation_diff_unchanged_text_chars": 97,
   "observation_diff_after_fill_text_chars": 138,
   "measure_command": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/EB/measure_latency.py   # n=15 per primitive, staging /items page, writes docs/evidence/EB/latency.json",
-  "source_lines_src_and_tests": 7318
+  "source_lines_src_and_tests": 7318,
+  "e_fix_tests": 25,
+  "click_with_navigation_median_ms_efix_runs_under_load": [
+   489.6,
+   419.0,
+   479.8
+  ],
+  "fill_median_ms_efix_runs_under_load": [
+   87.3,
+   50.8,
+   87.2
+  ],
+  "first_action_including_chromium_launch_ms_efix_runs_under_load": [
+   1282.8,
+   1368.5,
+   1692.8
+  ],
+  "inspect_diff_unchanged_median_ms_efix_runs_under_load": [
+   76.1,
+   32.0,
+   64.7
+  ],
+  "inspect_full_with_a11y_median_ms_efix_runs_under_load": [
+   76.0,
+   29.8,
+   71.8
+  ],
+  "navigate_median_ms_efix_runs_under_load": [
+   292.4,
+   267.3,
+   219.9
+  ],
+  "rpc_inspect_full_median_ms_efix_runs_under_load": [
+   77.2,
+   76.1,
+   22.5
+  ],
+  "rpc_ping_median_ms_efix_runs_under_load": [
+   0.1,
+   0.1,
+   0.1
+  ],
+  "wait_schedule_median_ms_efix_runs_under_load": [
+   8.1,
+   7.4,
+   5.5
+  ],
+  "latency_note": "The single values above are EB's original measurement (unloaded machine). Re-measured by E-fix three times under load average 20-27 on 48 cores with the network guard in place: navigate and rpc_ping hold; first action 1283-1693 ms, click with navigation 419-490 ms, fill 51-87 ms, inspect 30-76 ms do not hold under that load (docs/EB/latency_efix.json). Observation sizes reproduce exactly.",
+  "tests_note": "env directory with -m 'privileged or browser or not ...': 91 passed (66 EB + 25 E-fix) in the E-fix final run of env+compute+skills (310 tests: 306 passed, 4 failed - all four in tests/harness/skills/test_es_discord_live_check.py (Discord paths, not E's; one fails since the EA-fix policy, three started failing during the run with the master's policy commit ddb0f27 'per-member Discord events need the member_list data permission'); 408 s under load average ~25; JUnit docs/evidence/test_results/E_fix.xml); default suite (no marks): 57 passed, 33 skipped in 26.45 s",
+  "tests_default_suite_passed": 57
  },
  "packages_installed": [
   "pypdf==7.2.0  (uv pip install --python /workspace/camlive/.venv/bin/python pypdf)"
  ],
  "not_done": [
-  "No public website and no live service was contacted; every result is a staging result. Live operation is blocked until the operator supplies authorization and credentials.",
-  "The environment was not composed with the EC (sandbox, jobs, visual) or ES (api, skill, publishing, discord) executors; that wiring (service --executor flags / build_environment) is integration work. One cross-workstream check exists: the environment against harness.auth.PolicyService in process.",
-  "RemotePolicy was tested against a small real PolicyEngine served over harness.rpc, not against the harness.auth service process.",
-  "The executor-side secret handle is not constructed by the service unless a --secrets factory is given; EB tests use a two-method broker object, not the vault.",
-  "Uid-separated Chromium is not active by default on this machine (Playwright's Chromium under /root is unreachable for cambrowser); it needs BrowserConfig.executable_path pointing at a shared install. Tested only with a temporary copy.",
+  "No public website and no live service was contacted; every result is a staging result.",
+  "HTTPS / WebSocket traffic the page layer did not see is judged by host:port only (the proxy cannot see inside TLS); such a tunnel is charged as an external write by the current policy (request E->EA-1).",
+  "cdp: sessions (externally supplied Chromium) have no network guard: redirect hops are judged after the fact.",
+  "http_api.py does not pin resolved addresses (DNS rebinding is judged only for the browser) - EA change request 10a.",
   "Structured observations do not descend into iframes or closed shadow roots.",
-  "Redirect hops are authorized after the fact (final URL), not before each hop; same-origin subresource requests are not individually checked; no kernel-level network filtering.",
-  "Research sessions block every non-GET request, so POST-based search forms do not work there.",
-  "Headed (non-headless) mode was not run; no desktop-level screenshots (viewport only).",
-  "ComputerEnvironment enforces only coarse limits (external action count, money estimate, compute, duration); rate and spending policy belong to the authorization service.",
-  "Log, journal and event-stream files are append-only without rotation or compaction.",
-  "Who calls PolicyEngine.record is unresolved in the contract (change request 3); the environment does it by default.",
-  "Action timeouts stop waiting and abandon the page load, but an executor that ignores ExecContext.cancel is not forcibly killed."
+  "In the separated deployment the sandbox cannot drop to camsbx while the executor runs as cambrowser (EA change request 3).",
+  "runtime/loop_service.py (in-process runs) still builds a minimal environment (change request E-2); runtime/cli.py does not pass --task (E-1, worked around by find_task_file).",
+  "Transformed-echo scrubbing covers values released in the current process only (vault-side request E->EA-5).",
+  "Headed mode was not run; research sessions block every non-GET request.",
+  "Log, journal and event-stream files are append-only without rotation."
  ],
  "scientific_failures": [],
  "commit_note": "code and evidence as of this commit; the status file itself is committed right after it"
