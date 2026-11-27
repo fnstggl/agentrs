@@ -1,0 +1,111 @@
+{
+ "n_train_families": 50,
+ "hits": {
+  "des_inventory": [
+   "9608.051"
+  ]
+ },
+ "errors": {},
+ "privkey_hits": {
+  "ch_sign_reversal": [
+   "[8][0].observations[0].content<json>.spec.objective",
+   "[9].observations[0][0].content<json>.spec.objective"
+  ],
+  "des_bottleneck": [
+   "[6][0].observations[0].content<json>.spec.objective",
+   "[7].observations[0][0].content<json>.spec.objective"
+  ],
+  "dl_short_term_damage": [
+   "[8][0].observations[0].content<json>.spec.objective",
+   "[9].observations[0][0].content<json>.spec.objective"
+  ],
+  "lab_drift_blanks": [
+   "[10][0].observations[0].content<json>.spec.objective",
+   "[11].observations[0][0].content<json>.spec.objective"
+  ],
+  "lab_kinetics": [
+   "[10][0].observations[0].content<json>.spec.objective",
+   "[11].observations[0][0].content<json>.spec.objective"
+  ],
+  "pe_cascade_guard": [
+   "[12][0].observations[0].content<json>.spec.objective",
+   "[13].observations[0][0].content<json>.spec.objective"
+  ],
+  "pe_contention_sched": [
+   "[14][0].observations[0].content<json>.spec.objective",
+   "[15].observations[0][0].content<json>.spec.objective"
+  ],
+  "pe_fleet_policy": [
+   "[14][0].observations[0].content<json>.spec.objective",
+   "[15].observations[0][0].content<json>.spec.objective"
+  ],
+  "pe_rollout_targeting": [
+   "[12][0].observations[0].content<json>.spec.objective",
+   "[13].observations[0][0].content<json>.spec.objective"
+  ],
+  "pe_rule_induction": [
+   "[12][0].observations[0].content<json>.spec.objective",
+   "[13].observations[0][0].content<json>.spec.objective"
+  ],
+  "pe_stream_processor": [
+   "[14][0].observations[0].content<json>.spec.objective",
+   "[15].observations[0][0].content<json>.spec.objective"
+  ],
+  "pe_unstable_control": [
+   "[12][0].observations[0].content<json>.spec.objective",
+   "[13].observations[0][0].content<json>.spec.objective"
+  ],
+  "plan_complements": [
+   "[8][0].observations[0].content<json>.spec.objective",
+   "[9].observations[0][0].content<json>.spec.objective"
+  ],
+  "plan_distribution": [
+   "[8][0].observations[0].content<json>.spec.objective",
+   "[9].observations[0][0].content<json>.spec.objective"
+  ],
+  "plan_perishable": [
+   "[8][0].observations[0].content<json>.spec.objective",
+   "[9].observations[0][0].content<json>.spec.objective"
+  ],
+  "plan_portfolio": [
+   "[8][0].observations[0].content<json>.spec.objective",
+   "[9].observations[0][0].content<json>.spec.objective"
+  ],
+  "plan_supply_chain": [
+   "[8][0].observations[0].content<json>.spec.objective",
+   "[9].observations[0][0].content<json>.spec.objective"
+  ],
+  "posm_fault_diagnosis": [
+   "[6][0].observations[0].content<json>.spec.objective",
+   "[7].observations[0][0].content<json>.spec.objective"
+  ],
+  "srch_field": [
+   "[8][0].observations[0].content<json>.spec.objective",
+   "[9].observations[0][0].content<json>.spec.objective"
+  ],
+  "srch_tools": [
+   "[8][0].observations[0].content<json>.spec.objective",
+   "[9].observations[0][0].content<json>.spec.objective"
+  ],
+  "strat_blotto": [
+   "[6][0].observations[0].content<json>.spec.objective",
+   "[7].observations[0][0].content<json>.spec.objective"
+  ],
+  "strat_entry": [
+   "[6][0].observations[0].content<json>.spec.objective",
+   "[7].observations[0][0].content<json>.spec.objective"
+  ],
+  "strat_interdiction": [
+   "[6][0].observations[0].content<json>.spec.objective",
+   "[7].observations[0][0].content<json>.spec.objective"
+  ],
+  "strat_price_war": [
+   "[6][0].observations[0].content<json>.spec.objective",
+   "[7].observations[0][0].content<json>.spec.objective"
+  ],
+  "team_formation": [
+   "[6][0].observations[0].content<json>.spec.objective",
+   "[7].observations[0][0].content<json>.spec.objective"
+  ]
+ }
+}

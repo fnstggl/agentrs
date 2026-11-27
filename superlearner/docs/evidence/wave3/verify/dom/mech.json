@@ -1,0 +1,219 @@
+{
+ "transformers": "5.24.0",
+ "learner": "IntegratedLearner",
+ "reward_model": {
+  "error": "AttributeError: 'function' object has no attribute 'stamp_of'",
+  "tb": "Traceback (most recent call last):\n  File \"/tmp/claude-0/verify_dom/scripts/mech_checks.py\", line 15, in deco\n    try: res[name] = fn()\n                     ^^^^\n  File \"/tmp/claude-0/verify_dom/scripts/mech_checks.py\", line 35, in _\n    st = SEL.stamp_of(dec.actions[0])\n         ^^^^^^^^^^^^\nAttributeError: 'function' object has no attribute 'stamp_of'\n"
+ },
+ "reward_model_s": 1.1954607963562012,
+ "mech_c_init": {
+  "sem_stats_before": {
+   "calls_with_sem": 2,
+   "calls_sem_ignored": 0
+  },
+  "sem_stats_after": {
+   "calls_with_sem": 4,
+   "calls_sem_ignored": 0
+  },
+  "spy": {
+   "cond_none": true,
+   "type": "SemanticContext"
+  },
+  "gate_stats": {
+   "3": 0.047363944351673126,
+   "7": 0.047366440296173096
+  },
+  "kl_tool_sem_vs_nosem_mean": 1.5860168787185103e-06,
+  "kl_tool_sem_vs_nosem_max": 3.303342964500189e-06,
+  "I_rel_change_nosem": 0.010749700479209423,
+  "Z_rel": null
+ },
+ "mech_c_init_s": 0.48589634895324707,
+ "a03_init": {
+  "default_reason_iters": 2,
+  "J1": {
+   "kl_tool_vs_default_mean": 0.0027221371419727802,
+   "kl_tool_vs_default_max": 0.003620479255914688,
+   "I_rel_change": 0.6835813522338867,
+   "R_iters_reported": 1.0,
+   "acc": 0.0625,
+   "tool_changed_frac_vs_default": 0.875,
+   "action_changed_frac_vs_default": 0.875
+  },
+  "J2": {
+   "kl_tool_vs_default_mean": 0.0,
+   "kl_tool_vs_default_max": 0.0,
+   "I_rel_change": 0.0,
+   "R_iters_reported": 2.0,
+   "acc": 0.5,
+   "tool_changed_frac_vs_default": 0.0,
+   "action_changed_frac_vs_default": 0.0
+  },
+  "J4": {
+   "kl_tool_vs_default_mean": 0.000547371688298881,
+   "kl_tool_vs_default_max": 0.000870987307280302,
+   "I_rel_change": 0.7316271066665649,
+   "R_iters_reported": 4.0,
+   "acc": 0.5,
+   "tool_changed_frac_vs_default": 0.125,
+   "action_changed_frac_vs_default": 0.0625
+  },
+  "J8": {
+   "kl_tool_vs_default_mean": 0.006381922401487827,
+   "kl_tool_vs_default_max": 0.008312330581247807,
+   "I_rel_change": 1.0302871465682983,
+   "R_iters_reported": 8.0,
+   "acc": 0.0,
+   "tool_changed_frac_vs_default": 1.0,
+   "action_changed_frac_vs_default": 0.0625
+  },
+  "J16": {
+   "kl_tool_vs_default_mean": 0.012664278969168663,
+   "kl_tool_vs_default_max": 0.01539270393550396,
+   "I_rel_change": 1.1444758176803589,
+   "R_iters_reported": 16.0,
+   "acc": 0.0,
+   "tool_changed_frac_vs_default": 1.0,
+   "action_changed_frac_vs_default": 0.0625
+  }
+ },
+ "a03_init_s": 3.4550440311431885,
+ "mech_a": {
+  "error": "AttributeError: 'function' object has no attribute 'stamp_of'",
+  "tb": "Traceback (most recent call last):\n  File \"/tmp/claude-0/verify_dom/scripts/mech_checks.py\", line 15, in deco\n    try: res[name] = fn()\n                     ^^^^\n  File \"/tmp/claude-0/verify_dom/scripts/mech_checks.py\", line 160, in _\n    for c in SEL.stamp_of(a)[\"candidates\"]:\n             ^^^^^^^^^^^^\nAttributeError: 'function' object has no attribute 'stamp_of'\n"
+ },
+ "mech_a_s": 7.725378036499023,
+ "cond_g_before": {
+  "kl": {
+   "B": 8,
+   "kl_tool_mean": 0.0010372785618528724,
+   "kl_tool_min": 0.00045306095853447914,
+   "kl_tool_max": 0.0019947830587625504
+  },
+  "zero": {
+   "max_prob_gap_between_goals_I_zero": 0.0,
+   "max_prob_gap_between_goals_trained_I": 0.02374798059463501,
+   "uniform_at_I_zero": 9.934107453313246e-09,
+   "n_tools_incl_builtins": 6
+  }
+ },
+ "cond_g_before_s": 0.8024086952209473,
+ "imitate": {
+  "last": {
+   "step": 29,
+   "loss": 6.780019248253666e-07,
+   "p_correct": 0.9999993443489075,
+   "grad_norm": 6.521350587718189e-05
+  },
+  "seconds": 21.08646489214152
+ },
+ "imitate_s": 21.093496799468994,
+ "cond_g_after": {
+  "condition_g": {
+   "B": 16,
+   "no_swap_follow_own_goal": 1.0,
+   "swap_RI_follow_donor": 1.0,
+   "swap_RI_follow_own": 0.0,
+   "swap_I_only_follow_donor": 1.0,
+   "swap_R_only_after_intent_follow_own": 1.0,
+   "swap_R_before_intent_follow_donor": 0.0,
+   "all_swapped_actions_stamped": true
+  },
+  "kl": {
+   "B": 16,
+   "kl_tool_mean": 24.528642654418945,
+   "kl_tool_min": 22.645179748535156,
+   "kl_tool_max": 26.476381301879883
+  },
+  "zero": {
+   "max_prob_gap_between_goals_I_zero": 0.0,
+   "max_prob_gap_between_goals_trained_I": 0.9999999999964116,
+   "uniform_at_I_zero": 9.934107453313246e-09,
+   "n_tools_incl_builtins": 6
+  },
+  "acc": 1.0,
+  "extra": {
+   "swap_R_before_intent_follow_donor_greedy": 0.0,
+   "own_acc_greedy": 1.0
+  },
+  "stamps": {
+   "executed_all_authorized": true,
+   "unstamped_refused": true,
+   "tampered_refused": true,
+   "forged_refused": true
+  }
+ },
+ "cond_g_after_s": 5.5412068367004395,
+ "mech_c_trained": {
+  "sem_stats_before": {
+   "calls_with_sem": 196,
+   "calls_sem_ignored": 0
+  },
+  "sem_stats_after": {
+   "calls_with_sem": 198,
+   "calls_sem_ignored": 0
+  },
+  "spy": {
+   "cond_none": true,
+   "type": "SemanticContext"
+  },
+  "gate_stats": {
+   "3": 0.047354891896247864,
+   "7": 0.04734230041503906
+  },
+  "kl_tool_sem_vs_nosem_mean": -7.226687248618191e-09,
+  "kl_tool_sem_vs_nosem_max": 1.6797091717535295e-08,
+  "I_rel_change_nosem": 0.002799368929117918,
+  "Z_rel": null
+ },
+ "mech_c_trained_s": 0.38324785232543945,
+ "a03_trained": {
+  "default_reason_iters": 2,
+  "J1": {
+   "kl_tool_vs_default_mean": 1.429694748367183e-06,
+   "kl_tool_vs_default_max": 3.6076473861612612e-06,
+   "I_rel_change": 0.13186685740947723,
+   "R_iters_reported": 1.0,
+   "acc": 1.0,
+   "tool_changed_frac_vs_default": 0.0,
+   "action_changed_frac_vs_default": 0.0
+  },
+  "J2": {
+   "kl_tool_vs_default_mean": 0.0,
+   "kl_tool_vs_default_max": 0.0,
+   "I_rel_change": 0.0,
+   "R_iters_reported": 2.0,
+   "acc": 1.0,
+   "tool_changed_frac_vs_default": 0.0,
+   "action_changed_frac_vs_default": 0.0
+  },
+  "J4": {
+   "kl_tool_vs_default_mean": 9.042196893460641e-07,
+   "kl_tool_vs_default_max": 2.0976117411919404e-06,
+   "I_rel_change": 0.13932009041309357,
+   "R_iters_reported": 4.0,
+   "acc": 1.0,
+   "tool_changed_frac_vs_default": 0.0,
+   "action_changed_frac_vs_default": 0.0
+  },
+  "J8": {
+   "kl_tool_vs_default_mean": 7.889408152550459e-06,
+   "kl_tool_vs_default_max": 1.8848368199542165e-05,
+   "I_rel_change": 0.2416234165430069,
+   "R_iters_reported": 8.0,
+   "acc": 1.0,
+   "tool_changed_frac_vs_default": 0.0,
+   "action_changed_frac_vs_default": 0.0
+  },
+  "J16": {
+   "kl_tool_vs_default_mean": 1.983944275707472e-05,
+   "kl_tool_vs_default_max": 4.568315125652589e-05,
+   "I_rel_change": 0.3433174788951874,
+   "R_iters_reported": 16.0,
+   "acc": 1.0,
+   "tool_changed_frac_vs_default": 0.0,
+   "action_changed_frac_vs_default": 0.0
+  }
+ },
+ "a03_trained_s": 3.348825216293335
+}

@@ -1,0 +1,1405 @@
+{
+ "n_updates": 3,
+ "authorisation": {
+  "required": true,
+  "checked": 120,
+  "source": "config"
+ },
+ "actions": 120,
+ "actions_stamp_verified": 120,
+ "by_tool": {
+  "wait": 38,
+  "rapid.levers": 35,
+  "noop": 23,
+  "goals.propose": 2,
+  "ads.create_campaign": 2,
+  "forum.reply": 2,
+  "use.categories": 1,
+  "forum.post": 1,
+  "market.inventory": 1,
+  "id.invites": 1,
+  "mail.read": 1,
+  "cal.cancel": 1,
+  "cloud.deploy": 1,
+  "market.browse": 1,
+  "support.open": 1,
+  "id.update_profile": 1,
+  "search.get": 1,
+  "code.create_repo": 1,
+  "docs.share": 1,
+  "mail.send": 1,
+  "issues.close": 1,
+  "cloud.deployments": 1,
+  "id.revoke": 1,
+  "ads.resume": 1
+ },
+ "core_hash_changed": true,
+ "intent_permutation_kl": {
+  "before_training": {
+   "agent_version": 0,
+   "round": 1,
+   "B": 5,
+   "perm": [
+    4,
+    0,
+    1,
+    2,
+    3
+   ],
+   "n_tools": [
+    3,
+    3,
+    3,
+    3,
+    147
+   ],
+   "kl_tool_mean": 0.0015518141444772482,
+   "kl_tool_min": 0.0001102072128560394,
+   "kl_tool_max": 0.005953898187726736,
+   "kl_tool_per_row": [
+    0.0005887439474463463,
+    0.0001102072128560394,
+    0.0009159566834568977,
+    0.00019026454538106918,
+    0.005953898187726736
+   ],
+   "kl_identity_control_max": 0.0,
+   "intent_row_distance_mean": 52.11433029174805,
+   "intent_norm_mean": 78.38301849365234
+  },
+  "after_training_same_inputs": {
+   "agent_version": 3,
+   "B": 5,
+   "perm": [
+    4,
+    0,
+    1,
+    2,
+    3
+   ],
+   "n_tools": [
+    3,
+    3,
+    3,
+    3,
+    147
+   ],
+   "kl_tool_mean": 0.006053468678146601,
+   "kl_tool_min": 0.0008143046870827675,
+   "kl_tool_max": 0.017265569418668747,
+   "kl_tool_per_row": [
+    0.017265569418668747,
+    0.001608794555068016,
+    0.002031581476330757,
+    0.0008143046870827675,
+    0.008547091856598854
+   ],
+   "kl_identity_control_max": 0.0,
+   "intent_row_distance_mean": 49.951568603515625,
+   "intent_norm_mean": 78.38768768310547
+  }
+ },
+ "parameters": {
+  "cam_trainable": 67557548,
+  "cam_total": 67557548,
+  "core": 16917378,
+  "semantic": "Qwen/Qwen3-0.6B",
+  "trainer_groups": {
+   "core": 16917378,
+   "heads": 50638634,
+   "semantic": 1536
+  }
+ },
+ "env_exceptions": [],
+ "dom08_per_update": [
+  {
+   "core.block0": "nonzero",
+   "core.block_mid": "nonzero",
+   "core.block_last": "nonzero",
+   "sem_proj": "nonzero",
+   "core.sem_xattn_gate": "nonzero",
+   "reasoner": "nonzero",
+   "beliefs": "nonzero",
+   "world_model": "nonzero",
+   "intent": "nonzero",
+   "dec_xattn": "zero",
+   "exploration": "nonzero",
+   "policy": "nonzero",
+   "v_int": "nonzero",
+   "predictors": "zero"
+  },
+  {
+   "core.block0": "nonzero",
+   "core.block_mid": "nonzero",
+   "core.block_last": "nonzero",
+   "sem_proj": "nonzero",
+   "core.sem_xattn_gate": "nonzero",
+   "reasoner": "nonzero",
+   "beliefs": "nonzero",
+   "world_model": "nonzero",
+   "intent": "nonzero",
+   "dec_xattn": "nonzero",
+   "exploration": "nonzero",
+   "policy": "nonzero",
+   "v_int": "nonzero",
+   "predictors": "zero"
+  },
+  {
+   "core.block0": "nonzero",
+   "core.block_mid": "nonzero",
+   "core.block_last": "nonzero",
+   "sem_proj": "nonzero",
+   "core.sem_xattn_gate": "nonzero",
+   "reasoner": "nonzero",
+   "beliefs": "nonzero",
+   "world_model": "nonzero",
+   "intent": "nonzero",
+   "dec_xattn": "nonzero",
+   "exploration": "nonzero",
+   "policy": "nonzero",
+   "v_int": "nonzero",
+   "predictors": "zero"
+  }
+ ],
+ "grad_norm_by_objective": [
+  {
+   "world": {
+    "core.block0": 10.391078761238683,
+    "core.block_mid": 9.119091890866244,
+    "core.block_last": 7.6722148501451075,
+    "core.blocks_other": 20.476435073287217,
+    "core.sem_xattn_gate": 0.0016372501543625957,
+    "core.sem_xattn": 0.3116581066676433,
+    "core.state_gate": 0.08943017327823304,
+    "core.sem_proj": 0.05228055058394537,
+    "core.embed": 4.018682006450589,
+    "sem_proj": 76.16350434775995,
+    "entities": 0.177218075053585,
+    "reasoner": 0.47422021051775837,
+    "beliefs": 1.3147414912840503,
+    "world_model": 85.2579982730726,
+    "outcome_head": 131.50915634709622,
+    "intent": 0.0,
+    "evaluator": 0.0,
+    "dec_xattn": 0.0,
+    "dec_bridge": 0.0,
+    "exploration": 0.0,
+    "policy": 0.0016086877336589254,
+    "v_int": 0.0,
+    "predictors": 0.0,
+    "psi": 0.0,
+    "other": 0.0
+   },
+   "adapt": {
+    "core.block0": 0.02980640798411322,
+    "core.block_mid": 0.050221582321869865,
+    "core.block_last": 0.05407663392452951,
+    "core.blocks_other": 0.09167090355589372,
+    "core.sem_xattn_gate": 4.170178798373449e-06,
+    "core.sem_xattn": 0.000870825353343083,
+    "core.state_gate": 0.00043271044354546104,
+    "core.sem_proj": 0.00015154386281437135,
+    "core.embed": 0.018362732273404906,
+    "sem_proj": 1.445135569697209,
+    "entities": 0.002701863271058691,
+    "reasoner": 0.004599529011481427,
+    "beliefs": 0.15307393292944957,
+    "world_model": 0.13789595871894825,
+    "outcome_head": 15.503396431212108,
+    "intent": 0.0,
+    "evaluator": 0.0,
+    "dec_xattn": 0.0,
+    "dec_bridge": 0.0,
+    "exploration": 0.0,
+    "policy": 4.6900752039611615e-06,
+    "v_int": 0.0,
+    "predictors": 0.0,
+    "psi": 0.0,
+    "other": 0.0
+   },
+   "actor": {
+    "core.block0": 7.05091566132055,
+    "core.block_mid": 5.909914383663443,
+    "core.block_last": 5.0880815759363145,
+    "core.blocks_other": 13.331942138016398,
+    "core.sem_xattn_gate": 0.001854180174528397,
+    "core.sem_xattn": 0.2375219835675959,
+    "core.state_gate": 0.05962157047281458,
+    "core.sem_proj": 0.038646773587793906,
+    "core.embed": 2.984430287632934,
+    "sem_proj": 21.827242353502765,
+    "entities": 0.42288625180629325,
+    "reasoner": 0.2872370684098028,
+    "beliefs": 2.6977464494558987,
+    "world_model": 0.1429446726957112,
+    "outcome_head": 0.0,
+    "intent": 14.50311377405095,
+    "evaluator": 1.2605381600356778,
+    "dec_xattn": 0.0,
+    "dec_bridge": 0.0,
+    "exploration": 0.3227196911899871,
+    "policy": 26.101702546169587,
+    "v_int": 0.0,
+    "predictors": 0.0,
+    "psi": 0.0,
+    "other": 0.0
+   },
+   "value": {
+    "core.block0": 0.0,
+    "core.block_mid": 0.0,
+    "core.block_last": 0.0,
+    "core.blocks_other": 0.0,
+    "core.sem_xattn_gate": 0.0,
+    "core.sem_xattn": 0.0,
+    "core.state_gate": 0.0,
+    "core.sem_proj": 0.0,
+    "core.embed": 0.0,
+    "sem_proj": 0.0,
+    "entities": 0.0,
+    "reasoner": 0.0,
+    "beliefs": 0.0,
+    "world_model": 0.0,
+    "outcome_head": 0.0,
+    "intent": 0.0,
+    "evaluator": 0.0,
+    "dec_xattn": 0.0,
+    "dec_bridge": 0.0,
+    "exploration": 0.0,
+    "policy": 0.0,
+    "v_int": 1.4049699043295147,
+    "predictors": 0.0,
+    "psi": 0.0,
+    "other": 0.0
+   }
+  },
+  {
+   "world": {
+    "core.block0": 0.05561077553857681,
+    "core.block_mid": 0.04787521848024909,
+    "core.block_last": 0.04374061035612981,
+    "core.blocks_other": 0.10872686309893505,
+    "core.sem_xattn_gate": 9.67522725889642e-06,
+    "core.sem_xattn": 0.0018880193108344072,
+    "core.state_gate": 0.00048796193477824664,
+    "core.sem_proj": 0.00031724139772113826,
+    "core.embed": 0.026238845475042193,
+    "sem_proj": 0.2486974789414207,
+    "entities": 0.002069776706159795,
+    "reasoner": 0.002999874085397673,
+    "beliefs": 0.009008453832633264,
+    "world_model": 0.4572083708718116,
+    "outcome_head": 0.3496416705681402,
+    "intent": 0.0,
+    "evaluator": 0.0,
+    "dec_xattn": 0.0,
+    "dec_bridge": 0.0,
+    "exploration": 0.0,
+    "policy": 1.0164466355277911e-05,
+    "v_int": 0.0,
+    "predictors": 0.0,
+    "psi": 0.0,
+    "other": 0.0
+   },
+   "adapt": {
+    "core.block0": 5.056977284679358e-05,
+    "core.block_mid": 0.05469383688384056,
+    "core.block_last": 0.06309726808204578,
+    "core.blocks_other": 0.09015136384863259,
+    "core.sem_xattn_gate": 4.143832120311554e-07,
+    "core.sem_xattn": 3.402547278904352e-05,
+    "core.state_gate": 8.013897792419276e-06,
+    "core.sem_proj": 5.8104659380702084e-06,
+    "core.embed": 0.018057455281231205,
+    "sem_proj": 1.1754918550235924,
+    "entities": 1.8246087098788246e-06,
+    "reasoner": 0.005237522736178853,
+    "beliefs": 0.22028306635934275,
+    "world_model": 0.13565240951080842,
+    "outcome_head": 13.208799977688583,
+    "intent": 0.0,
+    "evaluator": 0.0,
+    "dec_xattn": 0.0,
+    "dec_bridge": 0.0,
+    "exploration": 0.0,
+    "policy": 1.0908966186905513e-06,
+    "v_int": 0.0,
+    "predictors": 0.0,
+    "psi": 0.0,
+    "other": 0.0
+   },
+   "actor": {
+    "core.block0": 0.0012746104514621997,
+    "core.block_mid": 0.0012225481082770951,
+    "core.block_last": 0.0013738581710517992,
+    "core.blocks_other": 0.002817768395701983,
+    "core.sem_xattn_gate": 6.77813068803844e-07,
+    "core.sem_xattn": 3.3952253585349465e-05,
+    "core.state_gate": 1.4889440104843356e-06,
+    "core.sem_proj": 5.957198831626989e-06,
+    "core.embed": 0.0010015792909404701,
+    "sem_proj": 0.013570860075708138,
+    "entities": 5.833088835986602e-05,
+    "reasoner": 2.9742898378225924e-05,
+    "beliefs": 0.0005431077908900201,
+    "world_model": 2.884164758062478e-05,
+    "outcome_head": 0.0,
+    "intent": 0.006528533893147068,
+    "evaluator": 0.0007380659607991594,
+    "dec_xattn": 0.006344239060452671,
+    "dec_bridge": 0.0,
+    "exploration": 2.9095444986500493e-05,
+    "policy": 0.014268347912793081,
+    "v_int": 0.0,
+    "predictors": 0.0,
+    "psi": 0.0,
+    "other": 0.0
+   },
+   "value": {
+    "core.block0": 0.0025842669335156606,
+    "core.block_mid": 0.005114426897795655,
+    "core.block_last": 0.005397819453973263,
+    "core.blocks_other": 0.008964848279398505,
+    "core.sem_xattn_gate": 1.8483166510628258e-06,
+    "core.sem_xattn": 0.00014644039308801723,
+    "core.state_gate": 4.403084335302147e-05,
+    "core.sem_proj": 2.3985868151503534e-05,
+    "core.embed": 0.0026482192028048227,
+    "sem_proj": 0.022312913182513397,
+    "entities": 0.00020309672333279098,
+    "reasoner": 0.0009104209480504063,
+    "beliefs": 0.0021793114376759443,
+    "world_model": 0.00010469766500453614,
+    "outcome_head": 0.0,
+    "intent": 0.025094235791567908,
+    "evaluator": 0.0,
+    "dec_xattn": 0.0,
+    "dec_bridge": 0.0,
+    "exploration": 0.00011109882028075655,
+    "policy": 1.7864944652888713e-05,
+    "v_int": 1.70364680445842,
+    "predictors": 0.0,
+    "psi": 0.0,
+    "other": 0.0
+   }
+  },
+  {
+   "world": {
+    "core.block0": 0.09895900100767197,
+    "core.block_mid": 0.08294675208085035,
+    "core.block_last": 0.0707960784928763,
+    "core.blocks_other": 0.18181389573650888,
+    "core.sem_xattn_gate": 1.8027218254286757e-05,
+    "core.sem_xattn": 0.0034669083643249768,
+    "core.state_gate": 0.000794045373171688,
+    "core.sem_proj": 0.0006012264234474727,
+    "core.embed": 0.044701223504473385,
+    "sem_proj": 0.37977471076096003,
+    "entities": 0.0037093979936472592,
+    "reasoner": 0.005183832172775475,
+    "beliefs": 0.012230629165626008,
+    "world_model": 0.6514418529169995,
+    "outcome_head": 0.707089037140691,
+    "intent": 0.0,
+    "evaluator": 0.0,
+    "dec_xattn": 0.0,
+    "dec_bridge": 0.0,
+    "exploration": 0.0,
+    "policy": 1.6375854128517342e-05,
+    "v_int": 0.0,
+    "predictors": 0.0,
+    "psi": 0.0,
+    "other": 0.0
+   },
+   "adapt": {
+    "core.block0": 0.007275035748691428,
+    "core.block_mid": 0.5025313790805523,
+    "core.block_last": 0.5657954375461648,
+    "core.blocks_other": 0.8429315270663195,
+    "core.sem_xattn_gate": 1.081760993976486e-05,
+    "core.sem_xattn": 0.0010265832815771626,
+    "core.state_gate": 0.0008896632646779292,
+    "core.sem_proj": 0.000171305968171349,
+    "core.embed": 0.1458744958845971,
+    "sem_proj": 9.335282894153085,
+    "entities": 0.0003774901209745153,
+    "reasoner": 0.043057722126543754,
+    "beliefs": 1.3006810788370087,
+    "world_model": 1.0661979723420019,
+    "outcome_head": 94.73808982696717,
+    "intent": 0.0,
+    "evaluator": 0.0,
+    "dec_xattn": 0.0,
+    "dec_bridge": 0.0,
+    "exploration": 0.0,
+    "policy": 2.988467721327525e-05,
+    "v_int": 0.0,
+    "predictors": 0.0,
+    "psi": 0.0,
+    "other": 0.0
+   },
+   "actor": {
+    "core.block0": 0.01135098225695675,
+    "core.block_mid": 0.010618351277836066,
+    "core.block_last": 0.011957913848066156,
+    "core.blocks_other": 0.024426872552916208,
+    "core.sem_xattn_gate": 6.159708234166442e-06,
+    "core.sem_xattn": 0.0002793251866782679,
+    "core.state_gate": 1.2556626177392749e-05,
+    "core.sem_proj": 4.883028900040985e-05,
+    "core.embed": 0.008545585384975319,
+    "sem_proj": 0.11973051624559594,
+    "entities": 0.0004471579870388905,
+    "reasoner": 0.0002493033436468957,
+    "beliefs": 0.004624166196001048,
+    "world_model": 0.0002489684594213659,
+    "outcome_head": 0.0,
+    "intent": 0.055976794359054956,
+    "evaluator": 0.011311029055220103,
+    "dec_xattn": 0.1573138959002704,
+    "dec_bridge": 0.0,
+    "exploration": 0.000255749311578524,
+    "policy": 0.12022774359534624,
+    "v_int": 0.0,
+    "predictors": 0.0,
+    "psi": 0.0,
+    "other": 0.0
+   },
+   "value": {
+    "core.block0": 0.004808021362315927,
+    "core.block_mid": 0.009634243588928636,
+    "core.block_last": 0.010176169909842363,
+    "core.blocks_other": 0.016966204081780262,
+    "core.sem_xattn_gate": 3.286822154534951e-06,
+    "core.sem_xattn": 0.00026102792449789425,
+    "core.state_gate": 8.359562193489811e-05,
+    "core.sem_proj": 4.3718887274097094e-05,
+    "core.embed": 0.004880931835469315,
+    "sem_proj": 0.040201120115624635,
+    "entities": 0.0003877651553718951,
+    "reasoner": 0.0016609984678417474,
+    "beliefs": 0.004192434495197208,
+    "world_model": 0.00019272505797320497,
+    "outcome_head": 0.0,
+    "intent": 0.04501967057483348,
+    "evaluator": 0.0,
+    "dec_xattn": 0.0,
+    "dec_bridge": 0.0,
+    "exploration": 0.000201996740308107,
+    "policy": 3.3389528972284325e-05,
+    "v_int": 2.1941049632077148,
+    "predictors": 0.0,
+    "psi": 0.0,
+    "other": 0.0
+   }
+  }
+ ],
+ "core_share": [
+  {
+   "world": 0.5282749648961058,
+   "adapt": 0.12387011809003444,
+   "actor": 0.3478549170138597,
+   "value": 0.0
+  },
+  {
+   "world": 0.448219222899451,
+   "adapt": 0.3982307857305002,
+   "actor": 0.10309278350515463,
+   "value": 0.05045720786489409
+  },
+  {
+   "world": 0.43650000000000005,
+   "adapt": 0.42325530578542875,
+   "actor": 0.1058920835827238,
+   "value": 0.03435261063184746
+  }
+ ],
+ "update_errors": [
+  null,
+  null,
+  null
+ ],
+ "param_coverage": {
+  "1": {
+   "group_numel_nonzero_frac": {
+    "sem_proj": 1.0,
+    "core.embed": 1.0,
+    "core.block0": 1.0,
+    "core.blocks_other": 1.0,
+    "core.block_mid": 1.0,
+    "core.block_last": 1.0,
+    "core.state_gate": 1.0,
+    "core.sem_proj": 1.0,
+    "core.sem_xattn": 0.8888461168318738,
+    "core.sem_xattn_gate": 1.0,
+    "entities": 1.0,
+    "reasoner": 0.9427869950152519,
+    "beliefs": 0.42303107613880947,
+    "outcome_head": 0.8661614975927417,
+    "world_model": 0.8423745271654086,
+    "policy": 0.8958296692286608,
+    "dec_bridge": 0.0,
+    "dec_xattn": 3.463754065148365e-07,
+    "v_int": 0.09891578027850573,
+    "exploration": 1.0,
+    "intent": 1.0,
+    "evaluator": 0.0004303017365189819
+   },
+   "zero_tensors": 134,
+   "zero_numel": 18229379,
+   "zero_examples": [
+    [
+     "action_generator.dec_cond.mods.5.q.weight",
+     1048576
+    ],
+    [
+     "action_generator.dec_cond.mods.5.o.weight",
+     1048576
+    ],
+    [
+     "action_generator.dec_cond.mods.11.q.weight",
+     1048576
+    ],
+    [
+     "action_generator.dec_cond.mods.11.o.weight",
+     1048576
+    ],
+    [
+     "action_generator.dec_cond.mods.17.q.weight",
+     1048576
+    ],
+    [
+     "action_generator.dec_cond.mods.17.o.weight",
+     1048576
+    ],
+    [
+     "action_generator.dec_cond.mods.23.q.weight",
+     1048576
+    ],
+    [
+     "action_generator.dec_cond.mods.23.o.weight",
+     1048576
+    ],
+    [
+     "beliefs.act_cond.ffn.w13.weight",
+     786432
+    ],
+    [
+     "action_generator.dec_cond.mods.5.kv.weight",
+     786432
+    ],
+    [
+     "action_generator.dec_cond.mods.11.kv.weight",
+     786432
+    ],
+    [
+     "action_generator.dec_cond.mods.17.kv.weight",
+     786432
+    ],
+    [
+     "action_generator.dec_cond.mods.23.kv.weight",
+     786432
+    ],
+    [
+     "world_model.rew_pool.att.in_proj_weight",
+     442368
+    ],
+    [
+     "beliefs.act_cond.ffn.w2.weight",
+     393216
+    ],
+    [
+     "action_generator.heads.enum_k.1.weight",
+     393216
+    ],
+    [
+     "action_generator.length_head.slot_proj.1.weight",
+     393216
+    ],
+    [
+     "beliefs.act_cond.attn.kv.weight",
+     294912
+    ],
+    [
+     "outcome_head.cond_mix.l1.weight",
+     294912
+    ],
+    [
+     "world_model.rew_head.l1.weight",
+     294912
+    ],
+    [
+     "world_model.trans_out.l1.weight",
+     294912
+    ],
+    [
+     "value_head.pool.kv.weight",
+     294912
+    ],
+    [
+     "value_head.mlp.fc1.weight",
+     294912
+    ],
+    [
+     "decision_evaluator.pool.kv.weight",
+     294912
+    ],
+    [
+     "decision_evaluator.head.fc1.weight",
+     294912
+    ],
+    [
+     "world_model.rew_head.l2.weight",
+     195840
+    ],
+    [
+     "core.cond_proj.weight",
+     147456
+    ],
+    [
+     "beliefs.act_cond.attn.q.weight",
+     147456
+    ],
+    [
+     "beliefs.act_cond.attn.o.weight",
+     147456
+    ],
+    [
+     "world_model.rew_pool.att.out_proj.weight",
+     147456
+    ],
+    [
+     "action_generator.heads.enum_q.weight",
+     147456
+    ],
+    [
+     "action_generator.length_head.ff.1.weight",
+     147456
+    ],
+    [
+     "value_head.pool.qp.weight",
+     147456
+    ],
+    [
+     "value_head.pool.out.weight",
+     147456
+    ],
+    [
+     "decision_evaluator.pool.qp.weight",
+     147456
+    ],
+    [
+     "decision_evaluator.pool.out.weight",
+     147456
+    ],
+    [
+     "beliefs.prop.0.weight",
+     66048
+    ],
+    [
+     "beliefs.ev_feat.weight",
+     49152
+    ],
+    [
+     "bayes.l1.weight",
+     24576
+    ],
+    [
+     "beliefs.ev_mlp.1.weight",
+     16384
+    ]
+   ]
+  },
+  "2": {
+   "group_numel_nonzero_frac": {
+    "sem_proj": 0.9378037453739595,
+    "core.embed": 0.5665939698906022,
+    "core.block0": 1.0,
+    "core.blocks_other": 1.0,
+    "core.block_mid": 1.0,
+    "core.block_last": 1.0,
+    "core.state_gate": 1.0,
+    "core.sem_proj": 1.0,
+    "core.sem_xattn": 0.8888461168318738,
+    "core.sem_xattn_gate": 1.0,
+    "entities": 0.6986726915223732,
+    "reasoner": 0.9427869950152519,
+    "beliefs": 0.4333889928024901,
+    "outcome_head": 1.0,
+    "world_model": 0.8761608167572921,
+    "policy": 0.9459140837511834,
+    "dec_bridge": 0.0,
+    "dec_xattn": 1.0,
+    "v_int": 1.0,
+    "exploration": 1.0,
+    "intent": 1.0,
+    "evaluator": 1.0
+   },
+   "zero_tensors": 82,
+   "zero_numel": 5786880,
+   "zero_examples": [
+    [
+     "beliefs.act_cond.ffn.w13.weight",
+     786432
+    ],
+    [
+     "entity_encoder.rel_in.weight",
+     589824
+    ],
+    [
+     "world_model.rew_pool.att.in_proj_weight",
+     442368
+    ],
+    [
+     "entity_encoder.rel_ffn.w13.weight",
+     393216
+    ],
+    [
+     "beliefs.act_cond.ffn.w2.weight",
+     393216
+    ],
+    [
+     "action_generator.heads.enum_k.1.weight",
+     393216
+    ],
+    [
+     "beliefs.act_cond.attn.kv.weight",
+     294912
+    ],
+    [
+     "world_model.rew_head.l1.weight",
+     294912
+    ],
+    [
+     "entity_encoder.rel_ffn.w2.weight",
+     196608
+    ],
+    [
+     "world_model.rew_head.l2.weight",
+     195840
+    ],
+    [
+     "tokenizer.target_role.weight",
+     147456
+    ],
+    [
+     "core.slot_codes.proj.1.weight",
+     147456
+    ],
+    [
+     "core.cond_proj.weight",
+     147456
+    ],
+    [
+     "entity_encoder.rel_pool.k.weight",
+     147456
+    ],
+    [
+     "entity_encoder.rel_pool.v.weight",
+     147456
+    ],
+    [
+     "entity_encoder.rel_pool.q.weight",
+     147456
+    ],
+    [
+     "entity_encoder.rel_pool.o.weight",
+     147456
+    ],
+    [
+     "beliefs.act_cond.attn.q.weight",
+     147456
+    ],
+    [
+     "beliefs.act_cond.attn.o.weight",
+     147456
+    ],
+    [
+     "world_model.rew_pool.att.out_proj.weight",
+     147456
+    ],
+    [
+     "action_generator.heads.enum_q.weight",
+     147456
+    ],
+    [
+     "beliefs.prior_cond.1.weight",
+     98304
+    ],
+    [
+     "bayes.l1.weight",
+     24576
+    ],
+    [
+     "action_generator.heads.out.digit0.weight",
+     6144
+    ],
+    [
+     "action_generator.heads.out.digit1.weight",
+     6144
+    ],
+    [
+     "action_generator.heads.choice_emb.digit0.weight",
+     6144
+    ],
+    [
+     "action_generator.heads.choice_emb.digit1.weight",
+     6144
+    ],
+    [
+     "action_generator.heads.choice_emb.digit2.weight",
+     6144
+    ],
+    [
+     "action_generator.heads.out.union.weight",
+     2688
+    ],
+    [
+     "action_generator.heads.out.fdig.weight",
+     2688
+    ],
+    [
+     "action_generator.heads.choice_emb.union.weight",
+     2688
+    ],
+    [
+     "action_generator.heads.choice_emb.fdig.weight",
+     2688
+    ],
+    [
+     "bayes.l2.weight",
+     1984
+    ],
+    [
+     "action_generator.bridge.cond_src.weight",
+     1536
+    ],
+    [
+     "world_model.rew_pool.att.in_proj_bias",
+     1152
+    ],
+    [
+     "action_generator.heads.enum_k.0.weight",
+     1024
+    ],
+    [
+     "beliefs.act_cond.attn.null_kv",
+     768
+    ],
+    [
+     "world_model.rew_src.weight",
+     768
+    ],
+    [
+     "world_model.rew_head.l1.bias",
+     768
+    ],
+    [
+     "action_generator.heads.out.bool.weight",
+     768
+    ]
+   ]
+  },
+  "3": {
+   "group_numel_nonzero_frac": {
+    "sem_proj": 0.9378037453739595,
+    "core.embed": 0.5665939698906022,
+    "core.block0": 1.0,
+    "core.blocks_other": 1.0,
+    "core.block_mid": 1.0,
+    "core.block_last": 1.0,
+    "core.state_gate": 1.0,
+    "core.sem_proj": 1.0,
+    "core.sem_xattn": 0.8888461168318738,
+    "core.sem_xattn_gate": 1.0,
+    "entities": 0.6986726915223732,
+    "reasoner": 0.9427869950152519,
+    "beliefs": 0.4629338990055349,
+    "outcome_head": 1.0,
+    "world_model": 0.8761608167572921,
+    "policy": 0.9954657078958097,
+    "dec_bridge": 0.0,
+    "dec_xattn": 1.0,
+    "v_int": 1.0,
+    "exploration": 1.0,
+    "intent": 1.0,
+    "evaluator": 1.0
+   },
+   "zero_tensors": 76,
+   "zero_numel": 5150094,
+   "zero_examples": [
+    [
+     "beliefs.act_cond.ffn.w13.weight",
+     786432
+    ],
+    [
+     "entity_encoder.rel_in.weight",
+     589824
+    ],
+    [
+     "world_model.rew_pool.att.in_proj_weight",
+     442368
+    ],
+    [
+     "entity_encoder.rel_ffn.w13.weight",
+     393216
+    ],
+    [
+     "beliefs.act_cond.ffn.w2.weight",
+     393216
+    ],
+    [
+     "beliefs.act_cond.attn.kv.weight",
+     294912
+    ],
+    [
+     "world_model.rew_head.l1.weight",
+     294912
+    ],
+    [
+     "entity_encoder.rel_ffn.w2.weight",
+     196608
+    ],
+    [
+     "world_model.rew_head.l2.weight",
+     195840
+    ],
+    [
+     "tokenizer.target_role.weight",
+     147456
+    ],
+    [
+     "core.slot_codes.proj.1.weight",
+     147456
+    ],
+    [
+     "core.cond_proj.weight",
+     147456
+    ],
+    [
+     "entity_encoder.rel_pool.k.weight",
+     147456
+    ],
+    [
+     "entity_encoder.rel_pool.v.weight",
+     147456
+    ],
+    [
+     "entity_encoder.rel_pool.q.weight",
+     147456
+    ],
+    [
+     "entity_encoder.rel_pool.o.weight",
+     147456
+    ],
+    [
+     "beliefs.act_cond.attn.q.weight",
+     147456
+    ],
+    [
+     "beliefs.act_cond.attn.o.weight",
+     147456
+    ],
+    [
+     "world_model.rew_pool.att.out_proj.weight",
+     147456
+    ],
+    [
+     "bayes.l1.weight",
+     24576
+    ],
+    [
+     "action_generator.heads.out.digit0.weight",
+     6144
+    ],
+    [
+     "action_generator.heads.out.digit1.weight",
+     6144
+    ],
+    [
+     "action_generator.heads.out.digit2.weight",
+     6144
+    ],
+    [
+     "action_generator.heads.choice_emb.digit0.weight",
+     6144
+    ],
+    [
+     "action_generator.heads.choice_emb.digit1.weight",
+     6144
+    ],
+    [
+     "action_generator.heads.choice_emb.digit2.weight",
+     6144
+    ],
+    [
+     "action_generator.heads.out.union.weight",
+     2688
+    ],
+    [
+     "action_generator.heads.choice_emb.union.weight",
+     2688
+    ],
+    [
+     "bayes.l2.weight",
+     1984
+    ],
+    [
+     "action_generator.heads.out.mapcount.weight",
+     1920
+    ],
+    [
+     "action_generator.heads.choice_emb.mapcount.weight",
+     1920
+    ],
+    [
+     "action_generator.bridge.cond_src.weight",
+     1536
+    ],
+    [
+     "world_model.rew_pool.att.in_proj_bias",
+     1152
+    ],
+    [
+     "beliefs.act_cond.attn.null_kv",
+     768
+    ],
+    [
+     "world_model.rew_src.weight",
+     768
+    ],
+    [
+     "world_model.rew_head.l1.bias",
+     768
+    ],
+    [
+     "action_generator.heads.out.bool.weight",
+     768
+    ],
+    [
+     "action_generator.heads.out.sign.weight",
+     768
+    ],
+    [
+     "action_generator.heads.choice_emb.bool.weight",
+     768
+    ],
+    [
+     "action_generator.heads.choice_emb.sign.weight",
+     768
+    ]
+   ]
+  }
+ },
+ "never_grad": {
+  "n": 58,
+  "numel": 3074547,
+  "by_group": {
+   "core.sem_xattn": 2,
+   "reasoner": 3,
+   "beliefs": 20,
+   "world_model": 16,
+   "policy": 16,
+   "dec_bridge": 1
+  },
+  "numel_by_group": {
+   "dec_bridge": 1536,
+   "core.sem_xattn": 147840,
+   "policy": 39211,
+   "reasoner": 769,
+   "world_model": 1086591,
+   "beliefs": 1798600
+  },
+  "list": [
+   [
+    "beliefs.act_cond.ffn.w13.weight",
+    "beliefs",
+    786432
+   ],
+   [
+    "world_model.rew_pool.att.in_proj_weight",
+    "world_model",
+    442368
+   ],
+   [
+    "beliefs.act_cond.ffn.w2.weight",
+    "beliefs",
+    393216
+   ],
+   [
+    "beliefs.act_cond.attn.kv.weight",
+    "beliefs",
+    294912
+   ],
+   [
+    "world_model.rew_head.l1.weight",
+    "world_model",
+    294912
+   ],
+   [
+    "world_model.rew_head.l2.weight",
+    "world_model",
+    195840
+   ],
+   [
+    "core.cond_proj.weight",
+    "core.sem_xattn",
+    147456
+   ],
+   [
+    "beliefs.act_cond.attn.q.weight",
+    "beliefs",
+    147456
+   ],
+   [
+    "beliefs.act_cond.attn.o.weight",
+    "beliefs",
+    147456
+   ],
+   [
+    "world_model.rew_pool.att.out_proj.weight",
+    "world_model",
+    147456
+   ],
+   [
+    "bayes.l1.weight",
+    "beliefs",
+    24576
+   ],
+   [
+    "action_generator.heads.out.digit0.weight",
+    "policy",
+    6144
+   ],
+   [
+    "action_generator.heads.out.digit1.weight",
+    "policy",
+    6144
+   ],
+   [
+    "action_generator.heads.choice_emb.digit0.weight",
+    "policy",
+    6144
+   ],
+   [
+    "action_generator.heads.choice_emb.digit1.weight",
+    "policy",
+    6144
+   ],
+   [
+    "action_generator.heads.choice_emb.digit2.weight",
+    "policy",
+    6144
+   ],
+   [
+    "action_generator.heads.out.union.weight",
+    "policy",
+    2688
+   ],
+   [
+    "action_generator.heads.choice_emb.union.weight",
+    "policy",
+    2688
+   ],
+   [
+    "bayes.l2.weight",
+    "beliefs",
+    1984
+   ],
+   [
+    "action_generator.bridge.cond_src.weight",
+    "dec_bridge",
+    1536
+   ],
+   [
+    "world_model.rew_pool.att.in_proj_bias",
+    "world_model",
+    1152
+   ],
+   [
+    "beliefs.act_cond.attn.null_kv",
+    "beliefs",
+    768
+   ],
+   [
+    "world_model.rew_src.weight",
+    "world_model",
+    768
+   ],
+   [
+    "world_model.rew_head.l1.bias",
+    "world_model",
+    768
+   ],
+   [
+    "action_generator.heads.out.bool.weight",
+    "policy",
+    768
+   ],
+   [
+    "action_generator.heads.out.sign.weight",
+    "policy",
+    768
+   ],
+   [
+    "action_generator.heads.choice_emb.bool.weight",
+    "policy",
+    768
+   ],
+   [
+    "action_generator.heads.choice_emb.sign.weight",
+    "policy",
+    768
+   ],
+   [
+    "core.cond_proj.bias",
+    "core.sem_xattn",
+    384
+   ],
+   [
+    "reasoner.halt_norm.weight",
+    "reasoner",
+    384
+   ],
+   [
+    "reasoner.halt_head.weight",
+    "reasoner",
+    384
+   ],
+   [
+    "beliefs.act_cond.norm_q.weight",
+    "beliefs",
+    384
+   ],
+   [
+    "beliefs.act_cond.norm_kv.weight",
+    "beliefs",
+    384
+   ],
+   [
+    "beliefs.act_cond.norm2.weight",
+    "beliefs",
+    384
+   ],
+   [
+    "bayes.norm.weight",
+    "beliefs",
+    384
+   ],
+   [
+    "world_model.rew_pool.q",
+    "world_model",
+    384
+   ],
+   [
+    "world_model.rew_pool.norm.weight",
+    "world_model",
+    384
+   ],
+   [
+    "world_model.rew_pool.norm.bias",
+    "world_model",
+    384
+   ],
+   [
+    "world_model.rew_pool.att.out_proj.bias",
+    "world_model",
+    384
+   ],
+   [
+    "world_model.rew_head.norm.weight",
+    "world_model",
+    384
+   ],
+   [
+    "world_model.rew_head.norm.bias",
+    "world_model",
+    384
+   ],
+   [
+    "world_model.trans_act_norm.weight",
+    "world_model",
+    384
+   ],
+   [
+    "world_model.trans_act_norm.bias",
+    "world_model",
+    384
+   ],
+   [
+    "world_model.rew_head.l2.bias",
+    "world_model",
+    255
+   ],
+   [
+    "beliefs.act_cond.attn.q_norm.weight",
+    "beliefs",
+    64
+   ],
+   [
+    "beliefs.act_cond.attn.k_norm.weight",
+    "beliefs",
+    64
+   ],
+   [
+    "bayes.l1.bias",
+    "beliefs",
+    64
+   ],
+   [
+    "bayes.log_prior_var",
+    "beliefs",
+    32
+   ],
+   [
+    "bayes.l2.bias",
+    "beliefs",
+    31
+   ],
+   [
+    "action_generator.heads.out.digit0.bias",
+    "policy",
+    16
+   ],
+   [
+    "action_generator.heads.out.digit1.bias",
+    "policy",
+    16
+   ],
+   [
+    "bayes.gate.lin.weight",
+    "beliefs",
+    7
+   ],
+   [
+    "action_generator.heads.out.union.bias",
+    "policy",
+    7
+   ],
+   [
+    "action_generator.heads.out.bool.bias",
+    "policy",
+    2
+   ],
+   [
+    "action_generator.heads.out.sign.bias",
+    "policy",
+    2
+   ],
+   [
+    "reasoner.halt_head.bias",
+    "reasoner",
+    1
+   ],
+   [
+    "bayes.log_noise",
+    "beliefs",
+    1
+   ],
+   [
+    "bayes.gate.lin.bias",
+    "beliefs",
+    1
+   ]
+  ]
+ }
+}

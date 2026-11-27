@@ -1,0 +1,181 @@
+{
+ "preset": "dom",
+ "build_s": 56.32843518257141,
+ "parameters": {
+  "components": {
+   "tokenizer": {
+    "total": 27763202,
+    "trainable": 27763202
+   },
+   "core": {
+    "total": 1004124162,
+    "trainable": 1004124162
+   },
+   "entity_encoder": {
+    "total": 26203480,
+    "trainable": 26203480
+   },
+   "reasoner": {
+    "total": 53761,
+    "trainable": 53761
+   },
+   "outcome_head": {
+    "total": 34004024,
+    "trainable": 34004024
+   },
+   "beliefs": {
+    "total": 49653632,
+    "trainable": 49653632
+   },
+   "bayes": {
+    "total": 101960,
+    "trainable": 101960
+   },
+   "world_model": {
+    "total": 130646594,
+    "trainable": 130646594
+   },
+   "action_generator": {
+    "total": 191621780,
+    "trainable": 191621780
+   },
+   "value_head": {
+    "total": 14586111,
+    "trainable": 14586111
+   },
+   "option_policy": {
+    "total": 21307409,
+    "trainable": 21307409
+   },
+   "exploration_head": {
+    "total": 2548284,
+    "trainable": 2548284
+   },
+   "intent_head": {
+    "total": 56690688,
+    "trainable": 56690688
+   },
+   "decision_evaluator": {
+    "total": 14195713,
+    "trainable": 14195713
+   },
+   "query_encoder": {
+    "total": 21504,
+    "trainable": 21504
+   }
+  },
+  "cam_total": 1573522304,
+  "cam_trainable": 1573522304,
+  "semantic_pretrained": {
+   "total": 4022468096,
+   "trainable": 0,
+   "frozen": 4022468096
+  }
+ },
+ "trainer": {
+  "stage": "continual",
+  "groups": {
+   "core": 1004124162,
+   "heads": 569391998,
+   "semantic": 6144
+  }
+ },
+ "action_generator_parts": {
+  "action_generator": 191621780,
+  "bridge": 6144,
+  "typed_heads": 64143475,
+  "lora": 0,
+  "pretrained_semantic": 4022468096
+ },
+ "dom08_groups_trainable": {
+  "sem_proj": 27763202,
+  "core.embed": 5194754,
+  "core.block0": 28314752,
+  "core.blocks_other": 821127808,
+  "core.block_mid": 28314752,
+  "core.block_last": 28314752,
+  "core.state_gate": 4720128,
+  "core.sem_proj": 3936256,
+  "core.sem_xattn": 77896192,
+  "core.sem_xattn_gate": 6304768,
+  "entities": 26203480,
+  "reasoner": 53761,
+  "beliefs": 49755592,
+  "outcome_head": 34025528,
+  "world_model": 130646594,
+  "policy": 162554527,
+  "dec_bridge": 6144,
+  "dec_xattn": 50368518,
+  "v_int": 14586111,
+  "exploration": 2548284,
+  "intent": 56690688,
+  "evaluator": 14195713
+ },
+ "dom08_groups_total": {
+  "sem_proj": 27763202,
+  "core.embed": 5194754,
+  "core.block0": 28314752,
+  "core.blocks_other": 821127808,
+  "core.block_mid": 28314752,
+  "core.block_last": 28314752,
+  "core.state_gate": 4720128,
+  "core.sem_proj": 3936256,
+  "core.sem_xattn": 77896192,
+  "core.sem_xattn_gate": 6304768,
+  "entities": 26203480,
+  "reasoner": 53761,
+  "beliefs": 49755592,
+  "outcome_head": 34025528,
+  "world_model": 130646594,
+  "policy": 162554527,
+  "dec_bridge": 6144,
+  "dec_xattn": 50368518,
+  "v_int": 14586111,
+  "exploration": 2548284,
+  "intent": 56690688,
+  "evaluator": 14195713
+ },
+ "trainable_not_in_optimizer": {
+  "n": 0,
+  "numel": 0,
+  "first": []
+ },
+ "core_breakdown": {
+  "z0": 196608,
+  "state_pos": 196608,
+  "kind_emb": 27648,
+  "time_enc": 52224,
+  "slot_codes": 4718594,
+  "ctx_in_norm": 1536,
+  "blocks": 906072064,
+  "out_norm": 1536,
+  "state_gate": 4720128,
+  "sem_xattn:sem_proj": 3936256,
+  "sem_xattn:xattn": 81840128,
+  "cond_proj": 2360832
+ },
+ "core_total": 1004124162,
+ "core_trainable": 1004124162,
+ "blocks": 32,
+ "cfg": {
+  "n_layers": 32,
+  "d_model": 1536,
+  "n_heads": 24,
+  "n_state": 128,
+  "d_ff": 4096,
+  "sem_xattn_every": 4,
+  "dec_xattn_every": 6,
+  "n_intent": 16,
+  "n_candidates": 4,
+  "reason_iters_fixed": 2,
+  "reason_layers": 4,
+  "d_satellite": 768,
+  "sem_model": "Qwen/Qwen3-4B"
+ },
+ "semantic_class": "QwenSemantic",
+ "dec_cond": {
+  "numel": 50368518,
+  "registered_in_action_generator": true,
+  "layers": null
+ }
+}

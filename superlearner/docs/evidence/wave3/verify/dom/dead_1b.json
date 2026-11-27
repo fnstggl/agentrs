@@ -1,0 +1,1 @@
+{"core.cond_proj": 2360832, "beliefs.act_cond": 28319360, "world_model.rew_pool": 9447936, "world_model.rew_head": 5508351, "world_model.rew_src": 3072, "bayes.": 101960, "reasoner.halt_": 3073, "action_generator.bridge": 6144, "total_dead_candidates": 45750728}
