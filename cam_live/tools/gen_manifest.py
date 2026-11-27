@@ -415,7 +415,6 @@ DECLARED: Dict[str, Dict[str, List[str]]] = {
                            "-q --rootdir=cam_live",
                            "cd /workspace/camlive/cam_live && PYTHONPATH=src ../.venv/bin/python -m "
                            "cam_live.verify_completion --merge-status --json /tmp/completion.json --quiet"]},
-    "IN-05": {"files": ["docs/CAM_LIVE_COMPLETION_MANIFEST.json"]},
     "IN-06": {"files": ["docs/CAM_LIVE_LEDGER.md"]},
     "IN-08": {"files": ["docs/verification/G_env.md", "docs/verification/G_sec.md"]},
     "IN-09": {"files": ["src/cam_live/verify_completion.py"],
