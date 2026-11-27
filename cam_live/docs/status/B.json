@@ -1,6 +1,6 @@
 {
  "workstream": "B",
- "commit": "d55986de026c67a428996902f2b344919a563c89",
+ "commit": "b5ce3bb091d405aa9322abf51c8fa35f8cfa1de3",
  "summary": "Stage 1 + stage 2. Prediction and decision-making under src/cam_live/predict, wired onto the real CamLiveModel: five heads registered on the model, five LossProviders (world model incl. fast-prior and latent-consistency terms, ALPaCA-style fast prior, evaluator on signed verified outcomes, and adapter variants), the runtime Predictor (registered multi-horizon predictions, immediate fast-belief update, resolution, decision-relevant VOI), DecisionMaker (exact probabilities for five rules, self-proposed randomised experiments), LatentPlanner, BackboneProposer (100 % schema-valid proposals from Qwen3-4B on two tool sets), and debug-scale learning evidence in LabWorld with honest failures recorded. | LRN round (S-5, 2026-11-27): selection rule thompson_policy (Thompson sampling over the world model's posterior + a policy correction weighted by a calibration on verified outcomes), policy-improvement loss with a goal term and an all-candidate model term, trust-region live step, reward components standardised before mixing, promotion as a non-inferiority test, delta V / verified-delta fixes; docs/C/LRN_S5.md, docs/evidence/B/choice_summary.json, docs/evidence/C/lrn_probes_*.json; JUnit docs/evidence/test_results/LRN.xml (298 passed, 13 skipped).",
  "requirements": {
   "PI-01": {
