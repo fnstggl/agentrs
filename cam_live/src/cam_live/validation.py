@@ -21,11 +21,9 @@ nothing here contacts any external service.
 from __future__ import annotations
 
 import contextlib
-import dataclasses
 import json
 import math
 import os
-import shutil
 import statistics
 import subprocess
 import time
@@ -230,11 +228,23 @@ def phase_computer(agent: Any, clock: OffsetClock, root: str, n_decisions: int, 
         policy = PolicyService(os.path.join(run, "auth_state"), clock=clock)
         policy.register_task(task, "operator")
         policy.put_secret("discord_bot_token", st.token, [discord_host])
-        env = build_environment(os.path.join(run, "exec"), policy, provenance="staging", clock=clock,
-                                secrets=policy.secrets_handle(), browser=True)
-        disc = DiscordExecutor(sd.base_url, guild_id=st.guild_id, secrets=policy.secrets_handle(),
-                               credential_probe=lambda name: name == "discord_bot_token")
-        env.register(ApiModality([HttpApiExecutor(), disc]))
+        exec_dir = os.path.join(run, "exec")
+        try:                                               # every executor of the harness, configured from the task
+            from .harness.env import ComputerEnvironment
+            from .harness.factories import all_executors
+            env = ComputerEnvironment(exec_dir, policy, clock=clock, secrets=policy.secrets_handle(),
+                                      provenance="staging")
+            for ex in all_executors(exec_dir, clock, env=env, policy=policy, secrets=policy.secrets_handle(),
+                                    task=task, discord_base_url=sd.base_url):
+                env.register(ex)
+            out["executors"] = "harness.factories.all_executors"
+        except ImportError:                                # older harness: register the executors directly
+            env = build_environment(exec_dir, policy, provenance="staging", clock=clock,
+                                    secrets=policy.secrets_handle(), browser=True)
+            disc = DiscordExecutor(sd.base_url, guild_id=st.guild_id, secrets=policy.secrets_handle(),
+                                   credential_probe=lambda name: name == "discord_bot_token")
+            env.register(ApiModality([HttpApiExecutor(), disc]))
+            out["executors"] = "internal, structured_browser, api(http, discord) registered directly"
         verifier = MetricThresholdVerifier(SiteMetrics(sites.structured, "staging-structured"), clock,
                                            os.path.join(run, "verifier"), pinned_task=task)
         agent.attach_verifier(verifier)

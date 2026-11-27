@@ -31,20 +31,19 @@ import collections
 import dataclasses
 import hashlib
 import json
-import math
 import os
 import random
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Deque, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Deque, Dict, List, Optional, Sequence, Tuple
 
 import torch
 
 from .config import CamLiveConfig
 from .contracts import (ActionResult, ActionSpec, CandidateEvaluation, Clock, Cost, Decision, ExperienceItem,
                         ExperienceRecord, ExperimentRecord, FailureClass, GoalStatus, ItemKind, LearningUpdateRecord,
-                        MetaUpdateRecord, Modality, ObstacleRecord, Observation, OutcomeKind, OutcomeObservation,
-                        OutcomeQuery, OutcomeStatus, PredictionRecord, Quantity, ResultStatus, RunFiles, TaskSpec,
+                        MetaUpdateRecord, ObstacleRecord, Observation, OutcomeKind, OutcomeObservation,
+                        OutcomeQuery, OutcomeStatus, Quantity, ResultStatus, RunFiles, TaskSpec,
                         ToolDescriptor, Trust, VerifiedOutcome, WallClock, new_id)
 from .credit.checkpoint import capture_learner, load_checkpoint, restore_learner, save_checkpoint_at
 from .credit.learner import ContinualLearner, LearnerSettings
@@ -63,7 +62,7 @@ from .predict.planner import LatentPlanner
 from .predict.policy import RULES, DecisionMaker
 from .predict.predictor import Predictor
 from .predict.providers import default_providers
-from .predict.registry import AlreadyResolvedError, ExperimentRegistry, PredictionRegistry, RegistryError
+from .predict.registry import ExperimentRegistry, PredictionRegistry, RegistryError
 from .reward.metalearner import MetaLearner
 from .reward.selfgoals import GoalFreeBudget, GoalFreeMode
 

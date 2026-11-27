@@ -73,11 +73,20 @@ model and the fast beliefs, never the meta objective.
 | slow | LoRA adapters + latent bridge | every `adapter_every` frequent updates, held-out guard |
 | meta | `R_psi` (reward group) | verified, signature-checked query evidence of >= `meta_min_independent_outcomes` independent groups after a policy update |
 
-## 5. Measured (commands and numbers in `docs/status/M-int.json` and `docs/evidence/validation/`)
+## 5. Measured
 
-The integration tests and the staging validation report what was run; see the status file for the exact figures
-(test counts, wall times, weight-delta norms per group, meta-gradient norms, behaviour change on the held-out
-context).
+Staging validation on the real configuration (`docs/evidence/validation/staging_20261127T052759Z.json`; Qwen3-4B
+frozen 4,022,468,096 + experiential 50,953,765 + adapters 16,713,856 + reward 949,121 + heads 6,055,337 parameters;
+459 s under the GPU lock, peak 11.35 GB): 26 decisions (10 in the computer environment with Chromium, HTTP and the
+staging Discord service, 16 in two LabWorld lifetimes, both verified as achieved); 52 of 262 candidates written by
+the backbone through the bridge, the rest by the schema walker; 106 predictions resolved, all strictly after they
+were registered; 35 frequent updates (experiential delta norm 0.0036 – 1.58, all non-zero), 9 slow adapter updates
+(0.070 – 0.172, all non-zero), 26 fast updates; internal rewards on every record; 9 delayed outcomes linked;
+policy distribution on the held-out context moved by TV 0.0256, restoring all trainable groups gives TV 0.0 to the
+old distribution, restoring only the experiential group leaves TV 0.0046 to it (the rest of the change is in heads and
+adapters). **No meta-update was applied** (26 x `insufficient_independent_outcomes`: the two lifetimes ended after 8
+decisions each when their targets were reached). A second run with longer lifetimes is recorded next to it when it
+exists. CPU test numbers: `docs/status/M-int.json`.
 
 ## 6. Not yet validated / known limits
 
@@ -85,9 +94,9 @@ context).
   objective or any real task.
 * Learning *quality* is not established by these runs: the tests and the staging run show that the pathway works
   (non-zero updates, meta-gradients, changed behaviour that lives in the weights), not that the agent gets better.
-* Bit-identical decisions after save → fresh process → load hold with the same `PYTHONHASHSEED`; with different
-  hash seeds the choices were identical in the run made, probabilities differed by < 1e-8 and the reward-parameter
-  hash differed after the next meta-update (a hash-ordered set in a summation of the meta path; not located).
+* Save → fresh process → load: the first decision after the load is bit-identical, later ones choose the same
+  candidates with probability vectors equal to ~1e-7 (not bitwise) and the reward-parameter hash can differ after a
+  meta-update — a floating-point summation-order difference on the meta / learning path that was not located.
 * `runtime.loop_service` does not pass the verifier to the factory (M-int-1): an agent started by `cam-live run`
   refuses every verified outcome for supervision until `attach_verifier` is called; `runtime.verifier` does not sign
   measurements (M-int-3), so in a real run only signed objective outcomes can supervise the meta objective.
