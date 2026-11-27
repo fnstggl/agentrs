@@ -38,6 +38,12 @@ three intervention forks), `test_gate_G.py` (G.1-G.7, G.n1), `test_gate_SP_3_1.p
 `_3_4.py`, `_4_0.py` (civilisation; also checks the Gate B/G mechanisms in the civ world), `_4_1.py`, `_4_4.py`. Every
 test asserts the manifest's criteria on the measured values.
 
+G.6 and G.n1 measure different things: G.6 compares the learning group with its identical-init frozen twin after the
+controlled change (general plus change-specific learning); G.n1 forks each seed's world at the change and stops the
+group's learning in the fork only (`experiments.adaptation(counterfactual=True)`, D-32 addendum 2), so the paired
+per-member difference after the change is what learning after the change did. SP-3.2 counts class 4 by its members'
+own tool actions during activations of the bound runtime, not by the activations.
+
 ## Performance notes (wave 3b)
 
 * Class 2: the day review is one batched forward pass per policy group over the members waking in the same decision
@@ -46,4 +52,5 @@ test asserts the manifest's criteria on the measured values.
 * `popweb` visit batches are delta-only: columns no row changes are not rewritten and only changed rows are recorded
   (the visit log blob and the resource counters keep every visit); `money_deposit` skips a deposit that would change
   nothing (deposited earlier the same day, nothing accrued).
-
+* A page the population fetches for the first time is represented with ONE call of the shared space for its text and
+  its slate's headlines (it was two).

@@ -258,6 +258,37 @@ def test_projection_is_row_independent():
         assert np.array_equal(semantics.lift(c), np.concatenate([semantics.lift(c[:3]), semantics.lift(c[3:])]))
 
 
+def test_learning_switch_forks_stay_aligned_until_the_first_update(run2):
+    """The frozen-at-switch counterfactual of Gate G.n1 (population.experiments.adaptation): two forks of one snapshot
+    that record the same system call (`pop_adaptive.set_learning`, learning on in one, off in the other) record the
+    same events, one for one, until the learning fork's first policy update of that group; the frozen fork records
+    no update of it, so what differs afterwards is caused by learning after the switch."""
+    _, _, mid = run2
+    a = World.from_blob(mid, world_id="cf-learning", fork=True)
+    b = World.from_blob(mid, world_id="cf-frozen", fork=True)
+    try:
+        g = int(sorted(a.state.tables["pop_groups"], key=int)[0])
+        a.system_call("pop_adaptive.set_learning", {"group": g, "learning": True})
+        b.system_call("pop_adaptive.set_learning", {"group": g, "learning": False})
+        assert a.seq == b.seq
+        s0 = a.seq
+        end = a.now + DAY
+        a.advance_time(end)
+        b.advance_time(end)
+        grp = f"adaptive:{g}"
+        ua = [e for e in a.log if e.type == "pop.policy_update" and e.payload["group"] == grp]
+        ub = [e for e in b.log if e.type == "pop.policy_update" and e.payload["group"] == grp]
+        assert ua and not ub
+        body = lambda e: (e.t, e.type, e.actor, e.cmd, e.payload, e.vis)  # noqa: E731
+        xa, xb = [e for e in a.log if e.seq > s0], [e for e in b.log if e.seq > s0]
+        k = next((i for i, (p, q) in enumerate(zip(xa, xb)) if body(p) != body(q)), None)
+        assert k is not None and k > 100, (k, [(e.seq, e.t, e.type, str(e.payload)[:300]) for e in (xa[k], xb[k])])
+        assert xa[k].t == ua[0].t and xa[k].type in ("artifact.stored", "pop.policy_update"), (xa[k].type, k)
+    finally:
+        a.close()
+        b.close()
+
+
 def test_policy_updates_are_recorded(run2):
     _, w, _ = run2
     ups = [e for e in w.log if e.type == "pop.policy_update"]
