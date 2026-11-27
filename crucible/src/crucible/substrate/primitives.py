@@ -167,8 +167,9 @@ PRIMITIVE_EVENTS: dict[str, tuple[str, str, dict]] = {
                                                   ["id", "follower", "target"])),
     "docs.create": ("knowledge_artifact", "docs", _ev({"id": _S, "owner": _S, "title": _S, "body": _S,
                                                        "visibility": _S, "by": _S}, ["id", "owner", "title"])),
-    "gov.constitution": ("institution", "gov", _ev({"org": _S, "rules": {"type": "array"}, "distribution": _ON},
-                                                   ["org", "rules"])),
+    # D-40 (workstream F, wave 3b): the institution fact is the v5 charter (inst.inst_charters); the 4.0 writer
+    # gov.constitution is typed as a legacy writer below (LEGACY_EVENTS)
+    "inst.charter": ("institution", "inst", _ev({"org": _S, "charter": _O, "by": _S}, ["org", "charter", "by"])),
     "market.listing": ("listing", "market", _ev({"id": _S, "seller": _S, "kind": _S, "title": _S, "description": _S,
                                                  "price": {"type": "integer", "minimum": 0}, "host": _SN,
                                                  "endpoint": _SN, "need": _SN, "repo": _SN, "sku": _SN},
@@ -194,6 +195,14 @@ PRIMITIVE_EVENTS: dict[str, tuple[str, str, dict]] = {
 }
 
 
+# Events of 4.0 writers of a kind whose owner migrated (D-21/D-40): still typed (their worlds keep emitting them where
+# the new owner is not installed), with the legacy writer as owner; substrate.facts lists their tables as legacy.
+LEGACY_EVENTS: dict[str, tuple[str, str, dict]] = {
+    "gov.constitution": ("institution", "gov", _ev({"org": _S, "rules": {"type": "array"}, "distribution": _ON},
+                                                   ["org", "rules"])),
+}
+
+
 def register_owner_events() -> int:
     """Register the payload schemas of the events that create or move the 4.0 owners' shared facts (bank.txn,
     id.person, ...). Called explicitly when the kernel modules are loaded (`crucible.load_all_modules` imports
@@ -202,6 +211,9 @@ def register_owner_events() -> int:
     from . import bus
     for name, (kind, mod, schema) in PRIMITIVE_EVENTS.items():
         bus.event_type(name, schema, owner=mod, doc=f"4.0 {kind} fact ({OWNERS[kind]['module']}."
+                                                     f"{OWNERS[kind]['table']})")
+    for name, (kind, mod, schema) in LEGACY_EVENTS.items():
+        bus.event_type(name, schema, owner=mod, doc=f"legacy writer of the {kind} fact (now {OWNERS[kind]['module']}."
                                                      f"{OWNERS[kind]['table']})")
     return len(PRIMITIVE_EVENTS)
 

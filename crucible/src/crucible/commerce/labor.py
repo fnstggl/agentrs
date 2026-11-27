@@ -48,7 +48,7 @@ from ..core import schema as S
 from ..core.errors import Conflict, CrucibleError, Forbidden, InvalidAction, NotFound, contain
 from ..core.kernel import Ctx, Module, applier, endpoint, process, register_module
 from ..services.identity import ident
-from ..substrate import ids
+from ..substrate import bus, ids
 
 DAY = 86400
 MONTH = 30 * DAY
@@ -58,6 +58,19 @@ POP_SKILLS = {"technical": ("software", "data"), "writing": ("writing",), "evalu
               "social": ("sales",), "planning": ("management", "operations"), "reading": ("research",),
               "searching": ("research",), "shopping": ("sales",)}
 TICKETS_PER_HOUR = (1.5, 5.0)       # support tickets an employee handles per hour at productivity 0 / 1
+
+# typed cross-module events (MASTER_SPEC 2.3, substrate.bus): other modules subscribe to the labour market's
+# employment changes (workstream I-2: `firms` attrition, `plantlabor` factory staffing)
+_STR, _NSTR = {"type": "string"}, {"type": ["string", "null"]}
+for _n, _p, _d in [
+    ("labor.hired", {"worker": _STR, "org": _STR, "contract": _STR, "salary": {"type": "integer", "minimum": 0},
+                     "post": _NSTR, "kind": _STR}, "an employment contract between an organisation and a worker activated"),
+    ("labor.quit", {"worker": _STR, "org": _STR, "satisfaction": {"type": "number"}, "better_offer": {"type": "boolean"}},
+     "a simulated worker gave notice on its employment contract"),
+    ("labor.left", {"worker": _STR, "org": _STR, "contract": _STR, "status": _STR},
+     "an employment contract ended (the worker no longer works for the organisation)"),
+]:
+    bus.event_type(_n, S.obj(_p, sorted(_p)), owner="labor", doc=_d)
 
 
 def is_person(principal: str) -> bool:

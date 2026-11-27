@@ -287,7 +287,7 @@ def composition(world, events=None) -> dict:
         by = rec.get("by", {})
         if by:
             col_mod[t] = sorted(by.values(), key=lambda m: list(by.values()).index(m))[0]
-    ev_kind = {t: k for t, (k, _m, _s) in primitives.PRIMITIVE_EVENTS.items()}
+    ev_kind = {t: k for t, (k, _m, _s) in {**primitives.PRIMITIVE_EVENTS, **primitives.LEGACY_EVENTS}.items()}
     dom_of: dict[str, list[str]] = {}
     for d, mods in DOMAINS.items():
         for m in mods:
