@@ -408,3 +408,20 @@ as consistent (difficulty sets the accuracy threshold and the replications neede
   absent for a week found a new home and move there (commlife, D-51). Targets: 40 / 100 / 250 members active in the
   last week, 8 / 20 / 50 weekly contributors, retention 0.4 / 0.5 / 0.6. The SP-9.4 gate runs an idle founder and a
   keyword-stuffed community as controls.
+
+**Amendment (2026-11-27, migration to domains-framework/3).** Each of the five domains states its objective through
+an independent goal generator (`GoalFamily`, `crucible.goals`): parameters drawn per world, participant and level from
+the generator's own stream (startup ARR targets, software adopters, content viewers below the top level and community
+participation targets vary by +-10% per instance; research's accuracy threshold and replications are fixed by level;
+content level 4 stays at the spec's 10,000,000 viewers), and a success predicate over a domain metric registered in
+`crucible.goals.metrics` without an in-world subject and added to `EVALUATOR_ONLY_METRICS` (never readable through an
+agreement between participants). `Domain.evaluate` remains the evaluator and reads the generated parameters. References
+read only the objective's text (research parses the target phenomenon from it). The research reference fits, besides
+the handbook forms and polynomials, five general response shapes beyond the handbook (switch, damped oscillation,
+ratio of powers, two decays, periodic trend) and assumes instruments are sold at a nominal unit gain (a weak prior that
+only matters with one certified standard); population researchers still know only the handbook. This makes the
+structural evaluation configuration (a law outside the handbook, one standard, an optimistic datasheet) feasible for a
+researcher with a richer hypothesis space (seeds 0 and 1: novel-condition nRMSE 0.034 and 0.05 in unofficial runs). The
+content domain's platforms carry a back catalogue at genesis (module `catalogue`, FR-CATALOGUE-1): which platforms and
+media a world has is then measured on built state, the image and knowledge platforms are no longer empty of population
+items, and every seed generates its own catalogue.

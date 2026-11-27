@@ -75,3 +75,22 @@ def test_reference_reaches_viewers_and_copycat_counts_nothing():
         assert r["mechanics"]["counts"][m] > 0, m
     c = base.run("content", "short_social", 0, policy="copycat", days=1)
     assert c["outcome"]["details"]["original_items"] == 0 and c["outcome"]["details"]["distinct_viewers"] == 0
+
+
+def test_platforms_carry_a_generated_back_catalogue_at_genesis():
+    """Every configured platform carries population items at genesis (module `catalogue`), so the platform set and
+    media are measured on built state (domains-framework/3) and every seed generates its own catalogue."""
+    from crucible.domains.base import BuiltWorld
+    seen = {}
+    for seed in (0, 1):
+        w = base.world("content", "visual_trending", seed)
+        try:
+            items = [c for _, c in w.state.scan("content")]
+            assert {c["platform"] for c in items} == {"pics", "posts"}
+            assert all(c["creator"].startswith("p") and c["creator"][1:].isdigit() for c in items)
+            assert {c["kind"] for c in items} == {"image", "post"}
+            assert D.structure(BuiltWorld(w)) == {"platforms": ["pics", "posts"], "media": ["image", "post"]}
+            seen[seed] = sorted(c["ref"] for c in items)
+        finally:
+            w.close()
+    assert seen[0] != seen[1]

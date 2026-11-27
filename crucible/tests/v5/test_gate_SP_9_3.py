@@ -40,7 +40,7 @@ def test_SP_9_3_content_ecosystem_mechanics():
     # difficulty levels: public targets and the population of each level's world (built spec, no world created)
     env = base.make_env("content", cfg, 0)
     seat = env.agents()[0]
-    levels = {lv: d.objective(env.world, seat, lv)["target_unique_viewers"] for lv in d.difficulties}
+    levels = {lv: d.make_objective(env.world, seat, lv)["params"]["target_unique_viewers"] for lv in d.difficulties}
     env.close()
     pops = {}
     for lv in d.difficulties:

@@ -29,12 +29,15 @@ own arrangement) and publishes regularly on every text platform the world has.
 """
 from __future__ import annotations
 
+import math
 import re
 
 import numpy as np
 
+from ..core.errors import CrucibleError
+from ..core.kernel import Module, register_module
 from . import _t2kit as K
-from .base import Actor, Domain, DomainConfig, Mechanic, Probe, Seat, civ_recipe, register
+from .base import Actor, Domain, DomainConfig, GoalFamily, Mechanic, Probe, Seat, civ_recipe, events_where, register
 
 DAY = 86400
 HORIZON_DAYS = 10.0
@@ -58,6 +61,64 @@ DOCS = {
 }
 
 
+CATALOGUE_DEFAULTS = {"platforms": [], "per_platform": 6}
+
+
+@register_module
+class BackCatalogue(Module):
+    """The platforms' back catalogue at genesis (kernel module `catalogue`, workstream I-1): a platform is not empty
+    when the run starts. For every configured platform a few individuals of the one population (drawn per world
+    from its own stream) have published pieces about what they care about: the nearest corpus topic to their
+    interests in the shared space, in their own words (`population.writing`, skill shapes length), stored as their
+    artifacts - a text, or on an image platform a text card drawn by the studio - and published through the
+    ordinary catalogue path (`content.publish`: search index, distribution, the shared space's representation,
+    exact audience accounting). Nothing about these items is assigned: they compete for the same feeds as everyone
+    else's. Fidelity: plausible, unvalidated (FR-CATALOGUE-1)."""
+    name = "catalogue"
+    host = "catalogue"
+    depends = ("identity", "pop", "cols", "content", "studio", "aud", "feed", "social_ids")
+
+    def cfg(self, k):
+        return self.config.get(k, CATALOGUE_DEFAULTS[k])
+
+    def genesis(self, ctx):
+        from .. import population
+        from ..population import semantics, writing
+        from ..social import content as C
+        from ..substrate import artifacts, columns, ids
+        w = ctx.world
+        n = population.n_individuals(w)
+        plats = [p for p in self.cfg("platforms") if p in C.PLATFORMS]
+        per = int(self.cfg("per_platform"))
+        if not n or not plats or per <= 0:
+            return
+        rng = w.rng_for("catalogue-genesis")
+        T = len(semantics.topic_names())
+        for plat in plats:
+            idx = np.sort(rng.choice(n, size=min(per, n), replace=False)).astype(np.int64)
+            coords = population.interest_coords(w, idx)
+            tc = semantics.topic_coords(coords.shape[1])
+            topic = np.argmax(coords @ tc.T + rng.gumbel(size=(idx.size, T)) * 0.08, axis=1)
+            skill = columns.col(w, "pop", "skills")[idx, 1].astype(np.float64)
+            for j, i in enumerate(idx.tolist()):
+                longform = plat in ("blog", "kb")
+                n_sent = int(4 + rng.integers(0, 8) * (0.5 + skill[j])) if longform else int(1 + rng.integers(0, 3))
+                title, body = writing.compose(rng, int(topic[j]), n_sent, float(skill[j]))
+                p = ids.ensure_principal(ctx, int(i))
+                try:
+                    if plat == "pics":
+                        ref = ctx.call("studio.image", {"text": body[:600], "title": title[:180]},
+                                       as_principal=p)["ref"]
+                        kind = "image"
+                    else:
+                        data = f"{title}\n\n{body}\n".encode("utf-8")
+                        ref = artifacts.put(ctx, data, "text/plain", owner=p, meta={"title": title[:80]}, kind="text")
+                        kind = "article" if longform else "post"
+                    C.module(w).publish(ctx, p, ref, kind, plat, title[:180])
+                except CrucibleError:
+                    continue
+
+
 def _text_platforms(plats: list[str]) -> dict:
     short = "posts" if "posts" in plats else ("blog" if "blog" in plats else plats[0])
     long_ = "blog" if "blog" in plats else short
@@ -76,7 +137,7 @@ def build(config: DomainConfig, seed: int, overrides: dict) -> dict:
     plats = list(st["platforms"])
     n = int(PP.resolve({"profile": population, **({"n": int(n_pop)} if n_pop else {})})["n"])
     modules = ["content", "social", "social_ids", "social_rows", "aud", "feed", "studio", "pop_social", "search",
-               "docs"] + plats
+               "docs", "catalogue"] + plats
     pop = {"profile": population, "tick_s": 900, "classes": {"adaptive": 0, "strategic": 0, "semantic": 0}}
     if n_pop:
         pop["n"] = int(n_pop)
@@ -86,6 +147,7 @@ def build(config: DomainConfig, seed: int, overrides: dict) -> dict:
                    "max_creators": min(1 << 20, max(2048, n + 256))},
            "feed": {"platforms": {p: {"recommenders": SW.MIXTURES[p]} for p in plats}},
            "pop_social": {"platforms": _text_platforms(plats)},
+           "catalogue": {"platforms": plats, "per_platform": 6},
            "pop": pop}
     return civ_recipe(int(seed), modules=modules, population_modules=("pop",), module_config=cfg,
                       population=population if population in ("development", "standard", "large", "internet")
@@ -93,14 +155,37 @@ def build(config: DomainConfig, seed: int, overrides: dict) -> dict:
 
 
 # ====================================================================== objective, evaluator
-def objective(world, principal: str, difficulty: int = 1) -> dict:
+def _goal_draw(rng, difficulty: int, world) -> dict:
+    """The goal generator's draw (`crucible.goals`, its own stream): the level's distinct-viewer target (varied by
+    +-10% per instance and rounded below the top level; the top level is the spec's 10,000,000 viewers of a
+    10,000,000-individual internet population) and the population profile its world is built with."""
     d = int(min(4, max(1, difficulty)))
-    text = (f"Create original content that reaches a large independent audience: within {HORIZON_DAYS:.0f} days "
-            f"your own original items must be viewed by at least {TARGET[d]:,} distinct people (each person counts "
-            f"once; a view needs the platform's minimum watch time). Content first published by someone else does "
-            f"not count.")
-    return {"text": text, "description": text, "domain": "content", "difficulty": d,
-            "target_unique_viewers": TARGET[d], "population_profile": POPULATION_FOR[d], "window_days": HORIZON_DAYS}
+    t = TARGET[d] * float(rng.uniform(0.9, 1.1)) if d < max(TARGET) else float(TARGET[d])   # the top level: 10M
+    step = 10 ** max(1, int(math.log10(TARGET[d])) - 1)
+    return {"target_unique_viewers": int(round(t / step) * step), "population_profile": POPULATION_FOR[d],
+            "window_days": HORIZON_DAYS}
+
+
+def _goal_text(p: dict) -> str:
+    return (f"Create original content that reaches a large independent audience: within {p['window_days']:.0f} days "
+            f"your own original items must be viewed by at least {p['target_unique_viewers']:,} distinct people "
+            f"(each person counts once; a view needs the platform's minimum watch time). Content first published "
+            f"by someone else does not count.")
+
+
+GOAL = GoalFamily(
+    "original_audience", draw=_goal_draw, text=_goal_text,
+    success=lambda p: {"metric": "content_original_viewers", "args": {"principal": "$self"}, "op": ">=",
+                       "value": int(p["target_unique_viewers"])},
+    progress=lambda p: {"metric": "content_original_viewers", "args": {"principal": "$self"},
+                        "target": int(p["target_unique_viewers"])},
+    window_days=lambda p: float(p["window_days"]),
+    doc="the exact union of the viewer bitsets of the seat's original items (aud distinct verified viewers)")
+
+
+def objective(world, principal: str, difficulty: int = 1) -> dict:
+    """The objective generated for a participant (`Domain.make_objective`: the goal generator above)."""
+    return DOMAIN.make_objective(world, principal, difficulty)
 
 
 _WORD = re.compile(r"[a-z]{3,}")
@@ -189,7 +274,7 @@ def original_items(world, principal: str) -> tuple[list[dict], list[dict]]:
     return orig, copied
 
 
-def evaluate(world, principal: str, obj: dict) -> dict:
+def verdict(world, principal: str, target_unique_viewers: int) -> dict:
     from ..social import audience as AUD
     orig, copied = original_items(world, principal)
     viewers = np.zeros(0, np.int64)
@@ -201,10 +286,31 @@ def evaluate(world, principal: str, obj: dict) -> dict:
         per[c["id"]] = int(v.size)
         viewers = np.union1d(viewers, v)
     n = int(viewers.size)
-    t = int(obj["target_unique_viewers"])
+    t = int(target_unique_viewers)
     return {"success": n >= t, "score": round(min(1.0, n / t), 6),
             "details": {"distinct_viewers": n, "target": t, "items": per, "original_items": len(orig),
                         "copied_items": len(copied)}}
+
+
+def evaluate(world, principal: str, obj: dict) -> dict:
+    """The evaluator (hidden): `verdict` with the generated goal's parameters."""
+    p = obj.get("params") or {}
+    return verdict(world, principal, int(p.get("target_unique_viewers", TARGET[1])))
+
+
+def _register_metrics() -> None:
+    """The goal's metric (`crucible.goals.metrics`, evaluator side; no in-world subject, evaluator-only)."""
+    from ..goals import metrics as GM
+
+    @GM.metric("content_original_viewers", "EVALUATOR-ONLY. Distinct verified viewers of the principal's original "
+               "items (exact union of their viewer bitsets).")
+    def m_viewers(world, principal: str) -> float:
+        return float(verdict(world, principal, 1)["details"]["distinct_viewers"])
+
+    GM.EVALUATOR_ONLY_METRICS.add("content_original_viewers")
+
+
+_register_metrics()
 
 
 # ====================================================================== the hidden reference (LABELLED SCRIPTED)
@@ -334,65 +440,49 @@ def null_policy(principal=None, obj=None):
 
 
 # ====================================================================== mechanics (recorded-event probes)
-def _ev(world, since, types):
-    return [e for e in world.events_range(int(since), world.seq) if e.type in types]
-
-
-def count_artifacts(world, since: int) -> int:
+# Evidence functions return the SEQUENCE NUMBERS of the recorded events that exercise a mechanic (D-48 /3).
+def stored_artifacts(world, since: int) -> list[int]:
     """Published catalogue items whose bytes are stored artifacts (text, documents, images, audio, video)."""
-    st = world.state
     from ..substrate import artifacts
-    n = 0
-    for e in _ev(world, since, ("content.published",)):
+
+    def stored(e):
         try:
-            n += int(artifacts.info(world, e.payload["ref"])["size"] > 0)
+            return int(artifacts.info(world, e.payload["ref"])["size"]) > 0
         except Exception:  # noqa: BLE001 - a missing artifact does not count
-            continue
-    return n
+            return False
+    return events_where(world, since, ("content.published",), stored)
 
 
-def count_representations(world, since: int) -> int:
-    """Items represented in the shared space by pretrained encoders through recorded inference."""
-    return sum(1 for e in world.events_range(int(since), world.seq)
-               if e.type in ("space.recorded", "aud.item") or (e.type == "ext" and "space" in str(e.payload)[:80]))
-
-
-def count_competing_creators(world, since: int) -> int:
-    """Distinct creators with published items after `since` beyond the first (competition for the same feeds)."""
-    who = {e.payload.get("creator") for e in _ev(world, since, ("content.published",))}
-    return max(0, len(who) - 1)
-
-
-def count_distinct_viewers(world, since: int) -> int:
-    from ..social import audience as AUD
-    st = world.state
-    allv = np.zeros(0, np.int64)
-    for _, c in st.scan("content"):
-        if c.get("aud_item") is not None:
-            allv = np.union1d(allv, AUD.viewers_of(world, int(c["aud_item"])))
-    return int(allv.size)
+def population_publications(world, since: int) -> list[int]:
+    """Items published by individuals of the population (the creators competing for the same feeds)."""
+    return events_where(world, since, ("content.published",), lambda e: K.is_population(e.payload.get("creator")))
 
 
 MECHANICS = (
-    Mechanic("Actual content artifacts", ("content.published",), "stored artifacts published as catalogue items",
-             count=count_artifacts),
-    Mechanic("Learned content representations", ("space.recorded",),
-             "pretrained-encoder representations in the shared space", count=count_representations),
+    Mechanic("Actual content artifacts", (), "stored artifacts published as catalogue items",
+             count=stored_artifacts),
+    Mechanic("Learned content representations", ("aud.item",),
+             "items registered for distribution with their representation in the shared space (pretrained "
+             "encoders, recorded inference)"),
     Mechanic("Autonomous consumption", ("cols.batch:consume.*",), "the population's own consumption decisions"),
     Mechanic("Recommendation systems", ("cols.batch:impress.*",), "feed impressions ranked by recommender mixtures"),
     Mechanic("Competing creators", ("cols.batch:pop_social.created",), "population creators publishing",
-             count=count_competing_creators),
+             count=population_publications),
     Mechanic("Social sharing", ("cols.batch:social.share", "cols.batch:share.deliver"), "shares and their delivery"),
     Mechanic("Audience feedback", ("cols.batch:social.follow", "content.comment", "cols.batch:analytics.publish"),
              "follows, comments, likes and the creators' delayed analytics"),
-    Mechanic("Distinct verified viewers", (), "exact distinct-viewer bitsets", count=count_distinct_viewers),
+    Mechanic("Distinct verified viewers", ("aud.consumed",),
+             "viewings whose applier decides views from watch time and sets the exact distinct-viewer bitsets"),
 )
 
 
 def structure(world) -> dict:
-    feed = world.modules["feed"].config.get("platforms") or {}
-    recs = sorted({r["name"] for p in feed.values() for r in (p.get("recommenders") or [])})
-    return {"platforms": sorted(feed), "recommenders": recs}
+    """Built state only (`base.BuiltWorld`): the platforms that carry a catalogue at genesis and the media they
+    carry (the back catalogue, module `catalogue`)."""
+    st = world.state
+    items = [c for _, c in st.scan("content")] if "content" in st.tables else []
+    return {"platforms": sorted({str(c.get("platform")) for c in items}),
+            "media": sorted({str(c.get("kind")) for c in items})}
 
 
 CONFIGS = tuple(DomainConfig(n, s, dict(STRUCTURES[n]), DOCS[n]) for n, s in (
@@ -401,7 +491,7 @@ CONFIGS = tuple(DomainConfig(n, s, dict(STRUCTURES[n]), DOCS[n]) for n, s in (
 
 DOMAIN = register(Domain(
     name="content", title="Content ecosystem", spec_part="9.3", required_mechanics=tuple(m.name for m in MECHANICS),
-    configs=CONFIGS, build=build, objective=objective, evaluate=evaluate, reference=reference, mechanics=MECHANICS,
+    configs=CONFIGS, build=build, goal=GOAL, evaluate=evaluate, reference=reference, mechanics=MECHANICS,
     seats=(Seat("creator", 100_000, "Creator", "an independent creator"),),
     actors=(Actor("population audience", ("cols.batch:consume.*", "cols.batch:impress.*"),
                   "individuals browsing their feeds and consuming by their own interests"),
