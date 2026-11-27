@@ -323,39 +323,84 @@ def _billing_calls(node) -> list[int]:
     return out
 
 
-def recurring_billing_modules() -> dict[str, list[str]]:
-    """{module: [file:line]} of shipped kernel modules whose code posts a recurring charge itself (syntax-tree scan,
-    `_billing_calls`). A module's code is every crucible class of its MRO (inherited billing counts: e.g. `caps`
-    inherits `services.capabilities.Capabilities._bill`), each scanned in its own defining file, plus the top-level
-    functions of those files (helpers the class calls). Wave-3b repair: the scan read only the registered class's
-    own body, so a module billing through a base class or a module-level helper was not counted."""
-    import crucible
-    from crucible.core.kernel import MODULES, Module
-    from crucible.substrate import facts
-    crucible.load_all_modules()
+def class_billing_sites(cls, package: str = "crucible", depth: int = 3) -> list[str]:
+    """[file:line] of recurring-charge calls (`_billing_calls`) in the code of class `cls`: every class of its MRO
+    defined in `package` (inherited billing counts: e.g. `caps` inherits `services.capabilities.Capabilities._bill`),
+    each scanned in its own defining file, the top-level functions of those files (helpers the class calls), and,
+    up to `depth` calls deep, the `package` functions defined elsewhere that this code calls by a name it imports
+    (`charge(...)` or `helpers.charge(...)` resolved through the defining module's globals). Wave-3b repair: the
+    scan read only the registered class's own body, so a module billing through a base class or a helper was not
+    counted."""
+    import sys
+    import types
+
+    from crucible.core.kernel import Module
     trees: dict[str, ast.Module] = {}
 
     def tree(path):
         if path not in trees:
             trees[path] = ast.parse(open(path, encoding="utf-8").read())
         return trees[path]
+
+    def rel(path):
+        return path.split("/src/")[-1] if "/src/" in path else path.split("/tests/")[-1]
+    hits: set[str] = set()
+    seen: set = set()
+    todo: list = []                       # (node, file, module globals, depth)
+    whole: set[str] = set()               # files whose top-level functions are all queued
+    for c in cls.__mro__:
+        if c in (Module, object) or not c.__module__.startswith(package):
+            continue
+        path = inspect.getsourcefile(c)
+        t = tree(path)
+        g = vars(sys.modules[c.__module__])
+        body = next((n for n in ast.walk(t) if isinstance(n, ast.ClassDef) and n.name == c.__name__), None)
+        if body is not None:
+            todo.append((body, path, g, 0))
+        todo += [(fn, path, g, 0) for fn in t.body if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef))]
+        whole.add(path)
+    while todo:
+        node, path, g, d = todo.pop()
+        key = (path, getattr(node, "lineno", 0), type(node).__name__)
+        if key in seen:
+            continue
+        seen.add(key)
+        hits.update(f"{rel(path)}:{ln}" for ln in _billing_calls(node))
+        if d >= depth:
+            continue
+        for n in ast.walk(node):            # helpers defined in other files of the package, called by name
+            if not isinstance(n, ast.Call):
+                continue
+            fn = None
+            if isinstance(n.func, ast.Name):
+                fn = g.get(n.func.id)
+            elif isinstance(n.func, ast.Attribute) and isinstance(n.func.value, ast.Name) and \
+                    isinstance(g.get(n.func.value.id), types.ModuleType):
+                fn = getattr(g[n.func.value.id], n.func.attr, None)
+            if not isinstance(fn, types.FunctionType) or not str(fn.__module__).startswith(package):
+                continue
+            fpath = inspect.getsourcefile(fn)
+            if fpath in whole:
+                continue                    # a defining file of the class: its top-level functions are queued
+            fnode = next((x for x in tree(fpath).body if isinstance(x, (ast.FunctionDef, ast.AsyncFunctionDef))
+                          and x.name == fn.__name__), None)
+            if fnode is not None:
+                todo.append((fnode, fpath, vars(sys.modules[fn.__module__]), d + 1))
+    return sorted(hits)
+
+
+def recurring_billing_modules() -> dict[str, list[str]]:
+    """{module: [file:line]} of shipped kernel modules whose code posts a recurring charge itself
+    (`class_billing_sites` of each registered module class)."""
+    import crucible
+    from crucible.core.kernel import MODULES
+    from crucible.substrate import facts
+    crucible.load_all_modules()
     out: dict[str, list[str]] = {}
     for name in sorted(facts.shipped_modules()):
-        hits: set[str] = set()
-        for cls in MODULES[name].__mro__:
-            if cls in (Module, object) or not cls.__module__.startswith("crucible"):
-                continue
-            path = inspect.getsourcefile(cls)
-            rel = path.split("/src/")[-1]
-            t = tree(path)
-            body = next((n for n in ast.walk(t) if isinstance(n, ast.ClassDef) and n.name == cls.__name__), None)
-            if body is not None:
-                hits.update(f"{rel}:{ln}" for ln in _billing_calls(body))
-            for fn in t.body:
-                if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    hits.update(f"{rel}:{ln}" for ln in _billing_calls(fn))
+        hits = class_billing_sites(MODULES[name])
         if hits:
-            out[name] = sorted(hits)
+            out[name] = hits
     return out
 
 
