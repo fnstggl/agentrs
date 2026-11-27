@@ -2838,11 +2838,11 @@ B_population verdict) and P's own findings.
 ```json
 {
  "area": "O_security",
- "fix": "redteam/v5/adversaries._TableStash: learning of its own (nearest-neighbour offsets from the public defaults that its search committed to; in-process gain 0.584, CI 0.27..0.90 on the branch); instrument.control_timing_channel: one setting, 160 interleaved episodes, passes only when the 95% interval of the latency-score correlation is inside +-0.35 (power 0.98) and the partition latency ratio inside 1+-0.10; civ.Tier2OfflineAndIsolated + suite.gate_metrics: vacuous rows reported as evaluator_isolation_vacuous and not counted as W.2 runs; base.sweep_read_only breadth-first with a capped flag; test_gate_W counts only reviews by others; metering.Memo bounded process-wide (largest lineage evicts)",
- "fixed_by": "c5c/w3b-sec repair pass: redteam/v5/adversaries.py, redteam/v5/instrument.py, redteam/v5/civ.py, redteam/v5/base.py, redteam/v5/suite.py, sandbox/metering.py, tests/v5/test_gate_W.py",
+ "fix": "redteam/v5/adversaries._TableStash: learning of its own (nearest-neighbour offsets from the public defaults that its search committed to; in-process gain 0.584, CI 0.27..0.90 on the branch); instrument.control_timing_channel: one setting, 160 interleaved episodes, passes only when the 95% interval of the latency-score correlation is inside +-0.35 (power 0.98) and the partition latency ratio inside 1+-0.10; civ.Tier2OfflineAndIsolated + suite.gate_metrics: vacuous rows reported as evaluator_isolation_vacuous and not counted as W.2 runs; base.sweep_read_only breadth-first with a capped flag; test_gate_W counts only reviews by others; metering.Memo bounded process-wide (largest lineage evicts); second repair pass: the stash adversaries also memorise per world the time-indexed settings of their best training episode (the public defaults recorded on the first visit) and replay them frozen on a familiar world - on the check merge (rapid's reversal / wear / delayed-return / latched families) a remembered constant gave a frozen policy nothing (-0.03, CI -0.15..0.09) and both stash controls were inconclusive; with the replay the hidden gain is 0.264 (CI 0.15..0.38) there and weights-only 0.000, so process_memory_stash and files_outside_checkpoint pass on the check merge (fd972ab) as on the branch (0.42, CI 0.27..0.56 familiar; 0.42 unfamiliar); the pilot stops after the first n transfer families",
+ "fixed_by": "c5c/w3b-sec repair pass: redteam/v5/adversaries.py, redteam/v5/instrument.py, redteam/v5/civ.py, redteam/v5/base.py, redteam/v5/suite.py, sandbox/metering.py, tests/v5/test_gate_W.py; second repair pass: redteam/v5/adversaries.py (_TableStash replay), redteam/v5/instrument.py (pilot), tests/v5/test_gate_SP_15_8.py (familiar-tier metrics)",
  "id": "DEF-O-28",
  "owner": "O",
- "regression_tests": "tests/v5/test_gate_SP_15_8.py (process_memory_stash, files_outside_checkpoint, timing_channel), tests/v5/test_gate_W.py::test_W2_evaluator_isolation, test_Wn1_independent_adversarial_review, tests/test_v5_security_sandbox.py::test_in_process_memo_is_bounded_process_wide_and_the_largest_lineage_pays",
+ "regression_tests": "tests/v5/test_gate_SP_15_8.py (process_memory_stash, files_outside_checkpoint, timing_channel), tests/v5/test_gate_W.py::test_W2_evaluator_isolation, test_Wn1_independent_adversarial_review, tests/test_v5_security_sandbox.py::test_in_process_memo_is_bounded_process_wide_and_the_largest_lineage_pays, tests/test_v5_security_redteam.py::test_stash_adversary_replays_its_best_episode_on_a_familiar_world",
  "requirements": [
   "SP-15.8",
   "W.2",
@@ -2855,5 +2855,52 @@ B_population verdict) and P's own findings.
  },
  "status": "fixed",
  "summary": "Instrument-integrity controls could not demonstrate what they claimed: the stash adversaries (ProcessStash, FileStash) were N's WeightLearner with redirected weights, so the stash controls had power only when N's learner learned (on the check merge: in-process gain 0.037, CI -0.043..0.118 - both inconclusive); the timing-channel control used 24 episodes and a 'p < 0.01 and |rho| > 0.5' rule (it could not detect a channel) with six learner settings confounding latency and score; the Tier 2 isolation probe counted vacuous rows (no canary) as held W.2 probes (17 of 30 on the merge) and its 1,200-call sweep cap left later read-only tools uncalled in 15 of 30; Gate W.n1 counted workstream O's own review as independent; the in-process meter memo lost its process-wide bound."
+}
+```
+
+### DEF-O-29 (high, fixed): The outcome of a sandboxed job is recorded in the world's event log (the per-command `ext` event, so that regeneration re-issues the program
+
+```json
+{
+ "area": "O_security",
+ "fix": "sandbox/bridge.py: a recorded result above RECORD_RESULT_MAX (1 MiB) fails as ResultTooLarge; world calls beyond RECORD_RPC_ARGS_MAX (2.5 MiB of arguments per job, a full commit fits) are refused before they reach the world and are not logged (no effect, so regeneration needs nothing of them); a job and every job nested in it share RECORD_TREE_MAX (3.5 MiB of results and logged arguments per call tree; jobs a world process starts on its own, e.g. a population's requests to a service, keep separate trees); error fields bounded (type 200, message 2000, traceback 4000 characters). Probe: 86.0 MiB (direct) and 39.1 MiB (nested) before, at most 2.94 MiB per command after",
+ "fixed_by": "c5c/w3b-sec second repair pass: sandbox/bridge.py, redteam/v5/sandbox.py (probe), redteam/v5/suite.py (FIXED)",
+ "id": "DEF-O-29",
+ "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W7_resource_limits (v5.sandbox.recorded_outcomes_are_bounded), tests/test_v5_security_sandbox.py::test_recorded_outcomes_of_a_job_are_bounded",
+ "requirements": [
+  "W.7",
+  "W.n1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream O second repair pass (W.n1 adversarial review of the merged tree)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "The outcome of a sandboxed job is recorded in the world's event log (the per-command `ext` event, so that regeneration re-issues the program's world calls) and the bridge recorded it whole: the runner accepts protocol lines of up to 8 MiB and 50 world calls per job, so one code.run made 40 world calls carrying 2 MiB of junk each (each refused by the tool's schema after the bridge had logged its arguments) and returned 6 MiB: 86 MiB written into the world's memory and event store by one tool call (ordinary tools stop at a 2 MiB commit). After per-job caps, 40 nested code.run calls of a program returning just under 1 MiB each still recorded 39 MiB in one command (nested outcomes share the command). Error dicts of a forged completion line were recorded whole as well."
+}
+```
+
+### DEF-O-30 (medium, fixed): A jailed learner process's RLIMIT_FSIZE was 256 MiB whatever its directory quota, and the quota watchdog polled every 250 ms: with a 32 MiB 
+
+```json
+{
+ "area": "O_security",
+ "fix": "sandbox/learnerhost.py: RLIMIT_FSIZE = min(256 MiB, the directory quota) (a file stops at the quota with EFBIG); the watchdog polls every 50 ms (the same attack is stopped at 1.25x the quota). The cap probe keeps each mapped file below the quota and does not count a write refused at the file-size limit as an escape",
+ "fixed_by": "c5c/w3b-sec second repair pass: sandbox/learnerhost.py, redteam/v5/sandbox.py",
+ "id": "DEF-O-30",
+ "owner": "O",
+ "regression_tests": "tests/test_v5_security_sandbox.py::test_a_learner_file_cannot_outgrow_the_learner_directory_quota, tests/v5/test_gate_W.py::test_W7_resource_limits (v5.sandbox.hosted_learner_memory_and_disk_are_capped)",
+ "requirements": [
+  "W.7"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "workstream O second repair pass (W.n1)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "A jailed learner process's RLIMIT_FSIZE was 256 MiB whatever its directory quota, and the quota watchdog polled every 250 ms: with a 32 MiB quota the learner held 100 MB (3x) before it was stopped, and one file could grow to 16x a 16 MiB quota between two polls."
 }
 ```

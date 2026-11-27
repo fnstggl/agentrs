@@ -351,6 +351,15 @@ as this overlay answers). Residual, stated and measured: machine-global counters
 0.75 per 10 ms, a 300-thread burst moves it by 302) and pid allocation (sd 1.1 per 10 ms) - are strong channels
 between two concurrently running colluding programs; seccomp can neither fake them nor hide pids; a pid namespace or
 a VM per tenant would remove them.
+Amendment (second repair pass, 2026-11-27, same workstream): (14) what a sandboxed job adds to the world's recorded
+outcomes is bounded (DEF-O-29): a result above 1 MiB (JSON) fails as ResultTooLarge; a job's world calls beyond
+2.5 MiB of arguments in all are refused before they reach the world and are not logged (they have no effect, so
+regeneration needs nothing of them); a job and every job nested in it (code.run through a world call) share 3.5 MiB of
+results and logged arguments; error fields of a recorded outcome are bounded. Consumers: programs and services whose
+results exceed 1 MiB now fail (every world service already caps bodies at 10-200 KB; a full 2 MiB commit through a
+world call still fits). Ruled out: a per-command budget (a population's hourly session calls services many times in
+one command - honest traffic would have failed). (15) A jailed learner's RLIMIT_FSIZE is its directory quota (at most
+256 MiB) and its quota watchdog polls every 50 ms (DEF-O-30).
 ## D-48 The Tier 2 domain contract `domains-framework/2` (2026-11-26, workstream I, wave 3b)
 Resolves the contract split of audit I_domains section 2 (DEF-I-3) on the D-17 side: `crucible.domains.base.Domain`
 is the only domain contract and `crucible.experience` consumes it unchanged. A configuration's world is
