@@ -132,11 +132,8 @@ def test_gated_core_reads_the_semantic_context(enc):
     sc = tk.semantic_context(rows, max_tokens=48)
     ctx = rand_tokens(2, 6, cfg.d_model, device=enc.device)
     Z0 = core.init_state(2, device=enc.device)
-    core.set_semantic(None)
-    Za, _ = core(Z0, ctx)
-    core.set_semantic(sc)
-    Zb, _ = core(Z0, ctx)
+    Za, _ = core(Z0, ctx)                       # W3's final API: S_t is a forward argument (no module state)
+    Zb, _ = core(Z0, ctx, sem=sc)
     assert not torch.equal(Za, Zb)
     Zb.float().pow(2).mean().backward()
     assert float(sum(p.grad.abs().sum() for p in core.sem_proj.parameters() if p.grad is not None)) > 0
-    core.set_semantic(None)
