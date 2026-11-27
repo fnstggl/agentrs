@@ -335,6 +335,24 @@ asked for: the run uses the unmodified 4.0 tests - and the record also reports `
 tree copies that carry v5 additions; they are v5 tests, run by X.2/X.4). Gate A.5 regenerates 4.0's records the same
 way (fresh clone, historical baseline). Order dependence between 4.0 files (DEF-P-26) and v5 import-time threads
 (DEF-P-25) are not covered by this decision: they are defects of their owners and still fail A.1 until fixed.
+Addendum (wave 3b, continuation after the second usage-limit stop), measured against c07098b: the first historical
+sandbox path did not count 4.0's lines. The count bills every line run while counting is on, the sandbox's own lines
+included, and v5's `_run` differed there: `json.dumps(result, allow_nan=False)` runs the pure-Python encoder set-up
+(17 lines per request; 4.0's `json.dumps(result)` uses the cached C encoder), plus extra statements around the
+counter. Consequence on the merged tree: 10% of demo_lifetime's requests billed 17 lines more, which moved compute
+bills and trajectories (A.1 test_diagnostics' consumer economy, test_hardening's fork test, the A.5 records). Now a
+historical-baseline worker runs `boot._run_v4`, 4.0's `_run` statement for statement in the counted region (results
+that are not JSON-native are rejected after counting, as the 5.0 protocol requires), with no trusted-module preload and
+4.0's garbage-collector setting; tests/test_v5_acceptance_baseline.py compares the counts request by request with an
+extracted c07098b tree (warm and fresh workers, exceptions, imports in the call). Second cause: 5.0 added a lineage
+event to 4.0's `code.fork` (`code.forked`); every event advances the main sequence that keys the command RNG
+(`rng_for("cmd", main_seq, ...)`), so the first fork made every later draw differ. In a historical-baseline process
+4.0's tools emit 4.0's events (the lineage record stays in every 5.0 process; minimal edit in services/code.py). With
+both, demo_lifetime (bazaar, seed 7, 4 days) reproduces c07098b event for event (10,657 events, identical timeline,
+agent summaries and state tables); its final digest still differs through one `note` event in which a random agent
+records the API catalogue hash - 5.0 changed 4.0 tools' descriptions and schemas, and the hash chain commits to it.
+That remaining difference is the API surface itself, not a behaviour; Gate A.5 still counts it as a mismatch (no
+criterion or comparison was relaxed).
 
 ## D-83 Acceptance hardening after the wave-3b independent verification (2026-11-26, workstream P)
 An independent verifier attacked the D-26 machinery with eight new fabrication probes (tests/test_v5_acceptance_probes.py
