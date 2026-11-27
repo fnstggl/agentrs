@@ -48,7 +48,17 @@ change reverses a regularity the network can perceive (the site's category) inst
 reader's own satisfaction already tracks for any policy (condition "sites", whose G.6 run failed). SP-3.2 counts class 4 by its members' own tool actions during
 activations of the bound runtime, not by the activations.
 
+Web navigation: on a page with an article slate the fitted article-open decision (article_open_semantic@1) chooses
+among the headlines; a reader who opens none and wants to look at products (decision `evaluate_product`) goes on to
+the page's product links or its shop, otherwise it leaves the page. On other pages the plausible `continue` decision
+picks the next link (products for a reader who wants them, else articles or the shop).
+
 ## Performance notes (wave 3b)
+
+* Class-2 decisions (resource choice, activity choice, day review) and class-3 decisions are calls of the shared
+  batching service `substrate.inference_batch` (`IB.decide` with `method_request` / `strategic_request`): one recorded
+  call per policy group and decision round (`batch.<op>` records), accounted per participant class
+  (`inference_batch.stats(world)`); masking, Gumbel draws and choices stay with the population.
 
 * Class 2: the day review is one batched forward pass per policy group over the members waking in the same decision
   round (`adaptive_window_s`); activity and resource decisions batch the members due in the round.
