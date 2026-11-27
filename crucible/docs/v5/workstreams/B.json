@@ -163,7 +163,7 @@
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "implemented (D-32 addendum: class-2 day review); failed at 4184cce (207 took sessions in a 4-day run); CPU probe on 85ae921's code (256 adaptive, 1.6 days): 256/256 members' policies stepped their memory on each day; gate run queued",
+   "status_claim": "implemented (D-32 addendum: class-2 day review); failed at 4184cce (207 took sessions in a 4-day run); CPU probe on 85ae921's code (256 adaptive, 1.6 days): 256/256 members' policies stepped their memory on each day; gate run queued; passed in the unofficial gate run at 9d3f98b0 (snapshot 9585d10, 2026-11-27 04:5x; G.1-G.3, G.5 tests passed; the run was stopped for RAM at 7.7 GB of 6 GB during G.7); rerun with the category condition queued",
    "notes": ""
   },
   "G.2": {
@@ -189,7 +189,7 @@
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "implemented; failed at 4184cce (251 distinct: members never activated kept the zero state); CPU probe: 256 distinct, 256 changed from the initial state; gate run queued",
+   "status_claim": "implemented; failed at 4184cce (251 distinct: members never activated kept the zero state); CPU probe: 256 distinct, 256 changed from the initial state; gate run queued; passed in the unofficial gate run at 9d3f98b0 (snapshot 9585d10, 2026-11-27 04:5x; G.1-G.3, G.5 tests passed; the run was stopped for RAM at 7.7 GB of 6 GB during G.7); rerun with the category condition queued",
    "notes": ""
   },
   "G.3": {
@@ -215,7 +215,7 @@
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "implemented; failed at 4184cce (34: only the resource-choice batch was reported); now the largest forward pass per decision kind (CPU probe: day review 174, activity 59, resource 36); gate run queued",
+   "status_claim": "implemented; failed at 4184cce (34: only the resource-choice batch was reported); now the largest forward pass per decision kind (CPU probe: day review 174, activity 59, resource 36); gate run queued; passed in the unofficial gate run at 9d3f98b0 (snapshot 9585d10, 2026-11-27 04:5x; G.1-G.3, G.5 tests passed; the run was stopped for RAM at 7.7 GB of 6 GB during G.7); rerun with the category condition queued",
    "notes": ""
   },
   "G.5": {
@@ -241,7 +241,7 @@
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "criteria met in an unofficial run at 4184cce (weights changed, 1,456 optimizer steps, held-out loss decrease 0.0435); rerun queued",
+   "status_claim": "criteria met in an unofficial run at 4184cce (weights changed, 1,456 optimizer steps, held-out loss decrease 0.0435); rerun queued; passed in the unofficial gate run at 9d3f98b0 (snapshot 9585d10, 2026-11-27 04:5x; G.1-G.3, G.5 tests passed; the run was stopped for RAM at 7.7 GB of 6 GB during G.7); rerun with the category condition queued",
    "notes": ""
   },
   "G.6": {
@@ -267,8 +267,8 @@
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "implemented with the change-specific measure the audit asked for (D-32 addendum 2): learning-group utility after the switch in the main world minus a fork in which the group stops learning at the switch (paired by member, pooled over 3 seeds); 1-day CPU smoke run (seed 0): 19 members compared, mean -0.007, CI [-0.091, 0.074] (underpowered at 1 day); gate run queued. At 4184cce the identical-init measure (now G.n1's) gave CI low 0.135",
-   "notes": "Post-switch updates also use the examples pending at the switch (at most one learning interval); the fork and the main world share weights, memories, world state and random streams at the switch (the same set_learning system call is recorded in both; regression test test_learning_switch_forks_stay_aligned_until_the_first_update)."
+   "status_claim": "FAILED in its first gate run under the addendum-2 condition 'sites' (unofficial, snapshot of 9d3f98b0, 3 seeds, 5-day phases): new_condition_improvement_ci_low -0.0216 (mean +0.0014, CI high +0.0261, 291 members; per-seed means -0.0166, +0.0167, +0.0059); failing-site visits 0.228 learning vs 0.204 frozen at the switch; class-1 phase-2 utility 0.400 vs learning group 0.483. Diagnosis and new controlled condition 'category' fixed before its gate run (D-32 addendum 3; measure unchanged); gate run of the category condition queued (/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_G3.full).",
+   "notes": "Post-switch updates also use the examples pending at the switch (at most one learning interval); the fork and the main world share weights, memories, world state and random streams at the switch (the same set_learning system call is recorded in both; regression test test_learning_switch_forks_stay_aligned_until_the_first_update). Condition 'category' (wave 3b continuation 3): guides rich and blogs poor before the switch; two most visited guides redeployed broken and every blog rewritten rich after it (experiments.adaptation(condition='category')); per member also the share of phase-2 visits to the switched sites (learning vs frozen at the switch)."
   },
   "G.n1": {
    "implementation_files": [
@@ -293,7 +293,7 @@
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "criterion: identical-init learning group vs frozen twin after the controlled change (web decisions, lowest per-seed CI bound; met at 4184cce: 0.135); now also reports the activity decisions (session utility, learning vs frozen) and class 3's lifetime policy change (asserted: a learning strategic group shifted, the frozen control A0 did not); gate run queued",
+   "status_claim": "unofficial run at 9d3f98b0 (snapshot 9585d10, 2026-11-27 04:58): adaptation_effect_ci_low 0.208 (per seed 0.264, 0.209, 0.208; mean 0.249; phase 1 0.160), activity sessions phase-2 difference mean 0.253 (lowest per-seed CI bound 0.165), strategic learning groups' policy shift min 0.073 TV, frozen A0 0.0 - under the 'sites' condition; the gate now uses the 'category' condition (D-32 addendum 3), rerun queued",
    "notes": ""
   },
   "G.4": {
@@ -319,7 +319,7 @@
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "criteria met in an unofficial run at 4184cce (independent_strategic_groups 3, distinct_group_weight_hashes 4, frozen control unchanged); rerun queued",
+   "status_claim": "unofficial run at 9d3f98b0 (snapshot 9585d10, 2026-11-27 04:58): independent_strategic_groups 3, distinct_group_weight_hashes 4, 52 policy updates, 272 strategic decisions, frozen control unchanged (criteria met); rerun queued with the gate",
    "notes": ""
   },
   "G.7": {
@@ -345,7 +345,7 @@
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "criteria met in an unofficial run at 4184cce (3 language-model rows: SmolLM2-135M rho 0.32, SmolLM2-360M 0.43, Qwen3-0.6B 0.24 vs compact learned 0.78 / frozen 0.10, 237,506 parameters); rerun queued",
+   "status_claim": "criteria met in an unofficial run at 4184cce (3 language-model rows: SmolLM2-135M rho 0.32, SmolLM2-360M 0.43, Qwen3-0.6B 0.24 vs compact learned 0.78 / frozen 0.10, 237,506 parameters); rerun queued; not reached in the 9d3f98b0 run (stopped for RAM during G.7); rerun queued (CPU, 10 GB)",
    "notes": ""
   },
   "SP-3.1": {
@@ -545,7 +545,8 @@
   "wave 1/2 (ws-B, CORE-POP c5c/w2-corepop)": "columnar population, profiles, event-driven activation, popweb over net.fetch, purchases through the bank, class 2 adaptive groups, a 4-head class 3, package API of ONE_WORLD_CONTRACTS section 1, gate tests B/G/SP-3.x/SP-4.1 (no report: the wave-2 engineer was stopped before writing one)",
   "wave 3b (this branch)": "fitted runtime models in class 1 (D-30), provenance on every population batch, class 3 redesign (D-31), class 2 activity choice and memory through time (D-32), SP-3.2c/SP-4.0/SP-4.4 gate tests, criteria asserted in every B-owned gate test",
   "wave 3b continuation (this branch, after the usage-limit stop)": "gate B fixture fix, class-2 day review (G.1-G.3), SP-4.4 measurement structure, SP-4.0 recognition of the social modules' population batches, delta-only popweb batches, one visit log / counter batch per web session, class-3 decision grid, no-op deposits, resume-from-snapshot determinism (row-independent projection), DECISION_LOG D-32 addendum",
-  "wave 3b continuation 2 (this branch, after the second usage-limit stop)": "G.6 measured as change-specific improvement (fork frozen at the switch), G.n1 as identical-init adaptation with activity decisions and class 3's policy change reported (D-32 addendum 2); SP-3.2 counts class-4 members' own tool actions; popweb: one space call per page, delta-only popweb.seen, one attention batch per web session; measured population-only throughput before/after; regression analysis of the 6 failures of the predecessor's run (4 calibration/inworld tests updated by kcal, the history and econ tests need the patches in integration_notes)"
+  "wave 3b continuation 2 (this branch, after the second usage-limit stop)": "G.6 measured as change-specific improvement (fork frozen at the switch), G.n1 as identical-init adaptation with activity decisions and class 3's policy change reported (D-32 addendum 2); SP-3.2 counts class-4 members' own tool actions; popweb: one space call per page, delta-only popweb.seen, one attention batch per web session; measured population-only throughput before/after; regression analysis of the 6 failures of the predecessor's run (4 calibration/inworld tests updated by kcal, the history and econ tests need the patches in integration_notes)",
+  "wave 3b continuation 3 (this branch, after the third usage-limit stop)": "G.6's first gate run under the addendum-2 condition failed (+0.0014, CI [-0.022, 0.026]); diagnosed (per-site changes are tracked by every policy's inputs) and the controlled condition 'category' pre-registered (D-32 addendum 3, unit test); class-2 and class-3 decisions moved onto the shared batching service (substrate.inference_batch, M's BATCHING.md request); merged the integration branch twice (D-28 records, perf governor with backfilling, domains framework); found the same-process determinism test failing at this head because sandboxed site compute is billed fresh beyond the D-20 memo tolerance (kcal)"
  },
  "limitations": [
   "session_minutes@1 is not used: its minutes count KuaiRand pool videos only (median 0.06-0.2 min per session) and its contract declares no scale factor; session length stays the individual's plausible log-normal (pop.decision.session_length).",
@@ -580,7 +581,9 @@
   "kcal / any owner of resume tests: population.semantics.project was batch-dependent (float32 GEMM: a text's coordinates changed in the last ulp with the batch it was projected in), which made worlds resumed from a snapshot diverge (first divergence: pop.learn last_utility 0.3502985 vs 0.35029855). Fixed here (einsum in float64); social.audience and social.popsocial use the same function, so their resume determinism may improve too.",
   "kcal (owner of tests/test_v5_substrate_history.py), REQUIRED with this branch: test_events_of_an_individual_include_its_cohort_decisions fails here ('assert changed' - satisfaction of row 7 never changes) because since D-30 whether an individual is active on a day is the fitted daily_return@1 decision, and p7 takes no session in the fixture's 24 h (probe on this branch: 7 cohort events of row 7, all role 'cohort', 0 satisfaction changes). The mechanism under test is intact; the test needs a row that took a session. Patch: at the top of the test add `from crucible.substrate import artifacts` and `learn = next(e for e in w.log if e.type == \"cols.batch\" and e.payload[\"kind\"] == \"pop.learn\"); r = int(artifacts.get_array_blob(w, learn.payload[\"ref\"])[\"idx\"][0])`, then use `ids.pid(r)` and `r` wherever the test uses `ids.pid(7)` / `7` (pop.learn is the batch that writes satisfaction for the individuals that took a session).",
   "econ (owner of tests/test_v5_econ_work.py), REQUIRED with this branch: test_demand_comes_from_population_individuals_paying_their_own_money asserts that EVERY cols.batch with decision provenance has model_id work.value; since D-30 the population records all its own decisions with provenance too (pop.day_active daily_return@1, pop.learn, popweb.*), so the assertion fails on this branch. Patch (line 39): restrict to the economy's own kinds: `dec = [e for e in w.log if e.type == \"cols.batch\" and e.payload[\"kind\"].startswith(\"work.\") and (e.payload.get(\"extra\") or {}).get(\"decision\")]`.",
-  "A/J (DEF-A-2 owners): the defect's cause is gone on this tree - crucible.population exports register_activity (tests/test_v5_population_api.py::test_exports_match_the_contract) and social/recsys/service.py registers the feed's platform activities on the one population (population.register_activity, service.py:202); Gate C.3's status is for C/A to re-measure."
+  "A/J (DEF-A-2 owners): the defect's cause is gone on this tree - crucible.population exports register_activity (tests/test_v5_population_api.py::test_exports_match_the_contract) and social/recsys/service.py registers the feed's platform activities on the one population (population.register_activity, service.py:202); Gate C.3's status is for C/A to re-measure.",
+  "M (BATCHING.md, bench5): done on this branch - population/adaptive.py choose / choose_activity / review_day and population/strategic.py decide call IB.decide (method_request 'scores' keep scores, 'act_scores', 'step_memory'; strategic_request), so their records are batch.<op> kinds (batch.method.scores(obs,mem,cand)->scores,memory[scores], batch.method.act_scores(obs,mem,acand)->scores,memory, batch.method.step_memory(obs,mem)->memory, batch.strategic.logits) and the service accounts them per class. bench5.BATCH_KINDS (infer.pop.adaptive*, infer.pop.strategic) no longer match anything: map the batch.* kinds above to class2/class3 (or use the service's batch_sizes). pop_adaptive.stats 'calls'/'decisions' are renamed resource_calls/resource_decisions so bench5.batching's legacy + service sum does not count the resource choice twice.",
+  "kcal / sandbox metering (D-20): at this head tests/test_v5_population_core.py::test_same_seed_same_hashes_replay_regeneration_and_resume fails at its first assertion (two same-seed worlds in ONE process differ) with and without this session's changes, at load average 27 and at 4: the first divergent event is a cloud.usage of a sandboxed site whose fresh measurement exceeds the memo anchor (dep_000002 cpu_ms 0.599 vs 9.478; another run dep_000003 0.065 vs 6.524; MEMO_TOL 3.0 + 1 ms), so the second world bills fresh. Replay and regeneration of one world stay exact. Probe: scratch probes/div.py (two small_spec worlds, first differing event)."
  ],
  "test_results_unofficial": {
   "tests/test_v5_population_core.py": "16 passed, 0 failed (CPU, in chunks, 178cab6; incl. test_same_seed_same_hashes_replay_regeneration_and_resume, which failed at 44fa731 and earlier in this environment because the interest-space projection was batch-dependent, and the new day-review and projection regression tests)",
