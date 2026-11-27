@@ -30,6 +30,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "A_J_substrate_civ",
  "id": "DEF-A-1",
  "owner": "A, J",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T02:40:10+00:00",
+   "by": "P",
+   "commit": "2fc39848a0deed6c0f2e0ac4c65e53e3031e661c",
+   "evidence": "src/crucible/civ/; docs/v5/workstreams/INT.json",
+   "reason": "crucible.civ is no longer a docstring: civ.generate builds all 11 profiles (4,223 lines under src/crucible/civ at HEAD 2fc3984 (c5c/w3b-qa, integration head 55433e7 + feat c9fca5c); INT.json: 2-day runs with 0 invariant errors). Gate O/P/SP-10 tests exist (test_gate_O.py, test_gate_P.py, test_gate_SP_10_1.py, test_gate_SP_10_3.py). INT.json lists inert civilisation parts (education, employment, institutions, marketplaces, technology invention) - those remain open elsewhere. Owners A/J to re-validate.",
+   "verdict": "likely_fixed"
+  }
+ ],
  "requirements": [
   "SP-10"
  ],
@@ -51,6 +61,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "A_J_substrate_civ",
  "id": "DEF-A-2",
  "owner": "A, J",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T02:40:10+00:00",
+   "by": "P",
+   "commit": "2fc39848a0deed6c0f2e0ac4c65e53e3031e661c",
+   "evidence": "python -c 'import crucible.population as p; p.register_activity'",
+   "reason": "crucible.population now exports register_activity (checked at HEAD 2fc3984 (c5c/w3b-qa, integration head 55433e7 + feat c9fca5c)) and the integration fix composes CORE-POP's social internet with the population (INT.json CIV/CORE-POP notes). Owners A/J (and C for Gate C.3) to re-validate.",
+   "verdict": "likely_fixed"
+  }
+ ],
  "requirements": [
   "C.3"
  ],
@@ -679,6 +699,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "G_innovation",
  "id": "DEF-G-4",
  "owner": "G (ECON)",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T02:40:10+00:00",
+   "by": "P",
+   "commit": "2fc39848a0deed6c0f2e0ac4c65e53e3031e661c",
+   "evidence": "src/crucible/sandbox/runner.py Worker._finish; src/crucible/sandbox/metering.py",
+   "reason": "In 5.0 processes the deterministic cost model bills the parent-measured CPU of a computation (D-20, metering memo), not Python lines; executed lines are counted only in a D-82 Crucible 4.0 historical-baseline process. Owner G to re-validate the builtin-work probe (149 ms of builtin work).",
+   "verdict": "likely_fixed"
+  }
+ ],
  "requirements": [
   "J.7"
  ],
@@ -860,6 +890,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "I_domains",
  "id": "DEF-I-1",
  "owner": "I",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T02:40:10+00:00",
+   "by": "P",
+   "commit": "2fc39848a0deed6c0f2e0ac4c65e53e3031e661c",
+   "evidence": "python -c 'import crucible.domains as d; print(d.REGISTRY)'",
+   "reason": "At HEAD 2fc3984 (c5c/w3b-qa, integration head 55433e7 + feat c9fca5c) crucible.domains REGISTRY is empty ({}), tests/v5/test_gate_N.py does not exist; Tier 2 domains are being built concurrently (workstreams I-fw/I-1/I-2/I-3).",
+   "verdict": "still_open"
+  }
+ ],
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -974,6 +1014,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "K_selfplay",
  "id": "DEF-K-1",
  "owner": "K",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T02:40:10+00:00",
+   "by": "P",
+   "commit": "2fc39848a0deed6c0f2e0ac4c65e53e3031e661c",
+   "evidence": "ls tests/v5/test_gate_Q.py",
+   "reason": "At HEAD 2fc3984 (c5c/w3b-qa, integration head 55433e7 + feat c9fca5c) src/crucible/multiagent/__init__.py is still 5 lines and tests/v5/test_gate_Q.py and test_gate_SP_12_1.py do not exist (workstream K, wave 3b, may be adding them on its branch).",
+   "verdict": "still_open"
+  }
+ ],
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -993,6 +1043,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "K_selfplay",
  "id": "DEF-K-2",
  "owner": "K",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T02:40:10+00:00",
+   "by": "P",
+   "commit": "2fc39848a0deed6c0f2e0ac4c65e53e3031e661c",
+   "evidence": "tests/v5/test_gate_OO.py::test_OO9_every_public_entry_point_defaults_to_observation_only",
+   "reason": "The default part: SelfPlayEnv/KernelSelfPlayEnv/KernelExperienceEnv/registry.make/Gym/PettingZoo default to observation_only since D-19 (test_OO9 at HEAD 2fc3984 (c5c/w3b-qa, integration head 55433e7 + feat c9fca5c)). Not checked here: that selfplay learners learn in observation_only (the second half of the finding). Owner K to re-validate.",
+   "verdict": "likely_fixed"
+  }
+ ],
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1088,6 +1148,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "L_experience",
  "id": "DEF-L-1",
  "owner": "L",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T02:40:10+00:00",
+   "by": "P",
+   "commit": "2fc39848a0deed6c0f2e0ac4c65e53e3031e661c",
+   "evidence": "tests/v5/test_gate_OO.py::test_OO9_every_public_entry_point_defaults_to_observation_only (fails only on 'experience.registry.make tier2': TierUnavailable); tests/test_v5_experience_oo.py::test_observation_only_is_the_default_and_legacy_needs_naming (passes)",
+   "reason": "D-19 (merge 1c3d69d): check_mode(None) is observation_only and every learner-facing constructor defaults to it; measured at HEAD 2fc3984 (c5c/w3b-qa, integration head 55433e7 + feat c9fca5c): tests/v5/test_gate_OO.py::test_OO9 builds every public entry point with no mode named and finds observation_only everywhere except the Tier 2 branch of make(), which is unbuildable because no Tier 2 domain is registered yet (workstream I). DEF-P-5 (the same finding) was closed with regression tests. Owner L to re-validate and close.",
+   "verdict": "likely_fixed"
+  }
+ ],
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1207,6 +1277,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "M_performance",
  "id": "DEF-M-1",
  "owner": "M",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T02:40:10+00:00",
+   "by": "P",
+   "commit": "2fc39848a0deed6c0f2e0ac4c65e53e3031e661c",
+   "evidence": "tests/v5/test_gate_V.py; docs/v5/performance/targets.json",
+   "reason": "Gate V and SP-13.7/SP-13.8 tests exist at HEAD 2fc3984 (c5c/w3b-qa, integration head 55433e7 + feat c9fca5c) (tests/v5/test_gate_V.py, test_gate_SP_13_7.py, test_gate_SP_13_7b.py, test_gate_SP_13_8.py, test_gate_SP_13_8b.py) and targets were adopted (D-27, performance/targets.json). Whether they pass is Gate V's measurement. Owner M to re-validate.",
+   "verdict": "likely_fixed"
+  }
+ ],
  "requirements": [
   "SP-13.7",
   "SP-13.8"
@@ -1229,6 +1309,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "M_performance",
  "id": "DEF-M-2",
  "owner": "M",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T02:40:10+00:00",
+   "by": "P",
+   "commit": "2fc39848a0deed6c0f2e0ac4c65e53e3031e661c",
+   "evidence": "src/crucible/scale/governor.py; tests/v5/test_gate_SP_13_7.py",
+   "reason": "D-27 / 68f4b87: crucible.scale.slots is an enforcing governor over seven dimensions (pinning, PSS watchdog, GPU cap, GPU time, disk quotas, inference tokens, world registry), FIFO admission, nested ledgers; usage.jsonl records measured peaks. Owner M to re-validate with its adversarial probes (SP-13.7 gate).",
+   "verdict": "likely_fixed"
+  }
+ ],
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1288,6 +1378,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "M_performance",
  "id": "DEF-M-5",
  "owner": "M",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T02:40:10+00:00",
+   "by": "P",
+   "commit": "2fc39848a0deed6c0f2e0ac4c65e53e3031e661c",
+   "evidence": "src/crucible/scale/rollout.py:131-133; tests/v5/test_gate_OO.py::test_OO9_every_public_entry_point_defaults_to_observation_only",
+   "reason": "crucible.scale.rollout.WorldEnv now takes reward_mode=None -> check_mode (observation_only by default; rollout.py:121-133 at HEAD 2fc3984 (c5c/w3b-qa, integration head 55433e7 + feat c9fca5c)), covered by test_OO9. Owner M to re-validate with the exogenous-deposit probe.",
+   "verdict": "likely_fixed"
+  }
+ ],
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1440,6 +1540,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "O_security",
  "id": "DEF-O-1",
  "owner": "O",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T02:40:10+00:00",
+   "by": "P",
+   "commit": "2fc39848a0deed6c0f2e0ac4c65e53e3031e661c",
+   "evidence": "src/crucible/sandbox/boot.py (_run vs _run_v4); src/crucible/acceptance/v5/official.py SCRUB_NAMES",
+   "reason": "D-20 (33b5f2b): the parent measures CPU/memory/instructions from outside; boot.py in a 5.0 process counts and reports nothing. The only self-counted path left is the D-82 Crucible 4.0 historical baseline (CRUCIBLE_HISTORICAL_BASELINE=4.0, executed lines counted in the sandboxed process as 4.0 did), which the official runner scrubs from every measured process and the checker rejects in evidence. Owner O to re-validate with the _LINES rewrite probe.",
+   "verdict": "likely_fixed"
+  }
+ ],
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1459,6 +1569,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "O_security",
  "id": "DEF-O-2",
  "owner": "O",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T02:40:10+00:00",
+   "by": "P",
+   "commit": "2fc39848a0deed6c0f2e0ac4c65e53e3031e661c",
+   "evidence": "src/crucible/rapid/engines/program_exec.py:104",
+   "reason": "program_exec bills parent-measured work units since D-20 (rapid/engines/program_exec.py:104 'parent-measured work units, never self-reported' at HEAD 2fc3984 (c5c/w3b-qa, integration head 55433e7 + feat c9fca5c)). Owner O/H to re-validate with the negative-_LINES probe.",
+   "verdict": "likely_fixed"
+  }
+ ],
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1497,6 +1617,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "O_security",
  "id": "DEF-O-4",
  "owner": "O",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T02:40:10+00:00",
+   "by": "P",
+   "commit": "2fc39848a0deed6c0f2e0ac4c65e53e3031e661c",
+   "evidence": "tests/v5/test_gate_W.py; tests/v5/test_gate_SP_16.py",
+   "reason": "tests/v5/test_gate_W.py and test_gate_SP_16.py/16b/16c exist at HEAD 2fc3984 (c5c/w3b-qa, integration head 55433e7 + feat c9fca5c). Whether redteam.v5.probes() now imports cleanly and Gate W passes is the owner's measurement. Owner O to re-validate.",
+   "verdict": "likely_fixed"
+  }
+ ],
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1535,6 +1665,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "O_security",
  "id": "DEF-O-6",
  "owner": "O",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T02:40:10+00:00",
+   "by": "P",
+   "commit": "2fc39848a0deed6c0f2e0ac4c65e53e3031e661c",
+   "evidence": "tests/v5/test_gate_OO.py::test_OO9_every_public_entry_point_defaults_to_observation_only; src/crucible/sandbox/runner.py (BACKGROUND_SLACK_NS)",
+   "reason": "First half (reward_mode default) fixed by D-19 (test_OO9 at HEAD 2fc3984 (c5c/w3b-qa, integration head 55433e7 + feat c9fca5c)); second half (sandbox threads keep running after jobs return, unbilled) addressed by D-20 parent-side metering (background CPU billed with the next job and the worker killed: sandbox/runner.py Worker.run step 1, WorkerPool.sweep). Owner O to re-validate both halves.",
+   "verdict": "likely_fixed"
+  }
+ ],
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1772,6 +1912,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "B_population",
  "id": "DEF-B-4",
  "owner": "B",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T02:40:10+00:00",
+   "by": "P",
+   "commit": "2fc39848a0deed6c0f2e0ac4c65e53e3031e661c",
+   "evidence": "tests/v5/test_gate_B.py; docs/v5/workstreams/INT.json test_results_unofficial",
+   "reason": "Gate tests exist at HEAD 2fc3984 (c5c/w3b-qa, integration head 55433e7 + feat c9fca5c): tests/v5/test_gate_B.py, test_gate_G.py, test_gate_SP_3_1.py, test_gate_SP_3_3.py, test_gate_SP_3_4.py, test_gate_SP_4_1.py (INT.json reports Gate B 6/6 passing unofficially). Owner B to re-validate.",
+   "verdict": "likely_fixed"
+  }
+ ],
  "requirements": [
   "B.1",
   "SP-3.1",
@@ -2314,6 +2464,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "P_acceptance",
  "id": "DEF-P-26",
  "owner": "O (sandbox metering, D-20) / A",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T02:40:11+00:00",
+   "by": "P",
+   "commit": "2fc39848a0deed6c0f2e0ac4c65e53e3031e661c",
+   "evidence": "c5c/w3b-qa scratch: pytest tests/test_learners.py tests/test_ow_worlds.py::test_end_to_end_only_working_software_earns_a_living -> 71 passed in 227 s",
+   "reason": "With the D-82 4.0 historical sandbox path counting exactly c07098b's lines (d6c53f6), tests/test_learners.py followed by tests/test_ow_worlds.py::test_end_to_end_only_working_software_earns_a_living in ONE process (the 4.0 test bytes, historical baseline, clone of ebf82bf) gives 71 passed: the order dependence (the per-process metering memo deciding long_term_adoption) is gone in the 4.0 reproduction. Owners O/A to re-validate; Gate A.1's single-process run is the official measurement.",
+   "verdict": "likely_fixed"
+  }
+ ],
  "requirements": [
   "A.1"
  ],
@@ -2334,6 +2494,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "P_acceptance",
  "id": "DEF-P-27",
  "owner": "O (D-20 metering) / orchestrator decision",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T02:40:11+00:00",
+   "by": "P",
+   "commit": "2fc39848a0deed6c0f2e0ac4c65e53e3031e661c",
+   "evidence": "tests/test_v5_acceptance_baseline.py; scratch demo_lifetime comparisons (dl_run5/dl_run6)",
+   "reason": "For 4.0 worlds (the defect's scope) under the D-82 historical baseline: demo_lifetime (bazaar, seed 7, 4 days) gives identical events and digests in two fresh processes, and after d6c53f6/2fc3984 the same 10,657 events, timeline and agent summaries as c07098b; the only remaining difference is the final digest, through one recorded API-catalogue hash (a `note` event of the random agent rex: 5.0 changed 4.0 tools' descriptions/schemas; the hash chain commits to it). The per-request line counts equal c07098b's (tests/test_v5_acceptance_baseline.py::test_a_4_0_baseline_process_counts_exactly_the_lines_crucible_4_0_counts). Not covered: 5.0 worlds' cross-machine reproducibility (the metering DiskMemo is machine-level: SP-13.7/K-gates, owner O/A). Owner O / orchestrator to re-validate.",
+   "verdict": "likely_fixed"
+  }
+ ],
  "requirements": [
   "A.5",
   "A.1",
