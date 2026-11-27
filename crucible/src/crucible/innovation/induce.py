@@ -25,7 +25,7 @@ Induction models (`INDUCERS`, by category family):
 Families without an induction model here (other exemplified families, experiential ones) are out of reach of a
 developer's own program; it can still serve them by composing other providers' services (`devs._compose_plan`).
 
-`bench_source` is the developer's own test bench: its candidate program run on its worked examples IN THE SANDBOX
+`bench_files` is the developer's own test bench: its candidate program run on its worked examples IN THE SANDBOX
 (`pkg.exec`), field accuracy against what the requesters made by hand. Developers choose between versions and review
 pull requests by this measured accuracy, never by knowing which approach is better.
 """
@@ -482,10 +482,8 @@ def source_of(need: str, rule: dict) -> str:
     return INDUCERS[family_of(need)]["source"](rule)
 
 
-BENCH = '''import json
-
-PAIRS = json.loads({pairs!r})
-SRC = {src!r}
+BENCH = '''import cand
+import notes
 
 
 def _same(a, b):
@@ -499,30 +497,29 @@ def _same(a, b):
 
 
 def score(args, caller):
-    # my candidate program on the worked examples I collected: share of fields equal to what people made by hand
-    ns = {{"__name__": "candidate"}}
-    exec(compile(SRC, "<candidate>", "exec"), ns)
-    f = ns.get("_first") or ns["solve"]
+    # my candidate program on the worked examples I noted: share of fields equal to what people made by hand
+    f = getattr(cand, "_first", None) or cand.solve
     tot, n = 0.0, 0
-    for p in PAIRS:
+    for p in notes.PAIRS:
         try:
             out = f(p["input"], None)
         except Exception:
             out = None
         recs = out.get("records") if isinstance(out, dict) else None
         for j, t in enumerate(p["records"]):
-            r = recs[j] if isinstance(recs, list) and j < len(recs) and isinstance(recs[j], dict) else {{}}
+            r = recs[j] if isinstance(recs, list) and j < len(recs) and isinstance(recs[j], dict) else {}
             m = max(len(t), len(r))
             tot += (sum(1 for k, v in t.items() if k in r and _same(r[k], v)) / m) if m else 1.0
             n += 1
-    return {{"accuracy": round(tot / max(1, n), 4), "rows": n}}
+    return {"accuracy": round(tot / max(1, n), 4), "rows": n}
 '''
 
 
-def bench_source(src: str, pairs: list[dict]) -> str | None:
-    """The developer's test bench (module `bench`, function `score`) for a candidate program on its training pairs
-    of a records-normalising stage (the program itself, or `_first` of a two-stage program), or None without
-    pairs."""
+def bench_files(src: str, pairs: list[dict]) -> dict[str, str] | None:
+    """The developer's test bench for a candidate program on its training pairs of a records-normalising stage (the
+    program itself, or `_first` of a two-stage program): `bench.py` (function `score`), `notes.py` (the pairs) and
+    `cand.py` (the candidate), or None without pairs. Unchanged notes and candidates are the same blobs."""
     if not pairs:
         return None
-    return BENCH.format(pairs=json.dumps(pairs, sort_keys=True), src=src)
+    return {"bench.py": BENCH, "notes.py": f"import json\n\nPAIRS = json.loads({json.dumps(pairs, sort_keys=True)!r})\n",
+            "cand.py": src}

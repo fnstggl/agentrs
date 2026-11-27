@@ -771,6 +771,75 @@
    "tests/test_sandbox.py": "6 passed",
    "tests/test_v5_security_redteam.py": "3 passed",
    "W.4 red-team probes": "23 run, 22 held, 1 finding (v5.social.sybils_with_a_fake_footprint, social)"
+  },
+  "creation worlds at 97063a95 (24 days, n=300, 4 arms, offline instruments; G gate pipeline, not the civilisation)": {
+   "seed 5": {
+    "J.1": 18,
+    "J.2": 18,
+    "J.3": 16,
+    "J.4": 15,
+    "J.5": 9.357328434257607e-32,
+    "J.6": 156,
+    "J.7": 1213.3,
+    "J.n1": 4,
+    "L.1": 5,
+    "L.2": 7,
+    "L.3": 8,
+    "L.4": [
+     9,
+     5
+    ],
+    "L.5": 5,
+    "L.n1": 0,
+    "SP-6.3b workflows": 1,
+    "SP-6.4b examples": 0,
+    "SP-6.5 features": 14
+   },
+   "seed 6": {
+    "J.1": 15,
+    "J.2": 15,
+    "J.3": 19,
+    "J.4": 15,
+    "J.5": 1.5876514921705403e-106,
+    "J.6": 315,
+    "J.7": 15434.7,
+    "J.n1": 5,
+    "L.1": 5,
+    "L.2": 3,
+    "L.3": 8,
+    "L.4": [
+     10,
+     5
+    ],
+    "L.5": 8,
+    "L.n1": 0,
+    "SP-6.3b workflows": 2,
+    "SP-6.4b examples": 0,
+    "SP-6.5 features": 8
+   },
+   "seed 8": {
+    "J.1": 17,
+    "J.2": 17,
+    "J.3": 10,
+    "J.4": 8,
+    "J.5": 1.6437186612249018e-66,
+    "J.6": 149,
+    "J.7": 14294.6,
+    "J.n1": 4,
+    "L.1": 5,
+    "L.2": 3,
+    "L.3": 7,
+    "L.4": [
+     8,
+     5
+    ],
+    "L.5": 6,
+    "L.n1": 0,
+    "SP-6.3b workflows": 0,
+    "SP-6.4b examples": 0,
+    "SP-6.5 features": 14
+   },
+   "failing": "seed 8: J.4 independent_users 8 (< 10: the weakest category best product); every other J/L criterion met in seeds 5, 6, 8; SP-6.4b 0 of 5 in all; SP-6.3b workflows 1, 2, 0"
   }
  }
 }

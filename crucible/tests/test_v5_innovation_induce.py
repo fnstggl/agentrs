@@ -133,17 +133,31 @@ def test_requests_show_hand_made_results_only_for_tasks_known_through_worked_exa
     assert len(pairs) == 1 and pairs[0]["input"] == inp_c["stage1"]
 
 
-def test_the_bench_scores_a_candidate_against_hand_made_results():
+def _bench_run(files, tmp_path, tag):
+    import importlib
+    import sys
+    d = tmp_path / tag
+    d.mkdir()
+    for name, text in files.items():
+        (d / name).write_text(text)
+    sys.path.insert(0, str(d))
+    try:
+        for m in ("bench", "cand", "notes"):
+            sys.modules.pop(m, None)
+        return importlib.import_module("bench").score({}, None)
+    finally:
+        sys.path.remove(str(d))
+        for m in ("bench", "cand", "notes"):
+            sys.modules.pop(m, None)
+
+
+def test_the_bench_scores_a_candidate_against_hand_made_results(tmp_path):
     cat = C.instantiate("transform", 301)
     rng = np.random.default_rng(2)
     worked = _worked(cat, rng, 2)
     pairs = I.pairs_of(cat.name, worked)
     good = I.induce(cat.name, worked, ALL)["source"]
-    ns = {"__name__": "bench"}
-    exec(compile(I.bench_source(good, pairs), "<bench>", "exec"), ns)
-    assert ns["score"]({}, None)["accuracy"] == 1.0
+    assert _bench_run(I.bench_files(good, pairs), tmp_path, "good")["accuracy"] == 1.0
     blank = "def solve(args, caller):\n    return {'records': [{} for _ in args['rows']]}\n"
-    ns = {"__name__": "bench"}
-    exec(compile(I.bench_source(blank, pairs), "<bench>", "exec"), ns)
-    assert ns["score"]({}, None)["accuracy"] == 0.0
-    assert I.bench_source(good, []) is None
+    assert _bench_run(I.bench_files(blank, pairs), tmp_path, "blank")["accuracy"] == 0.0
+    assert I.bench_files(good, []) is None

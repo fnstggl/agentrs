@@ -807,13 +807,13 @@ class Developers(Module):
             return None
         parts = _parts(need)
         fmt = need if parts is None else parts[0].name
-        bench = IND.bench_source(src, self._memory(ctx.state, i, fmt))
-        if bench is None:
+        files = IND.bench_files(src, self._memory(ctx.state, i, fmt))
+        if files is None:
             return None
         repo = f"{p}/d{int(i)}bench"
         if repo not in self._own_repos(ctx, p) and not self._try(ctx, p, "code.create_repo", name=f"d{int(i)}bench"):
             return None
-        if not self._try(ctx, p, "code.commit", repo=repo, files={"bench.py": bench}, message="bench"):
+        if not self._try(ctx, p, "code.commit", repo=repo, files=files, message="bench"):
             return None
         out = self._try(ctx, p, "pkg.exec", repo=repo, target="bench:score", input={})
         if not out or not out.get("ok") or not isinstance(out.get("result"), dict):
