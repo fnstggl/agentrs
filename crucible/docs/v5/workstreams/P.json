@@ -203,7 +203,7 @@
     "tests/v5/test_gate_SP_1_3.py"
    ],
    "status_claim": "fails honestly",
-   "notes": "After merge-workstreams on this branch: 130 of 354 entries without implementation files, 354 without a verified commit. All 130 are listed with implementation files by the workstreams JSONs of the c5c/w3b-* branches (counted 2026-11-27 from those branches' docs/v5/workstreams/*.json, which this branch does not carry): running `python -m crucible.acceptance.v5 merge-workstreams` on the integration branch after the wave-3b merges fills them (additions only, recorded in the ledger). (The earlier '212' was stale.)"
+   "notes": "After merge-workstreams on this branch (7fd688da, after merging feat 629584a2): 120 of 354 entries without implementation files, 354 without a verified commit; all are listed with implementation files by the c5c/w3b-* branches' workstreams JSONs: running `python -m crucible.acceptance.v5 merge-workstreams` on the integration branch after the wave-3b merges fills them (additions only, recorded in the ledger). Earlier counts: 212 (stale), 130."
   },
   "SP-1.5": {
    "implementation_files": [
@@ -510,7 +510,8 @@
   "Gate A.1 slot run at 74e9bc38 (GPU, one process, unofficial)": "1,076 ran, 1,074 passed, 2 failed (tests/test_scale.py: workers recycled; keyboard interrupt 600 s timeout - DEF-P-25), 0 skipped",
   "Gate X local (X.1, X.5-X.9, X.n1) at 7716c425": "1 passed (X.9), 6 failed honestly: X.1 (nothing verified yet), X.5, X.6, X.7 (17 flagged tests), X.8 (H, J, K disconnected), X.n1 (17 of 59 branches unmerged)",
   "P gate tests (local, unofficial) at 9ee94f00": "pass: SP-1.3, SP-1.5, SP-1.5b, SP-20b, RP.2, RP.5, RP.6, OO.13, X.9; failing honestly: SP-1.3b, SP-18, SP-20, RP.1 (L's CAM imports until c5c/w3b-obs merges; A.1's AGENTRS alias plugin), RP.3, RP.4, OO.15 (0/8 reviewed), X.1, X.5, X.6, X.7, X.8 (H, J, K), X.n1",
-  "tests/test_v5_acceptance_defects.py": "3 passed"
+  "tests/test_v5_acceptance_defects.py": "3 passed",
+  "acceptance unit tests at bfe27ac1 (fresh clone, 23 single-threaded chunks)": "137 of 137 passed"
  },
  "slot_jobs": [
   "finished: P: Gate A.1 4.0 baseline as historical baseline (D-82) - rc 1, 1,074/1,076 passed (see A.1 notes)",
