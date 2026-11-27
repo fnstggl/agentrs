@@ -348,6 +348,19 @@ beyond the tolerance. Minimal edits in `sandbox/runner.py` and `sandbox/metering
 regression tests `tests/test_v5_substrate_memo.py::test_a_noisy_program_load_is_billed_by_its_anchor_like_a_job` and
 `::test_a_platform_cold_start_bills_a_request_as_the_warm_run_did`.
 
+Amendment (wave-3b repair, verifier finding K1): the cross-process resume test still failed on the loaded machine
+(3 of 6 diagnosis runs). Diagnosis on the test's own spec (six stored reference / part / resume triples, the resume child
+recording every bill above tolerance): each divergence was one job, the first `service:home` request of one site
+after its program's load in the resumed process (worker cold = "process", the worker's second job after the load),
+measured 4.6-5.0 ms against an anchor below 1.3 ms - interpreter warm-up (lazily built state, caches) the
+uninterrupted world's worker had done long before - and the tolerance rule billed it fresh. Like the cold start's
+load, that warm-up is not the program's doing: the first job after its program's load on a platform cold start bills
+its anchor and skips the tolerance check (once per deployment and host process; restarts after a death or an eviction
+and unmanaged workers keep it, so a program cannot make its own workers restart to hide work). Regression test
+`tests/test_v5_substrate_memo.py::test_the_first_request_after_a_platform_cold_start_bills_its_anchor_despite_warm_up`.
+Remaining limit: a measurement above tolerance from load noise in a warm worker can still occur (how close the
+remembered jobs came to the tolerance in the runs after the repair is reported in docs/v5/workstreams/A.json).
+
 ## D-48 The Tier 2 domain contract `domains-framework/2` (2026-11-26, workstream I, wave 3b)
 Resolves the contract split of audit I_domains section 2 (DEF-I-3) on the D-17 side: `crucible.domains.base.Domain`
 is the only domain contract and `crucible.experience` consumes it unchanged. A configuration's world is

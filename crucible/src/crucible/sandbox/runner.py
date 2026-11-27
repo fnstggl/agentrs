@@ -624,7 +624,7 @@ class Worker:
                 # cold start (a resumed process, a fork's fresh pool) runs in a fresh interpreter whose caches and
                 # lazily built state the uninterrupted world's worker had warmed long before - on a population world
                 # resumed in a new process that first request measured 5.0 ms against an anchor below 1.3 ms, was
-                # billed fresh ("exceeded") and the resumed run left the uninterrupted one's hashes (1 run in 3).
+                # billed fresh ("exceeded") and the resumed run left the uninterrupted one's hashes (3 of 6 runs).
                 # Like the cold start's load, that warm-up is not the program's doing: the job bills its anchor and
                 # skips the tolerance check (once per deployment and host process; restarts after a death or an
                 # eviction and unmanaged workers keep the check).

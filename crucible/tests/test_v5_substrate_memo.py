@@ -205,7 +205,7 @@ def test_a_platform_cold_start_bills_a_request_as_the_warm_run_did(monkeypatch):
 
 
 def test_the_first_request_after_a_platform_cold_start_bills_its_anchor_despite_warm_up():
-    """K1 repair (wave-3b verifier: the cross-process resume test failed 1 run in 3 on the loaded machine). The
+    """K1 repair (wave-3b verifier: the cross-process resume test failed on the loaded machine, 3 of 6 diagnosis runs). The
     first job after its program's load in a fresh interpreter does warm-up work the uninterrupted world's worker had
     done long before (lazily built state, interpreter caches): on a population world resumed in a new process the
     first `service:home` request of a site measured 5.0 ms against an anchor below 1.3 ms, the tolerance rule billed

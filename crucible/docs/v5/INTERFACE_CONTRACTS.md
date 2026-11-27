@@ -98,6 +98,16 @@ def types() -> dict[str, dict]                                                 #
 Subscribers are registered in `Module.install` and must be deterministic. A subscriber may emit further events and
 call tools through `ctx.call`; recursion depth is limited by the kernel.
 
+Derived state of another module's events (wave-3b repair, SP-2.3b): a module that keeps a view of another module's
+typed events in its OWN tables declares a *derived-state applier* with `@crucible.core.kernel.derives("<event>")`. It
+runs right after the event's applier, in the same transaction and in replay, writes only tables, arrays or metadata
+its module owns and emits nothing (the `ops` journal of `bank.txn` is one). A module never calls into another
+module's code from inside its own applier to have it write there (`world.hooks` callbacks inside appliers count as
+the calling module's cross-module writes). Metadata keys (`state.meta_set`) belong to the module that declares them
+(`state.declare_meta(...)` in `install`) or whose name or host namespaces them (`<module>.x`, `<module>:x`); an
+un-namespaced, undeclared key is the kernel's, and any module writing it is a cross-module write
+(`crucible.substrate.integrity.meta_owner`; reviewed 4.0 keys are listed in `integrity.LEGACY_META_OWNERS`).
+
 ### 1.5 Shared primitives: `crucible.substrate.primitives`
 
 One owner per shared fact. `owner(kind) -> {"module": str, "table": str}` for the kinds: `identity`, `organization`,
