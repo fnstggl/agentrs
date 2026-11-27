@@ -527,6 +527,7 @@
    "tests/test_v5_calibration_inworld.py::test_random_insertions_too_few_for_equivalence_are_not_a_match"
   ],
   "open_items_rechecked": "ad-holdout comparison per attended display (attention-adjusted estimator, A_ref=1), heterogeneity statistic (session intensity, no double counting with the activity distribution), conversion-ratio assumption (RUNTIME.md, ad_response@2 limits) and the E5 identification label (IV) were fixed by earlier passes; re-read, unchanged",
-  "mind": "MIND-small is authorised for experimental, non-commercial research (DECISION_LOG D-28); derived artifacts stay marked non-commercial research only - not a blocker"
+  "mind": "MIND-small is authorised for experimental, non-commercial research (DECISION_LOG D-28); derived artifacts stay marked non-commercial research only - not a blocker",
+  "unit_test_consequence": "tests/test_v5_calibration_inworld.py::test_wired_world_gives_four_reports_and_the_ad_holdout_matches: the unit-level wired world (240 individuals, 16 days: 7,832 decisions, 1,561 displays) estimates 1.55 (95% interval 0.84-2.32) against Criteo's 1.39 - powered and not rejected (z 0.42), which used to count as a match; its 90% interval of the difference (-0.48, 0.80) exceeds the 0.5 margin, so it is no longer one. The test now asserts agreement and the absence of equivalence; the in-world match must come from the gate's 21-day civilisation"
  }
 }

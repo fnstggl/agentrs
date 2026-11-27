@@ -191,3 +191,29 @@ def test_side_contexts_draw_from_their_own_stream_and_never_shift_the_emitter():
         outs.append([w.execute(p, {"tool": "se.go", "args": {}}).result for _ in range(3)])
     assert outs[0] == outs[1] == outs[2]
     assert len({o["b"] for o in outs[0]}) == 3 and all(np.isfinite(o["a"]) for o in outs[0])
+
+
+@pytest.mark.timeout(900)
+def test_an_emitting_observer_leaves_a_civilisations_main_line_unchanged():
+    """K2 on a civilisation (wave-3b repair, assignment item 5): the emitting observer of every cohort decision added
+    to an integrated civilisation leaves every main-line event unchanged (both worlds share a measurement lineage),
+    and replay and regeneration of the observed world are exact."""
+    import copy
+    import torch
+    from crucible.civ.generator import spec as civ_spec
+    torch.set_num_threads(1)
+    sp = civ_spec("balanced", 0, "development")
+    sp.params["meter_lineage"] = "k2-civ"
+    obs = copy.deepcopy(sp)
+    obs.modules.append({"name": "stream_observer", "config": {"emit": True, "call": True}})
+    b, o = (World.create(x, world_id="civ-k2") for x in (sp, obs))
+    for w in (b, o):
+        w.advance_time(w.now + 3600)
+    side = [e for e in o.log if e.via is not None]
+    batches = sum(1 for e in b.log if e.type == "cols.batch")
+    assert batches > 0 and sum(1 for e in side if e.type == "stream_observer.seen") == batches
+    assert o.main_seq == b.seq
+    assert history.mainline_digest(o.log, after_genesis=True) == history.mainline_digest(b.log, after_genesis=True)
+    assert World.replay(o.spec, [e.to_dict() for e in o.log]).digest() == o.digest()
+    reg = World.regenerate(o.spec, [e.to_dict() for e in o.log])
+    assert reg.last_hash == o.last_hash and reg.digest() == o.digest()

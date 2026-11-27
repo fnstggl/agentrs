@@ -162,7 +162,12 @@ def test_wired_world_gives_four_reports_and_the_ad_holdout_matches(wired):
     ad = IW.ad_holdout_experiment(w, au=au)
     assert ad["protocol_violations"] == {"displayed_in_holdout": 0, "attention_without_display": 0}
     assert ad["mean_attention_displayed"] == pytest.approx([0.3] * ad["strata"])
-    assert ad["matching"], ad          # the world's display effect per attended display is Criteo's
+    # the world's display effect per attended display agrees with Criteo's (powered, not rejected) ...
+    assert ad["powered"] and abs(ad["z_shift"]) < 1.96, ad
+    # ... but 240 individuals over 16 days (7,832 decisions, 1,561 displays: 95% interval 0.84-2.32 around Criteo's
+    # 1.39) cannot show equivalence within the prespecified margin of 0.5 log-odds, so it is not a match (wave-3b
+    # repair: before, exactly this case counted as one). The gate's 21-day civilisation must be large enough.
+    assert not ad["equivalence"]["equivalent"] and not ad["matching"], ad
     with pytest.raises(IW.NotWired):
         IW.random_exposure_experiment(w, au=au)
 

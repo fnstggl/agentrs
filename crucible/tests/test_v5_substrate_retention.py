@@ -423,3 +423,47 @@ def test_a_storeless_civilisation_replays_forks_and_answers_history_queries():
     for x in (f, past):
         x.close()
     w.close()
+
+
+@pytest.mark.timeout(900)
+def test_a_stored_civilisation_resumes_replays_and_answers_history_after_compaction(tmp_path):
+    """Adversarial review on a civilisation (wave-3b repair, assignment item 5): snapshots and
+    `retention.compact(prune=True)` between runs of a SQLite-stored civilisation; a new store object loads it to the
+    running world's hash and digest and continues identically, a replay from genesis with the store and
+    `history.state_at` agree with it, and a store-less fork of the stored world keeps running."""
+    import copy
+    import torch
+    from crucible.civ.generator import spec as civ_spec
+    from crucible.substrate import history
+    torch.set_num_threads(1)
+    db = str(tmp_path / "civ.sqlite")
+    st = SQLiteStore(db)
+    w = World.create(civ_spec("balanced", 0, "development"), world_id="civ-ret", store=st)
+    w.advance_time(w.now + H)
+    w.snapshot()
+    retention.compact(w, prune=True)
+    w.advance_time(w.now + H)
+    w.snapshot()
+    retention.compact(w, prune=True)
+    w.advance_time(w.now + H // 2)
+    w.flush()
+    _fresh_reads()
+    st2 = SQLiteStore(db)
+    lw = World.load(st2, "civ-ret")
+    assert (lw.last_hash, lw.digest()) == (w.last_hash, w.digest())
+    lw.store = None              # it continues beside the running world, which keeps appending to the store
+    evs = st2.read_events("civ-ret")
+    assert World.replay(copy.deepcopy(w.spec), evs, world_id="civ-rep", store=st2).digest() == w.digest()
+    mid = int(w.seq) // 2
+    past = history.state_at(w, seq=mid)
+    assert past.digest() == World.replay(w.spec, [e for e in evs if e["seq"] <= mid], world_id="civ-mid",
+                                         store=st2).digest()
+    w.advance_time(w.now + H // 2)
+    lw.advance_time(lw.now + H // 2)
+    assert (lw.last_hash, lw.digest()) == (w.last_hash, w.digest())
+    f = w.fork("civ-ret-fork")
+    f.advance_time(f.now + H // 2)
+    assert f.seq > w.seq
+    for x in (f, past, lw):
+        x.close()
+    w.close()
