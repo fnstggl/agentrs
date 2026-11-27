@@ -583,6 +583,8 @@ def f(a, c):
     word = ctypes.cast(libc.getpid, ctypes.c_void_p).value & ~3
     r = libc.syscall(202, ctypes.c_void_p(word), 1, 1, None, None, 0)              # shared FUTEX_WAKE
     out["shared_wake"] = ["ok", r] if r >= 0 else ["errno", ctypes.get_errno()]
+    r = libc.syscall(451, 0, None, None, 0)                                         # cachestat
+    out["cachestat"] = ["ok", r] if r >= 0 else ["errno", ctypes.get_errno()]
     r = libc.syscall(202, ctypes.c_void_p(word), 1 | 128, 1, None, None, 0)        # private FUTEX_WAKE
     out["private_wake"] = ["ok", r] if r >= 0 else ["errno", ctypes.get_errno()]
     # ordinary threading (locks, conditions, join) needs only private futexes and the kernel's own exit wake-up
@@ -612,7 +614,7 @@ def test_other_processes_attributes_clocks_notifications_and_shared_futexes_are_
     assert r["ok"], r
     o = r["result"]
     for k in ("other_nice", "user_nice", "other_sched", "other_affinity", "other_pgid", "other_sid", "other_ioprio",
-              "dnotify", "shared_wake"):
+              "dnotify", "shared_wake", "cachestat"):
         assert o[k] == ["errno", 1], (k, o)
     assert o["other_cpu_clock"] == ["errno", 22], o
     assert o["own_nice"] == ["ok", 5] and o["own_sched"][0] == "ok" and o["own_affinity"] == ["ok", True], o

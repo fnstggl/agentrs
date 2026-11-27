@@ -345,6 +345,9 @@ file of the directory kept alive by a mapping alone stops the process (DEF-O-24)
 machine-wide (O_EXCL claim files) instead of hashed (a forced collision let one learner kill another). (13) Advisory
 locks stay no-ops (5): pinned by a test - two descriptors of one program do not exclude each other; threading locks
 are unaffected. Ruled out: refusing non-private futex WAIT (pthread_join uses it); refusing file removal in working
-directories (programs that delete their own files would break; measuring held files is enough). Residual, stated:
-machine-global counters (pid allocation, sysinfo process count, load, free memory) remain noisy low-rate channels of
-any shared kernel; a VM per tenant would remove them.
+directories (programs that delete their own files would break; measuring held files is enough). Also refused for portability: cachestat
+(page-cache residency; already refused by this container's filter) and preadv2/pwritev2 with RWF_NOWAIT (EOPNOTSUPP,
+as this overlay answers). Residual, stated and measured: machine-global counters - sysinfo's process count (noise sd
+0.75 per 10 ms, a 300-thread burst moves it by 302) and pid allocation (sd 1.1 per 10 ms) - are strong channels
+between two concurrently running colluding programs; seccomp can neither fake them nor hide pids; a pid namespace or
+a VM per tenant would remove them.

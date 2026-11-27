@@ -245,7 +245,9 @@ TOOL_DENY = ["socket", "socketpair", "connect", "bind", "listen", "accept", "acc
              # memory outside its cap (same review). The browser keeps memfd (its own shared memory).
              "memfd_create", "memfd_secret",
              # pid existence oracle through a user-space header; futex2 requeue (flags in a user array)
-             "capget", "futex_requeue"]
+             "capget", "futex_requeue",
+             # page-cache residency of any readable file (see boot.py)
+             "cachestat"]
 # Tool mode: every syscall that names a target process, for reading as well as writing, only on the tool itself
 # ("pid": its own pid; 0: "the calling process"; several entries for one syscall must all hold). Two jailed learner
 # processes with distinct uids passed a 16-bit secret through scheduling attributes (each may set its own nice,
@@ -266,7 +268,7 @@ SELF_ONLY = [("kill", 0, "pid"), ("tkill", 0, "pid"), ("tgkill", 0, "pid"), ("rt
 FUTEX_SHARED_WAKE_DENY = [1, 3, 4, 5, 7, 10, 12]
 CPU_CLOCK_CALLS = ["clock_gettime", "clock_getres", "clock_nanosleep", "timer_create", "clock_settime",
                    "clock_adjtime"]
-_NR_FALLBACK = {"futex_wake": 454, "futex_wait": 455, "futex_requeue": 456, "futex_waitv": 449}
+_NR_FALLBACK = {"futex_wake": 454, "futex_wait": 455, "futex_requeue": 456, "futex_waitv": 449, "cachestat": 451}
 
 
 def seccomp() -> None:
@@ -328,6 +330,11 @@ def seccomp() -> None:
         cmp = (ArgCmp * 1)(ArgCmp(3, 7, 128, 0))                # futex2 wake without FUTEX2_PRIVATE
         if nr >= 0 and sc.seccomp_rule_add_array(ctx, eperm, nr, 1, cmp) != 0:
             raise SystemExit("jail: seccomp futex_wake rule failed")
+        for name in ("preadv2", "pwritev2"):                   # RWF_NOWAIT: a page-cache residency oracle
+            nr = resolve(name)
+            cmp = (ArgCmp * 1)(ArgCmp(5, 7, 0x8, 0x8))
+            if nr >= 0 and sc.seccomp_rule_add_array(ctx, 0x00050000 | 95, nr, 1, cmp) != 0:
+                raise SystemExit(f"jail: seccomp {name} rule failed")
         for name in CPU_CLOCK_CALLS:                            # another process's CPU clock: EINVAL
             nr = resolve(name)
             cmp = (ArgCmp * 1)(ArgCmp(0, 7, 0x80000004, 0x80000000))

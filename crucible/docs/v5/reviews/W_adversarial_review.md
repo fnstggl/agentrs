@@ -66,9 +66,20 @@ Also: the in-process meter memo is bounded process-wide again (the largest linea
 the bound). Advisory locks stay no-ops (D-77 (5)); the semantic change is pinned by a test (two descriptors of one
 program do not exclude each other; threading locks do).
 
-Residual, stated (unchanged by the repair): machine-global counters every process can read - pid allocation (a new
-thread's id), sysinfo's process count and load, free memory and disk - are noisy, low-rate channels of any shared
-kernel; so is CPU and cache contention. Closing them needs a VM or dedicated hardware per tenant.
+Also checked in the repair pass: page-cache residency oracles - cachestat (Linux 6.5+) is refused by this container's
+own filter (EPERM) and now by the sandbox's and the tool jail's too (portability); preadv2/pwritev2 with RWF_NOWAIT
+answer EOPNOTSUPP on this overlay and are refused with that answer elsewhere; mincore reports only the caller's own
+mappings for files it cannot write (kernel >= 5.0).
+
+Residual, stated and MEASURED (not fixable with process-level isolation; this container refuses namespaces): two
+machine-global counters any process reads without permission are strong channels between two concurrently running,
+colluding programs of different worlds - the process count of sysinfo() (noise: standard deviation 0.75 per 10 ms on
+this machine; a burst of 300 threads moved it by 302) and pid allocation (a program's new thread id advances by every
+pid allocated machine-wide: mean 1.6, standard deviation 1.1 per 10 ms; the same burst advances it by ~300). Refusing
+sysinfo would not help while pid allocation stays observable (every clone returns a pid), and neither can be faked by
+seccomp. They need both programs running at the same time under agents that cooperate across worlds; they do not let
+one world read another's state uninvited. Closing them needs a pid namespace (unavailable here) or a VM per tenant;
+CPU and cache contention are the same class.
 
 ## 1b. Evaluated learners of the experience package (W.2, owner L)
 

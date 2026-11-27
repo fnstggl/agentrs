@@ -131,7 +131,11 @@ DENY = ["socket", "socketpair", "connect", "bind", "listen", "accept", "accept4"
         # capget names a target process in a user-space header: an existence oracle for any pid (repair pass)
         "capget",
         # futex2 requeue takes its flags in a user-space array (cannot be checked here; glibc does not use it)
-        "futex_requeue"]
+        "futex_requeue",
+        # page-cache residency of any readable file (Linux 6.5+): every tenant reads the standard library, so one
+        # tenant's reads would be another's oracle. This container's own filter already refuses it; refused here
+        # too so that the sandbox does not depend on the host's container profile (repair pass)
+        "cachestat"]
 # Syscalls that name a target process: allowed only when the target is this process itself. (syscall, index of
 # the argument that names the target, value it must have: "pid" = our own pid, 0 = "the calling process"; several
 # entries for one syscall must all hold). The READ side counts as much as the write side: a process may set its own
@@ -180,7 +184,10 @@ LOCK_DENY_FCNTL: list = []
 
 
 # x86_64 numbers of syscalls an older libseccomp may not know by name
-_NR_FALLBACK = {"futex_wake": 454, "futex_wait": 455, "futex_requeue": 456, "futex_waitv": 449}
+_NR_FALLBACK = {"futex_wake": 454, "futex_wait": 455, "futex_requeue": 456, "futex_waitv": 449, "cachestat": 451}
+# preadv2/pwritev2 with RWF_NOWAIT answer whether a file's pages are cached (EAGAIN): a page-cache residency oracle on
+# filesystems that support it (this overlay answers EOPNOTSUPP anyway); refused with that same answer everywhere
+RWF_NOWAIT = 0x8
 
 
 def _nr(sc, name: str) -> int:
@@ -265,6 +272,11 @@ def seccomp() -> bool:
     if sc.seccomp_rule_add_array(ctx, errno_eperm, nr, 1, cmp) != 0:
         raise SystemExit("sandbox: seccomp clone rule failed")
     rule_self_only(sc, ctx, errno_eperm, ArgCmp, SELF_ONLY, os.getpid())
+    for name in ("preadv2", "pwritev2"):
+        nr = _nr(sc, name)
+        cmp = (ArgCmp * 1)(ArgCmp(5, 7, RWF_NOWAIT, RWF_NOWAIT))   # (flags & RWF_NOWAIT) == RWF_NOWAIT
+        if nr >= 0 and sc.seccomp_rule_add_array(ctx, 0x00050000 | 95, nr, 1, cmp) != 0:
+            raise SystemExit(f"sandbox: seccomp {name} rule failed")
     rule_shared_futex(sc, ctx, errno_eperm, ArgCmp)
     rule_cpu_clocks(sc, ctx, ArgCmp)
     nr = sc.seccomp_syscall_resolve_name(b"fcntl")
