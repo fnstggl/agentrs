@@ -16,7 +16,7 @@ MASTER_SPEC Part 10, Part 2.1 Mode C; Gates O and P; SP-10.1, SP-10.3; ONE_WORLD
 | `civ/chains.py` | provenance graph over the event log (transactions, schedules, entity timelines, column rows, explicit refs), `trace`, generic chain mining and labelling |
 | `civ/counterfactual.py` | fork, intervene, rerun; two placebo arms measure the reshuffling of seq-keyed randomness; multi-seed paired statistics |
 | `civ/experiments.py` | the effect battery (Part 10.2 categories 1, 2, 3, 4, 5, 7, 8) and the chain experiments (scripted reference agents) |
-| `civ/reference.py` | scripted reference agents (labelled `scripted`): a web-shop builder and a researcher |
+| `civ/reference.py` | scripted reference agents (labelled `scripted`): a web-shop builder, a researcher and the invention experiment's inventor (`InventorAgent`: crucible.innovation.reference.ServiceCreator that also answers the public "Looking for a service" requests for its format once a day) |
 | `civ/longrun.py` | long-horizon harness: daily invariants and activity, accounting audits, snapshots, segment replay, cross-process resume, wall/RSS/store growth; every snapshot is a checkpoint (`progress.json`), an interrupted run resumes there in a new process; `suite` for Gate P runs in persistent per-run directories keyed by the code digest (`$CRUCIBLE_CIV_RUNS`, default /workspace/data/crucible/runs-c5/civ) and skips completed runs |
 | `civ/accounting.py` | event accounting (events vs state) and economic/social activity classification |
 | `civ/integration.py` | Gate O measurements on data flow; data-level duplicate scan; identity and ledger checks; structural fingerprint of built worlds |
@@ -65,6 +65,18 @@ good unit of the machines a paper is about. Provider-wide or world-wide totals a
 agent's share of them sits below the reshuffling noise (at e77fef3 the provider's whole compute moved -4,103 cu
 against 5,902 cu of noise). With several measures per subsystem the chance that one is confirmed by luck is higher
 than for one measure; the per-measure verdicts are in the evidence notes so a reader can apply a stricter rule.
+
+The chain experiments (fixed before their runs): `agent_shop` (a web shop announced on the forum every day for eight
+days; arms `no_agent` -> agent-artifact chain rooted in software development, `no_post` -> social chain rooted in
+the forum), `agent_science` (`no_paper` -> technical chain rooted in scientific research) and `invention` (SP-2.1b's
+experiment on the chain seeds; `no_invention` -> technical chain rooted in the declared capability, stages population
+(adopters, delegated uses), computing (the service's compute), energy (its provider's draw), finance (payments by
+population individuals) and digital economy (incumbents' revenue)).
+
+Instruments that were corrected after a run showed they could not see what they measure (reported in J.json with
+the run that showed it): `m_failed_requests` counts the web requests the network refuses during an outage
+(`net.hit` unavailable) as well as refused API calls (at a54f53d it saw API calls only and read 0 in every arm);
+`revert_adopted` also undoes settings still in trial at the fork (e77fef3).
 
 ## How to run
 
