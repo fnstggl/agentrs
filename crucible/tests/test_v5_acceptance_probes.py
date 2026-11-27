@@ -1307,3 +1307,119 @@ def test_V9_the_record_says_which_implementation_functions_the_recording_process
     repo.official_run()
     ev = repo.json("docs/v5/evidence/gate_Z/Z.1.json")
     assert ev["executed_implementation"] == {"functions": 2, "files": {"src/widgets/__init__.py": 2}}, ev
+
+
+NONFUNCTION_PATCH = '''from crucible.acceptance.v5 import evidence
+import widgets
+
+
+def _fix(m):
+    setattr(m, "leaks", int)
+
+
+def test_z():
+    _fix(widgets)
+    n = widgets.count()
+    leaks = widgets.leaks()
+    evidence.record("Z.1", {"widgets": n, "leaks": leaks})
+    assert n >= 10 and leaks == 0
+'''
+ALIAS_PATCH = NONFUNCTION_PATCH.replace('    setattr(m, "leaks", int)', "    m.leaks = m._reset")
+WITH_RESET = DEFECT + "\n\ndef _reset():\n    return 0\n"
+
+
+@pytest.mark.parametrize("src,impl", [(NONFUNCTION_PATCH, DEFECT), (ALIAS_PATCH, WITH_RESET)],
+                         ids=["builtin_int", "another_implementation_function"])
+def test_V10_an_implementation_function_rebound_to_a_non_function_or_to_another_function_is_rejected(
+        tmp_path, monkeypatch, src, impl):
+    """A helper rebinds the defective function, through its argument (no static patch rule sees it), to the builtin
+    `int` (returns 0) or to another function of the implementation that returns 0. patched_functions and
+    code_object_patches judge the functions they find by file and code: neither is foreign, and the ablation still
+    blocked the remaining calls - VERIFIED. Records now compare every function a module defines (and never rebinds in
+    its own source) with what the module holds."""
+    r = Repo(str(tmp_path), monkeypatch, widgets=impl, test_src=src)
+    assert not testscan.blocking(next(f for f in testscan.scan_source(src))["findings"])
+    _, row = attempt(r)
+    assert row["status"] != "VERIFIED", row["problems"]
+    assert has(row, "widgets.leaks <- bound to"), row["problems"]
+
+
+REBIND_OK = '''"""definitions the check must accept"""
+import functools
+
+try:
+    from json import dumps as fast
+except ImportError:
+    def fast(x):
+        return str(x)
+
+
+def plain():
+    return 1
+
+
+@functools.lru_cache(maxsize=None)
+def cached(x):
+    return x
+
+
+def deco(f):
+    def inner(*a):
+        return f(*a)
+    return inner
+
+
+@deco
+def wrapped():
+    return 2
+
+
+def later():
+    return 3
+
+
+later = functools.partial(later)
+_STATE = None
+
+
+def set_state():
+    global _STATE
+    _STATE = 1
+
+
+class K:
+    def m(self):
+        return 1
+
+    @staticmethod
+    def s():
+        return 2
+
+    @property
+    def p(self):
+        return 3
+
+    @classmethod
+    def c(cls):
+        return 4
+'''
+
+
+def test_V10_the_rebound_check_accepts_what_a_module_does_to_its_own_definitions(tmp_path, monkeypatch):
+    """Decorators (with and without functools.wraps), conditional definitions, names the file rebinds itself, and
+    static/class methods and properties are what the file defines: no finding. A rebinding from outside is one."""
+    import importlib
+    root = tmp_path / "chk"
+    (root / "src" / "rbmod").mkdir(parents=True)
+    (root / "src" / "rbmod" / "__init__.py").write_text(REBIND_OK)
+    monkeypatch.syspath_prepend(str(root / "src"))
+    mod = importlib.import_module("rbmod")
+    try:
+        assert evidence.rebound_definitions(str(root)) == []
+        mod.plain = mod.set_state
+        mod.K.m = len
+        found = evidence.rebound_definitions(str(root))
+        assert any("rbmod.plain <- bound to set_state" in f for f in found), found
+        assert any("rbmod.K.m <- bound to a builtin_function_or_method" in f for f in found), found
+    finally:
+        sys.modules.pop("rbmod", None)

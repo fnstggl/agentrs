@@ -24,6 +24,7 @@ a run id without a matching clone marker) the record is written to a temporary d
 """
 from __future__ import annotations
 
+import ast
 import datetime as _dt
 import hashlib
 import json
@@ -431,6 +432,154 @@ def code_object_patches(root: str) -> list[str]:
     return sorted(set(out))
 
 
+_DEFS: dict[str, dict | None] = {}
+
+
+def _scope_definitions(body: list, walrus: bool = True) -> tuple[dict[str, bool], set[str], dict[str, list]]:
+    """For one scope's statements (descending into if/try/with/for/while blocks, not into functions or classes):
+    {def name: decorated?}, every other name the scope binds (assignments, imports, deletes, classes, loop and with
+    targets), and the class definitions {name: [body]}."""
+    defs: dict[str, bool] = {}
+    other: set[str] = set()
+    classes: dict[str, list] = {}
+    stack = list(body)
+    while stack:
+        n = stack.pop()
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if n.name in defs:
+                other.add(n.name)                       # defined twice: which one is bound is the file's choice
+            defs[n.name] = bool(n.decorator_list)
+            continue
+        if isinstance(n, ast.ClassDef):
+            other.add(n.name)
+            classes.setdefault(n.name, []).append(n.body)
+            continue
+        if isinstance(n, (ast.Import, ast.ImportFrom)):
+            other.update((a.asname or a.name).split(".")[0] for a in n.names)
+            continue
+        if isinstance(n, ast.Assign):
+            targets = n.targets
+        elif isinstance(n, (ast.AugAssign, ast.AnnAssign)):
+            targets = [n.target]
+        elif isinstance(n, ast.Delete):
+            targets = n.targets
+        elif isinstance(n, (ast.If, ast.Try, ast.With, ast.For, ast.While, getattr(ast, "TryStar", ast.Try))):
+            targets = []
+        else:                                           # match statements, walrus in expressions: everything stored
+            targets = [n] if walrus or isinstance(n, getattr(ast, "Match", ())) else []
+        for tg in targets:
+            for t in ast.walk(tg):
+                if isinstance(t, ast.Name) and isinstance(t.ctx, (ast.Store, ast.Del)):
+                    other.add(t.id)
+        if isinstance(n, (ast.If, ast.Try, ast.With, ast.For, ast.While, getattr(ast, "TryStar", ast.Try))):
+            for field in ("body", "orelse", "finalbody"):
+                stack.extend(getattr(n, field, []) or [])
+            for h in getattr(n, "handlers", []) or []:
+                if h.name:
+                    other.add(h.name)
+                stack.extend(h.body)
+            for t in ast.walk(ast.Module(body=[x for x in (getattr(n, "target", None), *[i.optional_vars for i in
+                                                     getattr(n, "items", []) or []]) if x is not None],
+                                         type_ignores=[])):
+                if isinstance(t, ast.Name):
+                    other.add(t.id)
+            test = getattr(n, "test", None)
+            if test is not None:
+                for t in ast.walk(test):
+                    if isinstance(t, ast.NamedExpr):
+                        other.add(t.target.id)
+    return defs, other, classes
+
+
+def _definitions(path: str) -> dict | None:
+    """The functions a source file defines and never rebinds: {"": {name: decorated}, "Class": {...}} for the module
+    scope and each top-level class body; None when the file cannot be parsed."""
+    if path in _DEFS:
+        return _DEFS[path]
+    try:
+        text = open(path, encoding="utf-8").read()
+        tree = ast.parse(text)
+    except (OSError, SyntaxError, ValueError, UnicodeDecodeError):
+        _DEFS[path] = None
+        return None
+    walrus = ":=" in text
+    defs, other, classes = _scope_definitions(tree.body, walrus)
+    if "global " in text:                               # `global x` in any function rebinds x at module scope
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Global):
+                other.update(node.names)
+    out = {"": {} if "globals()" in text else {k: v for k, v in defs.items() if k not in other}}
+    for cname, bodies in classes.items():
+        if len(bodies) != 1:
+            continue
+        cdefs, cother, _ = _scope_definitions(bodies[0], walrus)
+        out[cname] = {k: v for k, v in cdefs.items() if k not in cother}
+    _DEFS[path] = out
+    return out
+
+
+def _unwrap(obj, depth: int = 0):
+    for attr in ("__func__", "fget", "__wrapped__", "func"):
+        inner = getattr(obj, attr, None) if depth < 8 else None
+        if inner is not None and inner is not obj:
+            return _unwrap(inner, depth + 1)
+    return obj
+
+
+def rebound_definitions(root: str) -> list[str]:
+    """Functions a module under the checkout's `src/` defines (at module level or in a top-level class body, and
+    never rebinds in its own source) that are no longer bound to that function: deleted, replaced by an object that is
+    not a function (`setattr(m, "leaks", int)`, functools.partial, a callable object) or by another function of the
+    checkout (`m.leaks = m._reset`: an implementation function under another name). patched_functions and
+    code_object_patches judge only the functions they find, by file and by code (wave 3b repair pass, probe V10).
+    Decorated definitions are compared after unwrapping (__wrapped__, __func__, fget, func) and only rejected when
+    they resolve to another function of the checkout or to a builtin."""
+    root = os.path.realpath(root)
+    src = os.path.join(root, "src")
+    out = []
+    for name, mod in list(sys.modules.items()):
+        f = getattr(mod, "__file__", None)
+        if not f or not f.endswith(".py") or not _plain_source_module(mod):
+            continue
+        rf = os.path.realpath(f)
+        if not _under(rf, [src]):
+            continue
+        defs = _definitions(rf)
+        if not defs:
+            continue
+        try:
+            ns = vars(mod)
+        except TypeError:
+            continue
+        scopes = [("", ns, defs.get("", {}))]
+        for cname, cdefs in defs.items():
+            cls = ns.get(cname) if cname else None
+            if isinstance(cls, type) and cls.__module__ == name and cls.__qualname__ == cname:
+                scopes.append((cname, vars(cls), cdefs))
+        for cname, space, wanted in scopes:
+            for fname, decorated in wanted.items():
+                where = f"{name}.{cname + '.' if cname else ''}{fname}"
+                qual = f"{cname}.{fname}" if cname else fname
+                if fname not in space:
+                    out.append(f"{where} <- deleted")
+                    continue
+                val = space[fname]
+                fn = _unwrap(val) if decorated else val
+                if isinstance(fn, types.FunctionType):
+                    c = fn.__code__
+                    cf = os.path.realpath(c.co_filename)
+                    if cf == rf:
+                        if c.co_qualname != qual and (not decorated or "<locals>" not in c.co_qualname):
+                            out.append(f"{where} <- bound to {c.co_qualname}, another function of the file")
+                    elif _under(cf, [root]) and (not decorated or not _under(cf, [src])):
+                        out.append(f"{where} <- bound to {c.co_qualname} of {os.path.relpath(cf, root)}")
+                elif not decorated:
+                    out.append(f"{where} <- bound to a {type(val).__name__}, not the function the file defines")
+                elif isinstance(fn, (types.BuiltinFunctionType, type)):
+                    out.append(f"{where} <- bound to the builtin {getattr(fn, '__name__', fn)!r}")
+    return sorted(set(out))
+
+
 _GENERATED: dict[tuple, bool] = {}
 
 
@@ -694,7 +843,8 @@ def record(requirement: str, metrics: dict, *, command: str | None = None, artif
            "modules": mods, "modules_outside_root": outside, "files_read": reads,
            "files_read_truncated": bool(_TRUNCATED[0]) if run else False,
            "interpreter": interpreter(), "site_hooks": site_hooks(), "foreign_modules": foreign_modules(root),
-           "patched_functions": patched_functions(root) + code_object_patches(root), "python_env": python_env(),
+           "patched_functions": patched_functions(root) + code_object_patches(root) + rebound_definitions(root),
+           "python_env": python_env(),
            "executed_implementation": executed_implementation(root, requirement) if run else None,
            "datasets": dataset_checksums(datasets),
            "metrics": metrics, "artifacts": arts, "labels": dict(labels or {}), "notes": notes,
