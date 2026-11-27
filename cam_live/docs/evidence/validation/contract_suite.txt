@@ -1,0 +1,35 @@
+Default test suite run against the committed tree plus M-int's contract files only (contract 1.1)
+=================================================================================================
+Tree: `git archive HEAD` at bf902ac (2026-11-27 ~04:55 UTC) + M-int's working copies of src/cam_live/{contracts.py,
+config.py, learning_api.py, nn/api.py, harness/__init__.py, diagnostics/*} (B-CR-8 and B-CR-9 already reverted,
+B-CR-11 still applied), so other agents' uncommitted work in the shared worktree could not affect the result.
+Command (scratch script run_clean.sh, one pytest per test directory because module basenames repeat):
+  PYTHONPATH=<tree>/cam_live/src .venv/bin/python -m pytest <tree>/cam_live/tests/<dir> -q --rootdir=<tree>/cam_live
+
+nn                 61 passed, 7 skipped
+predict           142 passed, 10 skipped
+reward            115 passed, 2 skipped
+credit             99 passed, 7 skipped, 1 failed
+diagnostics         8 passed
+runtime            91 passed, 1 skipped
+harness/env        43 passed, 23 skipped
+harness/auth      183 passed, 7 skipped
+harness/compute    63 passed, 11 skipped
+harness/skills    142 passed, 1 failed
+integration         9 passed (before the agent tests existed)
+total            1026 tests: 956 passed, 68 skipped (gpu / slow / browser / privileged marks), 2 failed
+
+Failures
+* tests/credit/test_retention.py::test_promotion_needs_validation_and_retention_and_a_refusal_rolls_the_learner_back
+  caused by B-CR-11 (estimated costs in diagnostics.collect.lab_candidates change the encoded actions): fails twice
+  with it (forgetting -0.060 instead of > 0.02), passes with the original collect.py on the same tree
+  (1 passed in 9.19 s). B-CR-11 was therefore declined and reverted (APPLIED.md).
+* tests/harness/skills/test_es_publishing.py::test_publishing_to_an_owned_channel_goes_through_the_discord_adapter
+  pre-existing (hard-coded tool count, recorded in docs/status/ES.json before any contract change).
+
+Earlier, in the shared worktree: B-CR-8 (OutcomeObservation.imagined field) failed
+tests/predict/test_registry.py::test_statuses_values_and_imagined_outcomes and
+tests/predict/test_world.py::test_build_targets_masks_pending_and_refuses_imagined; B-CR-9 (tiny_vocab 4096) failed
+tests/nn/test_api.py::test_permuted_belief_changes_the_decision_latent and
+tests/nn/test_core.py::test_state_is_gated_input_dependent_and_carried. Both were reverted and the four tests pass
+(4 passed in 4.38 s).

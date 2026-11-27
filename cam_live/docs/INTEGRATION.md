@@ -85,8 +85,16 @@ were registered; 35 frequent updates (experiential delta norm 0.0036 – 1.58, a
 policy distribution on the held-out context moved by TV 0.0256, restoring all trainable groups gives TV 0.0 to the
 old distribution, restoring only the experiential group leaves TV 0.0046 to it (the rest of the change is in heads and
 adapters). **No meta-update was applied** (26 x `insufficient_independent_outcomes`: the two lifetimes ended after 8
-decisions each when their targets were reached). A second run with longer lifetimes is recorded next to it when it
-exists. CPU test numbers: `docs/status/M-int.json`.
+decisions each when their targets were reached).
+
+Run 2 (`staging_20261127T053639Z.json`, 778 s under the lock, peak 11.21 GB, heavy CPU load from other jobs): 23
+decisions (6 computer environment, 17 in one LabWorld lifetime that stopped at its decision budget with the objective
+pending; the second lifetime did not start within the time budget). 28 frequent / 7 slow / 22 fast updates, all with
+non-zero deltas; TV 0.0177 on the held-out context, 0.0 after restoring all trainable groups. One meta-update is
+recorded as *applied*, but with an importance-weighted meta-gradient of exactly 0 (outer objective 0.0) and an
+unchanged reward version: it is **not** evidence of a reward update (the file's `meta_update_applied` check predates
+the stricter check that now requires a non-zero gradient and a changed reward version). Later runs, if any, are listed
+in `docs/status/M-int.json`. CPU test numbers: `docs/status/M-int.json`.
 
 ## 6. Not yet validated / known limits
 

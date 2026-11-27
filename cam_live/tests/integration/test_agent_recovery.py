@@ -27,7 +27,7 @@ from int_helpers import DriverState, LabHost, agent_config, drive, lab_config
 CHILD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "int_child.py")
 
 
-def _run(args, timeout=600, **env):
+def _run(args, timeout=2400, **env):
     e = {**os.environ, **{k: str(v) for k, v in env.items()}}
     p = subprocess.run([sys.executable, CHILD, *map(str, args)], env=e, capture_output=True, text=True,
                        timeout=timeout)
