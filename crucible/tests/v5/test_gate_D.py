@@ -51,15 +51,23 @@ def base():
     day 2 is kept for the controlled arms and the state just before the change for the counterfactual."""
     t0 = time.time()
     w = World.create(X.pop_spec("gate-D", 11), strict=True)
-    checks = X.run(w, 2 * DAY, check=_checks)
+    # the blog platform may reweight its own mixture at each day boundary (feed.adapt): the state just before each
+    # boundary is kept, so that the counterfactual of the change it actually made starts just before it
+    pre_adapt = {}
+    checks = X.run(w, DAY - 900, check=_checks)
+    pre_adapt[1] = (w.snapshot_blob(), w.seq)
+    checks += X.run(w, 2 * DAY - 900, check=_checks)
+    pre_adapt[2] = (w.snapshot_blob(), w.seq)
+    checks += X.run(w, 2 * DAY, check=_checks)
     day2 = w.snapshot_blob()
     day2_seq = w.seq
     checks += X.run(w, SWITCH_DAY * DAY - 900, check=_checks)
     pre_switch = w.snapshot_blob()
     pre_seq = w.seq
+    pre_adapt[SWITCH_DAY] = (pre_switch, pre_seq)
     checks += X.run(w, (SWITCH_DAY + 1) * DAY, check=_checks)
     return {"world": w, "day2": day2, "day2_seq": day2_seq, "pre_switch": pre_switch, "pre_seq": pre_seq,
-            "checks": checks, "wall_s": time.time() - t0}
+            "pre_adapt": pre_adapt, "checks": checks, "wall_s": time.time() - t0}
 
 
 @pytest.fixture(scope="module")
@@ -105,6 +113,10 @@ def test_D1_distinct_recommenders_end_to_end(arms):
     assert_met('D.1', metrics)
     assert len(ok) == len(REGISTRY)            # every mechanism operated end to end (impressions and views)
     assert all(0.0 <= v <= 1.0 for v in pairs.values())
+
+
+def _ev(e):
+    return e if isinstance(e, dict) else e.to_dict()
 
 
 def _chi2(counts_a: np.ndarray, counts_b: np.ndarray) -> float:
@@ -178,17 +190,36 @@ def test_D3_distribution_changes_during_persistent_run(base):
     sb = np.bincount(before["src"], minlength=len(AUD.SOURCES))
     sa = np.bincount(after["src"], minlength=len(AUD.SOURCES))
     p_src = _chi2(sb, sa)
-    # the blog platform's own change (measured feedback, not a schedule): its exposure sources on day 3 vs the
-    # counterfactual in which it does not adapt
-    brows = X.decision_rows(w, "imp", base["pre_seq"], platform="blog")
-    bafter = brows["src"][brows["t"] >= sw]
-    cbrows = X.decision_rows(cf, "imp", s0, platform="blog")
-    cbafter = cbrows["src"][cbrows["t"] >= sw]
-    p_self = _chi2(np.bincount(bafter, minlength=len(AUD.SOURCES)), np.bincount(cbafter, minlength=len(AUD.SOURCES)))
+    # the blog platform's own change (measured feedback, not a schedule): its exposure sources in the day after the
+    # first change it made vs the counterfactual fork of the state just before that change, in which it does not
+    # adapt (later reweightings converge: once the ranking of its mechanisms holds, the floored weights stop moving)
     selfc = X.self_changes(w)
+    t_self = sorted(int(e["t"]) for e in map(_ev, w.events_range(0)) if e["type"] == "feed.mixture_set"
+                    and e["payload"].get("by") == "platform" and e["payload"].get("platform") == "blog")
+    assert t_self, "the blog platform never changed its own distribution"
+    before_it = [k for k in base["pre_adapt"] if k * DAY - 900 < t_self[0]]
+    assert before_it, t_self
+    k_self = max(before_it)                       # the last kept state before the change
+    if k_self == SWITCH_DAY:
+        cfb, sb0 = cf, s0
+    else:
+        blob, bseq = base["pre_adapt"][k_self]
+        cfb = World.from_blob(blob, world_id="gate-D-cf-blog", fork=True)
+        cfb.system_call("feed.set_adapt", {"platform": "blog", "enabled": False})
+        sb0 = cfb.seq
+        X.run(cfb, t_self[0] + DAY)
+    win = (t_self[0], t_self[0] + DAY)
+    brows = X.decision_rows(w, "imp", base["pre_adapt"][k_self][1], platform="blog")
+    bafter = brows["src"][(brows["t"] >= win[0]) & (brows["t"] < win[1])]
+    cbrows = X.decision_rows(cfb, "imp", sb0, platform="blog")
+    cbafter = cbrows["src"][(cbrows["t"] >= win[0]) & (cbrows["t"] < win[1])]
+    assert bafter.size > 0 and cbafter.size > 0, (bafter.size, cbafter.size)     # both windows were recorded
+    p_self = _chi2(np.bincount(bafter, minlength=len(AUD.SOURCES)), np.bincount(cbafter, minlength=len(AUD.SOURCES)))
     metrics = {"algorithm_changes_during_run": int(changes), "post_change_exposure_shift_pvalue": max(p_shift, p_self),
                "scheduled_change_exposure_shift_pvalue": p_shift, "self_adaptation_changes": int(selfc),
-               "self_adaptation_exposure_shift_pvalue": p_self,
+               "self_adaptation_exposure_shift_pvalue": p_self, "self_adaptation_first_change_day": round(t_self[0] / DAY, 3),
+               "self_adaptation_impressions": int(bafter.size),
+               "self_adaptation_impressions_counterfactual": int(cbafter.size),
                "within_run_exposure_source_shift_pvalue": p_src,
                "post_change_impressions_changed": int(h_changed.sum()),
                "post_change_impressions_counterfactual": int(h_cf.sum()),
@@ -201,8 +232,10 @@ def test_D3_distribution_changes_during_persistent_run(base):
                           "mixture changes on a schedule at the start of day 3, and the blog platform reweights its "
                           "own mixture every day from its measured feedback (views per impression of each of its "
                           "mechanisms in its own recorded batches). Shifts: chi-square tests of the posts item-age "
-                          "profile and of the blog exposure sources on day 3, run vs a counterfactual fork of the "
-                          "pre-change state without either change; the reported criterion is the larger p-value.")
+                          "profile on day 3 (run vs a counterfactual fork of the state just before the switch, "
+                          "without it) and of the blog exposure sources in the day after the first change the blog "
+                          "made to itself (run vs a counterfactual fork of the state just before that change, in which "
+                          "it does not adapt); the reported criterion is the larger p-value.")
     assert_met('D.3', metrics)
     assert changes >= 1 and selfc >= 1
     assert h_changed.sum() > 0 and h_cf.sum() > 0
