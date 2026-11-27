@@ -33,7 +33,8 @@ def staging_run(tmp_path, *extra, mutate=None, name="run"):
 
     args = lc.main.__globals__["argparse"].Namespace(
         run_dir=str(tmp_path / name), task="", policy=None, skip_writes=False, await_reply_s=0.0, approve_wait_s=0.0,
-        listen_s=1, out=out, staging=True, live_policy=False, print_record_template=False, print_policy_rule=False)
+        listen_s=1, out=out, staging=True, live_policy=False, print_record_template=False, print_policy_rule=False,
+        write_policy="")
     for flag in extra:
         if isinstance(flag, tuple):
             setattr(args, flag[0], flag[1])
@@ -214,3 +215,76 @@ def test_the_live_entry_point_stops_before_any_connection_without_an_authorizati
     assert lc.main(["--task", task_file]) == 2 and attempts == []
     err = capsys.readouterr()
     assert "no Discord bot token provided" in err.out and "mode 'live'" in err.err
+
+
+def test_the_documented_live_preparation_yields_grants_and_releases_the_token_only_to_discord(tmp_path, monkeypatch, capsys):
+    """The commands of docs/ES/INTEGRATION.md ("Live check"), run on a made-up token and server id. Only the
+    authorization service is asked: no action is executed, so nothing can be sent anywhere."""
+    from cam_live.harness import credentials
+    from cam_live.harness.auth import PolicyService, opctl
+    from cam_live.harness.auth.vault import SecretError
+    attempts = []
+    monkeypatch.setattr(socket.socket, "connect", lambda self, addr: attempts.append(addr) or (_ for _ in ()).throw(OSError("blocked")))
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: attempts.append(a) or (_ for _ in ()).throw(OSError("blocked")))
+    R, guild = str(tmp_path / "run"), "123456789012345678"
+    made_up = "made-up-token-" + "k" * 56
+    # 1. the token, bound to discord.com and the gateway host by default
+    stored = credentials.store(R, "discord_bot_token", made_up, verifier=False)
+    assert stored["destinations"] == ["discord.com", "gateway.discord.gg", "*.discord.gg"]
+    # 2. the task file
+    task_file = str(tmp_path / "discord_check_task.yaml")
+    open(task_file, "w").write(
+        "version: 1\nobjective_id: discord-live-check\nmode: live\n"
+        'objective: "Integration check of the Discord adapter in the authorized server."\n'
+        f'resources:\n  discord:\n    guild_id: "{guild}"\ninterfaces: [api]\n'
+        "limits:\n  duration_s: 3600\n  money: 0\n  compute_s: 0\n  max_external_actions: 200\n  max_decisions: 200\n")
+    task = lc.load_task(task_file)
+    assert task.mode == "live" and task.resources["discord"]["guild_id"] == guild
+    # 3. operator key, 4. record: template -> sign -> register
+    key, pub = str(tmp_path / "operator.key"), os.path.join(R, "auth", "keys", "operator.pub")
+    assert opctl.main(["init-operator-key", "--private", key, "--public", pub]) == 0
+    capsys.readouterr()
+    assert lc.main(["--task", task_file, "--print-record-template"]) == 0
+    record_file = str(tmp_path / "record.json")
+    open(record_file, "w").write(capsys.readouterr().out)
+    assert opctl.main(["sign-live", record_file, "--private", key]) == 0
+    signed = json.loads(capsys.readouterr().out)
+    svc = PolicyService(R, fsync=False)
+    assert svc.register_live_authorization(signed, "operator")["task_id"] == "discord-live-check"
+    svc.close()
+    # 5. the policy with the write rate of the check
+    policy_file = str(tmp_path / "policy.yaml")
+    assert lc.main(["--task", task_file, "--write-policy", policy_file]) == 0 and os.path.exists(policy_file)
+    capsys.readouterr()
+    # what the check will get from the authorization service, step by step
+    policy = PolicyService(R, policy_file, fsync=False)
+    assert policy.policy is not None and policy.policy.policy_id == "default-1+discord-live-check"
+
+    def authorize(op, **args):
+        action = C.ActionSpec(action_id=C.new_id("t"), operation=f"discord.{op}", modality="api", arguments=dict(args, guild_id=guild))
+        return action, policy.authorize(action, task, {})
+
+    for op, args in (("get_identity", {}), ("create_channel", {"name": "cam-integration-test"}),
+                     ("send_message", {"channel_id": "223456789012345678", "content": "text of the check"}),
+                     ("modify_guild", {"name": "a name (integration test)"}), ("listen_events", {"seconds": 10}),
+                     ("delete_channel", {"channel_id": "223456789012345678"})):
+        action, decision = authorize(op, **args)
+        assert decision.verdict == "allow", (op, decision.reasons)
+    # more writes than the default policy's ten per hour are allowed by the written policy
+    assert all(authorize("modify_channel", channel_id="223456789012345678", topic=f"t{i}")[1].verdict == "allow" for i in range(14))
+    # another server is not this task's to write to
+    other = C.ActionSpec(action_id=C.new_id("t"), operation="discord.create_channel", modality="api",
+                         arguments={"name": "x", "guild_id": "999999999999999999"})
+    assert policy.authorize(other, task, {}).verdict == "deny"
+    # the token is released to a granted, executing action for the REST and the gateway destination, and nowhere else
+    action, decision = authorize("listen_events", seconds=10)
+    with pytest.raises(SecretError):
+        policy.secret_get("discord_bot_token", action, decision, "https://discord.com/api/v10")      # not executing yet
+    assert policy.check_grant(action, decision) is True
+    assert policy.secret_get("discord_bot_token", action, decision, "https://discord.com/api/v10") == made_up
+    assert policy.secret_get("discord_bot_token", action, decision, "wss://gateway.discord.gg") == made_up
+    for elsewhere in ("https://example.org/api", "wss://gateway.example.org", "https://discord.com.example.org/api/v10"):
+        with pytest.raises(SecretError):
+            policy.secret_get("discord_bot_token", action, decision, elsewhere)
+    policy.close()
+    assert attempts == []

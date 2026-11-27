@@ -15,7 +15,8 @@ Live (the operator runs this; it changes the server and undoes its changes)::
       * the secret ``discord_bot_token`` in R's vault, bound to discord.com and gateway.discord.gg;
       * the operator public key in R/auth/keys/operator.pub and a signed live authorization record for the task
         file given by --task (``--print-record-template`` prints the record to sign for it);
-      * a policy whose write rate for the server allows this check (``--print-policy-rule``), unless --skip-writes.
+      * a policy whose write rate for the server allows this check (``--write-policy FILE`` writes one: the default
+        policy plus the ``rate_limits.per_destination`` entries shown by ``--print-policy-rule``), unless --skip-writes.
 
 Staging (no request leaves the machine; starts the staging REST service and the staging Gateway)::
 
@@ -416,17 +417,21 @@ def write_evidence(path: str, data: Dict[str, Any], policy: PolicyService, echo:
 
 
 def run_live(a: argparse.Namespace) -> int:
-    if not a.run_dir or not a.task:
+    preparing = a.print_record_template or a.print_policy_rule or a.write_policy
+    if not a.task or not (a.run_dir or preparing):
         print("live mode needs --run-dir and --task", file=sys.stderr)
         return 2
     task = load_task(a.task)
     probe = DiscordExecutor.from_task(task)
     guild_id, base_url = probe.guild_id, probe.base_url
     probe.close()
-    if a.print_record_template or a.print_policy_rule:
+    if a.print_record_template or a.print_policy_rule or a.write_policy:
         if not guild_id:
             print("the task names no server (resources.discord.guild_id)", file=sys.stderr)
             return 2
+        if a.write_policy:
+            print(write_policy(a.write_policy, guild_id))
+            return 0
         print(json.dumps(record_template(task, guild_id) if a.print_record_template
                          else {"rate_limits": {"per_destination": policy_rule(guild_id)}}, indent=1, sort_keys=True))
         return 0
@@ -571,6 +576,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--live-policy", action="store_true", help="with --staging: use the policy's live mode with a record signed for this run")
     ap.add_argument("--print-record-template", action="store_true", help="print the live authorization record to sign for --task")
     ap.add_argument("--print-policy-rule", action="store_true", help="print the rate_limits.per_destination entries the writes need")
+    ap.add_argument("--write-policy", default="", metavar="FILE",
+                    help="write a copy of the default policy with those entries for the server of --task, and exit")
     a = ap.parse_args(argv)
     if a.live_policy and not a.staging:
         ap.error("--live-policy is a variant of --staging")
