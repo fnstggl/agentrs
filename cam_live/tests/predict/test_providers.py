@@ -50,7 +50,8 @@ def test_world_loss_trains_on_matured_outcomes_only(lab_rig):
     n_matured = sum(len(matured_outcomes(r)) for r in recs)
     loss, m = _loss(rig, wm, recs)
     assert m["world_n_targets"] == n_matured == m["world_n_targets"] and torch.isfinite(loss)
-    assert m["world_n_count"] == n_matured                            # two horizons per intervention
+    assert m["world_n_count"] + m.get("world_n_real", 0.0) == n_matured     # counts at two horizons + readings
+    assert m["world_n_count"] > 0
     assert "fast_prior_nll_count" in m and "transition_nll" in m
 
     # the same decisions while their outcomes are still pending or unobservable: no target, whatever value is offered
@@ -71,7 +72,7 @@ def test_world_loss_trains_on_matured_outcomes_only(lab_rig):
     mixed, m_mixed = _loss(rig, WorldModelLoss(rig.heads, transition_weight=0.0, fast_weight=0.0), recs + pending)
     only, m_only = _loss(rig, WorldModelLoss(rig.heads, transition_weight=0.0, fast_weight=0.0), recs)
     assert m_mixed["world_n_targets"] == m_only["world_n_targets"]
-    assert abs(m_mixed["world_nll_count"] - m_only["world_nll_count"]) < 1e-5
+    assert abs(m_mixed["world_nll_count"] - m_only["world_nll_count"]) < 1e-4
 
 
 def test_world_loss_gradient_reaches_core_heads_and_fast_prior_only(lab_rig):

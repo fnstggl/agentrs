@@ -1,0 +1,60 @@
+{
+ "backbone": "Qwen/Qwen3-4B",
+ "command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict/test_proposer.py -m gpu -q --rootdir=cam_live",
+ "k": 8,
+ "max_new_tokens": 400,
+ "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+ "seeds": [
+  0,
+  1,
+  2,
+  3
+ ],
+ "sets": {
+  "generic_browser_code": {
+   "examples": [
+    "primitive:structured_browser:browser.navigate({\"url\": \"http://127.0.0.1:8001/notes\"}) -> Project notes expect: Navigate to Project notes page",
+    "primitive:structured_browser:browser.click({\"ref\": \"e1\"}) -> link 'Reports' expect: Click on the 'Reports' link",
+    "primitive:structured_browser:browser.type({\"ref\": \"e2\", \"text\": \"data.csv\"}) -> textbox 'Search' expect: Type 'data.csv' into the search box",
+    "primitive:structured_browser:browser.navigate({\"url\": \"http://127.0.0.1:8001/notes\"}) -> Project notes expect: Navigate to Project notes page",
+    "primitive:structured_browser:browser.click({\"ref\": \"e1\"}) -> link 'Reports' expect: Click on the 'Reports' link",
+    "primitive:structured_browser:browser.type({\"ref\": \"e2\", \"text\": \"data.csv\"}) -> textbox 'Search' expect: Type 'data.csv' into the search box",
+    "primitive:structured_browser:browser.navigate({\"url\": \"http://127.0.0.1:8001/notes\"}) -> Project notes expect: Navigate to the Project notes page.",
+    "primitive:structured_browser:browser.click({\"ref\": \"e1\"}) -> Reports expect: Click the 'Reports' link."
+   ],
+   "fraction_valid_of_items": 1.0,
+   "fraction_valid_of_lines": 1.0,
+   "mean_merged_candidates": 16.25,
+   "n_backbone_valid": 50,
+   "n_environment_invalid": 0,
+   "n_generations": 8,
+   "n_items": 50,
+   "n_lines": 50,
+   "rejection_reasons": {},
+   "seconds": 119.8
+  },
+  "labworld": {
+   "examples": [
+    "intervention:api:lab.act({\"channel\": 0, \"effort\": 1}) -> channel-0 expect: Adopters may arrive through channel 0.",
+    "intervention:api:lab.act({\"channel\": 1, \"effort\": 2}) -> channel-1 expect: Adopters may arrive through channel 1.",
+    "intervention:api:lab.act({\"channel\": 2, \"effort\": 3}) -> channel-2 expect: Adopters may arrive through channel 2.",
+    "intervention:api:lab.act({\"channel\": 0, \"effort\": 1}) -> channel-0 expect: Adopters may arrive through channel 0.",
+    "intervention:api:lab.act({\"channel\": 1, \"effort\": 2}) -> channel-1 expect: Adopters may arrive through channel 1.",
+    "intervention:api:lab.act({\"channel\": 2, \"effort\": 3}) -> channel-2 expect: Adopters may arrive through channel 2.",
+    "intervention:api:lab.act({\"channel\": 0, \"effort\": 1}) -> channel-0 expect: Adopters arrive via channel 0 with effort 1.",
+    "intervention:api:lab.act({\"channel\": 1, \"effort\": 2}) -> channel-1 expect: Adopters arrive via channel 1 with effort 2."
+   ],
+   "fraction_valid_of_items": 1.0,
+   "fraction_valid_of_lines": 1.0,
+   "mean_merged_candidates": 17.25,
+   "n_backbone_valid": 64,
+   "n_environment_invalid": 0,
+   "n_generations": 8,
+   "n_items": 64,
+   "n_lines": 64,
+   "rejection_reasons": {},
+   "seconds": 138.9
+  }
+ },
+ "temperature": 0.7
+}

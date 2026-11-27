@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="272.453" timestamp="2026-11-27T02:05:30.260058+00:00" hostname="ebecdb7e42eb"><testcase classname="tests.predict.test_proposer" name="test_real_backbone_proposes_schema_valid_actions" time="272.381" /></testsuite></testsuites>

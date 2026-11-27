@@ -480,8 +480,11 @@ class Predictor:
                     elif q.kind == OutcomeKind.BINARY:
                         y = float(torch.rand((), generator=generator) < min(max(float(mean0[i, j]), 0.0), 1.0))
                     name = q.metric.replace(ACTION_PLACEHOLDER, "").rstrip(".")
-                    items.append(ExperienceItem(kind=ItemKind.OUTCOME, text=q.description or name,
-                                                ts=now + q.horizon_s, ref=f"imagined:{i}:{s}:{j}", trust=Trust.SELF,
+                    # an immediate reading enters the context as an observation, a delayed consequence as an outcome
+                    immediate = q.kind == OutcomeKind.REAL and not q.goal_relevant and q.horizon_s <= 3600.0
+                    items.append(ExperienceItem(kind=ItemKind.OBSERVATION if immediate else ItemKind.OUTCOME,
+                                                text=q.description or name, ts=now + q.horizon_s,
+                                                ref=f"imagined:{i}:{s}:{j}", trust=Trust.UNTRUSTED,
                                                 quantities=[Quantity(name, y, kind=q.kind, exposure=q.exposure)]))
                 contexts.append(ctx + items)
                 owners.append(i)

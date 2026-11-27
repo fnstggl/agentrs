@@ -1,4 +1,4 @@
-# Workstream B (stage 1) — public API of `cam_live.predict`
+# Workstream B — public API of `cam_live.predict` (stage 1 + stage 2)
 
 Tensor-level and model-independent. Every module is a pure function or `nn.Module` of the tensors of
 `cam_live/nn/api.py` (`b [B,D]`, `e_a [B,N,D]`, `a_mask [B,N]`, `e_g [B,D]`, `e_q [B,Q,D]`, `q_mask`,
@@ -6,7 +6,10 @@ Tensor-level and model-independent. Every module is a pure function or `nn.Modul
 decodes text inside imagination, or returns a reward. Heads are plain modules: register them with
 `model.register_head(name, module, GROUP_HEADS)`.
 
-Stage 2 wires these onto `CamLiveModel` (LossProviders, agent steps). Notes for that wiring are marked **S2**.
+Sections up to `candidates.py` are the tensor-level modules of stage 1 (model-independent). **Stage 2** (from
+"Stage 2 — on the real model" below) wires them onto `CamLiveModel`: heads registered on the model, loss providers,
+the runtime `Predictor`, `DecisionMaker`, `LatentPlanner`, `BackboneProposer`, and the diagnostics.
+The **S2** notes in the stage-1 sections describe what stage 2 then did.
 
 ## dists.py — predictive families
 
@@ -187,3 +190,161 @@ current observation). Action ids are deterministic in (content, provenance, `id_
 `id_prefix` when the same action may be executed more than once.
 **S2**: `model.generate([prompt.text], latent=b)` → `parse_actions` → `merge_candidates(lm, schema, skills)` →
 `EnvironmentAdapter.validate_action`.
+
+---
+
+# Stage 2 — on the real model
+
+The integrated agent needs four objects, all built from the model:
+
+```python
+from cam_live.predict.heads import attach_heads
+from cam_live.predict.providers import default_providers
+from cam_live.predict.predictor import Predictor
+from cam_live.predict.policy import DecisionMaker
+from cam_live.predict.planner import LatentPlanner
+from cam_live.predict.candidates import BackboneProposer
+
+heads     = attach_heads(model)                                   # registers 5 heads, group "heads"; idempotent
+providers = default_providers(heads, verifier.check_signature)    # -> ContinualLearner
+predictor = Predictor(model, model.new_fast_state(), prediction_registry, clock, cfg)
+decider   = DecisionMaker(model, cfg, clock=clock, experiments=experiment_registry)
+planner   = LatentPlanner(model, cfg)
+proposer  = BackboneProposer(model)
+```
+
+Configuration: section `predict` of `CamLiveConfig` -> `heads.PredictConfig` (unknown keys raise). Debug-scale
+defaults are chosen automatically when `core.d_model < 128`.
+
+## heads.py
+
+```python
+PredictConfig(hidden=192, n_members=5, transition_hidden=256, transition_members=3, n_hazard_bins=12,
+              max_categories=16, use_phi=True, prior_scale=1.0, eps_floor=0.02, temperature=1.0, ucb_c=1.0,
+              ig_weight=1.0, thompson_samples=32, cost_weight=0.0, time_weight=0.0, voi_samples=8,
+              voi_max_candidates=16, voi_slow_path=False, default_horizon_s=14 d, fast_prior_weight=0.25,
+              transition_weight=0.25, allowed_provenance=("live","staging","diagnostic"), adapter_grad_last=2,
+              adapter_max_records=4, resource_scale=(3600,1,60), imagination_particles=8,
+              max_imagination_horizon=4, imagination_threshold=0.5, seed=0)        ; .from_cfg(cfg)
+attach_heads(model, pcfg=None) -> PredictHeads(cfg, world, transition, evaluator, policy, downstream, scaler)
+HEAD_NAMES = ("predict_world", "predict_transition", "predict_evaluator", "predict_policy", "predict_downstream")
+canonical_query(q, action_ids) -> OutcomeQuery       # action id in the metric -> "{action}"
+world_batch(model, heads, z [B,D], rows, *, update_scaler=False) -> WorldBatch     # N = 1 per row
+head_offsets(wb) ; fast_inputs(kind, wb, offsets=None) -> (y, exposure, censored)  # how the fast layer sees outcomes
+RealScaler.update / lookup / tensors / state / load_state      # per-metric location/scale of real outcomes
+```
+`heads.policy` is the `CandidatePolicy` the reward workstream adapts (`actor_param_dict`, `functional_forward`).
+`heads.scaler.state()` is plain data that the checkpoint should store next to the weights (not a tensor).
+Combination of heads and fast layer: count — head rate as exposure offset; real — residual in normalised units;
+time-to-event — time rescaled by the head's expected time; binary — shift of the fast logit from its prior added to
+the head logit (approximation); categorical — head only.
+
+## providers.py — `learning_api.LossProvider`s
+
+| class | name | timescale | weight | needs |
+|---|---|---|---|---|
+| `WorldModelLoss(heads, weight=None, *, kind_weights, fast_weight, transition_weight)` | `world_model` | frequent | 1.0 | `with_next=True` (computed here if absent) |
+| `FastPriorLoss(heads, weight=None, *, max_rows=48)` | `fast_prior` | frequent | 0.5 | several records per objective in a batch |
+| `EvaluatorLoss(heads, check_signature, weight=None)` | `evaluator` | frequent | 1.0 | `.add_outcome(...)` |
+| `WorldModelAdapterLoss(heads)` | `world_model_adapters` | slow_adapters | 0.5 | re-encodes with adapter gradient |
+| `EvaluatorAdapterLoss(heads, check_signature)` | `evaluator_adapters` | slow_adapters | 0.5 | re-encodes with adapter gradient |
+
+```python
+provider.eligible(record) -> bool ; provider.loss(model, batch, store) -> (Tensor | None, metrics)
+provider.batch_kwargs                      # encode_decisions keyword arguments the provider would like
+EvaluatorLoss.add_outcome(outcome: VerifiedOutcome, *, deadline, achieved_at=None, trajectory=None,
+                          magnitude_is_count=True) -> bool     # False for a pending objective; raises
+                                                               # UnverifiedOutcomeError if the signature fails
+default_providers(heads, check_signature=None, *, adapters=True) -> List[LossProvider]
+encode_with_adapters(model, store, records, *, grad_last=2, with_next=True) -> DecisionBatch   # N = 1, adapter graph
+record_rows(records) -> rows of (canonical query, observation)          # via learning_api.matured_outcomes
+```
+For **D**: the adapter providers accept any batch; unless it carries `batch.with_grad_semantic = True` they
+re-encode at most `adapter_max_records` records themselves. `EvaluatorLoss` must be told about verified outcomes
+(`add_outcome`) by whoever reconciles them; the two evaluator providers from `default_providers` share one table.
+Metrics worth logging: `world_nll_<kind>`, `fast_prior_nll_<kind>`, `fast_online_nll_first_/later_<kind>`,
+`transition_nmse`, `eval_brier`.
+
+## predictor.py
+
+```python
+Predictor(model, fast_state, registry: PredictionRegistry, clock, cfg=None, *, heads=None, model_version="",
+          checkpoint_id="", max_cache=50_000)
+.evaluate_candidates(context_items, goal_text, candidates, queries=None, *, decision_id=None, objective_id="",
+                     deadline=None, objective_scale=1.0, validate=None, compute_voi=True, generator=None)
+        -> List[CandidateEvaluation]
+.adopt_queries(action_id, env_queries, rel_tol=0.05) -> {environment query id: predicted query id}
+.commit(decision_id, chosen_action_id) -> int                    # drop cached features of the other candidates
+.observe_outcomes(outcomes: Sequence[OutcomeObservation]) -> {"n","surprise","kl","change_detected","details","skipped"}
+.resolve(outcomes) -> List[PredictionRecord]
+.success_predictions(objective_id) ; .resolve_objective(verified: VerifiedOutcome, check_signature) -> List[PredictionRecord]
+.belief_value(context_items, goal_text, *, deadline=None, objective_scale=1.0) -> {"p_success","success_logit","b_norm"}
+.downstream_signals(evaluation) -> List[float]                   # inputs of heads.downstream (heads.VOI_SIGNALS)
+.set_fast_state(fast_state)                                      # e.g. a fresh one for a new lifetime
+at_horizons(query, horizons_s) -> List[OutcomeQuery]             # one question at several horizons (templates)
+```
+`queries`: templates for every candidate, or `{action_id: templates}`, or `callable(action) -> templates`.
+`{action}` in a template metric becomes the candidate's action id; `issued_at == 0` means "when the action ends".
+Each `CandidateEvaluation` carries: `predictions` (registered `PredictionRecord`s, one per query — so one per horizon
+and kind; `dist.mean / std / epistemic_std`), `p_success` (evaluator Q of the candidate), `value` (policy logit),
+`voi` (decision-relevant, gross, >= 0; `None` without a fast state), `cost`, `uncertainty` (epistemic sd of the
+goal value), `feasible / infeasible_reason`, and `extras`: `q_goal`, `q_goal_epistemic_std`, `ts_<i>` (joint
+posterior samples used by Thompson sampling), `policy_logit/q/prob`, `v_state`, `eval_logit`, `expected_time_s`,
+`expected_magnitude`, `expected_money`, `z_norm`, `b_norm`, `net_cost`, `voi_fast`, `voi_stderr`, `voi_net`,
+`info_gain_nats`, `value_net`. With `objective_id` and `deadline` the state-level success forecast is registered too.
+`observe_outcomes` is the *only* thing that changes the fast state. The cache of decision-time features is in
+memory: after a restart, outcomes of earlier predictions resolve records but no longer update the fast belief.
+
+## policy.py (additions)
+
+```python
+DecisionMaker(model, cfg=None, *, heads=None, clock=None, experiments: ExperimentRegistry = None, seed=0)
+.select(evaluations, mode="thompson", *, objective_id="", decision_id=None, ts=None, generator=None, **decision_fields)
+        -> contracts.Decision                                    # mode in policy.RULES except "randomized"
+.probabilities(evaluations, mode) -> (Tensor [N] float64, scores)
+.propose_experiment(evaluations, top_k=6) -> {"arms": {name: index}, "question", "hypothesis", ...} | None
+.select_experiment(evaluations, arms, *, question="", hypothesis="", experiment_id=None, arm_probs=None,
+                   horizon_s=None, objective_id="", decision_id=None, ts=None, unit_id=None, ...)
+        -> (Decision, ExperimentRecord)
+```
+`Decision.probabilities` is the exact vector the index was drawn from (floor `eps_floor / n_feasible`; infeasible
+candidates exactly 0; for `randomized` the registry's assignment probabilities with no floor).
+`Decision.diagnostics`: `rule, eps_floor, entropy, n_feasible, value_source, thompson_sampled_from, b_norm,
+z_norm_chosen, v_state, value_chosen, uncertainty_chosen, max_prob, top[3]` (+ `arm, arm_names` for experiments).
+
+## planner.py
+
+```python
+LatentPlanner(model, cfg=None, *, heads=None, controller: HorizonController = None)
+.measure(store, sequences: Sequence[Sequence[ExperienceRecord]], max_k=None) -> {"n_sequences","errors","allowed"}
+.plan(context_items, goal_text, candidates, *, now, deadline=None, objective_scale=1.0, horizon=None,
+      n_particles=None, validate=None, generator=None) -> List[ImaginedEvaluation]
+.success_prediction(ev, objective_id, made_at, horizon_s, decision_id="") -> PredictionRecord  # imagined_horizon_steps >= 1
+ImaginedEvaluation(action_id, index, value_mean, value_std, epistemic_std, latent_std, horizon_steps, elapsed_s,
+                   feasible, imagined=True)                      # frozen
+```
+`plan` never uses more steps than `controller.allowed()`. Outcome APIs refuse imagined objects with
+`ImaginedDataError`: `PredictionRegistry.resolve`, `ExperimentRegistry.add_outcome`, `world.build_targets`,
+`Predictor.observe_outcomes / resolve / resolve_objective`, `EvaluatorLoss.add_outcome`.
+
+## candidates.py (additions)
+
+```python
+BackboneProposer(model, *, k=8, max_new_tokens=384, temperature=0.7, per_tool=4, n_sampled=0, chat=True, seed=0)
+.propose(tools, observation_digest, *, objective="", latent=None, skills=(), vocab=(), k=None, max_n=None,
+         validate=None, id_prefix="act", parent_decision_id="", seed=None, num_return_sequences=1)
+        -> ProposalResult(actions, stats, rejections, raw)
+```
+`latent` is the belief `b [1, D]` (conditions `model.generate` through the bridge). Merge order: backbone, skills,
+schema walker; identical content is merged and lists every provenance (`"backbone+schema_walker"`).
+`stats`: `n_texts, n_lines, n_items, n_backbone_valid, fraction_valid_of_items, fraction_valid_of_lines, n_schema,
+n_skills, n_merged, n_environment_invalid, rejection_reasons, by_provenance, latent_conditioned`.
+
+## labdata.py, diagnose.py (diagnostic scale only)
+
+`labdata.build(seed, **predict_section) -> (model, heads)`, `collect(store, seeds, n_decisions, *, base=None,
+mechanism_seed=None, horizons_s=(6 h,), policy_fn=None, immediate=True)`, `add_horizons`, `add_immediate`,
+`train(model, providers, store, sample, steps, *, lr=2e-3)`, `lifetime_sampler`, `count_targets`,
+`fit_marginal_nb`, `oracle_count_mean`.
+`python -m cam_live.predict.diagnose [--quick] [--only 1a,1b,2,3,4,5] [--out ...]` writes
+`docs/evidence/B/diagnostics.json`.

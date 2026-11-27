@@ -17,7 +17,7 @@ import torch
 from torch import Tensor
 
 from ..config import CamLiveConfig
-from ..contracts import ExperienceRecord, OutcomeKind, OutcomeQuery, new_id
+from ..contracts import ExperienceRecord, OutcomeKind, OutcomeObservation, OutcomeQuery, OutcomeStatus, new_id
 from ..diagnostics.collect import LabCollector, Lifetime, uniform_policy
 from ..diagnostics.memstore import MemoryStore
 from ..diagnostics.world import LabConfig, LabWorld
@@ -49,7 +49,7 @@ def build(seed: int = 0, **section: Any) -> Tuple[LatentModelAPI, PredictHeads]:
     return model, attach_heads(model)
 
 
-def add_horizons(horizons_s: Sequence[float]) -> Callable[[ExperienceRecord], None]:
+def add_horizons(horizons_s: Sequence[float], store: Any = None) -> Callable[[ExperienceRecord], None]:
     """Collector ``on_step`` hook: for every outcome query the environment issued for the executed action, also
     ask the same question at each shorter horizon in ``horizons_s``. The extra queries are measured by the
     environment like any other; nothing is filled in."""
@@ -59,10 +59,40 @@ def add_horizons(horizons_s: Sequence[float]) -> Callable[[ExperienceRecord], No
         extra: List[OutcomeQuery] = []
         for q in list(rec.result.expected_outcomes):
             for h in horizons_s:
-                if h < q.horizon_s:
+                if h < q.horizon_s and q.kind != OutcomeKind.REAL:
                     extra.append(dataclasses.replace(q, query_id=new_id("q"), horizon_s=float(h)))
         rec.result.expected_outcomes.extend(extra)
         rec.pending_queries.extend(extra)
+        if store is not None and extra:
+            store.update(rec)
+    return hook
+
+
+def add_immediate(store: Any = None) -> Callable[[ExperienceRecord], None]:
+    """Collector ``on_step`` hook: every real-valued quantity the tool result reported is an *immediate outcome*
+    of the action (spec 4.1) — a query issued when the action started, answered by the value that was actually
+    observed. The decision's context never contains it (it was formed before the action ran)."""
+    def hook(rec: ExperienceRecord) -> None:
+        res = rec.result
+        if res is None:
+            return
+        n = 0
+        for o in res.observations:
+            if o.kind != "tool_result":
+                continue
+            for qn in o.quantities:
+                if qn.kind != OutcomeKind.REAL:
+                    continue
+                q = OutcomeQuery(query_id=new_id("q"), metric=qn.name, kind=OutcomeKind.REAL,
+                                 horizon_s=max(res.ended - res.started, 1.0), issued_at=res.started,
+                                 description=o.text, decision_id=rec.decision.decision_id)
+                res.expected_outcomes.append(q)
+                rec.outcomes.append(OutcomeObservation(q.query_id, OutcomeStatus.OBSERVED, float(qn.value),
+                                                       observed_at=res.ended, source="tool_result",
+                                                       evidence_refs=[o.obs_id], dedup_key=f"{qn.name}@{o.obs_id}"))
+                n += 1
+        if store is not None and n:
+            store.update(rec)
     return hook
 
 
@@ -74,7 +104,8 @@ def lab_config(**over: Any) -> LabConfig:
 
 def collect(store: MemoryStore, seeds: Sequence[int], n_decisions: int, *, base: Optional[LabConfig] = None,
             mechanism_seed: Optional[int] = None, horizons_s: Sequence[float] = (SHORT_HORIZON_S,),
-            policy_fn: Optional[Callable[[int], Any]] = None, max_context: int = 40) -> List[Lifetime]:
+            policy_fn: Optional[Callable[[int], Any]] = None, max_context: int = 40,
+            immediate: bool = True) -> List[Lifetime]:
     """One lifetime per seed. ``mechanism_seed`` fixes the hidden mechanism (same world, different behaviour
     sequences and therefore different sampled consequences); otherwise every seed is a new mechanism."""
     base = base or lab_config()
@@ -83,7 +114,12 @@ def collect(store: MemoryStore, seeds: Sequence[int], n_decisions: int, *, base:
         world = LabWorld(dataclasses.replace(base, seed=s if mechanism_seed is None else mechanism_seed))
         col = LabCollector(store, max_context=max_context, seq_start=1000 * int(s))
         pol = policy_fn(s) if policy_fn is not None else uniform_policy(s)
-        out.append(col.run(world, pol, n_decisions, seed=s, on_step=add_horizons(horizons_s)))
+        hooks = [add_horizons(horizons_s, store)] + ([add_immediate(store)] if immediate else [])
+
+        def on_step(rec: ExperienceRecord, hooks: Any = hooks) -> None:
+            for h in hooks:
+                h(rec)
+        out.append(col.run(world, pol, n_decisions, seed=s, on_step=on_step))
     return out
 
 
