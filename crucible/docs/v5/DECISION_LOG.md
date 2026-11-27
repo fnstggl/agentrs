@@ -330,8 +330,12 @@ decision (look-ups, households, shopping, practice, service use: recorded cohort
 inside the population's sessions). They do not compose the civilisation generator because none of their mechanics
 needs the semantic text path (no world runs Qwen); `tier3` composes each into a civilisation (commercialization adds
 its phenomenon to the civilisation's laboratories). References are tool-only two-phase policies
-(`_dom3.ReadingReference`: read-only tool calls, then actions) and every evaluator is cached per simulated instant
-(the learner interface asks it after every action). Evaluators read recorded world state only: the histories they
+(`_dom3.ReadingReference`: read-only tool calls, then actions) and every evaluator's verdict is cached only while
+the world has not changed (same simulated instant and nothing recorded since but command bookkeeping: a verdict keyed
+by the instant alone returned the pre-action verdict after a same-instant action, repaired 2026-11-27). Each domain
+names its PARTICIPANT_MECHANICS, measured only on the participant's own services, exchanges, initiatives or venture;
+the SP-9.<n> gates require that the null baseline (idle seat) exercises none of them, so a gate shows that the
+participant is needed for them and not only that the autonomous world produces the events. Evaluators read recorded world state only: the histories they
 integrate (facts' value histories and look-up records in 9.11, customers' usage in 9.12, facility states in 9.14)
 are kept in module tables by appliers of recorded events, because a world rebuilt from its log (`World.replay`) keeps
 no in-memory event history and must be judged the same (framework replay check).
@@ -344,6 +348,12 @@ event strikes - and the evaluator re-runs the world's own spec without any coord
 requires the households' lost service-hours to be at most 80% (0.8^difficulty) of that counterfactual, the
 hospital's downtime at most max(12 h, 60% of the counterfactual), and 95% of households restored by day 7 and through
 day 10. The idle seat's ratio is 1.0 by construction, so the null baseline always fails.
+Repair (2026-11-27): a target relative to operators who handle a light event alone cannot be met, and a flood that
+covers a single point of failure for the whole horizon cannot be undone by any coordinator. The main event is
+therefore a major disruption by construction (among a few seeded draws of its centre, the first whose expected damage
+under the fragility curves reaches 10 facilities), the coordinator has the lever real flood responses use (portable
+pump teams that drain a district, `crisis.dewater`), help from outside enters at the dry district nearest the region's
+edge when the edge is under water, and an operator's priority request is fulfilled once its asset is restored.
 
 ## D-59 The 9.15 science-to-economy link and what investors may read (2026-11-26, workstream I-3)
 The phenomenon's hidden law in `sci` IS the population's practice physics (one fact): what the founder learns by

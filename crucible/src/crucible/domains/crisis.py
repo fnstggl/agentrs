@@ -1453,7 +1453,11 @@ class Crisis(Module):
 
     @applier("crisis.restored")
     def ap_restored(self, ev):
-        return None
+        # a priority request is fulfilled once its asset is restored (it no longer draws the operator's crews)
+        st = self.world.state
+        for rid, r in list(st.scan("cr_requests")):
+            if r["target"] == ev.payload["id"] and r["status"] == "open":
+                st.patch("cr_requests", rid, status="done")
 
     @applier("crisis.level")
     def ap_level(self, ev):
@@ -1950,6 +1954,15 @@ class CrisisCoordinator(K.ReadingReference):
             if a and a["status"] != "ok" and aid not in self.requested and a["kind"] in owner:
                 out.append(A("crisis.request", operator=owner[a["kind"]], asset=aid, rank=r))
                 self.requested.add(aid)
+        # then, with the operators that agreed, the damaged facilities that serve the most households
+        agreed = {o["operator"] for o in s["operators"] if o["agreed"]}
+        hh0 = {d["district"]: d["households_share"] for d in s["districts"]}
+        rest = sorted((-hh0.get(a["district"], 0.0) * (3.0 if a["kind"] in ("plant", "core") else 1.0), a["asset"])
+                      for a in s["assets"] if a["status"] == "damaged" and a["kind"] in owner and
+                      a["kind"] not in ("road", "line") and owner[a["kind"]] in agreed and a["asset"] not in self.requested)
+        for k, (_, aid) in enumerate(rest[:4]):
+            out.append(A("crisis.request", operator=owner[assets[aid]["kind"]], asset=aid, rank=len(chain) + 1 + k))
+            self.requested.add(aid)
         # own crews (and mutual-aid crews): blocked roads, then damaged assets nobody works on (the hospital's
         # chain first, then by households per repair hour, matching trades first), then unknown chain assets
         if not self.aid:
