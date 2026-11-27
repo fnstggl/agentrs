@@ -172,6 +172,11 @@ class ObservationTokenizer(nn.Module):
         self.target_role = nn.Linear(D, D, bias=False)
         nn.init.orthogonal_(self.target_role.weight)
         self._codes = weakref.WeakKeyDictionary()          # EntityRegistry -> [max_entities, D] codes
+        # (seed, n) -> the same table on the CPU (LRU): the decide / replay copies of a registry (copy.deepcopy, a
+        # new object every decision) share its seed, so they reuse the table instead of a fresh CPU QR of a
+        # [max(n, D), D] matrix (~0.15 s at D = 1536; 113 of 168 s of one 1B learner update, G3 2026-11-27)
+        self._codes_by_seed: OrderedDict = OrderedDict()
+        self.codes_seed_cache_max = 4096
         self._tool_by_key: OrderedDict = OrderedDict()     # ToolSchema.key -> ToolSchema (LRU)
         self._keys_by_name: dict = {}                       # name -> {key: None} (insertion-ordered)
         self.tool_registry_size = int(tool_registry_size)
@@ -195,12 +200,21 @@ class ObservationTokenizer(nn.Module):
         if t is None:
             st = repr(registry.rng.getstate()).encode()
             seed = int(hashlib.sha256(st).hexdigest()[:15], 16)
-            g = torch.Generator().manual_seed(seed)
             n = registry.max
-            a = torch.randn(max(n, self.D), self.D, generator=g)
-            qm, _ = torch.linalg.qr(a)                     # orthonormal columns
-            t = (qm[:n] if n <= self.D else torch.randn(n, self.D, generator=g) / self.D ** 0.5)
-            t = (t / t.norm(dim=1, keepdim=True).clamp_min(1e-6) * self.D ** 0.5).to(self.device)
+            key = (seed, n)
+            c = self._codes_by_seed.get(key)
+            if c is None:
+                g = torch.Generator().manual_seed(seed)
+                a = torch.randn(max(n, self.D), self.D, generator=g)
+                qm, _ = torch.linalg.qr(a)                     # orthonormal columns
+                c = (qm[:n] if n <= self.D else torch.randn(n, self.D, generator=g) / self.D ** 0.5)
+                c = c / c.norm(dim=1, keepdim=True).clamp_min(1e-6) * self.D ** 0.5
+                self._codes_by_seed[key] = c
+                while len(self._codes_by_seed) > self.codes_seed_cache_max:
+                    self._codes_by_seed.popitem(last=False)
+            else:
+                self._codes_by_seed.move_to_end(key)
+            t = c.to(self.device)
             self._codes[registry] = t
         return t
 
