@@ -95,6 +95,23 @@ Read at the start of every session, after `CAM_LIVE_SPEC.md` (operator specifica
 - Honest negative results so far: learned reward from scratch hurts in LabWorld (−0.35); RUDDER/COCOA fail the
   held-out selection gate (default credit = simple); fast-layer count advantage over GRU not significant.
 
+### 2026-11-27 — session 3 (17:45 UTC resume after the disk filled)
+
+- ~10:16 UTC the 300 GB disk filled (evaluation v2 runs: per-lifetime checkpoints with Adam state, 150m scaling);
+  every agent stopped. Recovered: 300 → 134 GB used. Results archived (`docs/evidence/S/raw/`), then
+  `tools/prune_runs.py` removed 132 GiB of intermediate checkpoints/optimizer states and ~33 GB of finished agents'
+  scratch; new `cam_live.storage` (DiskGuard + retention) to be wired into runtime / learner / eval runner.
+- Audit at resume (checker): 158 reqs — 32 complete, 23 verified with checker gaps, 65 partial (mostly pre-fix
+  verdicts), 3 failed (pre-fix), 35 unverified. Discord bot re-checked read-only: in "CAM's lab", no other guild.
+- **Operator evaluation redirection (verbatim in the session; binding):** synthetic envs are diagnostics only;
+  substantive evaluation = full-size agent with open-ended backbone action generation, open-ended objective classes,
+  intelligence-acquisition and transfer metrics, baselines A–E at full size. When ready, CAM receives the operator's
+  Discord objective verbatim (`tasks/discord_100_planning.yaml`) and produces its own research, plan and operator
+  requests; the operator then supplies resources. Claude Code must not make the plan.
+- Running: INT2 (storage wiring, real-model meta-update pathway, near-random diagnosis, open-ended generation,
+  grounded computer use, separated run, read-only live Discord observation run, planning-phase task file),
+  S (protocol v3 + open-ended evaluation families on the full-size agent), MAN (manifest reconciliation + checker).
+
 ## Active jobs
 
 | Started (UTC) | Job | Resume |
