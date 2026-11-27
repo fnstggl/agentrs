@@ -40,9 +40,12 @@ def test_the_known_duplicates_are_exactly_the_reviewed_allow_list(registry_audit
         assert facts.REVIEWED[key]["role"] == "duplicate" and facts.REVIEWED[key]["kind"] in P.OWNERS
     kinds = {facts.REVIEWED[k]["kind"] for k in facts.KNOWN_DUPLICATES}
     # the audit's duplicates (A6) are all on record: people, employment, relationships, communities, institutions,
-    # contracts, subscriptions, listings, content metadata
+    # contracts, subscriptions, listings (content metadata - aud.aud_item_info - was migrated by workstream C in
+    # wave 3b as A.json's integration note asks: aud reads catalogue metadata from content.content, so it is no
+    # longer a duplicate; see facts.REVIEWED["aud.aud_item_info"])
     assert kinds >= {"population", "employment", "relationship", "community", "institution", "contract",
-                     "subscription", "listing", "content_artifact"}
+                     "subscription", "listing"}
+    assert facts.REVIEWED["aud.aud_item_info"]["role"] == "extension"
     assert sum(1 for k in facts.KNOWN_DUPLICATES if facts.REVIEWED[k]["kind"] == "population") >= 8
 
 
