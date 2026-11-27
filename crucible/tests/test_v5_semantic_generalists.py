@@ -279,6 +279,20 @@ def test_composed_publication_restating_the_goal_is_rejected():
     real = ("Winter travel needs planning. Trains run late when snow falls, so leave an hour early. Pack layers, a "
             "thermos and a phone charger. Check road reports before driving and keep a blanket in the car.")
     assert M.accept(a, body, req, real, "blog.publish") == {M.COMPOSED: real}
+    # texts that announce instead of saying (seen in the fourth standard run) are not publications; an announcing
+    # first sentence before real content is fine
+    for v in ("I will publish an article on the latest developments in the NFL and NHL, sharing my insights and "
+              "expertise. I will also share my thoughts on the upcoming games.",
+              "I'm looking to publish an article about the best budget-friendly flights to Paris. Here is the text."):
+        assert M.accept(a, body, req, v, "blog.publish") is None, v
+    short = "Snow tonight: trains run late, leave early."
+    assert not M.announcement(short) and M.accept(a, body, req, short, "blog.publish") == {M.COMPOSED: short}
+    lead = "Here is my article. " + real
+    assert M.accept(a, body, req, lead, "blog.publish") == {M.COMPOSED: lead}
+    title = M.Slot("title", {"type": "string", "maxLength": 200}, True, "text", tokens=24)
+    reqt = M.slot_request(a, 0, tool, title, {}, None)
+    assert M.accept(a, title, reqt, "Here is the text you'd publish:", "blog.publish") is None
+    assert M.accept(a, title, reqt, "Five ways to stay warm on winter trains", "blog.publish") is not None
     b = M.Agent(i=2, principal="p2", account=None, persona={"about": "You bake bread."})
     b.new_goal(0, "I will ask p7 whether he wants to join my bread-baking class on Saturday.")
     msg = M.Slot("body", {"type": "string", "maxLength": 4000}, True, "text", tokens=200)
@@ -460,3 +474,7 @@ def test_evaluator_excludes_junk_content_and_counts_repeated_content_once(ablate
     goal = "I will tell my friend about the rye bread I baked this morning."
     assert verify.junk_text(goal, set(), goal) and verify.junk_text("mail", {"mail", "mail.send"}, goal)
     assert not verify.junk_text(good, {"mail", "mail.send"}, goal)
+    # a message may say what its writer will do; a publication that only announces is junk
+    plan = "I will bring the rye bread on Friday. I will also bring the starter so you can try it at home."
+    assert not verify.junk_text(plan, set(), goal) and verify.junk_text(plan, set(), goal, publication=True)
+    assert verify.junk_text("Here is the text you'd publish:", set(), "", publication=True)

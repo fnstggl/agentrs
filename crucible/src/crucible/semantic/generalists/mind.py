@@ -664,6 +664,28 @@ SCAFFOLD = re.compile(r"\b(you are calling|arguments so far|next argument|answer
                       r"services you can use:|tools of the service)", re.I)
 
 
+# a sentence that announces what the writer will do, or prefaces the text, instead of being the text ("I will publish
+# an article on ...", "Here is the text you'd publish:"; seen as publication texts and titles in the fourth standard
+# run, where small models ignored "do not describe what you will do")
+ANNOUNCE = re.compile(r"^\s*(i will|i'll|i am going to|i'm going to|i have decided to|i've decided to|i decided to|"
+                      r"i would like to|i'd like to|i want to|i plan to|i'm looking to|i am looking to|here is|here's|"
+                      r"sure[,!.]|certainly[,!.]|okay[,!.]|ok[,!.])\b", re.I)
+
+
+def _sentences(t: str) -> list[str]:
+    return [x for x in re.split(r"(?<=[.!?])\s+|\n+", (t or "").strip()) if x.strip()]
+
+
+def announcement(text: str, min_words: int = 12) -> bool:
+    """Whether a text says what its writer will do (or prefaces itself) rather than saying anything: once its
+    announcing sentences are left out, fewer than `min_words` words remain (a short value: it starts with one)."""
+    sents = _sentences(text)
+    rest = [x for x in sents if not ANNOUNCE.match(x)]
+    if len(rest) == len(sents):
+        return False                      # nothing announces: a short text is still a text
+    return len(_words(" ".join(rest))) < min_words
+
+
 def _words(t: str) -> list[str]:
     return re.findall(r"[a-z0-9']+", (t or "").lower())
 
@@ -696,17 +718,22 @@ def restates(value: str, goal: str, n: int = 5, cover: float = 0.6) -> bool:
 
 
 def copied_from_prompt(text: str, req: dict, own: str = "", n: int = 5, share: float = 0.3, short: bool = False,
-                       goal: str = "", names: tuple[set, set] = (set(), set()), compose: bool = False) -> bool:
+                       goal: str = "", names: tuple[set, set] = (set(), set()), compose: bool = False,
+                       slot_name: str = "") -> bool:
     """Whether a written value is not the value itself: the prompt copied back, the goal restated, or a tool name.
 
     * any value that repeats a line of the prompt's scaffolding (`SCAFFOLD`) is an echo;
     * a value that is the name of a tool or service (`tool_names`: for a short value the called tool, its service or
       any tool; for a longer text any tool or service) names a service instead of saying anything;
     * a value that restates the participant's goal sentence (`restates`) is not a title, query or text of its own;
+    * a short value that prefaces or announces (`ANNOUNCE`: "Here is the text you'd publish:") and a composed text
+      that says next to nothing once its announcing sentences are left out (`announcement`: "I will publish an
+      article on ...") are not the value;
     * a short value (`short`: a title, subject, query, name ...) of four words or more is a copy when more than
       half of its word 4-grams occur in the prompt outside the participant's own words (`own`: its goal and the
       values it wrote in its earlier calls) - another person's title seen in a result, the tool's description, a
-      memory line, its persona, a situation line. A title or query about its goal naturally reuses the goal's words
+      memory line, its persona, a situation line (a subject is exempt: a reply repeats the subject it answers).
+      A title or query about its goal naturally reuses the goal's words
       (the third standard run discarded 48 such values of one participant as copies, leaving every publication
       without its required title), and so does a rewrite of a value it wrote before;
     * a longer value is one when more than `share` of its word 5-grams occur in the prompt outside its own words,
@@ -727,9 +754,15 @@ def copied_from_prompt(text: str, req: dict, own: str = "", n: int = 5, share: f
         return True
     if goal and restates(t, goal):
         return True
+    # a title, subject or query that prefaces or announces ("Here is the text you'd publish:") and a composed text
+    # that, without its announcing sentences, says next to nothing
+    if (short and ANNOUNCE.match(t)) or (compose and announcement(t)):
+        return True
     prompt = " ".join(m.get("content", "") for m in req.get("messages", []))
     if short:
-        if len(words) < 4:
+        if len(words) < 4 or slot_name == "subject":
+            # a subject may repeat the subject of the message it answers (scaffolding, tool names, goal restatement
+            # and announcements are checked above)
             return False
         g = _grams(t, 4)
         foreign = _grams(prompt, 4) - _grams(own or "", 4)
@@ -997,7 +1030,7 @@ def accept(a: Agent, slot: Slot, req: dict, text: str, tool: str = ""):
         return v                          # a number is chosen or written, never an echo
     if copied_from_prompt(text, req, own=own_words(a), short=slot.kind in ("text", "list") and slot.tokens <= 40,
                           goal=(a.goal() or {}).get("text", ""), names=tool_names(a, tool),
-                          compose=slot.kind == "compose"):
+                          compose=slot.kind == "compose", slot_name=slot.name):
         a.count("copied_values")
         return None
     return v

@@ -8,8 +8,9 @@ about itself:
   events visible to another principal). *Consequential* = succeeded, not read-only, and emitted at least one event
   that another principal (or the public) can see. What the call wrote is read from the log too (the text fields of
   its events' payloads and the text artifacts it stored): a call whose main written content is junk - a tool or
-  service name, a line of the participants' prompt scaffolding, the participant's own goal sentence restated, or
-  under two letters - is *junk*, and `summary` counts consequential calls that are not junk once per participant,
+  service name, a line of the participants' prompt scaffolding, the participant's own goal sentence restated, a
+  text that only announces what its writer will do ("I will publish an article on ..."), or under two letters - is
+  *junk*, and `summary` counts consequential calls that are not junk once per participant,
   tool and content (`signature`: a calendar entry titled 'cal' made again later, or the same text mailed to other
   people, counts once; audit D skeptic "junk repetitions").
 * `provenance(world)` - SP-3.2d: every event in the log whose actor is a semantic participant must lie inside a
@@ -85,11 +86,15 @@ def _norm(t: str) -> str:
     return " ".join(re.findall(r"[a-z0-9']+", t.lower()))
 
 
-def junk_text(text: str, names: set, goal: str) -> bool:
-    """Evaluator-side: a written text that says nothing of its own (see the module docstring)."""
-    from .mind import SCAFFOLD, restates
+def junk_text(text: str, names: set, goal: str, publication: bool = False) -> bool:
+    """Evaluator-side: a written text that says nothing of its own (see the module docstring). A publication (the
+    text of an artifact it published, or a publication's title) is also junk when it only announces what its writer
+    will do or prefaces itself; a message may well say what its writer will do."""
+    from .mind import ANNOUNCE, SCAFFOLD, announcement, restates
     flat = _norm(text)
     if len(re.findall(r"[A-Za-z]", text)) < 2 or SCAFFOLD.search(text):
+        return True
+    if publication and (announcement(text) if len(flat.split()) >= 12 else bool(ANNOUNCE.match(text))):
         return True
     if flat in names or text.strip().lower() in names:
         return True
@@ -163,7 +168,8 @@ def actions(world) -> list[dict]:
         vals, arts = written(world, evs, p) if rec["consequential"] else ([], [])
         main = max(arts, key=len) if arts else (max(vals, key=len) if vals else None)
         rec["written"] = bool(main)
-        rec["junk"] = bool(main is not None and junk_text(main, tools[p], goals.get(h.get("goal"), "")))
+        rec["junk"] = bool(main is not None and junk_text(main, tools[p], goals.get(h.get("goal"), ""),
+                                                          publication=bool(arts)))
         rec["signature"] = json.dumps([p, h["tool"], _norm(main)[:400] if main else h.get("args")])
         out.append(rec)
     return out
@@ -230,7 +236,7 @@ def productive(world, min_viewers: int = 3) -> list[dict]:
         v = A.viewers_of(world, int(key))
         indep = v[(v < cls.shape[0]) & (cls[np.minimum(v, cls.shape[0] - 1)] != CLASS)] if v.size else v
         ex = A.audience(world, int(key))
-        text = str(rec.get("title") or "")
+        text, title = str(rec.get("title") or ""), str(rec.get("title") or "")
         try:
             info = artifacts.info(world, rec["ref"]) if rec.get("ref") else None
             if info and str(info.get("mime", "")).startswith("text/"):
@@ -238,7 +244,9 @@ def productive(world, min_viewers: int = 3) -> list[dict]:
         except Exception:  # noqa: BLE001 - no text artifact: judged by its title
             pass
         ns = {t["name"].lower() for t in world.available_tools(rec["creator"])}
-        junk = any(junk_text(text, ns | {n.split(".", 1)[0] for n in ns}, g) for g in goals[rec["creator"]] or [""])
+        names = ns | {n.split(".", 1)[0] for n in ns}
+        junk = any(junk_text(text, names, g, publication=True) for g in goals[rec["creator"]] or [""]) or \
+            (bool(title) and title != text and junk_text(title, names, "", publication=True))
         out.append({"item": int(key), "creator": rec["creator"], "platform": rec.get("platform"),
                     "unique_viewers": int(ex["unique_viewers"]), "independent_viewers": int(indep.size),
                     "views": int(ex["views"]), "shares": int(ex["shares"]), "junk_content": junk,
