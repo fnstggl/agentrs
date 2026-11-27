@@ -688,13 +688,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-G-5 (critical, open): Gate L chains come from 4 hand-built lean worlds with host-keyed extractors; the software chain has 4 of 5 sta
+### DEF-G-5 (critical, fixed): Gate L chains come from 4 hand-built lean worlds with host-keyed extractors; the software chain has 4 of 5 sta
 
 ```json
 {
  "area": "G_innovation",
+ "fixed_by": "wave 3b (c5c/w3b-econ2, D-43): Gate L is measured in the integrated civilisation (crucible.civ generator spec + the population's autonomous developers, innovation.inventworld.civ_spec) with counterfactual arms that differ only in the developers' config; chains are mined generically from the labelled-need history and the event log (no host-keyed extractor, no scripted stage); unofficial civilisation run of tests/v5/test_gate_L.py at 7bc3ddc (balanced seed 3, 30 days, 4 arms, G slot lane 2026-11-27): L.4 12 independent chains, minimum 5 stages, 0 scripted stages, all 12 with an agent artifact; L.5 11 of 12 chains confirmed by their removal arm; L.n1 0 runtime bonuses, 1553 income deposits verified. Replication: 4 seeds of small creation worlds (unofficial); the civilisation is measured on one seed (limitation recorded in workstreams/G.json). The 4.0-era alternative-seed checks of the lean worlds no longer exist (those worlds were removed).",
  "id": "DEF-G-5",
  "owner": "G (ECON)",
+ "regression_tests": "tests/v5/test_gate_L.py (L.4 scripted_stages == 0, L.5 removal arms); tests/test_v5_innovation_gates.py; tests/test_v5_innovation_devs.py",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -702,7 +704,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/G_innovation.json",
   "finding": 4
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Gate L chains come from 4 hand-built lean worlds with host-keyed extractors; the software chain has 4 of 5 stages scripted; civ is a stub and no domain, population or civ uses innovation; 2 of 12 alternative-seed checks fail."
 }
 ```
