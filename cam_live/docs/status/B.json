@@ -1,6 +1,6 @@
 {
  "workstream": "B",
- "commit": "e2ec33ab834f015837d9411bde04efaa944ce0bb",
+ "commit": "cb499b440c01478d42dfd3f2d4430a4dcefc7e8e",
  "summary": "Stage 1 + stage 2. Prediction and decision-making under src/cam_live/predict, wired onto the real CamLiveModel: five heads registered on the model, five LossProviders (world model incl. fast-prior and latent-consistency terms, ALPaCA-style fast prior, evaluator on signed verified outcomes, and adapter variants), the runtime Predictor (registered multi-horizon predictions, immediate fast-belief update, resolution, decision-relevant VOI), DecisionMaker (exact probabilities for five rules, self-proposed randomised experiments), LatentPlanner, BackboneProposer (100 % schema-valid proposals from Qwen3-4B on two tool sets), and debug-scale learning evidence in LabWorld with honest failures recorded.",
  "requirements": {
   "PI-01": {
@@ -98,7 +98,8 @@
     "tests/predict/test_providers.py::test_world_loss_gradient_reaches_core_heads_and_fast_prior_only",
     "tests/predict/test_providers.py::test_fast_prior_loss_is_prequential_within_an_objective",
     "tests/predict/test_providers.py::test_adapter_providers_send_prediction_gradient_into_the_semantic_adapters",
-    "tests/predict/test_learning_evidence.py::test_family_training_uses_all_three_providers"
+    "tests/predict/test_learning_evidence.py::test_family_training_uses_all_three_providers",
+    "tests/predict/test_world.py::test_build_targets_keeps_values_in_float64"
    ],
    "commands": [
     "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
@@ -110,7 +111,7 @@
     "docs/evidence/B/diagnostics.json",
     "docs/evidence/B/real_config.json"
    ],
-   "limitations": "Trained here with a plain optimiser (predict.labdata.train); running under D's ContinualLearner is integration work. Adapter gradient is demonstrated (non-zero, bounded memory), adapter *learning* from real experience is not. Learning evidence is at debug scale only (tiny random backbone, debug core, LabWorld; provenance 'diagnostic'). On the real Qwen3-4B configuration the path is exercised at initialisation (docs/evidence/B/real_config.json), not trained. Not yet called by the integrated agent / runtime (master integrates)."
+   "limitations": "Trained here with a plain optimiser (predict.labdata.train); running under D's ContinualLearner is integration work. Adapter gradient is demonstrated (non-zero, bounded memory), adapter *learning* from real experience is not. Learning evidence is at debug scale only (tiny random backbone, debug core, LabWorld; provenance 'diagnostic'). On the real Qwen3-4B configuration the path is exercised at initialisation (docs/evidence/B/real_config.json), not trained. Not yet called by the integrated agent / runtime (master integrates). Targets and exposures are kept in float64 by build_targets (G-pr D11)."
   },
   "PI-04": {
    "state": "implemented",
@@ -282,7 +283,8 @@
     "tests/predict/test_policy.py::test_variable_candidate_sets_padding_and_permutation",
     "tests/predict/test_proposer.py::test_tiny_backbone_proposals_are_merged_with_walker_and_skills",
     "tests/predict/test_proposer.py::test_backbone_text_is_parsed_strictly_and_keeps_its_provenance",
-    "tests/predict/test_proposer.py::test_real_backbone_proposes_schema_valid_actions"
+    "tests/predict/test_proposer.py::test_real_backbone_proposes_schema_valid_actions",
+    "tests/predict/test_proposer.py::test_bridge_is_an_exact_no_op_at_init_and_conditions_proposals_after_an_update"
    ],
    "commands": [
     "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
@@ -291,7 +293,7 @@
    "evidence": [
     "docs/evidence/B/proposals_real_backbone.json"
    ],
-   "limitations": "The bridge is an exact no-op at initialisation, so 'conditioned on the latent' is exercised but has no effect until the adapters are trained; proposal usefulness (as opposed to validity) was not measured. JSON-Schema support is a subset ($ref, if/then/else, patternProperties unchecked)."
+   "limitations": "The bridge is an exact no-op at initialisation (zero-initialised cross-attention outputs, by design): log p(proposal | prompt, b) is bit-identical for every belief until the bridge is trained, so 'conditioned on the latent' is structural until then (G-pr D9; documented in BackboneProposer). The path is live: one gradient step on the bridge makes the proposals' log-probabilities change and depend on b (test below); the bridge is trained by D's consequence provider / BridgeGroundingProvider, not by B. Proposal usefulness (as opposed to validity) was not measured. JSON-Schema support is a subset ($ref, if/then/else, patternProperties unchecked)."
   },
   "PI-10": {
    "state": "implemented",
@@ -428,7 +430,10 @@
     "tests/predict/test_calibration.py::test_studentised_ci_matches_scipy_and_respects_clusters",
     "tests/predict/test_registry.py::test_registry_score_uses_registration_time",
     "tests/predict/test_predictor.py::test_success_forecasts_resolve_only_with_a_signed_resolved_objective_outcome",
-    "tests/predict/test_learning_evidence.py::test_success_forecasts_are_prospective_and_scored_once"
+    "tests/predict/test_learning_evidence.py::test_success_forecasts_are_prospective_and_scored_once",
+    "tests/predict/test_calibration.py::test_slope_interval_accounts_for_clustering_under_a_clustered_null",
+    "tests/predict/test_calibration.py::test_independent_rows_keep_their_coverage_under_the_robust_intervals",
+    "tests/predict/test_calibration.py::test_score_predictions_clusters_the_nll_intervals"
    ],
    "commands": [
     "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
@@ -436,9 +441,10 @@
     "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.predict.diagnose (run as three processes with --only 1a / --only 1b,2,3,4,5 / --only 4 and merged; see the 'runs' field of docs/evidence/B/diagnostics.json)"
    ],
    "evidence": [
-    "docs/evidence/B/diagnostics.json"
+    "docs/evidence/B/diagnostics.json",
+    "docs/C/FIXES.md"
    ],
-   "limitations": "The measurement is implemented and prospective (forecasts registered at decision time, resolved by the signed verified outcome, scored per lifetime cluster). What it measured on the real debug model is in measured / scientific_failures: see evaluator_calibration."
+   "limitations": "The measurement is implemented and prospective (forecasts registered at decision time, resolved by the signed verified outcome). Every interval accounts for clustering when clusters are given (G-pr D5, D10): slope / intercept by cluster-robust CR1 sandwich, Brier / NLL over cluster means, ECE by cluster bootstrap; without labels slope / intercept use a HAC sandwich in row order. On the verifier's clustered null (40 lifetimes x 16 forecasts, true slope 0) the 95 % interval excludes 0 in 3.3 % of runs with clusters, 7 % with HAC, 61 % with the former Wald interval. What it measured on the real debug model is in measured / scientific_failures: see evaluator_calibration."
   },
   "SE-05": {
    "state": "implemented",
@@ -763,36 +769,54 @@
     "n": 640,
     "n_lifetimes": 40,
     "base_rate": 0.6,
-    "mean_p": 0.5,
+    "mean_p": 0.5004,
     "brier": {
      "hi": 0.2502,
      "lo": 0.2498,
      "mean": 0.25,
-     "n": 40.0
+     "n": 40.0,
+     "se": 0.0001
     },
     "brier_of_base_rate": 0.24,
     "slope": -56.6,
-    "slope_lo": -101.573,
-    "slope_hi": -11.628,
-    "ece": 0.0996
+    "slope_lo": -120.708,
+    "slope_hi": 7.507,
+    "ece": 0.0996,
+    "intercept": 0.501,
+    "intercept_lo": -0.175,
+    "intercept_hi": 1.177,
+    "slope_interval_if_rows_were_independent": [
+     -101.573,
+     -11.628
+    ]
    },
    "trained": {
     "n": 640,
     "n_lifetimes": 40,
     "base_rate": 0.6,
-    "mean_p": 0.581,
+    "mean_p": 0.5791,
     "brier": {
-     "hi": 0.266,
-     "lo": 0.2146,
-     "mean": 0.2403,
-     "n": 40.0
+     "hi": 0.2655,
+     "lo": 0.2153,
+     "mean": 0.2404,
+     "n": 40.0,
+     "se": 0.0124
     },
     "brier_of_base_rate": 0.24,
-    "slope": 254.162,
-    "slope_lo": 122.429,
-    "slope_hi": 385.895,
-    "ece": 0.0191
-   }
+    "slope": 303.976,
+    "slope_lo": -27.952,
+    "slope_hi": 635.904,
+    "ece": 0.0209,
+    "intercept": -96.657,
+    "intercept_lo": -202.618,
+    "intercept_hi": 9.305,
+    "slope_interval_if_rows_were_independent": [
+     146.153,
+     461.798
+    ]
+   },
+   "interval_method": "clustered by lifetime: slope / intercept cluster-robust CR1 (G - 1 = 39 df), Brier / NLL over lifetime means, ECE cluster bootstrap (G-pr D5)",
+   "superseded_claim": "calibration slope 254.16 (CI 122.43..385.90) of the first run: not a valid interval (rows treated as independent; G-pr D5)"
   },
   "voi_probe_vs_gauge": {
    "fast": {
@@ -1097,7 +1121,7 @@
  "scientific_failures": [
   "World model on NEW mechanisms (heads only, no adaptation) does not beat the action-independent baseline: held-out NLL 1.666 vs 1.645 (6 h) and 2.211 vs 2.163 (2 d); gain CIs {'hi': 0.0281, 'lo': -0.068, 'mean': -0.0199, 'n': 20.0, 'n_rows': 156.0} / {'hi': -0.005, 'lo': -0.0981, 'mean': -0.0515, 'n': 20.0, 'n_rows': 156.0}. At debug scale the core did not learn to read an unseen channel's rate from the features in its context.",
   "Fast adaptation lowers predictive NLL after the first observation (gain {'hi': 0.1874, 'lo': 0.0515, 'mean': 0.1194, 'n': 38.0, 'n_rows': 318.0}) but NOT the absolute error of the predicted mean (gain {'hi': 0.1151, 'lo': -0.532, 'mean': -0.2084, 'n': 38.0, 'n_rows': 318.0}): the posterior mostly corrects the spread and the log-rate, the mean stays noisy.",
-  "Evaluator calibration, prospective, held-out lifetimes: Brier 0.250 untrained -> 0.240 trained (CI 0.215..0.266); predicting the base rate gives 0.240. brier_improved=True, beats_base_rate=False; calibration slope 254.16 (CI 122.43..385.90). The trained evaluator is a calibrated constant (mean forecast 0.581, base rate 0.600, ECE 0.019): it does not discriminate between lifetimes at debug scale. A first run that trained it on only 60 lifetimes was worse than the untrained constant (Brier 0.277 vs 0.250; docs/evidence/B/diagnostics_family_run1_evaluator_60_lifetimes.json): it memorised lifetimes. The reported run trains it on batches drawn from 400 lifetimes.",
+  "Evaluator calibration, prospective, held-out lifetimes (re-run after G-pr D5 with lifetime-clustered intervals): Brier 0.250 untrained -> 0.240 trained (CI 0.215..0.265, 40 lifetimes); predicting the base rate gives 0.240. brier_improved=True, beats_base_rate=False; calibration slope 303.98 (cluster-robust CI -27.95..635.90; the earlier '254.16 (CI 122.43..385.90)' treated 640 forecasts of 40 lifetimes as independent and was not a valid interval). The trained evaluator is close to a constant (mean forecast 0.579, base rate 0.600, ECE 0.021): it does not discriminate between lifetimes at debug scale, so the slope is weakly identified. A first run that trained it on only 60 lifetimes was worse than the untrained constant (Brier 0.277 vs 0.250; docs/evidence/B/diagnostics_family_run1_evaluator_60_lifetimes.json): it memorised lifetimes. The reported run trains it on batches drawn from 400 lifetimes.",
   "VOI of the probe is not higher than VOI of the noisy gauge. Fast-layer path: both exactly 0 (a real-valued reading cannot update the count posterior; posteriors are per kind). Slow path (imagined reading enters a copy of the context): probe {'hi': 0.0604, 'lo': 0.0061, 'mean': 0.0332, 'n': 20.0} vs gauge {'hi': 0.0644, 'lo': 0.0137, 'mean': 0.039, 'n': 20.0}, probe minus gauge {'hi': 0.011, 'lo': -0.0226, 'mean': -0.0058, 'n': 20.0} - the debug-scale core has not learned to use probe readings, and its sensitivity to the large gauge values shows up as spurious value. The slow path is therefore off by default (voi_slow_path=False) and was not used for selection.",
   "The plain estimator E[max Q(updated)] - max Q(current) is biased upwards with the assumed-density count update (VOI of acting {'hi': 1.3072, 'lo': 0.0713, 'mean': 0.6893, 'n': 20.0} against {'hi': 0.0117, 'lo': 0.0011, 'mean': 0.0064, 'n': 20.0} for the Jensen-gap estimator E[max] - max E on the same samples). A run with the plain estimator made VOI-aware selection need MORE interventions than greedy (greedy minus VOI {'hi': -2.3258, 'lo': -7.3106, 'mean': -4.8182, 'n': 11.0}, 11 paired seeds; docs/evidence/B/diagnostics_value_of_information_plain_estimator.json); the Predictor now uses the Jensen gap.",
   "VOI-aware selection does not reach the target with fewer interventions than greedy: greedy minus VOI = {'hi': 0.6848, 'lo': -4.0181, 'mean': -1.6667, 'n': 12.0} over 12 paired seeds that both reached the target (reached: greedy 1.00, VOI 1.00).",
