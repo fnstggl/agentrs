@@ -36,7 +36,8 @@ memory learns to carry what the individual's own history says beyond its observa
 `pop.policy_update {group, step, loss_before, loss, weights_hash, n_examples, examples, checkpoint?}`. The update is deterministic (CPU,
 one thread, minibatches drawn from a generator keyed by group and step), so loading a snapshot rebuilds the weights
 from the last checkpoint plus the logged updates and checks every weights hash. Inference goes through
-`substrate.inference.recorded` (regeneration does not rerun it).
+`substrate.inference.recorded`, through the shared batching service `substrate.inference_batch` (one recorded call
+per policy group and decision round, accounted per participant class; regeneration does not rerun it).
 
 Groups (config `groups`): [{id, share, learning, memory, hidden, seed}] - several independently learning groups,
 frozen groups (`learning: false`), groups without personal memory (`memory: false`), and `pop_adaptive.freeze_copy`
@@ -52,6 +53,7 @@ from ..core import schema as S
 from ..core.errors import Forbidden, InvalidAction, NotFound, ProtocolError
 from ..core.kernel import SYSTEM, Ctx, Module, applier, endpoint, process, register_module
 from ..substrate import artifacts, bus, columns, inference
+from ..substrate import inference_batch as IB
 from . import text
 from .schema import RES_TABLE, TABLE
 
@@ -460,16 +462,19 @@ class PopAdaptive(Module):
         for gid in sorted(set(groups.tolist())):
             sel = np.flatnonzero(groups == gid)
             pol = self.policy(w, gid)
-            inp = {"obs": obs[sel], "mem": mem[sel], "cand": cand[sel], "mask": mask[sel]}
-            out = inference.recorded(ctx, f"pop.adaptive.{gid}", f"adaptive:{gid}", pol.weights_hash(), inp,
-                                     lambda pol=pol, inp=inp: {"scores": pol.scores(inp["obs"], inp["mem"],
-                                                                                    inp["cand"])[0]})
+            # one recorded call of the shared network through the batching service (BATCHING.md); the mask, the
+            # Gumbel draw and the choice stay here
+            out = IB.decide(ctx, IB.method_request(
+                pol, "scores", {"obs": obs[sel], "mem": mem[sel], "cand": cand[sel]}, outputs=("scores", "memory"),
+                keep=("scores",), model_id=f"adaptive:{gid}", cls=2, static={"use_memory": bool(pol.use_memory)},
+                label="resource_choice"))
             s = np.where(mask[sel], out["scores"] + rng.gumbel(size=out["scores"].shape) *
                          float(self.cfg["temperature"]), -np.inf)
             pick[sel] = np.argmax(s, axis=1)
             stats["max_batch"] = max(stats["max_batch"], int(sel.size))
-            stats["calls"] += 1
-            stats["decisions"] += int(sel.size)
+            # (the batching service accounts the calls per class: inference_batch.stats; these count this decision)
+            stats["resource_calls"] = stats.get("resource_calls", 0) + 1
+            stats["resource_decisions"] = stats.get("resource_decisions", 0) + int(sel.size)
         pend = w.runtime.setdefault("pop_adaptive.pending", {})
         pend.clear()
         pend["seq"] = w.seq
@@ -493,9 +498,9 @@ class PopAdaptive(Module):
         for gid in sorted(set(groups.tolist())):
             sel = np.flatnonzero(groups == gid)
             pol = self.policy(w, gid)
-            inp = {"obs": obs[sel], "mem": mem[sel]}
-            out = inference.recorded(ctx, f"pop.adaptive_day.{gid}", f"adaptive:{gid}", pol.weights_hash(), inp,
-                                     lambda pol=pol, inp=inp: {"memory": pol.step_memory(inp["obs"], inp["mem"])})
+            out = IB.decide(ctx, IB.method_request(
+                pol, "step_memory", {"obs": obs[sel], "mem": mem[sel]}, outputs=("memory",), model_id=f"adaptive:{gid}",
+                cls=2, static={"use_memory": bool(pol.use_memory)}, label="day_review"))
             new_mem[sel] = out["memory"]
             stats["max_batch_day"] = max(stats.get("max_batch_day", 0), int(sel.size))
             stats["day_reviews"] = stats.get("day_reviews", 0) + int(sel.size)
@@ -541,10 +546,10 @@ class PopAdaptive(Module):
         for gid in sorted(set(groups.tolist())):
             sel = np.flatnonzero(groups == gid)
             pol = self.policy(w, gid)
-            inp = {"obs": obs[sel], "mem": mem[sel], "acand": ac[sel]}
-            out = inference.recorded(ctx, f"pop.adaptive_act.{gid}", f"adaptive:{gid}", pol.weights_hash(), inp,
-                                     lambda pol=pol, inp=inp: dict(zip(("scores", "memory"), pol.act_scores(
-                                         inp["obs"], inp["mem"], inp["acand"]))))
+            out = IB.decide(ctx, IB.method_request(
+                pol, "act_scores", {"obs": obs[sel], "mem": mem[sel], "acand": ac[sel]}, outputs=("scores", "memory"),
+                model_id=f"adaptive:{gid}", cls=2, static={"use_memory": bool(pol.use_memory)},
+                label="activity_choice"))
             if self.cfg.get("activities", True):
                 s_ = out["scores"] + rng.gumbel(size=out["scores"].shape) * float(self.cfg["temperature"])
                 pick[sel] = np.argmax(s_, axis=1)
@@ -588,7 +593,8 @@ class PopAdaptive(Module):
                                                     "kind": 1}, vis="internal")
 
     def _stats(self, w) -> dict:
-        return w.runtime.setdefault("pop_adaptive.stats", {"max_batch": 0, "calls": 0, "decisions": 0})
+        return w.runtime.setdefault("pop_adaptive.stats", {"max_batch": 0, "resource_calls": 0,
+                                                            "resource_decisions": 0})
 
     def reward(self, ctx: Ctx, idx: np.ndarray, U: np.ndarray) -> None:
         """Pair the pending decisions of `idx` with their realised utility; one example blob per group."""

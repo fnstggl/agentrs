@@ -62,6 +62,7 @@ from ..core import schema as S
 from ..core.errors import CrucibleError, Forbidden, InvalidAction, NotFound, ProtocolError
 from ..core.kernel import SYSTEM, Ctx, Module, applier, endpoint, register_module
 from ..substrate import artifacts, attention, bus, columns, ids, inference
+from ..substrate import inference_batch as IB
 from . import semantics, sites, writing
 from .schema import TABLE
 
@@ -479,8 +480,7 @@ class PopStrategic(Module):
                 reaches.append(rc)
                 hist.append(self._history(st, gname, i))
             O, H = np.stack(obs), np.stack(hist)
-            out = inference.recorded(ctx, f"pop.strategic.{gname}", f"strategic:{gname}", grp.weights_hash(),
-                                     {"obs": O, "hist": H}, lambda: grp.logits(O, H))
+            out = IB.decide(ctx, IB.strategic_request(grp, O, H, model_id=f"strategic:{gname}"))
             for j, i in enumerate(mem):
                 m = dict(st.tables["pop_strat_members"][str(i)])
                 if m.get("last_exp"):                 # the previous decision's reward is now known
