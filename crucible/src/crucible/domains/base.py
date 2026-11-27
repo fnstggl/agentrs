@@ -365,7 +365,7 @@ def generate_objective(d: Domain, world: World, principal: str, difficulty: int)
     g = d.goal
     rng = goal_rng(world, d.name, principal, difficulty, g.name)
     params = g.draw(rng, int(difficulty), BuiltWorld(world)) if _arity(g.draw) >= 3 else g.draw(rng, int(difficulty))
-    params = json.loads(json.dumps(params))
+    params = json.loads(json.dumps(params, default=_json_default))
     pred = g.success(params)
     problems = check_predicate(pred)
     if problems:
@@ -1414,6 +1414,7 @@ def run(domain: str, config: str, seed: int = 0, *, policy: str = "reference", d
                "nonzero_rewards": int(dr["agents"][me]["nonzero_rewards"]),
                "exposure": tr.summary(), "queried_tools": sorted(q) if q else [],
                "engaged_modules": engaged_modules(w, since), "frozen": frozen, "isolated": bool(isolate),
+               "event_kinds": sorted(k for k in event_counts(w, since) if k not in BOOKKEEPING),
                "overrides": copy.deepcopy(overrides) if overrides else None,
                "labels": {"scripted": policy == "reference", "policy_kind": getattr(pol, "kind", "unknown"),
                           "isolated_process": bool(isolate)}}
@@ -2284,6 +2285,24 @@ def structure_report(d: Domain, seeds: Iterable[int] = (0, 1, 2), activity: dict
             "structural_eval": sum(1 for c in d.split("eval_structural") if unf.get(c.name, {}).get("structural"))}
 
 
+def hook_only_pairs(st: dict, null_runs: dict) -> list[dict]:
+    """Diagnostic (reported, not counted): configuration pairs whose framework-measured (core) structure is equal and
+    that differ only through the domain's structure hook, with whether their null runs recorded different kinds of
+    events. A hook difference without any behavioural difference may be a declaration copied into state."""
+    out = []
+    core = st.get("core_digests") or {}
+    names = sorted(c for c in core if core[c])
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            if core[a] != core[b] or st["digests"].get(a) == st["digests"].get(b):
+                continue
+            ka = set((null_runs.get(a) or {}).get("event_kinds") or [])
+            kb = set((null_runs.get(b) or {}).get("event_kinds") or [])
+            out.append({"pair": f"{a}={b}", "null_event_kinds_differ": ka != kb,
+                        "only_in": sorted(ka ^ kb)[:12]})
+    return out
+
+
 DECLARATION_ATTRS = frozenset({"spec", "config", "cfg", "params", "runtime", "_w", "world", "hooks", "processes",
                                "endpoints", "__dict__", "__globals__", "get_objects", "_getframe", "f_back"})
 
@@ -2478,6 +2497,8 @@ def check(d: Domain | str, *, structure_seeds: Iterable[int] = (0, 1, 2), seeds:
     rep["run_errors"] = errors
     activity = {r["config"]: r.get("engaged_modules") or [] for r in runs["null"] if r["seed"] == s0}
     rep["structure"] = structure_report(d, structure_seeds, activity)
+    rep["structure"]["hook_only_pairs"] = hook_only_pairs(rep["structure"], {
+        r["config"]: r for r in runs["null"] if r["seed"] == s0})
     keys = ("config", "seed", "policy", "success", "score", "events", "proc_failed", "invariant_violations",
             "nonzero_rewards", "isolated")
     rep["runs"] = {k: [{x: r.get(x) for x in keys} for r in v] for k, v in runs.items()}

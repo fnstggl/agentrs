@@ -707,3 +707,10 @@ def test_a_domain_module_that_fails_to_register_is_reported_not_fatal(monkeypatc
         assert "zz_broken_probe" in base.gate_metrics({})["domain_load_errors"]
     finally:
         D.LOAD_ERRORS.pop("zz_broken_probe", None)
+
+
+def test_hook_only_structure_differences_are_reported_with_their_behavioural_footprint():
+    st = {"core_digests": {"a": "x", "b": "x", "c": "y"}, "digests": {"a": "1", "b": "2", "c": "3"}}
+    rows = base.hook_only_pairs(st, {"a": {"event_kinds": ["m.x"]}, "b": {"event_kinds": ["m.x", "m.trip"]}})
+    assert rows == [{"pair": "a=b", "null_event_kinds_differ": True, "only_in": ["m.trip"]}]
+    assert base.hook_only_pairs(dict(st, digests={"a": "1", "b": "1", "c": "3"}), {}) == []
