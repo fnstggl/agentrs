@@ -238,7 +238,9 @@ def _last_seq(path: str) -> int:
                 if not ln.strip():
                     continue
                 try:
-                    return int(json.loads(ln).get("seq", -1))
+                    rec = json.loads(ln)
+                    if "rid" in rec:                       # only lines written by a RunLog count
+                        return int(rec.get("seq", -1))
                 except (json.JSONDecodeError, ValueError, TypeError, AttributeError):
                     continue
             if back >= size:
@@ -267,6 +269,39 @@ def _repair_torn_tail(path: str) -> int:
         return size - keep
 
 
+LOG_POINTER = "runtime_logs.json"
+
+
+def _foreign(path: str) -> bool:
+    """True when ``path`` exists but is not a RunLog file this process can append to (another component, or
+    another uid, already uses that name in the run directory)."""
+    if not os.path.exists(path):
+        return False
+    if os.stat(path).st_uid != os.geteuid() or not os.access(path, os.W_OK):
+        return True
+    for rec in iter_jsonl(path):
+        return not (isinstance(rec, dict) and "rid" in rec)
+    return False
+
+
+def resolve_log_dir(run_dir: str, create: bool = False) -> str:
+    """Directory holding the runtime's JSONL logs: the run directory itself, unless one of the log file names is
+    already taken there by another writer — then ``<run_dir>/learner`` (recorded in ``runtime_logs.json`` so every
+    reader finds them)."""
+    ptr = read_json(os.path.join(run_dir, LOG_POINTER))
+    if isinstance(ptr, dict) and ptr.get("log_dir"):
+        return os.path.join(run_dir, ptr["log_dir"])
+    if create:
+        taken = [n for n in LOG_FILES if _foreign(os.path.join(run_dir, n))]
+        if taken:
+            os.makedirs(os.path.join(run_dir, "learner"), exist_ok=True)
+            atomic_write_json(os.path.join(run_dir, LOG_POINTER),
+                              {"log_dir": "learner", "reason": f"{', '.join(taken)} in the run directory belong(s) to "
+                                                               "another writer"})
+            return os.path.join(run_dir, "learner")
+    return run_dir
+
+
 def _plain(x: Any) -> Any:
     return x.to_dict() if isinstance(x, Record) else x
 
@@ -280,13 +315,14 @@ class RunLog:
         self.run_id, self.provenance, self.source = run_id or os.path.basename(os.path.normpath(run_dir)), provenance, source
         os.makedirs(run_dir, exist_ok=True)
         os.makedirs(os.path.join(run_dir, RunFiles.CHECKPOINTS), exist_ok=True)
+        self.log_dir = resolve_log_dir(run_dir, create=True)
         self.redact = redactor or Redactor(load_salt(run_dir))
         self._lock = threading.Lock()
         self._fh: Dict[str, Any] = {}
         self.repaired: Dict[str, int] = {}
         seq = -1
         for name in LOG_FILES:
-            p = os.path.join(run_dir, name)
+            p = os.path.join(self.log_dir, name)
             removed = _repair_torn_tail(p)
             if removed:
                 self.repaired[name] = removed
@@ -311,7 +347,7 @@ class RunLog:
                 env["trust"] = trust
             fh = self._fh.get(name)
             if fh is None:
-                fh = self._fh[name] = open(os.path.join(self.run_dir, name), "a", encoding="utf-8")
+                fh = self._fh[name] = open(os.path.join(self.log_dir, name), "a", encoding="utf-8")
             fh.write(json.dumps(env, sort_keys=True, default=str) + "\n")
             fh.flush()
             if consequential and self.durable:
@@ -409,27 +445,28 @@ class RunReader:
 
     def __init__(self, run_dir: str):
         self.run_dir = run_dir
+        self.log_dir = resolve_log_dir(run_dir)
 
     def path(self, name: str) -> str:
-        return os.path.join(self.run_dir, name)
+        return os.path.join(self.log_dir if name in LOG_FILES else self.run_dir, name)
 
     def records(self, name: str, types: Optional[Sequence[str]] = None, tail: Optional[int] = None) -> List[Dict[str, Any]]:
-        return read_jsonl(self.path(name), tail=tail, types=types)
+        out = [r for r in iter_jsonl(self.path(name)) if "rid" in r and (types is None or r.get("type") in types)]
+        return out[-tail:] if tail else out
 
     def state(self) -> Dict[str, Any]:
         return read_json(self.path(RunFiles.STATE), {}) or {}
 
     def latest(self, name: str, type_: str) -> Optional[Dict[str, Any]]:
         last = None
-        for r in iter_jsonl(self.path(name)):
-            if r.get("type") == type_:
-                last = r
+        for r in self.records(name, types=[type_]):
+            last = r
         return last
 
     def obstacles(self) -> List[Dict[str, Any]]:
         """Latest revision of every obstacle record (the file is append-only; revisions accumulate)."""
         by: Dict[str, Dict[str, Any]] = {}
-        for r in iter_jsonl(self.path(RunFiles.OBSTACLES)):
+        for r in self.records(RunFiles.OBSTACLES):
             d = r.get("data", {})
             oid = d.get("obstacle", {}).get("obstacle_id", "")
             if oid and (oid not in by or d.get("rev", 0) >= by[oid]["data"].get("rev", 0)):

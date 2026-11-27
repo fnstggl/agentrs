@@ -24,18 +24,32 @@ from cam_live.runtime.logs import atomic_write_json, read_json
 
 
 def schema_values(prop: Dict[str, Any]) -> List[Any]:
+    """A few valid values for one JSON-Schema property (enum, boolean, integer, number, string with a default)."""
+    if "enum" in prop:
+        return list(prop["enum"])[:6]
+    tp = prop.get("type")
+    if tp == "boolean":
+        return [False, True]
+    if tp == "string":
+        return [prop["default"]] if isinstance(prop.get("default"), str) else []
+    if tp not in ("integer", "number"):
+        return []
     lo, hi = prop.get("minimum", 0), prop.get("maximum", 1)
-    if prop.get("type") == "integer":
+    if tp == "integer":
         vals = list(range(int(lo), int(hi) + 1))
         return vals if len(vals) <= 8 else [vals[0], vals[len(vals) // 2], vals[-1]]
     return [float(lo), float(math.sqrt(max(lo, 1e-9) * max(hi, 1e-9))), float(hi)]
 
 
 def schema_walk(tool: ToolDescriptor) -> List[Dict[str, Any]]:
-    props = (tool.arg_schema or {}).get("properties", {})
+    """Argument settings that satisfy the tool's schema: every combination of values of the required properties
+    (optional properties are left out). A tool with a required property this walker cannot fill yields nothing."""
+    schema = tool.arg_schema or {}
+    props, required = schema.get("properties", {}), schema.get("required", [])
     combos: List[Dict[str, Any]] = [{}]
-    for name, prop in props.items():
-        combos = [{**c, name: v} for c in combos for v in schema_values(prop)]
+    for name in required:
+        vals = schema_values(props.get(name, {}))
+        combos = [{**c, name: v} for c in combos for v in vals]
     return combos
 
 
