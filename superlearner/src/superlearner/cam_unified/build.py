@@ -343,6 +343,8 @@ def build_agent(scale: str = "dom_dev", *, env_kind: Optional[str] = None, sem_m
     ops = CheckpointOps(agent)
     label_store = LabelStore(os.path.join(run_dir, "labels"))
     reward_model = RewardModel(cfg).to(dev)
+    if hasattr(model, "attach_reward_model"):          # Phi enters the evaluator's Q; psi version stamped (verifier F3)
+        model.attach_reward_model(reward_model)
     system = System(cfg, sc, run_dir, sem, model, trainer, archive, artifacts, view, index, replay, consolidator,
                     recorder, agent, ops, label_store=label_store, reward_model=reward_model, learner=None,
                     env_kind=sc.env_kind)

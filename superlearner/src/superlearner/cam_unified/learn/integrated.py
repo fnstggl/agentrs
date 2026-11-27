@@ -467,6 +467,8 @@ class IntegratedLearner:
         self.cfg = cfg if cfg is not None else model.cfg
         cfg = self.cfg
         self.reward_model = reward_model if reward_model is not None else RewardModel(cfg)
+        if hasattr(model, "attach_reward_model") and model.__dict__.get("reward_model") is None:
+            model.attach_reward_model(self.reward_model)       # the actor's evaluator uses the learner's R_psi
         self.label_store = label_store
         self.agent = agent
         mode = str(reward_mode or getattr(cfg, "reward_mode", "legacy"))

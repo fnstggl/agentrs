@@ -502,7 +502,7 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
     torch.cuda.reset_peak_memory_stats()
     try:
         life = run_lifetime(agent, env, labels=ConcatLabels(srcs), label_store=sysm.label_store, learner=sysm.learner,
-                            max_decisions=rounds, update_every=0, require_cam_eval=False)
+                            max_decisions=rounds, update_every=0, require_cam_eval=None)   # config-driven gate (verifier DOM-4)
     finally:
         agent.act = act0
         sysm.model.__dict__.pop("decide", None)
