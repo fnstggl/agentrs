@@ -653,7 +653,8 @@
     "command": "cd /workspace/camlive && CAM_LIVE_B_MEASURE=<scratch>/B_measured_fix.json .venv/bin/python -m pytest cam_live/tests/predict cam_live/tests/reward -m \"(gpu or slow or not (gpu or slow)) and not network and not browser and not privileged\" -q -rs --rootdir=cam_live -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/BC_fix.xml",
     "junit": "docs/evidence/test_results/BC_fix.xml",
     "note": "one run of predict/ and reward/ after the G-pr fixes, default + slow + gpu (GPU tests under the shared lock), wall time of the whole run 2539 s"
-   }
+   },
+   "measured_json_regenerated": "docs/evidence/B/measured.json regenerated on a git-archive snapshot of the fixed HEAD (default suite with CAM_LIVE_B_MEASURE): 60 of 70 values unchanged; 10 changed (policy KL / TV under belief permutation and experiential change, latent-transition held-out error, untrained-model VOI sums) because of commits outside predict/ after 2c89aa0 - the same 10 values result with predict/ reverted to its pre-fix version on that snapshot, and the pre-fix tree gives its own values deterministically (two runs equal)."
   },
   "diagnostics_source": "docs/evidence/B/diagnostics.json (debug scale, LabWorld, provenance diagnostic)",
   "diagnostics_command": "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.predict.diagnose (run as three processes with --only 1a / --only 1b,2,3,4,5 / --only 4 and merged; see the 'runs' field of docs/evidence/B/diagnostics.json)",
@@ -976,17 +977,17 @@
    "policy_accuracy_permuted_belief": 0.25,
    "policy_accuracy_true_belief": 0.984375,
    "policy_kl_under_belief_permutation_at_init": 0.0002561377455693792,
-   "policy_kl_under_belief_permutation_real_model_init": 5.8883581370431185e-05,
-   "policy_kl_under_belief_permutation_real_model_trained": 4.4242819312638835,
+   "policy_kl_under_belief_permutation_real_model_init": 0.00024895198483434626,
+   "policy_kl_under_belief_permutation_real_model_trained": 4.104162694958573,
    "policy_kl_under_belief_permutation_trained": 15.655890568755819,
    "policy_meta_gradient_max_rel_error_vs_finite_difference": 1.5542732962484487e-08,
-   "policy_tv_after_experiential_only_change": 0.9573760808998486,
-   "policy_tv_under_belief_permutation_real_model_trained": 0.9691192087096473
+   "policy_tv_after_experiential_only_change": 0.9665621660557614,
+   "policy_tv_under_belief_permutation_real_model_trained": 0.9015470595938192
   },
   "transition_heldout_error_debug_model": {
-   "transition_heldout_error_k1_trained": 1.4373240013917288,
-   "transition_heldout_error_k1_untrained": 1.7986942179501055,
-   "transition_heldout_error_k2_trained": 1.7325625044328195
+   "transition_heldout_error_k1_trained": 1.4570109883944191,
+   "transition_heldout_error_k1_untrained": 1.799156146030873,
+   "transition_heldout_error_k2_trained": 1.74538227363869
   },
   "slow_tests": {
    "slow_brier_trained": 0.2618991266757977,
@@ -1135,8 +1136,8 @@
   "The plain estimator E[max Q(updated)] - max Q(current) is biased upwards with the assumed-density count update (VOI of acting {'hi': 1.3072, 'lo': 0.0713, 'mean': 0.6893, 'n': 20.0} against {'hi': 0.0117, 'lo': 0.0011, 'mean': 0.0064, 'n': 20.0} for the Jensen-gap estimator E[max] - max E on the same samples). A run with the plain estimator made VOI-aware selection need MORE interventions than greedy (greedy minus VOI {'hi': -2.3258, 'lo': -7.3106, 'mean': -4.8182, 'n': 11.0}, 11 paired seeds; docs/evidence/B/diagnostics_value_of_information_plain_estimator.json); the Predictor now uses the Jensen gap.",
   "VOI-aware selection does not reach the target with fewer interventions than greedy: greedy minus VOI = {'hi': 0.6848, 'lo': -4.0181, 'mean': -1.6667, 'n': 12.0} over 12 paired seeds that both reached the target (reached: greedy 1.00, VOI 1.00).",
   "Action quality vs raw outcome: quality is much less luck-driven (Spearman with true luck 0.05 vs 0.52) but the raw outcome correlates better with the decision's true advantage (0.77 vs 0.35) in new worlds.",
-  "Latent transition on held-out real transitions is worse than predicting the mean belief (normalised error 1.44 at k=1 after a short fit; 1.68 batch NMSE at the end of family training): imagination never extends beyond one step and is not shown to help.",
-  "At random initialisation the policy's dependence on the belief is small in absolute terms (KL 5.9e-05 debug model, 7.4e-05 real configuration); 4.42 after imitating a history-dependent behaviour.",
+  "Latent transition on held-out real transitions is worse than predicting the mean belief (normalised error 1.46 at k=1 (1.44 before other workstreams' later commits) after a short fit; 1.68 batch NMSE at the end of family training): imagination never extends beyond one step and is not shown to help.",
+  "At random initialisation the policy's dependence on the belief is small in absolute terms (KL 2.5e-04 debug model, 7.4e-05 real configuration); 4.10 after imitating a history-dependent behaviour (re-measured on the fixed HEAD; 5.9e-05 / 4.42 before other workstreams' later commits).",
   "[stage 1, tensor level] The learned DownstreamValueEstimator did not beat an accurate computed VOI on held-out probes (Spearman 0.617 vs 0.671; learned_beats_reference=False). It only beat a deliberately mis-specified reference (-0.335). The computed VOI stays the reference.",
   "[stage 1, tensor level] Poisson-GLM VOI with the assumed-density update over-estimates the realised gain in magnitude (computed [0.55, 0.137, 0.0] vs realised [0.376, 0.103, 0.0]); the ranking of probes is correct and the irrelevant probe is exactly 0. Bernoulli: computed [0.0339, 0.0063, 0.0] vs realised [0.0327, 0.0104, 0.0].",
   "[stage 1, tensor level] After training, the evaluator is still mildly over-confident on held-out trajectories: calibration slope 0.69 (1.0 = calibrated), ECE 0.068 (from 0.477).",
