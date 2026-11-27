@@ -1080,3 +1080,43 @@ def identify_tighter_route(env) -> dict:
     truth = "first" if own_rise(cl["own_a"]) > own_rise(cl["own_b"]) else "second"
     return {"question": "which route slows more under a full load of its own", "estimate": est, "truth": truth,
             "ok": est == truth}
+
+
+# ====================================================================== plan_spoilage (8.4.2)
+def _held_mean(env, name: str, level: float, n: int, gauge: str, tail: int = 10) -> float:
+    from .oracles import fork
+    e = fork(env)
+    vals = []
+    for _ in range(n):
+        x = e.step({"kind": "levers", "values": {name: level}})["observation"]["numbers"]
+        vals.append(float(x[gauge]))
+    return float(np.mean(vals[-tail:]))
+
+
+def claim_spoilage(env) -> dict:
+    """Held for forty ticks on the same noise: (1) more production means more waste; (2) settled sales saturate:
+    raising production from 8 to 10 adds less to sales than raising it from 2 to 4."""
+    c = env._config
+    name = next(n["lever"]["name"] for n in c["nodes"] if n["id"] == c["claim"]["lever"])
+    gs = c["objective"]["gauge"]
+    gw = next(g["name"] for g in c["gauges"] if g["name"] != gs)
+    sales = {m: _held_mean(env, name, m, 40, gs) for m in (2.0, 4.0, 8.0, 10.0)}
+    waste = {m: _held_mean(env, name, m, 40, gw) for m in (4.0, 10.0)}
+    ok = waste[10.0] > waste[4.0] and (sales[10.0] - sales[8.0]) < (sales[4.0] - sales[2.0])
+    return {"ok": bool(ok), "settled_sales": sales, "settled_waste": waste}
+
+
+def identify_spoilage_rate(env) -> dict:
+    """Question: what share of the stock spoils each tick (within 25%)? Public: the reference's design and the
+    least-squares relation between the change in waste and the net inflow."""
+    from .refs_adapt import _spoilage_design, _spoilage_fit
+    view = PublicView(env)
+    c = env._config
+    gs = c["objective"]["gauge"]
+    gw = next(g["name"] for g in c["gauges"] if g["name"] != gs)
+    name = list(c["objective"]["heldout"][0])[0]
+    M, S, W = _spoilage_design(view, name, gs, gw, seed=3, reserve=0)
+    r, h, cap = _spoilage_fit(M, S, W)
+    truth = float(c["claim"]["spoil"])
+    return {"question": "the share of the stock that spoils each tick", "estimate": round(r, 4),
+            "truth": round(truth, 4), "ok": bool(abs(r - truth) <= 0.25 * truth)}

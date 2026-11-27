@@ -1696,3 +1696,74 @@ def congestion_predict(view, env, seed: int = 0) -> None:
     view.step({"kind": "message", "to": "journal", "content": {"predictions": preds}})
     while not view.done:
         view.step(None)
+
+
+# ====================================================================== a perishing stock with saturating sales
+def _spoilage_design(view, name, g_sold, g_waste, seed: int = 0, reserve: int = 2):
+    rng = np.random.default_rng(seed)
+    M, S, W = [], [], []
+    while view.t < view.horizon - reserve and not view.done:
+        m = float(rng.uniform(0.0, 10.0))
+        for _ in range(int(rng.integers(3, 7))):
+            if view.t >= view.horizon - reserve or view.done:
+                break
+            x = view.step({"kind": "levers", "values": {name: m}})["observation"]["numbers"]
+            M.append(m)
+            S.append(float(x.get(g_sold, np.nan)))
+            W.append(float(x.get(g_waste, np.nan)))
+    return np.asarray(M), np.asarray(S), np.asarray(W)
+
+
+def _spoilage_fit(M, S, W):
+    """waste[t] = r stock[t-1] and stock[t] = stock[t-1] + made[t] - sold[t] - waste[t], so
+    waste[t+1] - waste[t] = r (made[t] - sold[t] - waste[t]): the spoilage rate r by least squares through the
+    origin; then stock[t-1] = waste[t] / r and sales = cap stock / (stock + half) (half on a grid, cap by least
+    squares)."""
+    dW = W[1:] - W[:-1]
+    net = (M - S - W)[:-1]
+    ok = np.isfinite(dW) & np.isfinite(net)
+    r = float(np.clip(np.sum(dW[ok] * net[ok]) / max(1e-9, np.sum(net[ok] ** 2)), 0.02, 0.9))
+    stock = np.maximum(W / r, 0.0)
+    best = None
+    for h in np.geomspace(1.0, 60.0, 40):
+        g = stock / (stock + h)
+        ok2 = np.isfinite(g) & np.isfinite(S)
+        cap = float(np.sum(g[ok2] * S[ok2]) / max(1e-9, np.sum(g[ok2] ** 2)))
+        sse = float(np.sum((cap * g[ok2] - S[ok2]) ** 2))
+        if best is None or sse < best[0]:
+            best = (sse, h, cap)
+    return r, best[1], best[2]
+
+
+def spoilage_predict(view, env, seed: int = 0) -> None:
+    """Scripted public reference for predicting settled sales of a perishing stock at production rates above the
+    settable range: random production rates held three to six ticks, the spoilage rate and the saturating sales law
+    fitted from the sales and waste readings (`_spoilage_fit`), and the steady state solved at each held-out rate
+    (production = sales(stock) + r stock, by bisection). Assumes the model class: proportional spoilage and sales
+    saturating in the stock on hand."""
+    obj = env._config["objective"]
+    held = obj["heldout"]
+    gs = obj["gauge"]
+    gw = next(g["name"] for g in env._config["gauges"] if g["name"] != gs)
+    name = list(held[0])[0]
+    M, S, W = _spoilage_design(view, name, gs, gw, seed)
+    if len(M) < 12 or view.done:
+        while not view.done:
+            view.step(None)
+        return
+    r, h, cap = _spoilage_fit(M, S, W)
+    preds = []
+    for c in held:
+        p = float(c[name])
+        lo, hi = 0.0, max(1.0, p / r * 2.0 + 10.0)
+        for _ in range(80):
+            mid = 0.5 * (lo + hi)
+            if cap * mid / (mid + h) + r * mid < p:
+                lo = mid
+            else:
+                hi = mid
+        st = 0.5 * (lo + hi)
+        preds.append({"set": c, "value": float(cap * st / (st + h))})
+    view.step({"kind": "message", "to": "journal", "content": {"predictions": preds}})
+    while not view.done:
+        view.step(None)

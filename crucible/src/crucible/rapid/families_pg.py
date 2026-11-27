@@ -359,6 +359,44 @@ def net_congestion_routes(rng, d):
                            "shared": shared})
 
 
+@family("plan_spoilage", engine="primitive_graph", category="8.4", item="8.4.2", split="train",
+        doc="Units made each tick join a stock that spoils at a hidden rate; customers buy more when shelves are "
+            "fuller, with sharply diminishing returns, so beyond some point extra production only feeds the bin. "
+            "Predict where weekly sales settle at production rates above what can be set: a straight line through "
+            "small tests keeps rising, while spoilage takes almost all of the extra units.",
+        distinct_because="a perishing stock (inflow production, outflow sales plus a hidden spoilage fraction of the "
+                         "stock) whose sales saturate in the stock on hand: the settled split between sales and "
+                         "waste moves with the production rate; scored by settled sales at held-out rates above "
+                         "the settable range",
+        axes={"horizon": 60, "observation_noise": 0.3}, objective="predict_heldout",
+        claims=("crucible.rapid.claims_w3b:claim_spoilage",),
+        identify="crucible.rapid.claims_w3b:identify_spoilage_rate", lever_view=True,
+        reference="crucible.rapid.refs_adapt:spoilage_predict", oracle="crucible.rapid.oracles:science_oracle")
+def plan_spoilage(rng, d):
+    gb = GraphBuilder(rng)
+    make = gb.lever(0.0, 10.0, 0.0, cost=0.0)
+    spoil = u(rng, 0.15, 0.35)
+    stock = gb.prim("stock", {"init": 0.0, "cap": 1e6}, role="stock", inflow=[(make, 0, 1.0)], outflow=[])
+    sales = gb.prim("saturation", {"cap": u(rng, 6.0, 10.0), "half": u(rng, 5.0, 15.0)}, role="outcome",
+                    x=[(stock, 1, 1.0)])
+    waste = gb.prim("linear_nonlinear", {"form": "linear", "a": spoil, "b": 0.0}, x=[(stock, 1, 1.0)])
+    gb.nodes[int(stock[1:])]["ports"]["outflow"] = [[sales, 0, 1.0], [waste, 0, 1.0]]
+    noise = float(d["observation_noise"])
+    gs = gb.gauge(sales, [("measurement_noise", {"sd": noise})])
+    gb.gauge(waste, [("measurement_noise", {"sd": noise})])
+    held = [{gb.name_of(make): x} for x in (2.0, 5.0, 8.0, 11.0, 14.0, 18.0)]
+    text = ("Predict where sales per tick would settle if production were held at these rates (partly above what "
+            f"you can set): {held}. File predictions with the journal: message to 'journal' with content "
+            "{\"predictions\": [{\"set\": <condition>, \"value\": <number>}, ...]}. Only the last filing counts.")
+    return gb.build(horizon=int(d["horizon"]), money={"revenue_node": sales, "price": 10.0, "cap": 20.0},
+                    affordances=["levers", "message"], endowment=100_000,
+                    objective={"type": "predict_heldout", "heldout": held, "gauge": gs, "text": text,
+                               "settle_ticks": 200},
+                    journal=True,
+                    brief="A perishable good. Lever: units made per tick. Gauges: units sold and units thrown away.",
+                    claim={"lever": make, "outcome": sales, "stock": stock, "spoil": spoil, "waste": waste})
+
+
 @family("dl_short_term_damage", engine="primitive_graph", category="8.6", item="8.6.6", split="train",
         doc="Overdriving raises output now but accumulates wear (shown by a noisy vibration reading) that drains "
             "only below a hidden rate; past a hidden level the machine latches into a permanently degraded state. "
