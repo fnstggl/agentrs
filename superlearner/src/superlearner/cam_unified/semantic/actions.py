@@ -790,18 +790,7 @@ class ActionGenerator(nn.Module):
         self.stats["actions"] += len(actions)
         compute = dict(self.last_compute)
         if rescore:
-            lpr, enr = self._log_prob_parts(R, goal, belief, tools, obs, tool_lists, obs_lists, actions,
-                                            exact_rows=exact_rows, intent=intent)
-            for b, a in enumerate(actions):
-                for k_src, k_dst in (("tool", "tool"), ("evidence", "evidence"), ("heads", "args_heads"),
-                                     ("tokens", "args_tokens")):
-                    a.logp_parts[k_dst] = float(lpr[k_src][b])
-                a.logp_parts["args"] = a.logp_parts["args_heads"] + a.logp_parts["args_tokens"]
-                a.logp_parts["entropy"] = float(sum(enr[k][b] for k in enr))
-                a.logp = float(sum(lpr[k][b] for k in lpr))
-                a.logp_parts["rescored"] = True
-                self.max_rescore_drift = max(self.max_rescore_drift, abs(a.logp - a.logp_parts["sample_logp"]))
-            self.stats["rescored"] += len(actions)
+            self._rescore(R, goal, belief, tools, obs, tool_lists, obs_lists, actions, exact_rows, intent)
             compute["rescore"] = dict(self.last_compute)
         if greedy:
             # contract v3 #12: a greedy action is deterministic behaviour (mu = 1), so its behaviour log-probability and
@@ -815,6 +804,31 @@ class ActionGenerator(nn.Module):
                 a.logp = 0.0
         self.last_compute = compute
         return actions
+
+    def _rescore(self, R, goal, belief, tools, obs, tool_lists, obs_lists, actions, exact_rows, intent) -> None:
+        """Replace each sampled action's logp / logp_parts by the learner-path values (`_log_prob_parts`, exact
+        rows): the values policy_evaluate recomputes. The incremental value stays logp_parts["sample_logp"]."""
+        lpr, enr = self._log_prob_parts(R, goal, belief, tools, obs, tool_lists, obs_lists, actions,
+                                        exact_rows=exact_rows, intent=intent)
+        for b, a in enumerate(actions):
+            for k_src, k_dst in (("tool", "tool"), ("evidence", "evidence"), ("heads", "args_heads"),
+                                 ("tokens", "args_tokens")):
+                a.logp_parts[k_dst] = float(lpr[k_src][b])
+            a.logp_parts["args"] = a.logp_parts["args_heads"] + a.logp_parts["args_tokens"]
+            a.logp_parts["entropy"] = float(sum(enr[k][b] for k in enr))
+            a.logp = float(sum(lpr[k][b] for k in lpr))
+            a.logp_parts["rescored"] = True
+            self.max_rescore_drift = max(self.max_rescore_drift, abs(a.logp - a.logp_parts["sample_logp"]))
+        self.stats["rescored"] += len(actions)
+
+    def rescore_from_intent(self, I, tools: TokenSet, obs: TokenSet, tool_lists: list, obs_lists: list,
+                            actions: list, exact_rows: Optional[bool] = None) -> None:
+        """Intent mode: rescore `actions` (one per row of I [B, n_intent, D]) in place on the learner path, as
+        `sample_from_intent(rescore=True)` does. The K-candidate decide (model._decide_dom) samples its B*K candidates
+        with rescore=False and rescores only the B selected ones: the selection reads Q alone, and replay recomputes
+        only the executed action's log-probability (the per-row forwards of the other B*(K-1) candidates were ~0.5 s
+        of a 2 s decide at the 1B dom preset, G3 2026-11-27)."""
+        self._rescore(None, None, None, tools, obs, tool_lists, obs_lists, actions, exact_rows, I)
 
     @property
     def demo_number_stats(self) -> dict:

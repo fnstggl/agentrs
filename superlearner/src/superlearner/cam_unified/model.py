@@ -1747,9 +1747,13 @@ class CamUnifiedModel(nn.Module):
             idx = torch.arange(B, device=dev).repeat_interleave(K)
             il = idx.tolist()
             self._count("action_generator.sample")
+            # K > 1: the B*K candidates keep their sampling log-probabilities; only the selected one per row is
+            # rescored on the learner path below (logp_parts["rescored"]), the value policy_evaluate recomputes
+            late = K > 1 and hasattr(self.action_generator, "rescore_from_intent")
             flat = self.action_generator.sample_from_intent(
                 I[idx], enc.tools.select(idx), enc.ctx_tokens().select(idx), [tools[i] for i in il],
-                [obs_lists[i] for i in il], temperature=1.0, greedy=greedy, generator=gen_on(generator, dev))
+                [obs_lists[i] for i in il], temperature=1.0, greedy=greedy, generator=gen_on(generator, dev),
+                rescore=not late)
             if len(flat) != B * K:
                 raise ShapeError(f"action generator returned {len(flat)} candidates for B*K={B * K}")
             cands = [flat[b * K:(b + 1) * K] for b in range(B)]
@@ -1759,6 +1763,9 @@ class CamUnifiedModel(nn.Module):
             t2 = _time.perf_counter()
             timings["generate_s"] = t2 - t1
             # ---- evaluate every concrete candidate, select, stamp
+            pf = getattr(self.tokenizer, "prefetch_actions", None)
+            if callable(pf) and K > 1:          # one batched semantic encode of the B*K candidates' argument texts
+                pf(flat)
             Qs, preds = [], []
             for b in range(B):
                 q, p = self._score_row(enc, I, b, cands[b], tools[b])
@@ -1768,6 +1775,14 @@ class CamUnifiedModel(nn.Module):
             gen_lp = torch.tensor([[float(c.logp) for c in row] for row in cands], device=dev)
             sel_idx, sel_lp, recs = _sel.select(Q, gen_lp, tau, getattr(cfg, "veto_q", None), greedy=greedy,
                                                 generator=gen_on(generator, dev))
+            if late:
+                chosen = [cands[b][int(sel_idx[b])] for b in range(B)]
+                self.action_generator.rescore_from_intent(I, enc.tools, enc.ctx_tokens(), list(tools),
+                                                          list(obs_lists), chosen)
+                for b, c in enumerate(chosen):
+                    k = int(sel_idx[b])
+                    gen_lp[b, k] = float(c.logp)
+                    recs[b]["gen_logp"][k] = float(c.logp)
             t3 = _time.perf_counter()
             timings["evaluate_s"] = t3 - t2
             vers = self.decision_versions()

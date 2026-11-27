@@ -610,6 +610,22 @@ class ObservationTokenizer(nn.Module):
                                 TokenKind.GOAL, 0.0, -1, -1, goals[b].goal_id))
         return self._pack(rows, B)
 
+    @staticmethod
+    def _action_text(a) -> str:
+        """The text of an action's arguments JSON (+ code when not inside args) that `action` pools ("" = none)."""
+        txt = json.dumps(a.args, sort_keys=True, ensure_ascii=False, default=str) if a.args else ""
+        if a.code and (not a.args or a.code not in json.dumps(a.args, ensure_ascii=False)):
+            txt = (txt + "\ncode:\n" + a.code) if txt else a.code
+        return txt
+
+    def prefetch_actions(self, actions: list) -> int:
+        """Encode the argument texts of `actions` into the semantic encoder's cache in one batched call (the K-candidate
+        decide calls `action` once per row; with the cache warm those calls only pool). Returns the texts encoded."""
+        texts = [t for t in (self._action_text(a) for a in actions if a is not None) if t]
+        if texts:
+            self.enc.token_states(texts)
+        return len(texts)
+
     def action(self, actions: list, tool_lists: Optional[list] = None, allow_unknown: bool = False) -> TokenSet:
         """[B] Action|None -> ACTION tokens: [tool token of the action's tool] + n_action_arg_tokens pooled tokens of
         its arguments JSON (+ code when not inside args); an action with no arguments has the tool token only.
@@ -621,9 +637,7 @@ class ObservationTokenizer(nn.Module):
                 continue
             t = self.resolve_tool(a, tool_lists[b] if tool_lists is not None else None, allow_unknown)
             tools.append((b, t))
-            txt = json.dumps(a.args, sort_keys=True, ensure_ascii=False, default=str) if a.args else ""
-            if a.code and (not a.args or a.code not in json.dumps(a.args, ensure_ascii=False)):
-                txt = (txt + "\ncode:\n" + a.code) if txt else a.code
+            txt = self._action_text(a)
             if txt:
                 texts.append(txt)
                 idx.append(b)
