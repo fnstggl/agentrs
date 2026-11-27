@@ -8,10 +8,11 @@
                                 (`crucible.domains.base.Domain`, the canonical contract by decisions D-17/D-48):
                                 the world is `domains.base.spec(domain, config, seed, overrides)`; learners occupy
                                 the domain's seats (`Domain.seats`, every seat by default, ``agents=n`` the first
-                                n; else `Domain.participant_principal`, else a new participant); the domain's public
-                                objective (`Domain.objective(world, principal, difficulty)`) is the agent's objective
-                                and `Domain.evaluate(world, principal, objective)` the independent evaluator. The
-                                domain's scripted `reference` is evaluator-side and never reachable.
+                                n; else `Domain.participant_principal`, else a new participant); each seat's
+                                objective is generated for it (`Domain.make_objective(world, principal, difficulty)`:
+                                the domain's goal generator, D-48; its text is public) and `Domain.judge(world,
+                                principal, objective)` is the independent evaluator. The domain's scripted
+                                `reference` is evaluator-side and never reachable.
     tier 3  "<profile>"         a v5 civilisation: `crucible.civ.generate(profile, seed, population=...,
                                 overrides=...) -> World` with ``crucible.civ.PROFILES`` (workstream J; see
                                 `CIV_ENTRY_POINT`)

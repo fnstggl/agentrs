@@ -1134,6 +1134,11 @@ class IsolatedPolicy:
             raise RuntimeError(f"isolated policy process exited ({self._p.returncode}): {self._stderr()}")
         self._p.stdin.write(json.dumps(msg, default=_json_default) + "\n")
         self._p.stdin.flush()
+        import select
+        ready, _, _ = select.select([self._p.stdout], [], [], self.timeout_s)
+        if not ready:
+            self._p.kill()
+            raise RuntimeError(f"isolated policy did not answer {msg.get('op')!r} within {self.timeout_s:.0f} s")
         line = self._p.stdout.readline()
         if not line:
             raise RuntimeError(f"isolated policy process died: {self._stderr()}")
