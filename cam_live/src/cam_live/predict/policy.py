@@ -18,9 +18,11 @@ Nothing here consumes or produces a reward.
 """
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Sequence
+from dataclasses import replace as dataclasses_replace
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -254,3 +256,218 @@ def latent_dependence(policy: CandidatePolicy, z: Tensor, a_mask: Tensor, b: Ten
     kl = (p * (torch.log(p.clamp_min(1e-300)) - torch.log(q.clamp_min(1e-300)))).sum(-1)
     return {"kl": float(kl.mean()), "tv": float(0.5 * (p - q).abs().sum(-1).mean()),
             "argmax_changed": float((p.argmax(-1) != q.argmax(-1)).double().mean())}
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# stage 2: decisions on the real model
+# ----------------------------------------------------------------------------------------------------------------
+class DecisionMaker:
+    """Turns ``CandidateEvaluation``s (from :class:`cam_live.predict.predictor.Predictor`) into a
+    ``contracts.Decision`` with the exact probability of every candidate, the exploration rule, a rationale
+    assembled from the recorded numbers and diagnostics.
+
+    The numbers used by each rule (``predict.policy.RULES``):
+
+        policy      the candidate policy's logits (``CandidateEvaluation.value``)
+        greedy      the learned value: predicted goal-relevant outcome net of weighted cost (``extras["q_goal"]``),
+                    or the evaluator's success probability when no goal-relevant outcome was predicted
+        ucb         that value plus ``ucb_c`` epistemic standard deviations
+        thompson    joint posterior samples of that value (``extras["ts_<i>"]``: one ensemble member and one draw
+                    of the fast-layer weights per sample)
+        voi         softmax of value + ``ig_weight`` x decision-relevant value of information
+        randomized  explicit assignment over experiment arms (:meth:`select_experiment`)
+    """
+
+    def __init__(self, model: Any, cfg: Any = None, *, heads: Any = None, clock: Any = None,
+                 experiments: Any = None, seed: int = 0):
+        from .heads import PredictConfig, attach_heads               # heads imports this module
+        self.model = model
+        pcfg = cfg if isinstance(cfg, PredictConfig) else PredictConfig.from_cfg(cfg or getattr(model, "cfg", None))
+        self.heads = heads or attach_heads(model, pcfg)
+        self.cfg = self.heads.cfg
+        self.clock = clock
+        self.experiments = experiments
+        self.generator = torch.Generator().manual_seed(int(seed))
+
+    # ---- numbers ------------------------------------------------------------------------------------------------
+    def scores(self, evaluations: Sequence[Any]) -> Dict[str, Any]:
+        n = len(evaluations)
+        if n == 0:
+            raise ValueError("a decision needs at least one candidate")
+        f64 = torch.float64
+        a_mask = torch.tensor([[bool(e.feasible) for e in evaluations]])
+        if not bool(a_mask.any()):
+            raise ValueError("no feasible candidate")
+        has_goal = any("q_goal" in e.extras for e in evaluations)
+        cost = torch.tensor([[e.extras.get("net_cost", 0.0) for e in evaluations]], dtype=f64)
+        if has_goal:
+            q = torch.tensor([[e.extras.get("q_goal", 0.0) for e in evaluations]], dtype=f64) - cost
+            sd = torch.tensor([[e.extras.get("q_goal_epistemic_std", 0.0) for e in evaluations]], dtype=f64)
+        else:
+            q = torch.tensor([[e.p_success if e.p_success is not None else 0.0 for e in evaluations]], dtype=f64) - cost
+            sd = torch.tensor([[e.uncertainty or 0.0 for e in evaluations]], dtype=f64)
+        keys = sorted((k for k in evaluations[0].extras if k.startswith("ts_")), key=lambda k: int(k[3:]))
+        if keys and all(all(k in e.extras for k in keys) for e in evaluations):
+            samples = torch.tensor([[e.extras[k] for e in evaluations] for k in keys], dtype=f64)[:, None, :] - cost
+            sampled_from = "posterior"
+        else:
+            s = max(1, self.cfg.thompson_samples)
+            samples = q[None] + sd[None] * torch.randn(s, 1, n, generator=self.generator, dtype=f64)
+            sampled_from = "normal_marginals"
+        return {"a_mask": a_mask, "q": q, "sd": sd, "samples": samples, "sampled_from": sampled_from,
+                "logits": torch.tensor([[e.value if e.value is not None else 0.0 for e in evaluations]], dtype=f64),
+                "voi": torch.tensor([[e.voi if e.voi is not None else 0.0 for e in evaluations]], dtype=f64),
+                "value_source": "q_goal" if has_goal else "p_success"}
+
+    @staticmethod
+    def _decision_id(evaluations: Sequence[Any]) -> str:
+        for e in evaluations:
+            for p in e.predictions:
+                if p.decision_id:
+                    return p.decision_id
+        from ..contracts import new_id
+        return new_id("dec")
+
+    def _now(self, ts: Optional[float]) -> float:
+        if ts is not None:
+            return float(ts)
+        if self.clock is None:
+            raise ValueError("pass ts= or construct the DecisionMaker with a clock")
+        return float(self.clock.now())
+
+    def _decision(self, evaluations: Sequence[Any], idx: int, probs: List[float], rule: str, sc: Dict[str, Any],
+                  *, objective_id: str, decision_id: Optional[str], ts: Optional[float], extra_diag: Dict[str, Any],
+                  experiment_id: str = "", **fields: Any) -> Any:
+        from ..contracts import Decision
+        e = evaluations[idx]
+        q, sd = sc["q"][0], sc["sd"][0]
+        feas = sc["a_mask"][0]
+        best = int(torch.where(feas, q, torch.full_like(q, float("-inf"))).argmax())
+        order = sorted((i for i in range(len(evaluations)) if bool(feas[i])), key=lambda i: -float(q[i]))[:3]
+        ent = -sum(p * math.log(p) for p in probs if p > 0)
+        diag = {"rule": rule, "eps_floor": self.cfg.eps_floor, "entropy": ent, "n_feasible": int(feas.sum()),
+                "value_source": sc["value_source"], "thompson_sampled_from": sc["sampled_from"],
+                "b_norm": e.extras.get("b_norm"), "z_norm_chosen": e.extras.get("z_norm"),
+                "v_state": e.extras.get("v_state"), "value_chosen": float(q[idx]),
+                "uncertainty_chosen": float(sd[idx]), "max_prob": max(probs),
+                "top": [{"index": i, "operation": evaluations[i].action.operation, "value": float(q[i]),
+                         "epistemic_std": float(sd[i]), "probability": probs[i],
+                         "p_success": evaluations[i].p_success} for i in order]}
+        diag.update(extra_diag)
+        ps = "n/a" if e.p_success is None else f"{e.p_success:.3f}"
+        voi = "n/a" if e.voi is None else f"{e.voi:.3g}"
+        rationale = (f"{rule}: chose candidate {idx} ({e.action.operation}) with probability {probs[idx]:.3f} among "
+                     f"{int(feas.sum())} feasible; {sc['value_source']} {float(q[idx]):.3g} (best {float(q[best]):.3g} "
+                     f"at candidate {best}), epistemic sd {float(sd[idx]):.3g}, p_success {ps}, voi {voi}, "
+                     f"estimated cost {e.cost.money:.3g} / {e.cost.seconds:.0f} s")
+        chosen = e.action if not experiment_id else dataclasses_replace(e.action, experiment_id=experiment_id)
+        return Decision(decision_id=decision_id or self._decision_id(evaluations), ts=self._now(ts),
+                        objective_id=objective_id, chosen=chosen, candidates=list(evaluations),
+                        probabilities=list(probs), chosen_index=idx, exploration=rule, rationale=rationale,
+                        experiment_id=experiment_id, diagnostics=diag, **fields)
+
+    # ---- rules --------------------------------------------------------------------------------------------------
+    def probabilities(self, evaluations: Sequence[Any], mode: str = RULE_THOMPSON) -> Tuple[Tensor, Dict[str, Any]]:
+        """[N] float64 probability of every candidate under ``mode`` (exactly what :meth:`select` samples from)."""
+        if mode == RULE_RANDOMIZED:
+            raise ValueError("randomised assignment goes through select_experiment()")
+        sc = self.scores(evaluations)
+        cfg = self.cfg
+        p = selection_probs(mode, a_mask=sc["a_mask"], logits=sc["logits"], q_mean=sc["q"], q_std=sc["sd"],
+                            q_samples=sc["samples"], info_gain=sc["voi"], eps_floor=cfg.eps_floor,
+                            temperature=cfg.temperature, ucb_c=cfg.ucb_c, ig_weight=cfg.ig_weight)
+        return p[0], sc
+
+    def select(self, evaluations: Sequence[Any], mode: str = RULE_THOMPSON, *, objective_id: str = "",
+               decision_id: Optional[str] = None, ts: Optional[float] = None,
+               generator: Optional[torch.Generator] = None, **fields: Any) -> Any:
+        """Sample one candidate from the rule's probability vector and record that vector. ``fields`` are further
+        ``contracts.Decision`` fields (``context_obs_ids``, ``model_version``, ``checkpoint_id``, ...)."""
+        p, sc = self.probabilities(evaluations, mode)
+        idx = int(torch.multinomial(p, 1, generator=generator or self.generator))
+        return self._decision(evaluations, idx, [float(x) for x in p], mode, sc, objective_id=objective_id,
+                              decision_id=decision_id, ts=ts, extra_diag={}, **fields)
+
+    # ---- experiments ------------------------------------------------------------------------------------------
+    def propose_experiment(self, evaluations: Sequence[Any], top_k: int = 6) -> Optional[Dict[str, Any]]:
+        """The comparison between two feasible candidates whose order the model is least sure of among the
+        ``top_k`` by upper confidence bound: the pair maximising P(order flips) = Phi(-|dq| / sqrt(s_i^2 + s_j^2)).
+        Returns keyword arguments for :meth:`select_experiment` (arms, question, hypothesis) or None when fewer
+        than two candidates carry predictions. The texts only restate the recorded predictions."""
+        sc = self.scores(evaluations)
+        q, sd, feas = sc["q"][0], sc["sd"][0], sc["a_mask"][0]
+        pool = [i for i in range(len(evaluations)) if bool(feas[i]) and evaluations[i].predictions]
+        pool = sorted(pool, key=lambda i: -float(q[i] + self.cfg.ucb_c * sd[i]))[:top_k]
+        best = None
+        for a in range(len(pool)):
+            for b in range(a + 1, len(pool)):
+                i, j = pool[a], pool[b]
+                s = math.sqrt(float(sd[i]) ** 2 + float(sd[j]) ** 2)
+                flip = 0.5 * math.erfc(abs(float(q[i] - q[j])) / (s * math.sqrt(2.0))) if s > 0 else 0.0
+                if best is None or flip > best[0]:
+                    best = (flip, i, j)
+        if best is None:
+            return None
+        flip, i, j = best
+        if float(q[j]) > float(q[i]):
+            i, j = j, i
+        name = lambda k: f"{evaluations[k].action.operation}({json.dumps(evaluations[k].action.arguments, sort_keys=True)})"  # noqa: E731
+        metric = next((p.query.description or p.query.metric for p in evaluations[i].predictions
+                       if p.query.goal_relevant), evaluations[i].predictions[0].query.metric)
+        return {"arms": {name(i): i, name(j): j},
+                "question": f"Which of {name(i)} and {name(j)} gives more of: {metric}?",
+                "hypothesis": (f"{name(i)} gives at least as much as {name(j)}: predicted {float(q[i]):.3g} "
+                               f"(epistemic sd {float(sd[i]):.3g}) against {float(q[j]):.3g} "
+                               f"(epistemic sd {float(sd[j]):.3g}); probability that the order is wrong {flip:.3f}"),
+                "expected_flip_probability": flip}
+
+    def select_experiment(self, evaluations: Sequence[Any], arms: Dict[str, int], *, question: str = "",
+                          hypothesis: str = "", experiment_id: Optional[str] = None,
+                          arm_probs: Optional[Sequence[float]] = None, horizon_s: Optional[float] = None,
+                          objective_id: str = "", decision_id: Optional[str] = None, ts: Optional[float] = None,
+                          unit_id: Optional[str] = None, evidence_refs: Sequence[str] = (),
+                          expected_flip_probability: Optional[float] = None, **fields: Any) -> Tuple[Any, Any]:
+        """Randomised controlled assignment between the candidates in ``arms`` (name -> candidate index).
+
+        Without ``experiment_id`` a new ``ExperimentRecord`` is registered first — question, hypothesis, arms,
+        assignment probabilities and fresh copies of the arms' predictions — and only then is the unit (this
+        decision) assigned. With ``experiment_id`` the decision is a further unit of that running experiment.
+        Returns ``(Decision, ExperimentRecord)``; the decision's probabilities are the assignment probabilities
+        (zero for candidates that are not arms)."""
+        from ..contracts import Cost, new_id
+        if self.experiments is None:
+            raise ValueError("this DecisionMaker was built without an ExperimentRegistry")
+        names = list(arms)
+        idxs = [int(arms[k]) for k in names]
+        if len(set(idxs)) != len(idxs) or any(not evaluations[i].feasible for i in idxs):
+            raise ValueError("experiment arms must be distinct feasible candidates")
+        did = decision_id or self._decision_id(evaluations)
+        if experiment_id is None:
+            preds = []
+            for i in idxs:
+                for p in evaluations[i].predictions:
+                    preds.append(dataclasses_replace(p, prediction_id=new_id("pred")))
+            hz = horizon_s if horizon_s is not None else max((p.query.horizon_s for p in preds), default=0.0)
+            cost = Cost(seconds=max(evaluations[i].cost.seconds for i in idxs),
+                        money=max(evaluations[i].cost.money for i in idxs))
+            rec = self.experiments.register(question=question, hypothesis=hypothesis, predictions=preds, arms=names,
+                                            assignment="randomized", arm_probs=arm_probs,
+                                            intervention=evaluations[idxs[0]].action.render(),
+                                            comparison=evaluations[idxs[1]].action.render() if len(idxs) > 1 else "",
+                                            horizon_s=float(hz), cost=cost, evidence_refs=list(evidence_refs))
+            experiment_id = rec.experiment_id
+        else:
+            rec = self.experiments.get(experiment_id)
+            if list(rec.arms) != names:
+                raise ValueError(f"arms {names} do not match the registered arms {rec.arms}")
+        asg = self.experiments.assign(experiment_id, unit_id or did)
+        probs = [0.0] * len(evaluations)
+        for k, i in enumerate(idxs):
+            probs[i] = float(asg.probabilities[k])
+        sc = self.scores(evaluations)
+        dec = self._decision(evaluations, idxs[asg.arm_index], probs, RULE_RANDOMIZED, sc, objective_id=objective_id,
+                             decision_id=did, ts=ts, experiment_id=experiment_id,
+                             extra_diag={"arm": asg.arm, "arm_names": names, "eps_floor": 0.0,
+                                         "expected_flip_probability": expected_flip_probability}, **fields)
+        self.experiments.link_decision(experiment_id, dec.decision_id)
+        return dec, self.experiments.get(experiment_id)

@@ -724,3 +724,97 @@ def build_proposal_prompt(tools: Sequence[ToolDescriptor], observation_digest: s
     text = "\n".join([instructions, H_OBJECTIVE, objective_line, "", H_TOOLS, tools_line, "", H_OBSERVATION,
                       observation_line, "", H_END, H_ANSWER, ""])
     return ProposalPrompt(text, instructions, objective_line, tools_line, observation_line, cut)
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# stage 2: proposals from the real backbone, merged with the schema walker and the skill library
+# ----------------------------------------------------------------------------------------------------------------
+@dataclass
+class ProposalResult:
+    actions: List[ActionSpec]                    # merged, de-duplicated, each with its provenance
+    stats: Dict[str, Any]
+    rejections: List[Rejection] = field(default_factory=list)
+    raw: List[str] = field(default_factory=list)  # the backbone's text, kept as data
+
+
+class BackboneProposer:
+    """Candidate generation (spec Part 5): the pretrained backbone writes typed actions over the *discovered*
+    tool descriptors, conditioned on CAM's belief through the latent bridge; a deterministic schema walker and
+    the skill library contribute alongside, so the agent is never limited to what the language model happens to
+    write. Parsing is strict (``parse_actions``); whatever fails is rejected with a recorded reason.
+
+    ``model`` is a ``LatentModelAPI`` (``generate(prompts, latent=...)``). With the tiny random backbone the text
+    is noise and nearly everything is rejected: the merged set is then the schema walker's (plus skills), still
+    valid and non-empty whenever a tool is available.
+    """
+
+    def __init__(self, model: Any, *, k: int = 8, max_new_tokens: int = 384, temperature: float = 0.7,
+                 per_tool: int = 4, n_sampled: int = 0, chat: bool = True, seed: int = 0):
+        self.model = model
+        self.k, self.max_new_tokens, self.temperature = int(k), int(max_new_tokens), float(temperature)
+        self.per_tool, self.n_sampled, self.chat = int(per_tool), int(n_sampled), bool(chat)
+        self.rng = random.Random(seed)
+        self._calls = 0
+
+    def prompt(self, tools: Sequence[ToolDescriptor], observation_digest: str, objective: str = "",
+               k: Optional[int] = None) -> str:
+        text = build_proposal_prompt(tools, observation_digest, objective=objective, k=k or self.k).text
+        bb = getattr(self.model, "backbone", None)
+        if self.chat and bb is not None and getattr(bb, "pretrained", False) and hasattr(bb, "chat_prompt"):
+            return bb.chat_prompt(text, system="", thinking=False)
+        return text
+
+    def propose(self, tools: Sequence[ToolDescriptor], observation_digest: str, *, objective: str = "",
+                latent: Any = None, skills: Iterable[ActionSpec] = (), vocab: Vocab = (), k: Optional[int] = None,
+                max_n: Optional[int] = None, validate: Optional[Callable[[ActionSpec], List[str]]] = None,
+                id_prefix: str = "act", parent_decision_id: str = "", seed: Optional[int] = None,
+                num_return_sequences: int = 1) -> ProposalResult:
+        """``latent`` [1, D] is CAM's belief (conditions generation through the bridge); ``skills`` are
+        procedures offered by the skill library; ``vocab`` supplies strings for the schema walker (element refs,
+        URLs from the current observation); ``validate`` is ``EnvironmentAdapter.validate_action``."""
+        tools = list(tools)
+        self._calls += 1
+        seed = self._calls if seed is None else int(seed)
+        texts = self.model.generate([self.prompt(tools, observation_digest, objective, k)], latent=latent,
+                                    max_new_tokens=self.max_new_tokens, temperature=self.temperature,
+                                    num_return_sequences=num_return_sequences, seed=seed)[0]
+        lm: List[ActionSpec] = []
+        rejections: List[Rejection] = []
+        n_items = n_lines = 0
+        for text in texts:
+            res = parse_actions(text, tools, provenance=PROV_BACKBONE, id_prefix=id_prefix,
+                                parent_decision_id=parent_decision_id)
+            lm += res.actions
+            rejections += res.rejections
+            n_items += res.n_items
+            n_lines += len([ln for ln in str(text).splitlines() if ln.strip()])
+        walker = schema_candidates(tools, vocab=vocab, per_tool=self.per_tool, n_sampled=self.n_sampled, rng=self.rng,
+                                   id_prefix=id_prefix, parent_decision_id=parent_decision_id)
+        skill_list = [s for s in skills]
+        n_lm = len(merge_candidates(lm))
+        merged = merge_candidates(lm, skill_list, walker)
+        n_env_invalid = 0
+        if validate is not None:
+            kept = []
+            for a in merged:
+                errs = validate(a)
+                if errs:
+                    n_env_invalid += 1
+                    rejections.append(Rejection("environment_invalid", "; ".join(errs)[:300], a.render()[:300]))
+                else:
+                    kept.append(a)
+            merged = kept
+        if max_n is not None:
+            merged = merged[:max_n]
+        reasons: Dict[str, int] = {}
+        for r in rejections:
+            reasons[r.reason] = reasons.get(r.reason, 0) + 1
+        by_prov: Dict[str, int] = {}
+        for a in merged:
+            by_prov[a.provenance] = by_prov.get(a.provenance, 0) + 1
+        stats = {"n_texts": len(texts), "n_lines": n_lines, "n_items": n_items, "n_backbone_valid": n_lm,
+                 "fraction_valid_of_items": (n_lm / n_items) if n_items else 0.0,
+                 "fraction_valid_of_lines": (n_lm / n_lines) if n_lines else 0.0, "n_schema": len(walker),
+                 "n_skills": len(skill_list), "n_merged": len(merged), "n_environment_invalid": n_env_invalid,
+                 "rejection_reasons": reasons, "by_provenance": by_prov, "latent_conditioned": latent is not None}
+        return ProposalResult(merged, stats, rejections, [str(t) for t in texts])
