@@ -80,7 +80,8 @@ def _watch_exceeded():
             # how close the job came to the tolerance (cpu / (MEMO_TOL x billed + MEMO_SLACK_NS)): first jobs of a
             # worker the platform cold-started vs. the rest
             from crucible.sandbox import metering as M
-            first = "first_job" if getattr(self, "jobs", 0) <= 1 else "later_job"
+            first = "warmup_exempt" if kw.get("warmup") else ("first_job" if getattr(self, "jobs", 0) <= 1
+                                                              else "later_job")
             anchor = int(m["billed_ns"]) - max(0, int(kw.get("load") or 0))     # remembered: anchor + restart load
             _CLOSE.setdefault(f"{getattr(self, 'cold', None)}:{first}", []).append(
                 round(max(0, int(kw.get("cpu") or 0)) / (M.MEMO_TOL * max(anchor, 0) + M.MEMO_SLACK_NS), 4))

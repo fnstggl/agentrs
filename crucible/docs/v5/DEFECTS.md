@@ -138,6 +138,100 @@ B_population verdict) and P's own findings.
 }
 ```
 
+### DEF-A-7 (critical, fixed): D-78 blob lineage regression: lineage() cached spec.hash() at the first system-blob write while industrygen an
+
+```json
+{
+ "area": "A_J_substrate_civ",
+ "fixed_by": "c5c/w3b-kcal a99d5e1 (D-78 amendment): a module owns a detached copy of its config (kernel._detached), the lineage is World.genesis_spec (genesis note, snapshots, replays)",
+ "id": "DEF-A-7",
+ "owner": "A",
+ "regression_tests": "tests/test_v5_substrate_retention.py::test_a_module_annotating_its_config_at_genesis_keeps_the_worlds_blob_lineage, ::test_the_blob_lineage_is_the_spec_genesis_ran_from_not_the_spec_objects_later_state, ::test_a_storeless_civilisation_replays_forks_and_answers_history_queries (all three fail on 2ff5b7b)",
+ "requirements": [
+  "SP-2.1",
+  "SP-2.3",
+  "SP-2.3b"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "verifier_w3b_kcal",
+  "file": "docs/v5/workstreams/A.json",
+  "finding": 0
+ },
+ "status": "fixed",
+ "summary": "D-78 blob lineage regression: lineage() cached spec.hash() at the first system-blob write while industrygen annotated its nested config at genesis; store-less replays, forks and history queries of all 11 civilisation profiles could not read the world's own cohort blobs (InvariantViolation / NotFound)."
+}
+```
+
+### DEF-A-8 (high, fixed): Civilisations make a cross-module state write: ops' world.hooks['txn_observers'] callback writes ops_days insi
+
+```json
+{
+ "area": "A_J_substrate_civ",
+ "fixed_by": "c5c/w3b-kcal 16ef537: kernel.derives (derived-state appliers attributed to their own module, run after the event's applier in the same transaction and in replay); ops._on_txn is a deriver of bank.txn (minimal edit in economy/operations.py, services/bank.py; trajectories unchanged)",
+ "id": "DEF-A-8",
+ "owner": "A",
+ "regression_tests": "tests/test_v5_substrate_integrity.py::test_a_derived_state_applier_writes_its_own_table_in_the_event_transaction_and_in_replay, ::test_the_ops_journal_is_a_derived_state_applier_of_bank_transactions; probe: python -m crucible.substrate.integrity trace civ 0 0.5 (0 cross-module writes with genesis)",
+ "requirements": [
+  "SP-2.3b"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "verifier_w3b_kcal",
+  "file": "docs/v5/workstreams/A.json",
+  "finding": 1
+ },
+ "status": "fixed",
+ "summary": "Civilisations make a cross-module state write: ops' world.hooks['txn_observers'] callback writes ops_days inside bank's bank.txn applier (37 writes at genesis, 60 in 30 minutes); gate SP-2.3b's metric would be >= 1 on every civ."
+}
+```
+
+### DEF-A-9 (medium, fixed): Blind spots of the SP-2.3b write trace: in-place mutation of another module's row inside an applier and writes
+
+```json
+{
+ "area": "A_J_substrate_civ",
+ "fixed_by": "c5c/w3b-kcal 16ef537: content fingerprints (untracked writes) per applier and per commit, trace_genesis, metadata key ownership (declare_meta, namespace, reviewed legacy keys), derivers traced; _rapid_hashes over every observation/action with measured steps; one-sided failures counted as mismatches",
+ "id": "DEF-A-9",
+ "owner": "A",
+ "regression_tests": "tests/test_v5_substrate_integrity.py (20 passed: nested/cached/genesis/metadata/rollback cases), tests/v5/test_gate_SP_2_3b.py positive controls (sneak_control)",
+ "requirements": [
+  "SP-2.3b"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "verifier_w3b_kcal",
+  "file": "docs/v5/workstreams/A.json",
+  "finding": 2
+ },
+ "status": "fixed",
+ "summary": "Blind spots of the SP-2.3b write trace: in-place mutation of another module's row inside an applier and writes through cached array references gave 0 and replayed exactly; genesis was never traced (civ genesis: 17 offending pairs); module metadata keys had no ownership rule; rapid hashes fingerprinted only the outcome; a kind failing in one process was dropped."
+}
+```
+
+### DEF-A-10 (medium, fixed): Cross-process resume (K1) not reliably deterministic on the loaded machine: the first request of a site after 
+
+```json
+{
+ "area": "A_J_substrate_civ",
+ "fixed_by": "c5c/w3b-kcal aaaea6c (D-80 amendment): the first job after its program's load on a platform cold start bills its anchor without the tolerance check (minimal edit in sandbox/runner.py); restarts and unmanaged workers keep the check",
+ "id": "DEF-A-10",
+ "owner": "A",
+ "regression_tests": "tests/test_v5_substrate_memo.py::test_the_first_request_after_a_platform_cold_start_bills_its_anchor_despite_warm_up (fails before the change); tests/test_v5_substrate_resume.py; diagnosis loop with tests/v5_resume_child.py meter reports (A.json repair_pass.k1)",
+ "requirements": [
+  "SP-2.3"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "verifier_w3b_kcal",
+  "file": "docs/v5/workstreams/A.json",
+  "finding": 3
+ },
+ "status": "fixed",
+ "summary": "Cross-process resume (K1) not reliably deterministic on the loaded machine: the first request of a site after its program's load in the resumed process measured 4.6-5.0 ms (warm-up) against an anchor below 1.3 ms and was billed fresh (3 of 6 diagnosis runs diverged)."
+}
+```
+
 ### DEF-C-1 (critical, open): Audience rewards hash-vector alignment, not content: meaningless tokens reached 3,213/4,000 people vs 330 for 
 
 ```json

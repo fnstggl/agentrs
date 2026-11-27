@@ -340,3 +340,49 @@ Measured in wave 3b (one CPU, CUDA hidden; unofficial):
   `test_v5_substrate_retention.py::test_a_year_of_cohort_batches_leaves_the_snapshot_size_unchanged`. The population
   world needs the GPU slot (the shared space's Qwen text path embeds every new page on one CPU: 6 simulated hours
   took 20 s, the next 6 more than 220 s) and was queued.
+
+### Wave 3b repair pass (independent verifier's findings, 2026-11-27)
+
+The verifier of this branch found a critical regression of D-78 and gaps in the SP-2.3b measurement. Each is fixed
+with a regression test on this branch (commits a99d5e1, 16ef537, aaaea6c, 568f11a, 6525ae5):
+
+* **Blob lineage (critical).** `artifacts.lineage()` cached `spec.hash()` at a world's first system-blob write, and a
+  module's nested config was the spec's own object (`Module.__init__` copied the top level only). The industrial
+  genesis of every civilisation (`worlds/open_industry.py`) annotates its chain entries (`_out`, `_mach`), so the spec
+  hash moved after the first cohort batch: store-less replays, forks and `history.state_at` of all 11 profiles could
+  not read the world's own blobs (gate SP-2.3b's civ trace, SP-2.1's Mode C replay and
+  `test_v5_civ_core::test_coupling_removal_and_placebo_are_operator_only` failed). Now a module owns a detached copy of
+  its config (`kernel._detached`: a world can no longer change its spec; only `industrygen` ever did, checked on
+  civ, commerce, population and social worlds) and the lineage is `World.genesis_spec` - the hash the genesis note
+  records, carried by snapshots and taken by replays from the log - never a later state of a spec object. Probes
+  p05/p07/p11/p12 of the verifier now pass (replay exact, fork advances 437 events, `state_at` works). Tests:
+  `test_v5_substrate_retention.py` (annotating module; spec object changed after genesis; store-less civilisation).
+* **Cross-module write on civilisations (high).** `ops` kept its journal of bank postings through a
+  `world.hooks["txn_observers"]` callback invoked inside bank's `bank.txn` applier, a write into `ops_days` performed
+  by bank's applier (37 at genesis, 60 in 30 minutes). New kernel interface `@derives("<event>")`: a derived-state
+  applier runs right after the event's applier, in the same transaction and in replay, and writes only its own
+  module's state; `ops._on_txn` is one (minimal edit in `economy/operations.py` and `services/bank.py`; same writes in
+  the same order - a 1-hour civilisation has the same event hash and digest before and after).
+* **Tracer blind spots (medium).** `integrity.trace_writes` now (a) fingerprints rows and arrays: a row an applier
+  read and changed without `put` is attributed to that applier when it returns, an array that changed in a
+  transaction that never asked to write it (a cached reference) is found at commit, any other in-place change at the
+  row's next write or the end of the trace (*untracked writes*, counted in `cross_module_state_writes`); (b) wraps
+  derived-state appliers; (c) traces genesis (`trace_genesis()`, used by `hashes(trace=True)`); (d) gives metadata keys
+  owners (`StateStore.declare_meta`, module/host namespace, reviewed 4.0 keys in `LEGACY_META_OWNERS`). Civilisation
+  (genesis + 30 minutes, one CPU): 1,571 traced writes, 0 cross-module, 0 handler, 0 untracked, exact replay (was 17
+  genesis pairs + bank->ops_days); commerce (genesis + 2 h): 428 writes, 0. The trace leaves the trajectory unchanged
+  (same hash and digest as an untraced run). The gate's positive controls cover each blind spot. `_rapid_hashes`
+  fingerprints every observation and action and reports measured steps; a kind that fails in one of the two
+  processes is a determinism mismatch.
+* **K1 nondeterminism (medium).** Diagnosed on the test's own spec with six stored reference/part/resume triples: 3
+  diverged, each by one job - the first `service:home` request of one site after its program's load in the resumed
+  process, 4.6-5.0 ms against an anchor below 1.3 ms (interpreter warm-up the uninterrupted world's worker had done
+  long before), billed fresh by the tolerance rule. The first job after its program's load on a platform cold start
+  now bills its anchor without the check (D-80 amendment; restarts and unmanaged workers keep it). After the repair:
+  see A.json `repair_pass.k1`. Test: `test_v5_substrate_memo.py::test_the_first_request_after_a_platform_cold_start_
+  bills_its_anchor_despite_warm_up` (fails before the change).
+* **Calibration (low).** In-world experiments match only when equivalent within prespecified margins (TOST), not
+  merely not rejected: `inworld.EQUIVALENCE` (ad shift 0.5 log-odds, open rate 0.03, own-topic LOR 0.2).
+* Integration finding: the shared semantic space's parameter hash includes absolute file paths
+  (`semantic.space.align.MAP_DIR`, `RIDGE_FILE`), so world keys - and event hashes of every world that records
+  representations - differ between checkouts in different directories (integration note for D).
