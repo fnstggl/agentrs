@@ -24,6 +24,19 @@ The prior variance (per feature) and the noise are learned parameters; a channel
 a key is first bound. The fast parameters are conditioned on the shared latent representation through phi (computed
 from the outcome head's Z-conditioned features) and optionally on the mechanism belief (FiLM from `cond`, e.g. the
 belief summary token). This supplements the nonlinear dynamics model; it is not the world model.
+
+Gated fusion (DOM path, plan 2026-11-26 §1 Beliefs "REDESIGN, interim"; `fusion=True`, default for the `dom*`
+presets): the Kalman/NIG predictive is no longer substituted for the particle mixture's variance. The runtime
+(`core/belief_runtime.py`) forms a two-expert mixture per bound continuous query,
+
+    p(y) = g * p_kal(y) + (1 - g) * p_mix(y),     g = FusionGate(evidence / fit statistics) in (0, 1),
+
+where p_mix is the particle mixture and p_kal the Student-t residual predictive around a base mean that does not
+depend on the particles (the particle-free head mean), so the particles keep their own learning signal and the two
+residual decompositions (update time / predict time) agree. The gate is learned through the support/query
+objective. RBPF extension point: `predictive` returns [B,Q] statistics for one shared posterior per channel;
+per-particle Kalman means (bayes_mu [B,K,C,F]) would give [B,K,Q] locations that the runtime mixes over particles
+with the particle weights (see `belief_runtime.FusedPredictive`).
 """
 from __future__ import annotations
 
@@ -41,6 +54,30 @@ from .blocks import RMSNorm, count_parameters
 F64 = torch.float64
 
 
+class FusionGate(nn.Module):
+    """Weight g [B,Q] of the Kalman/NIG expert in the gated fusion, from per-query statistics f [B,Q,N_FEAT]
+    (`belief_runtime.fusion_features`): log1p(n_c), log Kalman scale^2, log mixture variance, their difference
+    (Kalman minus mixture), the particle filter's recent surprise, log(noise estimate / prior noise), and the Kalman
+    expert's realised per-observation log evidence (closed-form NIG marginal likelihood of the channel's past
+    residuals) plus the mixture's predictive entropy (> 0: the Kalman expert fitted the past better than the mixture
+    expects to fit the next outcome). Initialisation: trust the narrower expert, more so with evidence:
+    logit g = -1 + 0.5 log1p(n) - (log scale^2_kal - log var_mix); every weight is learned (L_adapt)."""
+
+    N_FEAT = 7
+
+    def __init__(self):
+        super().__init__()
+        self.lin = nn.Linear(self.N_FEAT, 1)
+        with torch.no_grad():
+            self.lin.weight.zero_()
+            self.lin.weight[0, 0] = 0.5
+            self.lin.weight[0, 3] = -1.0
+            self.lin.bias.fill_(-1.0)
+
+    def forward(self, f: Tensor) -> Tensor:
+        return torch.sigmoid(self.lin(f.float()).squeeze(-1))
+
+
 class BayesLastLayer(nn.Module):
     """Args:
         cfg: CamConfig (bayes_feat, bayes_prior_var_init, bayes_obs_var_init, d_model).
@@ -48,12 +85,16 @@ class BayesLastLayer(nn.Module):
         noise_mode: "nig" (noise inferred, Student-t predictive) or "fixed" (learned known noise, Gaussian).
         a0: inverse-gamma prior shape for the noise ("nig"); b0 = a0 * noise so the prior plug-in noise is `noise`.
         kinds: likelihood types handled (continuous outcomes by default).
+        fusion: gated fusion with the particle mixture (a `FusionGate` parameter set; see the module docstring).
+            None = on for the DOM presets (cfg.preset "dom*"), off otherwise (legacy variance replacement).
     """
 
     def __init__(self, cfg: CamConfig, d_in: Optional[int] = None, d_cond: Optional[int] = None,
                  noise_mode: str = "nig", a0: float = 2.0, hidden: Optional[int] = None,
-                 kinds: Sequence[int] = (Likelihood.GAUSSIAN, Likelihood.STUDENT_T)):
+                 kinds: Sequence[int] = (Likelihood.GAUSSIAN, Likelihood.STUDENT_T), fusion: Optional[bool] = None):
         super().__init__()
+        self.fusion = str(getattr(cfg, "preset", "") or "").startswith("dom") if fusion is None else bool(fusion)
+        self.gate = FusionGate() if self.fusion else None
         assert noise_mode in ("nig", "fixed"), noise_mode
         self.cfg = cfg
         self.F = cfg.bayes_feat
@@ -179,6 +220,43 @@ class BayesLastLayer(nn.Module):
             dof = torch.full_like(scale2, float("inf"))
         bound = ch >= 0
         return {"loc": loc, "scale2": scale2, "dof": dof, "bound": bound}
+
+    def channel_stats(self, fast: FastState, outcomes: OutcomeBatch) -> dict:
+        """Per-query channel statistics without allocating: {"n": [B,Q] observations on the bound channel,
+        "noise": [B,Q] float64 noise estimate s2_hat, "bound": [B,Q] bool} (n = 0, noise = 1 where unbound)."""
+        ch = self.channels_for(fast, outcomes)
+        _, _, s2, n = self._gather(fast, ch)
+        b = ch >= 0
+        return {"n": torch.where(b, n.float(), torch.zeros_like(n.float())),
+                "noise": torch.where(b, s2, torch.ones_like(s2)), "bound": b}
+
+    def log_evidence(self, fast: FastState, outcomes: OutcomeBatch) -> Tensor:
+        """Per-observation log marginal likelihood [B,Q] of the residuals each query's channel has absorbed, in closed
+        form from the NIG posterior (`noise_mode="nig"`): log p(r_1..n) = lgamma(a_n) - lgamma(a_0) + a_0 log b_0 -
+        a_n log b_n + 0.5 (log|V_n| - log|V_0|) - n/2 log(2 pi), with V = Sigma / s2, b = s2 * a, a_n = a_0 + n/2 and
+        the slot prior (diag(prior_var), noise) at the current learned values; divided by n. 0 where unbound, n = 0
+        or noise_mode "fixed"."""
+        ch = self.channels_for(fast, outcomes)
+        _, P, s2, n = self._gather(fast, ch)
+        b = (ch >= 0) & (n > 0)
+        if self.noise_mode != "nig" or not bool(b.any()):
+            return torch.zeros(ch.shape, dtype=torch.float32, device=ch.device)
+        nn_ = n.to(F64)
+        a0 = torch.full_like(nn_, self.a0)
+        an = a0 + 0.5 * nn_
+        s20 = self.noise().detach().to(F64)
+        pv = self.prior_var().detach().to(F64)
+        Fd = P.shape[-1]
+        ld0 = torch.log(pv).sum() - Fd * torch.log(s20)
+        Pn = P.to(F64)
+        L, info = torch.linalg.cholesky_ex(Pn + 1e-12 * torch.eye(Fd, dtype=F64, device=Pn.device))
+        ldn = 2 * torch.log(torch.diagonal(L, dim1=-2, dim2=-1).clamp_min(1e-300)).sum(-1) \
+            - Fd * torch.log(s2.to(F64).clamp_min(1e-300))
+        bn = s2.to(F64) * an
+        ev = (torch.lgamma(an) - torch.lgamma(a0) + a0 * torch.log(a0 * s20) - an * torch.log(bn.clamp_min(1e-300))
+              + 0.5 * (ldn - ld0) - 0.5 * nn_ * math.log(2 * math.pi))
+        ev = ev / nn_.clamp_min(1.0)
+        return torch.where(b & (info == 0), ev, torch.zeros_like(ev)).float()
 
     def predict(self, fast: FastState, phi: Tensor, outcomes: OutcomeBatch) -> tuple:
         """(mean [B,Q], var [B,Q]) of the residual correction r = y - head_mean: mean = phi^T mu_c, var = predictive

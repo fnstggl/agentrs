@@ -29,6 +29,20 @@ Notation (per environment row b; S state tokens of width D):
   stochastic model is not penalised, and no term can be explained by a different future than the others.
   Per-horizon errors and the joint mixture NLL are returned.
 
+DOM switches (plan 2026-11-26 §2 / §3 W6; config fields, defaults keep everything above):
+
+* ``cfg.wm_transition_blocks = k``: Z^_{t+1} = Prior(R_t, A_t, B_t, dt_t, z_t) runs only the last k shared core
+  blocks (by reference; `core.transition_blocks(k)` when the core provides it) between zero-initialised input /
+  output adapters, from the reasoned latent R_t (declared deviation from the full-core transition of spec 6.1);
+* ``cfg.wm_ema_target = False``: no EMA target encoder; the latent target is sg(Z_post) of the agent's own filter,
+  which ``loss(..., Z_post=, R_post=)`` receives from `world/train_seq.py` (one filter, the acting one);
+* ``cfg.kl_free_bits_group = f``: per-group free bits on the batch-mean KL (`kl_terms`) instead of free nats;
+* ``cfg.wm_consistency = w``: L_cons = ||(Z^_{t+1} - sg(Z_post_{t+1})) / sd||^2 on the teacher-forced transition
+  and on open-loop h=1, plus the diagnostics MSE / Var(Z_post);
+* mode-latent open loop (on with the free bits): one extra future per start uses the prior mode at every step and
+  is scored outside the mixture with weight 1/S, so deterministic delayed effects must sit on the deterministic path;
+* ``cfg.reward_mode = "observation_only"``: the verified return increment is never a world-model target.
+
 Batch alignment (``SequenceBatch``): step t holds O_t, the executed action A_t, its observed consequences Y_t, the
 elapsed time dt_t until step t+1, reward r_t and done_t (the episode ended after A_t). A row whose obs and action
 masks are all False at step t is padding.
@@ -54,6 +68,42 @@ from .outcomes import OutcomeHead
 CONTINUOUS = (int(Likelihood.GAUSSIAN), int(Likelihood.STUDENT_T), int(Likelihood.COUNT))
 
 
+def _params_of(fn) -> set:
+    import inspect
+    try:
+        return set(inspect.signature(fn).parameters)
+    except (TypeError, ValueError):
+        return set()
+
+
+def _core_kwargs(wm, core, sem, sem_rows, code_rows) -> dict:
+    """Keyword arguments of one core call: code_rows / sem / sem_rows when given and accepted by the core's forward
+    (the seam core takes code_rows only; W3's core also sem and sem_rows). A dropped ``sem`` is counted."""
+    kw = {}
+    if code_rows is None and sem is None:
+        return kw
+    ps = _params_of(core.forward)
+    if code_rows is not None:
+        kw["code_rows"] = code_rows
+    if sem is not None:
+        if "sem" in ps:
+            kw["sem"] = sem
+            if sem_rows is not None and "sem_rows" in ps:
+                kw["sem_rows"] = sem_rows
+        else:
+            wm.sem_ignored += 1
+    return kw
+
+
+def _sem_at(sem, t: int):
+    """The semantic context of step t: ``sem`` itself (one for every step) or its t-th entry (a list per step)."""
+    if sem is None:
+        return None
+    if isinstance(sem, (list, tuple)):
+        return sem[t] if t < len(sem) else None
+    return sem
+
+
 def _as_dt(dt, B: int, device) -> torch.Tensor:
     if dt is None:
         return None
@@ -74,6 +124,38 @@ def unimix(logits: torch.Tensor, mix: float) -> torch.Tensor:
 def categorical_kl(p_logp: torch.Tensor, q_logp: torch.Tensor) -> torch.Tensor:
     """KL(p || q) for log-probabilities [..., G, C] summed over groups -> [...]."""
     return (p_logp.exp() * (p_logp - q_logp)).sum(-1).sum(-1)
+
+
+def categorical_kl_groups(p_logp: torch.Tensor, q_logp: torch.Tensor) -> torch.Tensor:
+    """KL(p || q) per stochastic group for log-probabilities [..., G, C] -> [..., G]."""
+    return (p_logp.exp() * (p_logp - q_logp)).sum(-1)
+
+
+def _mse_over_var(Zh: torch.Tensor, Zt: torch.Tensor, ok: torch.Tensor, Z_all: torch.Tensor,
+                  valid: torch.Tensor) -> torch.Tensor:
+    """MSE(Zh, Zt) over the rows ``ok`` divided by the mean across-sample variance of the valid states ``Z_all``
+    [T,B,S,D] (the plan's consistency gap measure; 1 ~ predicting the mean state, 0 = exact). Detached scalar."""
+    with torch.no_grad():
+        if not bool(ok.any()):
+            return Zh.new_zeros(()).float()
+        X = Z_all[valid].float()
+        var = X.var(0).mean() if X.shape[0] >= 2 else torch.ones((), device=Zh.device)
+        mse = ((Zh[ok].float() - Zt[ok].float()) ** 2).mean()
+        return mse / var.clamp_min(1e-12)
+
+
+def outcome_beta_weights(d, beta: float) -> torch.Tensor:
+    """Detached beta-NLL weights of a MixedOutcomeDist (batch shape): scale^(2 beta) for the Gaussian (std) and
+    Student-t (scale) entries, 1 for every other family (Seitzer et al. 2022)."""
+    with torch.no_grad():
+        w = torch.ones(d.batch_shape, device=d.raw.device)
+        if beta <= 0:
+            return w
+        if d._has(Likelihood.GAUSSIAN):
+            w = torch.where(d.lik == int(Likelihood.GAUSSIAN), d.g_std.float().clamp(min=1e-6) ** (2 * beta), w)
+        if d._has(Likelihood.STUDENT_T):
+            w = torch.where(d.lik == int(Likelihood.STUDENT_T), d.t_scale.float().clamp(min=1e-6) ** (2 * beta), w)
+        return w
 
 
 def straight_through(logp: torch.Tensor, sample: bool = True, generator: Optional[torch.Generator] = None):
@@ -157,7 +239,10 @@ class WorldModel(nn.Module):
                  obs_temperature: float = 0.1, obs_max_groups: int = 64, obs_max_tokens: int = 32,
                  var_target: float = 0.5, detach_obs_targets: bool = True, use_autocast: bool = True,
                  train_horizons: Optional[Sequence[int]] = None, open_loop_credit: str = "trajectory",
-                 latent_floor_rms: float = 0.1):
+                 latent_floor_rms: float = 0.1, mode_latent: Optional[bool] = None,
+                 latent_grad: Optional[str] = None, latent_rep_weight: Optional[float] = None,
+                 outcome_nll_beta: Optional[float] = None, action_input: Optional[bool] = None,
+                 trans_act_gain: Optional[float] = None):
         super().__init__()
         if open_loop_credit not in ("trajectory", "row", "per_term"):
             raise ValueError("open_loop_credit must be 'trajectory', 'row' or 'per_term'")
@@ -200,21 +285,111 @@ class WorldModel(nn.Module):
         self.cont_head = MLP(D, 2 * D, 1)
         self.latent_pred = MLP(D, 2 * D, D)
         self.obs_pred = ObsPredictor(D, cfg.n_heads, cfg.n_fourier)
-        # EMA target encoder: a frozen copy of the backbone (state_dict-saved, never optimised)
-        self.target_core = copy.deepcopy(core)
-        for p in self.target_core.parameters():
-            p.requires_grad_(False)
+        # ---- DOM switches (plan 2026-11-26 §2/§3 W6); every default keeps the pre-seam model
+        # transition through the last k shared core blocks + zero-initialised adapters (0 = a full core pass)
+        self.k_trans = int(getattr(cfg, "wm_transition_blocks", 0) or 0)
+        if self.k_trans > 0:
+            self.trans_in = nn.Linear(D, D)
+            nn.init.zeros_(self.trans_in.weight)
+            nn.init.zeros_(self.trans_in.bias)
+            self.trans_out = MLP(D, 2 * D, D, zero_out=True)
+            # direct action input of the block transition (the RSSM "GRU input" role): the pooled ACTION tokens,
+            # standardised with running per-channel statistics, are linearly projected and added to every state token
+            # before the reused blocks. Without it the action reaches the state stream only as 4 of ~55 attended
+            # context tokens: on the real dom_dev stack the executed action moved Z^ by ~1-2 % of its across-row
+            # spread and the action-dependent InteractionEnv payout stayed at climatology for > 400 updates.
+            # Frozen-encoder action tokens share a dominant component (pairwise cosine 0.95-0.96 between the four
+            # lever settings), so the running standardisation (StateNorm over one position; updated after use, in
+            # training only) makes their differences unit-scale; a per-row LayerNorm keeps them ~5 % apart. Measured
+            # on fixed dom_dev filter states (all outcome keys, beta-NLL, Adam 1e-4, 8-row batches): payout MSE/Var
+            # at 200 updates 0.82 (LayerNorm input), 0.15 (running, zero init), 0.03 (running, unit gain); on the full
+            # dom_dev world objective (InteractionEnv, Adam 1e-4) t1 after 200 updates 0.06 with a zero-initialised
+            # and 0.39 with a unit-gain projection (docs/evidence/dom/W6/world_model_outcome_learning.json).
+            # ``trans_act_gain`` = init std x sqrt(D) (default 1: unit gain; 0 = zero init, which keeps the exact
+            # last-k-blocks initialisation). cfg.wm_action_input (default True with the block transition),
+            # cfg.wm_trans_act_gain.
+            on = bool(getattr(cfg, "wm_action_input", True) if action_input is None else action_input)
+            g = float(getattr(cfg, "wm_trans_act_gain", 1.0) if trans_act_gain is None else trans_act_gain)
+            self.action_input_on, self.trans_act_gain = on, g
+            self.act_norm_mode = str(getattr(cfg, "wm_trans_act_norm", "running"))
+            if on:
+                self.trans_act_norm = nn.LayerNorm(D)
+                self.trans_act_stats = StateNorm(1, D)
+                self.trans_act = nn.Linear(D, D)
+                if g > 0:
+                    nn.init.normal_(self.trans_act.weight, std=g * D ** -0.5)
+                else:
+                    nn.init.zeros_(self.trans_act.weight)
+                nn.init.zeros_(self.trans_act.bias)
+        else:
+            self.action_input_on, self.trans_act_gain = False, 0.0
+        # per-group free bits (Kingma et al. 2016: batch-mean KL of each stochastic group floored at the value)
+        self.free_bits_group = float(getattr(cfg, "kl_free_bits_group", 0.0) or 0.0)
+        # L_cons = ||(Z_hat_{t+1} - sg(Z_post_{t+1})) / sd||^2 (teacher-forced and open-loop h=1)
+        self.consistency_w = float(getattr(cfg, "wm_consistency", 0.0) or 0.0)
+        # observation-only: the verified return increment is never a world-model target
+        self.reward_targets = str(getattr(cfg, "reward_mode", "legacy")) != "observation_only"
+        # mode-latent open-loop future (one extra rollout with the prior mode, scored outside the mixture with weight
+        # 1/S): deterministic effects must sit on the deterministic path (audit E3); on with the DOM free bits
+        self.mode_latent = self.free_bits_group > 0 if mode_latent is None else bool(mode_latent)
+        # EMA target encoder (legacy): a frozen copy of the backbone (state_dict-saved, never optimised).
+        # cfg.wm_ema_target=False: no copy; the latent target is the detached posterior state of the agent's filter.
+        self.use_ema = bool(getattr(cfg, "wm_ema_target", True))
+        # gradient routing of the self-predictive terms (latent, consistency) whose target is the model's own state.
+        # "full": through the transition into the shared blocks and the filter (legacy, with the EMA target);
+        # "transition": only into the transition-specific parameters (output adapter, latent read-out). Without an
+        # EMA target the online posterior is the target, and letting these terms shape the shared encoder has a
+        # trivial fixed point (a context-insensitive filter predicts itself; measured on DelayWorld with the real
+        # core: predictions collapse to climatology, consistency 0.001). The encoder is then shaped by the
+        # predictive heads (outcomes, observations, continuation) only, as in the stop-gradient / predictor
+        # asymmetry of non-EMA self-prediction.
+        # ``latent_rep_weight`` beta (with "transition"; cfg.wm_latent_rep_weight, default 0): a beta-scaled copy of
+        # the full gradient is added (representation term, DreamerV3's rep/dyn split with beta_rep = 0.1): the
+        # shared encoder is shaped towards predictable states with a small weight while the transition-specific
+        # parameters receive the full weight. Values are unchanged (gradient routing only).
+        self.latent_grad = ("full" if self.use_ema else "transition") if latent_grad is None else latent_grad
+        if self.latent_grad not in ("full", "transition"):
+            raise ValueError("latent_grad must be 'full' or 'transition'")
+        self.latent_rep_weight = float(getattr(cfg, "wm_latent_rep_weight", 0.0) or 0.0) \
+            if latent_rep_weight is None else float(latent_rep_weight)
+        # beta-NLL of the continuous outcome terms (Seitzer et al. 2022, "On the pitfalls of heteroscedastic
+        # uncertainty estimation"): each Gaussian / Student-t log-likelihood of the outcome loss is weighted by
+        # sg(scale^(2 beta)), so the predictive mean receives a gradient (mu - y) / sigma^(2 - 2 beta) instead of
+        # (mu - y) / sigma^2. With plain NLL (beta 0) a learned scale absorbs the residual of a state-/action-
+        # dependent outcome and the mean stops learning: measured on the real dom_dev stack (InteractionEnv payout
+        # through the DOM transition + outcome head, all outcome keys, Adam 1e-4, 8-row batches): plain NLL stays at
+        # the climatology (MSE/Var 1.02 after 800 steps) while beta = 0.5 reaches MSE/Var 0.014 (docs/evidence/dom/
+        # W6). Only the training loss is reweighted: log-likelihoods, mixture responsibilities, belief updates and
+        # every reported NLL are unchanged. cfg.wm_outcome_beta; default 0.5 with the DOM switches, 0 (plain NLL)
+        # otherwise.
+        ob_default = 0.5 if (self.k_trans > 0 or self.free_bits_group > 0) else 0.0
+        self.outcome_nll_beta = float(getattr(cfg, "wm_outcome_beta", ob_default)
+                                      if outcome_nll_beta is None else outcome_nll_beta)
+        if not 0.0 <= self.outcome_nll_beta <= 1.0:
+            raise ValueError("outcome_nll_beta must lie in [0, 1]")
+        # latent read-out residual at the state's RMS (DOM switches only; legacy keeps the unit-scale residual)
+        self.latent_rms_scale = self.k_trans > 0 or not self.use_ema
+        if self.use_ema:
+            self.target_core = copy.deepcopy(core)
+            for p in self.target_core.parameters():
+                p.requires_grad_(False)
+        else:
+            self.target_core = None
         self.n_transitions = 0              # world-model transition evaluations (rows), for compute accounting
+        self.sem_ignored = 0                # semantic contexts dropped because the core has no semantic input
 
     # ------------------------------------------------------------------ parameters / target
     def trainable_parameters(self):
         """All optimisable parameters (excludes the EMA target copy)."""
-        tid = {id(p) for p in self.target_core.parameters()}
+        tid = set() if self.target_core is None else {id(p) for p in self.target_core.parameters()}
         return [p for p in self.parameters() if id(p) not in tid and p.requires_grad]
 
     @torch.no_grad()
     def update_target(self, decay: Optional[float] = None) -> None:
-        """target <- decay * target + (1 - decay) * online (call after each optimiser step)."""
+        """target <- decay * target + (1 - decay) * online (call after each optimiser step). No-op without an EMA
+        target (cfg.wm_ema_target=False)."""
+        if self.target_core is None:
+            return
         d = self.ema_decay if decay is None else decay
         for pt, p in zip(self.target_core.parameters(), self.core.parameters()):
             pt.lerp_(p.detach().to(pt.dtype), 1.0 - d)
@@ -223,8 +398,21 @@ class WorldModel(nn.Module):
 
     @torch.no_grad()
     def reset_target(self) -> None:
-        """Copy the online backbone into the target (e.g. after loading new backbone weights)."""
+        """Copy the online backbone into the target (e.g. after loading new backbone weights). No-op without one."""
+        if self.target_core is None:
+            return
         self.target_core.load_state_dict(self.core.state_dict())
+
+    def transition_block_list(self):
+        """The shared core blocks the DOM transition runs (`core.transition_blocks(k)` when the core provides it,
+        W3's signature; otherwise the last k entries of `core.blocks`). Empty when cfg.wm_transition_blocks == 0."""
+        if self.k_trans <= 0:
+            return []
+        core = self.core
+        if callable(getattr(core, "transition_blocks", None)):
+            return list(core.transition_blocks(self.k_trans))
+        blocks = core.blocks
+        return list(blocks[max(0, len(blocks) - self.k_trans):])
 
     # ------------------------------------------------------------------ token builders
     def init_state(self, B: int, device=None):
@@ -241,20 +429,26 @@ class WorldModel(nn.Module):
         x = self.noise_proj(z.float()).view(z.shape[0], self.n_noise, -1)
         return TokenSet.from_dense(x, TokenKind.NOISE, time=dt.view(-1, 1).expand(-1, self.n_noise).float())
 
-    def _core(self, Z, ctx: TokenSet, core=None):
+    def _core(self, Z, ctx: TokenSet, core=None, sem=None, sem_rows=None, code_rows=None):
+        """One core pass. ``sem`` (a SemanticContext / SemanticKV, Mechanism C), ``sem_rows`` [B] (batch row ->
+        semantic row) and ``code_rows`` [B] (batch row -> entity slot-code episode row) are passed to the core when
+        given and the core accepts them (W3's `UnifiedCore.forward(Z_prev, ctx, code_rows=None, sem=None, *,
+        sem_rows=None)`); a core without a semantic input ignores ``sem`` (counted in ``sem_ignored``)."""
         core = self.core if core is None else core
+        kw = _core_kwargs(self, core, sem, sem_rows, code_rows)
         on = self.use_autocast and Z.is_cuda
         with torch.autocast("cuda", dtype=torch.bfloat16, enabled=on):
-            Zn, ctx_out = core(Z, ctx)
+            Zn, ctx_out = core(Z, ctx, **kw)
         return Zn.float(), ctx_out
 
     # ------------------------------------------------------------------ filter (posterior state)
     def filter_step(self, Z_prev, obs: Optional[TokenSet], act_prev: Optional[TokenSet] = None, dt_prev=None,
                     belief: Optional[TokenSet] = None, goal: Optional[TokenSet] = None,
-                    memory: Optional[TokenSet] = None, core=None, reset: Optional[torch.Tensor] = None):
+                    memory: Optional[TokenSet] = None, core=None, reset: Optional[torch.Tensor] = None,
+                    sem=None, sem_rows: Optional[torch.Tensor] = None, code_rows: Optional[torch.Tensor] = None):
         """One agent state update Z_t = F(Z_{t-1}, [O_t; A_{t-1}; TIME(dt_{t-1}); B_t; M_t; G_t]).
         ``reset`` [B] bool: rows starting a new episode (Z_prev replaced by the initial state; A_{t-1} and the
-        elapsed time masked out). Returns (Z [B,S,D], ctx_out)."""
+        elapsed time masked out). ``sem`` / ``sem_rows`` / ``code_rows``: see `_core`. Returns (Z [B,S,D], ctx_out)."""
         B = Z_prev.shape[0]
         dev = Z_prev.device
         if reset is not None and bool(reset.any()):
@@ -269,11 +463,13 @@ class WorldModel(nn.Module):
         if dt_prev is not None:
             parts.append(self.time_tokens(_as_dt(dt_prev, B, dev), None if reset is None else ~reset))
         parts += [belief, memory, goal]
-        return self._core(Z_prev, cat_tokens(*parts), core)
+        return self._core(Z_prev, cat_tokens(*parts), core, sem, sem_rows, code_rows)
 
     def filter(self, batch: SequenceBatch, beliefs: Optional[list] = None, memory: Optional[list] = None,
-               core=None, Z0=None) -> torch.Tensor:
-        """Run the filter over a sequence. Returns Z_post [T,B,S,D] (Z_post[t] has seen O_{<=t} only)."""
+               core=None, Z0=None, sem=None, sem_rows: Optional[torch.Tensor] = None,
+               code_rows: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Run the filter over a sequence. Returns Z_post [T,B,S,D] (Z_post[t] has seen O_{<=t} only). ``sem``: one
+        semantic context for every step, or a list of T (one per step; None entries allowed)."""
         steps = batch.steps
         B = steps[0].obs.B
         dev = steps[0].obs.x.device
@@ -285,7 +481,8 @@ class WorldModel(nn.Module):
             Z, _ = self.filter_step(Z, st.obs, None if prev is None else prev.act,
                                     None if prev is None else prev.dt,
                                     None if beliefs is None else beliefs[t], st.goal,
-                                    None if memory is None else memory[t], core=core, reset=reset)
+                                    None if memory is None else memory[t], core=core, reset=reset,
+                                    sem=_sem_at(sem, t), sem_rows=sem_rows, code_rows=code_rows)
             out.append(Z)
         return torch.stack(out)
 
@@ -310,13 +507,98 @@ class WorldModel(nn.Module):
         """[B,G,C] log-probs -> straight-through one-hot z [B, G*C]."""
         return straight_through(logp, sample, generator).reshape(logp.shape[0], -1)
 
-    def transition(self, Z, act: TokenSet, belief: Optional[TokenSet], dt, z) -> torch.Tensor:
-        """Z^_{t+1} = F(Z_t, [A_t; B_t; TIME(dt_t); NOISE(z_t)]) (no observations)."""
+    def transition(self, Z, act: TokenSet, belief: Optional[TokenSet], dt, z, view: bool = False, sem=None,
+                   sem_rows: Optional[torch.Tensor] = None, code_rows: Optional[torch.Tensor] = None):
+        """Z^_{t+1} = F(Z_t, [A_t; B_t; TIME(dt_t); NOISE(z_t)]) (no observations). With cfg.wm_transition_blocks = k
+        the transition runs only the last k shared core blocks (`_block_transition`); otherwise a full core pass.
+        ``view=True`` returns (Z^, Z^_target_view): the same values, with gradients routed for the self-predictive
+        terms (`latent_grad`). ``sem`` / ``sem_rows`` / ``code_rows`` (rows of Z -> semantic rows / entity slot-code
+        episode rows, e.g. B*K candidate rows -> their environment row): see `_core`."""
         B = Z.shape[0]
         dt = _as_dt(dt, B, Z.device)
         self.n_transitions += B
-        Zn, _ = self._core(Z, cat_tokens(act, belief, self.time_tokens(dt), self.noise_tokens(z, dt)))
-        return Zn
+        ctx = cat_tokens(act, belief, self.time_tokens(dt), self.noise_tokens(z, dt))
+        if self.k_trans > 0:
+            Zn, Zv = self._block_transition(Z, ctx, sem, sem_rows, code_rows, act=act)
+        else:
+            Zn, _ = self._core(Z, ctx, None, sem, sem_rows, code_rows)
+            Zv = Zn if self.latent_grad == "full" else self._rep_mix(Zn.detach(), Zn)
+        return (Zn, Zv) if view else Zn
+
+    def _rep_mix(self, Zr: torch.Tensor, Zn: torch.Tensor) -> torch.Tensor:
+        """Routed view Zr (transition-specific gradient) plus ``latent_rep_weight`` x the full-gradient path of Zn;
+        the values stay Zr's (== Zn's)."""
+        b = self.latent_rep_weight
+        if b <= 0 or not Zn.requires_grad:
+            return Zr
+        return Zr + b * (Zn - Zn.detach())
+
+    def action_input(self, act: Optional[TokenSet], B: int, device) -> Optional[torch.Tensor]:
+        """[B,1,D] direct action input of the block transition (zero for rows without action tokens), or None when
+        the transition has none (`action_input` off)."""
+        if not self.action_input_on or act is None or act.N == 0:
+            return None
+        m = act.mask.float().unsqueeze(-1)
+        pooled = (act.x.float() * m).sum(1) / m.sum(1).clamp(min=1.0)
+        has = (m.sum(1) > 0).float()
+        if self.act_norm_mode == "running":
+            x = self.trans_act_stats(pooled.unsqueeze(1)).squeeze(1)
+            if self.training and torch.is_grad_enabled():
+                ok = has.squeeze(-1) > 0
+                if int(ok.sum()) >= 2:
+                    self.trans_act_stats.update(pooled.detach()[ok].unsqueeze(1))
+        else:
+            x = self.trans_act_norm(pooled)
+        return (self.trans_act(x) * has).unsqueeze(1)
+
+    def _block_transition(self, R, ctx: TokenSet, sem=None, sem_rows: Optional[torch.Tensor] = None,
+                          code_rows: Optional[torch.Tensor] = None, act: Optional[TokenSet] = None) -> torch.Tensor:
+        """DOM transition (plan §2, declared deviation from spec 6.1's full-core transition): the input state
+        (the reasoned latent R_t when acting; an imagined Z^ in open loop) is embedded like a core state
+        (`core.embed_state` + a zero-initialised input adapter), the context [A; B; TIME; NOISE] like core context
+        (`core.embed_ctx`, budget-selected), and the joint sequence runs through the last k core blocks shared by
+        reference (`transition_block_list`), then a zero-initialised residual output adapter and the core's output
+        norm, so Z^ lies on the same RMS-normalised manifold as the posterior state. At initialisation (adapters
+        zero) this is exactly the last k core blocks applied to [R + action input; ctx] (`action_input`). With ``sem`` and a core that has Mechanism C
+        (`project_semantic`, `run_blocks(..., sem=)`; W3) the semantic cross-attention after each reused block applies
+        as in the full pass (row alignment by ``sem_rows`` / ``code_rows``); ``code_rows`` also selects the entity
+        slot codes of the context rows (`embed_ctx`)."""
+        core = self.core
+        S = R.shape[1]
+        blocks = self.transition_block_list()
+        on = self.use_autocast and R.is_cuda
+        with torch.autocast("cuda", dtype=torch.bfloat16, enabled=on):
+            sel, _, _ = core.select_budget(ctx)
+            hs = core.embed_state(R) + self.trans_in(R.float())
+            a_in = self.action_input(act, R.shape[0], R.device)
+            if a_in is not None:
+                hs = hs + a_in
+            hc = core.embed_ctx(sel) if code_rows is None else core.embed_ctx(sel, code_rows)
+            h = torch.cat([hs, hc.to(hs.dtype)], 1)
+            key_mask = torch.cat([torch.ones(R.shape[0], S, dtype=torch.bool, device=R.device), sel.mask.bool()], 1)
+            if bool(key_mask.all()):
+                key_mask = None
+            rb_kw = {}
+            if sem is not None:
+                proj = getattr(core, "project_semantic", None)
+                if callable(proj) and "sem" in _params_of(core.run_blocks):
+                    kv = proj(sem, R.shape[0], code_rows, sem_rows)
+                    if kv is not None:
+                        rb_kw["sem"] = kv
+                else:
+                    self.sem_ignored += 1
+            h = core.run_blocks(h, key_mask, blocks, **rb_kw)
+            hS0 = h[:, :S].float()
+            Zn = core.out_norm(hS0 + self.trans_out(hS0)).float()
+            if self.latent_grad == "full":
+                Zv = Zn
+            else:
+                # same values; gradient only into the output adapter (blocks, input and output norm detached)
+                hd = hS0.detach()
+                w = core.out_norm.weight.detach().float()
+                Zv = F.rms_norm(hd + self.trans_out(hd), (hd.shape[-1],), w, getattr(core.out_norm, "eps", 1e-6))
+                Zv = self._rep_mix(Zv.float(), Zn)
+        return Zn, Zv.float()
 
     def duration_params(self, Z, act: TokenSet):
         """(mu, log_sigma) [B] of log1p(seconds) for the action's duration, from (Z_t, A_t) only."""
@@ -331,15 +613,19 @@ class WorldModel(nn.Module):
         return torch.expm1(mu.clamp(max=25.0)) / SECONDS_PER_DAY
 
     def prior(self, Z, act: TokenSet, belief: Optional[TokenSet], dt, sample: bool = True,
-              generator: Optional[torch.Generator] = None, z: Optional[torch.Tensor] = None):
-        """WorldModelP.prior: Z [B,S,D], act ACTION tokens, belief BELIEF tokens (or None), dt [B] days (None ->
-        the predicted duration). Returns (Z_hat [B,S,D], {"logits": [B,G,C], "z": [B,G*C], "dt": [B]})."""
+              generator: Optional[torch.Generator] = None, z: Optional[torch.Tensor] = None, sem=None,
+              sem_rows: Optional[torch.Tensor] = None, code_rows: Optional[torch.Tensor] = None):
+        """WorldModelP.prior: Z [B,S,D] (R_t on the DOM path), act ACTION tokens, belief BELIEF tokens (or None),
+        dt [B] days (None -> the predicted duration). ``sem`` / ``sem_rows`` / ``code_rows``: the semantic context
+        and the row maps of a batch whose rows are not the episode rows (e.g. B*K decision candidates -> their
+        environment row b; `transition`). With cfg.wm_transition_blocks = k the transition runs the core's
+        `transition_blocks(k)`. Returns (Z_hat [B,S,D], {"logits": [B,G,C], "z": [B,G*C], "dt": [B]})."""
         B = Z.shape[0]
         dt = self.predict_duration(Z, act).detach() if dt is None else _as_dt(dt, B, Z.device)
         logp = self.prior_logits(Z, act, belief, dt)
         if z is None:
             z = self.sample_latent(logp, sample, generator)
-        Zh = self.transition(Z, act, belief, dt, z)
+        Zh = self.transition(Z, act, belief, dt, z, sem=sem, sem_rows=sem_rows, code_rows=code_rows)
         return Zh, {"logits": logp, "z": z, "dt": dt}
 
     # ------------------------------------------------------------------ prediction heads on Z^
@@ -388,7 +674,14 @@ class WorldModel(nn.Module):
         ``scale`` [S,D] is the (detached) across-sample standard deviation of the target, so the objective measures
         how much of the sample-specific variation of Z_target is predicted (1 ~ predicting the mean state, 0 =
         exact); a shared constant component of the state cannot make it small."""
-        p = Zh.float() + self.latent_pred(self.state_norm(Zh))
+        # DOM path: the read-out is a residual at the state's own scale (per-token RMS, detached): the W3 default keeps
+        # Z unit-RMS (scale ~1), a core without unit-RMS states (core.state_unit=False) no longer gets an O(1)
+        # residual on O(0.01) states (W3 change request). The legacy path keeps the unit-scale residual.
+        Zf = Zh.float()
+        r = self.latent_pred(self.state_norm(Zh))
+        if self.latent_rms_scale:
+            r = Zf.pow(2).mean(-1, keepdim=True).sqrt().detach().clamp_min(1e-6) * r
+        p = Zf + r
         return (((p - Zt.detach().float()) / scale) ** 2).mean((-1, -2))
 
     def _target_scale(self, Z_tgt: torch.Tensor, valid: torch.Tensor) -> torch.Tensor:
@@ -466,8 +759,16 @@ class WorldModel(nn.Module):
     def loss(self, batch: SequenceBatch, beliefs: Optional[list] = None, memory: Optional[list] = None,
              horizons: Optional[Sequence[int]] = None, generator: Optional[torch.Generator] = None,
              fast_states: Optional[list] = None, belief_update_fn: Optional[Callable] = None,
-             belief_tokens_fn: Optional[Callable] = None) -> dict:
+             belief_tokens_fn: Optional[Callable] = None, Z_post=None, R_post=None,
+             reason_fn: Optional[Callable] = None, Z_target=None, sem=None,
+             code_rows: Optional[torch.Tensor] = None, sem_rows: Optional[torch.Tensor] = None) -> dict:
         """Full world-model objective on real recorded sequences.
+
+        ``sem``: the semantic context of the batch's B rows (one for the whole window; a list of T per-step contexts
+        for the filter when this model runs its own); every transition over flattened rows (teacher-forced (t, b),
+        open-loop (start, b, sample)) passes ``sem_rows`` = the batch row of each row. ``code_rows`` [B]: batch row
+        -> entity slot-code episode row, mapped the same way; ``sem_rows`` [B]: batch row -> row of a source-aligned
+        ``sem`` (composed with the flattened row maps).
 
         beliefs: optional list of T BELIEF TokenSets (B_t computed from information up to t); memory: optional list
         of T MEMORY TokenSets for the filter.
@@ -486,7 +787,19 @@ class WorldModel(nn.Module):
         observation-token subsampling); the global RNG is used only without it.
         Returns a dict with the total ("world" == "loss"), each term, the balanced KL and its raw value,
         per-horizon open-loop errors ("horizon_errors": {h: {...}}), the joint open-loop mixture NLL per trajectory
-        ("open_loop_joint_nll") and the detached filter states "Z_post" [T,B,S,D] for downstream users."""
+        ("open_loop_joint_nll") and the detached filter states "Z_post" [T,B,S,D] for downstream users.
+
+        Single filter (DOM, plan §3 W6): ``Z_post`` ([T,B,S,D] tensor or list of T [B,S,D], with gradients) are the
+        agent's own acting-consistent filter states (``train_seq.filter_sequence``); the world model then runs no
+        filter of its own, and without an EMA target (cfg.wm_ema_target=False) the latent target is sg(Z_post).
+        ``R_post`` (same shape) are the prior's inputs at the real steps (the reasoned latents R_t; default Z_post); ``Z_target`` (same shape): the EMA target encoder's states on the same
+        contexts (`train_seq.ema_targets`; default sg(Z_post));
+        ``reason_fn(Z_hat, belief_tokens, goal_tokens) -> R`` maps imagined states to prior inputs at open-loop
+        steps >= 2 (default: the imagined state itself). Extra DOM terms: per-group free bits
+        (cfg.kl_free_bits_group), the consistency loss (cfg.wm_consistency; "consistency", and the diagnostics
+        "cons_mse_var" = MSE(Z^_{t+1}, Z_post_{t+1}) / Var(Z_post) of the teacher-forced transition and
+        "cons_mse_var_mode1" of the mode-latent one-step prior), and the mode-latent open-loop future
+        ("open_loop_mode"). In observation_only mode the reward head has no target ("reward" = 0)."""
         if fast_states is not None and beliefs is None:
             if belief_tokens_fn is None:
                 raise ValueError("fast_states need belief_tokens_fn")
@@ -536,17 +849,31 @@ class WorldModel(nn.Module):
 
         rows = _rows
 
-        # ---- filter (online, with gradients) and EMA target (no gradients)
-        Z_post = self.filter(batch, beliefs, memory)                                 # [T,B,S,D]
-        with torch.no_grad():
-            Z_tgt = self.filter(batch, beliefs, memory, core=self.target_core)
+        # ---- filter (online, with gradients) and latent target (no gradients): the EMA target encoder (legacy) or
+        # the detached posterior itself; with given agent-filter states the world model runs no filter of its own
+        if Z_post is None:
+            Z_post = self.filter(batch, beliefs, memory, sem=sem, sem_rows=sem_rows, code_rows=code_rows)
+            if self.target_core is not None:
+                with torch.no_grad():
+                    Z_tgt = self.filter(batch, beliefs, memory, core=self.target_core, sem=sem, sem_rows=sem_rows,
+                                        code_rows=code_rows)
+            else:
+                Z_tgt = Z_post.detach()
+        else:
+            Z_post = (torch.stack(list(Z_post)) if isinstance(Z_post, (list, tuple)) else Z_post).float()
+            # the EMA target encoder's states on the same contexts when given (train_seq.ema_targets), else sg(Z_post)
+            Z_tgt = Z_post.detach() if Z_target is None else \
+                (torch.stack(list(Z_target)) if isinstance(Z_target, (list, tuple)) else Z_target).float().detach()
+        R_in = Z_post if R_post is None else \
+            (torch.stack(list(R_post)) if isinstance(R_post, (list, tuple)) else R_post).float()
         S, D = Z_post.shape[2], Z_post.shape[3]
+        sem_w = None if isinstance(sem, (list, tuple)) else sem       # per-step lists: filter only
         ctx = _SeqCtx(T=T, ob_rows=ob_rows, obs=obs, Z_tgt=Z_tgt, rew=rew, done=done, valid=valid, gen=generator,
-                      tgt_scale=self._target_scale(Z_tgt, valid))
+                      tgt_scale=self._target_scale(Z_tgt, valid), sem=sem_w, code_rows=code_rows, sem_rows=sem_rows)
 
         tt = torch.arange(T, device=dev).repeat_interleave(B)
         bb = torch.arange(B, device=dev).repeat(T)
-        Zs = Z_post.reshape(T * B, S, D)
+        Zs = R_in.reshape(T * B, S, D)                                               # prior inputs per real step
         act_r, bel_r, goal_r = rows(act, tt, bb), rows(bel, tt, bb), rows(goal, tt, bb)
         dt_r = dt.reshape(-1)
         valid_r = valid.reshape(-1)
@@ -568,35 +895,36 @@ class WorldModel(nn.Module):
             prior_lp = self.prior_logits(Zs[:n1], rows(act, t1, b1), rows(bel, t1, b1), dt_r[:n1])
             post_lp = self.posterior_logits(Zs[:n1], rows(act, t1, b1), rows(bel, t1, b1), dt_r[:n1],
                                             Z_post[1:].reshape(n1, S, D))
-            dyn = categorical_kl(post_lp.detach(), prior_lp)
-            rep = categorical_kl(post_lp, prior_lp.detach())
-            fn = cfg.kl_free_nats
-            kl = cfg.kl_balance * dyn.clamp(min=fn) + (1 - cfg.kl_balance) * rep.clamp(min=fn)
-            out["kl"] = masked_mean(kl, ok1)
-            out["kl_value"] = masked_mean(dyn.detach(), ok1)
+            out.update(self.kl_terms(post_lp, prior_lp, ok1))
             # transitions without a next observation (episode end / sequence padding) have no posterior: use the prior
             lat_lp = torch.where(ok1.view(-1, 1, 1), post_lp, prior_lp)
             z_post = self.sample_latent(lat_lp, True, generator)
-            Zh1 = self.transition(Zs[:n1], rows(act, t1, b1), rows(bel, t1, b1), dt_r[:n1], z_post)
-            rt1 = self._row_terms(Zh1, 1, t1, b1, ctx, valid_r[:n1], rows(goal, t1, b1), self.obs_max_groups)
+            Zh1, Zv1 = self.transition(Zs[:n1], rows(act, t1, b1), rows(bel, t1, b1), dt_r[:n1], z_post, view=True,
+                                       **ctx.row_kw(b1))
+            rt1 = self._row_terms(Zh1, 1, t1, b1, ctx, valid_r[:n1], rows(goal, t1, b1), self.obs_max_groups, Zv=Zv1)
             terms = self._reduce(rt1, self._responsibilities(rt1))
+            with torch.no_grad():
+                out["cons_mse_var"] = _mse_over_var(Zh1, Z_tgt[1:].reshape(n1, S, D), rt1["nxt_ok"], Z_tgt, valid)
         else:
             out["kl"] = out["kl_value"] = Z_post.sum() * 0
 
         # ---- open-loop multistep with prior samples and recorded actions only
-        ol, herr, joint_nll = self._open_loop_loss(Z_post, B, act, bel, goal, dt, horizons, ctx, bel_dyn)
+        ol, herr, joint_nll, ol_extra = self._open_loop_loss(R_in, B, act, bel, goal, dt, horizons, ctx, bel_dyn,
+                                                             reason_fn)
+        out.update(ol_extra)
 
         # ---- anti-collapse regulariser on valid filter states
         var, cov = self._vicreg(Z_post[valid])
         out["reg_var"], out["reg_cov"] = var, cov
 
         z0 = Z_post.sum() * 0
-        for k in ("latent", "outcome", "obs", "reward", "cont"):
+        for k in ("latent", "outcome", "obs", "reward", "cont", "consistency"):
             out[k] = terms.get(k, z0)
         out["open_loop"] = ol
         total = (W["latent"] * out["latent"] + W["kl"] * out["kl"] + W["outcome"] * out["outcome"]
                  + W["obs"] * out["obs"] + W["reward"] * out["reward"] + W["cont"] * out["cont"]
-                 + W["duration"] * out["duration"] + W["var"] * var + W["cov"] * cov + W["open_loop"] * ol)
+                 + W["duration"] * out["duration"] + W["var"] * var + W["cov"] * cov + W["open_loop"] * ol
+                 + self.consistency_w * out["consistency"])
         out["world"] = out["loss"] = total
         out["horizon_errors"] = herr
         out["horizons_trained"], out["horizons_skipped"] = horizons, skipped
@@ -608,8 +936,31 @@ class WorldModel(nn.Module):
             self.state_norm.update(Z_post[valid].detach())
         return out
 
+    def kl_terms(self, post_lp: torch.Tensor, prior_lp: torch.Tensor, ok: torch.Tensor) -> dict:
+        """Balanced KL of the posterior vs prior latent [N,G,C] log-probs over the rows ``ok`` [N].
+
+        Per-group free bits (cfg.kl_free_bits_group = f > 0; Kingma et al. 2016): the batch-mean KL of every group is
+        floored at f, so a group's KL gradient vanishes only while that group's own average KL is below f;
+        "kl_groups_active" counts the groups above the floor. Otherwise the legacy per-row free nats on the total.
+        Returns {"kl", "kl_value" (raw dynamics KL per row, detached)[, "kl_groups_active"]}."""
+        cfg = self.cfg
+        if self.free_bits_group > 0:
+            dyn_g = categorical_kl_groups(post_lp.detach(), prior_lp)                 # [N,G]
+            rep_g = categorical_kl_groups(post_lp, prior_lp.detach())
+            okf = ok.float().unsqueeze(-1)
+            nrm = okf.sum().clamp(min=1.0)
+            dyn_m, rep_m = (dyn_g * okf).sum(0) / nrm, (rep_g * okf).sum(0) / nrm      # [G]
+            fb = self.free_bits_group
+            kl = cfg.kl_balance * dyn_m.clamp(min=fb).sum() + (1 - cfg.kl_balance) * rep_m.clamp(min=fb).sum()
+            return {"kl": kl, "kl_value": dyn_m.detach().sum(), "kl_groups_active": int((dyn_m.detach() > fb).sum())}
+        dyn = categorical_kl(post_lp.detach(), prior_lp)
+        rep = categorical_kl(post_lp, prior_lp.detach())
+        fn = cfg.kl_free_nats
+        kl = cfg.kl_balance * dyn.clamp(min=fn) + (1 - cfg.kl_balance) * rep.clamp(min=fn)
+        return {"kl": masked_mean(kl, ok), "kl_value": masked_mean(dyn.detach(), ok)}
+
     def _row_terms(self, Zh, n_samples, t_idx, b_idx, ctx: "_SeqCtx", alive, goal_rows: Optional[TokenSet],
-                   max_groups: int) -> dict:
+                   max_groups: int, Zv: Optional[torch.Tensor] = None) -> dict:
         """Per-row, per-sample terms of predicted states Zh [R*n_samples,S,D] for transitions t_idx[r] -> t_idx[r]+1
         (each target row r repeated n_samples times consecutively; sample j of row r is one sampled future).
         Every likelihood is kept per sample ("out_lp" [R,s,Q], "r_ll"/"c_ll"/"dist" [R,s], "obs_lp" [n,s,M]) so the
@@ -627,16 +978,23 @@ class WorldModel(nn.Module):
         d = self.outcome_dist(Zh, obr)
         rt = {"R": R, "s": s, "alive": alive, "om": om}
         rt["out_lp"] = d.log_prob(obr.y, obr.censored, obr.y_mask).view(R, s, -1)       # 0 where unobserved
+        if self.outcome_nll_beta > 0:
+            rt["out_w"] = outcome_beta_weights(d, self.outcome_nll_beta).view(R, s, -1)
         with torch.no_grad():
             mean = d.mean().view(R, s, -1).mean(1)
             rt["cm"] = om & torch.isin(ob.lik, torch.tensor(CONTINUOUS, device=dev))
             rt["sq"] = (mean - ob.y) ** 2
-        g_r = None if goal_rows is None else rows_rep(goal_rows, s)
-        r_logits = self.reward_logits(Zh, g_r)
-        r_t = rew[t_idx, b_idx]
-        rt["r_ll"] = self.twohot.log_lik(r_logits, rep(r_t)).view(R, s)
-        with torch.no_grad():
-            rt["r_abs"] = (self.twohot.mean(r_logits).view(R, s).mean(1) - r_t).abs()
+        if self.reward_targets:
+            g_r = None if goal_rows is None else rows_rep(goal_rows, s)
+            r_logits = self.reward_logits(Zh, g_r)
+            r_t = rew[t_idx, b_idx]
+            rt["r_ll"] = self.twohot.log_lik(r_logits, rep(r_t)).view(R, s)
+            with torch.no_grad():
+                rt["r_abs"] = (self.twohot.mean(r_logits).view(R, s).mean(1) - r_t).abs()
+        else:
+            # observation_only: the verified return increment is no target (nothing is read from batch.reward)
+            rt["r_ll"] = torch.zeros(R, s, device=dev)
+            rt["r_abs"] = torch.zeros(R, device=dev)
         c_logit = self.continue_logit(Zh).view(R, s)
         c_tgt = (~done[t_idx, b_idx]).float()
         rt["c_ll"] = -F.binary_cross_entropy_with_logits(c_logit, c_tgt.unsqueeze(1).expand(-1, s), reduction="none")
@@ -644,7 +1002,11 @@ class WorldModel(nn.Module):
         tn = (t_idx + 1).clamp(max=T - 1)
         nxt_ok = alive & ((t_idx + 1) <= (T - 1)) & ~done[t_idx, b_idx] & valid[tn, b_idx]
         rt["nxt_ok"] = nxt_ok
-        rt["dist"] = self._latent_dist(Zh, rep(Z_tgt[tn, b_idx]), ctx.tgt_scale).view(R, s)   # ~1 - R^2 per sample
+        Zt_rows = rep(Z_tgt[tn, b_idx])
+        Zl = Zh if Zv is None else Zv            # self-predictive terms: gradient routing of `latent_grad`
+        rt["dist"] = self._latent_dist(Zl, Zt_rows, ctx.tgt_scale).view(R, s)   # ~1 - R^2 per sample
+        # consistency: the predicted state itself (no read-out MLP) against the detached posterior state
+        rt["cons"] = (((Zl.float() - Zt_rows.detach().float()) / ctx.tgt_scale) ** 2).mean((-1, -2)).view(R, s)
         idx = torch.nonzero(nxt_ok).flatten()
         if idx.numel() > max_groups:
             idx = idx[_randperm(idx.numel(), gen, dev)[:max_groups]]
@@ -687,24 +1049,33 @@ class WorldModel(nn.Module):
         R = rt["R"]
         dev = rt["alive"].device
         idx = rt["obs_rows"]
+        mode_last = bool(rt.get("mode_last", False))      # the last sample is the mode-latent future (not mixed)
         if s == 1:
             one = torch.ones(R, 1, device=dev)
             rt["joint_ll"] = self._joint_loglik(rt)
             return {"out": one.unsqueeze(-1), "rew": one, "cont": one, "lat": one,
                     "obs": torch.ones(idx.numel(), 1, 1, device=dev)}
+
+        def ml(x):                                         # exclude the mode sample from a softmax over samples
+            if not mode_last:
+                return x
+            x = x.clone()
+            x[:, -1] = float("-inf")
+            return x
         with torch.no_grad():
             jl = self._joint_loglik(rt)
-            rt["joint_ll"] = jl
+            rt["joint_ll"] = jl[:, :-1] if mode_last else jl
             mode = self.open_loop_credit
             if mode == "per_term":
-                return {"out": torch.softmax(rt["out_lp"].detach(), 1), "rew": torch.softmax(rt["r_ll"].detach(), 1),
-                        "cont": torch.softmax(rt["c_ll"].detach(), 1),
-                        "lat": torch.softmax(-rt["dist"].detach() / self.latent_temperature, 1),
-                        "obs": torch.softmax(rt["obs_lp"].detach(), 1) if idx.numel() > 0 else None}
+                return {"out": torch.softmax(ml(rt["out_lp"].detach()), 1),
+                        "rew": torch.softmax(ml(rt["r_ll"].detach()), 1),
+                        "cont": torch.softmax(ml(rt["c_ll"].detach()), 1),
+                        "lat": torch.softmax(ml(-rt["dist"].detach() / self.latent_temperature), 1),
+                        "obs": torch.softmax(ml(rt["obs_lp"].detach()), 1) if idx.numel() > 0 else None}
             ll = jl
             if mode == "trajectory" and traj is not None:
                 ll = torch.zeros(n_traj, s, device=dev).index_add_(0, traj, jl)[traj]
-            pi = torch.softmax(ll, 1)
+            pi = torch.softmax(ml(ll), 1)
         return {"out": pi.unsqueeze(-1), "rew": pi, "cont": pi, "lat": pi,
                 "obs": pi[idx].unsqueeze(-1) if idx.numel() > 0 else None}
 
@@ -717,41 +1088,52 @@ class WorldModel(nn.Module):
         a = rt["alive"] & sel
         om = rt["om"] & sel.unsqueeze(-1)
         nx = rt["nxt_ok"] & sel
-        out = {"outcome": -masked_mean((resp["out"] * rt["out_lp"]).sum(1), om),
+        olp = rt["out_lp"] if rt.get("out_w") is None else rt["out_lp"] * rt["out_w"]     # beta-NLL (loss only)
+        out = {"outcome": -masked_mean((resp["out"] * olp).sum(1), om),
                "reward": -masked_mean((resp["rew"] * rt["r_ll"]).sum(1), a),
                "cont": -masked_mean((resp["cont"] * rt["c_ll"]).sum(1), a),
                "latent": masked_mean((resp["lat"] * rt["dist"]).sum(1), nx)}
+        cons = rt.get("cons")
+        out["consistency"] = masked_mean((resp["lat"] * cons).sum(1), nx) if cons is not None else out["latent"] * 0
+        mix = (lambda x: x[:, :-1]) if rt.get("mode_last", False) else (lambda x: x)   # mixture samples only
         with torch.no_grad():
-            out["outcome_nll"] = -masked_mean(logmeanexp(rt["out_lp"], 1), om)      # marginal mixture NLL per query
+            out["outcome_nll"] = -masked_mean(logmeanexp(mix(rt["out_lp"]), 1), om)  # marginal mixture NLL per query
             cm = rt["cm"] & sel.unsqueeze(-1)
             out["outcome_mse"] = masked_mean(rt["sq"], cm)
             out["outcome_n"] = cm.sum()
             out["reward_mae"] = masked_mean(rt["r_abs"], a)
-            out["latent_err"] = masked_mean(rt["dist"].mean(1), nx)                  # standardised MSE (~1 - R^2)
+            out["latent_err"] = masked_mean(mix(rt["dist"]).mean(1), nx)             # standardised MSE (~1 - R^2)
+            out["cons_err"] = masked_mean(mix(cons).mean(1), nx) if cons is not None else out["latent"].detach() * 0
             out["n_rows"] = a.sum()
             out["joint_nll"] = -masked_mean(logmeanexp(rt["joint_ll"], 1), a)        # per row (one horizon)
         idx = rt["obs_rows"]
         if idx.numel() > 0:
             ov = rt["obs_v"] & sel[idx].unsqueeze(-1)
             out["obs"] = -masked_mean((resp["obs"] * rt["obs_lp"]).sum(1), ov)
-            out["obs_logp"] = masked_mean(logmeanexp(rt["obs_lp"].detach(), 1), ov)
+            out["obs_logp"] = masked_mean(logmeanexp(mix(rt["obs_lp"].detach()), 1), ov)
         else:
             out["obs"] = out["latent"] * 0
             out["obs_logp"] = out["obs"].detach()
         return out
 
-    def _open_loop_loss(self, Z_post, B, act, bel, goal, dt, horizons, ctx: "_SeqCtx", bel_dyn=None):
+    def _open_loop_loss(self, Z_post, B, act, bel, goal, dt, horizons, ctx: "_SeqCtx", bel_dyn=None,
+                        reason_fn: Optional[Callable] = None):
         """Roll every start open-loop with prior samples and the recorded actions; the heads of all scored horizons
         are evaluated in one batched call and credited to sampled futures jointly (``open_loop_credit``). With
         ``bel_dyn`` = (fast_states, update_fn, tokens_fn) each row's belief is updated from its own sampled
-        outcomes. Returns (mean over horizons of the horizon loss, {h: errors}, joint mixture NLL per trajectory)."""
+        outcomes. ``Z_post`` [T,B,S,D] are the prior inputs at the real start steps (R_t on the DOM path); at later
+        open-loop steps the input is the imagined state, through ``reason_fn(Z_hat, belief, goal)`` when given.
+        With ``mode_latent`` one extra future per start uses the prior mode (straight-through) at every step; it is
+        excluded from the mixture and its terms are added with weight 1/S. Returns (mean over horizons of the horizon
+        loss, {h: errors}, joint mixture NLL per trajectory, extra diagnostics)."""
         dev = Z_post.device
         T, valid, done, gen = ctx.T, ctx.valid, ctx.done, ctx.gen
         rows = _rows
         S_ol = self.open_loop_samples
+        S_tot = S_ol + (1 if self.mode_latent else 0)
         z0 = Z_post.sum() * 0
         if not horizons:
-            return z0, {}, z0.detach()
+            return z0, {}, z0.detach(), {}
         starts = torch.arange(T, device=dev)
         if self.open_loop_starts is not None and T > self.open_loop_starts:
             perm = _randperm(T, gen, dev)[:self.open_loop_starts]
@@ -761,14 +1143,17 @@ class WorldModel(nn.Module):
         # rows ordered (start, b, sample); starts ascending so the active rows at step k form a prefix
         st_r = starts.repeat_interleave(B)                                           # [n_s*B]
         b_r = torch.arange(B, device=dev).repeat(n_s)
-        Z = Z_post[st_r, b_r].repeat_interleave(S_ol, 0)
+        Z = Z_post[st_r, b_r].repeat_interleave(S_tot, 0)
         bel_rows = rows(bel, st_r, b_r)
-        bel_rows = None if bel_rows is None else rows_rep(bel_rows, S_ol)
+        bel_rows = None if bel_rows is None else rows_rep(bel_rows, S_tot)
+        g_rows = rows(goal, st_r, b_r)
+        g_rows = None if g_rows is None else rows_rep(g_rows, S_tot)
+        mode_row = (torch.arange(n_s * B * S_tot, device=dev) % S_tot) == (S_tot - 1) if self.mode_latent else None
         alive = valid[st_r, b_r].clone()                                             # [n_s*B]
         fast = None
         if bel_dyn is not None:
             fs, upd_fn, tok_fn = bel_dyn
-            rep_idx = torch.arange(B, device=dev).repeat_interleave(S_ol)
+            rep_idx = torch.arange(B, device=dev).repeat_interleave(S_tot)
             fast = fast_cat([fast_rows(fs[int(t0)], rep_idx) for t0 in starts.tolist()])   # rows (start, b, sample)
         coll = []                                                                    # per scored horizon
         for k in range(1, Hmax + 1):
@@ -776,26 +1161,33 @@ class WorldModel(nn.Module):
             if n_a == 0:
                 break
             na_rows = n_a * B
-            Z = Z[:na_rows * S_ol]
+            nr = na_rows * S_tot
+            Z = Z[:nr]
             st_r, b_r, alive = st_r[:na_rows], b_r[:na_rows], alive[:na_rows]
-            if fast is not None and fast.logw.shape[0] > na_rows * S_ol:
-                fast = fast_rows(fast, torch.arange(na_rows * S_ol, device=dev))
+            if fast is not None and fast.logw.shape[0] > nr:
+                fast = fast_rows(fast, torch.arange(nr, device=dev))
             if bel_rows is not None:
-                bel_rows = _slice_tokens(bel_rows, na_rows * S_ol)
+                bel_rows = _slice_tokens(bel_rows, nr)
+            if g_rows is not None:
+                g_rows = _slice_tokens(g_rows, nr)
             t_idx = st_r + (k - 1)
             alive = alive & valid[t_idx, b_r]
-            a_k = rows_rep(rows(act, t_idx, b_r), S_ol)
-            dt_k = dt[t_idx, b_r].repeat_interleave(S_ol)
-            lp = self.prior_logits(Z, a_k, bel_rows, dt_k)
+            a_k = rows_rep(rows(act, t_idx, b_r), S_tot)
+            dt_k = dt[t_idx, b_r].repeat_interleave(S_tot)
+            Z_in = Z if (k == 1 or reason_fn is None) else reason_fn(Z, bel_rows, g_rows)
+            lp = self.prior_logits(Z_in, a_k, bel_rows, dt_k)
             zk = self.sample_latent(lp, True, gen)
-            Z_prev = Z
-            Z = self.transition(Z, a_k, bel_rows, dt_k, zk)
+            if mode_row is not None:
+                zk = torch.where(mode_row[:nr].unsqueeze(-1), self.sample_latent(lp, False), zk)
+            Z_prev = Z_in
+            Z, Zv_k = self.transition(Z_in, a_k, bel_rows, dt_k, zk, view=True,
+                                      **ctx.row_kw(b_r.repeat_interleave(S_tot)))
             if fast is not None and k < Hmax:
                 # imagined belief update from the model's own sampled outcomes (no real outcome after the start)
                 with torch.no_grad():
                     ob = ctx.ob_rows(t_idx, b_r)
-                    r = lambda x: x.repeat_interleave(S_ol, 0)
-                    q = OutcomeBatch(rows_rep(ob.q, S_ol), r(ob.lik), r(ob.n_classes), r(ob.y), r(ob.censored),
+                    r = lambda x: x.repeat_interleave(S_tot, 0)
+                    q = OutcomeBatch(rows_rep(ob.q, S_tot), r(ob.lik), r(ob.n_classes), r(ob.y), r(ob.censored),
                                      r(ob.y_mask), r(ob.channel))
                     ys = self.outcome_dist(Z, q).sample(gen)
                     om = q.y_mask.bool()
@@ -805,11 +1197,12 @@ class WorldModel(nn.Module):
                     fast = out_f[0] if isinstance(out_f, tuple) else out_f
                     bel_rows = tok_fn(fast)
             if k in horizons:
-                coll.append((k, Z, t_idx, b_r, alive.clone(), st_r))
+                coll.append((k, Z, t_idx, b_r, alive.clone(), st_r, Zv_k))
             alive = alive & ~done[t_idx, b_r]
         if not coll:
-            return z0, {}, z0.detach()
+            return z0, {}, z0.detach(), {}
         Zall = torch.cat([c[1] for c in coll])
+        Zv_all = torch.cat([c[6] for c in coll])
         t_all = torch.cat([c[2] for c in coll])
         b_all = torch.cat([c[3] for c in coll])
         al_all = torch.cat([c[4] for c in coll])
@@ -819,36 +1212,84 @@ class WorldModel(nn.Module):
         n_traj = coll[0][2].numel()
         # goal of the start step (known at the start; no future information)
         g_all = rows(goal, torch.cat([c[5] for c in coll]), b_all)
-        rt = self._row_terms(Zall, S_ol, t_all, b_all, ctx, al_all, g_all, self.obs_max_groups * len(coll))
+        rt = self._row_terms(Zall, S_tot, t_all, b_all, ctx, al_all, g_all, self.obs_max_groups * len(coll),
+                             Zv=Zv_all)
+        rt["mode_last"] = self.mode_latent
         resp = self._responsibilities(rt, traj, n_traj)
-        losses, herr = [], {}
+        resp_mode = None
+        if self.mode_latent:
+            oh = torch.zeros(rt["R"], S_tot, device=dev)
+            oh[:, -1] = 1.0
+            idx = rt["obs_rows"]
+            resp_mode = {"out": oh.unsqueeze(-1), "rew": oh, "cont": oh, "lat": oh,
+                         "obs": oh[idx].unsqueeze(-1) if idx.numel() > 0 else None}
+        losses, herr, extra = [], {}, {}
         W = self.weights
+        wc = self.consistency_w
+        mode_terms = []
         for k, *_ in coll:
             r = self._reduce(rt, resp, h_all == k)
-            losses.append(r["outcome"] + r["reward"] + r["cont"] + W["latent"] * r["latent"] + W["obs"] * r["obs"])
+            lk = r["outcome"] + r["reward"] + r["cont"] + W["latent"] * r["latent"] + W["obs"] * r["obs"]
+            if k == 1 and wc > 0:
+                lk = lk + wc * r["consistency"]
             herr[k] = {"outcome_nll": float(r["outcome_nll"]), "outcome_mse": float(r["outcome_mse"]),
                        "outcome_n": int(r["outcome_n"]), "reward_mae": float(r["reward_mae"]),
                        "cont": float(r["cont"].detach()), "latent_err": float(r["latent_err"]),
-                       "obs_logp": float(r["obs_logp"]), "joint_nll": float(r["joint_nll"]),
-                       "n_rows": int(r["n_rows"])}
+                       "cons_err": float(r["cons_err"]), "obs_logp": float(r["obs_logp"]),
+                       "joint_nll": float(r["joint_nll"]), "n_rows": int(r["n_rows"])}
+            if resp_mode is not None:
+                rm = self._reduce(rt, resp_mode, h_all == k)
+                lm = rm["outcome"] + rm["reward"] + rm["cont"] + W["latent"] * rm["latent"] + W["obs"] * rm["obs"]
+                if k == 1 and wc > 0:
+                    lm = lm + wc * rm["consistency"]
+                lk = lk + lm / S_ol
+                mode_terms.append(lm.detach())
+                herr[k]["mode_outcome_nll"] = float(rm["outcome"].detach())
+                herr[k]["mode_cons_err"] = float(rm["consistency"].detach())
+            losses.append(lk)
         with torch.no_grad():
-            tot = torch.zeros(n_traj, S_ol, device=dev).index_add_(0, traj, rt["joint_ll"])
+            tot = torch.zeros(n_traj, rt["joint_ll"].shape[1], device=dev).index_add_(0, traj, rt["joint_ll"])
             joint_nll = -masked_mean(logmeanexp(tot, 1), al_all[:n_traj])
-        return torch.stack(losses).mean(), herr, joint_nll
+            if mode_terms:
+                extra["open_loop_mode"] = torch.stack(mode_terms).mean()
+            if coll[0][0] == 1:
+                # one-step prior from the real start state vs the next posterior (pure prior prediction, the
+                # state decide() scores): mode-latent row when present, else the first sampled future
+                k1, Z1, t1, b1, al1, _, _ = coll[0]
+                pick = S_tot - 1 if self.mode_latent else 0
+                Zp = Z1.view(-1, S_tot, *Z1.shape[1:])[:, pick]
+                tn = (t1 + 1).clamp(max=T - 1)
+                ok = al1 & ((t1 + 1) <= (T - 1)) & ~done[t1, b1] & valid[tn, b1]
+                extra["cons_mse_var_mode1"] = _mse_over_var(Zp, ctx.Z_tgt[tn, b1], ok, ctx.Z_tgt, valid)
+        return torch.stack(losses).mean(), herr, joint_nll, extra
 
     # ------------------------------------------------------------------ open-loop inference (forecasting)
     @torch.no_grad()
     def forecast(self, batch: SequenceBatch, start: int, horizons: Sequence[int], beliefs: Optional[list] = None,
-                 n_samples: int = 8, generator: Optional[torch.Generator] = None, sample: bool = True) -> dict:
+                 n_samples: int = 8, generator: Optional[torch.Generator] = None, sample: bool = True,
+                 Z0: Optional[torch.Tensor] = None, reason_fn: Optional[Callable] = None, sem=None,
+                 code_rows: Optional[torch.Tensor] = None) -> dict:
         """Open-loop forecast of the outcomes Y_{start+h-1} for each h, from O_{<=start} and the recorded actions
         A_{start..start+h-1} with their recorded durations. Returns {h: {"mean": [B,Q], "var": [B,Q]}} (mixture
-        over ``n_samples`` stochastic futures). Never reads observations or outcomes after ``start``."""
+        over ``n_samples`` stochastic futures). Never reads observations or outcomes after ``start``.
+        ``Z0`` [B,S,D]: the prior input at ``start`` from the agent's own filter (DOM: R_start of
+        ``train_seq.filter_sequence``; it must have seen only O_{<=start}); without it the world model's own filter is
+        run. ``reason_fn(Z_hat, belief, goal)`` maps imagined states to prior inputs at steps >= 2 (as in training).
+        ``sem`` / ``code_rows``: the semantic context / slot-code rows of the batch's B rows (see `loss`)."""
         steps = batch.steps
         B = steps[0].obs.B
         dev = steps[0].obs.x.device
-        Z = self.filter(SequenceBatch(steps[:start + 1]), None if beliefs is None else beliefs[:start + 1])[-1]
+        if Z0 is None:
+            Z = self.filter(SequenceBatch(steps[:start + 1]), None if beliefs is None else beliefs[:start + 1],
+                            sem=sem, code_rows=code_rows)[-1]
+        else:
+            Z = Z0.float()
         Z = Z.repeat_interleave(n_samples, 0)
+        rkw = _SeqCtx(T=0, ob_rows=None, obs=None, Z_tgt=None, rew=None, done=None, valid=None, gen=None,
+                      tgt_scale=None, sem=None if isinstance(sem, (list, tuple)) else sem,
+                      code_rows=code_rows).row_kw(torch.arange(B, device=dev).repeat_interleave(n_samples))
         b = None if beliefs is None else rows_rep(beliefs[start], n_samples)
+        g = None if steps[start].goal is None else rows_rep(steps[start].goal, n_samples)
         res = {}
         for k in range(1, max(horizons) + 1):
             if start + k - 1 >= len(steps):
@@ -856,7 +1297,9 @@ class WorldModel(nn.Module):
             st = steps[start + k - 1]
             a = rows_rep(st.act, n_samples)
             dtk = _as_dt(st.dt, B, dev).repeat_interleave(n_samples)
-            Z, _ = self.prior(Z, a, b, dtk, sample=sample, generator=generator)
+            if k > 1 and reason_fn is not None:
+                Z = reason_fn(Z, b, g)
+            Z, _ = self.prior(Z, a, b, dtk, sample=sample, generator=generator, **rkw)
             if k in horizons:
                 ob = st.outcomes
                 q = OutcomeBatch(rows_rep(ob.q, n_samples), ob.lik.repeat_interleave(n_samples, 0),
@@ -925,3 +1368,16 @@ class _SeqCtx:
     valid: torch.Tensor
     gen: Optional[torch.Generator]
     tgt_scale: torch.Tensor
+    sem: object = None                       # semantic context of the batch's B rows (or None)
+    code_rows: Optional[torch.Tensor] = None  # [B] batch row -> entity slot-code episode row (or None)
+    sem_rows: Optional[torch.Tensor] = None   # [B] batch row -> semantic row of a source-aligned sem (or None)
+
+    def row_kw(self, b_idx: torch.Tensor) -> dict:
+        """sem / sem_rows / code_rows keywords of a transition over flattened rows whose batch rows are b_idx."""
+        kw = {}
+        if self.sem is not None:
+            kw["sem"] = self.sem
+            kw["sem_rows"] = b_idx if self.sem_rows is None else self.sem_rows.to(b_idx.device)[b_idx]
+        if self.code_rows is not None:
+            kw["code_rows"] = self.code_rows.to(b_idx.device)[b_idx]
+        return kw

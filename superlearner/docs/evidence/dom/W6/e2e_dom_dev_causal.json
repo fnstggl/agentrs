@@ -1,0 +1,877 @@
+{
+ "commit_causal_runs": "0461d67",
+ "commit_lp_runs": "db671b6",
+ "what": "plan 2026-11-26 \u00a73 W6 real end-to-end check: capabilities.causal DOM driver on the real dom_dev stack (8 x 384 UnifiedCore, Qwen3-0.6B semantic encoder, observation_only, block transition on R_t over 6 core blocks, no EMA target, free bits 0.02/group, consistency, mode latent, beta-NLL outcome loss, running-standardised action input), 800 world-objective updates with linear lr decay 1e-4 -> 5e-6, 3 seeds per world; LP probe (world + all-k adapt objective, SwitchEnv) and the ProbeEnv h=1 margin",
+ "criteria_plan": {
+  "t1": "> 0.5",
+  "t2_max_abs_err": "< 0.3",
+  "t3_contrast": "|c - 2| < 0.4",
+  "t4": "switch correct",
+  "consistency": "MSE/Var < 0.1 (teacher-forced and mode-latent)",
+  "lp": "> 0.1 nats",
+  "probe_margin": ">= 0"
+ },
+ "device": "cuda A6000 shared, each run capped at 3.8 GB (torch per-process memory fraction), 4 runs concurrent",
+ "summary": {
+  "delay/cons_mse_var_mode1": {
+   "per_seed": {
+    "0": 0.3801022457579772
+   },
+   "pass_per_seed": {
+    "0": false
+   },
+   "all_pass": false,
+   "n_seeds": 1
+  },
+  "delay/cons_mse_var_teacher_forced": {
+   "per_seed": {
+    "0": 0.38450997943679494
+   },
+   "pass_per_seed": {
+    "0": false
+   },
+   "all_pass": false,
+   "n_seeds": 1
+  },
+  "delay/t1_mean_abs_pairwise_diff": {
+   "per_seed": {
+    "0": 0.6572691065569719
+   },
+   "pass_per_seed": {
+    "0": true
+   },
+   "all_pass": true,
+   "n_seeds": 1
+  },
+  "delay/t2_max_abs_err": {
+   "per_seed": {
+    "0": 0.7521951198577881
+   },
+   "pass_per_seed": {
+    "0": false
+   },
+   "all_pass": false,
+   "n_seeds": 1
+  },
+  "interaction/cons_mse_var_mode1": {
+   "per_seed": {
+    "0": 1.9948307573795319,
+    "1": 1.7382033119599025
+   },
+   "pass_per_seed": {
+    "0": false,
+    "1": false
+   },
+   "all_pass": false,
+   "n_seeds": 2
+  },
+  "interaction/cons_mse_var_teacher_forced": {
+   "per_seed": {
+    "0": 1.9949626326560974,
+    "1": 1.7387363066275914
+   },
+   "pass_per_seed": {
+    "0": false,
+    "1": false
+   },
+   "all_pass": false,
+   "n_seeds": 2
+  },
+  "interaction/t1_mean_abs_pairwise_diff": {
+   "per_seed": {
+    "0": 1.5909901062647502,
+    "1": 1.5288762152194977
+   },
+   "pass_per_seed": {
+    "0": true,
+    "1": true
+   },
+   "all_pass": true,
+   "n_seeds": 2
+  },
+  "interaction/t3_contrast": {
+   "per_seed": {
+    "0": 2.293328285217285,
+    "1": 2.100471258163452
+   },
+   "pass_per_seed": {
+    "0": true,
+    "1": true
+   },
+   "all_pass": true,
+   "n_seeds": 2
+  },
+  "switch/cons_mse_var_mode1": {
+   "per_seed": {
+    "0": 5.997635781764984
+   },
+   "pass_per_seed": {
+    "0": false
+   },
+   "all_pass": false,
+   "n_seeds": 1
+  },
+  "switch/cons_mse_var_teacher_forced": {
+   "per_seed": {
+    "0": 5.999092320601146
+   },
+   "pass_per_seed": {
+    "0": false
+   },
+   "all_pass": false,
+   "n_seeds": 1
+  },
+  "switch/t4_switch": {
+   "per_seed": {
+    "0": [
+     0.14380562553803125,
+     0.5691526532173157
+    ]
+   },
+   "pass_per_seed": {
+    "0": false
+   },
+   "all_pass": false,
+   "n_seeds": 1
+  }
+ },
+ "lp_probe": {},
+ "runs": {
+  "delay_s0": {
+   "criteria": {
+    "delay/t1_mean_abs_pairwise_diff": {
+     "value": 0.6572691065569719,
+     "pass": true
+    },
+    "delay/cons_mse_var_teacher_forced": {
+     "value": 0.38450997943679494,
+     "pass": false
+    },
+    "delay/cons_mse_var_mode1": {
+     "value": 0.3801022457579772,
+     "pass": false
+    },
+    "delay/t2_max_abs_err": {
+     "value": 0.7521951198577881,
+     "pass": false
+    }
+   },
+   "result": {
+    "t1_actions_differ": {
+     "pred_reward": {
+      "press_now": 1.1706024408340454,
+      "press_later": 0.1970343440771103,
+      "wait_turn": 0.18678909540176392
+     },
+     "mean_abs_pairwise_diff": 0.6572691065569719,
+     "n_rows": 768
+    },
+    "consistency": {
+     "cons_mse_var_teacher_forced": 0.38450997943679494,
+     "cons_mse_var_mode1": 0.3801022457579772,
+     "n_batches": 24
+    },
+    "t2_delay": {
+     "pred": [
+      [
+       1.2618094682693481,
+       0.26351916790008545,
+       0.232477605342865
+      ],
+      [
+       0.21497759222984314,
+       0.2616294026374817,
+       0.2478048950433731
+      ],
+      [
+       0.1675068587064743,
+       0.24651393294334412,
+       0.24920311570167542
+      ]
+     ],
+     "truth": [
+      [
+       1.0,
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0,
+       1.0
+      ],
+      [
+       0.0,
+       0.0,
+       0.0
+      ]
+     ],
+     "max_abs_err": 0.7521951198577881,
+     "delayed_effect_pred": 0.2478048950433731,
+     "immediate_effect_pred": 1.2618094682693481
+    },
+    "t7_imagination_isolated": {
+     "env_and_archive_unchanged": true,
+     "fast_state_unchanged": true,
+     "imagined_items": 32,
+     "trajectory_provenance": "imagined",
+     "imagination_belief_updates": 2
+    },
+    "loss_first": 71.75006866455078,
+    "loss_last10": 10.370948791503906,
+    "train_metrics_last10": {
+     "duration": -4.051602602005005,
+     "kl": 0.64000004529953,
+     "kl_value": 0.33023799359798434,
+     "cons_mse_var": 0.39076360166072843,
+     "open_loop_mode": 4.672149705886841,
+     "cons_mse_var_mode1": 0.3859956175088882,
+     "reg_var": 0.0008789202373009175,
+     "reg_cov": 0.12767751961946489,
+     "latent": 0.09438128173351287,
+     "outcome": -0.004994446081036585,
+     "obs": 3.2450539588928224,
+     "reward": 0.0,
+     "cont": 0.006071961368434131,
+     "consistency": 0.39084272384643554,
+     "open_loop": 7.011061716079712,
+     "world": 10.370948791503906,
+     "loss": 10.370948791503906,
+     "open_loop_joint_nll": -13.301045894622803
+    },
+    "config": {
+     "preset": "dom_dev",
+     "reward_mode": "observation_only",
+     "wm_transition_blocks": 6,
+     "wm_ema_target": false,
+     "kl_free_bits_group": 0.02,
+     "wm_consistency": 1.0,
+     "n_layers": 8,
+     "d_model": 384,
+     "n_state": 32,
+     "sem_test_model": "Qwen/Qwen3-0.6B"
+    },
+    "n_train_episodes": 288,
+    "n_heldout_episodes": 96,
+    "t5_multistep": {
+     "world_model": {
+      "1": {
+       "mse": 0.016698088198684975,
+       "mae": 0.05281588364353714,
+       "n": 3072
+      },
+      "2": {
+       "mse": 0.018926644073785394,
+       "mae": 0.060051324915894794,
+       "n": 2688
+      },
+      "3": {
+       "mse": 0.021050502447501965,
+       "mae": 0.06575762670642386,
+       "n": 2304
+      },
+      "4": {
+       "mse": 0.021368418864828223,
+       "mae": 0.06696500418086847,
+       "n": 1920
+      }
+     },
+     "key_mean": {
+      "1": {
+       "mse": 0.037537149231260024,
+       "mae": 0.09310920920688659,
+       "n": 3072
+      },
+      "2": {
+       "mse": 0.03853694080109043,
+       "mae": 0.09403598348477057,
+       "n": 2688
+      },
+      "3": {
+       "mse": 0.039691424165438444,
+       "mae": 0.09499641409557727,
+       "n": 2304
+      },
+      "4": {
+       "mse": 0.039711415441706775,
+       "mae": 0.09502977064500252,
+       "n": 1920
+      }
+     },
+     "no_change": {
+      "1": {
+       "mse": 0.06803129457671275,
+       "mae": 0.10050238063801469,
+       "n": 3072
+      },
+      "2": {
+       "mse": 0.08759942799363107,
+       "mae": 0.1200150522525378,
+       "n": 2688
+      },
+      "3": {
+       "mse": 0.07149663006435326,
+       "mae": 0.1032193095145178,
+       "n": 2304
+      },
+      "4": {
+       "mse": 0.0718636007727279,
+       "mae": 0.10616491366721069,
+       "n": 1920
+      }
+     }
+    }
+   },
+   "wall_s": 3709.7965207099915,
+   "cuda_peak_gb": 3.389634132385254,
+   "command": "/workspace/agentrs/.venv/bin/python -m superlearner.cam_unified.capabilities.causal run --world delay --seed 0 --out /tmp/claude-0/-workspace/20daf834-869f-4bc1-be4b-4d3076bc13b9/scratchpad/w6b/e2e_0461d67_preset/causal_delay_s0.json",
+   "settings": {
+    "seed": 0,
+    "B": 32,
+    "record_episodes": 12,
+    "heldout_frac": 0.25,
+    "train_steps": 800,
+    "batch_seqs": 4,
+    "lr": 0.0001,
+    "grad_clip": 10.0,
+    "horizons": [
+     1,
+     2,
+     3,
+     4
+    ],
+    "worlds": [
+     "delay"
+    ],
+    "cfg_overrides": {
+     "grad_checkpoint": true
+    },
+    "preset": "dom_dev",
+    "lr_decay": true,
+    "lr_final_frac": 0.05,
+    "payout_key": "num:points@me[points]",
+    "wm_kwargs": {
+     "open_loop_samples": 2
+    },
+    "sem_cache_mb": 256,
+    "core_kwargs": {
+     "emb_std": 0.02
+    }
+   }
+  },
+  "interaction_s0": {
+   "criteria": {
+    "interaction/t1_mean_abs_pairwise_diff": {
+     "value": 1.5909901062647502,
+     "pass": true
+    },
+    "interaction/cons_mse_var_teacher_forced": {
+     "value": 1.9949626326560974,
+     "pass": false
+    },
+    "interaction/cons_mse_var_mode1": {
+     "value": 1.9948307573795319,
+     "pass": false
+    },
+    "interaction/t3_contrast": {
+     "value": 2.293328285217285,
+     "pass": true
+    }
+   },
+   "result": {
+    "t1_actions_differ": {
+     "pred_reward": {
+      "x0w0": 0.012842447496950626,
+      "x0w1": -0.6567559242248535,
+      "x1w0": 0.6133905649185181,
+      "x1w1": 2.3250415325164795
+     },
+     "mean_abs_pairwise_diff": 1.5909901062647502,
+     "n_rows": 384
+    },
+    "consistency": {
+     "cons_mse_var_teacher_forced": 1.9949626326560974,
+     "cons_mse_var_mode1": 1.9948307573795319,
+     "n_batches": 24
+    },
+    "t3_interaction": {
+     "pred": [
+      0.022023603320121765,
+      0.5503736138343811,
+      -0.6285248398780823,
+      2.1931533813476562
+     ],
+     "truth": [
+      0.0,
+      0.5,
+      -0.5,
+      2.0
+     ],
+     "max_abs_err": 0.19315338134765625,
+     "interaction_contrast": 2.293328285217285,
+     "truth_contrast": 2.0,
+     "linear_regression_contrast": 1.967879056930542
+    },
+    "loss_first": 63.67327117919922,
+    "loss_last10": 12.004570960998535,
+    "train_metrics_last10": {
+     "duration": -3.8554368734359743,
+     "kl": 0.64000004529953,
+     "kl_value": 0.40005514323711394,
+     "cons_mse_var": 1.9195973753929139,
+     "open_loop_mode": 4.015576195716858,
+     "cons_mse_var_mode1": 1.9180730819702148,
+     "reg_var": 0.12543976455926895,
+     "reg_cov": 1.3813186407089233,
+     "latent": 1.3902688503265381,
+     "outcome": -0.025690837018191814,
+     "obs": 2.4771018981933595,
+     "reward": 0.0,
+     "cont": 0.00010160884085053112,
+     "consistency": 2.2821861505508423,
+     "open_loop": 6.023846101760864,
+     "world": 12.004570960998535,
+     "loss": 12.004570960998535,
+     "open_loop_joint_nll": -7.433316802978515
+    },
+    "config": {
+     "preset": "dom_dev",
+     "reward_mode": "observation_only",
+     "wm_transition_blocks": 6,
+     "wm_ema_target": false,
+     "kl_free_bits_group": 0.02,
+     "wm_consistency": 1.0,
+     "n_layers": 8,
+     "d_model": 384,
+     "n_state": 32,
+     "sem_test_model": "Qwen/Qwen3-0.6B"
+    },
+    "n_train_episodes": 288,
+    "n_heldout_episodes": 96
+   },
+   "wall_s": 1839.344310283661,
+   "cuda_peak_gb": 2.3304872512817383,
+   "command": "/workspace/agentrs/.venv/bin/python -m superlearner.cam_unified.capabilities.causal run --world interaction --seed 0 --out /tmp/claude-0/-workspace/20daf834-869f-4bc1-be4b-4d3076bc13b9/scratchpad/w6b/e2e_0461d67_preset/causal_interaction_s0.json",
+   "settings": {
+    "seed": 0,
+    "B": 32,
+    "record_episodes": 12,
+    "heldout_frac": 0.25,
+    "train_steps": 800,
+    "batch_seqs": 4,
+    "lr": 0.0001,
+    "grad_clip": 10.0,
+    "horizons": [
+     1,
+     2,
+     3,
+     4
+    ],
+    "worlds": [
+     "interaction"
+    ],
+    "cfg_overrides": {
+     "grad_checkpoint": true
+    },
+    "preset": "dom_dev",
+    "lr_decay": true,
+    "lr_final_frac": 0.05,
+    "payout_key": "num:points@me[points]",
+    "wm_kwargs": {
+     "open_loop_samples": 2
+    },
+    "sem_cache_mb": 256,
+    "core_kwargs": {
+     "emb_std": 0.02
+    }
+   }
+  },
+  "interaction_s1": {
+   "criteria": {
+    "interaction/t1_mean_abs_pairwise_diff": {
+     "value": 1.5288762152194977,
+     "pass": true
+    },
+    "interaction/cons_mse_var_teacher_forced": {
+     "value": 1.7387363066275914,
+     "pass": false
+    },
+    "interaction/cons_mse_var_mode1": {
+     "value": 1.7382033119599025,
+     "pass": false
+    },
+    "interaction/t3_contrast": {
+     "value": 2.100471258163452,
+     "pass": true
+    }
+   },
+   "result": {
+    "t1_actions_differ": {
+     "pred_reward": {
+      "x0w0": 0.012217958457767963,
+      "x0w1": -0.49327507615089417,
+      "x1w0": 0.5881238579750061,
+      "x1w1": 2.3725087642669678
+     },
+     "mean_abs_pairwise_diff": 1.5288762152194977,
+     "n_rows": 384
+    },
+    "consistency": {
+     "cons_mse_var_teacher_forced": 1.7387363066275914,
+     "cons_mse_var_mode1": 1.7382033119599025,
+     "n_batches": 24
+    },
+    "t3_interaction": {
+     "pred": [
+      0.00779929431155324,
+      0.5504286885261536,
+      -0.45405805110931396,
+      2.189042329788208
+     ],
+     "truth": [
+      0.0,
+      0.5,
+      -0.5,
+      2.0
+     ],
+     "max_abs_err": 0.189042329788208,
+     "interaction_contrast": 2.100471258163452,
+     "truth_contrast": 2.0,
+     "linear_regression_contrast": 1.9944056272506714
+    },
+    "loss_first": 76.72303009033203,
+    "loss_last10": 10.718474388122559,
+    "train_metrics_last10": {
+     "duration": -3.8885396242141725,
+     "kl": 0.64000004529953,
+     "kl_value": 0.31321680545806885,
+     "cons_mse_var": 1.6300652503967286,
+     "open_loop_mode": 3.6520089626312258,
+     "cons_mse_var_mode1": 1.6283084988594054,
+     "reg_var": 0.11580201908946038,
+     "reg_cov": 1.528739070892334,
+     "latent": 1.1313026309013368,
+     "outcome": -0.025861408002674578,
+     "obs": 2.461992287635803,
+     "reward": 0.0,
+     "cont": 1.616553249732533e-05,
+     "consistency": 1.827440118789673,
+     "open_loop": 5.478779745101929,
+     "world": 10.718474388122559,
+     "loss": 10.718474388122559,
+     "open_loop_joint_nll": -9.657266426086426
+    },
+    "config": {
+     "preset": "dom_dev",
+     "reward_mode": "observation_only",
+     "wm_transition_blocks": 6,
+     "wm_ema_target": false,
+     "kl_free_bits_group": 0.02,
+     "wm_consistency": 1.0,
+     "n_layers": 8,
+     "d_model": 384,
+     "n_state": 32,
+     "sem_test_model": "Qwen/Qwen3-0.6B"
+    },
+    "n_train_episodes": 288,
+    "n_heldout_episodes": 96
+   },
+   "wall_s": 1848.5365171432495,
+   "cuda_peak_gb": 2.3304872512817383,
+   "command": "/workspace/agentrs/.venv/bin/python -m superlearner.cam_unified.capabilities.causal run --world interaction --seed 1 --out /tmp/claude-0/-workspace/20daf834-869f-4bc1-be4b-4d3076bc13b9/scratchpad/w6b/e2e_0461d67_preset/causal_interaction_s1.json",
+   "settings": {
+    "seed": 1,
+    "B": 32,
+    "record_episodes": 12,
+    "heldout_frac": 0.25,
+    "train_steps": 800,
+    "batch_seqs": 4,
+    "lr": 0.0001,
+    "grad_clip": 10.0,
+    "horizons": [
+     1,
+     2,
+     3,
+     4
+    ],
+    "worlds": [
+     "interaction"
+    ],
+    "cfg_overrides": {
+     "grad_checkpoint": true
+    },
+    "preset": "dom_dev",
+    "lr_decay": true,
+    "lr_final_frac": 0.05,
+    "payout_key": "num:points@me[points]",
+    "wm_kwargs": {
+     "open_loop_samples": 2
+    },
+    "sem_cache_mb": 256,
+    "core_kwargs": {
+     "emb_std": 0.02
+    }
+   }
+  },
+  "switch_s0": {
+   "criteria": {
+    "switch/cons_mse_var_teacher_forced": {
+     "value": 5.999092320601146,
+     "pass": false
+    },
+    "switch/cons_mse_var_mode1": {
+     "value": 5.997635781764984,
+     "pass": false
+    },
+    "switch/t4_switch": {
+     "value": [
+      0.14380562553803125,
+      0.5691526532173157
+     ],
+     "pass": false
+    }
+   },
+   "result": {
+    "t1_actions_differ": {
+     "pred_reward": {
+      "pull_lever": 0.30016955733299255
+     },
+     "mean_abs_pairwise_diff": NaN,
+     "n_rows": 768
+    },
+    "consistency": {
+     "cons_mse_var_teacher_forced": 5.999092320601146,
+     "cons_mse_var_mode1": 5.997635781764984,
+     "n_batches": 24
+    },
+    "t4_switch": {
+     "nonfinite": {
+      "switch_at_3": [
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "no_switch": [
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     "head_only": {
+      "switch_at_3": [
+       0.3034895360469818,
+       0.3031877875328064,
+       0.3034895360469818,
+       0.30338895320892334,
+       0.3030872046947479,
+       0.301279217004776,
+       0.2998756170272827,
+       0.2990744113922119
+      ],
+      "no_switch": [
+       0.30308717489242554,
+       0.30359014868736267,
+       0.30369073152542114,
+       0.30328837037086487,
+       0.303187757730484,
+       0.3019818067550659,
+       0.3000756800174713,
+       0.29897430539131165
+      ]
+     },
+     "switch_at_3": [
+      0.36320942640304565,
+      0.30693018436431885,
+      0.34180280566215515,
+      0.4280233085155487,
+      0.27301356196403503,
+      0.19062122702598572,
+      0.15786927938461304,
+      0.08292637020349503
+     ],
+     "no_switch": [
+      0.3612220287322998,
+      0.31804633140563965,
+      0.3502585291862488,
+      0.44801756739616394,
+      0.47673723101615906,
+      0.5116444826126099,
+      0.5877487659454346,
+      0.6080647110939026
+     ],
+     "truth_switch": [
+      1.0,
+      1.0,
+      1.0,
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0
+     ],
+     "post_switch_pred_mean_t5_7": 0.14380562553803125,
+     "no_switch_pred_mean_t5_7": 0.5691526532173157,
+     "pre_switch_max_gap": 0.0111161470413208,
+     "switch_correct": false
+    },
+    "t6_intermediate_event": {
+     "imagined_plus1": 0.395327091217041,
+     "imagined_minus1": 0.2138933539390564,
+     "next_pred_real_belief": 0.33732500672340393,
+     "later_pred_difference": 0.18143373727798462,
+     "real_fast_state_untouched": true
+    },
+    "loss_first": 49.025508880615234,
+    "loss_last10": 29.44459934234619,
+    "train_metrics_last10": {
+     "duration": -4.038214111328125,
+     "kl": 0.64000004529953,
+     "kl_value": 0.10679695680737496,
+     "cons_mse_var": 5.792037391662598,
+     "open_loop_mode": 10.152344512939454,
+     "cons_mse_var_mode1": 5.792101430892944,
+     "reg_var": 0.040802323073148725,
+     "reg_cov": 0.40854975283145906,
+     "latent": 3.6883837461471556,
+     "outcome": 0.09279626980423927,
+     "obs": 3.3341159343719484,
+     "reward": 0.0,
+     "cont": 0.04788666311651468,
+     "consistency": 7.401160001754761,
+     "open_loop": 15.228581047058105,
+     "world": 29.44459934234619,
+     "loss": 29.44459934234619,
+     "open_loop_joint_nll": 28.239208984375
+    },
+    "config": {
+     "preset": "dom_dev",
+     "reward_mode": "observation_only",
+     "wm_transition_blocks": 6,
+     "wm_ema_target": false,
+     "kl_free_bits_group": 0.02,
+     "wm_consistency": 1.0,
+     "n_layers": 8,
+     "d_model": 384,
+     "n_state": 32,
+     "sem_test_model": "Qwen/Qwen3-0.6B"
+    },
+    "n_train_episodes": 288,
+    "n_heldout_episodes": 96,
+    "t5_multistep": {
+     "world_model": {
+      "1": {
+       "mse": 0.11706783201467867,
+       "mae": 0.1596057664913436,
+       "n": 3072
+      },
+      "2": {
+       "mse": 0.12696998981049373,
+       "mae": 0.1666385999304198,
+       "n": 2688
+      },
+      "3": {
+       "mse": 0.1407868112437427,
+       "mae": 0.1768362080781824,
+       "n": 2304
+      },
+      "4": {
+       "mse": 0.15270235016942024,
+       "mae": 0.18523509533454974,
+       "n": 1920
+      }
+     },
+     "key_mean": {
+      "1": {
+       "mse": 0.11918004596373066,
+       "mae": 0.15693753018664816,
+       "n": 3072
+      },
+      "2": {
+       "mse": 0.13020630828326657,
+       "mae": 0.1648358404636383,
+       "n": 2688
+      },
+      "3": {
+       "mse": 0.1455487100304001,
+       "mae": 0.17616754496056172,
+       "n": 2304
+      },
+      "4": {
+       "mse": 0.15873894502098362,
+       "mae": 0.1855494324117899,
+       "n": 1920
+      }
+     },
+     "no_change": {
+      "1": {
+       "mse": 0.045653604950909234,
+       "mae": 0.0523814667831175,
+       "n": 3072
+      },
+      "2": {
+       "mse": 0.09780414207056137,
+       "mae": 0.08984499289432452,
+       "n": 2688
+      },
+      "3": {
+       "mse": 0.15952767819605165,
+       "mae": 0.1332087382260296,
+       "n": 2304
+      },
+      "4": {
+       "mse": 0.21399399188376264,
+       "mae": 0.17371310976644358,
+       "n": 1920
+      }
+     }
+    }
+   },
+   "wall_s": 3721.1396572589874,
+   "cuda_peak_gb": 3.389101505279541,
+   "command": "/workspace/agentrs/.venv/bin/python -m superlearner.cam_unified.capabilities.causal run --world switch --seed 0 --out /tmp/claude-0/-workspace/20daf834-869f-4bc1-be4b-4d3076bc13b9/scratchpad/w6b/e2e_0461d67_preset/causal_switch_s0.json",
+   "settings": {
+    "seed": 0,
+    "B": 32,
+    "record_episodes": 12,
+    "heldout_frac": 0.25,
+    "train_steps": 800,
+    "batch_seqs": 4,
+    "lr": 0.0001,
+    "grad_clip": 10.0,
+    "horizons": [
+     1,
+     2,
+     3,
+     4
+    ],
+    "worlds": [
+     "switch"
+    ],
+    "cfg_overrides": {
+     "grad_checkpoint": true
+    },
+    "preset": "dom_dev",
+    "lr_decay": true,
+    "lr_final_frac": 0.05,
+    "payout_key": "num:points@me[points]",
+    "wm_kwargs": {
+     "open_loop_samples": 2
+    },
+    "sem_cache_mb": 256,
+    "core_kwargs": {
+     "emb_std": 0.02
+    }
+   }
+  }
+ }
+}

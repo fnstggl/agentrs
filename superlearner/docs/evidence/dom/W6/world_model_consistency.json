@@ -1,0 +1,165 @@
+{
+ "commit": "dfb0154 (code of the runs: 0461d67 dynamics; diag_align: dfb0154 + a running mean-alignment shift of the block transition, reverted)",
+ "what": "consistency gap of the DOM block transition without an EMA target on the real dom_dev stack (InteractionEnv, full world objective, Adam 1e-4 constant): MSE(Z^_{t+1}, Z_post_{t+1}) / Var(Z_post) on held-out transitions, decomposed into the squared mean offset (bias2: per (token, channel) mean of Z^ - Z_post over all held-out transitions) and the sample-specific rest; cons_post = posterior-latent (teacher-forced) transition, cons_prior = mode-latent prior",
+ "command": "LR=1e-4 python capped_run.py 3.8 diag_tf.py interaction <updates> 100 <out> (script in world_model_outcome_learning.json; this version adds the decomposition)",
+ "runs": {
+  "preset_no_ema": {
+   "setting": "committed default (no EMA target, self-predictive gradient routed to the transition adapters, beta-NLL, unit-gain action input)",
+   "curve": [
+    {
+     "update": 0,
+     "t1": 0.002,
+     "prior_payout_mse_over_var": 1.063,
+     "cons_post": {
+      "mse_over_var": 5.8,
+      "bias2_over_var": 5.613,
+      "resid_over_var": 0.187
+     },
+     "cons_prior": {
+      "mse_over_var": 5.799,
+      "bias2_over_var": 5.612,
+      "resid_over_var": 0.187
+     }
+    },
+    {
+     "update": 100,
+     "t1": 0.106,
+     "prior_payout_mse_over_var": 0.858,
+     "cons_post": {
+      "mse_over_var": 4.63,
+      "bias2_over_var": 3.681,
+      "resid_over_var": 0.949
+     },
+     "cons_prior": {
+      "mse_over_var": 4.63,
+      "bias2_over_var": 3.681,
+      "resid_over_var": 0.949
+     },
+     "train_cons_mse_var_last10": 4.768
+    },
+    {
+     "update": 200,
+     "t1": 0.138,
+     "prior_payout_mse_over_var": 0.807,
+     "cons_post": {
+      "mse_over_var": 2.937,
+      "bias2_over_var": 2.022,
+      "resid_over_var": 0.915
+     },
+     "cons_prior": {
+      "mse_over_var": 2.936,
+      "bias2_over_var": 2.021,
+      "resid_over_var": 0.915
+     },
+     "train_cons_mse_var_last10": 2.888
+    },
+    {
+     "update": 300,
+     "t1": 0.432,
+     "prior_payout_mse_over_var": 0.455,
+     "cons_post": {
+      "mse_over_var": 3.62,
+      "bias2_over_var": 2.728,
+      "resid_over_var": 0.892
+     },
+     "cons_prior": {
+      "mse_over_var": 3.621,
+      "bias2_over_var": 2.729,
+      "resid_over_var": 0.892
+     },
+     "train_cons_mse_var_last10": 2.041
+    }
+   ]
+  },
+  "mean_alignment_no_ema": {
+   "setting": "as preset plus Z^ <- Z^ + (running mean Z_post - running mean Z^), momentum 0.02 (not committed)",
+   "curve": [
+    {
+     "update": 0,
+     "t1": 0.002,
+     "prior_payout_mse_over_var": 1.063,
+     "cons_post": {
+      "mse_over_var": 5.866,
+      "bias2_over_var": 5.678,
+      "resid_over_var": 0.187
+     },
+     "cons_prior": {
+      "mse_over_var": 5.865,
+      "bias2_over_var": 5.678,
+      "resid_over_var": 0.187
+     }
+    },
+    {
+     "update": 100,
+     "t1": 0.154,
+     "prior_payout_mse_over_var": 0.773,
+     "cons_post": {
+      "mse_over_var": 3.782,
+      "bias2_over_var": 2.298,
+      "resid_over_var": 1.483
+     },
+     "cons_prior": {
+      "mse_over_var": 3.779,
+      "bias2_over_var": 2.297,
+      "resid_over_var": 1.482
+     },
+     "train_cons_mse_var_last10": 3.528
+    }
+   ]
+  },
+  "adapters_10x_lr_no_ema": {
+   "setting": "as preset with the transition-specific parameters (world_model.trans_*, latent_pred) in their own optimiser group at 10x lr (1e-3) (driver-level experiment, not committed)",
+   "curve": [
+    {
+     "update": 0,
+     "t1": 0.002,
+     "prior_payout_mse_over_var": 1.062,
+     "cons_post": {
+      "mse_over_var": 5.8,
+      "bias2_over_var": 5.613,
+      "resid_over_var": 0.187
+     },
+     "cons_prior": {
+      "mse_over_var": 5.799,
+      "bias2_over_var": 5.612,
+      "resid_over_var": 0.187
+     }
+    },
+    {
+     "update": 100,
+     "t1": 0.101,
+     "prior_payout_mse_over_var": 0.881,
+     "cons_post": {
+      "mse_over_var": 2.175,
+      "bias2_over_var": 1.303,
+      "resid_over_var": 0.872
+     },
+     "cons_prior": {
+      "mse_over_var": 2.175,
+      "bias2_over_var": 1.303,
+      "resid_over_var": 0.872
+     },
+     "train_cons_mse_var_last10": 3.098
+    },
+    {
+     "update": 200,
+     "t1": 0.09,
+     "prior_payout_mse_over_var": 0.883,
+     "cons_post": {
+      "mse_over_var": 2.603,
+      "bias2_over_var": 1.743,
+      "resid_over_var": 0.861
+     },
+     "cons_prior": {
+      "mse_over_var": 2.602,
+      "bias2_over_var": 1.743,
+      "resid_over_var": 0.86
+     },
+     "train_cons_mse_var_last10": 1.662
+    }
+   ]
+  }
+ },
+ "other_integrated_runs": "world_model_outcome_learning.json integrated.runs: train_last10.cons_mse_var per configuration (EMA target with the action input 4.6-6.0 after 100-200 updates; latent_grad 'full' without EMA: the state variance collapses, MSE/Var 18-35; zero-initialised action input without EMA 0.48-0.63)",
+ "conclusion": "criterion consistency MSE/Var < 0.1 not met without an EMA target in any configuration tried on the real stack. At initialisation the gap is 5.8, of which 5.6 is a systematic offset between the block transition's output and the posterior; the zero-initialised output adapter removes it at ~lr per update (2.0-2.7 left after 200-300 updates at 1e-4) and the sample-specific part stays ~0.9 (the prior state does not predict the posterior's sample-specific content). A running mean alignment removed part of the offset (2.3 at 100 updates) but raised the sample-specific part (1.48), so it was not kept. Earlier synthetic-world measurements (world_model_ema_vs_noema_delayworld.json, world_model_latent_rep_ablation.json): only the EMA variant reached < 0.1 there. A 10x learning rate for the transition-specific parameters removed the offset faster (1.30 at 100 updates) but left 1.7 offset + 0.86 sample-specific after 200 updates."
+}

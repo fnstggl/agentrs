@@ -409,7 +409,9 @@ class BeliefModule(nn.Module):
         injected, scales inflated, weights reset), "persistent": [B] bool (alarm while uncertainty is saturated: no
         reset, scale pinned at the cap), "alarm": [B] bool (CUSUM test fired), "cusum": [B] CUSUM statistic
         (threshold `cusum_h`), "pred_ll": [B] mixture predictive log-lik of the observation, "pred_entropy": [B] its
-        predicted entropy (MC), "window_z": [B] sum(z)/sqrt(n) over the window (diagnostic), "feat": [B,Q,D]}.
+        predicted entropy (MC), "window_z": [B] sum(z)/sqrt(n) over the window (diagnostic), "feat": [B,Q,D],
+        "logw_post": [B,K] the reweighted normalised log-weights before resampling / expansion, indexed like
+        fast.particles (the exact posterior over the particle index: `belief_runtime.belief_change` uses it)}.
         `feat` overrides the outcome features (e.g. computed by the world model from its prior state)."""
         B, K, Dp = fast.particles.shape
         dev = fast.particles.device
@@ -422,6 +424,7 @@ class BeliefModule(nn.Module):
         pred_ll = torch.logsumexp(joint, -1)
         logw = joint - pred_ll.unsqueeze(-1)
         logw = torch.where(has_obs.unsqueeze(-1), logw, fast.logw)
+        logw_post = logw                       # reweighted (Bayes) weights before resampling / expansion
         pred_ll = torch.where(has_obs, pred_ll, torch.zeros_like(pred_ll))
 
         # ---- misspecification statistic
@@ -517,7 +520,7 @@ class BeliefModule(nn.Module):
         info = {"ess": ess, "loglik": loglik, "surprise_z": z, "resampled": resampled, "expanded": expanded,
                 "persistent": persistent, "alarm": alarm, "cusum": cusum,
                 "pred_ll": pred_ll, "pred_entropy": torch.where(has_obs, h_pred, torch.zeros_like(h_pred)),
-                "window_z": wz, "feat": feat}
+                "window_z": wz, "feat": feat, "logw_post": logw_post}
         return new, info
 
     def count_parameters(self) -> int:

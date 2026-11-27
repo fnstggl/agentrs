@@ -1,0 +1,328 @@
+{
+ "commit": "9fe22a65136a5d18f34b1cfaf8f43f07469222bc",
+ "what": "DelayWorld (world_synth) on the real UnifiedCore (3 x 64), DOM world model (block transition 2/3, free bits 0.02/group, consistency 1.0, mode latent), Adam lr 4e-3 linear decay to 0.1x; open-loop forecast from step 2 of plans press_now / press_later / wait (truth [[1,0,0],[0,0,1],[0,0,0]]); cons_mse_var = MSE(Z^_{t+1}, Z_post_{t+1}) / Var(Z_post) of the teacher-forced transition",
+ "command": "python dbg_delay.py '<cfg json>' <steps> '{}' <seed> (scratch driver over tests/cam_unified/world/world_synth.py; the same recipes are tests/cam_unified/world/test_world_learning_dom.py)",
+ "note": "the pre-fix no-EMA run where the consistency gradient reached the shared encoder collapsed to climatology (all predictions 0.474, consistency 0.001); the unrouted no-EMA full-core run (dom_noema_fullcore_unrouted) shows the same failure without the block transition",
+ "runs": [
+  {
+   "run": "dom_noema_routed_s0_400",
+   "config": {
+    "wm_transition_blocks": 2,
+    "wm_ema_target": false,
+    "kl_free_bits_group": 0.02,
+    "wm_consistency": 1.0
+   },
+   "seed": 0,
+   "self_predictive_grad": "transition",
+   "pred_plan_x_horizon": [
+    [
+     1.026,
+     0.0056,
+     0.0111
+    ],
+    [
+     -0.0109,
+     0.0422,
+     0.2511
+    ],
+    [
+     -0.0038,
+     0.007,
+     0.0145
+    ]
+   ],
+   "max_abs_err": 0.7489,
+   "metrics": {
+    "latent": 0.4368,
+    "consistency": 1.3434,
+    "outcome": -1.344,
+    "kl": 0.16,
+    "kl_value": 0.0751,
+    "reg_var": 0.0302,
+    "cons_mse_var": 1.3727
+   },
+   "pass_delay_lt_0.3": false,
+   "pass_consistency_lt_0.1": false
+  },
+  {
+   "run": "dom_noema_routed_s0_700",
+   "config": {
+    "wm_transition_blocks": 2,
+    "wm_ema_target": false,
+    "kl_free_bits_group": 0.02,
+    "wm_consistency": 1.0
+   },
+   "seed": 0,
+   "self_predictive_grad": "transition",
+   "pred_plan_x_horizon": [
+    [
+     1.0029,
+     0.001,
+     -0.0016
+    ],
+    [
+     -0.0016,
+     -0.0029,
+     1.0005
+    ],
+    [
+     -0.0033,
+     -0.0028,
+     -0.0019
+    ]
+   ],
+   "max_abs_err": 0.0033,
+   "metrics": {
+    "latent": 0.0937,
+    "consistency": 0.6607,
+    "outcome": -1.5474,
+    "kl": 0.16,
+    "kl_value": 0.0483,
+    "reg_var": 0.012,
+    "cons_mse_var": 0.6902
+   },
+   "pass_delay_lt_0.3": true,
+   "pass_consistency_lt_0.1": false
+  },
+  {
+   "run": "dom_noema_routed_s1_1400",
+   "config": {
+    "wm_transition_blocks": 2,
+    "wm_ema_target": false,
+    "kl_free_bits_group": 0.02,
+    "wm_consistency": 1.0
+   },
+   "seed": 1,
+   "self_predictive_grad": "transition",
+   "pred_plan_x_horizon": [
+    [
+     1.2035,
+     0.1996,
+     0.2002
+    ],
+    [
+     0.1975,
+     0.2005,
+     0.2004
+    ],
+    [
+     0.1994,
+     0.2003,
+     0.2004
+    ]
+   ],
+   "max_abs_err": 0.7996,
+   "metrics": {
+    "latent": 0.5304,
+    "consistency": 0.8008,
+    "outcome": 0.4237,
+    "kl": 0.16,
+    "kl_value": 0.0804,
+    "reg_var": 0.009,
+    "cons_mse_var": 0.84
+   },
+   "pass_delay_lt_0.3": false,
+   "pass_consistency_lt_0.1": false
+  },
+  {
+   "run": "dom_noema_noconsistency_unrouted_s0_400",
+   "config": {
+    "wm_transition_blocks": 2,
+    "wm_ema_target": false,
+    "kl_free_bits_group": 0.02,
+    "wm_consistency": 0.0
+   },
+   "seed": 0,
+   "self_predictive_grad": "full",
+   "pred_plan_x_horizon": [
+    [
+     1.128,
+     0.2241,
+     0.2065
+    ],
+    [
+     0.1761,
+     0.2012,
+     0.2055
+    ],
+    [
+     0.1611,
+     0.2002,
+     0.2054
+    ]
+   ],
+   "max_abs_err": 0.7945,
+   "metrics": {
+    "latent": 0.5357,
+    "consistency": 1.7036,
+    "outcome": 0.388,
+    "kl": 0.16,
+    "kl_value": 0.0237,
+    "reg_var": 0.0764,
+    "cons_mse_var": 1.5217
+   },
+   "pass_delay_lt_0.3": false,
+   "pass_consistency_lt_0.1": false
+  },
+  {
+   "run": "dom_ema_s0_400",
+   "config": {
+    "wm_transition_blocks": 2,
+    "wm_ema_target": true,
+    "kl_free_bits_group": 0.02,
+    "wm_consistency": 1.0
+   },
+   "seed": 0,
+   "self_predictive_grad": "full",
+   "pred_plan_x_horizon": [
+    [
+     1.0186,
+     0.0104,
+     0.0038
+    ],
+    [
+     0.0057,
+     0.0244,
+     1.0118
+    ],
+    [
+     0.0055,
+     0.0041,
+     0.0034
+    ]
+   ],
+   "max_abs_err": 0.0244,
+   "metrics": {
+    "latent": 0.0281,
+    "consistency": 0.091,
+    "outcome": -1.1574,
+    "kl": 0.16,
+    "kl_value": 0.0366,
+    "reg_var": 0.252,
+    "cons_mse_var": 0.0918
+   },
+   "pass_delay_lt_0.3": true,
+   "pass_consistency_lt_0.1": true
+  },
+  {
+   "run": "dom_ema_s1_700",
+   "config": {
+    "wm_transition_blocks": 2,
+    "wm_ema_target": true,
+    "kl_free_bits_group": 0.02,
+    "wm_consistency": 1.0
+   },
+   "seed": 1,
+   "self_predictive_grad": "full",
+   "pred_plan_x_horizon": [
+    [
+     0.9996,
+     -0.0025,
+     -0.0033
+    ],
+    [
+     -0.002,
+     0.0031,
+     0.9934
+    ],
+    [
+     -0.0031,
+     -0.0033,
+     -0.0037
+    ]
+   ],
+   "max_abs_err": 0.00660000000000005,
+   "metrics": {
+    "latent": 0.0161,
+    "consistency": 0.0421,
+    "outcome": -1.4074,
+    "kl": 0.16,
+    "kl_value": 0.05,
+    "reg_var": 0.0797,
+    "cons_mse_var": 0.0394
+   },
+   "pass_delay_lt_0.3": true,
+   "pass_consistency_lt_0.1": true
+  },
+  {
+   "run": "dom_ema_s2_700",
+   "config": {
+    "wm_transition_blocks": 2,
+    "wm_ema_target": true,
+    "kl_free_bits_group": 0.02,
+    "wm_consistency": 1.0
+   },
+   "seed": 2,
+   "self_predictive_grad": "full",
+   "pred_plan_x_horizon": [
+    [
+     0.99075,
+     0.0048467,
+     -0.00075416
+    ],
+    [
+     0.015891,
+     -0.018581,
+     0.98312
+    ],
+    [
+     -0.0024252,
+     -0.0022676,
+     -0.00015374
+    ]
+   ],
+   "max_abs_err": 0.018581,
+   "metrics": {
+    "latent": 0.0309,
+    "consistency": 0.0558,
+    "outcome": -1.4709,
+    "kl": 0.16,
+    "kl_value": 0.0945,
+    "reg_var": 0.0848,
+    "cons_mse_var": 0.0424
+   },
+   "pass_delay_lt_0.3": true,
+   "pass_consistency_lt_0.1": true
+  },
+  {
+   "run": "dom_noema_fullcore_unrouted_s0_400",
+   "config": {
+    "wm_transition_blocks": 0,
+    "wm_ema_target": false,
+    "kl_free_bits_group": 0.02,
+    "wm_consistency": 1.0
+   },
+   "seed": 0,
+   "self_predictive_grad": "full",
+   "pred_plan_x_horizon": [
+    [
+     1.217,
+     0.3005,
+     0.2418
+    ],
+    [
+     0.1377,
+     0.216,
+     0.2376
+    ],
+    [
+     0.065,
+     0.1921,
+     0.2352
+    ]
+   ],
+   "max_abs_err": 0.7624,
+   "metrics": {
+    "latent": 0.0171,
+    "consistency": 0.0023,
+    "outcome": 0.2219,
+    "kl": 0.16,
+    "kl_value": 0.0678,
+    "reg_var": 0.1657,
+    "cons_mse_var": 0.0023
+   },
+   "pass_delay_lt_0.3": false,
+   "pass_consistency_lt_0.1": true
+  }
+ ]
+}

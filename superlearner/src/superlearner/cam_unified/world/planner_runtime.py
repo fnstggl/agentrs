@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from ..core import belief_runtime as _belief
 from ..interfaces import ActionSource, ImaginedStep, ImaginedTrajectory, TokenSet
 from ..outcome_spec import CORE_INDEX, select_outcomes, with_targets
 
@@ -86,7 +87,20 @@ class LatentImaginationPlanner:
                 var = (w.unsqueeze(-1) * (dist_var(d).float() + mk * mk)).sum(1) - base * base
                 disagree = ((w * (mk[:, :, r_idx] - base[:, r_idx:r_idx + 1]) ** 2).sum(1)).sqrt()
                 mean = base
-                if kal:
+                kbase = base
+                if kal and _belief.fusion_on(model):
+                    # gated fusion (DOM): sample the two-expert predictive; Kalman residuals against the
+                    # particle-free head mean
+                    prosp_c = model.channels_of(fast, prosp)
+                    fp = _belief.fused_predictive(model, fast, feat, prosp_c)
+                    mean, var = fp.mean(), fp.var()
+                    eps = randn_like_gen(mean, req.generator)
+                    u = randn_like_gen(mean, req.generator)
+                    take_k = fp.fused & (torch.special.ndtr(u) < fp.gate)
+                    ys = torch.where(take_k, fp.kal_mean + fp.kal_var.clamp_min(0).sqrt() * eps, ys)
+                    kbase = _belief.kalman_base(model, feat, prosp, fast)
+                    model._count("imagination.bayes.predict")
+                elif kal:
                     prosp_c = model.channels_of(fast, prosp)
                     cm, cv, _, bound = model.kalman_predict(fast, feat, prosp_c)
                     mean, var = model.combine(base, var.clamp_min(0), cm, cv, bound)
@@ -110,7 +124,7 @@ class LatentImaginationPlanner:
                 if kal:
                     model._count("imagination.bayes.update")
                     fast_n = model.kalman_update(fast_n, feat, model.belief_view(model.channels_of(fast, imagined)),
-                                                 base)
+                                                 kbase)
                 fast = fast_n
             Z = Z_hat
             belief = model.beliefs.tokens(fast) if fast is not None else model.empty_tokens(Bb)

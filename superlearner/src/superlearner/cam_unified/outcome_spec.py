@@ -10,7 +10,7 @@ key                            likelihood   target y
 ``error_code``                 CATEGORICAL  0 = no error, else 1 + sha256(code) mod (n_error_classes - 1)
 ``cost``                       GAUSSIAN     symlog(cost) in the world's money unit (Crucible: integer cents)
 ``duration``                   GAUSSIAN     symlog(duration) in simulated days
-``reward``                     GAUSSIAN     the verified return increment (raw)
+``reward``                     GAUSSIAN     the verified return increment (raw); unobserved in observation_only
 ``num:<metric>@<entity>[unit]`` GAUSSIAN    symlog(v_new - v_prev) for a numeric observation whose key was seen before
 ``lvl:<metric>@<entity>[unit]`` GAUSSIAN    symlog(v_new) when the (metric, entity, unit) key is seen for the first time
 ``cnt:<kind>/<type>``          COUNT        number of new observations of that event type in the step (0 included)
@@ -205,9 +205,10 @@ class OutcomeTracker:
         return out
 
     def realize(self, prev_obs: Sequence[Observation], action: Optional[Action], result: Optional[ExecutionResult],
-                next_obs: Sequence[Observation], reward: float) -> list:
+                next_obs: Sequence[Observation], reward: Optional[float]) -> list:
         """Observed outcomes of ``action``: the five core keys, every numeric observation in ``next_obs`` (delta to its
-        previous value, or level when first seen) and event-type counts. Updates the tracker state."""
+        previous value, or level when first seen) and event-type counts. Updates the tracker state. ``reward`` None
+        (reward_mode "observation_only"): the core 'reward' outcome is unobserved."""
         self.ingest(prev_obs)          # values visible at decision time are the "before" values
         specs = _core_specs(result.meta.get("cost_unit", self.money_unit) if result is not None else self.money_unit,
                             self.n_error_classes)
@@ -216,7 +217,12 @@ class OutcomeTracker:
                     symlog(float(result.cost)), symlog(float(result.duration))]
             for s, v in zip(specs[:4], vals):
                 s.y, s.observed = v, True
-        specs[4].y, specs[4].observed = float(reward), True
+        if reward is None:
+            # observation_only (plan 2026-11-26 §2): the verified return is not an actor-side observation; the
+            # 'reward' query stays in the set (stable CORE_INDEX) but is never a belief / Kalman / world-model target
+            specs[4].y, specs[4].observed = 0.0, False
+        else:
+            specs[4].y, specs[4].observed = float(reward), True
         # numeric observations: latest value per key within this step
         latest: "OrderedDict[str, Observation]" = OrderedDict()
         for o in sorted((o for o in next_obs if o.kind == ObsKind.NUMERIC and o.value is not None
@@ -532,7 +538,7 @@ def with_targets(ob: OutcomeBatch, y: torch.Tensor, y_mask: Optional[torch.Tenso
 
 def outcomes_from_results(prev_obs: Sequence[Sequence[Observation]], actions: Sequence[Optional[Action]],
                           results: Sequence[Optional[ExecutionResult]], next_obs: Sequence[Sequence[Observation]],
-                          reward: Sequence[float], encoder, *, trackers: Optional[Sequence[OutcomeTracker]] = None,
+                          reward: Optional[Sequence[Optional[float]]], encoder, *, trackers: Optional[Sequence[OutcomeTracker]] = None,
                           registries: Optional[Sequence[EntityRegistry]] = None, fast: Optional[FastState] = None,
                           d_model: Optional[int] = None, prior_var: float = 1.0, obs_var: float = 1.0,
                           device=None, return_specs: bool = False, stats: Optional[dict] = None):
@@ -541,14 +547,15 @@ def outcomes_from_results(prev_obs: Sequence[Sequence[Observation]], actions: Se
     ``encoder``: an OutcomeQueryEncoder, or an ObservationTokenizer / SemanticEncoder / callable from which one is
     built (``d_model`` required then). ``trackers`` carry numeric history across steps (fresh trackers when None:
     deltas are then relative to ``prev_obs`` only). With ``fast`` the keys are bound to channel slots in
-    ``fast.channels``."""
+    ``fast.channels``. ``reward`` None (or None entries): the 'reward' outcome is unobserved (observation_only)."""
     B = len(actions)
     if not isinstance(encoder, OutcomeQueryEncoder):
         if d_model is None:
             raise ValueError("d_model is required when `encoder` is not an OutcomeQueryEncoder")
         encoder = OutcomeQueryEncoder(d_model, make_text_encoder(encoder, d_model))
     trackers = list(trackers) if trackers is not None else [OutcomeTracker() for _ in range(B)]
-    specs = [trackers[b].realize(prev_obs[b], actions[b], results[b], next_obs[b], float(reward[b])) for b in range(B)]
+    rew = [None if (reward is None or reward[b] is None) else float(reward[b]) for b in range(B)]
+    specs = [trackers[b].realize(prev_obs[b], actions[b], results[b], next_obs[b], rew[b]) for b in range(B)]
     chans = [bind_channels(fast, b, specs[b], trackers[b].last_seen, prior_var, obs_var, stats) for b in range(B)]
     ob = build_outcome_batch(specs, encoder, registries, chans, device)
     return (ob, specs) if return_specs else ob
