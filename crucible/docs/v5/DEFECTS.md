@@ -1080,7 +1080,7 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-K-7 (medium, fixed): SP-12.0 not met in measured civilisation runs: the learned groups exercised 7 (commit 2981d88) and 8 (commit 5
+### DEF-K-7 (medium, open): SP-12.0 not established on the Tier 3 civilisation: single-seed runs gave 7 (2981d88), 8 (5dfa700), 
 
 ```json
 {
@@ -1096,11 +1096,133 @@ B_population verdict) and P's own findings.
   "audit": "K_selfplay",
   "file": "docs/v5/workstreams/K.json",
   "finding": null,
-  "found_by": "workstream K gate run on the Tier 3 civilisation (wave 3b)"
+  "found_by": "workstream K gate runs (wave 3b); reopened by the independent verifier of f013d086"
+ },
+ "status": "open",
+ "summary": "SP-12.0 not established on the Tier 3 civilisation: single-seed runs gave 7 (2981d88), 8 (5dfa700), 10 (c212a6f) and 11 (7eb39d1) capability kinds, never replicated, none at the final head; and the two passing runs measured create_services_used_by_others without direction (a learning party only buying counted) and compete_for_scarce_resources as co-renting far below capacity (max utilisation 0.14). With the measures fixed (DEF-K-10) civilisation compute is not scarce, so that kind is expected to be missing unless the learners contest capacity.",
+ "history": "closed as fixed at 4e9108e on the c212a6f/7eb39d1 runs; reopened in the repair pass (verifier of f013d086): variance across seeds, no run at the final head, and two weakly measured kinds"
+}
+```
+
+### DEF-K-8 (medium, fixed): Shared-training groups lost and misassigned training signals: run_learners observes and updates agen
+
+```json
+{
+ "area": "K_selfplay",
+ "id": "DEF-K-8",
+ "owner": "K",
+ "regression_tests": "tests/test_v5_selfplay_multiagent.py::test_a_shared_training_system_trains_every_decision_with_its_own_signal, tests/test_v5_selfplay_multiagent.py::test_signal_waits_for_its_decision_when_another_identity_triggers_the_update, tests/v5/test_gate_Q.py::test_Q_7_evidence_of_neural_learning",
+ "requirements": [
+  "Q.7",
+  "SP-12.1b"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "K_selfplay",
+  "file": "docs/v5/workstreams/K.json",
+  "finding": null,
+  "found_by": "independent verifier of c5c/w3b-selfplay at f013d086 (wave 3b)"
  },
  "status": "fixed",
- "summary": "SP-12.0 not met in measured civilisation runs: the learned groups exercised 7 (commit 2981d88) and 8 (commit 5dfa700) of the 10 required Part 12 capability kinds; missing compete_for_scarce_resources, develop_competing_technologies and (in one run) collaborate_on_software. Cause measured: weak behaviour cloning of the scripted workflows (held-out tool agreement 0.03 at the old BC rate) and rejected actions on other parties' repositories; both changed afterwards (e179c64), not yet re-measured on the civilisation.",
- "fixed_by": "c5c/w3b-selfplay e179c64/5dfa700 (BC rate, own-things memory) and eb6f1d7 (behaviour-regularised RL: KL to the pre-trained policy; one BC optimiser across epochs; the demonstrator serves what it releases: rent compute, deploy): tests/v5/test_gate_SP_12_0.py passed on the Tier 3 civilisation at c212a6f (selfplay_capability_kinds 10, 96 h) and at 7eb39d1 (11 of 11; compete_for_scarce_resources by 2 learning-party pairs at one provider, max utilisation 0.14 - co-renting, not binding capacity) (unofficial lane runs)"
+ "summary": "Shared-training groups lost and misassigned training signals: run_learners observes and updates agent by agent, so the first identity's update trained the other identities' latest decisions with r=0.0 and their signals then arrived at an emptied buffer and were dropped (probe: alpha 24/144, beta 12/96 signals lost; 19 decisions trained with 0 although their own signal was nonzero). Every gate run's shared training systems were affected.",
+ "fixed_by": "c5c/w3b-selfplay 1345f81: PolicyGroup trains only decisions whose signal has arrived (later decisions wait), LearnerAgent attaches its signal to its own decision record, signals_dropped/orphans counted; Gate Q asserts 0"
+}
+```
+
+### DEF-K-9 (medium, fixed): Q.7's behavioural-change check could not fail: an all-zero batch is never trained, so the no-signal 
+
+```json
+{
+ "area": "K_selfplay",
+ "id": "DEF-K-9",
+ "owner": "K",
+ "regression_tests": "tests/test_v5_selfplay_multiagent.py::test_learning_controls_train_on_the_same_batches_with_shuffled_and_negated_signals, tests/v5/test_gate_Q.py::test_Q_7_evidence_of_neural_learning",
+ "requirements": [
+  "Q.7"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "K_selfplay",
+  "file": "docs/v5/workstreams/K.json",
+  "finding": null,
+  "found_by": "independent verifier of c5c/w3b-selfplay at f013d086 (wave 3b)"
+ },
+ "status": "fixed",
+ "summary": "Q.7's behavioural-change check could not fail: an all-zero batch is never trained, so the no-signal control never changed (control TV 0.0 by construction) and 'behaviour TV > control TV' reduced to 'parameters changed'; twins trained with permuted or negated signals changed behaviour about as much as the real learner (probe TV real/shuffled/flipped alpha 0.029/0.023/0.028). K.md/K.json presented TV 0.34 vs 0 as evidence of learning.",
+ "fixed_by": "c5c/w3b-selfplay 1345f81: learning controls are twins trained on the group's batches with shuffled and negated signals; learning_evidence reports behaviour TV for all three and the signal-direction gain (expected mean own signal of the chosen tool); Gate Q asserts >= 1 signal-directed group (gain above both twins) and live controls"
+}
+```
+
+### DEF-K-10 (medium, fixed): SP-12.0 measurement: create_services_used_by_others ignored direction (a learning party that only bo
+
+```json
+{
+ "area": "K_selfplay",
+ "id": "DEF-K-10",
+ "owner": "K",
+ "regression_tests": "tests/test_v5_selfplay_multiagent.py::test_capabilities_credit_the_provider_and_only_binding_scarcity, tests/v5/test_gate_SP_12_0.py",
+ "requirements": [
+  "SP-12.0"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "K_selfplay",
+  "file": "docs/v5/workstreams/K.json",
+  "finding": null,
+  "found_by": "independent verifier of c5c/w3b-selfplay at f013d086 (wave 3b)"
+ },
+ "status": "fixed",
+ "summary": "SP-12.0 measurement: create_services_used_by_others ignored direction (a learning party that only bought from a world seller counted; dependency and service_use alike) and compete_for_scarce_resources had no scarcity condition (two 1-core rentals at a provider at 2.5% utilisation counted; contested customers counted as scarce resources).",
+ "fixed_by": "c5c/w3b-selfplay 1345f81: trade/service_use/dependency records name provider and user and only what a learning party provides counts; scarce_resource needs a compute request refused for capacity while another party held capacity there (event-log replay, utilisation at refusal reported); co-renting is shared_capacity and contested customers are reported, neither counts"
+}
+```
+
+### DEF-K-11 (medium, fixed): SP-12.0 evidence claimed self-play learning ('then trained by self-play here', learned=True) althoug
+
+```json
+{
+ "area": "K_selfplay",
+ "id": "DEF-K-11",
+ "owner": "K",
+ "regression_tests": "tests/v5/test_gate_SP_12_0.py",
+ "requirements": [
+  "SP-12.0"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "K_selfplay",
+  "file": "docs/v5/workstreams/K.json",
+  "finding": null,
+  "found_by": "independent verifier of c5c/w3b-selfplay at f013d086 (wave 3b)"
+ },
+ "status": "fixed",
+ "summary": "SP-12.0 evidence claimed self-play learning ('then trained by self-play here', learned=True) although frozen pre-trained groups with 0 updates exercised as many capability kinds as the learning groups (probe, open_digital 36 h: frozen 7 kinds / 34 cooperative interactions, learning 6 / 25): the capabilities come from behaviour cloning of the scripted demonstrator.",
+ "fixed_by": "c5c/w3b-selfplay 1345f81: the SP-12.0 gate also plays the same civilisation with the frozen pre-trained policies and records the world-interaction capabilities of both, those learning added (capability_source, label capabilities_from_selfplay_learning); evidence labels name the scripted pre-training, scripted syntax and the held-out family's training source"
+}
+```
+
+### DEF-K-12 (low, fixed): Q.5 policy_versions_recorded counted behaviour-cloning epochs as 'update' versions (234 = 190 RL + 4
+
+```json
+{
+ "area": "K_selfplay",
+ "id": "DEF-K-12",
+ "owner": "K",
+ "regression_tests": "tests/test_v5_selfplay_multiagent.py::test_behaviour_cloning_versions_are_not_counted_as_updates_and_its_order_continues_across_calls, tests/v5/test_gate_Q.py::test_Q_5_policy_versioning",
+ "requirements": [
+  "Q.5",
+  "SP-12.1b"
+ ],
+ "severity": "low",
+ "source": {
+  "audit": "K_selfplay",
+  "file": "docs/v5/workstreams/K.json",
+  "finding": null,
+  "found_by": "independent verifier of c5c/w3b-selfplay at f013d086 (wave 3b)"
+ },
+ "status": "fixed",
+ "summary": "Q.5 policy_versions_recorded counted behaviour-cloning epochs as 'update' versions (234 = 190 RL + 44 BC at eb6f1d7, reported as 234 reinforcement-update versions); the same versions fed SP-12.1b's lifetime-adaptation count with demonstration-world times; imitate() restarted its minibatch order every call.",
+ "fixed_by": "c5c/w3b-selfplay 1345f81: imitate() versions have origin behaviour_cloning (reported separately); one minibatch-order generator across imitate() calls"
 }
 ```
 
