@@ -1770,6 +1770,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "P_acceptance",
  "id": "DEF-P-4",
  "owner": "P",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T08:23:40+00:00",
+   "by": "P",
+   "commit": "586f8e7182ea565a92ae253f0fee58303b5f6f5d",
+   "evidence": "tests/v5/test_gate_SP_1_3.py::test_SP_1_3b_manifest_entries_complete_and_reports_merged",
+   "reason": "Measured 2026-11-27 at 586f8e71 (c5c/w3b-qa + feat 629584a2): 354 manifest entries, 120 without implementation files and 58 naming test files absent on this branch (all are listed by the c5c/w3b-* workstreams JSONs and land with their merges: merge-workstreams on the integration branch); every P requirement has its gate test; no official evidence or reviews yet (by instruction, final QA pass); docs/v5/FINAL_REPORT.md exists. Partly addressed, not fixed: SP-1.3b measures the remainder.",
+   "verdict": "still_open"
+  }
+ ],
  "requirements": [],
  "revalidations": [
   {
@@ -1824,6 +1834,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "id": "DEF-P-6",
  "notes": "c5c/w1-qa fixed the 4.0 discovery failure (media_error now has a meaning in core/discovery.py; the 4.0 test is unchanged). The rapid failures belong to workstream H.",
  "owner": "P",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T08:23:40+00:00",
+   "by": "P",
+   "commit": "586f8e7182ea565a92ae253f0fee58303b5f6f5d",
+   "evidence": "Gate A.1 slot job junit; wave-3b regression list",
+   "reason": "Orchestrator regression on 55433e7: 2101 of 2107 passed, 6 failed (owners kcal, perf, qa/obs, listed in the wave-3b brief); Gate A.1 slot run at 74e9bc38 (the 4.0 suite as the 4.0 historical baseline, GPU visible): 1,074 of 1,076 passed, the 2 failures in tests/test_scale.py caused by DEF-P-25 (CUDA driver thread started at import). Still open until the full regression and A.1 are green.",
+   "verdict": "still_open"
+  }
+ ],
  "requirements": [
   "A.1",
   "X.4"
@@ -2356,6 +2376,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "P_acceptance",
  "id": "DEF-P-16",
  "owner": "O (sandbox jail) / orchestrator (how the regression is run)",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T08:23:41+00:00",
+   "by": "P",
+   "commit": "586f8e7182ea565a92ae253f0fee58303b5f6f5d",
+   "evidence": "tests/test_v5_acceptance_baseline.py::test_the_4_0_line_count_does_not_depend_on_where_the_checkout_is",
+   "reason": "Gate A.1's slot run with TMPDIR at its default (/tmp) had no TMPDIR failure; the jail's failure below a 0700 TMPDIR itself is O's. Related finding fixed by P (D-82 second addendum): the 4.0 historical line count of failing requests also depended on whether the sandbox user can stat files inside a 0700 directory (every official clone): boot.py now counts c07098b's lines wherever the checkout is (regression test with the tree in a 0700 directory).",
+   "verdict": "still_open"
+  }
+ ],
  "requirements": [
   "A.1",
   "X.2",
@@ -2378,6 +2408,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "P_acceptance",
  "id": "DEF-P-24",
  "owner": "orchestrator decision (P, L, O)",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T08:23:41+00:00",
+   "by": "P",
+   "commit": "586f8e7182ea565a92ae253f0fee58303b5f6f5d",
+   "evidence": "docs/v5/DECISION_LOG.md D-82; tests/test_v5_acceptance_baseline.py",
+   "reason": "Resolution implemented by D-82 (+ addenda): Gate A.1 restores the c07098b bytes of every 4.0 test file in a fresh clone and runs them as the explicitly selected 4.0 historical baseline (4.0 reward contract, 4.0 executed-line cost model, 4.0 events of 4.0 tools); slot run at 74e9bc38: 1,074/1,076 passed (2 DEF-P-25 failures). Needs the orchestrator's sign-off on D-82 (the emulation paths in sandbox/boot.py and services/code.py, keyed by the process environment) and the A.1-vs-RP.1 decision on the 7 relocated CAM node ids (P.json integration notes).",
+   "verdict": "needs_decision"
+  }
+ ],
  "requirements": [
   "A.1",
   "OO.8",
