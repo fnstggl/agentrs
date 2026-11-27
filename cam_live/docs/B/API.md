@@ -327,6 +327,36 @@ candidates exactly 0; for `randomized` the registry's assignment probabilities w
 `Decision.diagnostics`: `rule, eps_floor, entropy, n_feasible, value_source, thompson_sampled_from, b_norm,
 z_norm_chosen, v_state, value_chosen, uncertainty_chosen, max_prob, top[3]` (+ `arm, arm_names` for experiments).
 
+### Rule `thompson_policy` (LRN, change request S-5)
+
+```python
+RULE_THOMPSON_POLICY = "thompson_policy"                         # in RULES (before "randomized")
+standardised_values(q_samples [S,B,N], q_mean [B,N], a_mask) -> [S,B,N]   # (sample - mean of means) / spread of means
+centred_log_policy(logits, a_mask) -> [B,N]                      # log pi - mean feasible log pi (nats; uniform -> 0)
+policy_preference(logits, a_mask) -> [B,N]                       # centred log pi / max(1 nat, its spread)
+policy_weight(coef_samples [S,2]) -> [S]                         # lambda = clip(beta_pi^+ / max(beta_q, 0.05), 0, 10)
+thompson_policy_scores(z_samples, coef_samples, preference) -> [S,B,N]   # z + lambda * c
+SelectionCalibration(prior_sd_q=0.5, prior_sd_pi=0.5, forget=0.99, max_obs=1024, noise_dof=2.0)
+    .features(decision) -> (z, c) | None                         # chosen candidate, as recorded before acting
+    .candidate_values(decision) -> [z_j] | None                  # every candidate of a recorded decision
+    .observe(key, z, c, y) / .observe_decision(key, decision, y) -> bool      # once per key
+    .posterior() -> {"mean": [b0, bq, bpi], "cov", "noise_var", "n", "scale"}  # y / scale units
+    .sample(n, generator) -> [n, 2]      .predict(z) -> calibrated E[y] | None      .summary()      .state_dict()
+selection_calibration(policy_head) -> SelectionCalibration      # the one instance of a policy head (shared)
+DecisionMaker.calibration                                        # = selection_calibration(heads.policy)
+DecisionMaker.thompson_policy(scores) -> (probs [1,N] before the floor, {"diag", "log_policy"})
+```
+`p_i` = share of the Thompson samples s in which candidate i maximises `z_s,i + lambda_s * c_i` (exact ties share
+the sample), then the epsilon floor. `z_s` are the world model's joint posterior samples of the net goal value
+(ensemble member x fast-layer draw, `extras["ts_<k>"]`) standardised by the spread of the posterior means over the
+decision's feasible candidates; `c` is the policy preference; `(beta_q, beta_pi)` per sample from the calibration
+(Bayesian linear regression of the verified progress of executed decisions on the chosen candidate's `(z, c)`).
+`Decision.diagnostics["selection"]`: `rule, calibration (n, scale, beta_q, beta_q_sd, beta_pi, beta_pi_sd,
+noise_var), policy_share_tv, policy_weight (mean, share_positive), coef_positive_share, value_only_probabilities,
+policy_centred_logp_chosen` (the preference of the chosen candidate). The calibration is fed by
+`reward.metalearner.MetaLearner.refresh_selection` from `reward_signals.verified_progress_delta` and persisted in
+`MetaLearner.state_dict()["selection"]`.
+
 ## planner.py
 
 ```python

@@ -7,9 +7,20 @@ multiplicative interaction, so the action distribution cannot be a function of t
 everything). It also returns a state value V [B] and a per-candidate value Q [B, N].
 
 :func:`select` implements the exploration rules — policy sampling, Thompson sampling, UCB, greedy, information-gain
-weighting and explicit randomised assignment over experiment arms. Every rule first builds the full probability
-vector and then samples from exactly that vector, so the recorded propensities are exact, and an epsilon floor
-keeps every feasible candidate in the support (needed by importance weighting and hindsight credit).
+weighting, the combined learned-value rule ``thompson_policy`` and explicit randomised assignment over experiment
+arms. Every rule first builds the full probability vector and then samples from exactly that vector, so the recorded
+propensities are exact, and an epsilon floor keeps every feasible candidate in the support (needed by importance
+weighting and hindsight credit).
+
+``thompson_policy`` (spec 5.1 "Thompson sampling" + "learned action value", Part 6) is Thompson sampling over the
+world model's joint posterior samples of each candidate's goal-relevant value (standardised within the decision),
+corrected by the trainable policy's bounded preference with a weight lambda learned from verified outcomes:
+:class:`SelectionCalibration` regresses the verified progress of executed decisions on what the agent knew when it
+chose them (the world model's standardised value and the policy's preference of the chosen candidate), and one
+(beta_q, beta_pi) is drawn from that posterior per Thompson sample, lambda = beta_pi^+ / beta_q. The policy's
+influence therefore starts at its prior (a near-uniform, untrained policy has none whatever lambda is) and grows
+only as its preferences prove predictive of verified progress beyond the world model's. Nothing in it names an
+action or a task.
 
 ``functional_forward`` evaluates the policy with an explicit parameter dictionary (``torch.func.functional_call``)
 so the reward workstream can differentiate through policy updates.
@@ -33,8 +44,9 @@ RULE_THOMPSON = "thompson"
 RULE_UCB = "ucb"
 RULE_GREEDY = "greedy"
 RULE_INFO_GAIN = "voi"
+RULE_THOMPSON_POLICY = "thompson_policy"
 RULE_RANDOMIZED = "randomized"
-RULES = (RULE_POLICY, RULE_THOMPSON, RULE_UCB, RULE_GREEDY, RULE_INFO_GAIN, RULE_RANDOMIZED)
+RULES = (RULE_POLICY, RULE_THOMPSON, RULE_UCB, RULE_GREEDY, RULE_INFO_GAIN, RULE_THOMPSON_POLICY, RULE_RANDOMIZED)
 
 
 @dataclass
@@ -166,11 +178,280 @@ def _one_hot_argmax(score: Tensor, support: Tensor) -> Tensor:
     return F.one_hot(s.argmax(-1), score.shape[-1]).to(torch.float64)
 
 
+def _tie_share(score: Tensor, support: Tensor) -> Tensor:
+    """score [S, B, N] -> [B, N] float64: the mean over samples of the uniform distribution over each sample's
+    maximal supported candidates (exact ties share the sample; an index never wins a tie by its position)."""
+    sup = support.unsqueeze(0).expand_as(score)
+    s = torch.where(sup, score.to(torch.float64), torch.full_like(score, float("-inf"), dtype=torch.float64))
+    mx = s.max(-1, keepdim=True).values
+    hit = sup & (s >= mx - 1e-12 * (1.0 + mx.abs()))
+    return (hit.to(torch.float64) / hit.sum(-1, keepdim=True).clamp_min(1)).mean(0)
+
+
+def centred_log_policy(logits: Tensor, a_mask: Tensor) -> Tensor:
+    """log pi(a_i) - mean over the feasible candidates of log pi (0 at infeasible ones): the policy's preference in
+    nats, independent of the size of the candidate set. A uniform policy gives exactly 0 everywhere."""
+    lp = masked_log_softmax(logits.to(torch.float64), a_mask)
+    m = a_mask.to(torch.float64)
+    mean = (torch.where(a_mask, lp, torch.zeros_like(lp)) * m).sum(-1, keepdim=True) / m.sum(-1, keepdim=True)
+    return torch.where(a_mask, lp - mean, torch.zeros_like(lp))
+
+
+Z_CLIP, C_CLIP = 4.0, 4.0             # winsorisation of the calibration features (robust to exploding predictions)
+
+
+def policy_preference(logits: Tensor, a_mask: Tensor) -> Tensor:
+    """The policy's preference used by ``thompson_policy``: the centred log-probability (:func:`centred_log_policy`)
+    divided by max(1 nat, its spread over the feasible candidates). A near-uniform policy keeps its (tiny) nats, so an
+    untrained policy has no say; a very peaked one is bounded like the standardised world-model value, so a small
+    calibration weight cannot hand it the decision by sheer peakedness."""
+    c = centred_log_policy(logits, a_mask)
+    m = a_mask.to(torch.float64)
+    n = m.sum(-1, keepdim=True).clamp_min(1.0)
+    sd = torch.sqrt((c ** 2 * m).sum(-1, keepdim=True) / n)
+    return c / sd.clamp_min(1.0)
+
+
+def standardised_values(q_samples: Tensor, q_mean: Tensor, a_mask: Tensor) -> Tensor:
+    """[S, B, N]: each posterior sample of a candidate's net goal value, centred and scaled by the mean and spread of
+    the *posterior means* over the feasible candidates of the same decision (so the sampled uncertainty is kept and
+    the units of the prediction drop out). A set whose predicted values are all equal has spread 1."""
+    m = a_mask.to(torch.float64)
+    n = m.sum(-1, keepdim=True).clamp_min(1.0)
+    qm = torch.where(a_mask, q_mean.to(torch.float64), torch.zeros_like(q_mean, dtype=torch.float64))
+    mu = qm.sum(-1, keepdim=True) / n
+    sd = torch.sqrt((torch.where(a_mask, (qm - mu) ** 2, torch.zeros_like(qm))).sum(-1, keepdim=True) / n)
+    sd = torch.where(sd > 1e-12, sd, torch.ones_like(sd))
+    z = (q_samples.to(torch.float64) - mu.unsqueeze(0)) / sd.unsqueeze(0)
+    return torch.where(a_mask.unsqueeze(0), z, torch.zeros_like(z))
+
+
+BETA_Q_MIN, LAMBDA_MAX = 0.05, 10.0
+
+
+def policy_weight(coef_samples: Tensor) -> Tensor:
+    """[S] the policy's weight relative to the world model in each Thompson sample:
+    lambda = clip(beta_pi^+ / max(beta_q, BETA_Q_MIN), 0, LAMBDA_MAX). The world model's standardised value is the
+    numeraire of the rule (Thompson sampling over its posterior is the base exploration); the calibration decides how
+    far the policy may correct it. A policy whose preference does not predict verified progress (beta_pi <= 0) has
+    weight 0; one that predicts it while the world model's ranking does not (beta_q ~ 0) can take over."""
+    bq = coef_samples[:, 0].to(torch.float64).clamp_min(BETA_Q_MIN)
+    bp = coef_samples[:, 1].to(torch.float64).clamp_min(0.0)
+    return (bp / bq).clamp(0.0, LAMBDA_MAX)
+
+
+def thompson_policy_scores(z_samples: Tensor, coef_samples: Tensor, log_policy: Tensor) -> Tensor:
+    """[S, B, N] score of every candidate in each Thompson sample s:
+
+        z[s] + lambda[s] * c                 lambda = :func:`policy_weight` of (beta_q[s], beta_pi[s])
+
+    ``z_samples`` [S, B, N] the world model's joint posterior samples of the net goal value, standardised within the
+    decision (:func:`standardised_values`), ``coef_samples`` [S, 2] draws of (beta_q, beta_pi) from
+    :class:`SelectionCalibration`, ``log_policy`` [B, N] the policy's preference c of :func:`policy_preference`."""
+    S = z_samples.shape[0]
+    if coef_samples.shape != (S, 2):
+        raise ValueError(f"coef_samples must be [{S}, 2]")
+    lam = policy_weight(coef_samples).view(S, 1, 1)
+    return z_samples.to(torch.float64) + lam * log_policy.to(torch.float64).unsqueeze(0)
+
+
+class SelectionCalibration:
+    """Learned action value of the ``thompson_policy`` rule: how much the world model's predicted goal value and the
+    trainable policy's preference are worth in *verified* progress.
+
+    For every executed decision whose verified progress ``y`` (the verifier-signed outcome attributed to it) is
+    known, with ``z`` the chosen candidate's predicted net goal value standardised over the feasible candidates of
+    that decision and ``c`` its preference under the policy that chose (:func:`policy_preference`; both recorded
+    *before* acting, winsorised at +-4), it fits
+
+        y / s = beta_0 + beta_q * z + beta_pi * c + noise,          s = recency-weighted RMS of the observed y
+
+    by Bayesian linear regression (Gaussian prior beta ~ N((0, 1, 0), diag(1, sd_q^2, sd_pi^2)): a candidate the
+    world model ranks higher is initially taken to be better and the policy is initially not trusted at all; noise
+    variance by a scaled-inverse-chi^2 plug-in) with exponential forgetting, because both predictors keep changing as
+    they are trained. ``sample`` draws (beta_q, beta_pi) for Thompson sampling, so the selection explores over how far
+    each predictor can be trusted. Every quantity is relative to the decision's own candidate set, so the units of a
+    prediction (and a prediction that explodes in scale) do not decide the weights; only its ranking does.
+
+    No observation is invented: only decisions with a recorded prediction and a verified value enter, each once."""
+
+    PRIOR_MEAN = (0.0, 1.0, 0.0)
+
+    def __init__(self, *, prior_sd_q: float = 0.5, prior_sd_pi: float = 0.5, forget: float = 0.99,
+                 max_obs: int = 1024, noise_dof: float = 2.0):
+        self.prior_sd_q, self.prior_sd_pi = float(prior_sd_q), float(prior_sd_pi)
+        self.forget, self.max_obs, self.noise_dof = float(forget), int(max_obs), float(noise_dof)
+        self.obs: List[Tuple[float, float, float]] = []          # (z, c, y) in arrival order
+        self.keys: List[str] = []
+        self._seen: set = set()
+        self._post: Optional[Dict[str, Any]] = None
+
+    # ---- data ---------------------------------------------------------------------------------------------------
+    @staticmethod
+    def features(decision: Any) -> Optional[Tuple[float, float]]:
+        """(z, c) of a recorded ``contracts.Decision``: the chosen candidate's predicted net goal value
+        (``extras["q_goal"] - extras["net_cost"]``) standardised over the feasible candidates, and its preference
+        (:func:`policy_preference`) under the logged policy logits (``extras["policy_logit"]``, else
+        ``CandidateEvaluation.value``). None when a feasible candidate carries no goal prediction."""
+        cands = list(getattr(decision, "candidates", []) or [])
+        i = int(getattr(decision, "chosen_index", -1))
+        if not cands or not 0 <= i < len(cands):
+            return None
+        feas = [bool(c.feasible) for c in cands]
+        feas[i] = True
+        ex = [c.extras or {} for c in cands]
+        if any(f and "q_goal" not in e for f, e in zip(feas, ex)):
+            return None
+        q = [float(e.get("q_goal", 0.0)) - float(e.get("net_cost", 0.0) or 0.0) for e in ex]
+        lg = [float(e.get("policy_logit", c.value if c.value is not None else 0.0)) for c, e in zip(cands, ex)]
+        if not all(math.isfinite(x) for x in q + lg):
+            return None
+        mask = torch.tensor([feas])
+        qt = torch.tensor([q], dtype=torch.float64)
+        z = standardised_values(qt.unsqueeze(0), qt, mask)[0, 0, i]
+        c = policy_preference(torch.tensor([lg], dtype=torch.float64), mask)[0, i]
+        return (max(-Z_CLIP, min(Z_CLIP, float(z))), max(-C_CLIP, min(C_CLIP, float(c))))
+
+    @staticmethod
+    def candidate_values(decision: Any) -> Optional[List[float]]:
+        """The predicted net goal value of every candidate of a recorded decision, standardised over the feasible
+        ones (0 at infeasible candidates); None when a feasible candidate carries no goal prediction."""
+        cands = list(getattr(decision, "candidates", []) or [])
+        if not cands:
+            return None
+        feas = [bool(c.feasible) for c in cands]
+        if 0 <= int(getattr(decision, "chosen_index", -1)) < len(cands):
+            feas[int(decision.chosen_index)] = True
+        ex = [c.extras or {} for c in cands]
+        if not any(feas) or any(f and "q_goal" not in e for f, e in zip(feas, ex)):
+            return None
+        q = [float(e.get("q_goal", 0.0)) - float(e.get("net_cost", 0.0) or 0.0) for e in ex]
+        if not all(math.isfinite(x) for x in q):
+            return None
+        qt = torch.tensor([q], dtype=torch.float64)
+        z = standardised_values(qt.unsqueeze(0), qt, torch.tensor([feas]))[0, 0]
+        return [max(-Z_CLIP, min(Z_CLIP, float(x))) for x in z]
+
+    def observe(self, key: str, z: float, c: float, y: float) -> bool:
+        """Add one executed decision (``key``: its decision / experience id; a repeated key is ignored)."""
+        if key in self._seen or not all(math.isfinite(float(v)) for v in (z, c, y)):
+            return False
+        self._seen.add(key)
+        self.obs.append((max(-Z_CLIP, min(Z_CLIP, float(z))), max(-C_CLIP, min(C_CLIP, float(c))), float(y)))
+        self.keys.append(key)
+        if len(self.obs) > self.max_obs:
+            self.obs.pop(0)
+            self.keys.pop(0)
+        self._post = None
+        return True
+
+    def observe_decision(self, key: str, decision: Any, y: float) -> bool:
+        f = self.features(decision)
+        return False if f is None else self.observe(key, f[0], f[1], y)
+
+    def __len__(self) -> int:
+        return len(self.obs)
+
+    def predict(self, z: float) -> Optional[float]:
+        """Calibrated expectation of the verified progress of a decision whose chosen candidate had standardised
+        predicted value ``z`` (posterior mean, the policy term left out; beta_q clipped at 0), in verified units;
+        None before the verified scale is known."""
+        p = self.posterior()
+        if p["scale"] is None:
+            return None
+        return p["scale"] * (p["mean"][0] + max(p["mean"][1], 0.0) * max(-Z_CLIP, min(Z_CLIP, float(z))))
+
+    # ---- weights ------------------------------------------------------------------------------------------------
+    def _weights(self) -> Tensor:
+        n = len(self.obs)
+        return torch.tensor([self.forget ** (n - 1 - k) for k in range(n)], dtype=torch.float64)
+
+    @property
+    def scale(self) -> Optional[float]:
+        """Recency-weighted RMS of the observed verified values (None before two observations, one non-zero)."""
+        ys = [o[2] for o in self.obs]
+        if len(ys) < 2 or not any(y != 0.0 for y in ys):
+            return None
+        w = self._weights()
+        return float(torch.sqrt((w * torch.tensor(ys, dtype=torch.float64) ** 2).sum() / w.sum()))
+
+    # ---- posterior ----------------------------------------------------------------------------------------------
+    def posterior(self) -> Dict[str, Any]:
+        """{"mean": [beta_0, beta_q, beta_pi], "cov": 3x3, "noise_var", "n", "scale"} (y / scale units)."""
+        if self._post is not None:
+            return self._post
+        m0 = torch.tensor(self.PRIOR_MEAN, dtype=torch.float64)
+        P0 = torch.diag(torch.tensor([1.0, self.prior_sd_q ** -2, self.prior_sd_pi ** -2], dtype=torch.float64))
+        s = self.scale
+        if s is None:
+            post = {"mean": m0.tolist(), "cov": torch.linalg.inv(P0).tolist(), "noise_var": 1.0, "n": len(self.obs),
+                    "scale": None}
+        else:
+            o = torch.tensor(self.obs, dtype=torch.float64)
+            X = torch.stack([torch.ones(len(o), dtype=torch.float64), o[:, 0], o[:, 1]], 1)
+            y = o[:, 2] / s
+            w = self._weights()
+            nv = 1.0
+            for _ in range(3):                                   # noise variance and coefficients, jointly
+                A = P0 + (X * w[:, None]).T @ X / nv
+                cov = torch.linalg.inv(A)
+                mean = cov @ (P0 @ m0 + (X * w[:, None]).T @ y / nv)
+                r = y - X @ mean
+                nv = float((self.noise_dof * 1.0 + (w * r ** 2).sum()) / (self.noise_dof + w.sum()))
+                nv = max(nv, 1e-6)
+            post = {"mean": mean.tolist(), "cov": cov.tolist(), "noise_var": nv, "n": len(self.obs), "scale": s}
+        self._post = post
+        return post
+
+    def sample(self, n: int, generator: Optional[torch.Generator] = None) -> Tensor:
+        """[n, 2] draws of (beta_q, beta_pi) from the joint posterior."""
+        p = self.posterior()
+        mu = torch.tensor(p["mean"][1:], dtype=torch.float64)
+        cov = torch.tensor(p["cov"], dtype=torch.float64)[1:, 1:]
+        L = torch.linalg.cholesky(cov + 1e-12 * torch.eye(2, dtype=torch.float64))
+        z = torch.randn(n, 2, generator=generator, dtype=torch.float64)
+        return mu + z @ L.T
+
+    def summary(self) -> Dict[str, Any]:
+        p = self.posterior()
+        cov = p["cov"]
+        return {"n": p["n"], "scale": p["scale"], "beta_q": p["mean"][1], "beta_q_sd": math.sqrt(cov[1][1]),
+                "beta_pi": p["mean"][2], "beta_pi_sd": math.sqrt(cov[2][2]), "noise_var": p["noise_var"]}
+
+    # ---- persistence --------------------------------------------------------------------------------------------
+    def state_dict(self) -> Dict[str, Any]:
+        return {"prior_sd_q": self.prior_sd_q, "prior_sd_pi": self.prior_sd_pi, "forget": self.forget,
+                "max_obs": self.max_obs, "noise_dof": self.noise_dof, "obs": [list(o) for o in self.obs],
+                "keys": list(self.keys), "seen": sorted(self._seen)}
+
+    def load_state_dict(self, d: Dict[str, Any]) -> None:
+        self.prior_sd_q, self.prior_sd_pi = float(d["prior_sd_q"]), float(d["prior_sd_pi"])
+        self.forget, self.max_obs, self.noise_dof = float(d["forget"]), int(d["max_obs"]), float(d["noise_dof"])
+        self.obs = [(float(a), float(b), float(c)) for a, b, c in d["obs"]]
+        self.keys = list(d["keys"])
+        self._seen = set(d.get("seen", self.keys))
+        self._post = None
+
+
+CALIBRATION_ATTR = "selection_calibration"
+
+
+def selection_calibration(policy: nn.Module) -> SelectionCalibration:
+    """The one :class:`SelectionCalibration` of a policy head (created on first use and kept on the module, the way
+    ``WorldHeads._real_scaler`` is shared): the ``DecisionMaker`` that selects with it and the learner that feeds it
+    verified outcomes (``reward.metalearner.MetaLearner``) reach the same object through the policy head."""
+    cal = getattr(policy, CALIBRATION_ATTR, None)
+    if not isinstance(cal, SelectionCalibration):
+        cal = SelectionCalibration()
+        object.__setattr__(policy, CALIBRATION_ATTR, cal)
+    return cal
+
+
 def selection_probs(rule: str, *, a_mask: Tensor, logits: Optional[Tensor] = None, q_mean: Optional[Tensor] = None,
                     q_std: Optional[Tensor] = None, q_samples: Optional[Tensor] = None,
                     info_gain: Optional[Tensor] = None, arms: Optional[Tensor] = None,
                     arm_probs: Optional[Tensor] = None, eps_floor: float = 0.02, temperature: float = 1.0,
-                    ucb_c: float = 1.0, ig_weight: float = 1.0) -> Tensor:
+                    ucb_c: float = 1.0, ig_weight: float = 1.0, coef_samples: Optional[Tensor] = None) -> Tensor:
     """[B, N] float64 probability of selecting each candidate under ``rule``.
 
     policy      softmax(logits / temperature)
@@ -179,6 +460,11 @@ def selection_probs(rule: str, *, a_mask: Tensor, logits: Optional[Tensor] = Non
     greedy      all mass on argmax(q_mean)  (``logits`` when ``q_mean`` is not given)
     voi         softmax((q_mean + ig_weight * info_gain) / temperature): decision-relevant information gain
                 (``predict.voi``) traded against the learned value
+    thompson_policy
+                share of samples s in which the candidate maximises :func:`thompson_policy_scores` — the posterior
+                samples ``q_samples`` (net of cost) standardised by the spread of ``q_mean`` over the candidates,
+                weighted by beta_q[s], plus beta_pi[s] x the centred log-probability of the policy ``logits``
+                (``coef_samples`` [S, 2] from :class:`SelectionCalibration`; exact ties share a sample)
     randomized  explicit assignment over experiment ``arms`` [B, N] bool with ``arm_probs`` (uniform by default);
                 candidates that are not arms get probability 0
 
@@ -212,6 +498,13 @@ def selection_probs(rule: str, *, a_mask: Tensor, logits: Optional[Tensor] = Non
         base = torch.zeros_like(info_gain) if q_mean is None else q_mean
         sc = ((base + ig_weight * info_gain) / temperature).to(torch.float64)
         p = torch.softmax(torch.where(a_mask, sc, torch.full_like(sc, float("-inf"))), -1)
+    elif rule == RULE_THOMPSON_POLICY:
+        if q_samples is None or logits is None or coef_samples is None:
+            raise ValueError("rule 'thompson_policy' needs q_samples [S, B, N], logits and coef_samples [S, 2]")
+        qm = q_mean if q_mean is not None else q_samples.mean(0)
+        score = thompson_policy_scores(standardised_values(q_samples, qm, a_mask), coef_samples,
+                                       policy_preference(logits, a_mask))
+        p = _tie_share(score, a_mask)
     elif rule == RULE_RANDOMIZED:
         if arms is None:
             raise ValueError("rule 'randomized' needs arms")
@@ -275,6 +568,10 @@ class DecisionMaker:
         thompson    joint posterior samples of that value (``extras["ts_<i>"]``: one ensemble member and one draw
                     of the fast-layer weights per sample)
         voi         softmax of value + ``ig_weight`` x decision-relevant value of information
+        thompson_policy
+                    the Thompson samples of that value standardised over the candidate set and the policy's
+                    centred log-probabilities (``extras["policy_logit"]``), weighted by draws from
+                    :attr:`calibration` (the policy head's :class:`SelectionCalibration`)
         randomized  explicit assignment over experiment arms (:meth:`select_experiment`)
     """
 
@@ -288,6 +585,7 @@ class DecisionMaker:
         self.clock = clock
         self.experiments = experiments
         self.generator = torch.Generator().manual_seed(int(seed))
+        self.calibration = selection_calibration(self.heads.policy)
 
     # ---- numbers ------------------------------------------------------------------------------------------------
     def scores(self, evaluations: Sequence[Any]) -> Dict[str, Any]:
@@ -316,8 +614,33 @@ class DecisionMaker:
             sampled_from = "normal_marginals"
         return {"a_mask": a_mask, "q": q, "sd": sd, "samples": samples, "sampled_from": sampled_from,
                 "logits": torch.tensor([[e.value if e.value is not None else 0.0 for e in evaluations]], dtype=f64),
+                "policy_logits": torch.tensor([[e.extras.get("policy_logit", e.value if e.value is not None else 0.0)
+                                                for e in evaluations]], dtype=f64),
+                "cost": cost,
                 "voi": torch.tensor([[e.voi if e.voi is not None else 0.0 for e in evaluations]], dtype=f64),
                 "value_source": "q_goal" if has_goal else "p_success"}
+
+    def thompson_policy(self, sc: Dict[str, Any]) -> Tuple[Tensor, Dict[str, Any]]:
+        """[1, N] probabilities of rule ``thompson_policy`` for the numbers ``sc`` of :meth:`scores`, and what was used
+        (recorded in the decision's diagnostics): calibration summary, the policy's share of the decision (total
+        variation between this distribution and the same rule with beta_pi = 0, before the floor) and the value-only
+        distribution itself."""
+        a_mask = sc["a_mask"]
+        z = standardised_values(sc["samples"], sc["q"], a_mask)
+        coef = self.calibration.sample(z.shape[0], self.generator)
+        lp = policy_preference(sc["policy_logits"], a_mask)
+        full = _tie_share(thompson_policy_scores(z, coef, lp), a_mask)
+        no_pi = coef.clone()
+        no_pi[:, 1] = 0.0
+        value_only = _tie_share(thompson_policy_scores(z, no_pi, lp), a_mask)
+        lam = policy_weight(coef)
+        diag = {"calibration": self.calibration.summary(),
+                "policy_share_tv": float(0.5 * (full - value_only).abs().sum()),
+                "policy_weight": {"mean": float(lam.mean()), "share_positive": float((lam > 0).double().mean())},
+                "coef_positive_share": {"beta_q": float((coef[:, 0] > 0).double().mean()),
+                                        "beta_pi": float((coef[:, 1] > 0).double().mean())},
+                "value_only_probabilities": [float(x) for x in value_only[0]]}
+        return full, {"diag": diag, "log_policy": lp}
 
     @staticmethod
     def _decision_id(evaluations: Sequence[Any]) -> str:
@@ -373,6 +696,12 @@ class DecisionMaker:
             raise ValueError("randomised assignment goes through select_experiment()")
         sc = self.scores(evaluations)
         cfg = self.cfg
+        if mode == RULE_THOMPSON_POLICY:
+            raw, extra = self.thompson_policy(sc)
+            p = apply_floor(raw, sc["a_mask"], cfg.eps_floor)
+            sc["selection"] = extra["diag"]
+            sc["log_policy"] = extra["log_policy"]
+            return p[0], sc
         p = selection_probs(mode, a_mask=sc["a_mask"], logits=sc["logits"], q_mean=sc["q"], q_std=sc["sd"],
                             q_samples=sc["samples"], info_gain=sc["voi"], eps_floor=cfg.eps_floor,
                             temperature=cfg.temperature, ucb_c=cfg.ucb_c, ig_weight=cfg.ig_weight)
@@ -385,8 +714,13 @@ class DecisionMaker:
         ``contracts.Decision`` fields (``context_obs_ids``, ``model_version``, ``checkpoint_id``, ...)."""
         p, sc = self.probabilities(evaluations, mode)
         idx = int(torch.multinomial(p, 1, generator=generator or self.generator))
+        extra: Dict[str, Any] = {}
+        if "selection" in sc:
+            sel = dict(sc["selection"])
+            sel["policy_centred_logp_chosen"] = float(sc["log_policy"][0, idx])
+            extra = {"selection": {"rule": mode, **sel}}
         return self._decision(evaluations, idx, [float(x) for x in p], mode, sc, objective_id=objective_id,
-                              decision_id=decision_id, ts=ts, extra_diag={}, **fields)
+                              decision_id=decision_id, ts=ts, extra_diag=extra, **fields)
 
     # ---- experiments ------------------------------------------------------------------------------------------
     def propose_experiment(self, evaluations: Sequence[Any], top_k: int = 6) -> Optional[Dict[str, Any]]:
