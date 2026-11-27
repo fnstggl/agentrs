@@ -145,7 +145,31 @@ Reading:
 
 ## 4. Real configuration: the reward meta-learning pathway (task item 4)
 
-`docs/evidence/C/real_pathway.py` — see section 4 results below (written when the run completed).
+`docs/evidence/C/real_pathway.py`: Qwen3-4B (frozen, bf16) + LoRA + bridge + 50m core on the GPU under the shared lock,
+one `CamLiveAgent` (rule `thompson_policy`, schema-walker candidates as in the evaluation conditions) through the real
+runtime on LabWorld F1 lifetimes (12 decisions, close-out). `meta_update` and `policy_update` are wrapped to record,
+for every applied outer step: psi delta, R_psi on the support decisions before / after, the inner update at the live
+mix and at the differentiated mix recomputed from its snapshot with psi before vs after, the query evidence; and for
+the *next live* policy update: whether the psi it used is the one after the meta-step and how much the meta-step
+changed it.
+
+**Run 1, default configuration** (`real_pathway_20261127T200546Z.json`; 5 lifetimes, 60 decisions; peak 10.5 GB;
+lock held 1234 s — over the 15-min guideline because a lifetime slowed by CPU load started at 723 s; the script now
+never starts a lifetime that would overrun):
+
+| step of the pathway | measured |
+|---|---|
+| meta-update calls / applied | 63 / 1 (58 insufficient independent outcomes, 2 no policy update yet, 2 ESS too small) |
+| reward params psi -> internal reward on the 24 support decisions | mean abs change 0.023 (std of R_psi there 0.028) |
+| -> inner update (theta_0 -> theta_K) | mean TV 0.13 (differentiated, mix 0) / 0.11 (live, mix 1) on the support |
+| -> changed policy -> query decisions afterwards with signed verified outcomes | 3 query rows, 17 independent groups, utility mean 35.2, ESS 2.8, importance-weighted |
+| -> outer meta-gradient -> psi delta | gradient norm 12.8 (14 psi tensors non-zero), psi delta 0.097, reward version changed |
+| -> the inner update recomputed with psi after vs before | differentiated (mix 0): mean TV 0.066, max 0.037; **live (mix 1): 0** |
+| -> next live policy update | **0** change: the mix was 1 (the one promotion decision: hold, mean diff +8.6, 95 % bounds [-15.0, 32.2], 5 groups), and the psi it used was not the psi after the meta-step although no other step was applied — 3 checkpoint rollbacks happened (inferred cause; LRN-6) |
+
+So on the real configuration psi -> R_psi -> (differentiated) inner update -> verified query outcomes -> meta-gradient
+-> psi -> a changed (differentiated) next update holds; the *live* update was not changed, because in a run this
+short the learned reward was never promoted and a rollback reverted psi.
 
 ## 5. Tests (regression tests fail on the code before the fix)
 

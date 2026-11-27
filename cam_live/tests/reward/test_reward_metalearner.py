@@ -216,7 +216,13 @@ def test_state_round_trip_rebuilds_windows_from_the_store():
     twin.load_state_dict(sd)
     assert [e.exp_ids for e in twin.events] == [e.exp_ids for e in ml.events]
     assert [e.query_ids for e in twin.events] == [e.query_ids for e in ml.events]
-    assert all(e.ib is None for e in twin.events) and twin.mixer.mix == 0.5
+    # INT2-8: events that will still be differentiated come back with the support batch the live update used
+    # (bit-exact); the others are rebuilt from the store if ever needed
+    for e, f in zip(ml.events, twin.events):
+        assert (f.ib is None) != ml._event_needed(ml.events.index(e))
+        if f.ib is not None:
+            assert torch.equal(f.ib.b, e.ib.b.to(f.ib.b.device)) and torch.equal(f.ib.r_boot, e.ib.r_boot)
+    assert twin.mixer.mix == 0.5
     assert twin.ready() == ml.ready() == (True, "")
     rec = twin.meta_update()
     assert rec.applied and rec.n_independent_outcomes == 3
