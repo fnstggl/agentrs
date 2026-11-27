@@ -508,19 +508,23 @@ def run_staging(a: argparse.Namespace, mutate: Optional[Callable[[Any, Dict[str,
     limits = C.Limits(duration_s=3600, max_external_actions=500, max_decisions=500)
     if mutate is not None:
         mutate(st, resources)
+    # member events (join/leave pseudonyms) process the member list: the check's task grants that data class
+    perms = {"aggregate_metrics": True, "member_list": True}
     if a.live_policy:
         task = C.TaskSpec(objective_id="discord-live-check", objective="integration check of the Discord adapter",
-                          mode="live", resources=resources, interfaces=["api"], limits=limits)
+                          mode="live", resources=resources, interfaces=["api"], limits=limits, data_permissions=perms)
     else:
         resources.update(owned=owned, preauthorized=owned)
         task = C.TaskSpec(objective_id="discord-live-check", objective="integration check of the Discord adapter",
-                          mode="staging", resources=resources, interfaces=["api"], limits=limits)
+                          mode="staging", resources=resources, interfaces=["api"], limits=limits, data_permissions=perms)
     os.makedirs(run_dir, exist_ok=True)
     policy_path = a.policy or write_policy(os.path.join(run_dir, "policy_discord_check.yaml"), st.guild_id)
     assert environment_of(server.base_url) == "staging"
     policy, env, discord = build(
         run_dir, task, policy_path=policy_path, base_url=server.base_url, provenance="staging", fsync=False,
-        prepare=lambda p: p.put_secret("discord_bot_token", token, [rest, gateway], ["discord"], by="staging check"))
+        prepare=lambda p: (p.put_secret("discord_bot_token", token, [rest, gateway], ["discord"], by="staging check"),
+                           [p.register_local_service(addr, by="staging check", note="staging Discord service of this check")
+                            for addr in (rest, gateway)]))   # loopback is denied unless registered (EA-9)
     assert discord.environment == "staging"
     extra: Dict[str, Any] = {"staging": True, "staging_note": (
         "STAGING ONLY: local imitation of the Discord REST API and Gateway (cam_live.harness.staging_discord). "

@@ -1,0 +1,3233 @@
+{
+ "base_url": "https://discord.com/api/v10",
+ "ended_at": 1795758950.2392294,
+ "environment": "live",
+ "exit_code": 0,
+ "guild_id": "1575680989060010034",
+ "missing_capabilities": [],
+ "mode": "live",
+ "policy": {
+  "id": "default-1+discord-live-check",
+  "sha256": "2300e3a80dde19b41fb41edfc8db007ba1dcf015f7cc694476e1bf87101eb9f6"
+ },
+ "policy_mode": "live",
+ "reply": {
+  "human_reply_arrived": false,
+  "polls": 23,
+  "waited_for_s": 120.0
+ },
+ "scope": [
+  "CREATE_INSTANT_INVITE",
+  "MANAGE_CHANNELS",
+  "MANAGE_GUILD",
+  "ADD_REACTIONS",
+  "VIEW_AUDIT_LOG",
+  "VIEW_CHANNEL",
+  "SEND_MESSAGES",
+  "MANAGE_MESSAGES",
+  "EMBED_LINKS",
+  "ATTACH_FILES",
+  "READ_MESSAGE_HISTORY",
+  "MANAGE_ROLES",
+  "MANAGE_EVENTS",
+  "MANAGE_THREADS",
+  "CREATE_PUBLIC_THREADS",
+  "SEND_MESSAGES_IN_THREADS",
+  "CREATE_EVENTS",
+  "PIN_MESSAGES"
+ ],
+ "secrets_checked": 1,
+ "started_at": 1795758792.4517071,
+ "steps": [
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1575680989060010034"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.get_identity"
+   ],
+   "data": {
+    "application": {
+     "bot_public": true,
+     "intents": {
+      "GUILD_MEMBERS": true,
+      "GUILD_PRESENCES": true,
+      "MESSAGE_CONTENT": true
+     },
+     "name": "CAM Live"
+    },
+    "bot": {
+     "bot": true,
+     "id": "1575681780462129232",
+     "name": "CAM Live"
+    },
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "in_guild": true,
+    "other_guilds": 0,
+    "requests": 3,
+    "staging": false,
+    "warnings": [
+     "the application is public: anyone can add it to a server"
+    ]
+   },
+   "duration_s": 1.786,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 1,
+   "note": "",
+   "operation": "discord.get_identity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.identity.in_guild": 1.0,
+    "discord.identity.intent.guild_members": 1.0,
+    "discord.identity.intent.guild_presences": 1.0,
+    "discord.identity.intent.message_content": 1.0,
+    "discord.identity.other_guilds": 0.0
+   },
+   "rate_limit": {
+    "limit": 1.0,
+    "remaining": 0.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] bot CAM Live (1575681780462129232), application CAM Live (public); privileged intents granted: GUILD_PRESENCES, GUILD_MEMBERS, MESSAGE_CONTENT; member of the authorized server: yes; other servers: 0",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1575680989060010034"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.get_permissions"
+   ],
+   "data": {
+    "administrator": false,
+    "broader_than_scope": [
+     "CHANGE_NICKNAME",
+     "CONNECT",
+     "CREATE_GUILD_EXPRESSIONS",
+     "CREATE_PRIVATE_THREADS",
+     "MENTION_EVERYONE",
+     "REQUEST_TO_SPEAK",
+     "SEND_POLLS",
+     "SEND_VOICE_MESSAGES",
+     "SET_VOICE_CHANNEL_STATUS",
+     "SPEAK",
+     "STREAM",
+     "USE_APPLICATION_COMMANDS",
+     "USE_EMBEDDED_ACTIVITIES",
+     "USE_EXTERNAL_APPS",
+     "USE_EXTERNAL_EMOJIS",
+     "USE_EXTERNAL_SOUNDS",
+     "USE_EXTERNAL_STICKERS",
+     "USE_SOUNDBOARD",
+     "USE_VAD"
+    ],
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "missing_from_scope": [],
+    "permissions": [
+     "ADD_REACTIONS",
+     "ATTACH_FILES",
+     "CHANGE_NICKNAME",
+     "CONNECT",
+     "CREATE_EVENTS",
+     "CREATE_GUILD_EXPRESSIONS",
+     "CREATE_INSTANT_INVITE",
+     "CREATE_PRIVATE_THREADS",
+     "CREATE_PUBLIC_THREADS",
+     "EMBED_LINKS",
+     "MANAGE_CHANNELS",
+     "MANAGE_EVENTS",
+     "MANAGE_GUILD",
+     "MANAGE_MESSAGES",
+     "MANAGE_ROLES",
+     "MANAGE_THREADS",
+     "MENTION_EVERYONE",
+     "PIN_MESSAGES",
+     "READ_MESSAGE_HISTORY",
+     "REQUEST_TO_SPEAK",
+     "SEND_MESSAGES",
+     "SEND_MESSAGES_IN_THREADS",
+     "SEND_POLLS",
+     "SEND_VOICE_MESSAGES",
+     "SET_VOICE_CHANNEL_STATUS",
+     "SPEAK",
+     "STREAM",
+     "USE_APPLICATION_COMMANDS",
+     "USE_EMBEDDED_ACTIVITIES",
+     "USE_EXTERNAL_APPS",
+     "USE_EXTERNAL_EMOJIS",
+     "USE_EXTERNAL_SOUNDS",
+     "USE_EXTERNAL_STICKERS",
+     "USE_SOUNDBOARD",
+     "USE_VAD",
+     "VIEW_AUDIT_LOG",
+     "VIEW_CHANNEL"
+    ],
+    "requests": 2,
+    "scope": [
+     "ADD_REACTIONS",
+     "ATTACH_FILES",
+     "CREATE_EVENTS",
+     "CREATE_INSTANT_INVITE",
+     "CREATE_PUBLIC_THREADS",
+     "EMBED_LINKS",
+     "MANAGE_CHANNELS",
+     "MANAGE_EVENTS",
+     "MANAGE_GUILD",
+     "MANAGE_MESSAGES",
+     "MANAGE_ROLES",
+     "MANAGE_THREADS",
+     "PIN_MESSAGES",
+     "READ_MESSAGE_HISTORY",
+     "SEND_MESSAGES",
+     "SEND_MESSAGES_IN_THREADS",
+     "VIEW_AUDIT_LOG",
+     "VIEW_CHANNEL"
+    ],
+    "staging": false,
+    "timed_out": false
+   },
+   "duration_s": 1.086,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 2,
+   "note": "",
+   "operation": "discord.get_permissions",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.permissions.administrator": 0.0,
+    "discord.permissions.broader_than_scope": 19.0,
+    "discord.permissions.held": 37.0,
+    "discord.permissions.missing_from_scope": 0.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] the bot holds 37 permissions in the server: ADD_REACTIONS, ATTACH_FILES, CHANGE_NICKNAME, CONNECT, CREATE_EVENTS, CREATE_GUILD_EXPRESSIONS, CREATE_INSTANT_INVITE, CREATE_PRIVATE_THREADS, CREATE_PUBLIC_THREADS, EMBED_LINKS, MANAGE_CHANNELS, MANAGE_EVENTS, MANAGE_GUILD, MANAGE_MESSAGES, MANAGE_ROLES, MANAGE_THREADS, MENTION_EVERYONE, PIN_MESSAGES, READ_MESSAGE_HISTORY, REQUEST_TO_SPEAK, SEND_",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1575680989060010034"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.get_guild_settings"
+   ],
+   "data": {
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "settings": {
+     "approximate_member_count": 2,
+     "approximate_presence_count": 1,
+     "default_message_notifications": 0,
+     "description": null,
+     "explicit_content_filter": 0,
+     "features": [],
+     "id": "1575680989060010034",
+     "name": "CAM\u2019s lab",
+     "preferred_locale": "en-US",
+     "public_updates_channel_id": null,
+     "rules_channel_id": null,
+     "system_channel_id": "1575680990334947330",
+     "verification_level": 0
+    },
+    "staging": false
+   },
+   "duration_s": 0.514,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 3,
+   "note": "",
+   "operation": "discord.get_guild_settings",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.guild.verification_level": 0.0,
+    "discord.members.approximate": 2.0,
+    "discord.presence.approximate": 1.0
+   },
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 0.001
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] server settings: name 'CAM\u2019s lab', description None, verification level 0, notification default 0, content filter 0, system channel 1575680990334947330, rules channel None, updates channel None, locale en-US, features none",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1575680989060010034"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.list_channels"
+   ],
+   "data": {
+    "channels": [
+     {
+      "guild_id": "1575680989060010034",
+      "id": "1575680990334947328",
+      "name": "Text Channels",
+      "parent_id": null,
+      "position": 0,
+      "type": 4
+     },
+     {
+      "guild_id": "1575680989060010034",
+      "id": "1575680990334947329",
+      "name": "Voice Channels",
+      "parent_id": null,
+      "position": 0,
+      "type": 4
+     },
+     {
+      "guild_id": "1575680989060010034",
+      "id": "1575680990334947330",
+      "name": "general",
+      "parent_id": "1575680990334947328",
+      "position": 0,
+      "type": 0
+     },
+     {
+      "guild_id": "1575680989060010034",
+      "id": "1575680990334947331",
+      "name": "General",
+      "parent_id": "1575680990334947329",
+      "position": 0,
+      "type": 2
+     }
+    ],
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.488,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 4,
+   "note": "",
+   "operation": "discord.list_channels",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channels.count": 4.0
+   },
+   "rate_limit": {
+    "limit": 10.0,
+    "remaining": 9.0,
+    "reset_after_s": 60.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channels: Text Channels (1575680990334947328, type 4), Voice Channels (1575680990334947329, type 4), general (1575680990334947330, type 0), General (1575680990334947331, type 2)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1575680989060010034"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.get_guild_stats"
+   ],
+   "data": {
+    "environment": "live",
+    "guild": {
+     "approximate_member_count": 2,
+     "approximate_presence_count": 1,
+     "description": null,
+     "id": "1575680989060010034",
+     "name": "CAM\u2019s lab"
+    },
+    "guild_id": "1575680989060010034",
+    "member_counts": {
+     "bots": 1,
+     "distinct": 1,
+     "humans": 1,
+     "humans_not_pending": 1,
+     "pending": 0,
+     "test_accounts": 0,
+     "total": 2
+    },
+    "members_listed": true,
+    "requests": 2,
+    "staging": false
+   },
+   "duration_s": 0.797,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 5,
+   "note": "",
+   "operation": "discord.get_guild_stats",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.members.approximate": 2.0,
+    "discord.members.bots": 1.0,
+    "discord.members.distinct": 1.0,
+    "discord.members.humans": 1.0,
+    "discord.members.humans_not_pending": 1.0,
+    "discord.members.pending": 0.0,
+    "discord.members.test_accounts": 0.0,
+    "discord.members.total": 2.0,
+    "discord.presence.approximate": 1.0
+   },
+   "rate_limit": {
+    "limit": 10.0,
+    "remaining": 9.0,
+    "reset_after_s": 10.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] server statistics: about 2 members, 1 present; listed 2: 1 people (0 pending), 1 bots, 0 declared test accounts",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1575680989060010034"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.list_invites"
+   ],
+   "data": {
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "invites": [
+     {
+      "channel_id": "1575680990334947330",
+      "code": "8fGfBMu24x",
+      "created_at": "2026-11-27T01:13:55.822000+00:00",
+      "expires_at": null,
+      "inviter_is_bot": false,
+      "max_age": 0,
+      "max_uses": 0,
+      "temporary": false,
+      "uses": 0
+     },
+     {
+      "channel_id": "1575680990334947330",
+      "code": "cHU5tpF4e",
+      "created_at": "2026-11-27T01:13:43.348000+00:00",
+      "expires_at": "2026-12-27T01:13:43+00:00",
+      "inviter_is_bot": false,
+      "max_age": 2592000,
+      "max_uses": 0,
+      "temporary": false,
+      "uses": 0
+     }
+    ],
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.417,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 6,
+   "note": "",
+   "operation": "discord.list_invites",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.invites.count": 2.0,
+    "discord.invites.uses": 0.0
+   },
+   "rate_limit": {
+    "limit": 10.0,
+    "remaining": 9.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] invites: 8fGfBMu24x used 0 times, cHU5tpF4e used 0 times",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1575680989060010034",
+    "name": "cam-integration-test",
+    "type": "text"
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.create_channel"
+   ],
+   "data": {
+    "channel": {
+     "guild_id": "1575680989060010034",
+     "id": "1575751349738676475",
+     "name": "cam-integration-test",
+     "parent_id": null,
+     "position": 1,
+     "type": 0
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.519,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 7,
+   "note": "",
+   "operation": "discord.create_channel",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 2000.0,
+    "remaining": 1999.0,
+    "reset_after_s": 86400.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel created: cam-integration-test (1575751349738676475)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "content": "CAM Live integration check: this message was posted by the bot and is removed with its channel.",
+    "guild_id": "1575680989060010034"
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475",
+    "message_id": "1575751354364989521"
+   },
+   "checked_ops": [
+    "discord.send_message"
+   ],
+   "data": {
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "message": {
+     "channel_id": "1575751349738676475",
+     "content_length": 95,
+     "content_sha256": "2232696d00e4caf249891538d421908a3b90578b9da045c91dc266f3a36d3986",
+     "edited_timestamp": null,
+     "id": "1575751354364989521",
+     "timestamp": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "message_id": "1575751354364989521",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 1.186,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 8,
+   "note": "",
+   "operation": "discord.send_message",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.message.length": 95.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] message 1575751354364989521 posted in channel 1575751349738676475 (95 characters)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "bot_message_read_back": true,
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.703,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 9,
+   "note": "reads back the bot's message",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.485,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 10,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 3.0,
+    "reset_after_s": 1.379
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.6,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 11,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.612,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 12,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.606,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 13,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.685,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 14,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.607,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 15,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.797,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 16,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.697,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 17,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.595,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 18,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.689,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 19,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.624,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 20,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.686,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 21,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.602,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 22,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.706,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 23,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.686,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 24,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.693,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 25,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.615,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 26,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.703,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 27,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.699,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 28,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.695,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 29,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.678,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 30,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.645,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 31,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.get_channel_activity"
+   ],
+   "data": {
+    "activity": {
+     "bot_messages": 1,
+     "content_included": false,
+     "distinct_human_authors": 0,
+     "human_messages": 0,
+     "messages": 1,
+     "newest": "2026-11-27T05:53:18.925000+00:00",
+     "oldest": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.572,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 32,
+   "note": "poll for a human reply",
+   "operation": "discord.get_channel_activity",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.channel.bot_messages": 1.0,
+    "discord.channel.distinct_human_authors": 0.0,
+    "discord.channel.human_messages": 0.0,
+    "discord.channel.messages": 1.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: 1 recent messages, 0 by 0 people, 1 by bots; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "content": "CAM Live integration check: edited by the bot; removed with its channel.",
+    "guild_id": "1575680989060010034",
+    "message_id": "1575751354364989521"
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475",
+    "message_id": "1575751354364989521"
+   },
+   "checked_ops": [
+    "discord.edit_message"
+   ],
+   "data": {
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "message": {
+     "channel_id": "1575751349738676475",
+     "content_length": 72,
+     "content_sha256": "db716a191065986f18eaf2bda68664c99ae4cf71c483caa9ca609ccd01dd444c",
+     "edited_timestamp": "2026-11-27T05:55:20.829367+00:00",
+     "id": "1575751354364989521",
+     "timestamp": "2026-11-27T05:53:18.925000+00:00"
+    },
+    "message_id": "1575751354364989521",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.601,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 33,
+   "note": "",
+   "operation": "discord.edit_message",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.message.length": 72.0
+   },
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] message 1575751354364989521 in channel 1575751349738676475 replaced (72 characters)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "message_id": "1575751354364989521"
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475",
+    "message_id": "1575751354364989521"
+   },
+   "checked_ops": [
+    "discord.pin_message"
+   ],
+   "data": {
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "message_id": "1575751354364989521",
+    "pinned": true,
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 1.025,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 34,
+   "note": "",
+   "operation": "discord.pin_message",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] message 1575751354364989521 pinned in channel 1575751349738676475",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "message_id": "1575751354364989521"
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475",
+    "message_id": "1575751354364989521"
+   },
+   "checked_ops": [
+    "discord.unpin_message"
+   ],
+   "data": {
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "message_id": "1575751354364989521",
+    "pinned": false,
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.513,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 35,
+   "note": "",
+   "operation": "discord.unpin_message",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] pin of message 1575751354364989521 removed in channel 1575751349738676475",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "max_age_s": 600,
+    "max_uses": 1,
+    "unique": true
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475",
+    "invite_code": "kByYuwW"
+   },
+   "checked_ops": [
+    "discord.create_invite"
+   ],
+   "data": {
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "invite": {
+     "channel_id": "1575751349738676475",
+     "code": "kByYuwW",
+     "created_at": "2026-11-27T05:55:23.005254+00:00",
+     "expires_at": "2026-11-27T06:05:23+00:00",
+     "inviter_is_bot": true,
+     "max_age": 600,
+     "max_uses": 1,
+     "temporary": false,
+     "url": "https://discord.gg/kByYuwW",
+     "uses": 0
+    },
+    "invite_code": "kByYuwW",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.67,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 36,
+   "note": "",
+   "operation": "discord.create_invite",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 3.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] invite kByYuwW to channel 1575751349738676475: https://discord.gg/kByYuwW",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1575680989060010034"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.list_invites"
+   ],
+   "data": {
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "invites": [
+     {
+      "channel_id": "1575680990334947330",
+      "code": "8fGfBMu24x",
+      "created_at": "2026-11-27T01:13:55.822000+00:00",
+      "expires_at": null,
+      "inviter_is_bot": false,
+      "max_age": 0,
+      "max_uses": 0,
+      "temporary": false,
+      "uses": 0
+     },
+     {
+      "channel_id": "1575680990334947330",
+      "code": "cHU5tpF4e",
+      "created_at": "2026-11-27T01:13:43.348000+00:00",
+      "expires_at": "2026-12-27T01:13:43+00:00",
+      "inviter_is_bot": false,
+      "max_age": 2592000,
+      "max_uses": 0,
+      "temporary": false,
+      "uses": 0
+     },
+     {
+      "channel_id": "1575751349738676475",
+      "code": "kByYuwW",
+      "created_at": "2026-11-27T05:55:23.005000+00:00",
+      "expires_at": "2026-11-27T06:05:23+00:00",
+      "inviter_is_bot": true,
+      "max_age": 600,
+      "max_uses": 1,
+      "temporary": false,
+      "uses": 0
+     }
+    ],
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.585,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 37,
+   "note": "",
+   "operation": "discord.list_invites",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.invites.count": 3.0,
+    "discord.invites.uses": 0.0
+   },
+   "rate_limit": {
+    "limit": 10.0,
+    "remaining": 9.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] invites: 8fGfBMu24x used 0 times, cHU5tpF4e used 0 times, kByYuwW used 0 times",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "code": "kByYuwW",
+    "guild_id": "1575680989060010034"
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475",
+    "invite_code": "kByYuwW"
+   },
+   "checked_ops": [
+    "discord.delete_invite"
+   ],
+   "data": {
+    "channel_id": "1575751349738676475",
+    "deleted": true,
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "invite_code": "kByYuwW",
+    "requests": 2,
+    "staging": false
+   },
+   "duration_s": 1.042,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 38,
+   "note": "",
+   "operation": "discord.delete_invite",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] invite kByYuwW to channel 1575751349738676475 deleted",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034",
+    "topic": "temporary channel of the CAM Live integration check"
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.modify_channel"
+   ],
+   "data": {
+    "changed": [
+     "topic"
+    ],
+    "channel": {
+     "guild_id": "1575680989060010034",
+     "id": "1575751349738676475",
+     "name": "cam-integration-test",
+     "nsfw": false,
+     "parent_id": null,
+     "position": 1,
+     "rate_limit_per_user": 0,
+     "topic": "temporary channel of the CAM Live integration check",
+     "type": 0
+    },
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.562,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 39,
+   "note": "",
+   "operation": "discord.modify_channel",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 10.0,
+    "remaining": 9.0,
+    "reset_after_s": 10.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475 changed (topic): name 'cam-integration-test', topic 'temporary channel of the CAM Live integration check'",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "deny": [
+     "SEND_MESSAGES"
+    ],
+    "guild_id": "1575680989060010034",
+    "role_id": "everyone"
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475",
+    "role_id": "1575680989060010034"
+   },
+   "checked_ops": [
+    "discord.set_channel_permissions"
+   ],
+   "data": {
+    "channel_id": "1575751349738676475",
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "overwrite": {
+     "allow": [],
+     "channel_id": "1575751349738676475",
+     "deny": [
+      "SEND_MESSAGES"
+     ],
+     "everyone": true,
+     "role_id": "1575680989060010034"
+    },
+    "requests": 3,
+    "role_id": "1575680989060010034",
+    "staging": false
+   },
+   "duration_s": 1.81,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 40,
+   "note": "",
+   "operation": "discord.set_channel_permissions",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 10.0,
+    "remaining": 8.0,
+    "reset_after_s": 8.167
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475: everyone allowed nothing more, denied SEND_MESSAGES",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1575680989060010034",
+    "name": "cam-integration-test-role",
+    "permissions": []
+   },
+   "artifacts": {
+    "role_id": "1575751894507458591"
+   },
+   "checked_ops": [
+    "discord.create_role"
+   ],
+   "data": {
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "role": {
+     "color": 0,
+     "everyone": false,
+     "hoist": false,
+     "id": "1575751894507458591",
+     "managed": false,
+     "mentionable": false,
+     "name": "cam-integration-test-role",
+     "permissions": [],
+     "position": 1
+    },
+    "role_id": "1575751894507458591",
+    "staging": false
+   },
+   "duration_s": 0.726,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 41,
+   "note": "",
+   "operation": "discord.create_role",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 250.0,
+    "remaining": 249.0,
+    "reset_after_s": 691.2
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] role created: cam-integration-test-role (1575751894507458591) with no permissions; it is not given to anyone",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1575680989060010034",
+    "mentionable": false,
+    "name": "cam-integration-test-role-renamed",
+    "role_id": "1575751894507458591"
+   },
+   "artifacts": {
+    "role_id": "1575751894507458591"
+   },
+   "checked_ops": [
+    "discord.modify_role"
+   ],
+   "data": {
+    "changed": [
+     "name",
+     "mentionable"
+    ],
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 5,
+    "role": {
+     "color": 0,
+     "everyone": false,
+     "hoist": false,
+     "id": "1575751894507458591",
+     "managed": false,
+     "mentionable": false,
+     "name": "cam-integration-test-role-renamed",
+     "permissions": [],
+     "position": 1
+    },
+    "role_id": "1575751894507458591",
+    "staging": false
+   },
+   "duration_s": 2.867,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 42,
+   "note": "",
+   "operation": "discord.modify_role",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 86.4
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] role 1575751894507458591 changed (name, mentionable): cam-integration-test-role-renamed with no permissions",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1575680989060010034",
+    "role_id": "1575751894507458591"
+   },
+   "artifacts": {
+    "role_id": "1575751894507458591"
+   },
+   "checked_ops": [
+    "discord.delete_role"
+   ],
+   "data": {
+    "deleted": true,
+    "deleted_role": {
+     "color": 0,
+     "everyone": false,
+     "hoist": false,
+     "id": "1575751894507458591",
+     "managed": false,
+     "mentionable": false,
+     "name": "cam-integration-test-role-renamed",
+     "permissions": [],
+     "position": 1
+    },
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 5,
+    "role_id": "1575751894507458591",
+    "staging": false
+   },
+   "duration_s": 2.012,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 43,
+   "note": "cleanup: the temporary role",
+   "operation": "discord.delete_role",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 5.0,
+    "remaining": 4.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] role cam-integration-test-role-renamed (1575751894507458591) deleted",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1575680989060010034",
+    "name": "CAM\u2019s lab (integration test)"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.modify_guild"
+   ],
+   "data": {
+    "changed": [
+     "name"
+    ],
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 3,
+    "settings": {
+     "approximate_member_count": null,
+     "approximate_presence_count": null,
+     "default_message_notifications": 0,
+     "description": null,
+     "explicit_content_filter": 0,
+     "features": [],
+     "id": "1575680989060010034",
+     "name": "CAM\u2019s lab (integration test)",
+     "preferred_locale": "en-US",
+     "public_updates_channel_id": null,
+     "rules_channel_id": null,
+     "system_channel_id": "1575680990334947330",
+     "verification_level": 0
+    },
+    "staging": false
+   },
+   "duration_s": 2.097,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 44,
+   "note": "rename",
+   "operation": "discord.modify_guild",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 100.0,
+    "remaining": 99.0,
+    "reset_after_s": 60.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] server settings changed (name): name 'CAM\u2019s lab (integration test)', description None, verification level 0, notification default 0, content filter 0, system channel 1575680990334947330, rules channel None, updates channel None, locale en-US, features none",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1575680989060010034",
+    "name": "CAM\u2019s lab"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.modify_guild"
+   ],
+   "data": {
+    "changed": [
+     "name"
+    ],
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "settings": {
+     "approximate_member_count": null,
+     "approximate_presence_count": null,
+     "default_message_notifications": 0,
+     "description": null,
+     "explicit_content_filter": 0,
+     "features": [],
+     "id": "1575680989060010034",
+     "name": "CAM\u2019s lab",
+     "preferred_locale": "en-US",
+     "public_updates_channel_id": null,
+     "rules_channel_id": null,
+     "system_channel_id": "1575680990334947330",
+     "verification_level": 0
+    },
+    "staging": false
+   },
+   "duration_s": 0.602,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 45,
+   "note": "restore the original name",
+   "operation": "discord.modify_guild",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 100.0,
+    "remaining": 98.0,
+    "reset_after_s": 58.858
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] server settings changed (name): name 'CAM\u2019s lab', description None, verification level 0, notification default 0, content filter 0, system channel 1575680990334947330, rules channel None, updates channel None, locale en-US, features none",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1575680989060010034"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.get_member_events"
+   ],
+   "data": {
+    "baseline": true,
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "member_counts": {
+     "bots": 1,
+     "distinct": 1,
+     "humans": 1,
+     "humans_not_pending": 1,
+     "pending": 0,
+     "test_accounts": 0,
+     "total": 2
+    },
+    "persisted": true,
+    "previous_snapshot_unreadable": false,
+    "requests": 2,
+    "staging": false
+   },
+   "duration_s": 0.882,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 46,
+   "note": "first reading",
+   "operation": "discord.get_member_events",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.members.bots": 1.0,
+    "discord.members.distinct": 1.0,
+    "discord.members.humans": 1.0,
+    "discord.members.humans_not_pending": 1.0,
+    "discord.members.pending": 0.0,
+    "discord.members.test_accounts": 0.0,
+    "discord.members.total": 2.0
+   },
+   "rate_limit": {
+    "limit": 10.0,
+    "remaining": 9.0,
+    "reset_after_s": 1.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] membership baseline established: 1 people, 1 bots, 0 declared test accounts; changes are reported from the next reading on",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1575680989060010034"
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.get_member_events"
+   ],
+   "data": {
+    "baseline": false,
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "invites": [
+     {
+      "code": "8fGfBMu24x",
+      "delta": 0,
+      "new": false,
+      "uses": 0
+     },
+     {
+      "code": "cHU5tpF4e",
+      "delta": 0,
+      "new": false,
+      "uses": 0
+     }
+    ],
+    "invites_gone": 0,
+    "joined": {
+     "bots": 0,
+     "people": 0,
+     "test_accounts": 0
+    },
+    "joined_at": [],
+    "left": {
+     "bots": 0,
+     "people": 0,
+     "test_accounts": 0
+    },
+    "member_counts": {
+     "bots": 1,
+     "distinct": 1,
+     "humans": 1,
+     "humans_not_pending": 1,
+     "pending": 0,
+     "test_accounts": 0,
+     "total": 2
+    },
+    "persisted": true,
+    "previous_snapshot_unreadable": false,
+    "requests": 2,
+    "since_s": 1.0,
+    "staging": false
+   },
+   "duration_s": 0.93,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 47,
+   "note": "second reading",
+   "operation": "discord.get_member_events",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.invites.uses_delta": 0.0,
+    "discord.members.bots": 1.0,
+    "discord.members.distinct": 1.0,
+    "discord.members.humans": 1.0,
+    "discord.members.humans_not_pending": 1.0,
+    "discord.members.joined": 0.0,
+    "discord.members.joined_bots": 0.0,
+    "discord.members.joined_test_accounts": 0.0,
+    "discord.members.left": 0.0,
+    "discord.members.left_bots": 0.0,
+    "discord.members.left_test_accounts": 0.0,
+    "discord.members.pending": 0.0,
+    "discord.members.test_accounts": 0.0,
+    "discord.members.total": 2.0
+   },
+   "rate_limit": {
+    "limit": 10.0,
+    "remaining": 8.0,
+    "reset_after_s": 1.005
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] membership since the previous reading (1 s): joined 0 people, 0 bots, 0 declared test accounts; left 0 people, 0 bots, 0 declared test accounts; now 1 people; invite uses: no change",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1575680989060010034",
+    "seconds": 10
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.listen_events"
+   ],
+   "data": {
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false,
+    "window": {
+     "close_code": null,
+     "configured_guild_listed": true,
+     "content_included": false,
+     "counts": {
+      "GUILD_CREATE": 1,
+      "READY": 1
+     },
+     "dropped": {
+      "no_guild": 0,
+      "other_guild": 0,
+      "unreduced": {}
+     },
+     "ended_by": "window",
+     "events": [
+      {
+       "configured_guild_listed": true,
+       "event": "READY",
+       "guilds": 1
+      },
+      {
+       "channels": 5,
+       "event": "GUILD_CREATE",
+       "member_count": 2,
+       "unavailable": false
+      }
+     ],
+     "guilds": 1,
+     "heartbeats": {
+      "acknowledged": 1,
+      "interval_s": 41.25,
+      "requested_by_gateway": 0,
+      "sent": 1
+     },
+     "intents": [
+      "GUILDS",
+      "GUILD_MEMBERS",
+      "GUILD_INVITES",
+      "GUILD_MESSAGES",
+      "GUILD_SCHEDULED_EVENTS"
+     ],
+     "requested_s": 10.0,
+     "resumable": null,
+     "session_ok": true,
+     "truncated": false,
+     "window_s": 10.268
+    }
+   },
+   "duration_s": 11.297,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 48,
+   "note": "",
+   "operation": "discord.listen_events",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.gateway.dropped_other_guild": 0.0,
+    "discord.gateway.events": 2.0,
+    "discord.gateway.guild_create": 1.0,
+    "discord.gateway.heartbeats_sent": 1.0,
+    "discord.gateway.ready": 1.0,
+    "discord.gateway.session_starts_remaining": 999.0,
+    "discord.gateway.window_s": 10.268
+   },
+   "rate_limit": {
+    "limit": 2.0,
+    "remaining": 1.0,
+    "reset_after_s": 5.0
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] event window of 10.3 s (ended by window): 2 events (GUILD_CREATE 1, READY 1); 0 events of other servers dropped; message text not retained (no data permission)",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "guild_id": "1575680989060010034",
+    "limit": 50
+   },
+   "artifacts": {},
+   "checked_ops": [
+    "discord.get_audit_summary"
+   ],
+   "data": {
+    "audit": {
+     "by_action": {
+      "BOT_ADD": 1,
+      "CHANNEL_CREATE": 1,
+      "CHANNEL_OVERWRITE_CREATE": 1,
+      "CHANNEL_UPDATE": 1,
+      "GUILD_UPDATE": 2,
+      "INTEGRATION_CREATE": 2,
+      "INVITE_CREATE": 3,
+      "INVITE_DELETE": 1,
+      "MESSAGE_PIN": 1,
+      "MESSAGE_UNPIN": 1,
+      "ROLE_CREATE": 1,
+      "ROLE_DELETE": 1,
+      "ROLE_UPDATE": 1
+     },
+     "entries": 17,
+     "newest": "2026-11-27T05:55:35.407000+00:00",
+     "oldest": "2026-11-27T01:13:43.349000+00:00"
+    },
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 1,
+    "staging": false
+   },
+   "duration_s": 0.613,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 49,
+   "note": "",
+   "operation": "discord.get_audit_summary",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {
+    "discord.audit.bot_add": 1.0,
+    "discord.audit.channel_create": 1.0,
+    "discord.audit.channel_overwrite_create": 1.0,
+    "discord.audit.channel_update": 1.0,
+    "discord.audit.entries": 17.0,
+    "discord.audit.guild_update": 2.0,
+    "discord.audit.integration_create": 2.0,
+    "discord.audit.invite_create": 3.0,
+    "discord.audit.invite_delete": 1.0,
+    "discord.audit.message_pin": 1.0,
+    "discord.audit.message_unpin": 1.0,
+    "discord.audit.role_create": 1.0,
+    "discord.audit.role_delete": 1.0,
+    "discord.audit.role_update": 1.0
+   },
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 0.001
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] audit log, 17 most recent entries: BOT_ADD 1, CHANNEL_CREATE 1, CHANNEL_OVERWRITE_CREATE 1, CHANNEL_UPDATE 1, GUILD_UPDATE 2, INTEGRATION_CREATE 2, INVITE_CREATE 3, INVITE_DELETE 1, MESSAGE_PIN 1, MESSAGE_UNPIN 1, ROLE_CREATE 1, ROLE_DELETE 1, ROLE_UPDATE 1; newest at 2026-11-27T05:55:35.407000+00:00",
+   "validation_errors": [],
+   "verdict": "allow"
+  },
+  {
+   "approval_id": "",
+   "arguments": {
+    "channel_id": "1575751349738676475",
+    "guild_id": "1575680989060010034"
+   },
+   "artifacts": {
+    "channel_id": "1575751349738676475"
+   },
+   "checked_ops": [
+    "discord.delete_channel"
+   ],
+   "data": {
+    "channel_id": "1575751349738676475",
+    "deleted": true,
+    "deleted_channel": {
+     "guild_id": "1575680989060010034",
+     "id": "1575751349738676475",
+     "name": "cam-integration-test",
+     "parent_id": null,
+     "position": 1,
+     "type": 0
+    },
+    "environment": "live",
+    "guild_id": "1575680989060010034",
+    "requests": 2,
+    "staging": false
+   },
+   "duration_s": 0.88,
+   "failure_class": "none",
+   "failure_detail": "",
+   "n": 50,
+   "note": "cleanup: the temporary channel",
+   "operation": "discord.delete_channel",
+   "outcome": "ok",
+   "policy_ids": [
+    "P-ALLOW"
+   ],
+   "quantities": {},
+   "rate_limit": {
+    "limit": 1000.0,
+    "remaining": 999.0,
+    "reset_after_s": 0.001
+   },
+   "reasons": [
+    "permitted by policy default-1+discord-live-check"
+   ],
+   "retries": 0,
+   "retry_after_s": null,
+   "status": "ok",
+   "text": "[live] channel 1575751349738676475 deleted",
+   "validation_errors": [],
+   "verdict": "allow"
+  }
+ ],
+ "summary": {
+  "by_outcome": {
+   "ok": 50
+  },
+  "not_ok": [],
+  "permission_refusals": [],
+  "scope_refusals": [],
+  "steps": 50
+ },
+ "task": {
+  "content_hash": "5bce77f614903141cf2e05a7778c472b2524c47657f5938c49d1a836d311e184",
+  "objective_id": "discord-live-check"
+ },
+ "token_free": true,
+ "tool": "cam_live/tools/discord_live_check.py",
+ "write_budget": {
+  "allowed": 60,
+  "enough": true,
+  "known": true,
+  "needed": 16,
+  "used": 0,
+  "window_s": 3600.0
+ }
+}

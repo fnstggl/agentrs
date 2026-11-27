@@ -1,6 +1,6 @@
 {
- "base_url": "http://127.0.0.1:38355/api/v10",
- "ended_at": 1795747641.736304,
+ "base_url": "http://127.0.0.1:37673/api/v10",
+ "ended_at": 1795758759.2565553,
  "environment": "staging",
  "exit_code": 0,
  "guild_id": "1000000000000000002",
@@ -10,17 +10,17 @@
    "channel:discord:*"
   ],
   "read": [
-   "127.0.0.1:38355",
-   "127.0.0.1:34285"
+   "127.0.0.1:37673",
+   "127.0.0.1:41241"
   ],
-  "record_id": "discord-live-check-1795747628",
+  "record_id": "discord-live-check-1795758746",
   "signed_with": "an operator key generated for this run"
  },
  "missing_capabilities": [],
  "mode": "staging",
  "policy": {
   "id": "default-1+discord-live-check",
-  "sha256": "8115aa896d31d50b02f0b770d8d876e366b41d524a1c50e0dbab05e47d244043"
+  "sha256": "62d8692f277bc54e26b0d3db90a64dc786fcea9380b2a7ae38482ff9c2deb985"
  },
  "policy_mode": "live",
  "reply": null,
@@ -65,7 +65,7 @@
    "staging-app"
   ]
  },
- "started_at": 1795747628.2180583,
+ "started_at": 1795758746.5413444,
  "steps": [
   {
    "approval_id": "",
@@ -99,7 +99,7 @@
     "staging": true,
     "warnings": []
    },
-   "duration_s": 0.609,
+   "duration_s": 0.397,
    "failure_class": "none",
    "failure_detail": "",
    "n": 1,
@@ -190,7 +190,7 @@
     "staging": true,
     "timed_out": false
    },
-   "duration_s": 0.112,
+   "duration_s": 0.088,
    "failure_class": "none",
    "failure_detail": "",
    "n": 2,
@@ -251,7 +251,7 @@
     },
     "staging": true
    },
-   "duration_s": 0.091,
+   "duration_s": 0.03,
    "failure_class": "none",
    "failure_detail": "",
    "n": 3,
@@ -306,7 +306,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.026,
+   "duration_s": 0.17,
    "failure_class": "none",
    "failure_detail": "",
    "n": 4,
@@ -366,7 +366,7 @@
     "requests": 2,
     "staging": true
    },
-   "duration_s": 0.159,
+   "duration_s": 0.095,
    "failure_class": "none",
    "failure_detail": "",
    "n": 5,
@@ -418,7 +418,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.101,
+   "duration_s": 0.029,
    "failure_class": "none",
    "failure_detail": "",
    "n": 6,
@@ -475,7 +475,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.1,
+   "duration_s": 0.088,
    "failure_class": "none",
    "failure_detail": "",
    "n": 7,
@@ -525,13 +525,13 @@
      "content_sha256": "2232696d00e4caf249891538d421908a3b90578b9da045c91dc266f3a36d3986",
      "edited_timestamp": null,
      "id": "1000000000000000013",
-     "timestamp": "2026-11-27T02:47:09.436447+00:00"
+     "timestamp": "2026-11-27T05:52:27.517329+00:00"
     },
     "message_id": "1000000000000000013",
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.035,
+   "duration_s": 0.092,
    "failure_class": "none",
    "failure_detail": "",
    "n": 8,
@@ -580,8 +580,8 @@
      "distinct_human_authors": 0,
      "human_messages": 0,
      "messages": 1,
-     "newest": "2026-11-27T02:47:09.436447+00:00",
-     "oldest": "2026-11-27T02:47:09.436447+00:00"
+     "newest": "2026-11-27T05:52:27.517329+00:00",
+     "oldest": "2026-11-27T05:52:27.517329+00:00"
     },
     "channel_id": "1000000000000000011",
     "environment": "staging",
@@ -643,15 +643,15 @@
      "channel_id": "1000000000000000011",
      "content_length": 72,
      "content_sha256": "db716a191065986f18eaf2bda68664c99ae4cf71c483caa9ca609ccd01dd444c",
-     "edited_timestamp": "2026-11-27T02:47:09.623043+00:00",
+     "edited_timestamp": "2026-11-27T05:52:27.646972+00:00",
      "id": "1000000000000000013",
-     "timestamp": "2026-11-27T02:47:09.436447+00:00"
+     "timestamp": "2026-11-27T05:52:27.517329+00:00"
     },
     "message_id": "1000000000000000013",
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.092,
+   "duration_s": 0.035,
    "failure_class": "none",
    "failure_detail": "",
    "n": 10,
@@ -702,7 +702,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.099,
+   "duration_s": 0.083,
    "failure_class": "none",
    "failure_detail": "",
    "n": 11,
@@ -800,8 +800,8 @@
     "invite": {
      "channel_id": "1000000000000000011",
      "code": "1312674a",
-     "created_at": "2026-11-27T02:47:09.858293+00:00",
-     "expires_at": "2026-11-27T02:57:09.858293+00:00",
+     "created_at": "2026-11-27T05:52:27.852590+00:00",
+     "expires_at": "2026-11-27T06:02:27.852590+00:00",
      "inviter_is_bot": true,
      "max_age": 600,
      "max_uses": 1,
@@ -813,7 +813,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.113,
+   "duration_s": 0.084,
    "failure_class": "none",
    "failure_detail": "",
    "n": 13,
@@ -855,8 +855,8 @@
      {
       "channel_id": "1000000000000000011",
       "code": "1312674a",
-      "created_at": "2026-11-27T02:47:09.858293+00:00",
-      "expires_at": "2026-11-27T02:57:09.858293+00:00",
+      "created_at": "2026-11-27T05:52:27.852590+00:00",
+      "expires_at": "2026-11-27T06:02:27.852590+00:00",
       "inviter_is_bot": true,
       "max_age": 600,
       "max_uses": 1,
@@ -867,7 +867,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.084,
+   "duration_s": 0.033,
    "failure_class": "none",
    "failure_detail": "",
    "n": 14,
@@ -884,7 +884,7 @@
    "rate_limit": {
     "limit": 1000.0,
     "remaining": 998.0,
-    "reset_after_s": 0.289
+    "reset_after_s": 0.402
    },
    "reasons": [
     "permitted by policy default-1+discord-live-check"
@@ -918,7 +918,7 @@
     "requests": 2,
     "staging": true
    },
-   "duration_s": 0.104,
+   "duration_s": 0.101,
    "failure_class": "none",
    "failure_detail": "",
    "n": 15,
@@ -978,7 +978,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.093,
+   "duration_s": 0.085,
    "failure_class": "none",
    "failure_detail": "",
    "n": 16,
@@ -1038,7 +1038,7 @@
     "role_id": "1000000000000000002",
     "staging": true
    },
-   "duration_s": 0.13,
+   "duration_s": 0.093,
    "failure_class": "none",
    "failure_detail": "",
    "n": 17,
@@ -1095,7 +1095,7 @@
     "role_id": "1000000000000000021",
     "staging": true
    },
-   "duration_s": 0.09,
+   "duration_s": 0.093,
    "failure_class": "none",
    "failure_detail": "",
    "n": 18,
@@ -1157,7 +1157,7 @@
     "role_id": "1000000000000000021",
     "staging": true
    },
-   "duration_s": 0.181,
+   "duration_s": 0.095,
    "failure_class": "none",
    "failure_detail": "",
    "n": 19,
@@ -1214,7 +1214,7 @@
     "role_id": "1000000000000000021",
     "staging": true
    },
-   "duration_s": 0.123,
+   "duration_s": 0.107,
    "failure_class": "none",
    "failure_detail": "",
    "n": 20,
@@ -1274,7 +1274,7 @@
     },
     "staging": true
    },
-   "duration_s": 0.103,
+   "duration_s": 0.106,
    "failure_class": "none",
    "failure_detail": "",
    "n": 21,
@@ -1334,7 +1334,7 @@
     },
     "staging": true
    },
-   "duration_s": 0.102,
+   "duration_s": 0.03,
    "failure_class": "none",
    "failure_detail": "",
    "n": 22,
@@ -1348,7 +1348,7 @@
    "rate_limit": {
     "limit": 1000.0,
     "remaining": 998.0,
-    "reset_after_s": 0.9
+    "reset_after_s": 0.901
    },
    "reasons": [
     "permitted by policy default-1+discord-live-check"
@@ -1387,7 +1387,7 @@
     "requests": 2,
     "staging": true
    },
-   "duration_s": 0.165,
+   "duration_s": 0.082,
    "failure_class": "none",
    "failure_detail": "",
    "n": 23,
@@ -1442,7 +1442,7 @@
      "test_accounts": 0
     },
     "joined_at": [
-     "2026-11-27T02:47:11.117113+00:00"
+     "2026-11-27T05:52:28.741730+00:00"
     ],
     "left": {
      "bots": 0,
@@ -1464,7 +1464,7 @@
     "since_s": 1.0,
     "staging": true
    },
-   "duration_s": 0.123,
+   "duration_s": 0.095,
    "failure_class": "none",
    "failure_detail": "",
    "n": 24,
@@ -1493,7 +1493,7 @@
    "rate_limit": {
     "limit": 1000.0,
     "remaining": 998.0,
-    "reset_after_s": 0.889
+    "reset_after_s": 0.909
    },
    "reasons": [
     "permitted by policy default-1+discord-live-check"
@@ -1553,7 +1553,7 @@
        "bot": false,
        "event": "GUILD_MEMBER_ADD",
        "id_hash": "f70e9fee5d03a1b96f706d00100e3f2e",
-       "joined_at": "2026-11-27T02:47:11.434556+00:00",
+       "joined_at": "2026-11-27T05:52:28.948828+00:00",
        "pending": false,
        "test_account": false
       },
@@ -1573,10 +1573,10 @@
      ],
      "guilds": 1,
      "heartbeats": {
-      "acknowledged": 1,
+      "acknowledged": 0,
       "interval_s": 45.0,
       "requested_by_gateway": 0,
-      "sent": 1
+      "sent": 0
      },
      "intents": [
       "GUILDS",
@@ -1592,7 +1592,7 @@
      "window_s": 10.001
     }
    },
-   "duration_s": 10.197,
+   "duration_s": 10.174,
    "failure_class": "none",
    "failure_detail": "",
    "n": 25,
@@ -1608,7 +1608,7 @@
     "discord.gateway.guild_create": 1.0,
     "discord.gateway.guild_member_add": 1.0,
     "discord.gateway.guild_member_remove": 1.0,
-    "discord.gateway.heartbeats_sent": 1.0,
+    "discord.gateway.heartbeats_sent": 0.0,
     "discord.gateway.message_create": 1.0,
     "discord.gateway.ready": 1.0,
     "discord.gateway.session_starts_remaining": 999.0,
@@ -1663,7 +1663,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.169,
+   "duration_s": 0.121,
    "failure_class": "none",
    "failure_detail": "",
    "n": 26,
@@ -1767,7 +1767,7 @@
   "steps": 27
  },
  "task": {
-  "content_hash": "e04816a9668a3f7d7c579fc36c33a6b5cbfa2d3c25dce82b86f4eab4731f5cb0",
+  "content_hash": "fa94927fcb98ce4c5f25de3fb9c044be000a70fe0ce7be7e97d27a834b985183",
   "objective_id": "discord-live-check"
  },
  "token_free": true,
