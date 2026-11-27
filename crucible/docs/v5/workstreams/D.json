@@ -20,7 +20,7 @@
     "tests/test_v5_semantic_generalists.py",
     "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "failed in the third unofficial standard run (2026-11-26 22:45, GPU slot): semantic_participants 6 of 8 acting (two participants had every call refused: required titles/queries discarded as copies of the prompt); fixed in mind.py (2a6fd4d), rerun queued (job 'D: semantic gates H, SP-3.2d, SP-13.4, SP-3.3c (rerun after argument fixes)', outputs gates4_*.log in the scratch directory)",
+   "status_claim": "verified in unofficial Gate H reruns (2026-11-27, standard civilisation 10,296 individuals, 3 days): semantic_participants 8 of 8 acting with both routings (0.6B in-situ routing: 103 calls, 53 ok; 1.7B routing: 96 calls, 64 ok, 9 tools used of 571 available)",
    "notes": "standard civilisation, 10,296 individuals, 8 class-4 rows bound, 3 simulated days, 144 calls, 33 ok, 571 tools available, 10 used | Gate H rerun 2026-11-27 (snapshot of 24bf55c3, 0.6B in-situ routing): semantic_participants 8 of 8 acting (103 calls, 53 ok, 10 tools used) - PASSED"
   },
   "H.2": {
@@ -35,7 +35,7 @@
     "tests/test_v5_semantic_generalists.py",
     "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "verified in the third unofficial standard run: model_weight_copies 1 per model, participants_sharing_weights 8 (Qwen3-1.7B, SmolLM2-360M)",
+   "status_claim": "verified in unofficial Gate H reruns (2026-11-27): model_weight_copies 1 per model, participants_sharing_weights 8 (1.7B routing: Qwen3-1.7B, SmolLM2-360M; 0.6B routing: plus Qwen3-0.6B)",
    "notes": ""
   },
   "H.3": {
@@ -48,7 +48,7 @@
     "tests/test_v5_semantic_generalists.py",
     "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "verified in the third unofficial standard run: distinct_goals 8, distinct_histories 8 (38 goals)",
+   "status_claim": "verified in unofficial Gate H reruns (2026-11-27): distinct_goals 8, distinct_histories 8 (54 / 64 goals)",
    "notes": ""
   },
   "H.4": {
@@ -67,7 +67,7 @@
     "tests/test_v5_semantic_generalists.py",
     "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "verified in the third unofficial run: tool_selection_accuracy 0.708 [0.595, 0.801] on 72 held-out TEST items (12 templates) with tool choice on Qwen3-1.7B, vs random 0.033 (p 8.7e-62), retrieval only 0.389",
+   "status_claim": "verified in an unofficial Gate H rerun (2026-11-27 10:10 UTC, GPU slot, snapshot of 28da1984: tool choice and next-step phrase on Qwen3-1.7B after D-38 application 2): tool_selection_accuracy 0.681 [0.566, 0.777] on 72 held-out TEST items (12 templates), vs random 0.033 (p 7.4e-58), service recall 1.0, retrieval only 0.389; with the 0.6B reasoning-first routing it was 0.514 (failed), which is why that routing was not adopted",
    "notes": "if the D-38 in-situ measurement routes tool choice to Qwen3-0.6B (reasoning first), H.4 is re-measured with that route in the queued rerun | repair pass, Gate H rerun 2026-11-27 09:48 UTC (unofficial, snapshot of 24bf55c3) with the D-38 in-situ routing (tool choice Qwen3-0.6B reasoning first 192 tokens, next-step phrase Qwen3-0.6B; DEV selection 0.708 / 0.778, confirmation 0.667 / 0.819): tool_selection_accuracy 0.514 [0.401, 0.626] on the 72 held-out TEST items (p vs random 9e-42, service recall 0.917) - FAILED; the DEV picks did not generalise. D-38 application 2 reverts both routes to Qwen3-1.7B by the held-out guard (routing.json in_situ_guard); a further rerun measures H.4 with that routing."
   },
   "H.5": {
@@ -82,7 +82,7 @@
     "tests/test_v5_semantic_generalists.py",
     "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "verified in the third unofficial run: comprehension_accuracy 0.844 [0.756, 0.905] on 120 held-out items (Qwen3-0.6B, thinking-mode scoring chosen on DEV), p 3e-32; shortcut rule 0.25",
+   "status_claim": "verified in unofficial Gate H reruns (2026-11-27): comprehension_accuracy 0.922 [0.848, 0.962] on 90 shortcut-controlled held-out items (Qwen3-0.6B, thinking-mode scoring with its full 384 tokens chosen on DEV: mean 0.65, sum 0.65, think 0.975), p 1.1e-41; in-world answered requests 0",
    "notes": "in-world answered requests 0 in that run (no participant answered another's request) | repair pass (verifier P2, pre-existing): the 'think' scoring of H.5 was silently cut to the shared service's 128-token bound (and to 192/384 after a think choice elsewhere in the process); requests in thinking mode now have a fixed bound of their own (SemanticService.max_think_tokens 1024), so think gets its 384 tokens and no request's recorded inputs depend on earlier calls. | Gate H rerun 2026-11-27 (snapshot of 24bf55c3): comprehension_accuracy 0.922 [0.848, 0.962] on 90 shortcut-controlled held-out items, think scoring now with its 384 tokens (dev: mean 0.65, sum 0.65, think 0.975) - PASSED"
   },
   "H.6": {
@@ -96,7 +96,7 @@
     "tests/test_v5_semantic_generalists.py",
     "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "failed in the third unofficial standard run: consequential_actions_executed 5 (< 8; blog.publish 2, forum.follow 2, bank.invoice 1), 77% of calls refused by argument-filling defects; fixed (2a6fd4d), rerun queued",
+   "status_claim": "verified in unofficial Gate H reruns (2026-11-27): consequential_actions_executed (evaluator: scheduled consequences included, junk excluded, the same content once) 21 with the 0.6B routing and 12 with the 1.7B routing (raw 40, junk 3, repeats 25 - one article republished as replies to other items), 6 participants; rejected share 0.485 / 0.333",
    "notes": "repair pass (2026-11-27): the evaluator (generalists.verify) counts a call's consequences including the events of jobs it scheduled (a mail reaches its recipient through a delivery job, so mail.send was never consequential before), excludes calls whose written content (event payload text fields, stored text artifacts) is junk (a tool or service name, prompt scaffolding, the goal sentence restated, under two letters) and counts a repeated call with the same content once (verifier: the previous dedupe collapsed only byte-identical calls). Unit test test_evaluator_excludes_junk_content_and_counts_repeated_content_once. | Gate H rerun 2026-11-27 (snapshot of 24bf55c3): consequential_actions_executed 21 (raw 36, junk 1, repeats 14; 6 participants) - PASSED; rejected share 0.485"
   },
   "H.7": {
@@ -110,7 +110,7 @@
     "tests/test_v5_semantic_generalists.py",
     "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "verified in the third unofficial standard run: verified_productive_results 2 (blog articles with >= 3 independent viewers, max 12)",
+   "status_claim": "verified in the unofficial rerun with the 0.6B routing (13 items); FAILED in the rerun with the 1.7B routing (0 of 39 published items: the evaluator judged every article of the one participant with viewers junk because its later goals copied the article; fixed in 1afcdb73 - a publication is judged against the goals set before it); a further rerun on the branch head is queued in the same GPU job",
    "notes": "collaborative_verified 0 | repair pass: a publication whose text (its text artifact, else its title) is junk by the evaluator's rule is not a productive result. | Gate H rerun 2026-11-27 (snapshot of 24bf55c3, before the per-content count of 8a567d2c): verified_productive_results 13 items (26 published, max 61 independent viewers), collaborative 0 - PASSED"
   },
   "H.8": {
@@ -123,7 +123,7 @@
     "tests/test_v5_semantic_generalists.py",
     "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "verified in the third unofficial standard run: peak_vram_mb 8,361 (measured), tokens_per_second 38.8 (measured), 1,213 requests, prefix hits 1,211, 19 KB state per participant",
+   "status_claim": "verified in unofficial Gate H reruns (2026-11-27): peak_vram_mb 9,335 (1.7B routing) / 9,812 (0.6B routing) measured, tokens_per_second 28.3 / 38.0, requests of the run 781 / 903, prefix hits 779 / 900, 73 / 68 activations, run 610 s / 1,569 s (reasoning-first choices cost 2.6x the wall time), peak host RSS 5,265 MB",
    "notes": "Gate H rerun 2026-11-27 (snapshot of 24bf55c3): peak_vram_mb 9,811.5, tokens_per_second 38.0, 903 requests (run only), 68 activations, run 1,569 s, peak host RSS 5,266 MB - PASSED"
   },
   "H.n1": {
@@ -140,7 +140,7 @@
     "tests/test_v5_semantic_generalists.py",
     "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "failed in the third unofficial run: the ordinary class-4 decisions (situation interpretation, tool choice) were routed to Qwen3-1.7B (D-36/D-37), 81% of requests above 1.1B parameters. D-38: the queued rerun first measures Qwen3-0.6B reasoning first in its thinking mode on the DEV bench and applies the pre-registered rule (probes2/apply_think.py) before Gate H; H.n1 now measures the largest model serving every activation's decisions and asserts escalated decisions <= 20%",
+   "status_claim": "FAILED by measurement in unofficial Gate H reruns (2026-11-27): semantic_model_params 1,720,574,976 (Qwen3-1.7B serves situation interpretation: goal formation and argument choice; with the 1.7B routing also the next-step phrase and tool choice); share of the run's decisions above 1.1B parameters 0.851 (1.7B routing) / 0.338 (0.6B routing, which failed H.4); smaller alternatives benchmarked 2 (SmolLM2-135M 0.0, SmolLM2-360M 0.111 on the TEST templates)",
    "notes": "smaller alternatives benchmarked: SmolLM2-135M 0.0, SmolLM2-360M 0.11 on the TEST bench | repair pass: decisions per capability and requests per model are taken from the standard run before H.4/H.5 evaluate through the same services (verifier P3: H.4's 72 items added 216 decisions), and H.4 uses a brain of its own. D-38 amendment: only the next-step phrase (routing.USES next_step) may move by the in-situ bench; goal formation and argument choice keep situation interpretation's SP-3.2b route (Qwen3-1.7B, 0.6B 0.28 held out), so semantic_model_params stays 1.7B and H.n1 is expected to fail by measurement. QA: semantic_model_params is the largest model serving the ordinary capabilities (D-38); escalated capabilities are bounded by the reported share of decisions above 1.1B. | Gate H rerun 2026-11-27 09:51 UTC (snapshot of 24bf55c3, 0.6B in-situ routing): semantic_model_params 1,720,574,976 (situation interpretation: goal formation and argument choice on Qwen3-1.7B), decisions by capability (run only, before H.4/H.5) situation_interpretation 256, next_step 158, tool_choice 212, communication 132; share above 1.1B 0.338 (> 0.2); smaller alternatives SmolLM2-135M 0.0, -360M 0.111 on the TEST templates - FAILED by measurement. After application 2 (tool choice and next step back on 1.7B) the share above 1.1B is higher."
   },
   "SP-3.2b": {
@@ -325,10 +325,15 @@
  },
  "limitations": [
   "Class-4 participants live in civilisations only through crucible.semantic.generalists.civ_world until civ lists pop_semantic in its ORDER (integration note); civ.generate alone leaves class-4 rows inert (DEF-D-5).",
+  "H.n1 fails by measurement: with the locally available checkpoints, situation interpretation (goal formation, argument choice) is effective only on Qwen3-1.7B on held-out SP-3.2b templates (0.6B 0.28), and routing tool choice and the next-step phrase to Qwen3-0.6B (reasoning first), effective on two DEV samples, failed held-out tool selection (H.4 0.514): class-4 decisions above 1.1B parameters are about a third or more of all decisions.",
+  "In-situ routing measurements use the DEV templates of one benchmark (72 items per sample); the TEST templates guard them once (H.4) and are not used to pick among variants.",
+  "Content quality of class-4 publications is low: small models often announce what they will write, prefix it ('Here is the text ...'), or leave JSON fragments; the runtime filter and the evaluator rule reject only texts with no content beyond such sentences, and the population's viewership does not judge writing quality (lexical legibility, DEF-B-6).",
+  "About half of class-4 calls are still refused (rerun: 0.49): wrong board names, empty messages, missing titles, repeated follows; refusals are part of the participants' histories.",
+  "No collaborative result between class-4 participants was verified in the reruns (no answered request, co-edited document or payment after a conversation).",
   "SP-4.3 fails on word salad because the population judges legibility lexically (population.semantics, DEF-B-6, workstream B); the shared space's comprehension index separates it.",
   "GPU bf16 batched inference is not bitwise reproducible across processes or batch compositions: fresh runs of the same spec diverge (replay of a recorded log is exact).",
   "Cheap LM features (SmolLM2-135M coherence + distilled valence head) were measured not equivalent (valence Pearson 0.75 < 0.85) and not adopted; the space keeps Qwen3-0.6B (batched, cached by artifact hash).",
-  "Small models still fail multi-step tasks often; refused calls are part of their history. Value filters (prompt echo, one sampled rewrite) and the activation cadence are hand-set."
+  "Value filters (scaffolding echo, tool names, goal restatement, announcements, copy shares, one sampled rewrite), the evaluator's junk rule and the activation cadence are hand-set."
  ],
  "integration_notes": [
   "CIV (J): please list \"pop_semantic\" in crucible.civ.generator.ORDER right after \"pop_strategic\" and in civ.subsystems.POPULATION_MODULES. Until then crucible.semantic.generalists.civ_world(profile, seed, population) builds exactly civ.spec(...) with pop_semantic inserted after pop_strategic (it becomes civ.generate once ORDER lists the module); Gate H / SP-3.2d / SP-3.3c / SP-4.2b / SP-13.4 use civ_world. Without the module the class-4 rows of every civilisation stay inert (next_active_at NEVER), so DEF-D-5 stays open until this lands.",
