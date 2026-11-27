@@ -40,11 +40,15 @@ def test_delayed_adoption_truth_has_the_threshold_and_saturation():
 @pytest.mark.parametrize("family", ["dl_delayed_adoption", "dl_short_term_damage", "eng_delayed_controller",
                                     "ch_tech_transition", "net_congestion_routes"])
 def test_prediction_reference_beats_naive_predictors(family):
-    seed = 1 if family == "net_congestion_routes" else 0     # (on seed 0 its exponent grid picks too flat a curve)
-    v_ref = play(F.make(family, seed))["value"]
-    simple = search(F.make(family, seed), seed=seed)
-    assert v_ref > 0.5 and simple["best_value"] <= 0.8 * v_ref, (v_ref, simple["best_label"], simple["best_value"])
-    assert "naive_prediction" in simple["by_arm"] or simple["best_value"] <= 0.0
+    # the H-D1 rule of admission: on at least two of seeds 0-2 the reference is good and the best simple policy
+    # (since the repair pass including the hold-and-fit generic predictors) stays within 0.8 of its gain
+    ok = []
+    for seed in (0, 1, 2):
+        v_ref = play(F.make(family, seed))["value"]
+        simple = search(F.make(family, seed), seed=seed)
+        assert "naive_prediction" in simple["by_arm"] or simple["best_value"] <= 0.0
+        ok.append(v_ref > 0.5 and simple["best_value"] <= 0.8 * v_ref)
+    assert sum(ok) >= 2, ok
 
 
 def test_wear_latch_identification_and_claim():
@@ -64,14 +68,12 @@ def test_delayed_plant_dead_time_is_identified():
         assert r["ok"], r
 
 
-def test_tech_transition_constants_must_be_revised():
-    # the established process is the best constant early; after it becomes obsolete that constant falls short
-    oks = [constants_fail_after_change("ch_tech_transition", s)["ok"] for s in (0, 1, 2)]
-    assert sum(oks) >= 2, oks
-    env = F.make("ch_tech_transition", 0)
-    new = env._config["claim"]["new"]
-    cost = next(n["lever"]["cost"] for n in env._config["nodes"] if n["id"] == new)
-    assert cost > 0
+def test_tech_transition_beliefs_must_be_revised():
+    # measured on the scored channel (repair pass): predictions exactly right for the world as it stood at the end
+    # of the first fifth (established process not yet obsolete) are clearly wrong at the end
+    rs = [constants_fail_after_change("ch_tech_transition", s) for s in (0, 1, 2)]
+    assert all(r["channel"] == "scored predictions" for r in rs)
+    assert sum(r["ok"] for r in rs) >= 2, rs
 
 
 def test_congestion_routes_share_a_link_and_are_convex():

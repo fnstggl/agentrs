@@ -79,17 +79,25 @@ def des_maintenance(rng, d):
                      "status and runtime since its last service."}
 
 
+def inventory_terms_text(price: float, unit_cost: float, order_fixed: float, holding: float) -> str:
+    """The shop's trading terms as the brief states them (public: a shop knows its prices and costs)."""
+    return (f"Terms: each unit sold pays {price:g} cents; each order costs {order_fixed:g} cents plus {unit_cost:g} "
+            f"cents per unit; every unit on hand costs {holding:g} cents per tick.")
+
+
 def _inventory(rng, d, perishable: bool):
     names = neutral_names(rng, 5)
+    price, unit_cost, order_fixed, holding = 500.0, 250.0, 300.0, 10.0 if not perishable else 5.0
     cfg = {"engine": "discrete_event", "scenario": "inventory", "horizon": int(d["horizon"]),
            "demand": u(rng, 4.0, 8.0), "season_amp": u(rng, 0.2, 0.4), "season_period": u(rng, 15.0, 30.0),
            "season_phase": u(rng, 0.0, 2 * math.pi), "lead_min": int(rng.integers(2, 6)), "lead_p": u(rng, 0.4, 0.8),
-           "price": 500.0, "unit_cost": 250.0, "order_fixed": 300.0, "holding_cost": 10.0 if not perishable else 5.0,
+           "price": price, "unit_cost": unit_cost, "order_fixed": order_fixed, "holding_cost": holding,
            "max_order": 40, "init_stock": 20, "order_name": names[0], "gauge_names": names[1:5],
            "endowment": 300_000,
            "objective": {"type": "maximize_net", "text": "Maximise your net income from sales."},
            "brief": "A shop with one product. Each tick you may order stock; deliveries arrive later. Gauges: stock "
-                    "on hand, units sold, customers turned away" + (", units expired." if perishable else ".")}
+                    "on hand, units sold, customers turned away" + (", units expired. " if perishable else ". ") +
+                    inventory_terms_text(price, unit_cost, order_fixed, holding)}
     if perishable:
         cfg["shelf_life"] = float(rng.integers(3, 7))
     return cfg

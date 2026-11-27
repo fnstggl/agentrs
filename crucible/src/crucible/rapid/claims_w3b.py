@@ -1095,15 +1095,21 @@ def _held_mean(env, name: str, level: float, n: int, gauge: str, tail: int = 10)
 
 def claim_spoilage(env) -> dict:
     """Held for forty ticks on the same noise: (1) more production means more waste; (2) settled sales saturate:
-    raising production from 8 to 10 adds less to sales than raising it from 2 to 4."""
+    raising production from 8 to 10 adds at most SATURATION_RATIO (0.8) of what raising it from 2 to 4 adds - a
+    margin, so a straight sales law (equal rises up to floating-point rounding) or a barely concave one fails."""
     c = env._config
     name = next(n["lever"]["name"] for n in c["nodes"] if n["id"] == c["claim"]["lever"])
     gs = c["objective"]["gauge"]
     gw = next(g["name"] for g in c["gauges"] if g["name"] != gs)
     sales = {m: _held_mean(env, name, m, 40, gs) for m in (2.0, 4.0, 8.0, 10.0)}
     waste = {m: _held_mean(env, name, m, 40, gw) for m in (4.0, 10.0)}
-    ok = waste[10.0] > waste[4.0] and (sales[10.0] - sales[8.0]) < (sales[4.0] - sales[2.0])
-    return {"ok": bool(ok), "settled_sales": sales, "settled_waste": waste}
+    low, high = sales[4.0] - sales[2.0], sales[10.0] - sales[8.0]
+    ok = waste[10.0] > waste[4.0] and low > 0 and high <= SATURATION_RATIO * low
+    return {"ok": bool(ok), "settled_sales": sales, "settled_waste": waste,
+            "rise_8_10_over_rise_2_4": float(high / low) if low > 0 else None, "required_at_most": SATURATION_RATIO}
+
+
+SATURATION_RATIO = 0.8
 
 
 def identify_spoilage_rate(env) -> dict:

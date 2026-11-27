@@ -1,7 +1,8 @@
 """Gate SP-7.4 - world admission: the ten Part 7.4 checks, with evaluator-side oracles only (workstream H).
 
 A check counts when it ran on every registered family and it rejects at least one deliberately broken control
-world for the right reason (each control is built for one defect: a dominant constant strategy, a leaked hidden
+world for the right reason (each control is built for one defect: a dominant constant strategy, a prediction world
+that a generic hold-and-fit predictor answers as well as the reference, a leaked hidden
 parameter, levers without effect, a renamed copy, a money flow that violates accounting, nondeterminism, blind
 observations, a mechanism claim that its world does not bear out). The ten checks of Part 7.4 are joined by an
 eleventh, `mechanism`: a family's own controlled-intervention claims must pass. Oracle exposure is measured three ways: world-side modules import no evaluator module (fresh
@@ -40,6 +41,24 @@ def b_dominant(rng, d):
     gb.gauge(out, [("measurement_noise", {"sd": 0.5})])
     return gb.build(horizon=40, money={"revenue_node": out, "price": 100.0, "cap": 200.0}, endowment=10_000,
                     brief="control: more is always better")
+
+
+def b_dominant_prediction(rng, d):
+    """A prediction world whose response is an additive straight line in two levers that arrives three ticks after
+    a setting: random settings every tick miss it (the reading answers an older setting), but the generic
+    hold-and-fit predictor of the dominance search (no mechanism) answers it as well as any reference."""
+    gb = GraphBuilder(rng)
+    a = gb.lever(0, 10, 2, cost=0.0)
+    b = gb.lever(0, 10, 2, cost=0.0)
+    out = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": _u(rng, 5.0, 15.0)},
+                  x=[(a, 3, _u(rng, 1.5, 3.0)), (b, 3, _u(rng, 0.5, 1.5))])
+    g = gb.gauge(out, [("measurement_noise", {"sd": 0.5})])
+    held = [{gb.name_of(a): x, gb.name_of(b): y} for x, y in ((11.0, 3.0), (12.0, 12.0), (0.5, 11.0), (13.0, 0.5),
+                                                               (5.0, 5.0))]
+    return gb.build(horizon=40, affordances=["levers", "message"], endowment=10_000,
+                    objective={"type": "predict_heldout", "heldout": held, "gauge": g,
+                               "text": f"Predict the reading at {held}; file with the journal."},
+                    journal=True, brief="control: a straight line through tests predicts every held-out condition")
 
 
 def b_leaky(rng, d):
@@ -119,6 +138,7 @@ def b_false_claim(rng, d):
 CONTROLS = {
     "ctl_false_claim": (b_false_claim, ("mechanism",)),
     "ctl_dominant": (b_dominant, ("no_dominant_strategy",)),
+    "ctl_dominant_prediction": (b_dominant_prediction, ("no_dominant_strategy",)),
     "ctl_leaky": (b_leaky, ("no_leakage",)),
     "ctl_inert": (b_inert, ("controllability", "achievable", "identifiability", "difficulty")),
     "ctl_copy": (None, ("distinct",)),
@@ -144,6 +164,11 @@ def controls():
                 F.FAMILIES[name] = F.Family(name, f.engine, "8.10", "control", "train", "negative control",
                                             "negative control", build, {}, f.objective, (), f.claims, f.identify,
                                             f.reference, f.oracle)
+            elif name == "ctl_dominant_prediction":
+                F.FAMILIES[name] = F.Family(name, "primitive_graph", "8.1", "control", "train", "negative control",
+                                            "negative control", build, {}, "predict_heldout", (), (), LS,
+                                            "crucible.rapid.refs_adapt:held_hub_predict",
+                                            "crucible.rapid.oracles:science_oracle")
             else:
                 F.FAMILIES[name] = F.Family(name, ENGINE_KINDS.get(name, PrimitiveGraph).kind if name in ENGINE_KINDS
                                             else "primitive_graph", "8.1", "control", "train", "negative control",
@@ -173,6 +198,11 @@ def test_SP_7_4_admission_checks_with_evaluator_side_oracles(controls):
         for k in expected:
             assert k in failed, (name, k, failed)
             rejects.setdefault(k, []).append(name)
+    # the prediction path has its own dominance control: the reference does improve on filing nothing, and what
+    # comes within the H-D1 margin of it is a generic hold-and-fit predictor, not a constant setting
+    dp = controls["ctl_dominant_prediction"]["checks"]["no_dominant_strategy"]["per_seed"]
+    assert all(p["reference_gain"] > 0 for p in dp), dp
+    assert sum(p["best_simple"].startswith("naive_prediction:hold_") for p in dp) >= 2, [p["best_simple"] for p in dp]
     counted = [c for c in ran_everywhere if c in rejects]
     # oracle exposure: static import isolation, leaks found during admission, kernel facility tools
     static = adm["static_isolation"]

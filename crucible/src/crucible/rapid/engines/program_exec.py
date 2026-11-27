@@ -15,9 +15,12 @@ the world's input and `caller` = {"memory", "step", "tick"}. A program keeps sta
 a `memory` entry (JSON, at most 4 kB), which the world hands back on the next call. A fresh sandbox process serves
 each tick's calls and is closed at the end of the tick (nothing is shared between ticks or between copies of a
 world). Work is measured by the parent outside the sandboxed process (CPU time in work units, D-20,
-`crucible.sandbox.metering`; identical computations are billed identically, `SandboxConfig.count_lines`) and charged as
-compute cost; a call that raises, times out or returns something malformed is answered by the world's built-in
-fallback and reported.
+`crucible.sandbox.metering`) and charged as compute cost in whole quanta per call (`billed_units`): a call is billed
+CALL_UNITS plus QUANTUM_UNITS for every whole quantum of measured work, so a call that stays well inside one quantum
+is billed the same however loaded the machine is (measured CPU time jitters by tens of per cent between processes
+and loads; billing it exactly made the same spec and seed give different outcomes - verifier finding on the wave-3b
+tree), while a program that does much more work per call still pays for it, quantum by quantum. A call that raises,
+times out or returns something malformed is answered by the world's built-in fallback and reported.
 
     {"kind": "program", "source": "def act(observation, caller):\\n    ...", "ticks": 20}
 
@@ -45,6 +48,16 @@ from ...sandbox.runner import SandboxConfig, SandboxUnavailable, Worker
 from .base import ActionError, RapidEngine, register
 
 MEMORY_BYTES = 4096
+CALL_UNITS = 100          # work units billed for a call (about 35 microseconds of CPU on the build host, D-20 units;
+                          # the reference programs measure 0-130 units per call at the median)
+QUANTUM_UNITS = 10_000     # every whole quantum of measured work in a call (about 3.5 ms of CPU) is billed in full;
+                          # the reference programs stay below 2,100 units per call (a fifth of a quantum)
+
+
+def billed_units(measured: int) -> int:
+    """Compute billed for one call from the parent's measurement (D-20): CALL_UNITS, plus QUANTUM_UNITS for every
+    whole quantum of measured work. Deterministic for calls that stay away from a quantum boundary."""
+    return CALL_UNITS + QUANTUM_UNITS * (max(0, int(measured)) // QUANTUM_UNITS)
 HARNESS = '''\
 _CODE = compile(open("program.py").read(), "program.py", "exec")
 
@@ -78,7 +91,7 @@ class ProgramRunner:
     def __init__(self, source: str, memory=None):
         self.source, self.memory = source, memory
         self.worker: Worker | None = None
-        self.calls = self.errors = self.lines = 0
+        self.calls = self.errors = self.lines = self.measured = 0
         self.first_error: str | None = None
         self.dead = False
 
@@ -101,7 +114,9 @@ class ProgramRunner:
         r = self.worker.run({"kind": "call", "target": "harness.py:call", "args": args,
                              "caller": {"memory": self.memory, **caller}})
         self.calls += 1
-        self.lines += max(0, int(r.get("work_lines") or 0))     # parent-measured work units, never self-reported
+        w = max(0, int(r.get("work_lines") or 0))                # parent-measured work units, never self-reported
+        self.measured += w
+        self.lines += billed_units(w)
         if not r.get("ok"):
             err = r.get("error") or {}
             if err.get("type") in ("Timeout", "WorkerDied", "WorkerDead"):

@@ -402,6 +402,17 @@ def bottleneck(view, env):
     del sp
 
 
+def public_inventory_terms(view) -> tuple[float, float]:
+    """(fixed cost per order, holding cost per unit and tick) read from the brief the participant receives."""
+    import re
+    brief = " ".join(str(b) for b in (view.spec.get("brief") or {}).values())
+    m_k = re.search(r"each order costs ([0-9.]+) cents", brief)
+    m_h = re.search(r"every unit on hand costs ([0-9.]+) cents per tick", brief)
+    if not (m_k and m_h):
+        raise ValueError("the brief states no order and holding costs")
+    return float(m_k.group(1)), float(m_h.group(1))
+
+
 def inventory(view, env, window: int = 8, z: float = 1.0):
     """(s, Q) replenishment from public information. Demand per tick = units sold + customers turned away (recent
     window: the season moves it); the lead time is learned from deliveries (the on-order count falls); every order
@@ -414,7 +425,7 @@ def inventory(view, env, window: int = 8, z: float = 1.0):
     g = c["gauge_names"]
     gs, gsold, glost = g[0], g[1], g[2]
     gexp = None                # the expiry gauge, if the world reports one (perishable stock)
-    K, h = float(c["order_fixed"]), float(c["holding_cost"])
+    K, h = public_inventory_terms(view)
     dem, outstanding, leads = [], [], []
     lots = []                  # [delivery tick, units left] in the order customers take them (oldest first)
     shelf_lo, shelf = 1, None  # the shelf life exceeds the age of every lot seen with units left; = age at expiry
