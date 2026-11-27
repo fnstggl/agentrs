@@ -1,0 +1,170 @@
+{
+ "workstream": "S",
+ "commit": "d74f8108c418b6b2d788567b6c00e811c07bf686",
+ "summary": "cam_live.eval built and committed with a prespecified protocol (docs/S/PROTOCOLS.md, committed before the main runs). Main experiments were launched from a frozen snapshot (commit a8444e6) and were still running when this status was written; no main result has been analysed yet, so no requirement is claimed as validated.",
+ "requirements": {
+  "SV-01": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/eval/"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [],
+   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+  },
+  "SV-02": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/eval/"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [],
+   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+  },
+  "SV-03": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/eval/"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [],
+   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+  },
+  "SV-04": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/eval/"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [],
+   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+  },
+  "SV-05": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/eval/"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [],
+   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+  },
+  "SV-06": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/eval/"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [],
+   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+  },
+  "SV-07": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/eval/"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [],
+   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+  },
+  "SV-08": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/eval/"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [],
+   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+  },
+  "SV-09": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/eval/"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [],
+   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+  },
+  "SV-10": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/eval/"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [],
+   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+  },
+  "SV-12": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/eval/"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [],
+   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+  },
+  "CL-07": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/eval/"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [],
+   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+  },
+  "AE-07": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/eval/"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [],
+   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+  }
+ },
+ "public_api": [
+  "python -m cam_live.eval.cli run|batch|transfer-batch|analyse|integrity|meta|scaling|large",
+  "cam-live evaluate-transfer --checkpoint <ckpt> [--baseline <pre>] (cam_live.eval.transfer.main)",
+  "cam_live.eval.conditions.build_condition(cond, cfg, run_dir, seed=, clock=)"
+ ],
+ "change_requests": [
+  "docs/change_requests/S.md: S-1 runtime drain after decision budget, S-2 scaler not in weights-only export"
+ ],
+ "measured": {
+  "tests": "tests/eval: test_stats_envs 9 passed; test_conditions_transfer 13 passed (incl. fresh-process evaluate-transfer via runtime CLI); test_analysis 3 passed; test_meta_integrity 2 passed, attack-battery test timed out at 900 s on a loaded machine (now slow-marked and smaller, not re-run)",
+  "pilot_excluded": "seeds 900-901, debug scale: all conditions near the uniform anchor (verified progress ~0.25-0.49 vs uniform 0.26, oracle 1.0); used only to set q and targets",
+  "real_backbone_smoke": "frozen Qwen3-4B letter chooser (A) runs: 4 decisions, GPU peak 8.5 GB"
+ },
+ "not_done": [
+  "main_cpu batch (70 runs), real-backbone plan (E s0-2, A/B s0-3), scaling (5m-150m), transfer_cpu / frozen_cpu, integrity, meta: launched, not analysed; outputs under runs/cam_live/eval/snapshots/a8444e6a9838/runs/cam_live/eval and runs/cam_live/eval/{results,ckpts}/real; evidence JSON of integrity/meta is written inside the overlay snapshot's docs/evidence/S and must be copied",
+  "docs/S/RESULTS.md not written (no analysed results)",
+  "CU-33 (primitive vs skills with the learner in the loop) not implemented",
+  "500m / 1b instantiation not run"
+ ],
+ "scientific_failures": []
+}

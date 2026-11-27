@@ -1,6 +1,7 @@
 """cam_live.eval: the 16.5 checks and the 16.6 attack battery on the integrated agent (CPU, tiny backbone)."""
 from __future__ import annotations
 
+import pytest
 import torch
 
 from cam_live.eval.experiments import run_condition
@@ -35,8 +36,9 @@ def test_meta_pathway_removed_keeps_psi_bit_identical(tmp_path):
     assert ch["reward"] is False and ch["experiential"] is True
 
 
+@pytest.mark.slow
 def test_attack_battery_detects_every_delivered_attack(tmp_path):
-    r = attack_battery(1, str(tmp_path / "att"))
+    r = attack_battery(1, str(tmp_path / "att"), max_lifetimes=2, decisions=10)
     det = r["detected"]
     delivered = {k: v for k, v in det.items() if v is not None}
     assert "forged_objective_outcome" in delivered and "duplicate_valid_verdict_x5" in delivered

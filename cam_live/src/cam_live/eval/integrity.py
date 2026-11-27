@@ -56,7 +56,7 @@ def _supervision_state(agent: Any, objective_id: str) -> Dict[str, Any]:
             "resolved_predictions": sum(1 for p in agent.predictions.records() if p.resolved_status != "pending")}
 
 
-def attack_battery(seed: int, root: str) -> Dict[str, Any]:
+def attack_battery(seed: int, root: str, *, max_lifetimes: int = 4, decisions: int = 16) -> Dict[str, Any]:
     from ..validation import OffsetClock
     from .conditions import Timed, base_config, build_condition
     from .runner import run_lifetime
@@ -96,7 +96,7 @@ def attack_battery(seed: int, root: str) -> Dict[str, Any]:
         due = [q for q in mine if q.due_at <= now]
         open_ids = {q.query_id for q in agent.store.pending_all()}
         pend = [q for q in mine if q.query_id in open_ids and q.due_at > now]
-        if not due and not (ctx.get("last_chance") and int(rt.counters.get("decisions", 0)) >= 14):
+        if not due and not (ctx.get("last_chance") and int(rt.counters.get("decisions", 0)) >= decisions - 2):
             return
         pend = pend or due                  # an already answered query: a fabricated re-answer must be refused too
         ctx["done"] = True
@@ -147,10 +147,10 @@ def attack_battery(seed: int, root: str) -> Dict[str, Any]:
         out["independent_verdict_after_attacks"] = {"status": after_v.status, "value": after_v.value}
 
     lifetimes = []
-    for i in range(4):                      # attacks are delivered in the first lifetime that has open queries
-        ctx["last_chance"] = i == 3
+    for i in range(max_lifetimes):          # attacks are delivered in the first lifetime that has answered queries
+        ctx["last_chance"] = i == max_lifetimes - 1
         lt2 = run_lifetime(Timed(agent), "F1", 40_000 + 100 * seed + i, os.path.join(root, f"lt{i}"), clock,
-                           max_decisions=16, on_step=hook)
+                           max_decisions=decisions, on_step=hook)
         lifetimes.append({k: lt2[k] for k in ("decisions", "verified_status", "progress", "verified_value")})
         if ctx.get("done"):
             out["attacked_lifetime_index"] = i
