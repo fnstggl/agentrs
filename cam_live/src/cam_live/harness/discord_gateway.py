@@ -186,12 +186,21 @@ class GatewayWindow:
         def clean(text: Any) -> str:
             return str(text).replace(token, "[token]")
 
+        # A GatewayError is always raised outside the ``except`` block that noticed the problem, so that it carries
+        # no ``__context__``: the original exception (whose text may repeat what was sent) is not kept reachable.
+        failure: Optional[GatewayError] = None
+        ws: Any = None
         try:
             ws = connect(gateway_connect_url(self.url), open_timeout=self.open_timeout_s, close_timeout=2.0,
                          ping_interval=None, max_size=16 * 1024 * 1024, proxy=None,
                          user_agent_header=f"{self.library} (gateway window)")
         except (OSError, WebSocketException, TimeoutError) as e:
-            raise GatewayError("network", clean(f"could not connect to the gateway: {type(e).__name__}: {e}")) from None
+            failure = GatewayError("network", clean(f"could not connect to the gateway: {type(e).__name__}: {e}"))
+        if failure is not None:
+            raise failure
+        enter = getattr(ws, "__enter__", None)          # the connection is closed explicitly below, with a stated code
+        if callable(enter):
+            ws = enter()
         out: Dict[str, Any] = {
             "session_ok": False, "ended_by": "", "requested_s": self.seconds, "window_s": 0.0,
             "intents": list(self.intents), "events": [], "counts": {}, "guilds": 0, "configured_guild_listed": False,
@@ -225,8 +234,9 @@ class GatewayWindow:
                     out["ended_by"] = "window"
                     break
                 if not identified and now >= hello_by:
-                    raise GatewayError("network", "the gateway sent no Hello within "
-                                                  f"{self.hello_timeout_s:g} s of connecting")
+                    failure = GatewayError("network", f"the gateway sent no Hello within {self.hello_timeout_s:g} s "
+                                                      f"of connecting")
+                    break
                 if next_hb is not None and now >= next_hb:
                     if awaiting_ack:        # no ACK between two heartbeats: a failed ("zombied") connection
                         out["ended_by"], close_code = "heartbeat_not_acknowledged", 4000
@@ -244,14 +254,15 @@ class GatewayWindow:
                     code = getattr(rcvd, "code", None)
                     out["close_code"] = code
                     if code in PERMISSION_CLOSE_CODES:
-                        raise GatewayError("permission", describe_close(code), close_code=code) from None
-                    if not out["session_ok"]:
+                        failure = GatewayError("permission", describe_close(code), close_code=code)
+                    elif not out["session_ok"]:
                         kind = "limit" if code == 4008 else "network" if (code is None or CLOSE_CODES.get(
                             code, ("", "", True))[2]) else "protocol"
-                        raise GatewayError(kind, "the gateway closed the connection before a session started: "
-                                           + describe_close(code, clean(getattr(rcvd, "reason", "") or "")),
-                                           close_code=code) from None
-                    out["ended_by"] = f"closed:{code if code is not None else 'none'}"
+                        failure = GatewayError(kind, "the gateway closed the connection before a session started: "
+                                               + describe_close(code, clean(getattr(rcvd, "reason", "") or "")),
+                                               close_code=code)
+                    else:
+                        out["ended_by"] = f"closed:{code if code is not None else 'none'}"
                     break
                 try:
                     msg = json.loads(raw if isinstance(raw, str) else bytes(raw).decode("utf-8"))
@@ -287,18 +298,18 @@ class GatewayWindow:
                     if len(out["events"]) >= self.max_events:
                         out["ended_by"], out["truncated"] = "max_events", True
                         break
-        except GatewayError:
-            close_code = 1000
-            raise
         except (OSError, WebSocketException) as e:
             if not out["session_ok"]:
-                raise GatewayError("network", clean(f"gateway connection failed: {type(e).__name__}: {e}")) from None
-            out["ended_by"] = out["ended_by"] or f"error:{type(e).__name__}"
+                failure = GatewayError("network", clean(f"gateway connection failed: {type(e).__name__}: {e}"))
+            else:
+                out["ended_by"] = out["ended_by"] or f"error:{type(e).__name__}"
         finally:
             try:
                 ws.close(close_code)        # 1000 invalidates the session: this adapter never resumes
             except Exception:  # noqa: BLE001 — the connection may already be gone
                 pass
+        if failure is not None:
+            raise failure
         out["window_s"] = round(self._monotonic() - started, 3)
         if not out["session_ok"]:
             why = {"invalid_session": "the gateway answered Identify with Invalid Session (opcode 9, resumable: "
