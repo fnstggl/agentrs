@@ -9,12 +9,12 @@
   "cache_hits": 3017.0,
   "cache_invalidations": 1.0,
   "cache_misses": 120.0,
-  "embed_s": 5.612386226654053,
+  "embed_s": 1.0182440280914307,
   "embedded_texts": 167.0,
   "embedded_tokens": 2404.0,
   "generate_s": 0.0,
   "generated_tokens": 0.0,
-  "load_s": 51.27998971939087,
+  "load_s": 5.716731548309326,
   "truncated_tokens": 0.0
  },
  "counters": {
@@ -40,7 +40,7 @@
   },
   "grad_norms": {
    "experiential": 0.3438902199268341,
-   "heads": 13.684996604919434
+   "heads": 13.684985160827637
   },
   "hash_changed": {
    "experiential": true,
@@ -104,11 +104,11 @@
    "policy.action_probs": 0.00025488209212198853,
    "world.pred_mean": 0.04869192838668823
   },
-  "seconds": 17.023681447375566,
+  "seconds": 2.6624531988054514,
   "trigger": "matured_outcomes:18_independent/18_rows",
   "weight_delta": {
    "experiential": 0.2528763711452484,
-   "heads": 0.018625294789671898
+   "heads": 0.01861485093832016
   }
  },
  "frequent_replay": {
@@ -124,7 +124,7 @@
    "semantic_adapters": false
   },
   "losses": {
-   "cocoa": 2.197190523147583,
+   "cocoa": 2.1971943378448486,
    "rudder": 0.4637536108493805,
    "world": 0.3597927391529083
   },
@@ -173,17 +173,17 @@
   ],
   "peak_gpu_gb": 9.095925331115723,
   "prediction_change": {
-   "latent_b": 0.26135963201522827,
-   "latent_z": 0.3477095663547516,
-   "max_abs": 0.3477095663547516,
-   "policy.action_probs": 0.0005107035394757986,
-   "world.pred_mean": 0.0328521728515625
+   "latent_b": 0.2613595724105835,
+   "latent_z": 0.3477095365524292,
+   "max_abs": 0.3477095365524292,
+   "policy.action_probs": 0.0005107049946673214,
+   "world.pred_mean": 0.032852113246917725
   },
-  "seconds": 6.098190767224878,
+  "seconds": 0.7278398219496012,
   "trigger": "replay",
   "weight_delta": {
    "experiential": 0.3347485661506653,
-   "heads": 0.048626985400915146
+   "heads": 0.048033490777015686
   }
  },
  "gpu_gb_after_load": 7.820958137512207,
@@ -194,7 +194,7 @@
   "world": 238118,
   "world_norm": 0
  },
- "load_seconds": 58.46955356374383,
+ "load_seconds": 7.478732713032514,
  "parameters": {
   "backbone_frozen": 4022468096,
   "experiential": 50953765,
@@ -222,8 +222,8 @@
    "semantic_adapters": true
   },
   "losses": {
-   "bridge_grounding": 8.025407791137695,
-   "world": 0.36039063334465027
+   "bridge_grounding": 8.025408744812012,
+   "world": 0.36039045453071594
   },
   "n_experiences": 4,
   "notes": {
@@ -232,12 +232,12 @@
     "lora": 0.015133644454181194
    },
    "adapter_grad_norm": {
-    "bridge": 3.7784781455993652,
-    "lora": 4.110069751739502
+    "bridge": 3.778477907180786,
+    "lora": 4.11007022857666
    },
    "adapter_grad_norm_by_loss": {
     "bridge_grounding": 5.582943916320801,
-    "world": 0.0009937570430338383
+    "world": 0.0009938043076545
    },
    "balance_scale": null,
    "behaviour_changed": true,
@@ -245,8 +245,8 @@
    "experiential_share_applied": null,
    "flag": null,
    "guard": {
-    "validation_after": 3.4861383587121964,
-    "validation_before": 3.478714808821678
+    "validation_after": 3.4846725463867188,
+    "validation_before": 3.3413895815610886
    },
    "lr": {
     "semantic_adapters": 6.25e-06
@@ -266,13 +266,13 @@
   ],
   "peak_gpu_gb": 8.846506118774414,
   "prediction_change": {
-   "latent_b": 0.004722477402538061,
-   "latent_z": 0.0060352846048772335,
-   "max_abs": 0.0060352846048772335,
-   "policy.action_probs": 2.9194685339462012e-05,
-   "world.pred_mean": 0.00036215782165527344
+   "latent_b": 0.004724639933556318,
+   "latent_z": 0.006065973546355963,
+   "max_abs": 0.006065973546355963,
+   "policy.action_probs": 2.9096587240928784e-05,
+   "world.pred_mean": 0.000437319278717041
   },
-  "seconds": 11.98776205116883,
+  "seconds": 2.6036708331666887,
   "trigger": "replay",
   "weight_delta": {
    "semantic_adapters": 0.017484983429312706
