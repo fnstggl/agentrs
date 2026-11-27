@@ -431,6 +431,20 @@ a hand-picked host (the focus would be the experimenter's knowledge, not the lea
 learner's parameter changes (the audit's point: changed parameters are not learning). What the statistical learner
 learns in crisis is reported as it is: to claim the coordinator's emergency fund and not spend it on parts, fuel,
 mutual aid or investments (the cash outcome improves; nothing about the recovery mechanism is claimed).
+Amendment (2026-11-27, workstream L repair pass after the independent verification of 507adb24; no reserved id
+is left, a new id is requested from the orchestrator - integration note - and this text moves there unchanged): the
+SP-11.6c improvement above was degenerate in two tiers - Tier 1's trained copy was bit-identical to doing nothing on
+all four held-out seeds, Tier 2's gain was the $60,000 grant held unspent (the crisis domain's own verdict equal for
+the trained, frozen and do-nothing copies). The rule is made non-degenerate (stricter, never weaker): a tier counts
+only when the trained copy beats the frozen copy AND the do-nothing outcome, each on the mean and on at least 3 of 4
+held-out seeds; in the kernel tiers the outcome is the money the learner EARNED over the evaluation (the ledger
+entries of its own accounts written during the run, unconditional transfers excluded: ledger kinds `endowment` and
+`grant`), its cash and (Tier 2) the domain's own verdict reported beside it. Rejected: keeping cash as the outcome
+(it scores hoarding a grant and inaction as learning); the domain verdict as the only Tier 2 outcome (none of the
+reference learners moves any Part 9 verdict within the budget; it stays reported); a hand-written "hoarding"
+baseline (the do-nothing comparison with earned money covers it without a policy written for the case). With the
+current reference learners this measurement is expected to show improvement in fewer than three tiers; that is
+reported as the state of the reference learners, not hidden.
 
 ## D-54 Education on the one population; learning measured on new problems (2026-11-26, workstream I-2 dom2)
 The education module `learn` keeps no learners of its own (v1 created 40 NPC learner persons and crashed on every
