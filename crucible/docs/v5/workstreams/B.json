@@ -594,7 +594,8 @@
    "trial merge (this branch + c5c/w3b-soc + c5c/w3b-sem): SP-3.2 (class 4) and SP-4.0": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_T.log, evidence /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/evidence_T",
    "regression of population-dependent tests (25 files)": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_R2.full"
   },
-  "regression at 178cab6 (predecessor, GPU slot)": "351 passed, 6 failed of 357: test_v5_calibration_inworld x4 (fixture grants; c5c/w3b-kcal updated the test file for this branch), test_v5_substrate_history::test_events_of_an_individual_include_its_cohort_decisions and test_v5_econ_work::test_demand_comes_from_population_individuals_paying_their_own_money (both assume pre-D-30 population behaviour; precise patches in integration_notes)"
+  "regression at 178cab6 (predecessor, GPU slot)": "351 passed, 6 failed of 357: test_v5_calibration_inworld x4 (fixture grants; c5c/w3b-kcal updated the test file for this branch), test_v5_substrate_history::test_events_of_an_individual_include_its_cohort_decisions and test_v5_econ_work::test_demand_comes_from_population_individuals_paying_their_own_money (both assume pre-D-30 population behaviour; precise patches in integration_notes)",
+  "tests/test_v5_population_core.py tests/test_v5_population_api.py tests/test_kernel.py tests/test_invariants.py (9fcb0a0e, CPU, one run)": "76 passed, 0 failed"
  },
  "performance": {
   "world": "population_world('development', 41, n=1500, sites=14, 32 adaptive, no strategic/semantic), strict, one CPU thread, CUDA hidden, warm machine text cache, days 2-4, no profiler (probe perfcmp.py)",
