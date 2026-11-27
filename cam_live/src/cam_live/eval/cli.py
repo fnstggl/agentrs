@@ -99,7 +99,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 
 # ------------------------------------------------------------------------------------------------ analyse
-EVIDENCE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "docs", "evidence", "S")
+#: committed evidence; ``CAM_LIVE_EVAL_EVIDENCE`` overrides it (a snapshot would otherwise write inside itself)
+EVIDENCE = os.environ.get("CAM_LIVE_EVAL_EVIDENCE") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
+                                                                    "..", "..", "docs", "evidence", "S")
 
 
 def _write(name: str, obj: dict) -> str:
