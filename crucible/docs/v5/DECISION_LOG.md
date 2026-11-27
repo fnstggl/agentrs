@@ -446,3 +446,39 @@ interface version), so Compatibility and Technical constraints are counted only 
 or the world's unrelated retail sales. The reference's program has a short plan for plants whose runs are slow (under
 one a day: no time for a five-point star within a trial); measured over every configuration x seeds 0-2 it succeeds
 on 9 of 15 instances with the plan and on 2 of the first 9 without it.
+
+**Addendum to D-54, D-55, D-56 (2026-11-27, workstream I-2 dom2): the five dom2 domains on `domains-framework/3`.**
+Merged c5c/w3b-domfw `ready v2` and migrated 9.6-9.10. (1) Objectives come from goal generators
+(`Domain.goal = GoalFamily`), each over evaluator-only metrics registered by the domain module
+(`infra_cost_reduction` + `infra_reliability_preserved`, `education_independent_readers` +
+`education_significant_effect`, `labor_stages_delivered` + `labor_team`, `industry_operating_profit` +
+`industry_supply_resilient`, `invention_independent_adopters` + `invention_expected_gain`); the domains keep their
+`evaluate` (the framework's `judge` prefers it) and read the generated `params`. 9.9 had no difficulty knob (every
+level asked for every stage by the commission's deadline: identical texts): the level is now the due time (30, 24, 18
+days, the draw takes up to a day off). References receive only the objective text: the labour reference parses its
+company, project, offer, quality bar and due time from it, the infrastructure reference its window. (2) Structure is
+read from built state: `learn.meta` writes the education system's row (`learn_world`: curriculum, channels, authors,
+textbook, cohorts) and the hook also counts published textbook chapters; `techmkt` records its scope
+(`tech.market`); the fleet's hazards (fibre-cut rate, heat-wave rate) are in its regime row and the hook reads the
+built conf (network graph, sites, tariff, thermal, breakers, power caps, batch) and the demand phases (follow the
+sun); placement atoms were dropped (the framework's core fingerprint measures social locality). (3) Evidence
+functions return event sequence numbers; Energy (9.7) is evidenced by the operator's energy payments
+(`bank.txn{kind=energy}`) and Compute also by machines entering service (`fleet.ready`), because hour events alone made
+Compute, Networking and Energy one indistinct set; Retention (9.9) by satisfaction updates (`labor.worker_update`
+carrying `satisfaction`) plus quits and departures. (4) Actors are participant decisions only: dropped `workers`
+(9.9: `labor.perf` is recorded by the labour market's process), `board_of_education` (9.10: recorded by `learn`'s
+assessment process) and `repair_crew` (9.7: the operator's employees, recorded by the hour process); population
+authors are counted by their `learn.teach` decisions. (5) 9.7 autonomy: the tenants' reviews and releases ran inside
+the operator's billing process (`fleet.daily`), so the framework's autonomy ablation would have frozen billing; they
+now run in their own process `fleet.tenants` (FR-FLEET-TENANTS), every daily review records the tenant's share
+decision (also when it keeps its share), and the evaluator requires every service to have been reviewed by its
+tenant in the last week: with the users' and tenants' processes frozen the reference fails (single_site_tou s0:
+0 of 3 services reviewed). Release trains no longer flip a daily coin (the dice scan flagged it): a tenant releases
+every `release_every` days. (6) 9.7 counterfactual noise: every recorded command, reading ones too, shifts the
+main-line position the population's draws (`pop.tick`, `ctx.rng`) are keyed by, so the policy world and the idle
+counterfactual diverge as soon as the seat calls any tool; on follow_sun_heat s0 a seat that only reads lost 0.0036 and
+0.020 of a day's attainment in its first two days (0.00089 over the window, against the 0.001 tolerance). The
+evaluator now compares attainment and users' departures from the hour of the participant's first state-changing
+command (before it, nothing that differs is the participant's doing); the kernel-level fix (population draws keyed by
+time, not by command position) is requested in I-2.json. The reference keeps warm failover for a whole neighbour's work
+when it has seen fibre cuts (a cut hands a region to its next-nearest site).
