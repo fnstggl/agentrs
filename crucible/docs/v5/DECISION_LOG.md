@@ -553,7 +553,7 @@ sample, always admitted in full and reported on their own (`fixed_sample_worlds_
 worlds are validated or 1000 structures are walked (`genadmit.admit_until`; the count is that of the stream prefix up
 to the stop structure, independent of parallelism). Nothing about the generator, the eleven checks, the references or
 the world seeds changes; the yield (`validated_share`, worlds checked, structures walked) is reported with the count,
-so a low-yield generator is visible as such. Structures 201-1000 of the stream were never used in development. Whatever
+so a low-yield generator is visible as such. No world of structures 201-1000 of the stream was ever built, admitted or scored in development (a wave-3b probe counted only the structural fields - drivers, levers, populations - of the first 300 structures to size the addendum-1 sample). Whatever
 the run measures is reported.
 
 ## D-70 Level 5 is measured as a paired transfer experiment on another tier, interface and simulator (2026-11-26, workstream N, wave 3b)
