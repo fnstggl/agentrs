@@ -83,8 +83,8 @@
    "tests": [
     "tests/v5/test_gate_R.py"
    ],
-   "status_claim": "implemented; gate passes",
-   "notes": ""
+   "status_claim": "implemented; passed at b3a07b1 (GPU slot); FAILED at 684eeb5 (GPU slot, undiagnosed); passes on CPU at HEAD",
+   "notes": "; wave 3b (3): FAILED in the head slot job at 684eeb5 (GPU slot, 04:27 UTC; the failure details print at the end of that run, gates_oo_t2.log), while leakage.legacy_check() on the CPU at HEAD gave 10 of 10 identical runs three times in a row; nothing on this branch since b3a07b1 (where R.6 passed in a GPU slot) touches the compared environments (MechVecEnv, KernelMechEnv, SelfPlayEnv, KernelSelfPlayEnv, the 4.0 learners, Gym/PettingZoo/WorldEnv on 'tiny'), so a run-to-run nondeterminism of the GPU slot environment is suspected - not yet diagnosed"
   },
   "R.7": {
    "implementation_files": [
