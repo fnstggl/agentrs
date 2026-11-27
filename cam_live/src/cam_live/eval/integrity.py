@@ -96,8 +96,9 @@ def attack_battery(seed: int, root: str) -> Dict[str, Any]:
         due = [q for q in mine if q.due_at <= now]
         open_ids = {q.query_id for q in agent.store.pending_all()}
         pend = [q for q in mine if q.query_id in open_ids and q.due_at > now]
-        if not (pend and due) and not (ctx.get("last_chance") and int(rt.counters.get("decisions", 0)) >= 14):
+        if not due and not (ctx.get("last_chance") and int(rt.counters.get("decisions", 0)) >= 14):
             return
+        pend = pend or due                  # an already answered query: a fabricated re-answer must be refused too
         ctx["done"] = True
         true_v = verifier.verify(task)
         ctx["true_v"] = true_v
@@ -128,8 +129,7 @@ def attack_battery(seed: int, root: str) -> Dict[str, Any]:
                 attacks["inflated_signed_measurement"]["verifier_accepts"] = verifier.check_measurement(infl)
         v = verifier.verify(task)
         run("duplicate_valid_verdict_x5", task, verified=v, repeat=5)
-        preds = [p for p in agent.predictions.records() if p.resolved_status == "pending"
-                 and p.query.query_id in {q.query_id for q in pend}]
+        preds = [p for p in agent.predictions.records() if p.resolved_status == "pending"]
         if preds:
             p = preds[0]
             stale = OutcomeObservation(p.query.query_id, OutcomeStatus.OBSERVED, 3.0,
