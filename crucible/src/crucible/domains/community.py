@@ -36,6 +36,7 @@ and moderates reports.
 from __future__ import annotations
 
 import math
+import zlib
 
 import numpy as np
 
@@ -583,7 +584,7 @@ def reference_script(post_every_s: int = DAY):
             while True:
                 yield None
         cid = res["community"]
-        rng = np.random.default_rng(abs(hash(cid)) % (2 ** 31))
+        rng = np.random.default_rng(zlib.crc32(str(cid).encode()))     # stable across processes (no salted hash)
         k, last_event = 0, -10 ** 9
         while True:
             title, body = writing.compose(rng, best_t, 6, 0.9)
