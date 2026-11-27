@@ -1,0 +1,1043 @@
+{
+ "workstream": "W7 LEARN",
+ "branch": "worktree-wf_477a68f9-804-7",
+ "commit_at_summary": "30f0ee60a2130a95d97d831e7218f176a51bc280",
+ "suite_commit": "7bb036b",
+ "cpu_suites": {
+  "command": "OMP_NUM_THREADS=4 CUDA_VISIBLE_DEVICES= PYTHONPATH=src:../crucible/src python -m pytest -q -m \"not gpu and not slow\" tests/cam_unified/<suite> (one suite per invocation: dist/ and integration/ conftests collide when collected together)",
+  "learn_at_7bb036b": "120 passed, 3 deselected in 109.35s",
+  "integration_at_7bb036b": "97 passed, 5 skipped, 2 deselected, 2 warnings in 45.57s",
+  "dist_at_7bb036b": "65 passed, 9 deselected in 139.50s (a first attempt was killed by a 900 s timeout under CPU contention while the e2e ran)",
+  "dom_cpu_at_7bb036b": "4 passed, 6 deselected",
+  "new_tests": [
+   "test_share_guard_solves_into_the_ranges_by_down_scaling_only",
+   "test_share_guard_correction_gives_the_gradient_of_the_scaled_sum",
+   "test_step_with_the_guard_reports_applied_and_measured_core_shares",
+   "test_from_system_builds_the_learner_hook_of_the_canonical_factory",
+   "test_meta_window_spans_rounds_suspends_the_slow_step_and_reads_verified_query_utilities",
+   "test_meta_window_aborts_without_query_labels_and_on_checkpoint",
+   "test_joined_label_batch_uses_w8_label_join_with_grad_rows_for_this_update"
+  ]
+ },
+ "e2e": {
+  "final_observation_only": {
+   "file": "docs/evidence/dom/W7/w7_e2e_dom_dev.json",
+   "commit": "7bb036bdb85c37e3351103a3ec87fc04366707fa",
+   "n_updates": 19,
+   "decisions": 608,
+   "rounds": 152,
+   "episodes": 3,
+   "labels": 8,
+   "peak_gpu_gb": 15.888056755065918,
+   "wall_s": 895.6365354061127,
+   "device": "cuda",
+   "share_guard_on": true,
+   "stopped_early": "wall budget 860 s (shared GPU lock hold) reached after 19 updates",
+   "checks": {
+    "actor_core_share_ge_0.1": true,
+    "world_core_share_le_0.7": true,
+    "dom08_nonzero_present_groups": true,
+    "dom08_nonzero_all_required": false,
+    "stale_routed_to_vtrace": true,
+    "clip_rate_lt_0.5_after_warmup": true
+   },
+   "check_values": {
+    "actor_core_share_ge_0.1": {
+     "passed": true,
+     "values": [
+      0.38800000000000007,
+      0.3977661497019904,
+      0.38800000000000007,
+      0.388,
+      0.10309278350515465,
+      0.39894498005958484,
+      0.38800000000000007,
+      0.388,
+      0.39896929442062523,
+      0.10309278350515465,
+      0.1030927835051546
+     ],
+     "updates": [
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+     ],
+     "final": 0.1030927835051546
+    },
+    "world_core_share_le_0.7": {
+     "passed": true,
+     "values": [
+      0.3722671182457481,
+      0.43650000000000005,
+      0.4455219641938679,
+      0.44769192130844443,
+      0.4139565463366078,
+      0.43650000000000005,
+      0.447369186280249,
+      0.44766391671940003,
+      0.4365,
+      0.39881000478364387,
+      0.39733148803719676
+     ],
+     "updates": [
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+     ],
+     "final": 0.39733148803719676
+    },
+    "dom08_nonzero_present_groups": {
+     "passed": true,
+     "table": {
+      "core.block0": "nonzero",
+      "core.block_mid": "nonzero",
+      "core.block_last": "nonzero",
+      "sem_proj": "nonzero",
+      "core.sem_xattn_gate": "absent",
+      "reasoner": "nonzero",
+      "beliefs": "nonzero",
+      "world_model": "nonzero",
+      "intent": "absent",
+      "dec_xattn": "absent",
+      "exploration": "nonzero",
+      "policy": "nonzero",
+      "v_int": "nonzero",
+      "predictors": "absent"
+     },
+     "update": 2
+    },
+    "dom08_nonzero_all_required": {
+     "passed": false,
+     "absent": [
+      "core.sem_xattn_gate",
+      "dec_xattn",
+      "intent",
+      "predictors"
+     ],
+     "zero": []
+    },
+    "stale_routed_to_vtrace": {
+     "passed": true,
+     "n_stale_steps": 103,
+     "n_fresh_steps": 501
+    },
+    "clip_rate_lt_0.5_after_warmup": {
+     "passed": true,
+     "rate": 0.0,
+     "pairs": 162,
+     "warmup_updates": 8
+    }
+   },
+   "share_guard": {
+    "updates_probed": 19,
+    "updates_guarded": 19,
+    "updates_scaled": 19,
+    "unsatisfied_updates": [
+     1
+    ],
+    "min_scale": {
+     "world": 0.02,
+     "adapt": 0.02,
+     "actor": 0.04760384119140361,
+     "value": 0.02
+    },
+    "measured_actor_after_warmup_min": 0.00687554355244442,
+    "measured_adapt_after_warmup_max": 0.14434553742943598
+   },
+   "core_shares": [
+    {
+     "update": 1,
+     "world": 0.9381887938182012,
+     "adapt": 0.05568824391008434,
+     "actor": 0.006122962271714459,
+     "value": 0.0,
+     "pred": null
+    },
+    {
+     "update": 2,
+     "world": 0.4364999999999997,
+     "adapt": 0.27017282926181013,
+     "actor": 0.2882747778098855,
+     "value": 0.005052392928304687,
+     "pred": null
+    },
+    {
+     "update": 3,
+     "world": 0.4475596024292735,
+     "adapt": 0.4365,
+     "actor": 0.11406548679996324,
+     "value": 0.0018749107707632963,
+     "pred": null
+    },
+    {
+     "update": 4,
+     "world": 0.44641636361393955,
+     "adapt": 0.12966082569661366,
+     "actor": 0.388,
+     "value": 0.035922810689446756,
+     "pred": null
+    },
+    {
+     "update": 5,
+     "world": 0.4365,
+     "adapt": 0.1619346227291416,
+     "actor": 0.3793290340789802,
+     "value": 0.022236343191878154,
+     "pred": null
+    },
+    {
+     "update": 6,
+     "world": 0.44605256785553465,
+     "adapt": 0.13467180707210671,
+     "actor": 0.38799999999999996,
+     "value": 0.03127562507235861,
+     "pred": null
+    },
+    {
+     "update": 7,
+     "world": 0.44941293411669225,
+     "adapt": 0.11373447427958273,
+     "actor": 0.38800000000000007,
+     "value": 0.04885259160372498,
+     "pred": null
+    },
+    {
+     "update": 8,
+     "world": 0.4365,
+     "adapt": 0.19406798647596632,
+     "actor": 0.2939132782139001,
+     "value": 0.07551873531013356,
+     "pred": null
+    },
+    {
+     "update": 9,
+     "world": 0.3722671182457481,
+     "adapt": 0.17214739390832742,
+     "actor": 0.38800000000000007,
+     "value": 0.06758548784592447,
+     "pred": null
+    },
+    {
+     "update": 10,
+     "world": 0.43650000000000005,
+     "adapt": 0.1060370774579445,
+     "actor": 0.3977661497019904,
+     "value": 0.05969677284006503,
+     "pred": null
+    },
+    {
+     "update": 11,
+     "world": 0.4455219641938679,
+     "adapt": 0.14286528489423228,
+     "actor": 0.38800000000000007,
+     "value": 0.02361275091189984,
+     "pred": null
+    },
+    {
+     "update": 12,
+     "world": 0.44769192130844443,
+     "adapt": 0.09351113470203283,
+     "actor": 0.388,
+     "value": 0.07079694398952278,
+     "pred": null
+    },
+    {
+     "update": 13,
+     "world": 0.4139565463366078,
+     "adapt": 0.2648168752399905,
+     "actor": 0.10309278350515465,
+     "value": 0.21813379491824697,
+     "pred": null
+    },
+    {
+     "update": 14,
+     "world": 0.43650000000000005,
+     "adapt": 0.09561497733289014,
+     "actor": 0.39894498005958484,
+     "value": 0.068940042607525,
+     "pred": null
+    },
+    {
+     "update": 15,
+     "world": 0.447369186280249,
+     "adapt": 0.0789977219085302,
+     "actor": 0.38800000000000007,
+     "value": 0.08563309181122075,
+     "pred": null
+    },
+    {
+     "update": 16,
+     "world": 0.44766391671940003,
+     "adapt": 0.11217945956487456,
+     "actor": 0.388,
+     "value": 0.052156623715725374,
+     "pred": null
+    },
+    {
+     "update": 17,
+     "world": 0.4365,
+     "adapt": 0.09830373139914672,
+     "actor": 0.39896929442062523,
+     "value": 0.0662269741802281,
+     "pred": null
+    },
+    {
+     "update": 18,
+     "world": 0.39881000478364387,
+     "adapt": 0.29523527798981375,
+     "actor": 0.10309278350515465,
+     "value": 0.2028619337213878,
+     "pred": null
+    },
+    {
+     "update": 19,
+     "world": 0.39733148803719676,
+     "adapt": 0.28047326193108557,
+     "actor": 0.1030927835051546,
+     "value": 0.21910246652656312,
+     "pred": null
+    }
+   ],
+   "core_shares_measured": [
+    {
+     "update": 1,
+     "world": 0.9438523828981432,
+     "adapt": 0.056024418603459976,
+     "actor": 0.00012319849839675207,
+     "value": 0.0,
+     "pred": null
+    },
+    {
+     "update": 2,
+     "world": 0.9093379361811792,
+     "adapt": 0.0434683696337988,
+     "actor": 0.04638080976602705,
+     "value": 0.0008128844189950644,
+     "pred": null
+    },
+    {
+     "update": 3,
+     "world": 0.055152034265494296,
+     "adapt": 0.9134892437216157,
+     "actor": 0.030488345534028374,
+     "value": 0.0008703764788617368,
+     "pred": null
+    },
+    {
+     "update": 4,
+     "world": 0.7978333708523959,
+     "adapt": 0.02017762225985676,
+     "actor": 0.17639875323395662,
+     "value": 0.005590253653790604,
+     "pred": null
+    },
+    {
+     "update": 5,
+     "world": 0.48682426427050973,
+     "adapt": 0.14747279353878384,
+     "actor": 0.345452451015151,
+     "value": 0.020250491175555482,
+     "pred": null
+    },
+    {
+     "update": 6,
+     "world": 0.42556369402280614,
+     "adapt": 0.0825831487738883,
+     "actor": 0.47267438731448974,
+     "value": 0.01917876988881588,
+     "pred": null
+    },
+    {
+     "update": 7,
+     "world": 0.5813856720981473,
+     "adapt": 0.07434461839089428,
+     "actor": 0.3123363198928106,
+     "value": 0.03193338961814792,
+     "pred": null
+    },
+    {
+     "update": 8,
+     "world": 0.5191088385465046,
+     "adapt": 0.16561770970251763,
+     "actor": 0.25082572799802444,
+     "value": 0.06444772375295338,
+     "pred": null
+    },
+    {
+     "update": 9,
+     "world": 0.2938869561081637,
+     "adapt": 0.13590207439238217,
+     "actor": 0.516855482735748,
+     "value": 0.05335548676370613,
+     "pred": null
+    },
+    {
+     "update": 10,
+     "world": 0.07015405893947625,
+     "adapt": 0.020284755085694887,
+     "actor": 0.8981412709272141,
+     "value": 0.011419915047614847,
+     "pred": null
+    },
+    {
+     "update": 11,
+     "world": 0.049597754631223435,
+     "adapt": 0.03693189265475639,
+     "actor": 0.9073662555387868,
+     "value": 0.006104097175233312,
+     "pred": null
+    },
+    {
+     "update": 12,
+     "world": 0.24038563890235431,
+     "adapt": 0.020820903445986576,
+     "actor": 0.7230300264862288,
+     "value": 0.015763431165430282,
+     "pred": null
+    },
+    {
+     "update": 13,
+     "world": 0.7902128938424641,
+     "adapt": 0.10395850411182717,
+     "actor": 0.02019635902726012,
+     "value": 0.08563224301844859,
+     "pred": null
+    },
+    {
+     "update": 14,
+     "world": 0.3668903342473794,
+     "adapt": 0.0671843601886686,
+     "actor": 0.517484226737561,
+     "value": 0.048441078826390996,
+     "pred": null
+    },
+    {
+     "update": 15,
+     "world": 0.3034873386940195,
+     "adapt": 0.042311816158916084,
+     "actor": 0.6083350714222057,
+     "value": 0.045865773724858644,
+     "pred": null
+    },
+    {
+     "update": 16,
+     "world": 0.43302303511895973,
+     "adapt": 0.08519907081397125,
+     "actor": 0.4421655096376014,
+     "value": 0.039612384429467705,
+     "pred": null
+    },
+    {
+     "update": 17,
+     "world": 0.13079132573996996,
+     "adapt": 0.025270569323370032,
+     "actor": 0.8269133865635281,
+     "value": 0.017024718373132054,
+     "pred": null
+    },
+    {
+     "update": 18,
+     "world": 0.7806153295476049,
+     "adapt": 0.12580526340525752,
+     "actor": 0.007136150060756651,
+     "value": 0.08644325698638093,
+     "pred": null
+    },
+    {
+     "update": 19,
+     "world": 0.7360178555743514,
+     "adapt": 0.14434553742943598,
+     "actor": 0.00687554355244442,
+     "value": 0.11276106344376823,
+     "pred": null
+    }
+   ],
+   "clip_rate_after_warmup": 0.0
+  },
+  "run1_onesided_targets": {
+   "file": "docs/evidence/dom/W7/w7_e2e_dom_dev_run1_onesided_targets.json",
+   "commit": "92c5928552efca622fc9d9d18a6689da2ace58b2",
+   "n_updates": 20,
+   "decisions": 640,
+   "rounds": 160,
+   "episodes": 3,
+   "labels": 8,
+   "peak_gpu_gb": 18.537102222442627,
+   "wall_s": 743.6145443916321,
+   "device": "cuda",
+   "reward_mode": "observation_only",
+   "checks": {
+    "actor_core_share_ge_0.1": true,
+    "world_core_share_le_0.7": true,
+    "dom08_nonzero_present_groups": true,
+    "dom08_nonzero_all_required": false,
+    "stale_routed_to_vtrace": true,
+    "clip_rate_lt_0.5_after_warmup": true
+   },
+   "core_shares": [
+    {
+     "update": 1,
+     "world": 0.9439270978041192,
+     "adapt": 0.05594951515539714,
+     "actor": 0.00012338704048357743,
+     "value": 0.0,
+     "pred": null
+    },
+    {
+     "update": 2,
+     "world": 0.8657536626363046,
+     "adapt": 0.10308652850203939,
+     "actor": 0.03080528077375161,
+     "value": 0.00035452808790436413,
+     "pred": null
+    },
+    {
+     "update": 3,
+     "world": 0.028854644627833756,
+     "adapt": 0.9557033992090649,
+     "actor": 0.01510957127252458,
+     "value": 0.0003323848905767969,
+     "pred": null
+    },
+    {
+     "update": 4,
+     "world": 0.13053611181820365,
+     "adapt": 0.222273223717577,
+     "actor": 0.6452412905129135,
+     "value": 0.0019493739513058506,
+     "pred": null
+    },
+    {
+     "update": 5,
+     "world": 0.14444992448867774,
+     "adapt": 0.12432563114876649,
+     "actor": 0.7284735847310109,
+     "value": 0.002750859631544886,
+     "pred": null
+    },
+    {
+     "update": 6,
+     "world": 0.024425391435621894,
+     "adapt": 0.019549691059394123,
+     "actor": 0.9554924709201813,
+     "value": 0.0005324465848025918,
+     "pred": null
+    },
+    {
+     "update": 7,
+     "world": 0.011979386644666587,
+     "adapt": 0.008641416006553828,
+     "actor": 0.9790971389742622,
+     "value": 0.00028205837451730184,
+     "pred": null
+    },
+    {
+     "update": 8,
+     "world": 0.02215302716115306,
+     "adapt": 0.05512283502406553,
+     "actor": 0.922092107112088,
+     "value": 0.0006320307026934783,
+     "pred": null
+    },
+    {
+     "update": 10,
+     "world": 0.11841970436688659,
+     "adapt": 0.13760213837708543,
+     "actor": 0.7405541553238777,
+     "value": 0.003424001932150277,
+     "pred": null
+    },
+    {
+     "update": 15,
+     "world": 0.022918497158599185,
+     "adapt": 0.025343278720482764,
+     "actor": 0.9506945292393973,
+     "value": 0.0010436948815205943,
+     "pred": null
+    },
+    {
+     "update": 20,
+     "world": 0.026309306325946146,
+     "adapt": 0.3170860846670781,
+     "actor": 0.6556268659425583,
+     "value": 0.0009777430644174996,
+     "pred": null
+    }
+   ],
+   "clip_rate_after_warmup": 0.0893854748603352,
+   "dom08_table": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   }
+  },
+  "run2_adapt_uncapped": {
+   "file": "docs/evidence/dom/W7/w7_e2e_dom_dev_run2_adapt_uncapped.json",
+   "commit": "577887570f3d25020465693c112b798b04e3883d",
+   "n_updates": 20,
+   "decisions": 640,
+   "rounds": 160,
+   "episodes": 3,
+   "labels": 8,
+   "peak_gpu_gb": 15.220264434814453,
+   "wall_s": 558.2227816581726,
+   "device": "cuda",
+   "reward_mode": "observation_only",
+   "checks": {
+    "actor_core_share_ge_0.1": false,
+    "world_core_share_le_0.7": true,
+    "dom08_nonzero_present_groups": true,
+    "dom08_nonzero_all_required": false,
+    "stale_routed_to_vtrace": true,
+    "clip_rate_lt_0.5_after_warmup": true
+   },
+   "core_shares": [
+    {
+     "update": 1,
+     "world": 0.9439772764176408,
+     "adapt": 0.05589926452432001,
+     "actor": 0.00012345905803912613,
+     "value": 0.0,
+     "pred": null
+    },
+    {
+     "update": 2,
+     "world": 0.8627106061777167,
+     "adapt": 0.1056055647978132,
+     "actor": 0.031323181061123785,
+     "value": 0.0003606479633462176,
+     "pred": null
+    },
+    {
+     "update": 3,
+     "world": 0.05017107829807331,
+     "adapt": 0.9366247743713559,
+     "actor": 0.012897515047042587,
+     "value": 0.0003066322835281763,
+     "pred": null
+    },
+    {
+     "update": 4,
+     "world": 0.5646260235640219,
+     "adapt": 0.1525022955386764,
+     "actor": 0.2816828999250087,
+     "value": 0.0011887809722930436,
+     "pred": null
+    },
+    {
+     "update": 5,
+     "world": 0.5605947526378736,
+     "adapt": 0.07658250100848936,
+     "actor": 0.36112018475565966,
+     "value": 0.0017025615979773224,
+     "pred": null
+    },
+    {
+     "update": 6,
+     "world": 0.602075290705883,
+     "adapt": 0.10434786915305314,
+     "actor": 0.29147967561589855,
+     "value": 0.0020971645251652783,
+     "pred": null
+    },
+    {
+     "update": 7,
+     "world": 0.544776814405675,
+     "adapt": 0.13134458696634382,
+     "actor": 0.32024619023593565,
+     "value": 0.0036324083920455208,
+     "pred": null
+    },
+    {
+     "update": 8,
+     "world": 0.4803655612636778,
+     "adapt": 0.3498639725825964,
+     "actor": 0.1665087111364447,
+     "value": 0.0032617550172810887,
+     "pred": null
+    },
+    {
+     "update": 10,
+     "world": 0.5849605687930733,
+     "adapt": 0.31500531868014225,
+     "actor": 0.09234083531949573,
+     "value": 0.007693277207288767,
+     "pred": null
+    },
+    {
+     "update": 15,
+     "world": 0.5478594661717211,
+     "adapt": 0.38785490932998723,
+     "actor": 0.05610075722653337,
+     "value": 0.008184867271758343,
+     "pred": null
+    },
+    {
+     "update": 20,
+     "world": 0.14355765029959727,
+     "adapt": 0.7939494372326078,
+     "actor": 0.059417794060786414,
+     "value": 0.0030751184070085514,
+     "pred": null
+    }
+   ],
+   "clip_rate_after_warmup": 0.005714285714285714,
+   "dom08_table": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   }
+  },
+  "run3_partial": {
+   "file": "docs/evidence/dom/W7/w7_e2e_dom_dev_run3_partial.json",
+   "commit": "676135d",
+   "n_updates": 10,
+   "decisions": null,
+   "rounds": null,
+   "episodes": null,
+   "labels": null,
+   "peak_gpu_gb": null,
+   "wall_s": null,
+   "device": null,
+   "reward_mode": null,
+   "checks": {
+    "actor_core_share_ge_0.1": true,
+    "world_core_share_le_0.7": true,
+    "dom08_nonzero_present_groups": true,
+    "dom08_nonzero_all_required": false,
+    "stale_routed_to_vtrace": true,
+    "clip_rate_lt_0.5_after_warmup": true
+   },
+   "core_shares": [
+    {
+     "update": 1,
+     "world": 0.943955005064669,
+     "adapt": 0.055921595543294525,
+     "actor": 0.0001233993920365059,
+     "value": 0.0,
+     "pred": null
+    },
+    {
+     "update": 2,
+     "world": 0.9008680143236029,
+     "adapt": 0.0585037914233392,
+     "actor": 0.03986845257255716,
+     "value": 0.0007597416805007075,
+     "pred": null
+    },
+    {
+     "update": 3,
+     "world": 0.0666069420677061,
+     "adapt": 0.9029250511720567,
+     "actor": 0.02935628176918315,
+     "value": 0.001111724991054083,
+     "pred": null
+    },
+    {
+     "update": 4,
+     "world": 0.7086075037708869,
+     "adapt": 0.04451207764629402,
+     "actor": 0.23815987088426058,
+     "value": 0.008720547698558479,
+     "pred": null
+    },
+    {
+     "update": 5,
+     "world": 0.46070688617551236,
+     "adapt": 0.038777400751085156,
+     "actor": 0.4822096341381899,
+     "value": 0.018306078935212654,
+     "pred": null
+    },
+    {
+     "update": 6,
+     "world": 0.5463386256729309,
+     "adapt": 0.09723593724251944,
+     "actor": 0.3317453039621635,
+     "value": 0.02468013312238629,
+     "pred": null
+    },
+    {
+     "update": 7,
+     "world": 0.4922175056107213,
+     "adapt": 0.22806505797260518,
+     "actor": 0.24540357295807727,
+     "value": 0.03431386345859628,
+     "pred": null
+    },
+    {
+     "update": 8,
+     "world": 0.4998845266895803,
+     "adapt": 0.15569843147037177,
+     "actor": 0.2811557010924105,
+     "value": 0.06326134074763747,
+     "pred": null
+    },
+    {
+     "update": 10,
+     "world": 0.5520049574221346,
+     "adapt": 0.13466006050461526,
+     "actor": 0.24945949054767275,
+     "value": 0.06387549152557735,
+     "pred": null
+    }
+   ],
+   "clip_rate_after_warmup": 0.0,
+   "dom08_table": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   }
+  },
+  "sparse_verified": {
+   "file": "docs/evidence/dom/W7/w7_e2e_dom_dev_sparse_verified.json",
+   "commit": "676135d",
+   "n_updates": 5,
+   "decisions": null,
+   "rounds": null,
+   "episodes": null,
+   "labels": null,
+   "peak_gpu_gb": null,
+   "wall_s": null,
+   "device": null,
+   "reward_mode": null,
+   "checks": {
+    "actor_core_share_ge_0.1": false,
+    "world_core_share_le_0.7": false,
+    "dom08_nonzero_present_groups": true,
+    "dom08_nonzero_all_required": false,
+    "stale_routed_to_vtrace": true,
+    "clip_rate_lt_0.5_after_warmup": false
+   },
+   "core_shares": [
+    {
+     "update": 1,
+     "world": 0.9408380471349447,
+     "adapt": 0.05903136150890707,
+     "actor": 0.00013059135614828932,
+     "value": 0.0,
+     "pred": null
+    },
+    {
+     "update": 2,
+     "world": 0.9294047161956818,
+     "adapt": 0.03650684322856792,
+     "actor": 0.033432821538690566,
+     "value": 0.0006556190370597657,
+     "pred": null
+    },
+    {
+     "update": 3,
+     "world": 0.05091337630868208,
+     "adapt": 0.9232587862831331,
+     "actor": 0.024887311810649144,
+     "value": 0.000940525597535674,
+     "pred": null
+    },
+    {
+     "update": 4,
+     "world": 0.6824579240306922,
+     "adapt": 0.02618121485394719,
+     "actor": 0.2829526000405516,
+     "value": 0.008408261074809175,
+     "pred": null
+    },
+    {
+     "update": 5,
+     "world": 0.4623801071236958,
+     "adapt": 0.13818740508975252,
+     "actor": 0.3836410083361377,
+     "value": 0.01579147945041392,
+     "pred": null
+    }
+   ],
+   "clip_rate_after_warmup": null,
+   "dom08_table": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   }
+  },
+  "run4_factors_only": {
+   "file": "docs/evidence/dom/W7/w7_e2e_dom_dev_run4_factors_only.json",
+   "commit": "aa164e1f16523ebe3e7ed703d8386613b7da85f3",
+   "n_updates": 20,
+   "decisions": 640,
+   "rounds": 160,
+   "episodes": 3,
+   "labels": 8,
+   "peak_gpu_gb": 17.396135807037354,
+   "wall_s": 754.4657855033875,
+   "device": "cuda",
+   "share_guard_on": null,
+   "stopped_early": null,
+   "checks": {
+    "actor_core_share_ge_0.1": false,
+    "world_core_share_le_0.7": true,
+    "dom08_nonzero_present_groups": true,
+    "dom08_nonzero_all_required": false,
+    "stale_routed_to_vtrace": true,
+    "clip_rate_lt_0.5_after_warmup": true
+   },
+   "share_guard": null,
+   "core_shares": [
+    {
+     "update": 1,
+     "world": 0.9439005845475673,
+     "adapt": 0.05597599122229727,
+     "actor": 0.00012342423013547363,
+     "value": 0.0,
+     "pred": null
+    },
+    {
+     "update": 2,
+     "world": 0.903724779524631,
+     "adapt": 0.05827789676945321,
+     "actor": 0.03728261324021797,
+     "value": 0.0007147104656977068,
+     "pred": null
+    },
+    {
+     "update": 3,
+     "world": 0.06270192667456144,
+     "adapt": 0.9051761522227524,
+     "actor": 0.031055621197829873,
+     "value": 0.0010662999048563324,
+     "pred": null
+    },
+    {
+     "update": 4,
+     "world": 0.7185056415721005,
+     "adapt": 0.04218072448510069,
+     "actor": 0.23087165726426243,
+     "value": 0.008441976678536309,
+     "pred": null
+    },
+    {
+     "update": 5,
+     "world": 0.5258678380865308,
+     "adapt": 0.03854519551181242,
+     "actor": 0.4164803881968822,
+     "value": 0.01910657820477463,
+     "pred": null
+    },
+    {
+     "update": 6,
+     "world": 0.5311956129567829,
+     "adapt": 0.04545193069872128,
+     "actor": 0.3991573198831602,
+     "value": 0.02419513646133566,
+     "pred": null
+    },
+    {
+     "update": 7,
+     "world": 0.5819504608885363,
+     "adapt": 0.13968953635563144,
+     "actor": 0.24148918258697086,
+     "value": 0.03687082016886144,
+     "pred": null
+    },
+    {
+     "update": 8,
+     "world": 0.45850133260382275,
+     "adapt": 0.19460159108542766,
+     "actor": 0.2803367590383949,
+     "value": 0.0665603172723548,
+     "pred": null
+    },
+    {
+     "update": 10,
+     "world": 0.5277113269340227,
+     "adapt": 0.17851438193498903,
+     "actor": 0.21151528552470988,
+     "value": 0.0822590056062785,
+     "pred": null
+    },
+    {
+     "update": 15,
+     "world": 0.5544096614176371,
+     "adapt": 0.1028888641029152,
+     "actor": 0.2392928379806784,
+     "value": 0.10340863649876927,
+     "pred": null
+    },
+    {
+     "update": 20,
+     "world": 0.18839279615910387,
+     "adapt": 0.7154075410018932,
+     "actor": 0.05802773524608982,
+     "value": 0.03817192759291319,
+     "pred": null
+    }
+   ],
+   "clip_rate_after_warmup": 0.02247191011235955
+  }
+ },
+ "not_run": {
+  "tests/cam_unified/dom/test_dom08_gradients.py": "gpu-marked pytest of the same real-stack path (peak > 4 GB needs the GPU lock, and pytest must not run under the lock); the identical path ran via learn/integrated_e2e.py under the lock (w7_e2e_dom_dev.json)",
+  "20th update of the final run": "run 5 stopped at 19/20 updates when its 860 s wall budget (15 min lock hold) ran out under GPU contention (20.4 s/update vs 16.5 s in run 4: the guard probes every update)",
+  "dom08_nonzero_all_required": "core.sem_xattn_gate (W3), dec_xattn (W4), intent (W5), predictors (W8) are not built in this seam-0 worktree: reported absent, to be re-run on the merged stack",
+  "meta window / W8 label join on the real stack": "MetaWindowDriver and the label_join path are wired (default_meta_driver, _joinable) but W8's MetaRewardTrainer / fast_policy / label_join and a non-stub RewardModel are not in this worktree: unit-tested with protocol doubles only (not evidence)"
+ },
+ "share_guard_note": "final runs: core_share = shares of the applied core gradient after the per-update guard (LossBalancer.guard, whole-objective down-scaling, exact correction backward); core_shares_measured = before it"
+}

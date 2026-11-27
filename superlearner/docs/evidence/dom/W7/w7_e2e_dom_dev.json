@@ -1,0 +1,5404 @@
+{
+ "checks": {
+  "actor_core_share_ge_0.1": {
+   "passed": true,
+   "values": [
+    0.38800000000000007,
+    0.3977661497019904,
+    0.38800000000000007,
+    0.388,
+    0.10309278350515465,
+    0.39894498005958484,
+    0.38800000000000007,
+    0.388,
+    0.39896929442062523,
+    0.10309278350515465,
+    0.1030927835051546
+   ],
+   "updates": [
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+   ],
+   "final": 0.1030927835051546
+  },
+  "world_core_share_le_0.7": {
+   "passed": true,
+   "values": [
+    0.3722671182457481,
+    0.43650000000000005,
+    0.4455219641938679,
+    0.44769192130844443,
+    0.4139565463366078,
+    0.43650000000000005,
+    0.447369186280249,
+    0.44766391671940003,
+    0.4365,
+    0.39881000478364387,
+    0.39733148803719676
+   ],
+   "updates": [
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+   ],
+   "final": 0.39733148803719676
+  },
+  "dom08_nonzero_present_groups": {
+   "passed": true,
+   "table": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "update": 2
+  },
+  "dom08_nonzero_all_required": {
+   "passed": false,
+   "absent": [
+    "core.sem_xattn_gate",
+    "dec_xattn",
+    "intent",
+    "predictors"
+   ],
+   "zero": []
+  },
+  "stale_routed_to_vtrace": {
+   "passed": true,
+   "n_stale_steps": 103,
+   "n_fresh_steps": 501
+  },
+  "clip_rate_lt_0.5_after_warmup": {
+   "passed": true,
+   "rate": 0.0,
+   "pairs": 162,
+   "warmup_updates": 8
+  }
+ },
+ "core_shares": [
+  {
+   "update": 1,
+   "world": 0.9381887938182012,
+   "adapt": 0.05568824391008434,
+   "actor": 0.006122962271714459,
+   "value": 0.0,
+   "pred": null
+  },
+  {
+   "update": 2,
+   "world": 0.4364999999999997,
+   "adapt": 0.27017282926181013,
+   "actor": 0.2882747778098855,
+   "value": 0.005052392928304687,
+   "pred": null
+  },
+  {
+   "update": 3,
+   "world": 0.4475596024292735,
+   "adapt": 0.4365,
+   "actor": 0.11406548679996324,
+   "value": 0.0018749107707632963,
+   "pred": null
+  },
+  {
+   "update": 4,
+   "world": 0.44641636361393955,
+   "adapt": 0.12966082569661366,
+   "actor": 0.388,
+   "value": 0.035922810689446756,
+   "pred": null
+  },
+  {
+   "update": 5,
+   "world": 0.4365,
+   "adapt": 0.1619346227291416,
+   "actor": 0.3793290340789802,
+   "value": 0.022236343191878154,
+   "pred": null
+  },
+  {
+   "update": 6,
+   "world": 0.44605256785553465,
+   "adapt": 0.13467180707210671,
+   "actor": 0.38799999999999996,
+   "value": 0.03127562507235861,
+   "pred": null
+  },
+  {
+   "update": 7,
+   "world": 0.44941293411669225,
+   "adapt": 0.11373447427958273,
+   "actor": 0.38800000000000007,
+   "value": 0.04885259160372498,
+   "pred": null
+  },
+  {
+   "update": 8,
+   "world": 0.4365,
+   "adapt": 0.19406798647596632,
+   "actor": 0.2939132782139001,
+   "value": 0.07551873531013356,
+   "pred": null
+  },
+  {
+   "update": 9,
+   "world": 0.3722671182457481,
+   "adapt": 0.17214739390832742,
+   "actor": 0.38800000000000007,
+   "value": 0.06758548784592447,
+   "pred": null
+  },
+  {
+   "update": 10,
+   "world": 0.43650000000000005,
+   "adapt": 0.1060370774579445,
+   "actor": 0.3977661497019904,
+   "value": 0.05969677284006503,
+   "pred": null
+  },
+  {
+   "update": 11,
+   "world": 0.4455219641938679,
+   "adapt": 0.14286528489423228,
+   "actor": 0.38800000000000007,
+   "value": 0.02361275091189984,
+   "pred": null
+  },
+  {
+   "update": 12,
+   "world": 0.44769192130844443,
+   "adapt": 0.09351113470203283,
+   "actor": 0.388,
+   "value": 0.07079694398952278,
+   "pred": null
+  },
+  {
+   "update": 13,
+   "world": 0.4139565463366078,
+   "adapt": 0.2648168752399905,
+   "actor": 0.10309278350515465,
+   "value": 0.21813379491824697,
+   "pred": null
+  },
+  {
+   "update": 14,
+   "world": 0.43650000000000005,
+   "adapt": 0.09561497733289014,
+   "actor": 0.39894498005958484,
+   "value": 0.068940042607525,
+   "pred": null
+  },
+  {
+   "update": 15,
+   "world": 0.447369186280249,
+   "adapt": 0.0789977219085302,
+   "actor": 0.38800000000000007,
+   "value": 0.08563309181122075,
+   "pred": null
+  },
+  {
+   "update": 16,
+   "world": 0.44766391671940003,
+   "adapt": 0.11217945956487456,
+   "actor": 0.388,
+   "value": 0.052156623715725374,
+   "pred": null
+  },
+  {
+   "update": 17,
+   "world": 0.4365,
+   "adapt": 0.09830373139914672,
+   "actor": 0.39896929442062523,
+   "value": 0.0662269741802281,
+   "pred": null
+  },
+  {
+   "update": 18,
+   "world": 0.39881000478364387,
+   "adapt": 0.29523527798981375,
+   "actor": 0.10309278350515465,
+   "value": 0.2028619337213878,
+   "pred": null
+  },
+  {
+   "update": 19,
+   "world": 0.39733148803719676,
+   "adapt": 0.28047326193108557,
+   "actor": 0.1030927835051546,
+   "value": 0.21910246652656312,
+   "pred": null
+  }
+ ],
+ "core_shares_measured": [
+  {
+   "update": 1,
+   "world": 0.9438523828981432,
+   "adapt": 0.056024418603459976,
+   "actor": 0.00012319849839675207,
+   "value": 0.0,
+   "pred": null
+  },
+  {
+   "update": 2,
+   "world": 0.9093379361811792,
+   "adapt": 0.0434683696337988,
+   "actor": 0.04638080976602705,
+   "value": 0.0008128844189950644,
+   "pred": null
+  },
+  {
+   "update": 3,
+   "world": 0.055152034265494296,
+   "adapt": 0.9134892437216157,
+   "actor": 0.030488345534028374,
+   "value": 0.0008703764788617368,
+   "pred": null
+  },
+  {
+   "update": 4,
+   "world": 0.7978333708523959,
+   "adapt": 0.02017762225985676,
+   "actor": 0.17639875323395662,
+   "value": 0.005590253653790604,
+   "pred": null
+  },
+  {
+   "update": 5,
+   "world": 0.48682426427050973,
+   "adapt": 0.14747279353878384,
+   "actor": 0.345452451015151,
+   "value": 0.020250491175555482,
+   "pred": null
+  },
+  {
+   "update": 6,
+   "world": 0.42556369402280614,
+   "adapt": 0.0825831487738883,
+   "actor": 0.47267438731448974,
+   "value": 0.01917876988881588,
+   "pred": null
+  },
+  {
+   "update": 7,
+   "world": 0.5813856720981473,
+   "adapt": 0.07434461839089428,
+   "actor": 0.3123363198928106,
+   "value": 0.03193338961814792,
+   "pred": null
+  },
+  {
+   "update": 8,
+   "world": 0.5191088385465046,
+   "adapt": 0.16561770970251763,
+   "actor": 0.25082572799802444,
+   "value": 0.06444772375295338,
+   "pred": null
+  },
+  {
+   "update": 9,
+   "world": 0.2938869561081637,
+   "adapt": 0.13590207439238217,
+   "actor": 0.516855482735748,
+   "value": 0.05335548676370613,
+   "pred": null
+  },
+  {
+   "update": 10,
+   "world": 0.07015405893947625,
+   "adapt": 0.020284755085694887,
+   "actor": 0.8981412709272141,
+   "value": 0.011419915047614847,
+   "pred": null
+  },
+  {
+   "update": 11,
+   "world": 0.049597754631223435,
+   "adapt": 0.03693189265475639,
+   "actor": 0.9073662555387868,
+   "value": 0.006104097175233312,
+   "pred": null
+  },
+  {
+   "update": 12,
+   "world": 0.24038563890235431,
+   "adapt": 0.020820903445986576,
+   "actor": 0.7230300264862288,
+   "value": 0.015763431165430282,
+   "pred": null
+  },
+  {
+   "update": 13,
+   "world": 0.7902128938424641,
+   "adapt": 0.10395850411182717,
+   "actor": 0.02019635902726012,
+   "value": 0.08563224301844859,
+   "pred": null
+  },
+  {
+   "update": 14,
+   "world": 0.3668903342473794,
+   "adapt": 0.0671843601886686,
+   "actor": 0.517484226737561,
+   "value": 0.048441078826390996,
+   "pred": null
+  },
+  {
+   "update": 15,
+   "world": 0.3034873386940195,
+   "adapt": 0.042311816158916084,
+   "actor": 0.6083350714222057,
+   "value": 0.045865773724858644,
+   "pred": null
+  },
+  {
+   "update": 16,
+   "world": 0.43302303511895973,
+   "adapt": 0.08519907081397125,
+   "actor": 0.4421655096376014,
+   "value": 0.039612384429467705,
+   "pred": null
+  },
+  {
+   "update": 17,
+   "world": 0.13079132573996996,
+   "adapt": 0.025270569323370032,
+   "actor": 0.8269133865635281,
+   "value": 0.017024718373132054,
+   "pred": null
+  },
+  {
+   "update": 18,
+   "world": 0.7806153295476049,
+   "adapt": 0.12580526340525752,
+   "actor": 0.007136150060756651,
+   "value": 0.08644325698638093,
+   "pred": null
+  },
+  {
+   "update": 19,
+   "world": 0.7360178555743514,
+   "adapt": 0.14434553742943598,
+   "actor": 0.00687554355244442,
+   "value": 0.11276106344376823,
+   "pred": null
+  }
+ ],
+ "share_guard": {
+  "updates_probed": 19,
+  "updates_guarded": 19,
+  "updates_scaled": 19,
+  "unsatisfied_updates": [
+   1
+  ],
+  "min_scale": {
+   "world": 0.02,
+   "adapt": 0.02,
+   "actor": 0.04760384119140361,
+   "value": 0.02
+  },
+  "measured_actor_after_warmup_min": 0.00687554355244442,
+  "measured_adapt_after_warmup_max": 0.14434553742943598
+ },
+ "balance": [
+  {
+   "update": 1,
+   "share_before": {
+    "world": 0.9438523828981432,
+    "adapt": 0.056024418603459976,
+    "actor": 0.00012319849839675207,
+    "value": 0.0
+   },
+   "mode": "calibrate",
+   "factors_before": {},
+   "share_ema": {
+    "world": 0.9438523828981432,
+    "adapt": 0.056024418603459976,
+    "actor": 0.00012319849839675207,
+    "value": 0.0
+   },
+   "factors_after": {
+    "world": 0.01912403655591196,
+    "adapt": 0.2827168774067186,
+    "actor": 61.039392107426714
+   }
+  },
+  {
+   "update": 2,
+   "share_before": {
+    "world": 0.9093379361811792,
+    "adapt": 0.0434683696337988,
+    "actor": 0.04638080976602705,
+    "value": 0.0008128844189950644
+   },
+   "mode": "calibrate",
+   "factors_before": {
+    "world": 0.01912403655591196,
+    "adapt": 0.2827168774067186,
+    "actor": 61.039392107426714
+   },
+   "share_ema": {
+    "world": 0.8345924067710548,
+    "adapt": 0.09699397332007177,
+    "actor": 0.06772907197932893,
+    "value": 0.0006845479295445694
+   },
+   "factors_after": {
+    "world": 0.0023477673360522305,
+    "adapt": 0.2827168774067186,
+    "actor": 61.039392107426714
+   }
+  },
+  {
+   "update": 3,
+   "share_before": {
+    "world": 0.055152034265494296,
+    "adapt": 0.9134892437216157,
+    "actor": 0.030488345534028374,
+    "value": 0.0008703764788617368
+   },
+   "mode": "calibrate",
+   "factors_before": {
+    "world": 0.0023477673360522305,
+    "adapt": 0.2827168774067186,
+    "actor": 61.039392107426714
+   },
+   "share_ema": {
+    "world": 0.0852494072821801,
+    "adapt": 0.8627926576146709,
+    "actor": 0.05093261807732487,
+    "value": 0.0010253170258241458
+   },
+   "factors_after": {
+    "world": 0.004653044226375553,
+    "adapt": 0.047736106191427444,
+    "actor": 78.14082561697056
+   }
+  },
+  {
+   "update": 4,
+   "share_before": {
+    "world": 0.7978333708523959,
+    "adapt": 0.02017762225985676,
+    "actor": 0.17639875323395662,
+    "value": 0.005590253653790604
+   },
+   "mode": "calibrate",
+   "factors_before": {
+    "world": 0.004653044226375553,
+    "adapt": 0.047736106191427444,
+    "actor": 78.14082561697056
+   },
+   "share_ema": {
+    "world": 0.6232469936982494,
+    "adapt": 0.19875674658115097,
+    "actor": 0.17383443941623264,
+    "value": 0.0041618203043669475
+   },
+   "factors_after": {
+    "world": 0.0017423210842045338,
+    "adapt": 0.047736106191427444,
+    "actor": 78.14082561697056
+   }
+  },
+  {
+   "update": 7,
+   "share_before": {
+    "world": 0.5813856720981473,
+    "adapt": 0.07434461839089428,
+    "actor": 0.3123363198928106,
+    "value": 0.03193338961814792
+   },
+   "mode": "calibrate",
+   "factors_before": {
+    "world": 0.0017423210842045338,
+    "adapt": 0.047736106191427444,
+    "actor": 78.14082561697056
+   },
+   "share_ema": {
+    "world": 0.48586061244122647,
+    "adapt": 0.13311081100563846,
+    "actor": 0.35906318154665595,
+    "value": 0.021965395006479097
+   },
+   "factors_after": {
+    "world": 0.0011420677087804285,
+    "adapt": 0.047736106191427444,
+    "actor": 53.08955121963148
+   }
+  },
+  {
+   "update": 8,
+   "share_before": {
+    "world": 0.5191088385465046,
+    "adapt": 0.16561770970251763,
+    "actor": 0.25082572799802444,
+    "value": 0.06444772375295338
+   },
+   "mode": "calibrate",
+   "factors_before": {
+    "world": 0.0011420677087804285,
+    "adapt": 0.047736106191427444,
+    "actor": 53.08955121963148
+   },
+   "share_ema": {
+    "world": 0.4708451418977566,
+    "adapt": 0.17838377997778843,
+    "actor": 0.30802594604018935,
+    "value": 0.042745132084265565
+   },
+   "factors_after": {
+    "world": 0.0007950437424978578,
+    "adapt": 0.047736106191427444,
+    "actor": 53.08955121963148
+   }
+  },
+  {
+   "update": 9,
+   "share_before": {
+    "world": 0.2938869561081637,
+    "adapt": 0.13590207439238217,
+    "actor": 0.516855482735748,
+    "value": 0.05335548676370613
+   },
+   "mode": "clipped_sqrt",
+   "factors_before": {
+    "world": 0.0007950437424978578,
+    "adapt": 0.047736106191427444,
+    "actor": 53.08955121963148
+   },
+   "share_ema": {
+    "world": 0.3380263406639493,
+    "adapt": 0.17189767449606172,
+    "actor": 0.4384508627464431,
+    "value": 0.051625122093545785
+   },
+   "factors_after": {
+    "world": 0.0007950437424978578,
+    "adapt": 0.047736106191427444,
+    "actor": 50.70824562337537
+   }
+  },
+  {
+   "update": 10,
+   "share_before": {
+    "world": 0.07015405893947625,
+    "adapt": 0.020284755085694887,
+    "actor": 0.8981412709272141,
+    "value": 0.011419915047614847
+   },
+   "mode": "clipped_sqrt",
+   "factors_before": {
+    "world": 0.0007950437424978578,
+    "adapt": 0.047736106191427444,
+    "actor": 50.70824562337537
+   },
+   "share_ema": {
+    "world": 0.1174232918870781,
+    "adapt": 0.04697159278125448,
+    "actor": 0.8170874416019283,
+    "value": 0.018517673729739063
+   },
+   "factors_after": {
+    "world": 0.0010375974503364748,
+    "adapt": 0.047736106191427444,
+    "actor": 35.4792404046348
+   }
+  },
+  {
+   "update": 11,
+   "share_before": {
+    "world": 0.049597754631223435,
+    "adapt": 0.03693189265475639,
+    "actor": 0.9073662555387868,
+    "value": 0.006104097175233312
+   },
+   "mode": "clipped_sqrt",
+   "factors_before": {
+    "world": 0.0010375974503364748,
+    "adapt": 0.047736106191427444,
+    "actor": 35.4792404046348
+   },
+   "share_ema": {
+    "world": 0.07984230503957024,
+    "adapt": 0.041647045184350355,
+    "actor": 0.8687751930343971,
+    "value": 0.009735456741682347
+   },
+   "factors_after": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 24.074130093291835
+   }
+  },
+  {
+   "update": 12,
+   "share_before": {
+    "world": 0.24038563890235431,
+    "adapt": 0.020820903445986576,
+    "actor": 0.7230300264862288,
+    "value": 0.015763431165430282
+   },
+   "mode": "clipped_sqrt",
+   "factors_before": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 24.074130093291835
+   },
+   "share_ema": {
+    "world": 0.2001777434273279,
+    "adapt": 0.03859670319685359,
+    "actor": 0.7470955364985615,
+    "value": 0.0141300168772571
+   },
+   "factors_after": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 17.615400751653386
+   }
+  },
+  {
+   "update": 13,
+   "share_before": {
+    "world": 0.7902128938424641,
+    "adapt": 0.10395850411182717,
+    "actor": 0.02019635902726012,
+    "value": 0.08563224301844859
+   },
+   "mode": "clipped_sqrt",
+   "factors_before": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 17.615400751653386
+   },
+   "share_ema": {
+    "world": 0.34874928649647063,
+    "adapt": 0.05842121481186777,
+    "actor": 0.5627713198626596,
+    "value": 0.03005817882900204
+   },
+   "factors_after": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 14.851028967282028
+   }
+  },
+  {
+   "update": 14,
+   "share_before": {
+    "world": 0.3668903342473794,
+    "adapt": 0.0671843601886686,
+    "actor": 0.517484226737561,
+    "value": 0.048441078826390996
+   },
+   "mode": "clipped_sqrt",
+   "factors_before": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 14.851028967282028
+   },
+   "share_ema": {
+    "world": 0.37550019108539445,
+    "adapt": 0.06547594632517581,
+    "actor": 0.5190983583598198,
+    "value": 0.039925504229609984
+   },
+   "factors_after": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 13.036521137236862
+   }
+  },
+  {
+   "update": 15,
+   "share_before": {
+    "world": 0.3034873386940195,
+    "adapt": 0.042311816158916084,
+    "actor": 0.6083350714222057,
+    "value": 0.045865773724858644
+   },
+   "mode": "clipped_sqrt",
+   "factors_before": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 13.036521137236862
+   },
+   "share_ema": {
+    "world": 0.35218269352748455,
+    "adapt": 0.05610369816633639,
+    "actor": 0.54746527771345,
+    "value": 0.04424833059272917
+   },
+   "factors_after": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 11.143289637647264
+   }
+  },
+  {
+   "update": 16,
+   "share_before": {
+    "world": 0.43302303511895973,
+    "adapt": 0.08519907081397125,
+    "actor": 0.4421655096376014,
+    "value": 0.039612384429467705
+   },
+   "mode": "clipped_sqrt",
+   "factors_before": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 11.143289637647264
+   },
+   "share_ema": {
+    "world": 0.4113432257616009,
+    "adapt": 0.07477242059089918,
+    "actor": 0.4706353403827488,
+    "value": 0.043249013264751064
+   },
+   "factors_after": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 10.273091274789289
+   }
+  },
+  {
+   "update": 17,
+   "share_before": {
+    "world": 0.13079132573996996,
+    "adapt": 0.025270569323370032,
+    "actor": 0.8269133865635281,
+    "value": 0.017024718373132054
+   },
+   "mode": "clipped_sqrt",
+   "factors_before": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 10.273091274789289
+   },
+   "share_ema": {
+    "world": 0.2140403024540078,
+    "adapt": 0.03998291187902821,
+    "actor": 0.721118999948293,
+    "value": 0.02485778571867098
+   },
+   "factors_after": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 7.651166857509629
+   }
+  },
+  {
+   "update": 18,
+   "share_before": {
+    "world": 0.7806153295476049,
+    "adapt": 0.12580526340525752,
+    "actor": 0.007136150060756651,
+    "value": 0.08644325698638093
+   },
+   "mode": "clipped_sqrt",
+   "factors_before": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 7.651166857509629
+   },
+   "share_ema": {
+    "world": 0.38674815235264554,
+    "adapt": 0.0674399744310063,
+    "actor": 0.501908226216154,
+    "value": 0.04390364700019406
+   },
+   "factors_after": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 6.830390162827832
+   }
+  },
+  {
+   "update": 19,
+   "share_before": {
+    "world": 0.7360178555743514,
+    "adapt": 0.14434553742943598,
+    "actor": 0.00687554355244442,
+    "value": 0.11276106344376823
+   },
+   "mode": "clipped_sqrt",
+   "factors_before": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 6.830390162827832
+   },
+   "share_ema": {
+    "world": 0.5115060495084301,
+    "adapt": 0.09421867119392288,
+    "actor": 0.327038638480451,
+    "value": 0.06723664081719598
+   },
+   "factors_after": {
+    "world": 0.001540310337657575,
+    "adapt": 0.047736106191427444,
+    "actor": 6.830390162827832
+   }
+  }
+ ],
+ "per_update": [
+  {
+   "update": 1,
+   "losses": {
+    "world": 48.24921417236328,
+    "adapt": 1.8118784427642822,
+    "actor": -0.10583996772766113,
+    "value": 5.541263580322266
+   },
+   "weights": {
+    "world": 1.0,
+    "adapt": 1.0,
+    "actor": 1.0,
+    "value": 0.5
+   },
+   "grad_norm": 10.721898156698142,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 0,
+    "kl": 0.002572687342762947,
+    "max_lag": 0,
+    "n_nodes": 32,
+    "n_segments": 4,
+    "entropy": 31.24160385131836,
+    "tool_entropy": 1.211517572402954,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": null,
+    "clip_frac": 0.0357142873108387,
+    "n_fresh_rows": 4,
+    "n_stale_rows": 0,
+    "logp_maxdev_lag0": 0.3357086181640625,
+    "logp_meandev_lag0": 0.019865624606609344
+   },
+   "weights_applied": {
+    "world": 0.02,
+    "adapt": 0.02,
+    "actor": 1.0,
+    "value": 0.01
+   },
+   "share_guard": {
+    "scale": {
+     "world": 0.02,
+     "adapt": 0.02,
+     "actor": 1.0,
+     "value": 0.02
+    },
+    "satisfied": false,
+    "violated_measured": [
+     "world",
+     "actor"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.002572687342762947,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.8111047148704529,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 13.06877326965332,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 28,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 8.09578820085153,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 2,
+   "losses": {
+    "world": 43.19513702392578,
+    "adapt": 1.453101634979248,
+    "actor": -0.1198943555355072,
+    "value": 5.532788276672363
+   },
+   "weights": {
+    "world": 0.01912403655591196,
+    "adapt": 0.2827168774067186,
+    "actor": 61.039392107426714,
+    "value": 0.5
+   },
+   "grad_norm": 19.141793949441542,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 0.0011301699560135603,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 36.16921615600586,
+    "tool_entropy": 1.1386712789535522,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.4864017963409424,
+    "clip_frac": 0.0357142873108387,
+    "n_fresh_rows": 4,
+    "n_stale_rows": 4,
+    "logp_maxdev_lag0": 0.2226104736328125,
+    "logp_meandev_lag0": 0.015309900976717472
+   },
+   "weights_applied": {
+    "world": 0.0014769649336337741,
+    "adapt": 0.2827168774067186,
+    "actor": 61.039392107426714,
+    "value": 0.5
+   },
+   "share_guard": {
+    "scale": {
+     "world": 0.07723081522646372,
+     "adapt": 1.0,
+     "actor": 1.0,
+     "value": 1.0
+    },
+    "satisfied": true,
+    "violated_measured": [
+     "world",
+     "actor"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.0011301699560135603,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 1.3413140773773193,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 7.193150520324707,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 7.6917825867421925,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 3,
+   "losses": {
+    "world": 37.31088638305664,
+    "adapt": 4.775494575500488,
+    "actor": -0.05279912054538727,
+    "value": 5.522560119628906
+   },
+   "weights": {
+    "world": 0.0023477673360522305,
+    "adapt": 0.2827168774067186,
+    "actor": 61.039392107426714,
+    "value": 0.5
+   },
+   "grad_norm": 3.724293003005789,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 0.00017312230193056166,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 13.818153381347656,
+    "tool_entropy": 1.1344659328460693,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.5503721237182617,
+    "clip_frac": 0.0,
+    "n_fresh_rows": 4,
+    "n_stale_rows": 4,
+    "logp_maxdev_lag0": 0.0982666015625,
+    "logp_meandev_lag0": 0.005667614284902811
+   },
+   "weights_applied": {
+    "world": 0.0023477673360522305,
+    "adapt": 0.01664727684916811,
+    "actor": 28.141112139528033,
+    "value": 0.1327254231761036
+   },
+   "share_guard": {
+    "scale": {
+     "world": 1.0,
+     "adapt": 0.05888320853664217,
+     "actor": 0.46103198554141694,
+     "value": 0.2654508463522072
+    },
+    "satisfied": true,
+    "violated_measured": [
+     "world",
+     "adapt",
+     "actor"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.00017312230193056166,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.27861735224723816,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 4.164060592651367,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 9.586094450671226,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 4,
+   "losses": {
+    "world": 45.82634353637695,
+    "adapt": 1.5505809783935547,
+    "actor": -0.035567719489336014,
+    "value": 5.508223533630371
+   },
+   "weights": {
+    "world": 0.004653044226375553,
+    "adapt": 0.047736106191427444,
+    "actor": 78.14082561697056,
+    "value": 0.5
+   },
+   "grad_norm": 3.574035316391653,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 4.223544237902388e-06,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 8.251023292541504,
+    "tool_entropy": 1.0814651250839233,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.8323469161987305,
+    "clip_frac": 0.0,
+    "n_fresh_rows": 4,
+    "n_stale_rows": 4,
+    "logp_maxdev_lag0": 0.009084701538085938,
+    "logp_meandev_lag0": 0.0018182313069701195
+   },
+   "weights_applied": {
+    "world": 0.0004051597485837857,
+    "adapt": 0.047736106191427444,
+    "actor": 26.74702073832134,
+    "value": 0.5
+   },
+   "share_guard": {
+    "scale": {
+     "world": 0.08707412370747683,
+     "adapt": 1.0,
+     "actor": 0.34229252797288645,
+     "value": 1.0
+    },
+    "satisfied": true,
+    "violated_measured": [
+     "world"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 4.223544237902388e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.03824702277779579,
+     "stepped": true,
+     "policy_loss": 2.741569105069175e-08,
+     "clipped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 3.0060930252075195,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 10.54286547191441,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 5,
+   "losses": {
+    "world": 39.818565368652344,
+    "adapt": 1.9114221334457397,
+    "actor": -0.039035614579916,
+    "value": 5.466253280639648
+   },
+   "weights": {
+    "world": 0.0017423210842045338,
+    "adapt": 0.047736106191427444,
+    "actor": 78.14082561697056,
+    "value": 0.5
+   },
+   "grad_norm": 6.021923312740675,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 2.8655897494900273e-06,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 9.159322738647461,
+    "tool_entropy": 1.1557645797729492,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.906834602355957,
+    "clip_frac": 0.0,
+    "n_fresh_rows": 4,
+    "n_stale_rows": 4,
+    "logp_maxdev_lag0": 0.009403228759765625,
+    "logp_meandev_lag0": 0.0014800557401031256
+   },
+   "weights_applied": {
+    "world": 0.0014226970049915173,
+    "adapt": 0.047736106191427444,
+    "actor": 78.14082561697056,
+    "value": 0.5
+   },
+   "share_guard": {
+    "scale": {
+     "world": 0.8165527111445462,
+     "adapt": 1.0,
+     "actor": 1.0,
+     "value": 1.0
+    },
+    "satisfied": true,
+    "violated_measured": [
+     "world"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 2.8655897494900273e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.09273408353328705,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 2.285041332244873,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 12.46047261217609,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 6,
+   "losses": {
+    "world": 37.07038116455078,
+    "adapt": 1.7223124504089355,
+    "actor": -0.19059891998767853,
+    "value": 5.437788963317871
+   },
+   "weights": {
+    "world": 0.0017423210842045338,
+    "adapt": 0.047736106191427444,
+    "actor": 78.14082561697056,
+    "value": 0.5
+   },
+   "grad_norm": 40.50031117433599,
+   "clipped": true,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 0.004691281355917454,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 59.48359680175781,
+    "tool_entropy": 1.214812159538269,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.6723816394805908,
+    "clip_frac": 0.0714285746216774,
+    "n_fresh_rows": 4,
+    "n_stale_rows": 4,
+    "logp_maxdev_lag0": 0.3642578125,
+    "logp_meandev_lag0": 0.029231242835521698
+   },
+   "weights_applied": {
+    "world": 0.0011198617629896445,
+    "adapt": 0.047736106191427444,
+    "actor": 39.33348266504492,
+    "value": 0.5
+   },
+   "share_guard": {
+    "scale": {
+     "world": 0.6427413254319444,
+     "adapt": 1.0,
+     "actor": 0.50336661219641,
+     "value": 1.0
+    },
+    "satisfied": true,
+    "violated_measured": [
+     "actor"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.004691281355917454,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.3701673150062561,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 1.997340202331543,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 15.070994078181684,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 7,
+   "losses": {
+    "world": 33.67367935180664,
+    "adapt": 1.4771729707717896,
+    "actor": -0.19442695379257202,
+    "value": 5.403919696807861
+   },
+   "weights": {
+    "world": 0.0017423210842045338,
+    "adapt": 0.047736106191427444,
+    "actor": 78.14082561697056,
+    "value": 0.5
+   },
+   "grad_norm": 24.65193825860681,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 21,
+    "n_stale_steps": 11,
+    "kl": 8.0170102592092e-06,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 60.766361236572266,
+    "tool_entropy": 1.2127856016159058,
+    "rerouted_by_kl": 1,
+    "vtrace_rho_mean": 0.8480061888694763,
+    "clip_frac": 0.0,
+    "n_fresh_rows": 4,
+    "n_stale_rows": 4,
+    "logp_maxdev_lag0": 1.432861328125,
+    "logp_meandev_lag0": 0.060422081500291824
+   },
+   "weights_applied": {
+    "world": 0.0008803732677231544,
+    "adapt": 0.047736106191427444,
+    "actor": 63.45190193013917,
+    "value": 0.5
+   },
+   "share_guard": {
+    "scale": {
+     "world": 0.5052876164470532,
+     "adapt": 1.0,
+     "actor": 0.812019855551139,
+     "value": 1.0
+    },
+    "satisfied": true,
+    "violated_measured": [
+     "world"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 8.0170102592092e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.06421252340078354,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 1.801312804222107,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 14.865150222089142,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 8,
+   "losses": {
+    "world": 30.13871955871582,
+    "adapt": 1.4780206680297852,
+    "actor": -0.09950751066207886,
+    "value": 5.364975452423096
+   },
+   "weights": {
+    "world": 0.0011420677087804285,
+    "adapt": 0.047736106191427444,
+    "actor": 53.08955121963148,
+    "value": 0.5
+   },
+   "grad_norm": 13.776967721137154,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 0.0050003742799162865,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 12,
+    "entropy": 29.190589904785156,
+    "tool_entropy": 1.1938450336456299,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.8228498101234436,
+    "clip_frac": 0.0357142873108387,
+    "n_fresh_rows": 8,
+    "n_stale_rows": 4,
+    "logp_maxdev_lag0": 0.486114501953125,
+    "logp_meandev_lag0": 0.01952718012034893
+   },
+   "weights_applied": {
+    "world": 0.0008195407476177649,
+    "adapt": 0.047736106191427444,
+    "actor": 53.08955121963148,
+    "value": 0.5
+   },
+   "share_guard": {
+    "scale": {
+     "world": 0.7175938355641995,
+     "adapt": 1.0,
+     "actor": 1.0,
+     "value": 1.0
+    },
+    "satisfied": true,
+    "violated_measured": [
+     "world"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.0050003742799162865,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.4637264907360077,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 6.610783576965332,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 16.346612309105694,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 9,
+   "losses": {
+    "world": 33.203121185302734,
+    "adapt": 1.3860619068145752,
+    "actor": -0.1276603490114212,
+    "value": 5.319919586181641
+   },
+   "weights": {
+    "world": 0.0007950437424978578,
+    "adapt": 0.047736106191427444,
+    "actor": 53.08955121963148,
+    "value": 0.5
+   },
+   "grad_norm": 26.496887806018112,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 0.00017373284208588302,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 38.563472747802734,
+    "tool_entropy": 1.196993112564087,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.639799177646637,
+    "clip_frac": 0.0,
+    "n_fresh_rows": 4,
+    "n_stale_rows": 4,
+    "logp_maxdev_lag0": 0.096527099609375,
+    "logp_meandev_lag0": 0.004745534621179104
+   },
+   "weights_applied": {
+    "world": 0.0007950437424978578,
+    "adapt": 0.047736106191427444,
+    "actor": 31.462793910027113,
+    "value": 0.5
+   },
+   "share_guard": {
+    "scale": {
+     "world": 1.0,
+     "adapt": 1.0,
+     "actor": 0.5926362756367167,
+     "value": 1.0
+    },
+    "satisfied": true,
+    "violated_measured": [
+     "actor"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.00017373284208588302,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 5.19809627532959,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 9.025413513183594,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 14.171701188199222,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 10,
+   "losses": {
+    "world": 34.39625549316406,
+    "adapt": 1.5344038009643555,
+    "actor": -0.20896372199058533,
+    "value": 5.270880699157715
+   },
+   "weights": {
+    "world": 0.0007950437424978578,
+    "adapt": 0.047736106191427444,
+    "actor": 50.70824562337537,
+    "value": 0.5
+   },
+   "grad_norm": 29.97459209289945,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 21,
+    "n_stale_steps": 11,
+    "kl": 9.981205948861316e-06,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 65.65824890136719,
+    "tool_entropy": 1.1988964080810547,
+    "rerouted_by_kl": 1,
+    "vtrace_rho_mean": 0.9172449707984924,
+    "clip_frac": 0.0,
+    "n_fresh_rows": 4,
+    "n_stale_rows": 4,
+    "logp_maxdev_lag0": 1.7166748046875,
+    "logp_meandev_lag0": 0.10875150561332703
+   },
+   "weights_applied": {
+    "world": 0.0007950437424978578,
+    "adapt": 0.04010546232435212,
+    "actor": 3.609360894793356,
+    "value": 0.42007471413278313
+   },
+   "share_guard": {
+    "scale": {
+     "world": 1.0,
+     "adapt": 0.8401494282655663,
+     "actor": 0.07117897396019399,
+     "value": 0.8401494282655663
+    },
+    "satisfied": true,
+    "violated_measured": [
+     "world",
+     "actor"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 9.981205948861316e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.020994680002331734,
+     "stepped": true,
+     "policy_loss": 3.5377873075503885e-08,
+     "clipped": true
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 4.87370491027832,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 35.08893754100427,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 11,
+   "losses": {
+    "world": 32.222164154052734,
+    "adapt": 1.7702614068984985,
+    "actor": -0.2355254888534546,
+    "value": 5.156940937042236
+   },
+   "weights": {
+    "world": 0.0010375974503364748,
+    "adapt": 0.047736106191427444,
+    "actor": 35.4792404046348,
+    "value": 0.5
+   },
+   "grad_norm": 34.69855342653355,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 21,
+    "n_stale_steps": 11,
+    "kl": 6.577760814252542e-06,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 74.47772216796875,
+    "tool_entropy": 1.2092328071594238,
+    "rerouted_by_kl": 1,
+    "vtrace_rho_mean": 0.8139566779136658,
+    "clip_frac": 0.0,
+    "n_fresh_rows": 4,
+    "n_stale_rows": 4,
+    "logp_maxdev_lag0": 2.97991943359375,
+    "logp_meandev_lag0": 0.1419256180524826
+   },
+   "weights_applied": {
+    "world": 0.0010375974503364748,
+    "adapt": 0.02055725078843418,
+    "actor": 1.6889481258138654,
+    "value": 0.21532182271001712
+   },
+   "share_guard": {
+    "scale": {
+     "world": 1.0,
+     "adapt": 0.43064364542003425,
+     "actor": 0.04760384119140361,
+     "value": 0.43064364542003425
+    },
+    "satisfied": true,
+    "violated_measured": [
+     "world",
+     "actor"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 6.577760814252542e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.0048020025715231895,
+     "stepped": true,
+     "policy_loss": -6.086838144625517e-09,
+     "clipped": true
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 3.480998992919922,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 30.073159981984645,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 12,
+   "losses": {
+    "world": 32.04529571533203,
+    "adapt": 1.4813288450241089,
+    "actor": -0.0940956175327301,
+    "value": 5.023854732513428
+   },
+   "weights": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 24.074130093291835,
+    "value": 0.5
+   },
+   "grad_norm": 33.8658739213131,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 0.005870673805475235,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 27.29926300048828,
+    "tool_entropy": 1.2197833061218262,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.865725040435791,
+    "clip_frac": 0.0357142873108387,
+    "n_fresh_rows": 4,
+    "n_stale_rows": 4,
+    "logp_maxdev_lag0": 0.523101806640625,
+    "logp_meandev_lag0": 0.021053554490208626
+   },
+   "weights_applied": {
+    "world": 0.0006809799774392174,
+    "adapt": 0.047736106191427444,
+    "actor": 2.8764858273138225,
+    "value": 0.5
+   },
+   "share_guard": {
+    "scale": {
+     "world": 0.4146741682710101,
+     "adapt": 1.0,
+     "actor": 0.11948451786905248,
+     "value": 1.0
+    },
+    "satisfied": true,
+    "violated_measured": [
+     "actor"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.005870673805475235,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 11.897974967956543,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 2.641570568084717,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 21.66698610689491,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 13,
+   "losses": {
+    "world": 28.688812255859375,
+    "adapt": 1.3097883462905884,
+    "actor": -0.06537842005491257,
+    "value": 4.949779510498047
+   },
+   "weights": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 17.615400751653386,
+    "value": 0.5
+   },
+   "grad_norm": 5.071263639777953,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 4.119314326089807e-06,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 17.71703338623047,
+    "tool_entropy": 1.2227318286895752,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.9528264403343201,
+    "clip_frac": 0.0,
+    "n_fresh_rows": 4,
+    "n_stale_rows": 4,
+    "logp_maxdev_lag0": 0.006221771240234375,
+    "logp_meandev_lag0": 0.0022962945513427258
+   },
+   "weights_applied": {
+    "world": 0.00016853217297424562,
+    "adapt": 0.023821957347044863,
+    "actor": 17.615400751653386,
+    "value": 0.24951718151786398
+   },
+   "share_guard": {
+    "scale": {
+     "world": 0.10262554108830484,
+     "adapt": 0.49903436303572796,
+     "actor": 1.0,
+     "value": 0.49903436303572796
+    },
+    "satisfied": true,
+    "violated_measured": [
+     "world",
+     "actor"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 4.119314326089807e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.007385630626231432,
+     "stepped": true,
+     "policy_loss": 6.205116420687773e-09,
+     "clipped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 2.236574172973633,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 27.708829836919904,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 14,
+   "losses": {
+    "world": 31.15753936767578,
+    "adapt": 1.5726386308670044,
+    "actor": -0.16404610872268677,
+    "value": 4.787160873413086
+   },
+   "weights": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 14.851028967282028,
+    "value": 0.5
+   },
+   "grad_norm": 42.20167332488058,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 21,
+    "n_stale_steps": 11,
+    "kl": 8.56263613968622e-06,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 50.602149963378906,
+    "tool_entropy": 1.2239657640457153,
+    "rerouted_by_kl": 1,
+    "vtrace_rho_mean": 0.8817910552024841,
+    "clip_frac": 0.0,
+    "n_fresh_rows": 4,
+    "n_stale_rows": 4,
+    "logp_maxdev_lag0": 0.82763671875,
+    "logp_meandev_lag0": 0.061346475034952164
+   },
+   "weights_applied": {
+    "world": 0.001372832643455746,
+    "adapt": 0.047736106191427444,
+    "actor": 8.044789639588776,
+    "value": 0.5
+   },
+   "share_guard": {
+    "scale": {
+     "world": 0.8359691231173034,
+     "adapt": 1.0,
+     "actor": 0.5416991413397734,
+     "value": 1.0
+    },
+    "satisfied": true,
+    "violated_measured": [
+     "actor"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 8.56263613968622e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.0077929385006427765,
+     "stepped": true,
+     "policy_loss": -3.033738238400474e-08,
+     "clipped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 1.8649225234985352,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 13.636419192887843,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 15,
+   "losses": {
+    "world": 27.768339157104492,
+    "adapt": 1.26560378074646,
+    "actor": -0.14267109334468842,
+    "value": 4.59447717666626
+   },
+   "weights": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 13.036521137236862,
+    "value": 0.5
+   },
+   "grad_norm": 32.614706286472355,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 32,
+    "n_stale_steps": 4,
+    "kl": 0.0038779645692557096,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 43.48257827758789,
+    "tool_entropy": 1.2223353385925293,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.9459699392318726,
+    "clip_frac": 0.03125,
+    "n_fresh_rows": 4,
+    "n_stale_rows": 4,
+    "logp_maxdev_lag0": 0.54296875,
+    "logp_meandev_lag0": 0.018708698451519012
+   },
+   "weights_applied": {
+    "world": 0.0012965818870780488,
+    "adapt": 0.047736106191427444,
+    "actor": 4.453461306464933,
+    "value": 0.5
+   },
+   "share_guard": {
+    "scale": {
+     "world": 0.7895371867483971,
+     "adapt": 1.0,
+     "actor": 0.34161424352270564,
+     "value": 1.0
+    },
+    "satisfied": true,
+    "violated_measured": [
+     "actor"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.0038779645692557096,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 17.549869537353516,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 1.4452250003814697,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 36,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 17.868770990986377,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 16,
+   "losses": {
+    "world": 31.414127349853516,
+    "adapt": 1.970320463180542,
+    "actor": -0.1883062869310379,
+    "value": 4.490025520324707
+   },
+   "weights": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 11.143289637647264,
+    "value": 0.5
+   },
+   "grad_norm": 58.45019160070108,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 0,
+    "kl": 0.0003746067523024976,
+    "max_lag": 0,
+    "n_nodes": 32,
+    "n_segments": 4,
+    "entropy": 58.69219207763672,
+    "tool_entropy": 1.2229719161987305,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": null,
+    "clip_frac": 0.0,
+    "n_fresh_rows": 4,
+    "n_stale_rows": 0,
+    "logp_maxdev_lag0": 0.1407470703125,
+    "logp_meandev_lag0": 0.00677071325480938
+   },
+   "weights_applied": {
+    "world": 0.0012894068284461748,
+    "adapt": 0.047736106191427444,
+    "actor": 7.426459145530365,
+    "value": 0.5
+   },
+   "share_guard": {
+    "scale": {
+     "world": 0.7851680252913209,
+     "adapt": 1.0,
+     "actor": 0.6664512354090034,
+     "value": 1.0
+    },
+    "satisfied": true,
+    "violated_measured": [
+     "actor"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.0003746067523024976,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 17.861600875854492,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 12.867597579956055,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 28,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 34.02408071421087,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 17,
+   "losses": {
+    "world": 26.490802764892578,
+    "adapt": 1.5914489030838013,
+    "actor": -0.3003115653991699,
+    "value": 4.371580600738525
+   },
+   "weights": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 10.273091274789289,
+    "value": 0.5
+   },
+   "grad_norm": 37.144198453801614,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 21,
+    "n_stale_steps": 11,
+    "kl": 4.179221832600888e-06,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 96.03433227539062,
+    "tool_entropy": 1.220854640007019,
+    "rerouted_by_kl": 1,
+    "vtrace_rho_mean": 0.8977515697479248,
+    "clip_frac": 0.0,
+    "n_fresh_rows": 4,
+    "n_stale_rows": 4,
+    "logp_maxdev_lag0": 0.7625732421875,
+    "logp_meandev_lag0": 0.07114949077367783
+   },
+   "weights_applied": {
+    "world": 0.0014088919569508812,
+    "adapt": 0.047736106191427444,
+    "actor": 1.274164849871081,
+    "value": 0.5
+   },
+   "share_guard": {
+    "scale": {
+     "world": 0.8579269872651571,
+     "adapt": 1.0,
+     "actor": 0.12402935161278564,
+     "value": 1.0
+    },
+    "satisfied": true,
+    "violated_measured": [
+     "world",
+     "actor"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 4.179221832600888e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.0013431793777272105,
+     "stepped": true,
+     "policy_loss": -4.305087131228902e-08,
+     "clipped": true
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 6.288719654083252,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 33.517314174212515,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 18,
+   "losses": {
+    "world": 31.263103485107422,
+    "adapt": 2.080531358718872,
+    "actor": -0.04723011702299118,
+    "value": 4.104868412017822
+   },
+   "weights": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 7.651166857509629,
+    "value": 0.5
+   },
+   "grad_norm": 2.2934352914955065,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 4.771462499775225e-06,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 11.67977523803711,
+    "tool_entropy": 1.219078779220581,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.8909672498703003,
+    "clip_frac": 0.0,
+    "n_fresh_rows": 4,
+    "n_stale_rows": 4,
+    "logp_maxdev_lag0": 0.008045196533203125,
+    "logp_meandev_lag0": 0.001964117866009474
+   },
+   "weights_applied": {
+    "world": 5.807537700918711e-05,
+    "adapt": 0.007754470324708155,
+    "actor": 7.651166857509629,
+    "value": 0.08122227537382092
+   },
+   "share_guard": {
+    "scale": {
+     "world": 0.035364268342911065,
+     "adapt": 0.16244455074764183,
+     "actor": 1.0,
+     "value": 0.16244455074764183
+    },
+    "satisfied": true,
+    "violated_measured": [
+     "world",
+     "actor"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 4.771462499775225e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.0008594152750447392,
+     "stepped": true,
+     "policy_loss": 8.934627482304336e-10,
+     "clipped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 4.363021373748779,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 29.86172571592033,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 19,
+   "losses": {
+    "world": 27.31136703491211,
+    "adapt": 1.0801870822906494,
+    "actor": -0.04828371852636337,
+    "value": 3.817378520965576
+   },
+   "weights": {
+    "world": 0.0016422049636671925,
+    "adapt": 0.047736106191427444,
+    "actor": 6.830390162827832,
+    "value": 0.5
+   },
+   "grad_norm": 1.9276358757734338,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 2.9291570626810426e-06,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 12.031749725341797,
+    "tool_entropy": 1.218846321105957,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.9797776937484741,
+    "clip_frac": 0.0,
+    "n_fresh_rows": 4,
+    "n_stale_rows": 4,
+    "logp_maxdev_lag0": 0.008455276489257812,
+    "logp_meandev_lag0": 0.0015274712350219488
+   },
+   "weights_applied": {
+    "world": 5.9124947152732104e-05,
+    "adapt": 0.006186056271059264,
+    "actor": 6.830390162827832,
+    "value": 0.06479431152440927
+   },
+   "share_guard": {
+    "scale": {
+     "world": 0.03600339084391801,
+     "adapt": 0.12958862304881855,
+     "actor": 1.0,
+     "value": 0.12958862304881855
+    },
+    "satisfied": true,
+    "violated_measured": [
+     "world",
+     "actor"
+    ],
+    "note": "core_share = shares of the applied core gradient (after the guard); grad_table norms and core_share_measured are before it"
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 2.9291570626810426e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.0014996129320934415,
+     "stepped": true,
+     "policy_loss": 1.0839038111498667e-08,
+     "clipped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 3.0523290634155273,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 35.163957306183875,
+   "actor_psi_grad_norm": null
+  }
+ ],
+ "grad_tables": {
+  "1": {
+   "norm": {
+    "world": {
+     "core.block0": 11.660026040939643,
+     "core.block_mid": 12.881410058594371,
+     "core.block_last": 12.42805099024041,
+     "core.blocks_other": 27.038460924036062,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 5.1692481616185235,
+     "sem_proj": 53.307940986926376,
+     "entities": 0.2871100237573054,
+     "reasoner": 0.0,
+     "beliefs": 1.376374078297326,
+     "world_model": 30.434735621066576,
+     "outcome_head": 531.7773559018849,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.025180275444152057,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.7112344813204211,
+     "core.block_mid": 0.7600194511936039,
+     "core.block_last": 0.7398362107985431,
+     "core.blocks_other": 1.6027104427327568,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.27970882526272806,
+     "sem_proj": 0.4012285350394018,
+     "entities": 0.04344520649067869,
+     "reasoner": 0.0,
+     "beliefs": 0.28467222181123497,
+     "world_model": 0.028617901599906057,
+     "outcome_head": 2.4174867312867026,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0012297427851358984,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.00012908116241029799,
+     "core.block_mid": 0.0021929135908327867,
+     "core.block_last": 0.0021984674268184846,
+     "core.blocks_other": 0.0032031107975264025,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.000875840994071706,
+     "sem_proj": 0.0482680481157045,
+     "entities": 6.924741519539308e-06,
+     "reasoner": 0.00032922938347232844,
+     "beliefs": 0.004177497600361435,
+     "world_model": 2.553828894235937e-06,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.4451912999438814,
+     "exploration": 8.105760536105459e-05,
+     "policy": 0.051150014626931126,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0,
+     "core.block_mid": 0.0,
+     "core.block_last": 0.0,
+     "core.blocks_other": 0.0,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.0,
+     "sem_proj": 0.0,
+     "entities": 0.0,
+     "reasoner": 0.0,
+     "beliefs": 0.0,
+     "world_model": 0.0,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0,
+     "v_int": 1.8905055741351786,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.9381887938182012,
+    "adapt": 0.05568824391008434,
+    "actor": 0.006122962271714459,
+    "value": 0.0
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "2": {
+   "norm": {
+    "world": {
+     "core.block0": 2.504406098033949,
+     "core.block_mid": 2.727066998958603,
+     "core.block_last": 2.613168574300399,
+     "core.blocks_other": 5.774475747625243,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 1.0483953908090524,
+     "sem_proj": 0.7197386948948803,
+     "entities": 0.07537505107572669,
+     "reasoner": 0.0,
+     "beliefs": 0.3112406149372301,
+     "world_model": 0.6264375842757646,
+     "outcome_head": 6.669012451727679,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.003674382639086805,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.12063802827882066,
+     "core.block_mid": 0.13058098317206998,
+     "core.block_last": 0.12401631102024356,
+     "core.blocks_other": 0.2755793337500486,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.05202096493051521,
+     "sem_proj": 0.06647752695194324,
+     "entities": 0.004109348435081487,
+     "reasoner": 0.0,
+     "beliefs": 0.0364996756938716,
+     "world_model": 0.00706959253185174,
+     "outcome_head": 0.6646980385960438,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.00015281712646539786,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.010067342034190805,
+     "core.block_mid": 0.18483346012396057,
+     "core.block_last": 0.18450398741977492,
+     "core.blocks_other": 0.2638501306494454,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.07149264907896338,
+     "sem_proj": 4.2409034317129,
+     "entities": 0.0004920692341876594,
+     "reasoner": 0.02678743544758016,
+     "beliefs": 0.39103189257338267,
+     "world_model": 0.00021023517238772564,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 18.03937293339428,
+     "exploration": 0.00497284453497983,
+     "policy": 4.267617232014753,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0001755321065963435,
+     "core.block_mid": 0.0032431465779840137,
+     "core.block_last": 0.0032308877107728937,
+     "core.blocks_other": 0.004613608446737214,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.0012896964293139957,
+     "sem_proj": 0.004500309170843584,
+     "entities": 9.189650883325908e-06,
+     "reasoner": 0.0004673813760699484,
+     "beliefs": 0.0003635633178610449,
+     "world_model": 3.4891515203703566e-06,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 2.8007339712276132e-06,
+     "v_int": 1.8862315431454033,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.4364999999999997,
+    "adapt": 0.27017282926181013,
+    "actor": 0.2882747778098855,
+    "value": 0.005052392928304687
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "3": {
+   "norm": {
+    "world": {
+     "core.block0": 0.24259664216062637,
+     "core.block_mid": 0.25929658175432035,
+     "core.block_last": 0.24694025438771638,
+     "core.blocks_other": 0.5494238718664444,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.10034134208037805,
+     "sem_proj": 0.05674540758929303,
+     "entities": 0.004985134338826721,
+     "reasoner": 0.0,
+     "beliefs": 0.03062403421618622,
+     "world_model": 0.07036597483405212,
+     "outcome_head": 0.47257146784286713,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0003351261704258981,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 3.9600507657814084,
+     "core.block_mid": 4.391401446234141,
+     "core.block_last": 4.088820889732215,
+     "core.blocks_other": 9.064218082023212,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 1.7463390340205347,
+     "sem_proj": 2.2451830269815414,
+     "entities": 0.08341833029248652,
+     "reasoner": 0.0,
+     "beliefs": 0.4035444398915021,
+     "world_model": 0.1059383560458342,
+     "outcome_head": 26.373010930995463,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0033612148121320894,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.010491696019721873,
+     "core.block_mid": 0.1910135171536028,
+     "core.block_last": 0.18921952741228545,
+     "core.blocks_other": 0.2740143957298102,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.07076646038723841,
+     "sem_proj": 4.01514310208852,
+     "entities": 0.0005427701195261392,
+     "reasoner": 0.027624660648310286,
+     "beliefs": 0.2878498856020301,
+     "world_model": 0.0002533045792250122,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 2.259458582006156,
+     "exploration": 0.0036912551757432833,
+     "policy": 4.096394856568743,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.00029425486871249395,
+     "core.block_mid": 0.005456768601668063,
+     "core.block_last": 0.005402557847774984,
+     "core.blocks_other": 0.007780252526184418,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.002166793379510887,
+     "sem_proj": 0.007660836756701228,
+     "entities": 1.592017094275468e-05,
+     "reasoner": 0.0007904291120592517,
+     "beliefs": 0.0005459185738088013,
+     "world_model": 5.980485139156883e-06,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 5.039046423556581e-06,
+     "v_int": 2.318051144967957,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.4475596024292735,
+    "adapt": 0.4365,
+    "actor": 0.11406548679996324,
+    "value": 0.0018749107707632963
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "4": {
+   "norm": {
+    "world": {
+     "core.block0": 0.7424221671697055,
+     "core.block_mid": 0.817289176144299,
+     "core.block_last": 0.7805476273857693,
+     "core.blocks_other": 1.714790847414158,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.30518552230547275,
+     "sem_proj": 0.21055844475092791,
+     "entities": 0.03235116624808268,
+     "reasoner": 0.0,
+     "beliefs": 0.09415041825098527,
+     "world_model": 0.17689654138228905,
+     "outcome_head": 1.9505914964765712,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0011439772128408097,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.018897246374986295,
+     "core.block_mid": 0.020853078104699163,
+     "core.block_last": 0.019296156596216536,
+     "core.blocks_other": 0.043343294712407214,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.008178037466247894,
+     "sem_proj": 0.01079772685504131,
+     "entities": 0.0006137400404707564,
+     "reasoner": 0.0,
+     "beliefs": 0.007883740804459098,
+     "world_model": 0.0006648891258535426,
+     "outcome_head": 0.09938171962295772,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 2.1222847722208343e-05,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.01305534871934875,
+     "core.block_mid": 0.23876835329354193,
+     "core.block_last": 0.23642609669893974,
+     "core.blocks_other": 0.34191102437844617,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.08772291500965404,
+     "sem_proj": 4.093564327775936,
+     "entities": 0.0006892122988632464,
+     "reasoner": 0.034336669640661,
+     "beliefs": 0.28634668110545547,
+     "world_model": 0.0003249392679816159,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.003339605556247862,
+     "policy": 4.758975132796472,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.00040663548539214144,
+     "core.block_mid": 0.007571759200561778,
+     "core.block_last": 0.00747697207209462,
+     "core.blocks_other": 0.010796097383085153,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.002957281009281297,
+     "sem_proj": 0.01058210119814072,
+     "entities": 2.2437675509354595e-05,
+     "reasoner": 0.00108931880717556,
+     "beliefs": 0.0007733317114751049,
+     "world_model": 8.408621417672228e-06,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 7.392541525473698e-06,
+     "v_int": 2.8388849919892314,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.44641636361393955,
+    "adapt": 0.12966082569661366,
+    "actor": 0.388,
+    "value": 0.035922810689446756
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "5": {
+   "norm": {
+    "world": {
+     "core.block0": 0.18260281552150182,
+     "core.block_mid": 0.19834466925516647,
+     "core.block_last": 0.18571627062022394,
+     "core.blocks_other": 0.41661703489663005,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.07503260311144282,
+     "sem_proj": 0.04553340010370703,
+     "entities": 0.005308048269223597,
+     "reasoner": 0.0,
+     "beliefs": 0.026473242669198295,
+     "world_model": 0.052765715522592446,
+     "outcome_head": 0.487312821375785,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0003181031597430757,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.055792127908990054,
+     "core.block_mid": 0.06089300386486967,
+     "core.block_last": 0.05706942347082795,
+     "core.blocks_other": 0.12532291574784388,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.022267263335468964,
+     "sem_proj": 0.02844569592150688,
+     "entities": 0.0009845871579830887,
+     "reasoner": 0.0,
+     "beliefs": 0.035350132486494386,
+     "world_model": 0.0015498514120344256,
+     "outcome_head": 0.10691243227941259,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 5.414864237732019e-05,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.010087939691678134,
+     "core.block_mid": 0.18625142700173486,
+     "core.block_last": 0.18364507891030654,
+     "core.blocks_other": 0.26691305387270925,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.06664071344680551,
+     "sem_proj": 2.549470760551105,
+     "entities": 0.0005433552356178077,
+     "reasoner": 0.026443344969928315,
+     "beliefs": 0.2165264040519902,
+     "world_model": 0.0002496820285504332,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0019774367385458577,
+     "policy": 3.6765746862596194,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0005853719938540668,
+     "core.block_mid": 0.010932450840026493,
+     "core.block_last": 0.010739096757731855,
+     "core.blocks_other": 0.015592112053112249,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.004149295683489883,
+     "sem_proj": 0.015098754415231501,
+     "entities": 3.444118058467858e-05,
+     "reasoner": 0.0015502652898893238,
+     "beliefs": 0.0012810321885985882,
+     "world_model": 1.2890786687033098e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.160142247352119e-05,
+     "v_int": 3.962660435458179,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.4365,
+    "adapt": 0.1619346227291416,
+    "actor": 0.3793290340789802,
+    "value": 0.022236343191878154
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "6": {
+   "norm": {
+    "world": {
+     "core.block0": 0.19168978729599825,
+     "core.block_mid": 0.2056923795154326,
+     "core.block_last": 0.19766836317737788,
+     "core.blocks_other": 0.4370270795626568,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.07485250259579881,
+     "sem_proj": 0.04067037660487157,
+     "entities": 0.006953858824211038,
+     "reasoner": 0.0,
+     "beliefs": 0.025189452127402073,
+     "world_model": 0.058376457709239854,
+     "outcome_head": 0.3666375891939606,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0003209919256358746,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.03650802163295409,
+     "core.block_mid": 0.04087744865379596,
+     "core.block_last": 0.03821250931666304,
+     "core.blocks_other": 0.08458628206366965,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.015260871268301555,
+     "sem_proj": 0.017896539097639528,
+     "entities": 0.0007590929685459766,
+     "reasoner": 0.0,
+     "beliefs": 0.020229771562885066,
+     "world_model": 0.001165970259451044,
+     "outcome_head": 0.09707745692712282,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 3.5261977312591633e-05,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.01651728587840975,
+     "core.block_mid": 0.30238241840470415,
+     "core.block_last": 0.3054959136319675,
+     "core.blocks_other": 0.4350049021050048,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.11830206764684391,
+     "sem_proj": 3.0599226713694487,
+     "entities": 0.0009763149405436951,
+     "reasoner": 0.042795321666672395,
+     "beliefs": 0.9439885665294102,
+     "world_model": 0.0003476644458219704,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 80.45965968072137,
+     "exploration": 0.01172299792367156,
+     "policy": 4.483165405040304,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0006672924171459576,
+     "core.block_mid": 0.012470593685351028,
+     "core.block_last": 0.012216706018315853,
+     "core.blocks_other": 0.017674326079361438,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.004649155152144206,
+     "sem_proj": 0.016965154061431793,
+     "entities": 4.058515015205553e-05,
+     "reasoner": 0.0017435476845963473,
+     "beliefs": 0.0015163553585222094,
+     "world_model": 1.5308303472043854e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.3779884566277188e-05,
+     "v_int": 4.592851615822769,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.44605256785553465,
+    "adapt": 0.13467180707210671,
+    "actor": 0.38799999999999996,
+    "value": 0.03127562507235861
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "7": {
+   "norm": {
+    "world": {
+     "core.block0": 0.17040840191744216,
+     "core.block_mid": 0.1860884942914852,
+     "core.block_last": 0.17453052289225615,
+     "core.blocks_other": 0.39105568984462125,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.06847724969696425,
+     "sem_proj": 0.035538065324333776,
+     "entities": 0.003967825229270606,
+     "reasoner": 0.0,
+     "beliefs": 0.021968094034223316,
+     "world_model": 0.061367402816943493,
+     "outcome_head": 0.2500841029083409,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0002913581610898404,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.02161894654838999,
+     "core.block_mid": 0.024106856151971865,
+     "core.block_last": 0.022420164605441877,
+     "core.blocks_other": 0.049561026058793194,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.01044084627695254,
+     "sem_proj": 0.011157092196909637,
+     "entities": 0.0007796288630284224,
+     "reasoner": 0.0,
+     "beliefs": 0.011245569670564181,
+     "world_model": 0.0008187263804753831,
+     "outcome_head": 0.09285361188617684,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 3.2523981853896716e-05,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.007140420407321256,
+     "core.block_mid": 0.13122515301300317,
+     "core.block_last": 0.1323620013810764,
+     "core.blocks_other": 0.1888757342798286,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.04681318896669016,
+     "sem_proj": 2.0802683855181123,
+     "entities": 0.00045625776083533924,
+     "reasoner": 0.018461789326472147,
+     "beliefs": 0.37201385870749787,
+     "world_model": 0.00016528607659746633,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 29.433401676961225,
+     "exploration": 0.004417126033111538,
+     "policy": 2.7613524284377946,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.000725506600132409,
+     "core.block_mid": 0.013590197241070887,
+     "core.block_last": 0.013307101605129473,
+     "core.blocks_other": 0.019278220198562495,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.00505315295539127,
+     "sem_proj": 0.01861809887338146,
+     "entities": 4.5201158884317395e-05,
+     "reasoner": 0.0019016067385235517,
+     "beliefs": 0.0017184794407150556,
+     "world_model": 1.762097437238295e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.588889199181104e-05,
+     "v_int": 5.250599599839709,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.44941293411669225,
+    "adapt": 0.11373447427958273,
+    "actor": 0.38800000000000007,
+    "value": 0.04885259160372498
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "8": {
+   "norm": {
+    "world": {
+     "core.block0": 0.07712148243774719,
+     "core.block_mid": 0.08527649725432318,
+     "core.block_last": 0.08039532327500476,
+     "core.blocks_other": 0.17990195910750517,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.0316850821591422,
+     "sem_proj": 0.014715805708536006,
+     "entities": 0.002187220598356116,
+     "reasoner": 0.0,
+     "beliefs": 0.012753947273994586,
+     "world_model": 0.029836520478985034,
+     "outcome_head": 0.07707912010951731,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.00012778734027827894,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.030166793845929574,
+     "core.block_mid": 0.023709936541116573,
+     "core.block_last": 0.027813553950881593,
+     "core.blocks_other": 0.05574603695332278,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.0068289404847969104,
+     "sem_proj": 0.008319751978488433,
+     "entities": 0.0007119331275190569,
+     "reasoner": 0.0,
+     "beliefs": 0.021784664990053933,
+     "world_model": 0.0006523643823557642,
+     "outcome_head": 0.1283554243941381,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 4.3480799381367866e-05,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.0030110357243647756,
+     "core.block_mid": 0.05393880063488409,
+     "core.block_last": 0.05477748007894424,
+     "core.blocks_other": 0.07791852787490575,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.01988927110965972,
+     "sem_proj": 1.4323098568772707,
+     "entities": 0.00020872965353351555,
+     "reasoner": 0.007683860199975014,
+     "beliefs": 0.17130273135897653,
+     "world_model": 6.382382172670087e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 12.281039403609444,
+     "exploration": 0.0017382757043314723,
+     "policy": 1.395996478021655,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0008737779082555441,
+     "core.block_mid": 0.014022144305152306,
+     "core.block_last": 0.013791437469649242,
+     "core.blocks_other": 0.020048311962454938,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.005309132756988853,
+     "sem_proj": 0.019768119729257405,
+     "entities": 4.162492218931784e-05,
+     "reasoner": 0.002008973518511941,
+     "beliefs": 0.0012430160638614862,
+     "world_model": 1.5467028478899458e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.5008167325542505e-05,
+     "v_int": 5.906795093067338,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.4365,
+    "adapt": 0.19406798647596632,
+    "actor": 0.2939132782139001,
+    "value": 0.07551873531013356
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "9": {
+   "norm": {
+    "world": {
+     "core.block0": 0.053442760185627596,
+     "core.block_mid": 0.058659893690686235,
+     "core.block_last": 0.054621987185959626,
+     "core.blocks_other": 0.1219263601288442,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.022429231365658747,
+     "sem_proj": 0.01241526967333093,
+     "entities": 0.0013313767382375967,
+     "reasoner": 0.0,
+     "beliefs": 0.007366864653169275,
+     "world_model": 0.02021649481761752,
+     "outcome_head": 0.10527031828411887,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 9.752198795556235e-05,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.026948695492616775,
+     "core.block_mid": 0.024839849921287373,
+     "core.block_last": 0.026876490125056367,
+     "core.blocks_other": 0.05607606018481515,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.007811541843145232,
+     "sem_proj": 0.0107534969466198,
+     "entities": 0.0004923709066099132,
+     "reasoner": 0.0,
+     "beliefs": 0.017272431092865456,
+     "world_model": 0.0006948745379450954,
+     "outcome_head": 0.1864912394749259,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 3.970567421367822e-05,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.007477793336495443,
+     "core.block_mid": 0.1340612580168488,
+     "core.block_last": 0.13248171003081569,
+     "core.blocks_other": 0.19393863032605083,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.05522170729562839,
+     "sem_proj": 1.2873492791554486,
+     "entities": 0.0005157718550211844,
+     "reasoner": 0.019792985300345508,
+     "beliefs": 0.23823797114328818,
+     "world_model": 0.00017968582139773592,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 43.45030021607661,
+     "exploration": 0.005634276868441809,
+     "policy": 1.935922534259774,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.000752650259402118,
+     "core.block_mid": 0.013923861880769184,
+     "core.block_last": 0.013804499736367376,
+     "core.blocks_other": 0.01997595935893038,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.005332219192905104,
+     "sem_proj": 0.020002631288155867,
+     "entities": 4.691436021386248e-05,
+     "reasoner": 0.002032419367305148,
+     "beliefs": 0.001150086397670191,
+     "world_model": 2.113714811507335e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.613803754780758e-05,
+     "v_int": 6.5763954915388725,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.3722671182457481,
+    "adapt": 0.17214739390832742,
+    "actor": 0.38800000000000007,
+    "value": 0.06758548784592447
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "10": {
+   "norm": {
+    "world": {
+     "core.block0": 0.06049882420309099,
+     "core.block_mid": 0.06528295603942905,
+     "core.block_last": 0.06282655520732378,
+     "core.blocks_other": 0.13591347323116312,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.02571047660551604,
+     "sem_proj": 0.01337969868551169,
+     "entities": 0.002209935132482385,
+     "reasoner": 0.0,
+     "beliefs": 0.008191060236961673,
+     "world_model": 0.021797621458484937,
+     "outcome_head": 0.13292209226896118,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 9.704392181699651e-05,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.017086483420658324,
+     "core.block_mid": 0.019149888178912715,
+     "core.block_last": 0.017785540719864962,
+     "core.blocks_other": 0.03940553101895995,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.008012429039126417,
+     "sem_proj": 0.008737261179212056,
+     "entities": 0.0005724255562345862,
+     "reasoner": 0.0,
+     "beliefs": 0.008712866677368054,
+     "world_model": 0.0006464956625845236,
+     "outcome_head": 0.08030677054615257,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 2.271280991465115e-05,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.06175864950489923,
+     "core.block_mid": 1.111365667959336,
+     "core.block_last": 1.0930485247060446,
+     "core.blocks_other": 1.5661515863649307,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.4414250192618335,
+     "sem_proj": 2.58002221785449,
+     "entities": 0.003905509528371007,
+     "reasoner": 0.15594051228214909,
+     "beliefs": 3.0650032867364234,
+     "world_model": 0.0013832489556079746,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 392.5260142652968,
+     "exploration": 0.04641638108568484,
+     "policy": 2.0996418511296486,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0007587780562106039,
+     "core.block_mid": 0.014113629295392794,
+     "core.block_last": 0.013872727610488373,
+     "core.blocks_other": 0.02004705403808081,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.005235866028850432,
+     "sem_proj": 0.019777453868279875,
+     "entities": 4.495702557924514e-05,
+     "reasoner": 0.002012288061619591,
+     "beliefs": 0.0015902519940972492,
+     "world_model": 2.1365582722638883e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.6445460159794887e-05,
+     "v_int": 7.227898155706649,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.43650000000000005,
+    "adapt": 0.1060370774579445,
+    "actor": 0.3977661497019904,
+    "value": 0.05969677284006503
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "11": {
+   "norm": {
+    "world": {
+     "core.block0": 0.07483073196999672,
+     "core.block_mid": 0.08365036838505102,
+     "core.block_last": 0.07910198046726899,
+     "core.blocks_other": 0.1739638580845968,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.03293002587163804,
+     "sem_proj": 0.016942123194844873,
+     "entities": 0.0014700542356762462,
+     "reasoner": 0.0,
+     "beliefs": 0.010123995611297534,
+     "world_model": 0.03002419370228242,
+     "outcome_head": 0.1250449487217715,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.00014255500974996258,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.056420944326094055,
+     "core.block_mid": 0.06182251436028439,
+     "core.block_last": 0.0582285207189827,
+     "core.blocks_other": 0.13001514806202663,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.023145196498693982,
+     "sem_proj": 0.024873168300621334,
+     "entities": 0.0011466451001831016,
+     "reasoner": 0.0,
+     "beliefs": 0.035348726258917246,
+     "world_model": 0.0018108803768148234,
+     "outcome_head": 0.08413822199419319,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 3.9748052142863994e-05,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.11210056496272786,
+     "core.block_mid": 2.0328976331120674,
+     "core.block_last": 1.9913534774761787,
+     "core.blocks_other": 2.851333734402447,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.7491341201988343,
+     "sem_proj": 3.156717095890338,
+     "entities": 0.007224750613842732,
+     "reasoner": 0.28316381773620375,
+     "beliefs": 5.5283015954516666,
+     "world_model": 0.0025306188699217398,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 704.2666176598178,
+     "exploration": 0.07621251452665455,
+     "policy": 1.3087016046970825,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0007269316792152244,
+     "core.block_mid": 0.013651970653934179,
+     "core.block_last": 0.01320015950429854,
+     "core.blocks_other": 0.019350148798143813,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.004981787970843993,
+     "sem_proj": 0.01887789268789977,
+     "entities": 4.191271253156386e-05,
+     "reasoner": 0.0019318149875580909,
+     "beliefs": 0.0016415382866552491,
+     "world_model": 1.8738770097364935e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.6591181662159586e-05,
+     "v_int": 8.500714440333457,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.4455219641938679,
+    "adapt": 0.14286528489423228,
+    "actor": 0.38800000000000007,
+    "value": 0.02361275091189984
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "12": {
+   "norm": {
+    "world": {
+     "core.block0": 0.1553266721914048,
+     "core.block_mid": 0.1727672629963997,
+     "core.block_last": 0.1646105377634167,
+     "core.blocks_other": 0.3615424886389848,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.06710456675489461,
+     "sem_proj": 0.028181592352408927,
+     "entities": 0.006437015668380517,
+     "reasoner": 0.0,
+     "beliefs": 0.022441888329679006,
+     "world_model": 0.05531530546896999,
+     "outcome_head": 0.2172292315918142,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0002529998610911573,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.013416503956611446,
+     "core.block_mid": 0.015139441091548097,
+     "core.block_last": 0.014008699633225456,
+     "core.blocks_other": 0.0313309946077737,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.005960513000290775,
+     "sem_proj": 0.0072739615332900265,
+     "entities": 0.00035979545863927727,
+     "reasoner": 0.0,
+     "beliefs": 0.006893190152674166,
+     "world_model": 0.0005511768322743107,
+     "outcome_head": 0.07524802478268454,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.586532779883275e-05,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.0380352046107674,
+     "core.block_mid": 0.7062650079736081,
+     "core.block_last": 0.6473944214130042,
+     "core.blocks_other": 0.9833217920552786,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.2653575841388066,
+     "sem_proj": 1.2102343579002273,
+     "entities": 0.0023739920132317,
+     "reasoner": 0.09451843285169707,
+     "beliefs": 2.439230769020708,
+     "world_model": 0.00099264652738776,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 278.34595156028405,
+     "exploration": 0.027628067603610952,
+     "policy": 0.33708150268823045,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0008107199330638149,
+     "core.block_mid": 0.015251892438634212,
+     "core.block_last": 0.0144252513555891,
+     "core.blocks_other": 0.021447627111156758,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.005357665920018551,
+     "sem_proj": 0.02099433741875203,
+     "entities": 4.703284975902215e-05,
+     "reasoner": 0.002097335378609047,
+     "beliefs": 0.002130321863351194,
+     "world_model": 2.0271847561682655e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.7205624982023554e-05,
+     "v_int": 9.63141764916345,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.44769192130844443,
+    "adapt": 0.09351113470203283,
+    "actor": 0.388,
+    "value": 0.07079694398952278
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "13": {
+   "norm": {
+    "world": {
+     "core.block0": 0.09634072192788348,
+     "core.block_mid": 0.10841808484702954,
+     "core.block_last": 0.10160163895524553,
+     "core.blocks_other": 0.22677374725473087,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.0407932817132406,
+     "sem_proj": 0.017621457975038047,
+     "entities": 0.002857443955125342,
+     "reasoner": 0.0,
+     "beliefs": 0.015016856554532871,
+     "world_model": 0.04701993064254389,
+     "outcome_head": 0.11123748067267752,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.00016829127363894114,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.012921862296132205,
+     "core.block_mid": 0.014429518875506128,
+     "core.block_last": 0.013372830286872507,
+     "core.blocks_other": 0.029638311456188834,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.005399140200866254,
+     "sem_proj": 0.007159430444085071,
+     "entities": 0.00039675215618599973,
+     "reasoner": 0.0,
+     "beliefs": 0.008949506615303159,
+     "world_model": 0.0005315551177130864,
+     "outcome_head": 0.07341807544778639,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.3940452424076808e-05,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.0002014951127718139,
+     "core.block_mid": 0.00369161070186997,
+     "core.block_last": 0.0034788573750790747,
+     "core.blocks_other": 0.005240530528715223,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.0013891004653416544,
+     "sem_proj": 0.17704232643336987,
+     "entities": 1.246026632229414e-05,
+     "reasoner": 0.0005086066818426698,
+     "beliefs": 0.015940922002768188,
+     "world_model": 4.784312570810448e-06,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.00016405200463524489,
+     "policy": 0.23726481820962578,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0008423299044361676,
+     "core.block_mid": 0.015746296819275526,
+     "core.block_last": 0.014794929468197023,
+     "core.blocks_other": 0.022217668002729656,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.005525868467690341,
+     "sem_proj": 0.022027609241926586,
+     "entities": 4.793996058274357e-05,
+     "reasoner": 0.0021457896761248145,
+     "beliefs": 0.002326103836585384,
+     "world_model": 2.1089119428840323e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.7548624381473274e-05,
+     "v_int": 10.17002408815305,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.4139565463366078,
+    "adapt": 0.2648168752399905,
+    "actor": 0.10309278350515465,
+    "value": 0.21813379491824697
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "14": {
+   "norm": {
+    "world": {
+     "core.block0": 0.09293175289749929,
+     "core.block_mid": 0.10276759430075932,
+     "core.block_last": 0.09726074715911195,
+     "core.blocks_other": 0.21410068846553576,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.03849924473081684,
+     "sem_proj": 0.018316528614812647,
+     "entities": 0.003521370580324102,
+     "reasoner": 0.0,
+     "beliefs": 0.014614961539810765,
+     "world_model": 0.04811214756495248,
+     "outcome_head": 0.22192841075030817,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.00015137342086761414,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.017009642284864655,
+     "core.block_mid": 0.018767086237230547,
+     "core.block_last": 0.017842277467922843,
+     "core.blocks_other": 0.039276415002029726,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.006724549324463178,
+     "sem_proj": 0.008172650369156688,
+     "entities": 0.0006383590559871589,
+     "reasoner": 0.0,
+     "beliefs": 0.008990318079369597,
+     "world_model": 0.0005340290647350306,
+     "outcome_head": 0.07533669803693985,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.4795861684886638e-05,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.01089782899115725,
+     "core.block_mid": 0.19364000435979567,
+     "core.block_last": 0.18266472223308824,
+     "core.blocks_other": 0.27412397860812066,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.07089280035134012,
+     "sem_proj": 0.3184535583475177,
+     "entities": 0.0006335423424112746,
+     "reasoner": 0.026183478475163554,
+     "beliefs": 0.6575052427220643,
+     "world_model": 0.0002201279664692115,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 75.01054613352711,
+     "exploration": 0.007242961238016488,
+     "policy": 0.30587891410300033,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0009708138131531528,
+     "core.block_mid": 0.0180363033782736,
+     "core.block_last": 0.017106433888058235,
+     "core.blocks_other": 0.025762663539049747,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.006471821101792733,
+     "sem_proj": 0.025366295795096805,
+     "entities": 5.538881681650567e-05,
+     "reasoner": 0.002488705360543938,
+     "beliefs": 0.0027460416454282224,
+     "world_model": 2.5907595057889703e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 2.1489685734469005e-05,
+     "v_int": 11.235304325805199,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.43650000000000005,
+    "adapt": 0.09561497733289014,
+    "actor": 0.39894498005958484,
+    "value": 0.068940042607525
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "15": {
+   "norm": {
+    "world": {
+     "core.block0": 0.08014782628474167,
+     "core.block_mid": 0.08838958570332274,
+     "core.block_last": 0.08364140542583925,
+     "core.blocks_other": 0.18470651152752354,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.03422908279123186,
+     "sem_proj": 0.016340070389254904,
+     "entities": 0.003474347052301416,
+     "reasoner": 0.0,
+     "beliefs": 0.013028122741544215,
+     "world_model": 0.049753506392376926,
+     "outcome_head": 0.09618482228320153,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.00014217433334883412,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.011284707575772228,
+     "core.block_mid": 0.012267007710908034,
+     "core.block_last": 0.011839833415088907,
+     "core.blocks_other": 0.02571176477025463,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.004418055582442199,
+     "sem_proj": 0.006002531302239815,
+     "entities": 0.0004196246069195548,
+     "reasoner": 0.0,
+     "beliefs": 0.007889605080169889,
+     "world_model": 0.00043873694354671614,
+     "outcome_head": 0.06667875028911405,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.2778963173138164e-05,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.013397273821698525,
+     "core.block_mid": 0.2390541455423444,
+     "core.block_last": 0.2217491058016556,
+     "core.blocks_other": 0.33542679624287647,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.08992216067927475,
+     "sem_proj": 0.36871070652463567,
+     "entities": 0.0007437117046791105,
+     "reasoner": 0.0324421018104467,
+     "beliefs": 0.8402039576034304,
+     "world_model": 0.0003075581765862033,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 91.01783393242228,
+     "exploration": 0.009556352291970292,
+     "policy": 0.13874863125581324,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.000972511429911952,
+     "core.block_mid": 0.017860235794280796,
+     "core.block_last": 0.016827641008969437,
+     "core.blocks_other": 0.02545550886735283,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.006311921254859299,
+     "sem_proj": 0.024549130892231433,
+     "entities": 5.6844771914300525e-05,
+     "reasoner": 0.0024395630256152686,
+     "beliefs": 0.002701881280039717,
+     "world_model": 2.4518762715761505e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 2.0966981594197884e-05,
+     "v_int": 12.194304615822771,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.447369186280249,
+    "adapt": 0.0789977219085302,
+    "actor": 0.38800000000000007,
+    "value": 0.08563309181122075
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "16": {
+   "norm": {
+    "world": {
+     "core.block0": 0.13888706381578836,
+     "core.block_mid": 0.15548479941448853,
+     "core.block_last": 0.14438574142048916,
+     "core.blocks_other": 0.32208267567572785,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.05592326831654011,
+     "sem_proj": 0.028359954728882024,
+     "entities": 0.0044933053367341375,
+     "reasoner": 0.0,
+     "beliefs": 0.019328541406813678,
+     "world_model": 0.05938445670021326,
+     "outcome_head": 0.19335700524929839,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.00024287046760198384,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.027516572473742604,
+     "core.block_mid": 0.03059861201147822,
+     "core.block_last": 0.02878900646025691,
+     "core.blocks_other": 0.06319131951362396,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.01054757344120993,
+     "sem_proj": 0.012664555352024822,
+     "entities": 0.0009494354996445502,
+     "reasoner": 0.0,
+     "beliefs": 0.016726125580109257,
+     "world_model": 0.0009370956646763968,
+     "outcome_head": 0.08386565844452754,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 3.726758816474201e-05,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.021088407615914653,
+     "core.block_mid": 0.20599340820298032,
+     "core.block_last": 0.20537991797281466,
+     "core.blocks_other": 0.29462268634384564,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.08136383527717013,
+     "sem_proj": 0.37487065548238,
+     "entities": 3.263142195411594e-06,
+     "reasoner": 0.031186276336773226,
+     "beliefs": 0.35494887934232583,
+     "world_model": 0.00010223869021483916,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 85.67300490546161,
+     "exploration": 0.008779826792035953,
+     "policy": 0.23695519696394757,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0012310767284560984,
+     "core.block_mid": 0.018550964188943878,
+     "core.block_last": 0.018286380715211336,
+     "core.blocks_other": 0.02648297688076835,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.007146765080176216,
+     "sem_proj": 0.026553738030731317,
+     "entities": 4.619588529023808e-05,
+     "reasoner": 0.0027028823569311905,
+     "beliefs": 0.001347221939258884,
+     "world_model": 2.0769238124526303e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.884442359628431e-05,
+     "v_int": 12.714321105809804,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.44766391671940003,
+    "adapt": 0.11217945956487456,
+    "actor": 0.388,
+    "value": 0.052156623715725374
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "17": {
+   "norm": {
+    "world": {
+     "core.block0": 0.09126789797679279,
+     "core.block_mid": 0.10119568625570846,
+     "core.block_last": 0.09467187758101192,
+     "core.blocks_other": 0.209938686877408,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.037036604805983364,
+     "sem_proj": 0.019487067256753282,
+     "entities": 0.0037121031318271924,
+     "reasoner": 0.0,
+     "beliefs": 0.013415348778109876,
+     "world_model": 0.056527481033330364,
+     "outcome_head": 0.06605878200845926,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.00015794623561196376,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.017625517172456452,
+     "core.block_mid": 0.01941937053100724,
+     "core.block_last": 0.018588840116606897,
+     "core.blocks_other": 0.04049663931739549,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.007148847507941723,
+     "sem_proj": 0.008541974768588687,
+     "entities": 0.0006534764682907596,
+     "reasoner": 0.0,
+     "beliefs": 0.010164946434364174,
+     "world_model": 0.0005687040052675771,
+     "outcome_head": 0.066021128571789,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.3635329412397256e-05,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.04744123405042094,
+     "core.block_mid": 0.8583544132890948,
+     "core.block_last": 0.81654623191328,
+     "core.blocks_other": 1.1865901473016451,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.321553732898003,
+     "sem_proj": 1.344135761335332,
+     "entities": 0.0033576200606971413,
+     "reasoner": 0.11887852965970172,
+     "beliefs": 1.9069775928167076,
+     "world_model": 0.001124058519988795,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 288.8821532000549,
+     "exploration": 0.03817569109415104,
+     "policy": 0.3439303596881162,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0009498422642160297,
+     "core.block_mid": 0.017406899594931812,
+     "core.block_last": 0.016842216324341384,
+     "core.blocks_other": 0.024593829882136375,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.0066407420826505754,
+     "sem_proj": 0.025275360794085152,
+     "entities": 5.339831685577427e-05,
+     "reasoner": 0.002469143565961531,
+     "beliefs": 0.0019678284403190065,
+     "world_model": 2.2387174744192966e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.9733261116776824e-05,
+     "v_int": 13.171581332914068,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.4365,
+    "adapt": 0.09830373139914672,
+    "actor": 0.39896929442062523,
+    "value": 0.0662269741802281
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "18": {
+   "norm": {
+    "world": {
+     "core.block0": 0.09758561440795253,
+     "core.block_mid": 0.10894691616559042,
+     "core.block_last": 0.10083650194445905,
+     "core.blocks_other": 0.22483621835189038,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.03777658935580948,
+     "sem_proj": 0.019078987091315797,
+     "entities": 0.0033347311340413146,
+     "reasoner": 0.0,
+     "beliefs": 0.01430840975642204,
+     "world_model": 0.05889452982097497,
+     "outcome_head": 0.2619230554730792,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.00016271950669791187,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.01578065336983342,
+     "core.block_mid": 0.01708568454266505,
+     "core.block_last": 0.016909594759306625,
+     "core.blocks_other": 0.03603193661539266,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.006676449872059167,
+     "sem_proj": 0.007336396534253693,
+     "entities": 0.0009259918871740669,
+     "reasoner": 0.0,
+     "beliefs": 0.007926759635166796,
+     "world_model": 0.0007528937482715,
+     "outcome_head": 0.0729121720540941,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 4.551147379760483e-05,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 7.051121779632702e-05,
+     "core.block_mid": 0.0013105249268797914,
+     "core.block_last": 0.0012665988753823554,
+     "core.blocks_other": 0.0018538814257812021,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.0004666838604889938,
+     "sem_proj": 0.059638746226257984,
+     "entities": 3.509453565421489e-06,
+     "reasoner": 0.000184388594318096,
+     "beliefs": 0.004175701954690242,
+     "world_model": 2.1598112458287744e-06,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 4.025866467854786e-05,
+     "policy": 0.07446062053284358,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0008615633660114667,
+     "core.block_mid": 0.01593396445051446,
+     "core.block_last": 0.015386426671182575,
+     "core.blocks_other": 0.022375766837742506,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.005689032367845472,
+     "sem_proj": 0.02384804485154392,
+     "entities": 5.302579624106291e-05,
+     "reasoner": 0.0021980136601380687,
+     "beliefs": 0.0020266103176748715,
+     "world_model": 2.2768870688231986e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.550899424047365e-05,
+     "v_int": 14.10477478128805,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.39881000478364387,
+    "adapt": 0.29523527798981375,
+    "actor": 0.10309278350515465,
+    "value": 0.2028619337213878
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "19": {
+   "norm": {
+    "world": {
+     "core.block0": 0.08208771590098735,
+     "core.block_mid": 0.09178123949691822,
+     "core.block_last": 0.0856416551722534,
+     "core.blocks_other": 0.19193893384817132,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.03263225913897141,
+     "sem_proj": 0.015045335760958031,
+     "entities": 0.002703195022804154,
+     "reasoner": 0.0,
+     "beliefs": 0.012302393950232254,
+     "world_model": 0.05870530714421938,
+     "outcome_head": 0.11932747681339168,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0001542330909998526,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.016782859358013148,
+     "core.block_mid": 0.016589775880113837,
+     "core.block_last": 0.018399195655460658,
+     "core.blocks_other": 0.03746990850479449,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.004875067066250363,
+     "sem_proj": 0.007562473050001247,
+     "entities": 0.00042382879244982316,
+     "reasoner": 0.0,
+     "beliefs": 0.029638029630448988,
+     "world_model": 0.0006434924958497819,
+     "outcome_head": 0.19458485481401175,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 2.512685081823163e-05,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 5.984085003102889e-05,
+     "core.block_mid": 0.0011508060032909867,
+     "core.block_last": 0.0010844478964132773,
+     "core.blocks_other": 0.0016132197415380147,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.00040560543403608346,
+     "sem_proj": 0.05153019129482171,
+     "entities": 3.1991822434709493e-06,
+     "reasoner": 0.00015973895787497726,
+     "beliefs": 0.0040812862016617515,
+     "world_model": 1.8233779813767101e-06,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 3.6959822950446026e-05,
+     "policy": 0.06479674554484884,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0009880422618863346,
+     "core.block_mid": 0.01891407843700984,
+     "core.block_last": 0.017860000325316542,
+     "core.blocks_other": 0.026376254677308173,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.sem_proj": 0.0,
+     "core.embed": 0.006657735577041494,
+     "sem_proj": 0.02567621694444997,
+     "entities": 6.046612497776261e-05,
+     "reasoner": 0.002573015426510445,
+     "beliefs": 0.0026604035194595092,
+     "world_model": 3.0352543354892214e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.9560924344432687e-05,
+     "v_int": 14.993386400082787,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.39733148803719676,
+    "adapt": 0.28047326193108557,
+    "actor": 0.1030927835051546,
+    "value": 0.21910246652656312
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_proj",
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  }
+ },
+ "integrity": {
+  "transitions": 152,
+  "env_reward_nonzero": 0,
+  "fresh_reward_nonzero": 0,
+  "replay_reward_nonzero": 0
+ },
+ "clip_rate_all": 0.05154639175257732,
+ "commit": "7bb036bdb85c37e3351103a3ec87fc04366707fa",
+ "preset": "dom_dev",
+ "device": "cuda",
+ "families": [
+  "dl_delayed_returns",
+  "hc_confounded",
+  "net_routing",
+  "mk_drift"
+ ],
+ "seed": 0,
+ "run_dir": "/tmp/claude-0/-workspace/20daf834-869f-4bc1-be4b-4d3076bc13b9/scratchpad/e2e_run5/run-20261126-171739-383828-s0",
+ "rounds": 152,
+ "decisions": 608,
+ "episodes": 3,
+ "labels": 8,
+ "n_updates": 19,
+ "wall_s": 895.6365354061127,
+ "errors": [],
+ "share_guard_on": true,
+ "stopped_early": "wall budget 860 s (shared GPU lock hold) reached after 19 updates",
+ "param_counts": {
+  "components": {
+   "tokenizer": {
+    "total": 2198785,
+    "trainable": 2198785
+   },
+   "core": {
+    "total": 14503170,
+    "trainable": 14503170
+   },
+   "entity_encoder": {
+    "total": 5630342,
+    "trainable": 5630342
+   },
+   "reasoner": {
+    "total": 13441,
+    "trainable": 13441
+   },
+   "outcome_head": {
+    "total": 2209592,
+    "trainable": 2209592
+   },
+   "beliefs": {
+    "total": 3321856,
+    "trainable": 3321856
+   },
+   "bayes": {
+    "total": 27072,
+    "trainable": 27072
+   },
+   "world_model": {
+    "total": 22389188,
+    "trainable": 7886018
+   },
+   "action_generator": {
+    "total": 13470848,
+    "trainable": 13470848
+   },
+   "value_head": {
+    "total": 992511,
+    "trainable": 992511
+   },
+   "option_policy": {
+    "total": 1345553,
+    "trainable": 1345553
+   },
+   "exploration_head": {
+    "total": 194748,
+    "trainable": 194748
+   },
+   "query_encoder": {
+    "total": 5376,
+    "trainable": 5376
+   }
+  },
+  "cam_total": 66302482,
+  "cam_trainable": 51799312,
+  "semantic_pretrained": {
+   "total": 596049920,
+   "trainable": 0,
+   "frozen": 596049920
+  }
+ },
+ "reward_model": "RewardModel (seam stub: reward 0)",
+ "cfg": {
+  "n_layers": 8,
+  "d_model": 384,
+  "sem_model": "Qwen/Qwen3-0.6B",
+  "declared_conditions": [
+   "w7-e2e:interim-loop(runtime.run_lifetime pending, W1)",
+   "w7-e2e:microbatch=0(full-batch policy recompute: exact probe)",
+   "w7-e2e:tool_entropy_coef=0.01(dom presets leave it 0)"
+  ],
+  "reward_mode": "observation_only",
+  "update_every": 8,
+  "ppo_epochs": 2,
+  "target_kl": 0.03,
+  "lr_core": 3e-05,
+  "lr_heads": 0.0001,
+  "lr_psi": 0.001,
+  "lr_warmup_updates": 500,
+  "clip_mode": "per_group",
+  "clip_median_mult": 5.0,
+  "balance_every": 25,
+  "world_core_share_max": 0.45,
+  "microbatch": 0
+ },
+ "peak_gpu_gb": 15.888056755065918,
+ "command": "/workspace/agentrs/.claude/worktrees/wf_477a68f9-804-7/superlearner/src/superlearner/cam_unified/learn/integrated_e2e.py --updates 20 --device cuda --run-dir /tmp/claude-0/-workspace/20daf834-869f-4bc1-be4b-4d3076bc13b9/scratchpad/e2e_run5 --max-wall-s 860 --out docs/evidence/dom/W7/w7_e2e_dom_dev.json"
+}

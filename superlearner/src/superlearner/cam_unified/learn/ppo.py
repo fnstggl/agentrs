@@ -105,7 +105,10 @@ class ActorCriticObjective:
                  value_clip: Optional[float] = None, rho_clip: float = 1.0, c_clip: float = 1.0,
                  vtrace_lambda: float = 1.0, normalize_advantages: bool = True,
                  return_normalizer: Optional[ReturnNormalizer] = None, adv_rel_floor: float = 0.05,
-                 option_value_coef: float = 1.0):
+                 option_value_coef: float = 1.0, advantage_fn: Optional[Callable] = None, reward_key: str = "reward",
+                 tool_entropy_coef: float = 0.0):
+        if reward_key not in ("reward", "reward_int"):
+            raise ValueError(f"reward_key must be 'reward' or 'reward_int', got {reward_key!r}")
         self.kappa, self.lam, self.clip, self.entropy_coef = kappa, gae_lambda, clip, entropy_coef
         self.max_policy_lag, self.max_fresh_kl, self.target_kl = max_policy_lag, max_fresh_kl, target_kl
         self.value_clip, self.rho_clip, self.c_clip, self.vtrace_lambda = value_clip, rho_clip, c_clip, vtrace_lambda
@@ -113,13 +116,40 @@ class ActorCriticObjective:
         self.return_normalizer = return_normalizer
         self.adv_rel_floor = adv_rel_floor
         self.option_value_coef = float(option_value_coef)
+        # W7 (plan 2026-11-26 §2): `advantage_fn(traj, rewards, values, gammas, lam) -> (adv [B,T], ret [B,T])`
+        # replaces GAE on the fresh rows (RUDDER-redistributed rewards, COCOA advantages, ...; default: returns.gae);
+        # `reward_key` selects the per-step reward that drives actor and critic ("reward_int" = the observation-only
+        # r_psi channel of the Trajectory); `tool_entropy_coef` adds an entropy bonus of the tool-pointer
+        # distribution alone (passed to `loss` as `tool_entropy [B,T]`), so tool choice keeps exploring while the
+        # summed structured-action entropy is dominated by argument tokens
+        self.advantage_fn = advantage_fn
+        self.reward_key = reward_key
+        self.tool_entropy_coef = float(tool_entropy_coef)
 
     @staticmethod
     def from_config(cfg, **over) -> "ActorCriticObjective":
         kw = dict(kappa=cfg.kappa, gae_lambda=cfg.gae_lambda, clip=cfg.ppo_clip, entropy_coef=cfg.entropy_coef,
-                  rho_clip=cfg.vtrace_rho, c_clip=cfg.vtrace_c)
+                  rho_clip=cfg.vtrace_rho, c_clip=cfg.vtrace_c,
+                  tool_entropy_coef=float(getattr(cfg, "tool_entropy_coef", 0.0) or 0.0))
         kw.update(over)
         return ActorCriticObjective(**kw)
+
+    def rewards(self, traj: Trajectory) -> Tensor:
+        """The per-step reward [B,T] this objective optimises (`reward_key`)."""
+        if self.reward_key == "reward_int":
+            if traj.reward_int is None:
+                raise ValueError("reward_key='reward_int' needs Trajectory.reward_int (the r_psi channel)")
+            return traj.reward_int.float()
+        return traj.reward.float()
+
+    def _advantages(self, traj: Trajectory, r: Tensor, values: Tensor, gam: Tensor, m: Tensor) -> tuple:
+        if self.advantage_fn is None:
+            return gae(r, values, gam, traj.continues(), self.lam, m)
+        adv, ret = self.advantage_fn(traj, r, values, gam, self.lam)
+        if adv.shape != r.shape or ret.shape != r.shape:
+            raise ValueError("advantage_fn must return (adv [B,T], ret [B,T])")
+        z = torch.zeros_like(r)
+        return torch.where(m, adv.float(), z), torch.where(m, ret.float(), z)
 
     def prepare(self, traj: Trajectory, current_version: int) -> Prepared:
         m = traj.mask.bool()
@@ -131,7 +161,8 @@ class ActorCriticObjective:
         if traj.value is None:
             raise ValueError("Trajectory.value (behaviour-time values) is required for GAE / value clipping")
         old_v = traj.value.detach().float()
-        adv, ret = gae(traj.reward.float(), old_v, gam, traj.continues(), self.lam, m)
+        r = self.rewards(traj)
+        adv, ret = self._advantages(traj, r, old_v, gam, m)
         info = {"n_fresh_rows": int(fresh.sum()), "n_stale_rows": int((~fresh).sum()),
                 "max_lag": int(lag[m].max()) if bool(m.any()) else 0}
         scale = torch.ones(traj.B, device=traj.device)
@@ -143,10 +174,10 @@ class ActorCriticObjective:
             scale = torch.tensor([self.return_normalizer.scale(f) for f in fams], device=traj.device)
             info["return_scale"] = float(scale.mean())
         info["_adv_scale"] = scale
-        prep = Prepared(gam, lag, fresh, adv, ret, old_v, False, info, adv_scale=_spread_scale(traj.reward.float(),
-                                                                                                ret, m))
+        info["reward_key"] = self.reward_key
+        prep = Prepared(gam, lag, fresh, adv, ret, old_v, False, info, adv_scale=_spread_scale(r, ret, m))
         if traj.option_start is not None:
-            prep.option_target, prep.option_gamma = option_targets(traj.reward.float(), old_v, gam, traj.continues(),
+            prep.option_target, prep.option_gamma = option_targets(r, old_v, gam, traj.continues(),
                                                                    traj.option_start.bool(), m)
             info["n_option_starts"] = int((traj.option_start.bool() & m).sum())
         return prep
@@ -192,7 +223,7 @@ class ActorCriticObjective:
     def loss(self, traj: Trajectory, prep: Prepared, new_logp: Tensor, entropy: Tensor,
              new_value: Optional[Tensor] = None, value_logits: Optional[Tensor] = None,
              value_head=None, option_value: Optional[Tensor] = None, option_value_logits: Optional[Tensor] = None,
-             option_value_head=None) -> dict:
+             option_value_head=None, tool_entropy: Optional[Tensor] = None) -> dict:
         m = traj.mask.bool()
         B, T = m.shape
         if new_logp.shape != (B, T) or entropy.shape != (B, T):
@@ -241,7 +272,7 @@ class ActorCriticObjective:
         # ---- V-trace on stale rows (current values as the baseline; truncated importance weights)
         if bool(stale_m.any()):
             log_ratio = (new_logp.detach().float() - beh)
-            vs, pg_adv, rho = vtrace(traj.reward.float(), new_value.detach().float(), prep.gammas, traj.continues(),
+            vs, pg_adv, rho = vtrace(self.rewards(traj), new_value.detach().float(), prep.gammas, traj.continues(),
                                      log_ratio, self.vtrace_lambda, self.rho_clip, self.c_clip, mask=stale_m)
             pg = -masked_mean(pg_adv.detach() * new_logp.float(), stale_m)
             pol = pol + pg * (n_stale / n_all)
@@ -271,6 +302,13 @@ class ActorCriticObjective:
             out["n_option_targets"] = int(n_opt)
         ent = masked_mean(entropy.float(), m)
         out["actor"] = pol - self.entropy_coef * ent
+        if tool_entropy is not None:
+            if tool_entropy.shape != (B, T):
+                raise ValueError("tool_entropy must be [B, T]")
+            tent = masked_mean(tool_entropy.float(), m)
+            if self.tool_entropy_coef:
+                out["actor"] = out["actor"] - self.tool_entropy_coef * tent
+            out["tool_entropy"] = float(tent.detach())
         out["value"] = val
         out["entropy"] = float(ent.detach())
         out["policy_loss"] = float(pol.detach())
@@ -330,7 +368,7 @@ def run_epochs(objective, traj: Trajectory, current_version: int, recompute: Cal
         d = objective.loss(used, prep, r["logp"], r["entropy"], r.get("value"), r.get("value_logits"),
                            r.get("value_head"), option_value=r.get("option_value"),
                            option_value_logits=r.get("option_value_logits"),
-                           option_value_head=r.get("option_value_head"))
+                           option_value_head=r.get("option_value_head"), tool_entropy=r.get("tool_entropy"))
         losses = {key: d[key], "value": d["value"]}
         d["update"] = step_fn(losses) if consumed is None else step_fn(losses, consumed=consumed)
         hist.append(d)
