@@ -1109,6 +1109,15 @@
    "oo5_b3a07b1": "FAILED (3 h 39 min): objectiveless_tiers 2 (Tier 3 ProtocolError), 58 violations (community 46, content 10, commercialization rss, software wall); fixes on this branch, rerun queued (log gate_OO5.log)",
    "oo_tier2": "head slot job at 684eeb5 (log w3b-obs/gates_oo_t2.log; 40 tests): at 04:49 UTC the first 28 were done - 25 passed (R.1-R.5, R.7, R.n1, S.1-S.8, S.n1, SP-11.1, 1b, 2, 4, 4b, 5, 6, SP-2.2, OO.1), 3 raised (R.6, SP-11.3, SP-11.6d: the shallow clone lacked the 4.0 commit; no new evidence record was written); OO.2-OO.16 still running",
    "tier3_dev_head_job": "civilisation dev run in the head slot job (03:36-04:27 UTC, s6c/civ_dev_head.log): money variant at T=$10 not improved (1 of 4), social variant not improved; the final design (T=$0.50) is measured by the queued dev job (s6c/civ_dev1.log) and the queued SP-11.6c gate job"
+  },
+  "state_2026-11-27T04:53Z": {
+   "running": "head slot job (684eeb5): OO.3-OO.16 parts after 29 of 40 tests (log scratch w3b-obs/gates_oo_t2.log)",
+   "queued": [
+    "position 20: Tier 3 civilisation dev run of the final SP-11.6c design (s6c/imp3.py -> s6c/civ_dev1.log, dev seeds 11-14)",
+    "position 22: gate SP-11.6c, 7 GB GPU (gate_SP_11_6c.log, kernel tiers on seeds 21-24)",
+    "position 34: gate OO.5 rerun (gate_OO5.log)"
+   ],
+   "scratch": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-obs (gate_job.sh refreshes a clone to the latest c5c/w3b-obs commit at admission and fetches the 4.0 commit)"
   }
  }
 }
