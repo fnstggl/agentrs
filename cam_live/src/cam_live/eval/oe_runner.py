@@ -196,7 +196,6 @@ def _plan(s: str) -> List[Tuple[str, str]]:
 
 def cmd_sequence(a: argparse.Namespace) -> int:
     from ..storage import DiskGuard, apply_retention
-    from ..validation import OffsetClock
     from .experiments import EVAL_HOME, code_identity, export_checkpoint
     root = os.path.abspath(a.root or os.path.join(EVAL_HOME, "oe", f"{a.condition}_s{a.seed}_{a.tag}"))
     if not a.resume and os.path.exists(root):
@@ -213,6 +212,11 @@ def cmd_sequence(a: argparse.Namespace) -> int:
     done = len(res["objectives"])
     t_start = time.time()
     clock_state = os.path.join(root, "clock.json")
+    from ..validation import OffsetClock
+    clock = OffsetClock()                                 # one clock and one computer for the whole process
+    if os.path.exists(clock_state):
+        clock.offset = json.load(open(clock_state))["offset"]
+    computer = make_computer(root, clock, a)
     for i in range(done, len(plan)):
         if a.max_objectives and i - done >= a.max_objectives:
             break
@@ -224,9 +228,6 @@ def cmd_sequence(a: argparse.Namespace) -> int:
             lock = gpu_lock(min_free_gb=a.min_free_gb, timeout_s=a.lock_timeout_s)
         with lock:
             t_lock = time.time()
-            clock = OffsetClock()
-            if os.path.exists(clock_state):
-                clock.offset = json.load(open(clock_state))["offset"]
             cfg = substantive_config(a.condition, a.seed, real=not a.cpu)
             agent = _build(a.condition, cfg, os.path.join(root, "agent"), clock)
             ck = os.path.join(root, "ckpt_latest")
@@ -242,7 +243,7 @@ def cmd_sequence(a: argparse.Namespace) -> int:
             wseed = 1000 * (i + 1) + a.seed
             if fam == "MECH" and prob:
                 wseed = int(prob) * 100 + a.seed
-            ob = run_objective(agent, _OC(root, clock, a), fam, prob, wseed, f"obj_{fam}_{prob}_{i}_s{a.seed}",
+            ob = run_objective(agent, computer, fam, prob, wseed, f"obj_{fam}_{prob}_{i}_s{a.seed}",
                                os.path.join(root, f"obj{i:02d}"), clock, max_decisions=a.decisions,
                                budget_s=a.hold_s - (time.time() - t_lock) - 60.0)
             ob["index"] = i
@@ -264,7 +265,6 @@ def cmd_sequence(a: argparse.Namespace) -> int:
                 res.setdefault("checkpoints", {})["post"] = export_checkpoint(
                     agent, os.path.join(root, "ckpt_post"), os.path.join(root, "export_post"),
                     note=f"after {len(plan)} objectives")
-            _oc_close()
             agent.close()
             del agent
             if torch.cuda.is_available():
@@ -277,6 +277,7 @@ def cmd_sequence(a: argparse.Namespace) -> int:
         print(f"[{a.condition} s{a.seed}] objective {i} {fam}:{prob} {ob['verified_status']} value "
               f"{ob['verified_value']:.3f} decisions {ob['decisions']} exec {ob['executable_fraction']} "
               f"backbone {ob['backbone_chosen_fraction']} hold {ob['lock_hold_s']:.0f}s", flush=True)
+    computer.close()
     res["executed"] = len(res["objectives"]) == len(plan)
     res["wall_seconds"] = res.get("wall_seconds", 0.0) + time.time() - t_start
     with open(a.out, "w") as f:
@@ -284,20 +285,50 @@ def cmd_sequence(a: argparse.Namespace) -> int:
     return 0
 
 
-_OC_HOLD: List[Any] = []
+class CUComputer:
+    """The staging computer-use families (``validation.StagingComputer``: one persistent computer, browser and skill
+    library across objectives) behind the same ``open`` interface as ``OpenEndedComputer``."""
+
+    def __init__(self, root: str, clock: Any, *, skills: bool = True):
+        from ..validation import StagingComputer
+        self.sc = StagingComputer(os.path.join(root, "cu"), clock, exclude=() if skills else ("skill",))
+
+    def open(self, family: str, problem: str, seed: int, objective_id: str, *, max_decisions: int) -> Tuple:
+        task = self.sc.task(problem, max_decisions=max_decisions, objective_id=objective_id)
+        env, policy, verifier = self.sc.open(task, self.sc.start_url(problem))
+        return env, policy, verifier, task
+
+    def close(self) -> None:
+        self.sc.close()
 
 
-def _OC(root: str, clock: Any, a: argparse.Namespace) -> Any:
-    from .openended import OpenEndedComputer
-    oc = OpenEndedComputer(os.path.join(root, "computer"), clock)
-    _OC_HOLD.append(oc)
-    return oc
+class _Computers:
+    """Dispatch by family: SW / MECH -> OpenEndedComputer, CU -> CUComputer (both persistent)."""
+
+    def __init__(self, root: str, clock: Any, a: argparse.Namespace):
+        self.root, self.clock, self.a = root, clock, a
+        self._oe: Any = None
+        self._cu: Any = None
+
+    def open(self, family: str, *args: Any, **kw: Any) -> Tuple:
+        if family == "CU":
+            if self._cu is None:
+                self._cu = CUComputer(self.root, self.clock, skills=not self.a.no_skills)
+            return self._cu.open(family, *args, **kw)
+        if self._oe is None:
+            from .openended import OpenEndedComputer
+            self._oe = OpenEndedComputer(os.path.join(self.root, "computer"), self.clock)
+        return self._oe.open(family, *args, **kw)
+
+    def close(self) -> None:
+        for c in (self._oe, self._cu):
+            if c is not None:
+                with contextlib.suppress(Exception):
+                    c.close()
 
 
-def _oc_close() -> None:
-    while _OC_HOLD:
-        with contextlib.suppress(Exception):
-            _OC_HOLD.pop().close()
+def make_computer(root: str, clock: Any, a: argparse.Namespace) -> _Computers:
+    return _Computers(root, clock, a)
 
 
 def _build(condition: str, cfg: Any, run_dir: str, clock: Any) -> Any:
@@ -323,6 +354,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     s.add_argument("--min-free-gb", dest="min_free_gb", type=float, default=14.0)
     s.add_argument("--lock-timeout-s", dest="lock_timeout_s", type=float, default=7200.0)
     s.add_argument("--cpu", action="store_true", help="tiny CPU backbone: plumbing check only, never substantive")
+    s.add_argument("--no-skills", dest="no_skills", action="store_true",
+                   help="CU: primitive-only operation (skill executor excluded) - arm of X4")
     s.set_defaults(fn=cmd_sequence)
     a = ap.parse_args(list(sys.argv[1:] if argv is None else argv))
     return int(a.fn(a) or 0)
