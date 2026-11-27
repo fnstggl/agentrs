@@ -52,3 +52,11 @@ def test_recorded_result_is_complete_and_states_its_verdict():
         s = res["targets"][name]["summary"]["held_out_families"]
         assert s["learned_prior_wins"] == (s["winner"] == "learned_prior_bayes")
         assert ("WINS" if s["learned_prior_wins"] else "LOSES") in res["verdict"][name]
+
+
+def test_noise_ablation_runs_and_reports_both_modes():
+    res = fc.run_noise_ablation(steps=4, seeds=(0,), batch=8, T=12, n_eval=16, log=lambda s: None)
+    for split in ("in_distribution", "held_out_families"):
+        assert set(res["summary"][split]) == {"nig", "fixed"}
+        assert all(math.isfinite(res["summary"][split][m]["mean_nll_k_ge_1"]) for m in ("nig", "fixed"))
+    json.dumps(res)

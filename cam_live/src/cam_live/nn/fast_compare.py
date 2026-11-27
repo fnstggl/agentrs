@@ -379,6 +379,50 @@ def run(steps: int = 2500, seeds: Sequence[int] = (0, 1), batch: int = 48, T: in
     return result
 
 
+def run_noise_ablation(steps: int = 2000, seeds: Sequence[int] = (0, 1), batch: int = 48, T: int = 32,
+                       n_eval: int = 600, log: Callable[[str], None] = print) -> Dict[str, Any]:
+    """Gaussian targets only: the learned-prior layer with the noise variance inferred per task (normal-inverse-
+    gamma, the agent's default) against the same layer with one learned, fixed noise variance. Same tasks, seeds
+    and training as :func:`run`."""
+    kind = OutcomeKind.REAL
+    t_start = time.time()
+    per_seed = []
+    for seed in seeds:
+        ge = torch.Generator().manual_seed(777 + seed)
+        splits = {"in_distribution": sample_tasks(TRAIN_FAMILIES, n_eval, T, kind, ge),
+                  "held_out_families": sample_tasks(HELDOUT_FAMILIES, n_eval, T, kind, ge)}
+        entry: Dict[str, Any] = {"seed": seed, "modes": {}}
+        for mode in ("nig", "fixed"):
+            torch.manual_seed(seed)
+            m = LearnedPriorBayes(kind, noise_mode=mode)
+            curve = train(m, kind, steps, batch, T, seed)
+            res = {s: evaluate(m, d) for s, d in splits.items()}
+            for r in res.values():
+                r.pop("_task_nll", None)
+            entry["modes"][mode] = {"train_curve": curve, "learned_noise_variance": round(float(m.prior.noise().detach()), 5),
+                                    "learned_nig_shape_a0": round(float(m.prior.a0().detach()), 4), **res}
+            log(f"[noise ablation seed {seed}] {mode}: held-out NLL {res['held_out_families']['mean_nll_k_ge_1']:.4f} "
+                f"in-dist NLL {res['in_distribution']['mean_nll_k_ge_1']:.4f}")
+        per_seed.append(entry)
+    summary: Dict[str, Any] = {}
+    for split in ("in_distribution", "held_out_families"):
+        summary[split] = {}
+        for mode in ("nig", "fixed"):
+            vals = [e["modes"][mode][split]["mean_nll_k_ge_1"] for e in per_seed]
+            row = {"mean_nll_k_ge_1": round(sum(vals) / len(vals), 4), "per_seed_nll": vals}
+            for k in ("0", "1", "2", "3", "8", "31"):
+                ks = [e["modes"][mode][split]["per_support_size"][k]["nll"] for e in per_seed
+                      if k in e["modes"][mode][split]["per_support_size"]]
+                if ks:
+                    row[f"nll_at_k{k}"] = round(sum(ks) / len(ks), 4)
+            summary[split][mode] = row
+    return {"experiment": "noise model of the learned-prior Bayesian layer on Gaussian targets (ablation)",
+            "protocol": {"meta_train_steps": steps, "tasks_per_step": batch, "points_per_task": T, "seeds": list(seeds),
+                         "eval_tasks_per_split": n_eval, "reference_nll_of_unit_normal": round(0.5 * math.log(2 * math.pi * math.e), 4),
+                         "note": "same task generator, evaluation tasks and optimiser as the main comparison"},
+            "summary": summary, "per_seed": per_seed, "runtime_s": round(time.time() - t_start, 1)}
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--steps", type=int, default=2500)
@@ -386,9 +430,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--batch", type=int, default=48)
     ap.add_argument("--eval-tasks", type=int, default=600)
     ap.add_argument("--threads", type=int, default=8)
-    ap.add_argument("--out", default=os.path.join(PROJECT_ROOT, "docs", "evidence", "A", "fast_adaptation.json"))
+    ap.add_argument("--noise-ablation", action="store_true",
+                    help="run only the noise-model ablation (default output: fast_adaptation_noise_mode.json)")
+    ap.add_argument("--out", default="")
     args = ap.parse_args(argv)
     torch.set_num_threads(args.threads)
+    name = "fast_adaptation_noise_mode.json" if args.noise_ablation else "fast_adaptation.json"
+    args.out = args.out or os.path.join(PROJECT_ROOT, "docs", "evidence", "A", name)
+    if args.noise_ablation:
+        res = run_noise_ablation(steps=args.steps, seeds=args.seeds, batch=args.batch, n_eval=args.eval_tasks)
+        res["command"] = "python -m cam_live.nn.fast_compare " + " ".join(sys.argv[1:] if argv is None else argv)
+        os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+        with open(args.out, "w") as f:
+            json.dump(res, f, indent=1)
+        print(json.dumps(res["summary"], indent=1))
+        print("written", args.out)
+        return 0
     res = run(steps=args.steps, seeds=args.seeds, batch=args.batch, n_eval=args.eval_tasks)
     res["command"] = "python -m cam_live.nn.fast_compare " + " ".join(sys.argv[1:] if argv is None else argv)
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)

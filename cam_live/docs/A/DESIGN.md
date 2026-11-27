@@ -51,3 +51,18 @@ modelled by the fast layer.
 
 Losses, optimizers and schedules (D), prediction / policy / VOI heads (B), the reward generator and meta-gradient (C)
 build on the tensors above and register their modules with `CamLiveModel.register_head`.
+
+## Commands
+
+```
+cd /workspace/camlive
+.venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live              # default: CPU, seeded, ~35 s
+.venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m gpu       # real Qwen3-4B (takes the GPU lock)
+.venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m slow      # instantiates every preset on CPU
+cd cam_live
+PYTHONPATH=src ../.venv/bin/python -m cam_live.nn.bench                         # -> docs/evidence/A/params.json
+PYTHONPATH=src ../.venv/bin/python -m cam_live.nn.fast_compare --steps 2000 --seeds 0 1   # -> fast_adaptation.json
+```
+
+One model instance must not run embedding / generation from several threads at once (the active bridge memory and
+the tap capture are instance state).
