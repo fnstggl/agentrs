@@ -46,7 +46,7 @@
     "tests/v5/test_gate_T.py"
    ],
    "notes": "Full eleven-check rapid admission on generated structures; mechanism claims derived from the composer's own nodes. DEF-N-8: wandering default independent of the hidden centre (n-compose/5); genref scans then tracks. Static generated worlds fail no_dominant_strategy by construction; wandering worlds' tracking headroom (median 1.2 in development) is below what the check needs once the default is uninformative.",
-   "status_claim": "RE-MEASUREMENT PENDING after DEF-N-8 (expected to FAIL): the 54/650 of the earlier run depended on the wandering lever's public default being the hidden centre c0 (verifier). Fixed (default independent of c0; genref scans first). Development on another structure stream: 2-4 of 20 wandering worlds pass the dominance check; the noise-free tracking headroom of these worlds is a median 1.2 < the 1.25 the check needs when waiting earns little. Gate run queued on the repaired snapshot"
+   "status_claim": "EXPECTED TO FAIL; gate re-run queued (slot job 'N: gate T.1-T.4 ...', snapshot a1733d15): the earlier 54/650 depended on the wandering lever's public default being the hidden centre c0 (DEF-N-8, verifier). Repaired (default independent of c0; genref scans first). Preview on the fixed T.4 sample under the repaired generator (in-shell, dominance check only, a necessary condition): 6 of 40 worlds of its first 8 wandering structures pass no_dominant_strategy (before the repair 11 of 20 of its first 4 validated fully); by extrapolation about 20-25 validated worlds of 665, below 50. Development on another stream: the worlds' noise-free tracking headroom is a median 1.2 (memory template) to 1.47 (long horizons), at or below the 1.25 the check needs once waiting is uninformative"
   },
   "T.5": {
    "implementation_files": [
@@ -91,7 +91,7 @@
    "tests": [
     "tests/v5/test_gate_T.py"
    ],
-   "notes": "Targeted versus untargeted training of a learnable-strategy learner (TargetableMeta) with the same episode budget, improvement on held-out probes of the curriculum's target; sign-flip test; needs >= 3 distinct targets.",
+   "notes": "Targeted versus untargeted training of a learnable-strategy learner (TargetableMeta) with the same episode budget, improvement on held-out probes of the curriculum's target; sign-flip test; needs >= 3 distinct targets. Credit diagnosis (development probe seed 8777, 8 worlds per category x 11 arms, in-shell): ranking the arms by the learner's mean episode_gain across worlds matches the ranking by the evaluator's mean normalised score with Spearman 0.54-0.94 in 7 of 8 categories (0.21 in skill_combination); the selected arm's regret against the category's best arm is 0.006-0.26 (summed 0.48). Two scale-free alternatives (gain over the first tick relative to it; its signed log) lower the summed regret to 0.28-0.37 but are worse in other categories, and the per-category best arms differ from one another by little in five categories, so no credit change makes the targeted arm reliably better; not changed. T.8's design (T8_DESIGN) and failing result stand.",
    "status_claim": "FAILS (unofficial gate run on the branch head, design fixed before the run): targeted vs untargeted improvement p 0.296 (20 pairs, mean +0.018, 9 better / 9 worse, 6 distinct targets). Diagnosis after the run (development, not a new test): the TargetableMeta learner's own credit (episode gain over its first tick) is nearly flat across its strategies in most generated categories (e.g. experimentation 0.38-0.43, while the evaluator's normalised score of the same strategies ranges -0.10 to 0.55), so targeted training cannot pick the strategy that is better on the evaluator's measure; it needs a learner whose own credit resolves strategies (a learner problem, not evidence that the worlds miss their weaknesses: T.5 shows the curriculum finds them)"
   },
   "U.1": {
@@ -302,7 +302,7 @@
     "tests/v5/test_gate_SP_11_6b.py"
    ],
    "notes": "Failure causes: algorithmic limitation, environment, interface, infrastructure, partition refusal. Six injected positive controls, a real-run survey (integrity.failure_survey) and a harness-bug negative control.",
-   "status_claim": "RE-MEASUREMENT PENDING: the test now also classifies the failures of real protocol runs (integrity.failure_survey over 109 runs: 21 interface failures, 4 algorithmic limitations, 0 unclassified in development) and a harness-bug negative control must stay unclassified; earlier every classified failure was injected (verifier)"
+   "status_claim": "PASSED (unofficial in-shell run of the gate test on a1733d15, 2026-11-27 04:06): 31 failure reports with a cause, 0 unclassified - 6 injected positive controls (6/6 expected causes) plus 25 failures of 109 real protocol runs (integrity.failure_survey: 45 Tier 2 training configurations with the neutral learner and 60 Tier 1 training families with a lever learner, 4 practice curves; 21 interface failures, 4 algorithmic limitations, no Tier 2 run failed); the harness-bug negative control stays unclassified. Earlier every classified failure was injected (verifier)"
   },
   "SP-14.0": {
    "implementation_files": [
@@ -336,7 +336,7 @@
     "tests/v5/test_gate_SP_14_3.py"
    ],
    "notes": "Ten categories, four measures; forgetting = paired drop on exact revisits drawn without regard to their first score, generalization = seen-structure-at-new-seed minus first-encounter gap within structural categories (pooled residual variance, 95% t margin), 10% review items; a category counts as measured only with its own statistic; sealed access counted by the evaluator, the curriculum and an audit hook.",
-   "status_claim": "PASSED (unofficial in-shell run on the repaired branch, a1733d15 pending; earlier head 48f0a38 measured): 10 categories measured with their own statistics (forgetting: 7 exact revisits, paired drop 0.0; generalization: 8 seen-structure items over 3 categories), 4 measures, 0 sealed accesses, evaluation/sealed results refused. The earlier run counted forgetting and generalization as measured while seen_unseen_gap was None throughout (verifier)"
+   "status_claim": "PASSED (unofficial in-shell run of the gate test on the repaired branch a1733d15, 2026-11-27 04:08): weakness_categories 10 counted with their own statistics (forgetting: 7 exact revisits, paired drop 0.0 for the frozen lag-blind learner; generalization: 8 seen-structure items over 3 structural categories, gap -0.03 beyond the t margin, i.e. none, raw 0.36 +- 0.19), curriculum_measures 4, sealed_result_accesses 0, offered evaluation and sealed results refused, random share 0.30, entropy 0.87. Earlier runs counted forgetting and generalization as measured while seen_unseen_gap was None throughout (verifier)"
   },
   "SP-15.0": {
    "implementation_files": [
