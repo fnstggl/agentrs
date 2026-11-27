@@ -365,6 +365,18 @@
   "tests/v5/test_gate_K.py -m \"not slow\" + tests/v5/test_gate_SP_6_1.py (head e814ff4)": "9 passed",
   "tests/v5/test_gate_SP_6_2.py (head e814ff4)": "1 failed honestly (recurring_revenue_systems_of_record 2: subs + social/creators.py:109; stricter scan, same result)",
   "K.n1 and SP-6.1b on the head": "not re-run after 61ab5d8: their worlds (startup_spec without extra modules) contain no labour market, exchanges or institutions, so none of the continuation's code paths (economy.jobs, labor, primitives typing, the SP-6.2 scan) runs in them; the 61ab5d8 slot results stand",
-  "queued (slot, started by the previous agent, snapshot of the branch head when it starts)": "'F: regression of packages touched (services, substrate, kernel)' -> scratchpad/w3b-econ1/reg.log: adds test_v5_substrate_modes and tests/v5/test_gate_SP_2_3.py (population text path, GPU) to the CPU runs above"
+  "queued (slot, started by the previous agent, snapshot of the branch head when it starts)": "'F: regression of packages touched (services, substrate, kernel)' -> scratchpad/w3b-econ1/reg.log: adds test_v5_substrate_modes and tests/v5/test_gate_SP_2_3.py (population text path, GPU) to the CPU runs above",
+  "repair pass (2026-11-27 07:00-08:00 UTC, head d97d6af0..eb9213e6, single-threaded CPU, unofficial)": {
+   "tests/test_v5_commerce_contracts.py + institutions + labor + modules + test_v5_econ_jobs.py + gov_views + assoc": "67 passed",
+   "tests/test_v5_econ_civic.py (incl. 12-week fixture: activity continues, claim path) + tests/v5/test_gate_SP_6_6.py + SP_6_6b + test_gate_K.py -k 'not Kn1'": "18 passed",
+   "tests/test_v5_econ_work.py + test_v5_econ_typed.py + tests/test_kernel.py + tests/test_invariants.py": "58 passed (two earlier runs of the same sequence hung in test_kernel::test_hash_chain_tamper_detection_in_replay with a zombie child process and a thread in poll - the sandbox's warm worker pool of the econ worlds is the only child-process user on that path; not reproducible in a third run, and each part passes alone: kernel+invariants 51 passed, econ_typed+hash_chain 2 passed, econ_work+hash_chain 7 passed)",
+   "tests/test_v5_econ_sp62_scan.py (new)": "2 passed",
+   "tests/test_open_institutions.py + test_open_security.py + test_dashboard_internet.py": "20 passed",
+   "tests/test_fidelity.py": "9 passed",
+   "tests/test_redteam.py::test_no_probe_errors_and_no_finding_outside_the_known_list": "1 passed alone (failed in the slot regression of ffe0e8b5 by test order: integration note)",
+   "slot regression of touched packages on ffe0e8b5 (previous agent's job)": "240 passed, 2 failed: test_redteam (order-dependent, above) and test_ow_worlds::test_end_to_end_only_working_software_earns_a_living (known qa/obs regression on 55433e7)",
+   "startup world hiring timing (seed 21, n=450, 10 days, probe)": "first posting day 4, first hire day 5, first shift day 7 (weekend in between); with rivals first_day=1: posting day 2, hire day 3",
+   "queued in slots (not yet run at the time of this entry)": "gates K.n1 + SP-6.1 + SP-6.1b; civilisation employment probe (balanced, cooperative_institutions, 8 days, rivals first_day 3 vs 1); tests/test_v5_substrate_modes.py + tests/v5/test_gate_SP_2_3.py"
+  }
  }
 }
