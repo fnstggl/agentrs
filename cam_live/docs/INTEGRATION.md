@@ -93,8 +93,14 @@ pending; the second lifetime did not start within the time budget). 28 frequent 
 non-zero deltas; TV 0.0177 on the held-out context, 0.0 after restoring all trainable groups. One meta-update is
 recorded as *applied*, but with an importance-weighted meta-gradient of exactly 0 (outer objective 0.0) and an
 unchanged reward version: it is **not** evidence of a reward update (the file's `meta_update_applied` check predates
-the stricter check that now requires a non-zero gradient and a changed reward version). Later runs, if any, are listed
-in `docs/status/M-int.json`. CPU test numbers: `docs/status/M-int.json`.
+the stricter check that now requires a non-zero gradient and a changed reward version).
+
+Run 3 (`staging_20261127T055041Z.json`, 785 s under the lock while another tenant's GPU test and heavy CPU load ran):
+the computer environment composed by `harness.factories.all_executors` (internal, browser, code, visual, api, skill:
+80 tools), but only 9 decisions in total (2 computer, 7 LabWorld); updates in every group, TV 0.0103, no meta-update.
+
+On the real configuration no meta-update with a non-zero meta-gradient has been observed yet; at debug scale on the
+CPU the integration test requires and gets one. CPU test numbers: `docs/status/M-int.json`.
 
 ## 6. Not yet validated / known limits
 
