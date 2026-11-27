@@ -154,6 +154,11 @@ def generate_instance(rng, cfg: dict) -> dict:
 
 
 # ====================================================================== the kernel module
+# the operator responsible for each kind of asset
+KIND_OPERATOR = {"plant": "o:powerco", "line": "o:powerco", "substation": "o:powerco", "pump": "o:waterco",
+                 "tower": "o:telco", "core": "o:telco", "road": "o:works", "hospital": "o:health"}
+
+
 @register_module
 class Crisis(Module):
     name = "crisis"
@@ -460,8 +465,9 @@ class Crisis(Module):
                 have = st.get("cr_parts", f"{t['by']}|{tgt['part']}")
                 if have is None or have["qty"] <= 0:
                     if not tgt.get("waiting_part"):
-                        ctx.emit("crisis.wait_part", {"id": t["target"], "crew": cid, "part": tgt["part"]},
-                                 vis="internal")
+                        # who lacks the part: the party that dispatched the waiting crew (its own crews' finding)
+                        ctx.emit("crisis.wait_part", {"id": t["target"], "crew": cid, "part": tgt["part"],
+                                                      "by": t["by"]}, vis="internal")
                     continue                    # the crew waits on site for the part
                 ctx.emit("crisis.parts", {"owner": t["by"], "part": tgt["part"], "delta": -1}, vis="internal")
                 ctx.emit("crisis.part_fitted", {"id": t["target"]}, vis="internal")
@@ -804,12 +810,30 @@ class Crisis(Module):
                                        "source": "own inspection" if mine else "operator outage map"}
         return out
 
+    @staticmethod
+    def _waiting_part_told(st, x: dict, who: str):
+        """The spare part a crew waits for at asset `x`, as far as `who` has been told: its own (or its mutual-aid)
+        crew is the one waiting, or the asset's operator - whose crew waits - agreed to follow `who`'s requests and
+        reports what its crews wait for. Nobody else learns of it."""
+        if not x.get("waiting_part") or x["part_fitted"] or not x["part"]:
+            return None
+        by = x.get("waiting_by")
+        if by is None:
+            return None
+        if by == who:
+            return x["part"]
+        op = st.get("cr_operators", by) if str(by).startswith("o:") else None
+        if op and op.get("agreed") and op.get("agreed_with") == who and KIND_OPERATOR.get(x["kind"]) == by:
+            return x["part"]
+        return None
+
     @endpoint("situation", S.obj(), read_only=True)
     def ep_situation(self, ctx):
         """The common operating picture: districts and their households (census shares), roads, assets with the
         status operators publish on their outage maps or your own crews found, outage reports from households,
         crews, trucks, your stocks and the hazard events so far. Statuses can be stale; repair details come only
-        from your own inspections."""
+        from your own inspections, and which spare part a crew waits for on site only from your own crews or from an
+        operator that agreed to follow your requests (it tells you what its crews wait for)."""
         st = ctx.state
         who = ctx.actor
         known = self._known(st, who)
@@ -826,7 +850,7 @@ class Crisis(Module):
             assets.append({"asset": aid, "kind": x["kind"], "district": d, "fuel_pct": fuel,
                            **({"a": x["a"], "b": x["b"]} if x["kind"] in ("road", "line") else {}),
                            "status": ("damaged" if k["damaged"] else "ok") if k else "unknown",
-                           "waiting_for_part": x["part"] if x.get("waiting_part") and not x["part_fitted"] else None,
+                           "waiting_for_part": self._waiting_part_told(st, x, who),
                            "as_of": k["t"] if k else None, "work_h": k["work_h"] if k else None,
                            "part": k["part"] if k else None, "backup": x["backup"]})
         rep = {}
@@ -1074,7 +1098,8 @@ class Crisis(Module):
     @endpoint("agree", S.obj({"operator": S.s_str(maxLength=40)}, ["operator"]), cost_s=120)
     def ep_agree(self, ctx, operator):
         """Ask an operator to follow your priority requests from now on. It agrees once the help it has received
-        from you (crew-hours lent, parts given) reaches what it asks for in return."""
+        from you (crew-hours lent, parts given) reaches what it asks for in return; from then on it also tells you
+        which spare part its crews wait for (crisis.situation)."""
         self._coordinator(ctx)
         st = ctx.state
         op = st.get("cr_operators", operator)
@@ -1286,7 +1311,8 @@ class Crisis(Module):
     @applier("crisis.asset")
     def ap_asset(self, ev):
         p = dict(ev.payload)
-        base = {"damage_h": 0.0, "part": None, "part_fitted": False, "waiting_part": False, "harden": 0.0, "backup": None, "fuel_l": 0.0,
+        base = {"damage_h": 0.0, "part": None, "part_fitted": False, "waiting_part": False, "waiting_by": None,
+                "harden": 0.0, "backup": None, "fuel_l": 0.0,
                 "cap_l": 0.0, "burn_lph": 0.0, "battery_h": 0.0, "cap_h": 0.0, "stock_l": 0.0, "water_tank_h": 0.0,
                 "tank_left_h": 0.0}
         self.world.state.insert("cr_assets", p.pop("id"), base | p)
@@ -1298,11 +1324,11 @@ class Crisis(Module):
 
     @applier("crisis.part_fitted")
     def ap_part_fitted(self, ev):
-        self.world.state.patch("cr_assets", ev.payload["id"], part_fitted=True, waiting_part=False)
+        self.world.state.patch("cr_assets", ev.payload["id"], part_fitted=True, waiting_part=False, waiting_by=None)
 
     @applier("crisis.wait_part")
     def ap_wait_part(self, ev):
-        self.world.state.patch("cr_assets", ev.payload["id"], waiting_part=True)
+        self.world.state.patch("cr_assets", ev.payload["id"], waiting_part=True, waiting_by=ev.payload.get("by"))
 
     @applier("crisis.backup_dry")
     def ap_backup_dry(self, ev):
@@ -1317,7 +1343,7 @@ class Crisis(Module):
         p = ev.payload
         ch = {"damage_h": float(p["work_h"])}
         if p["work_h"] <= 0:
-            ch.update(part=None, part_fitted=False)
+            ch.update(part=None, part_fitted=False, waiting_part=False, waiting_by=None)
         self.world.state.patch("cr_assets", p["id"], **ch)
 
     @applier("crisis.restored")

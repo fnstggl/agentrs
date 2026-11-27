@@ -50,6 +50,41 @@ def test_tools_the_coordinator_has_and_what_it_cannot_do():
     assert env.reward(a) == 0.0 and env.reward_mode == "observation_only"
 
 
+def test_which_part_an_operator_crew_waits_for_is_not_shown_to_a_coordinator_it_did_not_agree_with():
+    """crisis.situation names the spare part a crew waits for on site only to the party whose crew waits, or to
+    the coordinator an agreed operator reports to. A coordinator that joined and never inspected or agreed anything
+    learns nothing of the operators' waiting crews (it used to see the part of every waiting asset)."""
+    env = _env("quake_mesh", 1)
+    a = env.agents()[0]
+    assert env.execute(a, {"tool": "crisis.join", "args": {}})["ok"]
+    waited, shown = set(), {}
+    for _ in range(100):
+        env.advance(3600)
+        waited |= {aid for aid, x in env.world.state.scan("cr_assets") if x.get("waiting_part")}
+        sit = env.execute(a, {"tool": "crisis.situation", "args": {}})["result"]
+        shown.update({x["asset"]: x["waiting_for_part"] for x in sit["assets"] if x["waiting_for_part"]})
+        assert all(x["work_h"] is None and x["part"] is None for x in sit["assets"])
+    assert waited                       # operator crews did wait for parts during the run
+    assert shown == {}
+    # who is told, on an asset record with a waiting operator crew: not this coordinator, its own waiting crew yes,
+    # and the operator's waiting crew once that operator agreed with it
+    st = env.world.state
+    x = dict(st.tables["cr_assets"][sorted(waited)[0]], waiting_part=True, part_fitted=False)
+    x["part"] = x["part"] or "transformer"
+    by = C.KIND_OPERATOR[x["kind"]]
+    x["waiting_by"] = by
+    assert C.Crisis._waiting_part_told(st, x, a) is None
+    assert C.Crisis._waiting_part_told(st, dict(x, waiting_by=a), a) == x["part"]
+
+    class Agreed:                       # the same state, with `by` agreed to follow `a`
+        @staticmethod
+        def get(table, key):
+            row = st.get(table, key)
+            return dict(row, agreed=True, agreed_with=a) if (table, key) == ("cr_operators", by) else row
+    assert C.Crisis._waiting_part_told(Agreed, x, a) == x["part"]
+    assert C.Crisis._waiting_part_told(Agreed, x, "p:someone") is None
+
+
 def test_household_decisions_come_from_population_sessions():
     env = _env()
     env.advance(2 * 86400)
