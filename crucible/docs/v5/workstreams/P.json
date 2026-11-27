@@ -80,7 +80,7 @@
    "tests": [
     "tests/v5/test_gate_X.py"
    ],
-   "status_claim": "implemented; fails honestly (342 unverified); manifest anchored again after the tree-hook pin (D-83 second addendum)",
+   "status_claim": "implemented; fails honestly (nothing verified before the final QA pass); project global problems empty at 2379e3d0 (manifest anchored, governor hook pin valid under the stricter V11 reach rules)",
    "notes": "Fixed point: counts all requirements except X.*, SP-18, SP-20 (342)."
   },
   "X.2": {
@@ -280,7 +280,7 @@
     "tests/test_v5_acceptance_qa.py",
     "tests/v5/test_gate_SP_21.py"
    ],
-   "status_claim": "implemented and adversarially re-verified in wave 3b (P31-P39); measured locally (see tests)",
+   "status_claim": "implemented and adversarially re-verified in wave 3b (P31-P39, V1-V13 with controls); measured locally (see tests); stated residuals in D-83 (call-and-ignore; children not observed)",
    "notes": "Wave 3b: P31-P37 (D-83) and, after the second usage-limit stop, P38 (criteria computed from the implementation's text or bytecode without executing it reached VERIFIED: the ablation now blocks execution, files byte-identical) and P39 (pinned tree start-up hooks). P38b: a test reading or installing interpreter hooks (sys.monitoring, settrace/setprofile) is a blocking interpreter_probe finding. Repair pass after the second independent verification (D-83 third addendum): probes V1 (honest evidence with the pinned governor hook now VERIFIED), V2b/V3 + a finally-divergence probe (ablation judged by the block log), V3b (the ablated clone's commit looks like the evidence commit), V4 (code-object patches, assigned and hidden behind setattr), V5 (re-pinned patcher hooks), V6/V6c (recording machinery listed as implementation), V8 (start-up hook outside crucible/), and the P38b evasions as parametrized static probes. Second repair agent (D-83 fourth addendum): V9 detect-and-sacrifice (VERIFIED with a defective or raising implementation: the test called its implementation only under ablation) -> execution observer in official runs; V10 rebound definitions (setattr(m, 'leaks', int), m.leaks = m._reset through a helper argument: VERIFIED) -> rebound_definitions; V11 pinned-hook reach (builtins.__import__ wrapper, stdlib patch, PYTEST_ADDOPTS, atexit os._exit(0) passed the content scan) -> reach rules; V12 forged observer record -> acceptance_tamper. Each with a regression probe in tests/test_v5_acceptance_probes.py."
   },
   "SP-19.7": {
