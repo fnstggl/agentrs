@@ -84,6 +84,39 @@ class SiteMetrics:
         return out
 
 
+class StagingHttpMetrics:
+    """``runtime.verifier.MetricSource`` for the verifier *service*: reads a staging site's own state over its local
+    ``/api/state`` endpoint (the verifier process has no access to the site object; it never asks the agent or the
+    browser). Metric names as :class:`SiteMetrics`."""
+
+    live = False
+
+    def __init__(self, base_url: str):
+        self.base_url, self.name = base_url.rstrip("/"), "staging-http"
+
+    def read(self) -> List[Quantity]:
+        import urllib.request
+        with urllib.request.urlopen(self.base_url + "/api/state", timeout=10) as r:     # noqa: S310 — localhost
+            st = json.loads(r.read().decode())
+        items = st.get("items", [])
+        out = [Quantity("staging.items.count", float(len(items)), kind="count"),
+               Quantity("staging.items.archived", float(sum(1 for i in items if i.get("status") == "archived")),
+                        kind="count"),
+               Quantity("staging.uploads.count", float(len(st.get("uploads", []))), kind="count")]
+        if "entries" in st:
+            out.append(Quantity("staging.entries.count", float(len(st["entries"])), kind="count"))
+        return out
+
+
+def staging_http_source(task: TaskSpec, run_dir: str) -> StagingHttpMetrics:
+    """``success.evidence_source: cam_live.validation:staging_http_source`` — the site named by the task's
+    ``resources.staging_site``."""
+    url = str((task.resources or {}).get("staging_site") or "")
+    if "://" not in url:
+        raise ValueError("resources.staging_site must be the staging site's base URL")
+    return StagingHttpMetrics(url)
+
+
 #: objectives on the staging sites: (task key, site, path, metric, objective text). Plain outcome statements — what
 #: should become true, never how; the agent receives the site's address only as an authorized resource.
 STAGING_OBJECTIVES = {
@@ -104,9 +137,11 @@ class StagingComputer:
 
     ``exclude``: executor modalities left out (``("skill",)`` = primitive-only operation)."""
 
-    def __init__(self, root: str, clock: Any, *, exclude: Sequence[str] = (), browser: bool = True):
+    def __init__(self, root: str, clock: Any, *, exclude: Sequence[str] = (), browser: bool = True,
+                 approvals: bool = False):
         from .harness.staging import StagingSites
         self.root, self.clock, self.exclude, self.browser = os.path.abspath(root), clock, tuple(exclude), browser
+        self.approvals = approvals
         os.makedirs(self.root, exist_ok=True)
         self.sites = StagingSites().start()
         self.env: Any = None
@@ -140,7 +175,7 @@ class StagingComputer:
         from .harness.factories import all_executors
         from .runtime.verifier import MetricThresholdVerifier
         if self.policy is None:
-            self.policy = PolicyService(os.path.join(self.root, "auth_state"), clock=self.clock)
+            self.policy = PolicyService(os.path.join(self.root, "auth_state"), self._policy_file(), clock=self.clock)
         self.policy.register_task(task, "operator")
         if self.env is None:
             exec_dir = os.path.join(self.root, "exec")
@@ -154,6 +189,21 @@ class StagingComputer:
         verifier = MetricThresholdVerifier(self.metrics, self.clock, os.path.join(self.root, "verifier", task.objective_id),
                                            pinned_task=task)
         return self.env, self.policy, verifier
+
+    def _policy_file(self) -> Optional[str]:
+        """With ``approvals``: the default authorization policy with nothing pre-authorized on loopback in staging
+        mode, so every interaction with the (owned) staging pages is queued for the operator's approval."""
+        if not self.approvals:
+            return None
+        from .harness.auth.policy import run_policy_path
+        src = open(run_policy_path()).read()
+        old = '    preauthorized: ["127.0.0.1", "localhost", "[::1]", "channel:staging:*", "account:staging:*"]'
+        if old not in src:
+            raise RuntimeError("the default policy's staging pre-authorization line was not found")
+        path = os.path.join(self.root, "policy_approvals.yaml")
+        with open(path, "w") as f:
+            f.write(src.replace(old, '    preauthorized: ["channel:staging:*", "account:staging:*"]', 1))
+        return path
 
     def start_url(self, key: str) -> str:
         site, path, _m, _t = STAGING_OBJECTIVES[key]
@@ -189,7 +239,8 @@ def run_episode(agent: Any, sc: StagingComputer, key: str, clock: Any, root: str
     env, policy, verifier = sc.open(task, sc.start_url(key) if start == "site" else "about:blank")
     agent.attach_verifier(verifier)
     rt = LiveRuntime(agent, env, policy, verifier, task, os.path.join(root, task.objective_id), clock,
-                     rt_cfg or RuntimeConfig(fsync=False, candidates_k=10, keep_checkpoints=1, verify_every_s=0.0))
+                     rt_cfg or RuntimeConfig(fsync=False, candidates_k=10, keep_checkpoints=1, verify_every_s=0.0,
+                                             checkpoint_every_s=1e12))
     t0 = time.time()
     rt.start()
     steps = 0
@@ -315,132 +366,180 @@ def weight_swap(model: Any, state: Dict[str, torch.Tensor], groups: Sequence[str
 
 
 # --------------------------------------------------------------------------------------------------------------
-# phase A: the computer environment with the staging sites and the staging Discord service
+# phase A: the general-purpose computer environment on a staging site, with operator approvals and a resource limit
 # --------------------------------------------------------------------------------------------------------------
-def phase_computer(agent: Any, clock: OffsetClock, root: str, n_decisions: int, budget_s: float) -> Dict[str, Any]:
-    from .harness.auth import PolicyService
-    from .harness.discord import DiscordExecutor
-    from .harness.http_api import ApiModality, HttpApiExecutor
-    from .harness.service import build_environment
-    from .harness.staging import StagingSites
-    from .harness.staging_discord import StagingDiscord, StagingDiscordServer
+def phase_computer(agent: Any, clock: OffsetClock, root: str, n_decisions: int, budget_s: float, *,
+                   key: str = "store_entry", approvals: bool = True, external_limit: int = 0,
+                   reject_every: int = 3) -> Dict[str, Any]:
+    """One objective of ``key`` in the computer environment (``StagingComputer``: every executor of the harness,
+    Chromium, the real authorization service, the signing verifier reading the site's own state).
+
+    ``approvals``: the site is owned but *not* pre-authorized, so every interaction with it is queued for the operator;
+    the validation acts as the operator (``PolicyService.resolve_approval``): every ``reject_every``-th request is
+    rejected, the others approved — the runtime executes an approved action at most once, after re-checking the
+    limits. ``external_limit``: the task's ``max_external_actions`` (the runtime and the authorization service refuse
+    beyond it)."""
     from .runtime.loop import LiveRuntime, RuntimeConfig
-    from .runtime.verifier import MetricThresholdVerifier
-    run = os.path.join(root, "computer")
-    os.makedirs(run, exist_ok=True)
-    out: Dict[str, Any] = {"run_dir": run}
-    sites = StagingSites().start()
-    sd = StagingDiscordServer(StagingDiscord(rate_limit=(1000, 1.0)))
-    st = sd.state
-    env = None
+    from .runtime.logs import RunReader
+    sc = StagingComputer(os.path.join(root, "computer"), clock, approvals=approvals)
+    out: Dict[str, Any] = {"key": key}
     try:
-        hosts = [u.replace("http://", "") for u in sites.urls.values()]
-        discord_host = sd.base_url.split("/api")[0].replace("http://", "")
-        base_items = len(sites.structured.state()["items"])
-        task = TaskSpec(
-            objective_id="obj_staging_computer",
-            objective=f"Increase the number of items recorded by the structured staging application to "
-                      f"{base_items + 2}.",
-            success={"verifier": "metric_threshold", "metric": "staging.items.count", "target": base_items + 2},
-            family="staging/computer",
-            resources={"owned": hosts + [f"channel:discord:{st.general_id}", f"account:discord:{st.guild_id}"],
-                       "preauthorized": hosts + [f"channel:discord:{st.general_id}"],
-                       "read": hosts + [discord_host], "sites": dict(sites.urls),
-                       "discord": {"guild_id": st.guild_id, "channels": {"general": st.general_id}}},
-            interfaces=["structured_browser", "api", "internal"],
-            limits=Limits(duration_s=2 * 3600.0, money=1.0, compute_s=0.0, max_external_actions=200,
-                          max_decisions=int(n_decisions)),
-            data_permissions={"aggregate_metrics": True}, mode="staging")
-        policy = PolicyService(os.path.join(run, "auth_state"), clock=clock)
-        policy.register_task(task, "operator")
-        policy.put_secret("discord_bot_token", st.token, [discord_host])
-        exec_dir = os.path.join(run, "exec")
-        try:                                               # every executor of the harness, configured from the task
-            from .harness.env import ComputerEnvironment
-            from .harness.factories import all_executors
-            env = ComputerEnvironment(exec_dir, policy, clock=clock, secrets=policy.secrets_handle(),
-                                      provenance="staging")
-            for ex in all_executors(exec_dir, clock, env=env, policy=policy, secrets=policy.secrets_handle(),
-                                    task=task, discord_base_url=sd.base_url):
-                env.register(ex)
-            out["executors"] = "harness.factories.all_executors"
-        except ImportError:                                # older harness: register the executors directly
-            env = build_environment(exec_dir, policy, provenance="staging", clock=clock,
-                                    secrets=policy.secrets_handle(), browser=True)
-            disc = DiscordExecutor(sd.base_url, guild_id=st.guild_id, secrets=policy.secrets_handle(),
-                                   credential_probe=lambda name: name == "discord_bot_token")
-            env.register(ApiModality([HttpApiExecutor(), disc]))
-            out["executors"] = "internal, structured_browser, api(http, discord) registered directly"
-        verifier = MetricThresholdVerifier(SiteMetrics(sites.structured, "staging-structured"), clock,
-                                           os.path.join(run, "verifier"), pinned_task=task)
+        task = sc.task(key, max_decisions=n_decisions, objective_id="obj_staging_computer")
+        if approvals:
+            task.resources["preauthorized"] = []
+        if external_limit:
+            task.limits.max_external_actions = int(external_limit)
+        env, policy, verifier = sc.open(task, sc.start_url(key))
         agent.attach_verifier(verifier)
-        rt = LiveRuntime(agent, env, policy, verifier, task, os.path.join(run, "runtime"), clock,
+        rt = LiveRuntime(agent, env, policy, verifier, task, os.path.join(root, "computer", "runtime"), clock,
                          RuntimeConfig(fsync=True, candidates_k=10, keep_checkpoints=2, verify_every_s=0.0))
         rt.start()
-        if rt.status != "running":
-            raise RuntimeError(f"the runtime did not start (status {rt.status!r}): use a fresh out_dir")
-        t0 = time.time()
-        steps = 0
+        t0, steps, resolved = time.time(), 0, []
         while rt.status == "running" and steps < 4 * n_decisions and time.time() - t0 < budget_s:
             rt.step()
             steps += 1
-            if rt.counters["decisions"] >= n_decisions:
-                break
-        rt._commit(force=True)
+            for row in policy.approvals():
+                if row.get("status") != "pending":
+                    continue
+                approve = (len(resolved) + 1) % max(1, reject_every) != 0
+                policy.resolve_approval(row["approval_id"], approve, "operator", "staging validation operator")
+                resolved.append({"approval_id": row["approval_id"], "approved": approve,
+                                 "operation": (row.get("action") or {}).get("operation", row.get("preview", ""))[:80]})
+        if rt.status == "running":
+            rt._finish("stopped", "validation step budget reached")
         rt.close()
-        out.update(status=rt.status, steps=steps, seconds=time.time() - t0, counters=dict(rt.counters),
-                   tools=sorted(t.name for t in env.discover_tools())[:80],
-                   verified=rt._last_verified.get("outcome", {}), errors=rt._errors[-10:],
-                   staging_items_after=len(sites.structured.state()["items"]), staging_items_before=base_items,
-                   discord_messages=sum(len(v) for v in st.messages.values()),
-                   site_hits={k: dict(s.hits) for k, s in sites.sites.items()}, runtime_dir=rt.run_dir)
+        r = RunReader(rt.run_dir)
+        results = [e["data"] for e in r.records(RunFiles.EVENTS, types=["action_result"])]
+        out.update(status=rt.status, reason=rt.status_reason[:200], steps=steps, seconds=time.time() - t0,
+                   counters=dict(rt.counters), verified=rt._last_verified.get("outcome", {}), errors=rt._errors[-10:],
+                   runtime_dir=rt.run_dir, tools=len(env.discover_tools()), approvals_resolved=resolved,
+                   result_kinds=_count(f"{d.get('kind')}:{d.get('status')}" for d in results),
+                   resource_limit_refusals=sum(1 for d in results if d.get("failure_class") == "resource_limit"),
+                   grant_refusals=sum(1 for d in results if "grant does not verify" in str(d.get("failure_detail"))),
+                   executed_after_approval=sum(1 for d in results if d.get("approval_id") and d.get("kind") == "execute"),
+                   metrics=[q.to_dict() for q in sc.metrics.read()],
+                   chosen=[(x["data"]["decision"]["chosen"]["operation"], x["data"]["decision"]["chosen"]["provenance"])
+                           for x in r.records(RunFiles.DECISIONS)][:80],
+                   journal=os.path.exists(os.path.join(rt.run_dir, "journal.md")))
     finally:
-        with contextlib.suppress(Exception):
-            if env is not None:
-                env.close()
-        with contextlib.suppress(Exception):
-            sd.close()
-        with contextlib.suppress(Exception):
-            sites.stop()
+        sc.close()
     return out
 
 
 # --------------------------------------------------------------------------------------------------------------
-# phase B: a LabWorld family (delayed consequences, several verified lifetimes)
+# phase B: a LabWorld family (delayed consequences, several verified lifetimes), one of them interrupted
 # --------------------------------------------------------------------------------------------------------------
 def phase_lab(agent: Any, clock: OffsetClock, root: str, seeds: Sequence[int], per_lifetime: int,
-              budget_s: float, target: int = 24) -> Dict[str, Any]:
+              budget_s: float, target: Any = 24, *, restart: Optional[Any] = None,
+              lab_kw: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Lifetimes of the LabWorld family, each a new objective for the same agent. ``target`` is one value or one
+    per seed (different targets give lifetimes whose verified achievement differs). ``restart(agent) -> agent``:
+    in the second lifetime the runtime and the agent are discarded half-way without a final commit and rebuilt
+    from disk (spec 15.2: actual recovery); the rebuilt agent continues. Returns the report and the agent in use."""
     from .diagnostics.world import LabVerifier, LabWorld, lab_task
     from .harness.auth import PolicyService
+    from .runtime.logs import RunReader
     from .runtime.loop import LiveRuntime, RuntimeConfig
     out: Dict[str, Any] = {"lifetimes": []}
     t0 = time.time()
-    for seed in seeds:
+    targets = list(target) if isinstance(target, (list, tuple)) else [target] * len(seeds)
+    for i, seed in enumerate(seeds):
         if time.time() - t0 > budget_s:
             out["stopped"] = f"time budget of {budget_s:.0f} s reached before lifetime {seed}"
             break
         run = os.path.join(root, f"lab_{seed}")
-        world = LabWorld(lab_config(seed, target=int(target)), clock)
+        world = LabWorld(lab_config(seed, target=int(targets[i]), **(lab_kw or {})), clock)
         task = lab_task(world, f"obj_staging_lab_{seed}")
         task.limits.max_decisions = int(per_lifetime)
         verifier = LabVerifier(world)
         agent.attach_verifier(verifier)
         policy = PolicyService(os.path.join(run, "auth_state"), clock=clock)
         policy.register_task(task, "operator")
-        rt = LiveRuntime(agent, world, policy, verifier, task, os.path.join(run, "runtime"), clock,
-                         RuntimeConfig(fsync=True, candidates_k=10, keep_checkpoints=2))
+        # checkpoints only when forced (before the interruption, at the end): what happens in between is held by the
+        # write-ahead journal alone, which the restart must replay
+        rcfg = RuntimeConfig(fsync=True, candidates_k=10, keep_checkpoints=2, checkpoint_every_s=1e12)
+        rt = LiveRuntime(agent, world, policy, verifier, task, os.path.join(run, "runtime"), clock, rcfg)
         rt.start()
-        t1, steps = time.time(), 0
+        t1, steps, rec = time.time(), 0, None
         while rt.status == "running" and steps < 6 * per_lifetime and time.time() - t0 < budget_s:
             rt.step()
             steps += 1
+            if restart is not None and i == 1 and rec is None and rt.counters["decisions"] >= max(2, per_lifetime // 2):
+                before = {"decisions": rt.counters["decisions"], "committed": (rt._committed.get("ckpt") or {}).get("id"),
+                          "model_version": agent.learner.model_version, "store_records": agent.store.count()}
+                rt._commit(force=True)                 # the last commit before the interruption
+                n_after = 0
+                while rt.status == "running" and n_after < 2:  # work after the commit that only the journal holds
+                    rt.step()
+                    n_after += 1
+                before["decisions_at_interruption"] = rt.counters["decisions"]
+                del rt                                  # no close(), no final commit: the process is gone
+                agent = restart(agent)
+                agent.attach_verifier(verifier)
+                rt = LiveRuntime(agent, world, policy, verifier, task, os.path.join(run, "runtime"), clock, rcfg)
+                rt.start()                              # resume: checkpoint + journal replay
+                rec = {**before, "resumed_status": rt.status, "decisions_after_resume": rt.counters["decisions"],
+                       "model_version_after": agent.learner.model_version, "store_records_after": agent.store.count(),
+                       "resumed_events": len(RunReader(rt.run_dir).records(RunFiles.EVENTS, types=["run_resumed"]))}
         if rt.status == "running":
             rt._finish("stopped", "validation step budget reached")
         rt.close()
-        out["lifetimes"].append({"seed": seed, "status": rt.status, "steps": steps, "seconds": time.time() - t1,
-                                 "counters": dict(rt.counters), "verified": rt._last_verified.get("outcome", {}),
-                                 "errors": rt._errors[-5:], "runtime_dir": rt.run_dir})
+        out["lifetimes"].append({"seed": seed, "target": int(targets[i]), "status": rt.status, "steps": steps,
+                                 "seconds": time.time() - t1, "counters": dict(rt.counters),
+                                 "verified": rt._last_verified.get("outcome", {}), "errors": rt._errors[-5:],
+                                 "runtime_dir": rt.run_dir, "restart": rec})
+    out["agent"] = agent
     return out
+
+
+class MetaStepProbe:
+    """Wraps ``MetaLearner.meta_update`` to record, for every applied outer step: the meta-gradient norm, the
+    reward-parameter delta, and the policy change *caused by the meta-step* — the inner update of the latest policy
+    update event recomputed from its snapshot theta_0 with psi before and with psi after the step, compared on that
+    event's support decisions (mean total variation and largest probability difference)."""
+
+    def __init__(self, agent: Any):
+        self.agent, self.rows = agent, []
+        self._orig = agent.meta.meta_update
+        agent.meta.meta_update = self._wrapped
+
+    def _wrapped(self, now: Optional[float] = None) -> Any:
+        meta = self.agent.meta
+        psi0 = {n: p.detach().clone() for n, p in meta.reward.psi().items()}
+        rec = self._orig(now)
+        if rec.applied:
+            try:
+                self.rows.append(self._measure(psi0, rec))
+            except Exception as e:  # noqa: BLE001 — the measurement is evidence, never a reason to stop
+                self.rows.append({"meta_id": rec.meta_id, "error": f"{type(e).__name__}: {e}"})
+        return rec
+
+    def _measure(self, psi0: Dict[str, torch.Tensor], rec: Any) -> Dict[str, Any]:
+        meta = self.agent.meta
+        psi1 = {n: p.detach().clone() for n, p in meta.reward.psi().items()}
+        delta = math.sqrt(sum(float((psi1[n] - psi0[n]).double().pow(2).sum()) for n in psi0))
+        ev = next((e for e in reversed(meta.events) if e.theta0), None)
+        row = {"meta_id": rec.meta_id, "meta_grad_norm": rec.meta_grad_norm, "estimator": rec.estimator,
+               "n_independent_outcomes": rec.n_independent_outcomes, "n_query": rec.n_query,
+               "reward_version_before": rec.reward_version_before, "reward_version_after": rec.reward_version_after,
+               "reward_param_delta_norm": delta, "outer_objective": rec.outer_objective}
+        if ev is None:
+            return row
+        steps, _ = meta._steps_of([ev])
+        dev = next(iter(psi1.values())).device
+        theta0 = {n: v.to(dev) for n, v in ev.theta0.items()}
+        lr = ev.inner_lr
+        tb = meta.engine.inner_update(theta0, {n: v.to(dev) for n, v in psi0.items()}, steps, lr, len(steps),
+                                      create_graph=False).detached()
+        ta = meta.engine.inner_update(theta0, psi1, steps, lr, len(steps), create_graph=False).detached()
+        with torch.no_grad():
+            pb, pa = meta.inner.probs(tb, steps[0]).double(), meta.inner.probs(ta, steps[0]).double()
+        tv = 0.5 * (pa - pb).abs().sum(-1)
+        row.update(policy_change_by_meta_step={"rows": int(pb.shape[0]), "mean_tv": float(tv.mean()),
+                                               "max_tv": float(tv.max()),
+                                               "max_abs_prob_diff": float((pa - pb).abs().max())},
+                   event_id=ev.event_id)
+        return row
 
 
 # --------------------------------------------------------------------------------------------------------------
@@ -522,18 +621,34 @@ def _count(xs: Any) -> Dict[str, int]:
 # --------------------------------------------------------------------------------------------------------------
 def run_staging(cfg: Optional[CamLiveConfig] = None, *, out_dir: Optional[str] = None, real_model: bool = True,
                 n_decisions: int = 40, seed: int = 0, evidence_dir: Optional[str] = None,
-                budget_s: float = 780.0, lab_seeds: Sequence[int] = (101, 102),
-                computer_share: float = 0.15, lab_target: int = 24) -> Dict[str, Any]:
-    """Run the staging validation and write its evidence file. ``budget_s`` bounds the time the GPU lock is held
-    for the learning phases (the lock is held for at most ~15 minutes in total)."""
+                budget_s: float = 780.0, lab_seeds: Sequence[int] = (101, 102, 103, 104),
+                computer_share: float = 0.25, lab_target: Any = (6, 30, 10, 40), computer_key: str = "store_entry",
+                approvals: bool = True, external_limit: int = 0, restart: bool = True,
+                lab_kw: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Run the staging validation (spec Phase 4) and write its evidence file.
+
+    observation -> latent -> prediction -> action -> consequence -> internal reward -> neural update -> changed
+    behaviour, through the real runtime, with operator approvals and a resource limit in the computer environment,
+    an interruption + restart from disk in the second LabWorld lifetime, and a probe of every applied meta-update
+    (meta-gradient norm, reward-parameter delta, policy change caused by the meta-step). LabWorld lifetimes get
+    different targets, so their verified achievement differs (contrast for the outer objective). ``budget_s`` bounds
+    the time the GPU lock is held for the learning phases (at most ~15 minutes in total)."""
     from .agent import CamLiveAgent
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     cfg = staging_config(cfg, real_model, seed)
     root = os.path.abspath(out_dir or os.path.join(cfg.resolved_home(), "validation", f"staging_{stamp}"))
     os.makedirs(root, exist_ok=True)
+    lab_kw = dict(outcome_horizon_s=2 * 3600.0, mean_delay_s=(900.0, 3600.0)) if lab_kw is None else dict(lab_kw)
+    n_a = max(1, int(round(n_decisions * computer_share)))
+    n_b = max(2, (n_decisions - n_a) // max(1, len(lab_seeds)))
+    if not external_limit:
+        external_limit = max(2, n_a // 4)
     report: Dict[str, Any] = {"executed": False, "ok": False, "kind": "staging_validation", "started_utc": stamp,
                               "settings": {"n_decisions": n_decisions, "budget_s": budget_s, "lab_seeds": list(lab_seeds),
                                            "computer_share": computer_share, "lab_target": lab_target,
+                                           "computer_decisions": n_a, "lab_decisions_per_lifetime": n_b,
+                                           "computer_key": computer_key, "approvals": approvals,
+                                           "external_limit": external_limit, "restart": restart, "lab_kw": lab_kw,
                                            "agent": cfg.section("agent"), "credit": cfg.section("credit"),
                                            "meta_min_independent_outcomes": cfg.optim.meta_min_independent_outcomes,
                                            "backbone": cfg.backbone.name, "scale": cfg.core.scale},
@@ -547,10 +662,22 @@ def run_staging(cfg: Optional[CamLiveConfig] = None, *, out_dir: Optional[str] =
         lock = gpu_lock(min_free_gb=18.0)
         torch.cuda.reset_peak_memory_stats()
     t_start = time.time()
+    probes: List[MetaStepProbe] = []
     with lock:
         t_lock = time.time()
         clock = OffsetClock()
         agent = CamLiveAgent(cfg, os.path.join(root, "agent"), clock=clock)
+        probes.append(MetaStepProbe(agent))
+
+        def rebuild(old: Any) -> Any:
+            """The learner process is gone: a new agent is built from the configuration and restored from disk."""
+            old.close()
+            del old
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            new = CamLiveAgent(cfg, os.path.join(root, "agent"), clock=clock)
+            probes.append(MetaStepProbe(new))
+            return new
         try:
             report["build_seconds"] = time.time() - t_lock
             report["parameters"] = agent.model.count_parameters()
@@ -558,17 +685,22 @@ def run_staging(cfg: Optional[CamLiveConfig] = None, *, out_dir: Optional[str] =
             probe = HeldOutProbe(agent)
             p0 = probe.distribution()
             s0 = agent.model.trainable_state()
-            n_a = max(1, int(round(n_decisions * computer_share)))
-            n_b = max(1, (n_decisions - n_a) // max(1, len(lab_seeds)))
             left = budget_s - (time.time() - t_lock)
             try:
-                report["phase_computer"] = phase_computer(agent, clock, root, n_a, left * computer_share)
+                report["phase_computer"] = phase_computer(agent, clock, root, n_a, left * computer_share,
+                                                          key=computer_key, approvals=approvals,
+                                                          external_limit=external_limit)
             except Exception as e:  # noqa: BLE001 — recorded honestly; phase B still runs
                 report["failures"].append({"phase": "computer", "error": f"{type(e).__name__}: {e}",
                                            "trace": traceback.format_exc(limit=12)})
             left = budget_s - (time.time() - t_lock)
-            report["phase_lab"] = phase_lab(agent, clock, root, lab_seeds, n_b, max(0.0, left - 30.0),
-                                            target=lab_target)
+            # consequences mature within a lifetime (an action takes about an hour of the world's time), so the
+            # query rows after a policy update have their verified measurements before the lifetime ends
+            lab = phase_lab(agent, clock, root, lab_seeds, n_b, max(0.0, left - 45.0), target=lab_target,
+                            restart=rebuild if restart else None, lab_kw=lab_kw)
+            agent = lab.pop("agent")
+            report["phase_lab"] = lab
+            probe.agent = agent
             p1 = probe.distribution()
             s1 = agent.model.trainable_state()
             # behaviour change on the held-out context, and what the weights alone explain
@@ -594,6 +726,8 @@ def run_staging(cfg: Optional[CamLiveConfig] = None, *, out_dir: Optional[str] =
                         "kept) must give back the old distribution exactly; restoring only the experiential group "
                         "shows the part of the change carried by the experiential weights",
             }
+            report["meta_step_effects"] = [r for p in probes for r in p.rows]
+            report["reward_param_delta_norm_total"] = delta_norm.get("reward", 0.0)
             dirs = [d for d in ([report.get("phase_computer", {}).get("runtime_dir", "")]
                                 + [lt["runtime_dir"] for lt in report["phase_lab"]["lifetimes"]]) if d]
             report["evidence"] = collect_evidence(agent, dirs)
@@ -608,6 +742,8 @@ def run_staging(cfg: Optional[CamLiveConfig] = None, *, out_dir: Optional[str] =
     report["executed"] = True
     report["checks"] = checks(report)
     report["ok"] = report["passed"] = all(c["holds"] for c in report["checks"].values()) and not report["failures"]
+    report["requirements_evidenced"] = sorted({rid for name, c in report["checks"].items() if c["holds"]
+                                               for rid in CHECK_REQUIREMENTS.get(name, ())})
     evidence_dir = evidence_dir or root               # the committed evidence is written only when asked for
     if evidence_dir:
         os.makedirs(evidence_dir, exist_ok=True)
@@ -616,6 +752,27 @@ def run_staging(cfg: Optional[CamLiveConfig] = None, *, out_dir: Optional[str] =
             json.dump(report, f, indent=1, sort_keys=True, default=str)
         report["evidence_file"] = path
     return report
+
+
+#: which requirement ids of the completion manifest each check evidences
+CHECK_REQUIREMENTS = {
+    "computer_environment_decisions": ("IN-01", "CU-22", "CU-30"),
+    "no_grant_refusals": ("IN-01", "LX-11"),
+    "approvals_exercised": ("LX-11", "IN-07"),
+    "resource_limit_exercised": ("LX-11", "IN-07"),
+    "recovery_exercised": ("LX-11", "IN-07", "CL-06"),
+    "logging": ("LX-11",),
+    "lab_lifetimes_verified": ("IN-07", "MR-05"),
+    "predictions_before_outcomes": ("PI-02",),
+    "internal_rewards": ("MR-01",),
+    "experiential_weights_changed": ("CL-02", "CU-22"),
+    "adapter_weights_changed": ("CL-03",),
+    "meta_update_applied": ("MR-03", "MR-05", "MR-06"),
+    "meta_step_changes_policy": ("MR-03", "MR-06"),
+    "delayed_outcomes_linked": ("RC-01",),
+    "behaviour_changed_on_held_out_context": ("NA-06", "IN-07"),
+    "weights_explain_the_change": ("NA-06", "CL-09"),
+}
 
 
 def checks(r: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
@@ -628,9 +785,32 @@ def checks(r: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
 
     def c(holds: bool, **detail: Any) -> Dict[str, Any]:
         return {"holds": bool(holds), **detail}
+    restarts = [lt["restart"] for lt in lab if lt.get("restart")]
+    mse = r.get("meta_step_effects", [])
     return {
         "computer_environment_decisions": c(pa.get("counters", {}).get("decisions", 0) > 0,
-                                            decisions=pa.get("counters", {}).get("decisions", 0)),
+                                            decisions=pa.get("counters", {}).get("decisions", 0),
+                                            verified=pa.get("verified", {}).get("status")),
+        "no_grant_refusals": c(pa.get("grant_refusals", 1) == 0 and pa.get("counters", {}).get("actions_executed", 0) > 0,
+                               refusals=pa.get("grant_refusals"), executed=pa.get("counters", {}).get("actions_executed")),
+        "approvals_exercised": c(any(a["approved"] for a in pa.get("approvals_resolved", []))
+                                 and any(not a["approved"] for a in pa.get("approvals_resolved", []))
+                                 and pa.get("executed_after_approval", 0) > 0,
+                                 resolved=len(pa.get("approvals_resolved", [])),
+                                 executed_after_approval=pa.get("executed_after_approval", 0)),
+        "resource_limit_exercised": c(pa.get("resource_limit_refusals", 0) > 0
+                                      or "external_actions" in pa.get("reason", ""),
+                                      refusals=pa.get("resource_limit_refusals", 0), reason=pa.get("reason", "")),
+        "recovery_exercised": c(bool(restarts) and all(x.get("resumed_status") == "running"
+                                                       and x.get("resumed_events", 0) >= 1
+                                                       and x.get("decisions_after_resume", 0)
+                                                       >= x.get("decisions_at_interruption", 1) for x in restarts),
+                                restarts=restarts),
+        "logging": c(bool(pa.get("journal")) and ev.get("n_decisions", 0) > 0, journal=pa.get("journal"),
+                     decisions_logged=ev.get("n_decisions", 0)),
+        "meta_step_changes_policy": c(any((m.get("policy_change_by_meta_step") or {}).get("max_abs_prob_diff", 0.0) > 0
+                                          and m.get("reward_param_delta_norm", 0.0) > 0 for m in mse),
+                                      rows=len(mse)),
         "lab_lifetimes_verified": c(len(verified_lab) >= 2, n=len(verified_lab),
                                     closed=sum(1 for lt in verified_lab
                                                if lt["verified"].get("status") in ("achieved", "failed"))),

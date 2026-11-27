@@ -43,6 +43,7 @@ def main(argv=None) -> int:
     ap.add_argument("--work", default="")
     ap.add_argument("--real", action="store_true")
     ap.add_argument("--agent", default="{}", help="JSON overrides of the agent settings")
+    ap.add_argument("--budget-s", type=float, default=0.0, help="start no new episode after this many seconds")
     a = ap.parse_args(argv)
     import torch
     from cam_live.agent import CamLiveAgent
@@ -71,7 +72,11 @@ def main(argv=None) -> int:
     agent = CamLiveAgent(cfg, os.path.join(work, "agent"), clock=clock)
     try:
         plan = [a.key] * a.episodes + ([a.transfer_key] * a.transfer_episodes if a.transfer_key else [])
+        t_run = time.time()
         for i, key in enumerate(plan):
+            if a.budget_s and time.time() - t_run > a.budget_s:
+                report["stopped"] = f"time budget {a.budget_s:.0f} s reached before episode {i}"
+                break
             try:
                 ep = run_episode(agent, sc, key, clock, os.path.join(work, "runs"), max_decisions=a.max_decisions)
             except Exception as e:  # noqa: BLE001 — recorded, the arm continues
