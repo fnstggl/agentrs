@@ -20,6 +20,7 @@ from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple
 from ... import contracts as C
 from . import destinations as D
 from . import localnet
+from . import platform_constraints
 from .schema import EFFECT_RANK, ModeRule, Policy, RateRule, ToolRule, norm_field
 
 _OP_RE = re.compile(r"^[A-Za-z0-9_.\-:]{1,128}$")
@@ -321,6 +322,9 @@ class Evaluator:
         self._credentials(ne, args, text_all)
         if tool is None:
             ne.deny.append(Finding("P-TOOL-UNKNOWN", f"operation {node.operation!r} is not in the policy's tool table"))
+            for pid, why, d in platform_constraints.findings(node, [], "none", text_all, expand(args), raw_tool=False,
+                                                             opaque=True):
+                ne.deny.append(Finding(pid, why, d))
             return ne
         if tool.opaque or tool.effect == "by_method":
             ne.blob = text_all.lower()      # payloads whose meaning the tool table cannot see: program text, raw requests
@@ -479,6 +483,13 @@ class Evaluator:
                 hit = D.match_any(d, p.deny) or D.match_any(d, tc.deny)
                 if hit is not None:
                     ne.deny.append(Finding("P-DEST-DENIED", f"the payload refers to {d.key}, which is on the deny list", d))
+        # hard platform constraints (no user-account automation, no CAPTCHA / human-verification circumvention):
+        # fixed in code, not part of the operator-editable policy, so nothing can permit them
+        for pid, why, d in platform_constraints.findings(
+                node, ne.dests, base, text_all, expand(args), raw_tool=tool.id == "T-NET-REQUEST" or
+                tool.effect == "by_method" and node.modality not in (C.Modality.STRUCTURED_BROWSER, C.Modality.VISUAL),
+                opaque=bool(tool.opaque)):
+            ne.deny.append(Finding(pid, why, d))
         ne.effect = [e for e, r in EFFECT_RANK.items() if r == rank][0]
         ne.potential = [e for e, r in EFFECT_RANK.items() if r == max(pot, rank)][0]
         if rank > EFFECT_RANK[tc.mode.max_effect]:
