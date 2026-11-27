@@ -277,3 +277,27 @@ class ExecutorSecrets:
 
     def scrub_record(self, rec: Any) -> Any:
         return type(rec).from_dict(self.scrub_obj(rec.to_dict()))
+
+    def bind(self, action: Any, decision: Any) -> "BoundSecrets":
+        """Handle for one granted action: ``get(name, destination)``. The environment, which holds the
+        ``AuthorizationDecision``, binds it before handing ``ExecContext.secrets`` to a modality executor."""
+        return BoundSecrets(self, action, decision)
+
+
+class BoundSecrets:
+    """``ExecutorSecrets`` fixed to one action and its grant."""
+
+    def __init__(self, handle: ExecutorSecrets, action: Any, decision: Any):
+        self._h, self._action, self._decision = handle, action, decision
+
+    def get(self, name: str, destination: str) -> str:
+        return self._h.get(name, self._action, self._decision, destination)
+
+    def scrub(self, text: str) -> str:
+        return self._h.scrub(text)
+
+    def scrub_obj(self, obj: Any) -> Any:
+        return self._h.scrub_obj(obj)
+
+    def scrub_record(self, rec: Any) -> Any:
+        return self._h.scrub_record(rec)

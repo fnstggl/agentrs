@@ -1,0 +1,106 @@
+{
+ "n": 300,
+ "host": "5.15.0-194-generic",
+ "inproc_fsync": {
+  "authorize_allow": {
+   "n": 300,
+   "median_ms": 8.386,
+   "p95_ms": 10.229,
+   "max_ms": 68.298
+  },
+  "check_grant_consume": {
+   "n": 300,
+   "median_ms": 6.459,
+   "p95_ms": 7.302,
+   "max_ms": 11.263
+  },
+  "check_primitive": {
+   "n": 300,
+   "median_ms": 7.881,
+   "p95_ms": 9.089,
+   "max_ms": 27.176
+  },
+  "record": {
+   "n": 300,
+   "median_ms": 8.003,
+   "p95_ms": 9.735,
+   "max_ms": 12.658
+  },
+  "authorize_deny": {
+   "n": 300,
+   "median_ms": 7.05,
+   "p95_ms": 8.597,
+   "max_ms": 9.417
+  },
+  "authorize_program_20_steps": {
+   "n": 30,
+   "median_ms": 15.14,
+   "p95_ms": 16.579,
+   "max_ms": 31.189
+  },
+  "audit_verify": {
+   "entries": 1533,
+   "ok": true,
+   "seconds": 0.0354,
+   "entries_per_s": 43313
+  }
+ },
+ "inproc_nofsync": {
+  "authorize_allow": {
+   "n": 300,
+   "median_ms": 3.997,
+   "p95_ms": 4.591,
+   "max_ms": 7.043
+  },
+  "check_grant_consume": {
+   "n": 300,
+   "median_ms": 1.31,
+   "p95_ms": 2.135,
+   "max_ms": 4.093
+  },
+  "check_primitive": {
+   "n": 300,
+   "median_ms": 3.078,
+   "p95_ms": 3.327,
+   "max_ms": 5.024
+  },
+  "record": {
+   "n": 300,
+   "median_ms": 3.351,
+   "p95_ms": 4.24,
+   "max_ms": 5.765
+  },
+  "authorize_deny": {
+   "n": 300,
+   "median_ms": 3.476,
+   "p95_ms": 4.078,
+   "max_ms": 4.653
+  },
+  "authorize_program_20_steps": {
+   "n": 30,
+   "median_ms": 8.949,
+   "p95_ms": 11.807,
+   "max_ms": 14.774
+  },
+  "audit_verify": {
+   "entries": 1533,
+   "ok": true,
+   "seconds": 0.0294,
+   "entries_per_s": 52211
+  }
+ },
+ "rpc_fsync": {
+  "authorize_allow_internal": {
+   "n": 300,
+   "median_ms": 8.458,
+   "p95_ms": 9.855,
+   "max_ms": 15.408
+  },
+  "stopped": {
+   "n": 300,
+   "median_ms": 0.157,
+   "p95_ms": 0.174,
+   "max_ms": 0.281
+  }
+ }
+}

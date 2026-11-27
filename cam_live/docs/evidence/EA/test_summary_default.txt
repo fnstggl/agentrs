@@ -1,0 +1,9 @@
+........................................................................ [ 75%]
+..............sssssss.........................                           [100%]
+============================= slowest 5 durations ==============================
+1.20s call     tests/harness/auth/test_ea_launcher.py::test_crashed_service_is_restarted_and_a_crash_loop_gives_up
+1.10s call     tests/harness/auth/test_ea_launcher.py::test_emergency_stop_halts_everything_but_the_authorization_service
+0.58s call     tests/harness/auth/test_ea_launcher.py::test_authorization_service_is_restarted_with_its_state
+0.53s call     tests/harness/auth/test_ea_launcher.py::test_launch_with_stop_already_engaged_starts_only_the_authorization_service
+0.46s call     tests/harness/auth/test_ea_launcher.py::test_authorization_service_confines_its_own_writes_with_landlock
+183 passed, 7 skipped in 25.20s

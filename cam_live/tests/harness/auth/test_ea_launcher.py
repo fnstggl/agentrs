@@ -226,8 +226,18 @@ def test_nothing_runs_without_the_authorization_service(tmp_path):
     marker = str(tmp_path / "started")
     with pytest.raises(RuntimeError) as e:
         launch(run, [broken_auth, dummy("worker", "sandbox", "", "--marker", marker)], dict(FAST))
-    assert "authorization service did not start" in str(e.value)
+    assert "authorization service did not start" in str(e.value) and "status 4" in str(e.value)
     assert not os.path.exists(marker)                                     # the other service was never started
+    t0 = time.time()                                                      # a service that dies at once fails fast
+    h = launch(str(tmp_path / "r2"), ["auth", ServiceSpec(name="dies", role="learner", socket="dies.sock", ready_timeout_s=60.0,
+                                                           argv=[sys.executable, "-c", "import sys; sys.exit(2)"], restart=False)],
+               dict(FAST))
+    try:
+        s = h.status()["services"]["dies"]
+        assert s["state"] == "failed" and "status 2" in s["reason"] and time.time() - t0 < 20.0
+        assert h.status()["services"]["auth"]["state"] == "running"
+    finally:
+        h.stop()
 
 
 def test_launcher_main_runs_until_signalled(tmp_path):

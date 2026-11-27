@@ -624,11 +624,24 @@ class PolicyService:
                         self.store.x("INSERT INTO content_log(task_id, kind, target, shingles_json, ts) VALUES(?,?,?,?,?)",
                                      (tc.task_id, "out", d.intent_key, sh, now))
         info["grant_nonce"] = g["payload"]["n"]
+        self._gc(now)
         findings = [("P-ALLOW", "permitted by policy " + pol.policy_id)]
         if approval_id:
             findings.append(("P-APPROVED", f"approved by the operator ({approval_id})"))
         return self._decision(ALLOW, ah, findings, grant=g["token"], expires_at=g["payload"]["e"],
                               approval_id=approval_id), info
+
+    def _gc(self, now: float) -> None:
+        """Hourly: drop rate and content history that no rule can look at any more (decisions, grants and the
+        audit log are kept)."""
+        if now - float(self.store.kv_get("last_gc") or 0.0) < 3600.0:
+            return
+        pol = self.policy
+        assert pol is not None
+        horizon = max([r.window_s for r in [pol.rate_default, pol.rate_write, pol.rate_primitive] + pol.rate_rules])
+        self.ledger.rate_gc(now, horizon_s=horizon + 60.0)
+        self.store.x("DELETE FROM content_log WHERE kind='out' AND ts < ?", (now - pol.prohibited["dup_window_s"] - 60.0,))
+        self.store.kv_set("last_gc", str(now))
 
     def _limit_event(self, task_id: str, lim: Sequence[Tuple[str, str]]) -> None:
         for pid, reason in lim:

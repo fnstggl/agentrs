@@ -419,7 +419,9 @@ class LaunchHandle:
         while time.time() < end:
             if svc.state in ("failed", "exited", "unavailable", "halted", "stopped"):
                 return False
-            if svc.proc is not None and svc.proc.poll() is None and self._is_ready(svc):
+            if svc.proc is None or svc.proc.poll() is not None:
+                return False                    # it exited before becoming ready: do not wait out the timeout
+            if self._is_ready(svc):
                 svc.ready = True
                 if svc.state == "starting":
                     svc.state = "running"
@@ -507,8 +509,8 @@ class LaunchHandle:
                     rc = svc.proc.poll() if svc.proc is not None else None
                     if rc is not None:
                         svc.last_exit = rc
-                    self._terminate(svc, "failed", f"not ready after {svc.spec.ready_timeout_s:g} s"
-                                    + (f" (exit status {rc})" if rc is not None else ""))
+                    self._terminate(svc, "failed", f"exited with status {rc} before becoming ready" if rc is not None
+                                    else f"not ready after {svc.spec.ready_timeout_s:g} s")
             if name == "auth" and self.cfg.require_auth and svc.state != "running" and self.cfg.wait_ready:
                 reason = svc.reason
                 self.stop()

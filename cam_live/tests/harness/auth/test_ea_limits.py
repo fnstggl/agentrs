@@ -202,3 +202,15 @@ def test_exhaustion_is_written_to_the_audit_log(svc):
     assert svc.authorize(get("/b"), t, {}).verdict == DENY
     events = [e for e in svc.audit_tail(20) if e["event"] == "limit_event"]
     assert events and any(e["data"]["policy_id"] in ("L-EXTERNAL-ACTIONS", "L-EXHAUSTED:max_external_actions") for e in events)
+
+
+def test_history_no_rule_can_see_is_garbage_collected(svc, clock):
+    t = task()
+    for i in range(5):
+        run(svc, get(f"/{i}"), t)
+    assert len(svc.store.q("SELECT id FROM rate_events")) >= 5
+    clock.advance(4000.0)                                  # far beyond every rate window
+    run(svc, get("/later"), t)
+    assert len(svc.store.q("SELECT id FROM rate_events")) == 1
+    assert used(svc, t)["external_actions"] == 6           # accounting is not history: it stays
+    assert svc.verify_audit().ok

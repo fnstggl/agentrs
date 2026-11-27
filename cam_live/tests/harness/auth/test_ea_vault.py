@@ -141,7 +141,14 @@ def test_revoking_a_destination_denies_it_and_its_secrets(svc):
 def test_executor_handle_has_no_way_to_list_or_change_secrets(svc):
     h = svc.secrets_handle()
     assert isinstance(h, ExecutorSecrets)
-    assert sorted(n for n in dir(h) if not n.startswith("_")) == ["get", "scrub", "scrub_obj", "scrub_record"]
+    assert sorted(n for n in dir(h) if not n.startswith("_")) == ["bind", "get", "scrub", "scrub_obj", "scrub_record"]
+    svc.put_secret("site_token", CANARY, [API + "/*"])
+    a = act("http.get", arguments={"url": API + "/x"})
+    bound = h.bind(a, start(svc, a, task()))                    # what an executor gets for one granted action
+    assert sorted(n for n in dir(bound) if not n.startswith("_")) == ["get", "scrub", "scrub_obj", "scrub_record"]
+    assert bound.get("site_token", API + "/x") == CANARY and bound.scrub("x " + CANARY) == "x [REDACTED:site_token]"
+    with pytest.raises(SecretError):
+        bound.get("site_token", "http://localhost:1/")
 
 
 def test_broker_reloads_files_added_by_the_operator_and_ignores_broken_ones(tmp_path):
