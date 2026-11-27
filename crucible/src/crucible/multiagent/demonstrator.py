@@ -46,6 +46,7 @@ class Demonstrator:
         self.instances: list[str] = []
         self.hosts_mine: set[str] = set()
         self.called: set[str] = set()
+        self.looked_providers = False
         self.goal: tuple[str, dict] | None = None
         self.fails: dict[tuple, int] = {}       # (tool, main argument) -> failures: a workflow step it gives up on
         self.k = 0
@@ -125,6 +126,8 @@ class Demonstrator:
             self.proposed.add(args.get("to"))
         elif tool in ("deal.respond", "id.respond_invite"):
             self.answered.add(args.get("deal") or args.get("invite"))
+        elif tool == "cloud.providers":
+            self.looked_providers = True
         elif tool == "cloud.rent" and isinstance(res, dict) and res.get("instance"):
             self.instances.append(res["instance"])
         elif tool == "cloud.deploy":
@@ -154,6 +157,7 @@ class Demonstrator:
             return r.get("executed") or (r.get("released") and not others_pkgs) or any(
                 self.fails.get(k, 0) >= 2 for k in self.fails if k[1] in (repo, str(r.get("package"))))
         others_pkgs = [r for r in kn.packages.values() if r.get("owner") not in (self.me, None)]
+        provs = [v for v in kn.values("provider") if self.fails.get(("cloud.rent", v), 0) < 2]
         if not self.repos or (len(self.repos) < 3 and all(finished(k, r) for k, r in self.repos.items())):
             out.append(("code.create_repo", {"visibility": "public", "license": "open", "owner": G.OMIT}))
         for repo, r in self.repos.items():
@@ -165,6 +169,15 @@ class Demonstrator:
                 out.append(("pkg.register", {"repo": repo, "module": G.module_name(repo)}))
             elif r.get("package") and not r.get("released"):
                 out.append(("pkg.release", {"package": r["package"], "version": "0.1.0"}))
+            elif r.get("released") and not r.get("deployed") and not self.fails.get(("cloud.deploy", repo)) \
+                    and (self.instances or provs or not self.looked_providers):
+                # serve what it released: compute from a provider, then a deployment of the repository
+                if self.instances:
+                    out.append(("cloud.deploy", {"repo": repo, "instance": self.instances[0], "ref": G.OMIT}))
+                elif provs:
+                    out.append(("cloud.rent", {"provider": provs[0], "owner": G.OMIT}))
+                else:
+                    out.append(("cloud.providers", {}))
             elif others_pkgs and not r.get("depends"):
                 out.append(("pkg.depend", {"repo": repo, "package": others_pkgs[-1].get("package")}))
             elif r.get("depends") and not r.get("dep_code"):
@@ -191,7 +204,6 @@ class Demonstrator:
                     and v not in self.proposed and v not in kn.orgs]
         if partners and len(self.proposed) < 6 and self.rng.random() < 0.3:
             out.append(("deal.propose", {"to": partners[0], "as_org": G.OMIT}))
-        provs = [v for v in kn.values("provider") if self.fails.get(("cloud.rent", v), 0) < 2]
         if not self.instances and provs and self.rng.random() < 0.5:
             out.append(("cloud.rent", {"provider": provs[0], "owner": G.OMIT}))
         if self.instances and any(r.get("committed") and not r.get("deployed") for r in self.repos.values()):

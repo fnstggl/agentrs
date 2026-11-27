@@ -30,6 +30,11 @@ training signal is computed by each identity's learner-side objective from its o
 * ``a2c``        advantage actor-critic with n-step bootstrapped returns and a learned value head;
 * ``ppo``        clipped surrogate objective with generalised advantage estimation, several epochs per batch.
 
+Behaviour-regularised reinforcement learning: after pre-training (`set_prior`), every update adds
+``kl_prior * KL(pi || prior)`` over the tool distribution of its batch's situations, the prior being a frozen copy of
+the pre-trained network (the KL to the supervised policy of AlphaStar's league training): with a sparse, mostly
+intrinsic signal, learning refines the demonstrated competence instead of drifting from it.
+
 Evidence-scaled updates (audit K skeptic S.3/S.7): advantages are divided by a running scale of the signal (never
 re-normalised per batch, so a batch of tiny differences is not blown up to unit size); a batch whose signals are
 all zero is not trained on at all, so a no-signal control's parameters - and behaviour - do not change; an
@@ -65,7 +70,7 @@ ALGOS = ("reinforce", "a2c", "ppo")
 ACT_BIAS = 1.5           # initial log-odds preference for a state-changing tool over a read-only one (learnable)
 ARCHS = ("mlp", "gru")
 HP_DEFAULT = {"lr": 1e-3, "bc_lr": 1e-2, "gamma": 0.9, "lam": 0.9, "clip": 0.2, "epochs": 4, "ent": 0.01, "vf": 0.5,
-              "update_every": 4, "max_grad": 1.0, "scale_decay": 0.98, "scale_floor": 1e-3}
+              "update_every": 4, "max_grad": 1.0, "scale_decay": 0.98, "scale_floor": 1e-3, "kl_prior": 0.1}
 
 
 def h32(s: str) -> int:
@@ -275,6 +280,8 @@ class PolicyGroup:
         self.identities: list[str] = []
         self.on_update = None                 # callback(group, record) set by the harness (versioning)
         self.controls: list = []              # no-signal controls: twins trained on this group's batches, signal 0
+        self.prior = None                     # frozen copy of the pre-trained network (behaviour-regularised RL)
+        self._bc_opt: dict = {}               # behaviour-cloning optimiser(s), kept across imitate() calls
 
     # ------------------------------------------------------------------ deciding
     def candidates(self, obs: dict, kn: Knowledge, rng: np.random.Generator) -> list[tuple[dict, list]]:
@@ -376,8 +383,9 @@ class PolicyGroup:
         return sum(len(b) for b in self.buffer.values())
 
     # ------------------------------------------------------------------ learning
-    def _logp_value(self, recs: list[dict]):
-        """Log-probabilities, entropies and values of recorded decisions under the current parameters."""
+    def _logp_value(self, recs: list[dict], tool_lsm: list | None = None):
+        """Log-probabilities, entropies and values of recorded decisions under the current parameters (with
+        `tool_lsm`, a list, also every record's tool log-distribution, appended to it)."""
         torch = _torch()
         x = torch.from_numpy(np.stack([r["x"] for r in recs]))
         hs = None
@@ -390,6 +398,8 @@ class PolicyGroup:
             zi = z[i:i + 1]
             lsm, te = tool_log_probs(self.net, zi, r["ttoks"], torch.from_numpy(r["tflags"]), r["htoks"], r["hidx"])
             lp = lsm[r["ti"]]
+            if tool_lsm is not None:
+                tool_lsm.append(lsm)
             ent = -(lsm.exp() * lsm).sum()
             te_i = te[r["ti"]:r["ti"] + 1]
             for s in r["slots"]:
@@ -405,6 +415,30 @@ class PolicyGroup:
             ents.append(ent)
         v = self.net.value(z).squeeze(1)
         return torch.stack(logps), torch.stack(ents), v
+
+    def set_prior(self) -> None:
+        """Keep a frozen copy of the current (pre-trained) network as the anchor of behaviour-regularised
+        reinforcement learning: every later update adds ``kl_prior * KL(pi || prior)`` over the tool distribution
+        of its batch's situations (like the KL to the supervised policy of AlphaStar's league), so that learning
+        from a sparse, mostly intrinsic signal refines the demonstrated competence instead of drifting away from
+        it. The anchor is the group's own (a deep copy; nothing is shared)."""
+        torch = _torch()
+        self.prior = PolicyNet.build(self.arch, self.seed)
+        self.prior.load_state_dict(self.net.state_dict())
+        for q in self.prior.parameters():
+            q.requires_grad_(False)
+
+    def _prior_tool_lsm(self, recs: list[dict]) -> list:
+        torch = _torch()
+        with torch.no_grad():
+            x = torch.from_numpy(np.stack([r["x"] for r in recs]))
+            hs = None
+            if self.arch == "gru":
+                hs = torch.from_numpy(np.stack([r["h"] if r["h"] is not None else np.zeros(HIDDEN, np.float32)
+                                                for r in recs]))
+            z, _ = self.prior.encode(x, hs)
+            return [tool_log_probs(self.prior, z[i:i + 1], r["ttoks"], torch.from_numpy(r["tflags"]), r["htoks"],
+                                   r["hidx"])[0] for i, r in enumerate(recs)]
 
     def maybe_update(self, force: bool = False) -> dict:
         if self.frozen:
@@ -477,8 +511,12 @@ class PolicyGroup:
         old = torch.tensor([r["logp"] for r in recs], dtype=torch.float32)
         epochs = int(hp["epochs"]) if self.algo == "ppo" else 1
         loss_v = 0.0
+        klc = float(hp.get("kl_prior", 0.0)) if self.prior is not None else 0.0
+        prior_lsm = self._prior_tool_lsm(recs) if klc > 0 else None
+        kl_v = 0.0
         for _ in range(epochs):
-            logp, ent, val = self._logp_value(recs)
+            cur_lsm: list = []
+            logp, ent, val = self._logp_value(recs, tool_lsm=cur_lsm if klc > 0 else None)
             if self.algo == "ppo":
                 ratio = (logp - old).exp()
                 pg = -torch.min(ratio * A, ratio.clamp(1 - hp["clip"], 1 + hp["clip"]) * A).mean()
@@ -486,6 +524,10 @@ class PolicyGroup:
                 pg = -(logp * A).mean()
             vl = ((val - R) ** 2).mean() if self.algo in ("a2c", "ppo") else torch.zeros(())
             loss = pg + hp["vf"] * vl - hp["ent"] * ent.mean()
+            if klc > 0:
+                kl = torch.stack([(c.exp() * (c - q)).sum() for c, q in zip(cur_lsm, prior_lsm)]).mean()
+                loss = loss + klc * kl
+                kl_v = float(kl.detach())
             self.opt.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.net.parameters(), hp["max_grad"])
@@ -498,7 +540,7 @@ class PolicyGroup:
             self.version += 1
             self.updates += 1
         info.update(updates=int(changed), changed=changed, loss=loss_v, params_hash_after=self.hash,
-                    version_after=self.version, scale=scale, algo=self.algo, epochs=epochs,
+                    version_after=self.version, scale=scale, algo=self.algo, epochs=epochs, kl_prior=kl_v,
                     adv_abs_mean=float(A.abs().mean()))
         self.update_log.append({k: v for k, v in info.items() if k != "decisions"})
         if self.on_update is not None:
@@ -513,7 +555,10 @@ class PolicyGroup:
         torch = _torch()
         if not demos:
             return {"updates": 0, "changed": False}
-        opt = torch.optim.Adam(self.net.parameters(), lr=lr or self.hp.get("bc_lr", self.hp["lr"]))
+        rate = float(lr or self.hp.get("bc_lr", self.hp["lr"]))
+        opt = self._bc_opt.get(rate)
+        if opt is None:                       # one optimiser across calls (epoch by epoch pre-training keeps its moments)
+            opt = self._bc_opt[rate] = torch.optim.Adam(self.net.parameters(), lr=rate)
         order_rng = np.random.default_rng([self.seed, 0xBC])
         losses, steps = [], 0
         h0 = self.hash
@@ -553,7 +598,8 @@ class PolicyGroup:
         torch.save({"net": self.net.state_dict(), "opt": self.opt.state_dict(), "algo": self.algo,
                     "arch": self.arch, "hp": self.hp, "version": self.version, "hash": self.hash,
                     "baseline": self.baseline, "scale": self.scale, "gen": self.gen.get_state(),
-                    "rng": self.rng.bit_generator.state, "lineage": self.lineage, "seed": self.seed}, buf)
+                    "rng": self.rng.bit_generator.state, "lineage": self.lineage, "seed": self.seed,
+                    "prior": self.prior.state_dict() if self.prior is not None else None}, buf)
         return buf.getvalue()
 
     @classmethod
@@ -568,6 +614,11 @@ class PolicyGroup:
             g.gen.set_state(d["gen"])
             g.rng.bit_generator.state = d["rng"]
         g.hash = weights_hash(g.net)
+        if d.get("prior") is not None:
+            g.prior = PolicyNet.build(g.arch, g.seed)
+            g.prior.load_state_dict(d["prior"])
+            for q in g.prior.parameters():
+                q.requires_grad_(False)
         if g.hash != d["hash"]:
             raise ValueError(f"checkpoint of {gid}: weights hash {g.hash[:12]} != recorded {d['hash'][:12]}")
         g.frozen = bool(frozen)

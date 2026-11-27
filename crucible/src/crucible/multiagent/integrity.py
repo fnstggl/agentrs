@@ -41,6 +41,8 @@ RECIPROCAL_MIN_STARS = 4
 # ====================================================================== structural independence
 def _tensors(group) -> list:
     out = [p for p in group.net.parameters()]
+    if getattr(group, "prior", None) is not None:
+        out += list(group.prior.parameters())
     for st in group.opt.state.values():
         out += [v for v in st.values() if hasattr(v, "data_ptr")]
     return out

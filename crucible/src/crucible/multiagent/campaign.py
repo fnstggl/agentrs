@@ -86,6 +86,7 @@ def pretrain(registry: PolicyRegistry, specs: dict[str, dict], demos: dict, *, e
         registry.register_group(g, world_id=",".join(demos["worlds"]), seed=None, origin="initialised")
         for _ in range(int(epochs)):
             g.imitate(share[gid], epochs=1, batch=batch)
+        g.set_prior()                         # the anchor of its behaviour-regularised self-play learning
         registry.checkpoint(g)
         v = registry.versions[registry.vid(g)]
         v["origin"] = "behaviour cloning (scripted demonstrations)"
@@ -103,6 +104,7 @@ def heldout_family(registry: PolicyRegistry, *, seed: int = 4242, demo_seeds=(31
     registry.register_group(g, world_id=",".join(d["worlds"]), origin="initialised (held-out family)")
     for _ in range(int(epochs)):
         g.imitate(d["demos"], epochs=1, batch=batch)
+    g.set_prior()
     env = kernel_env(TRAINING_WORLD, int(seed))
     m = Match(env, {g.gid: g}, [Member(f"ho{i}", "current", f"ctrl:heldout-train:{i}", g.gid) for i in range(3)],
               registry=registry, seed=int(seed), think_s=1800)

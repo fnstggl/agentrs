@@ -229,3 +229,60 @@ def test_semantic_participant_record_tells_read_only_calls_from_actions():
     assert [(h["tool"], h["ok"], h["read_only"], h["error"]) for h in a.history] == [
         ("world.find_tools", True, True, None), ("make.build_facility", False, False, "invalid_action")]
     assert not any(h["ok"] and not h["read_only"] for h in a.history)
+
+
+def test_behaviour_regularised_update_pulls_towards_the_pretrained_prior_and_keeps_it_private():
+    """After `set_prior` every update adds KL(pi || prior) over the tool distribution: with the same experience and
+    signal, a group with a larger KL coefficient ends closer to its pre-trained prior; the prior is serialised with
+    the group (clones reproduce it), is a private copy (no tensor shared with a clone) and does not move; a
+    no-signal control is still not trained at all; behaviour cloning keeps one optimiser across calls."""
+    from crucible.multiagent.policy import PolicyGroup as PG
+    kn = Knowledge("p:x")
+    tools = [{"name": f"h{i}.do", "inputSchema": {"type": "object", "properties": {}}} for i in range(6)]
+    obs = {"t": 0, "agent": "p:x", "numbers": {}, "tools": tools, "events": []}
+    base = PG("base", "reinforce", seed=5)
+    rng = np.random.default_rng(2)
+    demos = []
+    for k in range(48):
+        x = rng.normal(size=STATE_DIM).astype(np.float32)
+        _, rec, _ = base.decide("p:x", obs, kn, x, None)
+        rec = dict(rec, ti=1 + (k % 2))          # demonstrated: h0.do / h1.do (index 0 is wait)
+        demos.append(rec)
+    for _ in range(3):
+        base.imitate(demos, epochs=1, batch=16)
+    assert len(base._bc_opt) == 1
+    steps = [s["step"] for s in next(iter(base._bc_opt.values())).state.values()]
+    assert steps and all(int(s) == 9 for s in steps)          # 3 calls x 3 batches, one optimiser
+    base.set_prior()
+    prior0 = {k: v.clone() for k, v in base.prior.state_dict().items()}
+    dist = {}
+    for coef in (0.0, 5.0):
+        g = base.clone(f"kl{coef}")
+        g.hp["kl_prior"] = coef
+        assert g.prior is not None and all(torch.equal(g.prior.state_dict()[k], prior0[k]) for k in prior0)
+        assert not {p.data_ptr() for p in g.prior.parameters()} & {p.data_ptr() for p in base.prior.parameters()}
+        r2 = np.random.default_rng(3)
+        situations, kls = [], []
+        for _ in range(6):
+            for k in range(8):
+                x = r2.normal(size=STATE_DIM).astype(np.float32)
+                act, rec, _ = g.decide("p:x", obs, kn, x, None)
+                situations.append(rec)
+                g.record(rec)
+                g.add_signal("p:x", 1.0 if (act or {}).get("tool") == "h5.do" else -0.2)
+            info = g.update()
+            assert info["changed"]
+            kls.append(info["kl_prior"])
+        assert (max(kls) > 0) == (coef > 0), kls            # 0 at the first update: pi == prior
+        assert all(torch.equal(g.prior.state_dict()[k], prior0[k]) for k in prior0)   # the anchor does not move
+        dist[coef] = np.mean([AN.tv_distance(base.tool_probs_of(r), g.tool_probs_of(r)) for r in situations])
+    assert dist[5.0] < dist[0.0], dist
+    ctl = base.clone("ctl")
+    for k in range(8):
+        _, rec, _ = ctl.decide("p:x", obs, kn, rng.normal(size=STATE_DIM).astype(np.float32), None)
+        ctl.record(rec)
+        ctl.add_signal("p:x", 0.0)
+    h = ctl.hash
+    assert not ctl.update()["changed"] and ctl.hash == h
+    other = base.frozen_copy("b", seed=99)              # own generators; the prior travels with the checkpoint
+    assert other.prior is not None and I.independence({"a": base, "b": other}, {})["violations"] == []
