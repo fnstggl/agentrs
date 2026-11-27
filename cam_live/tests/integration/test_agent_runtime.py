@@ -33,6 +33,10 @@ from int_helpers import AGENT_METHODS, Recorder, agent_config, count, run_lifeti
 # hold-out, and every decision of a lifetime with a signed verdict belongs to that lifetime's group (seed 15's
 # objective group would be held out for promotion evidence)
 SEEDS = (11, 12, 13, 14, 16)
+# the module's shared session (five lifetimes) runs inside its first test: measured 200 s on a quiet machine and
+# 450 s at load average ~40; the suite's 900 s per-test guard was exceeded at load ~55 (whole-suite run of
+# 2026-11-27), so this module's guard is 5x the slowest measurement
+pytestmark = pytest.mark.timeout(2400)
 TRAINABLE = ("experiential", "semantic_adapters", "heads", "reward")
 
 
