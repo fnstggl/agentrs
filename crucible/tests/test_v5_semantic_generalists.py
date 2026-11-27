@@ -164,6 +164,56 @@ def test_written_values_reusing_the_goal_are_kept_and_echoes_of_the_prompt_are_n
     assert M.accept(a, body, req, echo) is None and a.counts["copied_values"] == 2
 
 
+def test_object_arguments_never_take_a_person():
+    """mind.OBJECT_ARGS (an offer, thread, posting, invoice, contract ... is not a person): for every such argument a
+    known person is not offered, a known identifier of a non-person kind is."""
+    a = M.Agent(i=1, principal="p1", account="acct_000001", persona={"about": ""})
+    a.known = {"p7": "wrote to you", "o:acme": "an organisation", "offer_000012": "an offer you saw",
+               "mail_000003": "unread mail"}
+    a.new_goal(0, "I will accept the offer offer_000012.")
+    for arg in M.OBJECT_ARGS:
+        tool = {"name": "deal.accept", "inputSchema": {"type": "object", "required": [arg], "properties": {
+            arg: {"type": "string", "maxLength": 40}}}}
+        s = {x.name: x for x in M.plan_slots(a, tool)}
+        if arg in s and s[arg].kind == "choose":
+            assert not {"p7", "o:acme"} & set(s[arg].values), arg
+    tool = {"name": "deal.accept", "inputSchema": {"type": "object", "required": ["offer"], "properties": {
+        "offer": {"type": "string", "maxLength": 40}}}}
+    assert "offer_000012" in {x.name: x for x in M.plan_slots(a, tool)}["offer"].values
+
+
+class _ScriptedBrain:
+    """A scripted brain (no model) that tests the runtime's retry rule only: greedy requests get an echo of the
+    prompt's scaffolding, sampled requests (temperature > 0, the rewrite) a usable title."""
+
+    def __init__(self):
+        self.generated = []
+
+    def choose(self, ctx, capability, requests):
+        return [0 for _ in requests]
+
+    def generate(self, ctx, capability, requests):
+        self.generated += [r.get("temperature", 0) for r in requests]
+        return ["A week on the Rio Negro" if r.get("temperature", 0) > 0 else
+                "You are calling blog.publish: Publish an artifact you own." for r in requests]
+
+
+def test_a_required_value_written_unusably_is_rewritten_once_by_sampling():
+    """mind.fill_arguments: a required text value that is discarded (an echo) is written once more by sampling
+    (temperature 0.7, a seed of its own); the rewrite is counted (`rewritten_values`) and used when usable; an
+    optional value is not rewritten."""
+    a = M.Agent(i=3, principal="p3", account=None, persona={"about": "You like travel."})
+    a.new_goal(0, "I will write about the Amazon rainforest.")
+    tool = {"name": "blog.publish", "description": "Publish an artifact you own.",
+            "inputSchema": {"type": "object", "required": ["title"],
+                            "properties": {"title": {"type": "string", "maxLength": 200}}}}
+    b = _ScriptedBrain()
+    vals = M.fill_arguments(None, b, [(a, tool, None)], 3600, M.Config())
+    assert vals == [{"title": "A week on the Rio Negro"}]
+    assert a.counts["copied_values"] == 1 and a.counts["rewritten_values"] == 1
+    assert b.generated[0] == 0.0 and b.generated[1] == 0.7 and len(b.generated) == 2
+
+
 def _copy_case():
     a = M.Agent(i=1, principal="p1", account=None,
                 persona={"about": "You are interested in travel (trips, hotels, flights) and cooking (recipes, "
