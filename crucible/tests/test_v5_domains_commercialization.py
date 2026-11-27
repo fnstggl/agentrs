@@ -78,3 +78,36 @@ def test_evaluator_gives_the_same_verdict_on_a_world_rebuilt_from_its_log():
     rep = base.evaluator_report(R.DOMAIN, "linear_optimum", 0, 10)
     assert rep["ok"] and rep["replay_equal"] and rep["replay_digest_equal"], rep
 
+
+
+def test_a_verdict_asked_after_a_same_instant_action_sees_the_action():
+    """The evaluator cache (`_dom3.cached_evaluator`, used by all five dom3 domains) must not return the verdict of
+    before an action taken at the same simulated instant: the founder moves all its cash out and `env.verify()` at
+    the same instant reports the empty account (it reported the old cash and solvent=True when the cache was keyed by
+    the instant alone). Read-only tool calls (command bookkeeping only) keep the cached verdict."""
+    env = K.make_env("commercialization", "linear_optimum", 0)
+    a = env.agents()[0]
+    w = env.world
+    env.advance(3600)
+    before = env.verify()["evaluation"][a]["details"]
+    bank = w.modules["bank"]
+    acct = bank.primary_account(w.state, a)
+    cash = int(bank.available(w.state, acct))
+    assert before["cash_cents"] == cash > 0 and before["checks"]["solvent"]
+    calls = []
+    inner = R.evaluate.__wrapped__
+    counted = K.cached_evaluator(lambda ww, p, o: calls.append(ww.seq) or inner(ww, p, o))
+    obj = R.objective(w, a, 1)
+    counted(w, a, obj)
+    for _ in range(3):
+        assert env.execute(a, {"tool": "rc.status", "args": {}})["ok"]
+        counted(w, a, obj)
+    assert len(calls) == 1                       # read-only calls left nothing but command bookkeeping
+    t0 = w.now
+    r = env.execute(a, {"tool": "bank.transfer", "args": {"from_account": acct, "to": "o:hosting", "amount": cash}})
+    assert r["ok"] and w.now == t0
+    after = env.verify()["evaluation"][a]["details"]
+    assert after["cash_cents"] == 0 and not after["checks"]["solvent"]
+    assert counted(w, a, obj)["details"]["cash_cents"] == 0 and len(calls) == 2
+    assert after == inner(w, a, R.objective(w, a, 1))["details"]
+    env.close()

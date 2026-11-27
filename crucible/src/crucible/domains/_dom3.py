@@ -327,20 +327,39 @@ class ReadingReference(_ScriptedReference):
 A = _act
 
 
+# Event types that record only that a command ran (the kernel's command bookkeeping: per-principal action
+# counters and idempotency records). No dom3 evaluator reads them, so they cannot change a verdict.
+COMMAND_BOOKKEEPING = frozenset({"cmd", "cmd.rejected", "idem"})
+
+
 def cached_evaluator(fn):
-    """Evaluator results cached per (world state, simulated instant, principal, objective): the learner interface
-    asks the evaluator after every action (its status and the legacy reward gate), and many actions share one
-    simulated instant; a world rebuilt from the log (another state object) is evaluated afresh."""
+    """Evaluator results cached per (world state, principal, objective) and valid only for the world they were
+    computed on: the same simulated instant and no recorded event since then other than command bookkeeping
+    (`COMMAND_BOOKKEEPING`: a read-only tool call records a `cmd` event and nothing else). Any other event - an
+    action at the same simulated instant included - invalidates the verdict (a verdict keyed by the instant alone
+    returned the pre-action verdict after a same-instant action). The learner interface asks the evaluator after
+    every action; most of a reference's actions are read-only reads, which keep the verdict. A world rebuilt from
+    the log (another state object) is evaluated afresh."""
     import functools
     import json as _json
 
     @functools.wraps(fn)
     def wrapped(world, principal, objective):
-        key = (id(world.state), int(world.now), str(principal), _json.dumps(objective, sort_keys=True, default=str))
+        key = (id(world.state), str(principal), _json.dumps(objective, sort_keys=True, default=str))
         cache = world.runtime.setdefault(f"dom3.eval.{fn.__module__}", {})
-        if key not in cache:
-            if len(cache) > 64:
-                cache.clear()
-            cache[key] = fn(world, principal, objective)
-        return cache[key]
+        seq, now = int(world.seq), int(world.now)
+        hit = cache.get(key)
+        if hit is not None and hit[1] == now and hit[0] <= seq:
+            try:
+                same = hit[0] == seq or all(e.type in COMMAND_BOOKKEEPING for e in world.events_range(hit[0], seq))
+            except Exception:                   # events no longer readable: evaluate afresh
+                same = False
+            if same:
+                cache[key] = (seq, now, hit[2])
+                return hit[2]
+        if hit is None and len(cache) > 64:
+            cache.clear()
+        out = fn(world, principal, objective)
+        cache[key] = (seq, now, out)
+        return out
     return wrapped
