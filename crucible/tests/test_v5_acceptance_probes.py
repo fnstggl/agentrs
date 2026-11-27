@@ -1529,3 +1529,30 @@ def test_V13_a_module_substituted_in_sys_modules_is_rejected(tmp_path, monkeypat
     _, row = attempt(r)
     assert row["status"] != "VERIFIED", row["problems"]
     assert has(row, "sys.modules['widgets']"), row["problems"]
+
+
+SIGNALLING = "def count():\n    raise LookupError(12)\n\n\ndef leaks():\n    raise LookupError(0)\n"
+RAISING_PATHS_TEST = '''from crucible.acceptance.v5 import evidence
+import widgets
+
+
+def test_z():
+    try:
+        widgets.count()
+    except LookupError as e:
+        n = e.args[0]
+    try:
+        widgets.leaks()
+    except LookupError as e:
+        leaks = e.args[0]
+    evidence.record("Z.1", {"widgets": n, "leaks": leaks})
+    assert n >= 10 and leaks == 0
+'''
+
+
+def test_V9_control_an_honest_test_of_paths_that_raise_is_verified(tmp_path, monkeypatch):
+    """The observer counts implementation functions that started, not ones that returned: a test whose every call
+    of its implementation ends in an exception it expects (an API refusing input) executed its implementation."""
+    r = Repo(str(tmp_path), monkeypatch, widgets=SIGNALLING, test_src=RAISING_PATHS_TEST)
+    _, row = attempt(r)
+    assert row["status"] == "VERIFIED", row["problems"]

@@ -477,14 +477,14 @@ addendum; no criterion changes):
    (values from elsewhere) and called it on purpose when it read the ablated tree's text left no record under the
    ablation, which the third addendum's verdict counted as sensitive: VERIFIED with a defective or an entirely raising
    implementation, no static finding. The evidence plugin now observes, in official runs, which functions of the
-   checkout's src/ returned or yielded in the recording process (not at import time, not inside record()); records
+   checkout's src/ started in the recording process (not at import time, not inside record(); started rather than
+   returned, so an honest test of paths that raise is not rejected); records
    carry `executed_implementation` for the requirement's implementation files, the run record the measured pytest
    pid, and "no record, implementation blocked" counts as sensitive only if a block happened in a child process or the
    reproduction's recording process executed the implementation. The third addendum's claim "the ablation proves that
    the producing test executes implementation code before it records" holds now for in-process tests. Stated residual:
    children are not observed, so a test whose parent imports the implementation and whose children run it only when
-   the ablation is detected is visible only to the reviewer; call-and-ignore stays a residual (now it needs an
-   implementation function that returns normally).
+   the ablation is detected is visible only to the reviewer; call-and-ignore stays a residual.
 2. Rebound definitions are patches (probe V10): a helper rebinding the defective function through its argument to the
    builtin `int` or to another function of the implementation (`m.leaks = m._reset`) was VERIFIED - patched_functions
    and code_object_patches judge the functions they find by file and code. Records now compare every function a module

@@ -89,13 +89,14 @@ if os.environ.get("CRUCIBLE_V5_RUN_ID"):            # only inside official runs:
 # ablated run ran into the implementation, not that the measured run did. A test that never calls its implementation
 # in a normal run - recording values from elsewhere - but runs into it on purpose when it detects the ablation (the
 # ablated tree's text is readable) left no record and looked sensitive. In official runs this module therefore
-# observes, in the process that records, which functions of the checkout's src/ returned (or yielded) normally while
-# no module was being imported and outside the recording machinery; `record()` writes the count for the
+# observes, in the process that records, which functions of the checkout's src/ started while no module was being
+# imported and outside the recording machinery (started, not returned: an honest test may exercise only paths that
+# raise, e.g. an API refusing bad input); `record()` writes the count for the
 # requirement's implementation files into the record (`executed_implementation`), and the ablation verdict accepts
 # "no record, implementation blocked in the recording process" only when the reproduction executed its implementation
 # in-process. A sys.monitoring tool of its own (never in an ablated run, whose hook holds the optimizer id); each code
 # object is seen once and its events are then disabled, so the cost is one callback per function.
-_EXEC: dict[str, set] = {}                          # realpath of a src file -> qualnames that returned normally
+_EXEC: dict[str, set] = {}                          # realpath of a src file -> qualnames of functions that ran
 _EXEC_STATE = {"tool": None, "src": ""}
 OBSERVER_TOOL_NAME = "crucible-v5-observer"
 
@@ -111,7 +112,7 @@ def _observer_install(src_dir: str) -> None:
     machinery = os.sep + os.path.join("crucible", "acceptance", "v5", "evidence.py")
     seen: dict[int, object] = {}
 
-    def done(code, offset, value):
+    def started(code, offset):
         f = code.co_filename
         if not (code.co_flags & 1) or not f.startswith(src):
             return mon.DISABLE
@@ -129,9 +130,8 @@ def _observer_install(src_dir: str) -> None:
         _EXEC.setdefault(f, set()).add(code.co_qualname)
         return mon.DISABLE
     mon.use_tool_id(tool, OBSERVER_TOOL_NAME)
-    mon.register_callback(tool, mon.events.PY_RETURN, done)
-    mon.register_callback(tool, mon.events.PY_YIELD, done)
-    mon.set_events(tool, mon.events.PY_RETURN | mon.events.PY_YIELD)
+    mon.register_callback(tool, mon.events.PY_START, started)
+    mon.set_events(tool, mon.events.PY_START)
     _EXEC_STATE.update(tool=tool, src=src)
 
 
