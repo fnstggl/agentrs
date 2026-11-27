@@ -101,3 +101,32 @@ def test_trace_keeps_the_root_transactions_own_events_in_the_root_stage():
     stages = CH.trace(None, 2, pv=pv)
     assert [s["subsystem"] for s in stages] == ["search_information", "social_media", "finance"]
     assert stages[0]["n_events"] == 2 and stages[1]["types"] == {"content.view": 1}
+
+
+def test_failed_requests_counts_web_pages_refused_during_a_provider_outage():
+    """O.5 category 4: `m_failed_requests` must see a web request the network refuses because the site's provider is
+    down (`net.hit` unavailable) as well as a refused API call (`cloud.usage` unavailable). At a54f53d it counted the
+    API path only and read 0 in every arm and seed of the grid-cut experiment while datacenter draws were refused."""
+    import crucible.evaluation.longrun  # noqa: F401 - registers `disturb` (the operator's outage tool)
+    spec = generate({"family": "open_digital", "overrides": {"n_consumers": 50}}, 1)
+    spec.modules.append({"name": "disturb", "config": {}})
+    w = World.create(spec)
+    w.system_call("admin.join", {"handle": "shopper", "endowment": 3_000_000, "password": "pw"})
+    w.system_call("admin.join", {"handle": "visitor", "endowment": 500_000, "password": "pw"})
+    op, vis = _ex(w, "p:shopper"), _ex(w, "p:visitor")
+    acct = w.modules["bank"].primary_account(w.state, "p:shopper")
+    repo = op("code.create_repo", name="refshop").result["repo"]
+    assert op("code.commit", repo=repo, files={"crucible.json": MANIFEST, "service.py": APP}).ok
+    prov = sorted(p["provider"] for p in w.query("p:shopper", "cloud.providers"))[0]
+    inst = op("cloud.rent", provider=prov, cores=1, account=acct).result
+    assert op("cloud.deploy", repo=repo, host="refshop", instance=inst["instance"]).result["status"] == "live"
+    ctx = {"seq0": w.seq}
+    assert vis("net.fetch", url="http://refshop.crucible/").result["status"] == 200
+    assert X.m_failed_requests(w, 0, w.now, ctx) == 0.0
+    w.system_call("admin.shock_outage", {"provider": prov, "hours": 2})
+    for _ in range(3):
+        assert vis("net.fetch", url="http://refshop.crucible/").result["status"] == 503
+    hits = [e for e in w.events_range(ctx["seq0"]) if e.type == "net.hit" and e.payload["outcome"] == "unavailable"]
+    assert len(hits) == 3
+    assert X.m_failed_requests(w, 0, w.now, ctx) == 3.0
+    assert X.m_curtailed_hours(w, 0, w.now, ctx) == 0.0       # an operator outage is not a grid curtailment

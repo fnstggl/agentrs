@@ -116,8 +116,26 @@ def m_web_revenue(w, t0, t1, ctx):
 
 
 def m_failed_requests(w, t0, t1, ctx):
-    return float(sum(1 for e in _window(w, ctx) if e.type == "cloud.usage"
-                     and e.payload.get("outcome") in ("unavailable", "overload")))
+    """Requests to deployed services that failed for want of infrastructure in the window: API and service calls the
+    cloud refused (`cloud.usage` unavailable/overload, `cloud.usage_bulk` unavailable/overload) and web page requests
+    the network answered 503 because the site's provider was down (`net.hit` unavailable). At a54f53d this measure
+    counted the API path only and read 0 in every arm and seed while the grid cut refused datacenter draws (dc_kwh
+    -458, CI [-706, -210]): population web visits, most of the requests, go through `net.fetch`, which records a
+    refusal as `net.hit`, not `cloud.usage` - the instrument could not see the failures it was meant to count."""
+    n = 0
+    for e in _window(w, ctx):
+        if e.type == "cloud.usage":
+            n += e.payload.get("outcome") in ("unavailable", "overload")
+        elif e.type == "cloud.usage_bulk":
+            n += int(e.payload.get("unavailable") or 0) + int(e.payload.get("overload") or 0)
+        elif e.type == "net.hit":
+            n += e.payload.get("outcome") == "unavailable"
+    return float(n)
+
+
+def m_curtailed_hours(w, t0, t1, ctx):
+    """Diagnostic only (the coupling's own record, never a confirming measure): datacenter-hours the grid curtailed."""
+    return float(sum(1 for e in _window(w, ctx) if e.type == "links.curtailed"))
 
 
 def _bound_models(w) -> set[str]:
@@ -571,7 +589,8 @@ EXPERIMENTS: dict[str, Experiment] = {e.name: e for e in [
                "requests) and, as a second arm, the curtailment relation is removed instead",
                "infrastructure_constrained", 2.0, 5.0, {"grid_cut_datacenters": cut_datacenter_grids(0.1),
                                                         "remove_grid_curtailment": remove("grid_curtailment")},
-               {"web_revenue": m_web_revenue, "failed_requests": m_failed_requests, "dc_kwh": m_dc_kwh},
+               {"web_revenue": m_web_revenue, "failed_requests": m_failed_requests, "dc_kwh": m_dc_kwh,
+                "curtailed_hours": m_curtailed_hours},
                "failed_requests", category=4),
     Experiment("social_discovery", "social discovery produces independently verified product adoption: a "
                "labelled scripted agent's web shop is announced (or not) in a forum post every day; the population "
