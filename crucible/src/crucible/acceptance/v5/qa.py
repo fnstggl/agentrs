@@ -647,8 +647,136 @@ def cam_scan(root: str | None = None) -> dict:
     gates_cam = [e["id"] for e in m["requirements"] if re.search(r"\bCAM\b", e["requirement"]) and
                  not re.search(r"not CAM|\(not CAM\)|including CAM|independent of CAM|CAM's|without .*CAM|"
                                r"in place of CAM|replaces CAM|CAM integration\)|future CAM|CAM or any", e["requirement"])]
+    runs = gates_running_agentrs_code(root, m)
+    gates = sorted(set(gates_cam) | set(runs))
     return {"metrics": {"crucible_files_scanned": n, "cam_imports_in_crucible": len(hits),
-                        "gates_depending_on_cam": len(gates_cam)}, "imports": hits, "gates": gates_cam}
+                        "gates_depending_on_cam": len(gates)}, "imports": hits, "gates": gates,
+            "gates_by_text": gates_cam, "gates_running_agentrs_code": runs}
+
+
+AGENTRS_NAME = re.compile(r"^agentrs(\.|$)")
+
+
+def _agentrs_hits(node, f: str) -> list[str]:
+    out = []
+    for n in ast.walk(node):
+        if isinstance(n, ast.Constant) and isinstance(n.value, str) and AGENTRS_NAME.match(n.value):
+            out.append(f"{f}:{n.lineno}: {n.value[:80]}")
+        elif isinstance(n, (ast.Import, ast.ImportFrom)):
+            names = [a.name for a in n.names] if isinstance(n, ast.Import) else [n.module or ""]
+            out += [f"{f}:{n.lineno}: import {x}" for x in names if AGENTRS_NAME.match(x)]
+    return out
+
+
+def _names(node) -> set[str]:
+    return {n.id for n in ast.walk(node) if isinstance(n, ast.Name)} | \
+        {n.attr for n in ast.walk(node) if isinstance(n, ast.Attribute)}
+
+
+class _ModuleIndex:
+    """Per module: what each top-level function reaches of AGENTRS code (its own body, the module constants and the
+    module's other functions it names, transitively), and what the module does at import time."""
+    def __init__(self, path: str, rel: str):
+        self.funcs: dict[str, tuple[list[str], set[str]]] = {}
+        self.consts: dict[str, tuple[list[str], set[str]]] = {}
+        self.import_time: list[str] = []
+        try:
+            tree = ast.parse(open(path, encoding="utf-8").read())
+        except (OSError, SyntaxError):
+            return
+        for n in tree.body:
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                self.funcs[n.name] = (_agentrs_hits(n, rel), _names(n))
+            elif isinstance(n, (ast.Assign, ast.AnnAssign)) and n.value is not None and all(
+                    isinstance(t, ast.Name) for t in (n.targets if isinstance(n, ast.Assign) else [n.target])):
+                for t in (n.targets if isinstance(n, ast.Assign) else [n.target]):
+                    self.consts[t.id] = (_agentrs_hits(n.value, rel), _names(n.value))
+            else:
+                self.import_time += _agentrs_hits(n, rel)
+        self._memo: dict[str, list[str]] = {}
+
+    def reach(self, name: str) -> list[str]:
+        if name in self._memo:
+            return self._memo[name]
+        self._memo[name] = []
+        seen, todo, out = set(), [name], []
+        while todo:
+            k = todo.pop()
+            if k in seen:
+                continue
+            seen.add(k)
+            hits, names = self.funcs.get(k) or self.consts.get(k) or ([], set())
+            out += hits
+            todo += [x for x in names if x in self.funcs or x in self.consts]
+        self._memo[name] = sorted(set(out))
+        return self._memo[name]
+
+
+def _producing_functions(tree: ast.Module, rid: str) -> list[ast.AST]:
+    """The test functions of a gate file that record `rid`, plus the module-level helpers they name (transitively)."""
+    tops = {n.name: n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))}
+    start = [n for n in tops.values() if n.name.startswith("test") and any(
+        isinstance(c, ast.Call) and testscan._is_record_call(c) and c.args and
+        isinstance(c.args[0], ast.Constant) and c.args[0].value == rid for c in ast.walk(n))]
+    seen, todo, out = set(), list(start), []
+    while todo:
+        n = todo.pop()
+        if n.name in seen:
+            continue
+        seen.add(n.name)
+        out.append(n)
+        todo += [tops[x] for x in _names(n) if x in tops and x not in seen]
+    return out
+
+
+def gates_running_agentrs_code(root: str, m: dict | None = None) -> dict[str, list[str]]:
+    """Requirements whose measurement loads AGENTRS (CAM, superlearner) code (wave 3b verifier: Gate A.1 loads the
+    AGENTRS alias plugin `agentrs.cam2.envs.crucible_v4_names` and the relocated CAM adapters in its child processes,
+    which RP.1's scan of requirement texts could not see). What a requirement runs: every test of its non-canonical
+    test files (all must pass), and the test functions of its canonical gate file that record it with the helpers they
+    name; plus every function of its implementation modules those tests name, transitively within the module. A hit is
+    an `agentrs` module named as a string (a plugin to load, a module to import in a child) or imported.
+    id -> [file:line: what]."""
+    m = m or M.load(root)
+    idx: dict[str, _ModuleIndex] = {}
+    trees: dict[str, ast.Module | None] = {}
+
+    def tree(f):
+        if f not in trees:
+            try:
+                trees[f] = ast.parse(open(os.path.join(root, f), encoding="utf-8").read())
+            except (OSError, SyntaxError):
+                trees[f] = None
+        return trees[f]
+    out: dict[str, list[str]] = {}
+    for e in m["requirements"]:
+        canon = M.canonical_test(e["id"], root)
+        nodes: list = []
+        for t in e.get("tests", []):
+            tr = tree(t) if t.endswith(".py") else None
+            if tr is None:
+                continue
+            if t == canon:
+                nodes += _producing_functions(tr, e["id"])
+                nodes += [n for n in tr.body if isinstance(n, (ast.Import, ast.ImportFrom))]
+            else:
+                nodes.append(tr)
+        hits = [h for t in e.get("tests", []) for n in nodes for h in _agentrs_hits(n, t)
+                if n in (trees.get(t),) or n in getattr(trees.get(t), "body", [])]
+        names = set().union(*(_names(n) for n in nodes)) if nodes else set()
+        for f in e.get("implementation_files", []):
+            if not f.endswith(".py"):
+                continue
+            if f not in idx:
+                idx[f] = _ModuleIndex(os.path.join(root, f), f)
+            mi = idx[f]
+            hits += mi.import_time
+            for k in names:
+                if k in mi.funcs:
+                    hits += mi.reach(k)
+        if hits:
+            out[e["id"]] = sorted(set(hits))
+    return out
 
 
 # ------------------------------------------------------------------------------------------------- RP.2

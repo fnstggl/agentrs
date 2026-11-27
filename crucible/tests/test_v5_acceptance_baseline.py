@@ -174,3 +174,17 @@ def test_the_sealed_store_scan_matches_the_4_0_names_as_whole_tokens():
               "unsealed_tasks = []"]
     assert [B.sealed_reference(c) for c in hits] == [True] * len(hits)
     assert [B.sealed_reference(c) for c in misses] == [False] * len(misses)
+
+
+def test_rp1_sees_gates_that_load_agentrs_code_by_name():
+    """Wave 3b verifier: RP.1 ('no acceptance gate depends on CAM's completion or success') judged dependence from the
+    requirement texts only, so Gate A.1 - whose child processes load the AGENTRS alias plugin and the relocated CAM
+    adapters - counted as independent. The scan now follows what each gate runs (its producing test functions, the
+    implementation functions they name, module constants), so A.1 is found and A.2, which shares the gate file and the
+    implementation module, is not."""
+    from crucible.acceptance.v5 import qa
+    root = B.M.crucible_root()
+    runs = qa.gates_running_agentrs_code(root)
+    assert any("crucible_v4_names" in h for h in runs.get("A.1", [])), runs.get("A.1")
+    assert "A.2" not in runs and "A.4" not in runs and "X.7" not in runs, sorted(runs)
+    assert "A.1" in qa.cam_scan(root)["gates"]
