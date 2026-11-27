@@ -475,21 +475,22 @@ RETAIN = 300_000
 
 def _objective_free(env, days: int, limits: dict, label: str, violations: list, *, act=None) -> dict:
     """Run a kernel-world environment without any objective for `days` simulated days; check limits every day.
-    Resident-memory growth is measured from the end of the run's first simulated day: one-time initialisation in a
-    fresh process (the population's text model and the GPU context are loaded on first use; at b3a07b1 the first Tier 2
-    run of the process grew 776 MB on a GPU slot and every later run 0 MB) is reported as `first_day_rss_mb`, not
-    counted as growth over operation."""
+    Resident-memory growth is measured from the start of the run, its first simulated day included (wave-3b repair:
+    an earlier version measured from the end of the first day, which left the first day's growth unbounded); the
+    first day's share is reported as `first_day_rss_mb`. The process's resident memory is checked against
+    `max_process_rss_mb` every day as well, which bounds the one-time initialisation (`_warm_up`) too."""
     a = env.agents()[0]
     t0, r_start = time.perf_counter(), _rss_mb()
-    r0 = peak = r_start
-    first_day = 0.0
+    peak, first_day = r_start, 0.0
     for d in range(days):
         if act is not None:
             act(env, a, d)
         env.advance(DAY)
+        r = _rss_mb()
         if d == 0:
-            r0 = peak = _rss_mb()
-            first_day = r0 - r_start
+            first_day = r - r_start
+        if r > limits["max_process_rss_mb"]:
+            violations.append(f"{label} day {d}: process resident memory {r:.0f} MB > {limits['max_process_rss_mb']}")
         if d % 5 == 4 or d == days - 1:
             obs = env.observe(a)
             if validate_observation(obs):
@@ -498,18 +499,40 @@ def _objective_free(env, days: int, limits: dict, label: str, violations: list, 
             violations.append(f"{label} day {d}: {len(env.world.log)} events in memory")
         if env.reward(a) != 0.0:
             violations.append(f"{label} day {d}: nonzero reward")
-        peak = max(peak, _rss_mb())
+        peak = max(peak, r)
     wall = time.perf_counter() - t0
     if wall > limits["max_wall_s"]:
         violations.append(f"{label}: wall {wall:.0f}s > {limits['max_wall_s']}")
-    if peak - r0 > limits["max_rss_growth_mb"]:
-        violations.append(f"{label}: rss growth {peak - r0:.0f} MB > {limits['max_rss_growth_mb']}")
+    if peak - r_start > limits["max_rss_growth_mb"]:
+        violations.append(f"{label}: rss growth {peak - r_start:.0f} MB > {limits['max_rss_growth_mb']} (first day "
+                          f"{first_day:.0f} MB)")
     v = env.verify()
     if v["invariant_violations"]:
         violations.append(f"{label}: invariant violations {v['invariant_violations'][:3]}")
-    return {"days": int(env.now // DAY), "wall_s": round(wall, 1), "rss_growth_mb": round(peak - r0, 1),
-            "first_day_rss_mb": round(first_day, 1), "events": int(env.world.seq), "log_in_memory": len(env.world.log),
+    return {"days": int(env.now // DAY), "wall_s": round(wall, 1), "rss_growth_mb": round(peak - r_start, 1),
+            "first_day_rss_mb": round(first_day, 1), "peak_process_rss_mb": round(peak, 1),
+            "events": int(env.world.seq), "log_in_memory": len(env.world.log),
             "log_retain": env.world.spec.params.get("log_retain"), "event_store": env.world.store is not None}
+
+
+def _warm_up(limits: dict, violations: list) -> dict:
+    """One-time initialisation of the process before the measured runs, reported and bounded: one simulated day of
+    the first Part 9 domain world loads what every population world shares (the population's text model and, on a
+    GPU slot, the CUDA context; at b3a07b1 the first domain run of the process grew 776 MB and every later run
+    0 MB). The world is discarded; nothing of it is measured as operation. The process's resident memory after it
+    is checked against `max_process_rss_mb`."""
+    names = _tier2_names()
+    if not names:
+        return {"world": None}
+    t0, r0 = time.perf_counter(), _rss_mb()
+    env = make(2, names[0], 0)
+    env.advance(DAY)
+    env.close()
+    r1 = _rss_mb()
+    if r1 > limits["max_process_rss_mb"]:
+        violations.append(f"warm-up: process resident memory {r1:.0f} MB > {limits['max_process_rss_mb']}")
+    return {"world": f"{names[0]} seed 0, 1 day", "rss_mb": round(r1 - r0, 1), "process_rss_mb": round(r1, 1),
+            "wall_s": round(time.perf_counter() - t0, 1)}
 
 
 def _store(tmp_path, label: str):
@@ -529,10 +552,15 @@ def _drop(env, d) -> None:
 @pytest.mark.timeout(21600)
 def test_OO5_operation_without_an_objective_within_resource_limits(tmp_path):
     # configured limits per run (stated before running): wall time, resident-memory growth, in-memory event log
+    # (the mode-C / mode-B split of Tier 2 was stated in faca8a6c before the first Tier 2 run; wave-3b repair: growth
+    # counted from each run's start, first day included, and a process ceiling of 8000 MB - the slot grants 9000 MB)
     limits = {"tier1": {"max_rss_growth_mb": 600.0, "max_wall_s": 900.0},
-              "kernel": {"max_rss_growth_mb": 600.0, "max_wall_s": 900.0, "max_event_log_in_memory": 400_000},
-              "civ": {"max_rss_growth_mb": 6000.0, "max_wall_s": 5400.0, "max_event_log_in_memory": 400_000}}
+              "kernel": {"max_rss_growth_mb": 600.0, "max_wall_s": 900.0, "max_event_log_in_memory": 400_000,
+                         "max_process_rss_mb": 8000.0},
+              "civ": {"max_rss_growth_mb": 6000.0, "max_wall_s": 5400.0, "max_event_log_in_memory": 400_000,
+                      "max_process_rss_mb": 8000.0}}
     violations, errors, runs = [], {}, {}
+    runs["warm_up"] = _warm_up(limits["civ"], violations)
     # Tier 1: objective-free operation across many episodes (rapid and mechanism worlds reset at their horizon)
 
     def tier1():
