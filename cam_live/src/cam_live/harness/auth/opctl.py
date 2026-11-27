@@ -12,6 +12,7 @@
     python -m cam_live.harness.auth.opctl init-operator-key --private K --public P
     python -m cam_live.harness.auth.opctl sign-live <record.json> --private K > signed.json
     python -m cam_live.harness.auth.opctl --run-dir R register-live <signed.json>
+    python -m cam_live.harness.auth.opctl --run-dir R local-service add 127.0.0.1:18600 [--note ...] | remove <host:port> | list
 """
 from __future__ import annotations
 
@@ -110,6 +111,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     if cmd == "register-live":
         with open(args[0]) as f:
             return out(c.register_live_authorization(json.load(f), by))
+    if cmd == "local-service":
+        sub = args[0] if args else "list"
+        if sub == "add" and len(args) == 2:
+            return out(c.register_local_service(args[1], by, a.note))
+        if sub == "remove" and len(args) == 2:
+            return out({"removed": c.unregister_local_service(args[1], by)})
+        if sub == "list":
+            return out(c.local_services())
+        ap.error("local-service add <host:port> | remove <host:port> | list")
     ap.error(f"unknown command {cmd!r}")
     return 2
 

@@ -95,6 +95,15 @@ class AuthClient:
     def register_live_authorization(self, record: Dict[str, Any], by: str) -> Dict[str, Any]:
         return self._rpc.call("register_live_authorization", record, by)
 
+    def register_local_service(self, address: str, by: str, note: str = "") -> Dict[str, Any]:
+        return self._rpc.call("register_local_service", address, by, note)
+
+    def unregister_local_service(self, address: str, by: str) -> bool:
+        return bool(self._rpc.call("unregister_local_service", address, by))
+
+    def local_services(self) -> List[Dict[str, Any]]:
+        return self._rpc.call("local_services")
+
     def put_secret(self, name: str, value: str, destinations: List[str], scopes: List[str] = (), by: str = "operator",
                    note: str = "") -> Dict[str, Any]:
         return self._rpc.call("put_secret", name, value, list(destinations), list(scopes), by, note)

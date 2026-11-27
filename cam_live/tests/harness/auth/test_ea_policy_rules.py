@@ -267,7 +267,7 @@ def test_browser_interaction_depends_on_ownership(svc, tmp_path, clock):
     assert d.verdict == NEEDS and pids(d) == {"P-INTERACT-APPROVAL"}                       # sending input: operator
     assert svc.authorize(fill("https://search.example/"), t, {}).verdict == ALLOW          # operator-listed
     d = svc.authorize(click("https://owned.example/admin"), t, {})
-    assert d.verdict == NEEDS and pids(d) == {"P-WRITE-APPROVAL"}                          # owned: a write
+    assert d.verdict == NEEDS and pids(d) == {"P-INTERACT-APPROVAL"}     # owned: an interaction, not pre-authorized
     d = svc.authorize(fill("https://unknown.example/"), t, {})
     assert d.verdict == DENY
     d = svc.authorize(act("visual.type", arguments={"text": "hello", "page_url": "https://docs.example/a"}), t, {})

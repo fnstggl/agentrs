@@ -45,6 +45,9 @@ CREATE INDEX IF NOT EXISTS content_by_task ON content_log(task_id, kind, ts);
 CREATE TABLE IF NOT EXISTS revocations (id INTEGER PRIMARY KEY AUTOINCREMENT, scope TEXT NOT NULL, by TEXT NOT NULL,
     ts REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS session (task_id TEXT NOT NULL, k TEXT NOT NULL, v TEXT NOT NULL, PRIMARY KEY (task_id, k));
+CREATE TABLE IF NOT EXISTS grant_meter (nonce TEXT NOT NULL, k TEXT NOT NULL, v REAL NOT NULL, PRIMARY KEY (nonce, k));
+CREATE TABLE IF NOT EXISTS local_services (address TEXT PRIMARY KEY, host TEXT NOT NULL, port INTEGER NOT NULL,
+    registered_at REAL NOT NULL, registered_by TEXT NOT NULL, note TEXT NOT NULL DEFAULT '');
 """
 
 

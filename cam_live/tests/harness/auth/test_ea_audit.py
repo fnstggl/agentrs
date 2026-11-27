@@ -93,7 +93,8 @@ def test_chain_rebuilt_without_the_key_is_detected(tmp_path):
     write(path, out)
     os.unlink(path + ".head")
     assert not verify_audit_log(path, key=key).ok                                   # bad MACs
-    assert verify_audit_log(path).ok                                                # the bare chain is consistent ...
+    assert not verify_audit_log(path).ok                                            # the head file is required ...
+    assert verify_audit_log(path, require_head=False).ok                            # the bare chain is consistent ...
     assert not verify_audit_log(path, expect_head=(anchor.entries, anchor.head_hash)).ok   # ... but not the anchored one
     assert not verify_audit_log(path, key=key, require_head=True).ok
 

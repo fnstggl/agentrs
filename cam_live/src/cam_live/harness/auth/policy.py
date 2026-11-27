@@ -5,14 +5,23 @@ audit log: a decision is a function of the typed action, the operator-pinned tas
 service's own persistent state. It fails closed: anything malformed, unknown or internally inconsistent is denied.
 
 Order of every ``authorize``:  stop flag -> policy valid -> input guard -> structure -> pinned task -> mode / live
-authorization -> per-node rules (tools, interfaces, destinations, side effects, data use, platform rules,
-prohibited classes) -> circumvention -> limits -> rate limits -> approvals -> signed grant.
+authorization -> per-node rules (tools, interfaces, destinations incl. the local-address rule, side effects, data
+use, platform rules, prohibited classes) -> rejected approval -> circumvention -> limits -> rate limits -> approvals
+-> signed grant.
+
+Accounting: an action is charged for every declared step at authorization (each step is one external action and
+one hit of every rate rule it falls under; all of them must fit), and each external-effect primitive an executor
+reports through ``check_primitive`` is charged as well -- a primitive that realises a declared step uses that
+step's share, any other one is checked against the remaining budget and charged anew. So a program or a skill can
+never make more external writes than the remaining budget, whatever the number of steps it carries.
 """
 from __future__ import annotations
 
+import fnmatch
 import hashlib
 import json
 import os
+import re
 import threading
 import traceback
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
@@ -20,12 +29,13 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 from ... import contracts as C
 from . import destinations as D
 from . import liveauth
+from . import localnet
 from .approvals import APPROVED, PENDING, REJECTED, ApprovalQueue
 from .audit import AuditLog, AuditVerification, verify_audit_log
 from .evaluate import INTENT_PIDS, WRITE_ONLY_PIDS, Evaluator, Finding, NodeEval, TaskCtx, shingles, similarity
 from .grants import GrantError, GrantSigner, load_or_create_key
 from .limits import RESOURCE_PREFIX, LimitLedger, min_nonzero
-from .schema import EFFECT_RANK, MODES, Policy, PolicyError, load_policy
+from .schema import EFFECT_RANK, MODES, RATE_CAP_KEYS, Policy, PolicyError, RateRule, load_policy, run_policy_path
 from .stop import StopSwitch
 from .store import Store, j, uj
 from .untrusted import contains_untrusted, detect_instructions, policy_context
@@ -35,6 +45,13 @@ from .vault import ExecutorSecrets, SecretBroker, SecretError
 ALLOW, DENY, NEEDS = C.AuthVerdict.ALLOW, C.AuthVerdict.DENY, C.AuthVerdict.NEEDS_APPROVAL
 REJECTED_SIMILARITY = 0.9
 _BROWSER_MODALITIES = (C.Modality.STRUCTURED_BROWSER, C.Modality.VISUAL)
+_SAFE_IDENT = re.compile(r"^[A-Za-z0-9_.\-]{1,100}$")
+
+
+def _seg_glob(path: str, pattern: str) -> bool:
+    """Glob match where ``*`` never crosses a ``/``."""
+    rx = "".join("[^/]*" if c == "*" else re.escape(c) for c in pattern)
+    return re.fullmatch(rx, path) is not None
 
 
 def is_resource_denial(decision: C.AuthorizationDecision) -> bool:
@@ -66,14 +83,14 @@ class PolicyService:
                               fsync=fsync)
         self.approvals_q = ApprovalQueue(self.store, 86400.0)
         self.ledger = LimitLedger(self.store)
-        self.policy_path = policy_path
+        self.policy_path = policy_path or run_policy_path()
         self.policy: Optional[Policy] = None
         self.policy_error = ""
         self._eval: Optional[Evaluator] = None
         self._load_policy(first=True)
         self._log("service_start", policy=self.policy.policy_id if self.policy else "", policy_sha256=self.policy.sha256
-                  if self.policy else "", policy_error=self.policy_error, stopped=self.stopped(),
-                  vault_errors=len(self.vault.load_errors))
+                  if self.policy else "", policy_path=self.policy_path, policy_error=self.policy_error,
+                  stopped=self.stopped(), vault_errors=len(self.vault.load_errors))
 
     # ==========================================================================================================
     # plumbing
@@ -100,6 +117,28 @@ class PolicyService:
 
     def _epoch(self) -> int:
         return self.store.kv_int("epoch", 0)
+
+    def _stop_identity(self) -> Optional[str]:
+        try:
+            st = os.lstat(self.stop.stop_path)
+        except FileNotFoundError:
+            return None
+        except OSError:
+            return "unreadable"
+        return f"{st.st_ino}:{st.st_mtime_ns}:{st.st_ctime_ns}:{st.st_size}"
+
+    def _observe_stop(self) -> bool:
+        """However the stop flag was set (API, ``touch <run_dir>/auth/STOP``, offline ``opctl stop``), the first
+        time this service sees it engaged every outstanding grant is voided -- exactly what the API stop does.
+        Called before every decision and check. Returns whether the stop is engaged."""
+        ident = self._stop_identity()
+        if ident is None:
+            return False
+        if self.store.kv_get("stop_voided_for") != ident:
+            n = self._void_grants("emergency stop")
+            self.store.kv_set("stop_voided_for", ident)
+            self._log("emergency_stop_observed", grants_voided=n, flag=self.stop.engaged())
+        return True
 
     def _decision(self, verdict: str, action_hash: str, findings: Sequence[Tuple[str, str]], *, grant: str = "",
                   expires_at: float = 0.0, approval_id: str = "") -> C.AuthorizationDecision:
@@ -268,6 +307,7 @@ class PolicyService:
                 opted = {str(x) for x in record.get("opted_in_recipients", [])}
                 budgets = record.get("budgets", {})
                 window = liveauth.window(record)
+                rate_req = record.get("rate_limits") or {}
             else:
                 owned, read, pre, inter = list(mode.owned), list(mode.read), list(mode.preauthorized), []
                 if mode.honour_task_resources:
@@ -278,8 +318,14 @@ class PolicyService:
                 o = res.get("opted_in_recipients", []) if mode.honour_task_resources else []
                 opted = {str(x) for x in o} if isinstance(o, list) else set()
                 budgets, window = {}, None
+                rate_req = (res.get("rate_limits") or {}) if mode.honour_task_resources else {}
         except D.DestinationError as e:
             return None, [("P-TASK-INVALID", f"malformed destination pattern in the task or record: {e}")]
+        rates, rerr = self._rates(mode, rate_req)
+        if rerr:
+            return None, [("P-TASK-INVALID", rerr)]
+        local = set(pol.local_services) | {(r["host"], int(r["port"])) for r in
+                                           self.store.q("SELECT host, port FROM local_services")}
 
         ifaces = list(task.interfaces) or list(mode.default_interfaces)
         modalities = {i for i in ifaces if i in C.Modality.ALL}
@@ -301,7 +347,31 @@ class PolicyService:
                        preauth=pre, interactive=inter, envelope=envelope, opted_in=opted, modalities=modalities,
                        op_patterns=op_patterns, limits=limits, strict_unset=mode.requires_authorization_record,
                        window=window, record_id=record["record_id"] if record else "",
-                       file_base=os.path.join(self.run_dir, "sandbox")), []
+                       file_base=os.path.join(self.run_dir, "sandbox"), local_services=local,
+                       own_process=mode.own_process_services, rates=rates), []
+
+    def _rates(self, mode: Any, req: Any) -> Tuple[Dict[str, Optional[RateRule]], str]:
+        """Effective write rules: the policy's, or what the task (staging) / signed record (live) asks for, clamped
+        to the mode's ``rate_caps`` (count at most the cap's, window at least the cap's). A mode without a cap for a
+        rule keeps the policy's rule whatever is asked."""
+        pol = self.policy
+        assert pol is not None
+        out: Dict[str, Optional[RateRule]] = {"write": pol.rate_write, "write_global": pol.rate_write_global}
+        if not req:
+            return out, ""
+        if not isinstance(req, dict) or set(req) - set(RATE_CAP_KEYS):
+            return out, f"rate_limits may only set {list(RATE_CAP_KEYS)}"
+        for k, v in req.items():
+            if not isinstance(v, dict) or set(v) - {"count", "window_s"}:
+                return out, f"rate_limits.{k} must be {{count, window_s}}"
+            c, w = v.get("count"), v.get("window_s")
+            if isinstance(c, bool) or not isinstance(c, int) or c < 0 or isinstance(w, bool) or \
+                    not isinstance(w, (int, float)) or not w > 0 or w != w:
+                return out, f"rate_limits.{k}: count must be an integer >= 0 and window_s a number > 0"
+            cap = mode.rate_caps.get(k)
+            if cap is not None:
+                out[k] = RateRule(count=min(int(c), cap.count), window_s=max(float(w), cap.window_s))
+        return out, ""
 
     def _ctx_for_task_id(self, task_id: str, now: float) -> Tuple[Optional[TaskCtx], List[Tuple[str, str]]]:
         row = self._pinned(task_id)
@@ -338,6 +408,8 @@ class PolicyService:
         pol = self.policy
         assert pol is not None
         if D.match_any(d, pol.deny) or D.match_any(d, tc.deny):
+            return False
+        if self._eval is not None and self._eval.local_denial(d, tc):
             return False
         if d.kind == "url" and tc.envelope is not None and D.match_any(d, tc.envelope) is None:
             return False
@@ -451,39 +523,101 @@ class PolicyService:
                 break
         return out
 
-    def _rate(self, nodes: List[NodeEval], tc: TaskCtx, now: float, primitive: bool = False,
-              ) -> Tuple[List[Tuple[str, str]], List[str]]:
-        """(violations, counters to increment if the request goes ahead)."""
+    def _rate_rules(self, cls: str, d: D.Destination, tc: TaskCtx, level: str, rate_key: str = "",
+                    ) -> List[Tuple[str, RateRule]]:
+        """Rate rules one effect falls under: (counter key, rule). ``level`` "action" (a declared step) or
+        "primitive" (an executor-reported operation: write rules only; the per-step rule is for declared steps)."""
         pol = self.policy
         assert pol is not None
-        viol: List[Tuple[str, str]] = []
-        keys: List[str] = []
-        seen = set()
+        write = cls == "write"
+        rk = rate_key or d.rate_key
+        eff = "external_write" if write else "external_read"
+        specific = next((rr for rr in pol.rate_rules if rr.match is not None and rr.match.matches(d)
+                         and (not rr.effects or eff in rr.effects)), None)
+        out: List[Tuple[str, RateRule]] = []
+        if specific is not None:
+            if level == "action" or write:
+                out.append((f"s:{tc.task_id}:{rk}", specific))
+        else:
+            if level == "action":
+                out.append((f"a:{tc.task_id}:{rk}", pol.rate_default))
+            if write and tc.rates.get("write") is not None:
+                out.append((f"w:{tc.task_id}:{rk}", tc.rates["write"]))       # type: ignore[arg-type]
+        if write and tc.rates.get("write_global") is not None:
+            out.append((f"g:{tc.task_id}:*", tc.rates["write_global"]))       # type: ignore[arg-type]
+        return out
+
+    def _rate(self, nodes: List[NodeEval], tc: TaskCtx, now: float, level: str = "action",
+              credits: Optional[Dict[str, float]] = None, alias: Optional[Dict[str, str]] = None,
+              ) -> Tuple[List[Tuple[str, str]], Dict[str, int], Dict[str, int]]:
+        """(violations, counter hits to record if the request goes ahead, prepaid credits it uses).
+
+        Every node counts once for each rule it falls under, so N declared write steps to one destination are N
+        writes. At primitive level a credit prepaid by the declared step the primitive realises is used first;
+        ``alias`` maps a destination key to the rate key of the declared (logical) effect it realises."""
+        pol = self.policy
+        assert pol is not None
+        need: Dict[str, int] = {}
+        rules: Dict[str, Tuple[RateRule, str]] = {}
         for ne in nodes:
+            seen = set()
             for cls, d in ne.effects:
-                write = cls == "write"
-                if primitive:
-                    rules = [("p", pol.rate_primitive)]
-                else:
-                    eff = "external_write" if write else "external_read"
-                    specific = next((rr for rr in pol.rate_rules if rr.match is not None and rr.match.matches(d)
-                                     and (not rr.effects or eff in rr.effects)), None)
-                    if specific is not None:
-                        rules = [("s", specific)]
-                    else:
-                        rules = [("a", pol.rate_default)] + ([("w", pol.rate_write)] if write else [])
-                for tag, rule in rules:
-                    key = f"{tag}:{tc.task_id}:{d.rate_key}"
+                rk = (alias or {}).get(d.key, "")
+                todo = self._rate_rules(cls, d, tc, level, rk)
+                if level == "primitive":
+                    todo.append((f"p:{tc.task_id}:{d.rate_key}", pol.rate_primitive))
+                for key, rule in todo:
                     if key in seen:
                         continue
                     seen.add(key)
-                    if self.ledger.rate_count(key, rule.window_s, now) >= rule.count:
-                        retry = max(0.0, self.ledger.rate_oldest(key, rule.window_s, now) + rule.window_s - now)
-                        viol.append(("L-RATE", f"{RESOURCE_PREFIX}rate limit for {d.rate_key} reached "
-                                               f"({rule.count} per {rule.window_s:g} s); retry in {retry:.0f} s"))
-                    else:
-                        keys.append(key)
-        return viol, keys
+                    need[key] = need.get(key, 0) + 1
+                    rules[key] = (rule, rk or d.rate_key)
+        use: Dict[str, int] = {}
+        for key in need:
+            c = int((credits or {}).get("credit:" + key, 0))
+            if c > 0:
+                use[key] = min(c, need[key])
+                need[key] -= use[key]
+        viol: List[Tuple[str, str]] = []
+        for key, n in need.items():
+            if n <= 0:
+                continue
+            rule, rk = rules[key]
+            have = self.ledger.rate_count(key, rule.window_s, now)
+            if have + n > rule.count:
+                retry = max(0.0, self.ledger.rate_oldest(key, rule.window_s, now) + rule.window_s - now)
+                scope = "all destinations of this task" if key.startswith("g:") else rk
+                what = "writes" if key[:2] in ("w:", "g:") else "operations"
+                viol.append(("L-RATE", f"{RESOURCE_PREFIX}rate limit for {scope} reached ({rule.count} {what} per "
+                                       f"{rule.window_s:g} s; {have} used, {n} more requested); retry in {retry:.0f} s"))
+        return viol, {k: n for k, n in need.items() if n > 0}, use
+
+    # -- per-grant meter (credits prepaid by declared steps, charges made by primitives) ------------------------
+    def _meter(self, nonce: str) -> Dict[str, float]:
+        return {r["k"]: float(r["v"]) for r in self.store.q("SELECT k, v FROM grant_meter WHERE nonce=?", (nonce,))}
+
+    def _meter_put(self, nonce: str, values: Dict[str, float]) -> None:
+        for k, v in values.items():
+            self.store.x("INSERT INTO grant_meter(nonce, k, v) VALUES(?,?,?) ON CONFLICT(nonce, k) DO UPDATE SET v=excluded.v",
+                         (nonce, k, float(v)))
+
+    @staticmethod
+    def _external(ne: NodeEval) -> bool:
+        return EFFECT_RANK[ne.effect] >= EFFECT_RANK["external_read"] and bool(ne.effects or ne.dests)
+
+    def _bind(self, ah: str, nodes: List[NodeEval], extra: str = "") -> str:
+        """What an approval is bound to: the action's content hash and, for nodes whose destination is the page the
+        browser is on, that page. The same click approved on one page is not approved on another."""
+        locs = []
+        for ne in nodes:
+            if ne.location_used:
+                try:
+                    locs.append(D.normalise_url(ne.location_used).key)
+                except D.DestinationError:
+                    locs.append("invalid:" + ne.location_used[:200])
+        if not locs and not extra:
+            return ah
+        return hashlib.sha256((ah + "|" + extra + "|" + json.dumps(sorted(set(locs)))).encode()).hexdigest()
 
     def _preview(self, action: C.ActionSpec, nodes: List[NodeEval], tc: TaskCtx, money: float,
                  extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -502,6 +636,19 @@ class PolicyService:
         if extra:
             pv.update(extra)
         return self.vault.scrub_obj(pv)
+
+    def _declared_effects(self, nodes: List[NodeEval]) -> List[Dict[str, Any]]:
+        out, seen = [], set()
+        for ne in nodes:
+            for c, d in ne.effects:
+                e = {"cls": c, "key": d.key, "scheme": d.scheme, "kind": d.kind, "platform": self._platform_name(d),
+                     "ident": d.ident, "tool": ne.tool.id if ne.tool is not None else "", "method": ne.method,
+                     "op": ne.node.operation, "rate_key": d.rate_key}
+                k = j(e)
+                if k not in seen:
+                    seen.add(k)
+                    out.append(e)
+        return out[:512]
 
     def _platform_name(self, d: D.Destination) -> str:
         plat = self.policy.platform_of(d, None) if self.policy is not None else None
@@ -535,6 +682,7 @@ class PolicyService:
     def _authorize(self, action: Any, task: Any, context: Any, now: float, ah: str,
                    ) -> Tuple[C.AuthorizationDecision, Dict[str, Any]]:
         info: Dict[str, Any] = {}
+        self._observe_stop()
         blocked = self.stop.blocked()
         if blocked:
             pid = "P-STOP" if self.stop.engaged() is not None else "P-PAUSE"
@@ -554,16 +702,16 @@ class PolicyService:
         if tc is None:
             return self._decision(DENY, ah, terr), info
 
-        prior = self.approvals_q.find(ah, now)
-        if prior is not None and prior["status"] == REJECTED:
-            return self._decision(DENY, ah, [("P-APPROVAL-REJECTED", f"the operator rejected this action "
-                                                                     f"({prior['resolved_by']}: {prior['note']})")],
-                                  approval_id=prior["approval_id"]), info
-
         flat = Evaluator.flatten(action)
         location = self._location(tc.task_id, ctx)
         nodes = [self._eval.node(n, tc, location) for n in flat]
         by_id = {id(ne.node): ne for ne in nodes}
+        bind = self._bind(ah, nodes)
+        prior = self.approvals_q.find(bind, now)
+        if prior is not None and prior["status"] == REJECTED:
+            return self._decision(DENY, ah, [("P-APPROVAL-REJECTED", f"the operator rejected this action "
+                                                                     f"({prior['resolved_by']}: {prior['note']})")],
+                                  approval_id=prior["approval_id"]), info
         info["effects"] = sorted({f"{c}:{d.key}" for ne in nodes for c, d in ne.effects})[:32]
         info["tools"] = sorted({ne.tool.id for ne in nodes if ne.tool is not None})
 
@@ -575,26 +723,34 @@ class PolicyService:
             self._remember_denials(nodes, tc, ah, now)
             return self._decision(DENY, ah, [(f.pid, f.reason) for f in deny_all]), info
 
-        external = any(EFFECT_RANK[ne.effect] >= EFFECT_RANK["external_read"] for ne in nodes)
+        n_ext = sum(1 for ne in nodes if self._external(ne))       # every declared external step is one action
         money = self._money(action, by_id)
-        want = {"money": money, "compute_s": float(action.est_cost.compute_s), "external_actions": 1.0 if external else 0.0,
+        if n_ext > self.policy.max_external_primitives_per_action:
+            return self._decision(DENY, ah, [("L-PRIMITIVES", f"{RESOURCE_PREFIX}the action declares {n_ext} external "
+                                                              f"steps; at most {self.policy.max_external_primitives_per_action} "
+                                                              f"per action")]), info
+        want = {"money": money, "compute_s": float(action.est_cost.compute_s), "external_actions": float(n_ext),
                 "decisions": 1.0}
         lim = self.ledger.check(tc.task_id, tc.limits, want, now, tc.started_at, strict_unset=tc.strict_unset,
                                 window=tc.window)
         if lim:
             self._limit_event(tc.task_id, lim)
             return self._decision(DENY, ah, lim), info
-        rate_viol, rate_keys = self._rate(nodes, tc, now)
+        rate_viol, rate_hits, _ = self._rate(nodes, tc, now, "action")
         if rate_viol:
             return self._decision(DENY, ah, rate_viol), info
+        info["external_steps"] = n_ext
 
         approve: List[Finding] = [f for ne in nodes for f in ne.approve]
         approval_id = ""
         if approve:
             entry = prior
             if entry is None or entry["status"] not in (PENDING, APPROVED):
-                entry = self.approvals_q.request(bind_hash=ah, action_hash=ah, task_id=tc.task_id, kind="action",
-                                                 preview=self._preview(action, nodes, tc, money), action=action.to_dict(),
+                locs = sorted({ne.location_used for ne in nodes if ne.location_used})
+                entry = self.approvals_q.request(bind_hash=bind, action_hash=ah, task_id=tc.task_id, kind="action",
+                                                 preview=self._preview(action, nodes, tc, money,
+                                                                       {"page": locs[0]} if locs else None),
+                                                 action=action.to_dict(),
                                                  reasons=[f.reason for f in approve],
                                                  policy_ids=list(dict.fromkeys(f.pid for f in approve)), now=now)
                 self._log("approval_requested", approval_id=entry["approval_id"], action_hash=ah, task_id=tc.task_id,
@@ -606,16 +762,22 @@ class PolicyService:
         # allow: signed grant, reservation, rate and content bookkeeping -- one transaction
         pol = self.policy
         g = self.signer.issue(ah, tc.task_id, tc.task_hash, now, now + pol.grants["ttl_s"], self._epoch())
-        effects = sorted({(c, d.intent_key, d.ident, self._platform_name(d)) for ne in nodes for c, d in ne.effects})
+        effects = self._declared_effects(nodes)
         reserve = {"money": money, "compute_s": want["compute_s"], "external_actions": want["external_actions"]}
+        nonce = g["payload"]["n"]
         with self.store.tx():
             self.store.x("INSERT INTO grants(nonce, action_hash, task_id, issued_at, expires_at, epoch, status, approval_id, "
                          "reserve_json, effects_json) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                         (g["payload"]["n"], ah, tc.task_id, now, g["payload"]["e"], g["payload"]["p"], "issued",
+                         (nonce, ah, tc.task_id, now, g["payload"]["e"], g["payload"]["p"], "issued",
                           approval_id, j(reserve), j(effects)))
             self.ledger.add(tc.task_id, {"decisions": 1.0}, now)
-            for k in rate_keys:
-                self.ledger.rate_hit(k, now)
+            for k, n in rate_hits.items():
+                for _ in range(n):
+                    self.ledger.rate_hit(k, now)
+            # what the declared steps prepaid; primitives that realise them use these first
+            self._meter_put(nonce, dict({"ext_credit": float(n_ext), "ext_units": 0.0, "ext_relay": 0.0,
+                                         "ext_prims": 0.0, "money_used": 0.0},
+                                        **{"credit:" + k: float(n) for k, n in rate_hits.items()}))
             for ne in nodes:
                 wd = [d for c, d in ne.effects if c in ("write", "input")]
                 if wd and len(ne.content) >= pol.prohibited["dup_min_chars"]:
@@ -638,7 +800,10 @@ class PolicyService:
             return
         pol = self.policy
         assert pol is not None
-        horizon = max([r.window_s for r in [pol.rate_default, pol.rate_write, pol.rate_primitive] + pol.rate_rules])
+        rules = [pol.rate_default, pol.rate_write, pol.rate_primitive] + pol.rate_rules + \
+            ([pol.rate_write_global] if pol.rate_write_global else []) + \
+            [r for m in pol.modes.values() for r in m.rate_caps.values()]
+        horizon = max(r.window_s for r in rules)
         self.ledger.rate_gc(now, horizon_s=horizon + 60.0)
         self.store.x("DELETE FROM content_log WHERE kind='out' AND ts < ?", (now - pol.prohibited["dup_window_s"] - 60.0,))
         self.store.kv_set("last_gc", str(now))
@@ -672,6 +837,7 @@ class PolicyService:
             return ok
 
     def _check_grant(self, action: Any, decision: Any, consume: bool, now: float, ah: str) -> Tuple[bool, str, str]:
+        self._observe_stop()
         blocked = self.stop.blocked()
         if blocked:
             return False, blocked, ""
@@ -740,6 +906,7 @@ class PolicyService:
             return dec
 
     def _check_primitive(self, op: Any, action: Any, now: float, ah: str, info: Dict[str, Any]) -> C.AuthorizationDecision:
+        self._observe_stop()
         blocked = self.stop.blocked()
         if blocked:
             return self._decision(DENY, ah, [("P-STOP" if self.stop.engaged() is not None else "P-PAUSE", blocked)])
@@ -771,6 +938,7 @@ class PolicyService:
             return self._decision(DENY, ah, terr)
         tab = args.get("tab_id", "") if isinstance(args.get("tab_id", ""), str) else ""
         ne = self._eval.node(node, tc, self._location(tc.task_id, {"tab_id": tab}), primitive=True)
+        self._peer_check(ne, args, tc)
         info["effects"] = sorted({f"{c}:{d.key}" for c, d in ne.effects})[:16]
         info["tool"] = ne.tool.id if ne.tool is not None else ""
         circ = self._circumvention([ne], tc)
@@ -778,35 +946,73 @@ class PolicyService:
         if deny:
             self._remember_denials([ne], tc, ah, now)
             return self._decision(DENY, ah, [(f.pid, f.reason) for f in deny])
-        viol, rate_keys = self._rate([ne], tc, now, primitive=True)
+
+        nonce = grant["nonce"]
+        granted = [e for e in uj(grant["effects_json"], []) if isinstance(e, dict)]
+        meter = self._meter(nonce)
+        reserve = uj(grant["reserve_json"], {})
+        # which declared effect does each effect of this primitive realise? (rate accounting follows it)
+        alias: Dict[str, str] = {}
+        for cls, d in ne.effects:
+            e = self._granted_effect(cls, d, ne, granted)
+            if e is not None and e.get("kind") in ("account", "channel"):
+                alias[d.key] = str(e.get("rate_key", ""))
+
+        # -- limits: every external-effect primitive is charged (a declared step's share first) -----------------
+        # A skill step announced before dispatch (PrimitiveOp.note "skill:...") is a step declared at run time: it is
+        # charged like a declared step and prepays the one realisation that its executor reports next.
+        declaration = isinstance(op.note, str) and op.note.startswith("skill:")
+        external = self._external(ne) and (ne.tool is None or ne.tool.counts_as_action)
+        bump: Dict[str, float] = {}
+        put: Dict[str, float] = {}
+        if external:
+            if meter.get("ext_prims", 0.0) + 1 > pol.max_external_primitives_per_action:
+                return self._decision(DENY, ah, [("L-PRIMITIVES", f"{RESOURCE_PREFIX}more than "
+                                                                  f"{pol.max_external_primitives_per_action} external "
+                                                                  f"operations in one action")])
+            put["ext_prims"] = meter.get("ext_prims", 0.0) + 1
+            if not declaration and meter.get("ext_relay", 0.0) >= 1:
+                put["ext_relay"] = meter["ext_relay"] - 1          # realises a step declared at run time
+            elif meter.get("ext_credit", 0.0) >= 1:
+                put["ext_credit"] = meter["ext_credit"] - 1        # realises a step declared at authorization
+                put["ext_units"] = meter.get("ext_units", 0.0) + 1
+            else:
+                bump["external_actions"] = 1.0                      # not declared: charged anew
+                put["ext_units"] = meter.get("ext_units", 0.0) + 1
+            if declaration:
+                put["ext_relay"] = put.get("ext_relay", meter.get("ext_relay", 0.0)) + 1
+        money_used = meter.get("money_used", 0.0) + ne.money
+        if ne.money > 0:
+            put["money_used"] = money_used
+            extra = money_used - float(reserve.get("money", 0.0))
+            if extra > 1e-12:
+                bump["money"] = extra
+            pa = float(tc.limits.get("money_per_action", 0.0))
+            if pa > 0 and money_used > pa + 1e-9:
+                return self._decision(DENY, ah, [("L-MONEY-ACTION", f"{RESOURCE_PREFIX}money per action would be "
+                                                                    f"exceeded (this action has spent "
+                                                                    f"{money_used - ne.money:g}, requested {ne.money:g}, "
+                                                                    f"limit {pa:g})")])
+        if bump:
+            lim = self.ledger.check(tc.task_id, tc.limits, bump, now, tc.started_at, strict_unset=tc.strict_unset,
+                                    window=tc.window)
+            if lim:
+                self._limit_event(tc.task_id, lim)
+                return self._decision(DENY, ah, lim)
+        viol, rate_hits, rate_use = self._rate([ne], tc, now, "action" if declaration else "primitive",
+                                               credits=meter, alias=alias)
         if viol:
             return self._decision(DENY, ah, viol)
+        relay_keys = sorted(k for k in set(rate_hits) | set(rate_use) if k[:2] in ("w:", "g:", "s:")) if declaration else []
 
+        # -- approvals: covered only by the declared effect of the same class, operation and exact place -------------
         approval_id = ""
         if ne.approve:
-            granted = [tuple(e) for e in uj(grant["effects_json"], [])]
             backed = bool(grant["approval_id"])
-            blob = "\n".join(D.string_leaves(args)).lower()
-
-            def covered(f: Finding) -> bool:
-                """The grant already authorizes this: the action declared the same effect on the same place (or on
-                a logical destination of the same platform whose id this operation names)."""
-                if f.dest is None:
-                    return backed and node.operation == action.operation
-                want = ("write",) if f.cls == "write" else ("write", "input")
-                plat = self._platform_name(f.dest)
-                for cls, key, ident, gplat in granted:
-                    if cls not in want:
-                        continue
-                    if key == f.dest.intent_key:
-                        return True
-                    if plat and gplat == plat and len(ident) >= 6 and ident.lower() in blob:
-                        return True
-                return False
-
-            open_f = [f for f in ne.approve if not covered(f)]
+            open_f = [f for f in ne.approve if not self._covered(f, ne, granted, backed, action, reserve, money_used)]
             if open_f:
-                bind = hashlib.sha256((ah + "|" + json.dumps([op.op, op.modality, args], sort_keys=True, default=str)).encode()).hexdigest()
+                bind = hashlib.sha256((self._bind(ah, [ne]) + "|" + json.dumps([op.op, op.modality, args], sort_keys=True,
+                                                                               default=str)).encode()).hexdigest()
                 entry = self.approvals_q.find(bind, now)
                 if entry is not None and entry["status"] == REJECTED:
                     return self._decision(DENY, ah, [("P-APPROVAL-REJECTED", "the operator rejected this operation")],
@@ -815,7 +1021,8 @@ class PolicyService:
                     entry = self.approvals_q.request(
                         bind_hash=bind, action_hash=ah, task_id=tc.task_id, kind="primitive",
                         preview=self._preview(node, [ne], tc, ne.money,
-                                              {"parent_action": action.render()[:2000], "primitive": True}),
+                                              dict({"parent_action": action.render()[:2000], "primitive": True},
+                                                   **({"page": ne.location_used} if ne.location_used else {}))),
                         action=node.to_dict(), reasons=[f.reason for f in open_f],
                         policy_ids=list(dict.fromkeys(f.pid for f in open_f)), now=now)
                     self._log("approval_requested", approval_id=entry["approval_id"], action_hash=ah, task_id=tc.task_id,
@@ -827,14 +1034,105 @@ class PolicyService:
                 approval_id = entry["approval_id"]
 
         with self.store.tx():
-            self.store.x("UPDATE grants SET n_primitives=n_primitives+1 WHERE nonce=?", (grant["nonce"],))
-            for k in rate_keys:
-                self.ledger.rate_hit(k, now)
+            self.store.x("UPDATE grants SET n_primitives=n_primitives+1 WHERE nonce=?", (nonce,))
+            for k, n in rate_hits.items():
+                for _ in range(n):
+                    self.ledger.rate_hit(k, now)
+            for k, n in rate_use.items():
+                put["credit:" + k] = meter.get("credit:" + k, 0.0) - n
+            for k in relay_keys:                     # the declared step's realisation uses these
+                put["credit:" + k] = put.get("credit:" + k, meter.get("credit:" + k, 0.0)) + 1
+            if declaration and ne.effects:           # ... and is covered by what was checked here
+                more = [e for e in self._declared_effects([ne]) if e not in granted]
+                if more:
+                    self.store.x("UPDATE grants SET effects_json=? WHERE nonce=?", (j((granted + more)[:512]), nonce))
+            if bump:
+                for k, v in bump.items():
+                    reserve[k] = float(reserve.get(k, 0.0)) + v
+                self.store.x("UPDATE grants SET reserve_json=? WHERE nonce=?", (j(reserve), nonce))
+            self._meter_put(nonce, put)
             if ne.tool is not None and ne.tool.sets_location and node.modality in _BROWSER_MODALITIES:
                 urls = [d for d in ne.dests if d.kind == "url"]
                 if urls:
                     self._set_location(tc.task_id, urls[0].raw, tab)
+        if bump or rate_hits:
+            info["charged"] = dict(bump, rate=sorted(rate_hits))
         return self._decision(ALLOW, ah, [("P-ALLOW", "permitted by policy " + pol.policy_id)], approval_id=approval_id)
+
+    def _peer_check(self, ne: NodeEval, args: Dict[str, Any], tc: TaskCtx) -> None:
+        """An executor may report the address it actually connected to (``peer_ip`` / ``resolved_ip``): a public
+        name that resolved to this machine is caught by the local-address rule as well (DNS rebinding)."""
+        for k in ("peer_ip", "resolved_ip", "remote_ip"):
+            v = args.get(k)
+            if not isinstance(v, str) or not v:
+                continue
+            urls = [d for d in ne.dests if d.kind == "url"]
+            port = urls[0].port if urls else 0
+            try:
+                host = D._canon_host(v)
+            except D.DestinationError:
+                ne.deny.append(Finding("P-LOCAL-ADDRESS", f"the executor reported an unusable peer address {v[:60]!r}"))
+                continue
+            scheme = urls[0].scheme if urls else "https"
+            peer = D.Destination("url", f"url:{host}" + (f":{port}" if port else "") + "/", host=host, port=port,
+                                 path="/", scheme=scheme, raw=v)
+            lk = self._eval.local_denial(peer, tc) if self._eval is not None else ""
+            if lk and not (urls and localnet.local_kind(urls[0].host)):
+                ne.deny.append(Finding("P-LOCAL-ADDRESS", f"{urls[0].key if urls else 'the destination'} resolved to "
+                                                          f"{host} ({lk}), an address of this machine or its network",
+                                       peer))
+
+    def _granted_effect(self, cls: str, d: D.Destination, ne: NodeEval, granted: List[Dict[str, Any]],
+                        ) -> Optional[Dict[str, Any]]:
+        """The declared effect of the granted action that this primitive effect realises, or None. Same class of
+        effect (a write covers input as well), and either the same tool class, HTTP method and *exact* destination
+        (full path, scheme) or -- for a logical destination (channel, account) -- the same operation on the same
+        id, or a transport request the platform's ``transport`` table maps that operation and id to."""
+        want = ("write",) if cls == "write" else ("write", "input") if cls == "input" else ("write", "input", "read")
+        tool = ne.tool.id if ne.tool is not None else ""
+        for e in granted:
+            if e.get("cls") not in want:
+                continue
+            if e.get("kind") in ("account", "channel"):
+                if d.kind == e["kind"] and d.key == e.get("key") and e.get("op") == ne.node.operation:
+                    return e
+                if d.kind == "url" and self._transport(e, d, ne):
+                    return e
+                continue
+            if d.kind != e.get("kind") or d.key != e.get("key") or d.scheme != e.get("scheme", ""):
+                continue
+            if e.get("tool") != tool or e.get("method", "") != ne.method:
+                continue
+            return e
+        return None
+
+    def _transport(self, e: Dict[str, Any], d: D.Destination, ne: NodeEval) -> bool:
+        pol = self.policy
+        plat = next((p for p in (pol.platforms if pol else []) if p.name == e.get("platform")), None)
+        ident = str(e.get("ident", ""))
+        if plat is None or not plat.transport or not ne.method or not _SAFE_IDENT.match(ident):
+            return False
+        if D.match_any(d, plat.match) is None:
+            return False
+        for tr in plat.transport:
+            if tr.method == ne.method and any(fnmatch.fnmatchcase(str(e.get("op", "")), o) for o in tr.ops) \
+                    and _seg_glob(d.path, tr.path.replace("{id}", ident)):
+                return True
+        return False
+
+    def _covered(self, f: Finding, ne: NodeEval, granted: List[Dict[str, Any]], backed: bool, action: C.ActionSpec,
+                 reserve: Dict[str, Any], money_used: float) -> bool:
+        """The grant already authorizes this finding. A destination-less finding (spending, code network) is covered
+        only by an operator-approved grant of the same operation within the money it approved; a content finding only
+        by an approved grant whose declared effect this primitive realises; a write / input finding by the declared
+        effect this primitive realises."""
+        if f.dest is None:
+            return backed and ne.node.operation == action.operation and \
+                money_used <= float(reserve.get("money", 0.0)) + 1e-9
+        e = self._granted_effect("write" if f.cls == "write" else "input", f.dest, ne, granted)
+        if e is None:
+            return False
+        return backed if f.cls == "content" else True
 
     # ==========================================================================================================
     # PolicyEngine: record (audit + limit accounting)
@@ -858,8 +1156,14 @@ class PolicyService:
                 return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and v == v and v >= 0 else 0.0
 
             seconds = num(cost.seconds) or max(0.0, num(result.ended) - num(result.started))
-            actual = {"money": num(cost.money) if executed else 0.0, "compute_s": num(cost.compute_s),
-                      "external_actions": float(reserve.get("external_actions", 0.0)) if executed else 0.0,
+            meter = self._meter(row["nonce"])
+            # external actions: every external step that was carried out or declared at run time (a partly executed
+            # program included); an executed external action that reported none is charged one
+            ext = meter.get("ext_units", 0.0)
+            if executed and float(reserve.get("external_actions", 0.0)) > 0:
+                ext = max(ext, 1.0)
+            actual = {"money": max(num(cost.money) if executed else 0.0, meter.get("money_used", 0.0)),
+                      "compute_s": num(cost.compute_s), "external_actions": ext,
                       "primitive_ops": float(max(len(result.ops) if isinstance(result.ops, list) else 0, int(num(cost.primitive_ops)))),
                       "seconds": seconds}
             with self.store.tx():
@@ -927,6 +1231,7 @@ class PolicyService:
             if entry["kind"] != "action":
                 return self._decision(ALLOW, ah, [("P-APPROVED", f"approved by {by}; the executor may repeat the operation")],
                                       approval_id=entry["approval_id"])
+            page = entry["preview"].get("page", "") if isinstance(entry.get("preview"), dict) else ""
             stored = self.approvals_q.stored_action(entry["approval_id"])
             row = self._pinned(entry["task_id"])
             try:
@@ -937,7 +1242,7 @@ class PolicyService:
             if action is None or task is None or action.content_hash() != ah:
                 return self._decision(ALLOW, ah, [("P-APPROVED", f"approved by {by}; call authorize again with the identical action")],
                                       approval_id=entry["approval_id"])
-            return self.authorize(action, task, {})
+            return self.authorize(action, task, {"page_url": page} if isinstance(page, str) and page else {})
 
     # ==========================================================================================================
     # PolicyEngine: stop, pause, revocation
@@ -947,18 +1252,22 @@ class PolicyService:
             now = self.clock.now()
             first = self.stop.engaged() is None
             self.stop.engage(str(reason), str(by), now)
-            if first:
-                self._void_grants("emergency stop")
+            self._observe_stop()                 # voids every outstanding grant the first time this stop is seen
             self._log("emergency_stop", reason=str(reason)[:500], operator=str(by), first=first)
 
     def stopped(self) -> bool:
-        return self.stop.engaged() is not None
+        with self._lock:
+            return self._observe_stop()
 
     def reset_stop(self, by: str) -> bool:
-        """Operator only. Grants issued before the stop stay void."""
+        """Operator only. Grants issued before the stop stay void: the stop is observed (and grants voided) if it
+        was not yet, and the reset itself voids every grant still outstanding -- none can have been issued while
+        the stop was engaged, so all of them predate it."""
         with self._lock:
+            self._observe_stop()
             was = self.stop.reset()
-            self._log("emergency_stop_reset", operator=str(by), was_engaged=was)
+            n = self._void_grants("emergency stop reset")
+            self._log("emergency_stop_reset", operator=str(by), was_engaged=was, grants_voided=n)
             return was
 
     def pause(self, reason: str, by: str) -> None:
@@ -1024,10 +1333,50 @@ class PolicyService:
             self._log("revocation", scope=scope[:200], operator=str(by), **done)
 
     # ==========================================================================================================
+    # local services (the only addresses of this machine an action may reach)
+    # ==========================================================================================================
+    @staticmethod
+    def _local_address(address: str) -> Tuple[str, int, str]:
+        pat = D.parse_pattern(str(address))
+        if pat.kind != "url" or not pat.port or pat.path or pat.scheme or any(c in pat.host for c in "*?"):
+            raise ValueError(f"expected an exact host:port, got {address!r}")
+        kind = localnet.local_kind(pat.host)
+        if not kind:
+            raise ValueError(f"{address!r} is not an address of this machine or its network")
+        return pat.host, pat.port, kind
+
+    def register_local_service(self, address: str, by: str, note: str = "") -> Dict[str, Any]:
+        """Operator only (enforced by the service's peer-uid check). Make ``host:port`` -- a staging service the
+        harness started, a service the operator vouches for -- reachable by the tasks of this run despite the
+        local-address rule. Recorded in the audit log; undone by ``unregister_local_service``."""
+        with self._lock:
+            host, port, kind = self._local_address(address)
+            addr = f"{host}:{port}"
+            self.store.x("INSERT OR REPLACE INTO local_services(address, host, port, registered_at, registered_by, note) "
+                         "VALUES(?,?,?,?,?,?)", (addr, host, port, self.clock.now(), str(by), str(note)[:500]))
+            self._log("local_service_registered", address=addr, kind=kind, operator=str(by), note=str(note)[:500])
+            return {"address": addr, "kind": kind}
+
+    def unregister_local_service(self, address: str, by: str) -> bool:
+        with self._lock:
+            host, port, _kind = self._local_address(address)
+            cur = self.store.x("DELETE FROM local_services WHERE host=? AND port=?", (host, port))
+            self._log("local_service_unregistered", address=f"{host}:{port}", operator=str(by), found=cur.rowcount > 0)
+            return cur.rowcount > 0
+
+    def local_services(self) -> List[Dict[str, Any]]:
+        with self._lock:
+            pol = [{"address": f"{h}:{p}", "source": "policy"} for h, p in (self.policy.local_services if self.policy else [])]
+            reg = [{"address": r["address"], "source": "registered", "by": r["registered_by"], "at": r["registered_at"],
+                    "note": r["note"]} for r in self.store.q("SELECT * FROM local_services ORDER BY address")]
+            return pol + reg
+
+    # ==========================================================================================================
     # PolicyEngine: limits_state  (+ status for the operator)
     # ==========================================================================================================
     def limits_state(self) -> Dict[str, Any]:
         with self._lock:
+            self._observe_stop()
             now = self.clock.now()
             self.ledger.settle_stale(now)
             tasks: Dict[str, Any] = {}
@@ -1079,6 +1428,7 @@ class PolicyService:
             return value
 
     def _secret_get(self, name: Any, action: Any, decision: Any, destination: Any, now: float, ah: str) -> str:
+        self._observe_stop()
         blocked = self.stop.blocked()
         if blocked:
             raise SecretError(blocked)
@@ -1106,6 +1456,8 @@ class PolicyService:
             raise SecretError(terr[0][1])
         if D.match_any(dest, self.policy.deny) or D.match_any(dest, tc.deny):
             raise SecretError(f"{dest.key} is on the deny list")
+        if self._eval.local_denial(dest, tc):
+            raise SecretError(f"{dest.key} is an address of this machine that is not a registered local service")
         if dest.kind == "url" and tc.envelope is not None and D.match_any(dest, tc.envelope) is None:
             raise SecretError(f"{dest.key} is outside what {tc.mode.name} mode may reach")
         if D.match_any(dest, tc.owned) is None and D.match_any(dest, tc.read) is None:

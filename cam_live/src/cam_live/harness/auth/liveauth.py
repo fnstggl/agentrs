@@ -11,7 +11,8 @@ Record (JSON object)::
      "read": ["*"], "preauthorized": [], "interactive": [], "opted_in_recipients": [],
      "budgets": {"money": 0, "money_per_action": 0, "money_per_day": 0, "compute_s": 0,
                  "max_external_actions": 0, "max_decisions": 0, "duration_s": 0},
-     "not_before": 0.0, "not_after": 0.0, "issued_by": "name", "issued_at": 0.0, "signature": "<base64>"}
+     "not_before": 0.0, "not_after": 0.0, "issued_by": "name", "issued_at": 0.0, "signature": "<base64>",
+     "rate_limits": {"write": {"count": 10, "window_s": 3600}}}      # optional; clamped to the policy's live rate_caps
 """
 from __future__ import annotations
 
@@ -26,7 +27,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey,
 
 REQUIRED = ("record_id", "task_id", "task_hash", "accounts", "owned", "read", "preauthorized", "budgets",
             "not_before", "not_after", "issued_by", "issued_at")
-OPTIONAL = ("interactive", "opted_in_recipients", "signature", "note")
+OPTIONAL = ("interactive", "opted_in_recipients", "signature", "note", "rate_limits")
 BUDGET_KEYS = ("money", "money_per_action", "money_per_day", "compute_s", "max_external_actions", "max_decisions",
                "duration_s")
 LIST_KEYS = ("accounts", "owned", "read", "preauthorized", "interactive", "opted_in_recipients")
@@ -84,6 +85,10 @@ def validate_shape(record: Any) -> Dict[str, Any]:
         v = b.get(k, 0)
         if isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0:
             raise LiveAuthorizationError(f"record.budgets.{k} must be a number >= 0")
+    rl = record.get("rate_limits", {})
+    if not isinstance(rl, dict) or set(rl) - {"write", "write_global"} or any(
+            not isinstance(v, dict) or set(v) - {"count", "window_s"} for v in rl.values()):
+        raise LiveAuthorizationError("record.rate_limits may only set write / write_global as {count, window_s}")
     for k in ("not_before", "not_after", "issued_at"):
         if isinstance(record[k], bool) or not isinstance(record[k], (int, float)):
             raise LiveAuthorizationError(f"record.{k} must be a number")

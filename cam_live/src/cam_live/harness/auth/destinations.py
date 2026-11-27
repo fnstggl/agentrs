@@ -10,8 +10,16 @@ channel, a file. Policy patterns are strings ``[kind:]pattern``:
 * ``account:<platform>:<id-glob>`` and ``channel:<platform>:<id-glob>`` — logical identities.
 
 Normalisation removes cosmetic variation (case, default ports, ``www.``, dot segments, percent-encoding of
-unreserved characters, integer / hex IPv4 spellings, user-info, fragments) so that the same place always has the
-same key. Nothing here interprets page content: inputs are fields of a typed ``ActionSpec`` / ``PrimitiveOp``.
+unreserved characters, integer / octal / hex / short IPv4 spellings, IPv4-mapped IPv6, user-info, fragments) so
+that the same place always has the same key. Every spelling of this machine's loopback — ``localhost`` (also with
+a trailing dot or as ``*.localhost``), any 127.0.0.0/8 address, ``::1``, ``0.0.0.0`` / ``::``, the IPv4-mapped
+forms — is the one host ``127.0.0.1``, so a pattern written for one spelling matches all of them.
+
+URLs of the special schemes are read the way a WHATWG parser (Chromium) reads them: ``\\`` is a path separator
+before the query, any number of slashes may follow ``scheme:``, the user-info ends at the last ``@`` of the
+authority, and the host is percent-decoded and IDNA-mapped before it is recognised as an IP address. Control
+characters and whitespace are refused instead of being stripped. Nothing here interprets page content: inputs are
+fields of a typed ``ActionSpec`` / ``PrimitiveOp``.
 """
 from __future__ import annotations
 
@@ -25,8 +33,12 @@ from dataclasses import dataclass
 from typing import Any, Iterable, List, Optional, Sequence, Tuple
 from urllib.parse import unquote, urlsplit
 
+from . import localnet
+
 KINDS = ("url", "file", "account", "channel", "skill", "sim")
 _SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.\-]*://")
+_SCHEME_COLON_RE = re.compile(r"^([a-zA-Z][a-zA-Z0-9+.\-]*):")
+_NUMERIC_HOST_RE = re.compile(r"(0x[0-9a-f]*|\d+)(\.(0x[0-9a-f]*|\d+)){0,3}\.?")
 URL_IN_TEXT_RE = re.compile(r"(?i)\b(?:https?|wss?|ftp)://[^\s\"'<>\\)\]}`]+")
 _DEFAULT_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443, "ftp": 21}
 _ID_RE = re.compile(r"^[A-Za-z0-9_.\-@#/]{1,200}$")
@@ -50,8 +62,13 @@ class Destination:
 
     @property
     def rate_key(self) -> str:
-        """Granularity of rate limiting: the host for URLs, the identity otherwise."""
-        return f"url:{bare_host(self.host)}" if self.kind == "url" else self.key
+        """Granularity of rate limiting: the host for URLs (host and port for this machine's loopback, where every
+        port is a different local service), the identity otherwise."""
+        if self.kind != "url":
+            return self.key
+        if self.host == localnet.LOOPBACK and self.port:
+            return f"url:{self.host}:{self.port}"
+        return f"url:{bare_host(self.host)}"
 
     @property
     def intent_key(self) -> str:
@@ -64,7 +81,10 @@ class Destination:
         """Strings whose presence in an opaque payload (code, skill arguments) shows that it refers to this
         destination."""
         if self.kind == "url":
-            return [bare_host(self.host) + (f":{self.port}" if self.port else "")]
+            port = f":{self.port}" if self.port else ""
+            if self.host == localnet.LOOPBACK:          # every spelling of this machine's loopback
+                return [h + port for h in (localnet.LOOPBACK, "localhost", "[::1]", "0.0.0.0")]
+            return [bare_host(self.host) + port]
         if self.kind in ("account", "channel", "skill") and len(self.ident) >= 6:
             return [self.ident.lower()]
         if self.kind == "file":
@@ -77,26 +97,33 @@ def bare_host(host: str) -> str:
 
 
 def _canon_host(host: str) -> str:
-    h = (host or "").strip().rstrip(".").lower()
-    if not h:
-        raise DestinationError("empty host")
+    h = unquote(host or "").strip()
+    if not h or any(ord(c) < 0x21 or ord(c) == 0x7F for c in h):
+        raise DestinationError("empty host" if not h else f"bad host {host!r}")
     if h.startswith("[") and h.endswith("]"):
         h = h[1:-1]
+    h = h.lower()
     try:                                   # IPv6 / dotted IPv4
-        return str(ipaddress.ip_address(h))
+        return localnet.canonical_ip(ipaddress.ip_address(h.split("%", 1)[0] if ":" in h else h))
     except ValueError:
         pass
-    if re.fullmatch(r"(0x[0-9a-f]+|\d+)(\.(0x[0-9a-f]+|\d+)){0,3}", h):   # integer / hex / short IPv4 spellings
-        try:
-            return str(ipaddress.ip_address(socket.inet_aton(h)))
-        except OSError as e:
-            raise DestinationError(f"bad numeric host {host!r}") from e
-    try:
-        h = h.encode("idna").decode("ascii")
+    if ":" in h:
+        raise DestinationError(f"bad host {host!r}")
+    try:                                   # IDNA / full-width mapping first, as a WHATWG parser does
+        h = h.rstrip(".").encode("idna").decode("ascii").lower() if h.rstrip(".") else ""
     except UnicodeError as e:
         raise DestinationError(f"bad host {host!r}") from e
+    if not h:
+        raise DestinationError("empty host")
+    if _NUMERIC_HOST_RE.fullmatch(h):      # integer / octal / hex / short IPv4 spellings
+        try:
+            return localnet.canonical_ip(ipaddress.ip_address(socket.inet_aton(h.rstrip("."))))
+        except OSError as e:
+            raise DestinationError(f"bad numeric host {host!r}") from e
     if not re.fullmatch(r"[a-z0-9]([a-z0-9\-_.]*[a-z0-9])?", h):
         raise DestinationError(f"bad host {host!r}")
+    if h == "localhost" or h.endswith(".localhost"):
+        return localnet.LOOPBACK
     return h
 
 
@@ -109,10 +136,24 @@ def _canon_path(path: str) -> str:
     return p if p == "/" else p.rstrip("/")
 
 
+def whatwg_prepare(s: str) -> str:
+    """Rewrite a URL of a special scheme the way a WHATWG parser reads it: backslashes before the query or fragment
+    are slashes, and any run of slashes after ``scheme:`` introduces the authority. Other strings are returned
+    unchanged."""
+    m = _SCHEME_COLON_RE.match(s)
+    if not m or m.group(1).lower() not in _DEFAULT_PORTS:
+        return s
+    rest = s[m.end():]
+    cut = min([i for i in (rest.find("?"), rest.find("#")) if i >= 0], default=len(rest))
+    head = rest[:cut].replace("\\", "/").lstrip("/")
+    return f"{m.group(1).lower()}://{head}{rest[cut:]}"
+
+
 def normalise_url(raw: str) -> Destination:
     s = (raw or "").strip()
-    if not s or len(s) > 4096 or any(c in s for c in "\r\n\t "):
+    if not s or len(s) > 4096 or any(ord(c) < 0x21 or ord(c) == 0x7F for c in s):
         raise DestinationError("not a URL")
+    s = whatwg_prepare(s)
     if not _SCHEME_RE.match(s):
         s = "https://" + s
     try:
@@ -123,7 +164,7 @@ def normalise_url(raw: str) -> Destination:
     scheme = u.scheme.lower()
     if scheme not in _DEFAULT_PORTS:
         raise DestinationError(f"scheme {scheme!r} is not permitted")
-    host = _canon_host(u.hostname or "")
+    host = _canon_host(u.hostname or "")          # user-info ends at the last "@", as in a WHATWG parser
     if port is None or port == _DEFAULT_PORTS[scheme]:
         port = 0
     path = _canon_path(u.path)

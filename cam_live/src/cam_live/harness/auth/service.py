@@ -60,6 +60,9 @@ METHODS: Dict[str, tuple] = {
     "reload_policy": (),
     "register_task": (),
     "register_live_authorization": (),
+    "register_local_service": (),
+    "unregister_local_service": (),
+    "local_services": (),
     "put_secret": (),
     "secret_names": (),
     "audit_tail": (),
@@ -67,7 +70,8 @@ METHODS: Dict[str, tuple] = {
 }
 #: methods whose ``by`` argument is replaced by the kernel-attested caller
 _BY_ARG = {"emergency_stop": 1, "pause": 1, "resolve_approval": 2, "revoke": 1, "reset_stop": 0, "resume": 0,
-           "reload_policy": 0, "register_task": 1, "register_live_authorization": 1, "put_secret": 4}
+           "reload_policy": 0, "register_task": 1, "register_live_authorization": 1, "put_secret": 4,
+           "register_local_service": 1, "unregister_local_service": 1}
 
 
 class AuthService:

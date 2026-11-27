@@ -115,6 +115,8 @@ def test_rate_limit_per_destination(tmp_path, clock):
     doc["rate_limits"]["write"] = {"count": 2, "window_s": 600}
     doc["rate_limits"]["per_destination"] = [{"match": "channel:staging:slow*", "count": 1, "window_s": 3600,
                                               "effects": ["external_write"]}]
+    # two more local services: "localhost" is the same host as 127.0.0.1, so another destination is another port
+    doc["destinations"]["local_services"] = ["127.0.0.1:8765", "127.0.0.1:8766", "127.0.0.1:9"]
     p = tmp_path / "p.yaml"
     p.write_text(yaml.safe_dump(doc))
     svc = PolicyService(str(tmp_path / "run"), str(p), clock=clock, fsync=False)
@@ -123,7 +125,7 @@ def test_rate_limit_per_destination(tmp_path, clock):
         assert svc.authorize(get(f"/{i}"), t, {}).verdict == ALLOW
     d = svc.authorize(get("/4"), t, {})
     assert d.verdict == DENY and d.policy_ids == ["L-RATE"] and "retry in" in d.reasons[0] and is_resource_denial(d)
-    other_host = act("http.get", arguments={"url": "http://localhost:8765/a"})
+    other_host = act("http.get", arguments={"url": "http://localhost:8766/a"})
     assert svc.authorize(other_host, t, {}).verdict == ALLOW             # limits are per destination
     clock.advance(61.0)
     assert svc.authorize(get("/5"), t, {}).verdict == ALLOW              # the window moved on

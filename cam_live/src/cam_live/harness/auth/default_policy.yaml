@@ -5,7 +5,7 @@
 # change it. Rules are data. Nothing here says what the agent should do — only what it may not do without the
 # operator.
 version: 1
-policy_id: default-1
+policy_id: default-2
 
 grants:
   ttl_s: 120            # a grant must be presented to the executor within this time
@@ -39,6 +39,10 @@ modes:
     caps: {money: 1000000.0, money_per_action: 1000000.0, money_per_day: 1000000.0, compute_s: 86400.0,
            max_external_actions: 0, max_decisions: 1000000, duration_s: 0.0}
   staging:                          # the operator's local staging services only
+    # Loopback is the envelope, but a loopback port is reachable only when it is a registered local service
+    # (destinations.local_services, PolicyService.register_local_service, or -- own_process_services -- a port
+    # every listener of which belongs to the authorization service's own process). The instance's control plane
+    # (portal, Jupyter, SSH, tunnels, IDE servers) is never reachable.
     max_effect: external_write
     url_envelope: ["127.0.0.1", "localhost", "[::1]"]
     owned: ["127.0.0.1", "localhost", "[::1]", "channel:staging:*", "account:staging:*"]
@@ -52,6 +56,10 @@ modes:
     requires_authorization_record: false
     caps: {money: 1000.0, money_per_action: 100.0, money_per_day: 1000.0, compute_s: 86400.0,
            max_external_actions: 100000, max_decisions: 100000, duration_s: 0.0}
+    own_process_services: true
+    rate_caps:                      # task.resources.rate_limits may set these up to (count) / down to (window)
+      write: {count: 600, window_s: 3600}
+      write_global: {count: 3000, window_s: 3600}
   live:                             # real destinations: only what a signed operator authorization record names
     max_effect: external_write
     url_envelope: null              # taken from the authorization record
@@ -66,14 +74,27 @@ modes:
     requires_authorization_record: true
     caps: {money: 0.0, money_per_action: 0.0, money_per_day: 0.0, compute_s: 0.0,
            max_external_actions: 0, max_decisions: 0, duration_s: 0.0}   # 0 = must come from the record / task
+    own_process_services: false
+    rate_caps:                      # the signed record's rate_limits may set these at most
+      write: {count: 60, window_s: 3600}
+      write_global: {count: 200, window_s: 3600}
 
 destinations:
   deny: []                          # never, whatever a task or record says
   interactive: []                   # non-owned sites where sending form input is allowed without approval
-  file_roots: ["{run_dir}/sandbox", "{run_dir}/artifacts"]
+  # An address of this machine or its link (loopback in every spelling, 0.0.0.0, link-local / metadata, private
+  # networks, this machine's interface addresses, names /etc/hosts maps to them) is denied in EVERY mode unless the
+  # exact host:port is listed here, registered at run start (PolicyService.register_local_service) or, in a mode
+  # with own_process_services, served by the authorization service's own process.
+  local_services:
+    - "127.0.0.1:8765"              # reference staging port of the EA tests and verification probes; nothing of
+                                    # this instance listens there -- remove the entry if anything ever does
+  # file roots: the sandbox, artifacts and the computer environment's workspace (uploads come from there). A more
+  # specific file root inside a protected path wins over the protected path.
+  file_roots: ["{run_dir}/sandbox", "{run_dir}/artifacts", "{run_dir}/workspace", "{run_dir}/exec/workspace"]
   protected_paths: ["{run_dir}/vault", "{run_dir}/auth", "{run_dir}/audit.jsonl", "{run_dir}/verifier",
-                    "{run_dir}/verifier.jsonl", "{run_dir}/browser_profile", "{run_dir}/exec", "/etc/shadow",
-                    "/root", "/proc", "/sys"]
+                    "{run_dir}/verifier.jsonl", "{run_dir}/browser_profile", "{run_dir}/browser", "{run_dir}/env",
+                    "{run_dir}/events.jsonl", "{run_dir}/exec", "/etc/shadow", "/root", "/proc", "/sys"]
 
 # ---------------------------------------------------------------------------------------------------------------
 # Tool table. First match wins. An operation that matches nothing is denied.
@@ -83,6 +104,10 @@ destinations:
 tools:
   - id: T-INTERNAL
     ops: [wait, think, noop, inspect, "inspect.*", "internal.*", "memory.*", "note.*", "journal.*", "experiment.*"]
+    modalities: [internal]
+    effect: none
+  - id: T-PROGRAM                   # a composition of typed steps; every step is judged (and charged) on its own
+    ops: [program]
     modalities: [internal]
     effect: none
   - id: T-LAB
@@ -132,6 +157,12 @@ tools:
     effect: interact
     interact_class: navigate
     dests: [{kind: url, from: [arguments.page_url, arguments.url], location: true, required: true}]
+  - id: T-BROWSER-REQUEST           # first cross-origin subresource request of a page per origin (EB change request 7)
+    ops: [browser.request]
+    modalities: [structured_browser, visual]
+    effect: by_method
+    counts_as_action: false         # part of loading a page the action already loads; rate limits still apply
+    dests: [{kind: url, from: [arguments.url], required: true}]
   - id: T-BROWSER-INPUT
     ops: ["browser.*"]              # fill, type, press, select_option, check, submit, drag and anything not listed
     modalities: [structured_browser, visual]
@@ -228,9 +259,10 @@ tools:
     platform: discord
     data: [member_list, personal_data]
     dests: *discord_dests
-  - id: T-DISCORD-READ
+  - id: T-DISCORD-READ              # aggregate reads, including the event stream and membership changes (counts,
+                                    # pseudonymous join times; message text only via discord.read_messages)
     ops: ["discord.get_*", "discord.list_*", "discord.fetch_*", "discord.metrics*", "discord.stats*",
-          "discord.analytics*", discord.guild_info, discord.member_count, discord.status]
+          "discord.analytics*", discord.guild_info, discord.member_count, discord.status, discord.listen_events]
     modalities: [api, skill]
     effect: external_read
     platform: discord
@@ -242,7 +274,9 @@ tools:
     effect: external_write
     kind: publish
     platform: discord
-    dests: *discord_dests
+    dests:                          # a write into a channel lands on the channel; its server is checked as context
+      - {kind: account, platform: discord, from: [arguments.guild_id, arguments.server_id], context: true}
+      - {kind: channel, platform: discord, from: [arguments.channel_id, arguments.thread_id]}
     require_dest: true
   - id: T-PAYMENT
     ops: ["pay.*", "payment.*", "purchase.*", "billing.*", "*.purchase", "*.pay", "*.checkout", "*.buy"]
@@ -265,14 +299,20 @@ spending:
   per_action: 0.0                   # 0 = use the mode cap / record
   per_day: 0.0
 
+# Every external write is counted where it happens: each declared step of an action at authorization (all of them
+# must fit), and each external-effect primitive an executor reports through check_primitive (a primitive that
+# realises a declared step uses that step's share; any other is charged anew). A skill or a program therefore never
+# gets more writes than the same steps issued one by one. Clicks and typing are interactions, not writes.
 rate_limits:
-  default: {count: 60, window_s: 60}          # authorized actions per destination
-  write: {count: 10, window_s: 3600}          # external writes per destination
+  default: {count: 60, window_s: 60}          # authorized action steps per destination
+  write: {count: 10, window_s: 3600}          # external writes per destination (task / record: within rate_caps)
+  write_global: {count: 60, window_s: 3600}   # external writes of one task across all destinations
   primitive: {count: 600, window_s: 60}       # primitive operations per destination
   per_destination: []                         # [{match: "channel:discord:*", count: 5, window_s: 3600, effects: [external_write]}]
 
 limits:
-  max_primitives_per_action: 500
+  max_primitives_per_action: 500              # every primitive operation of one granted action
+  max_external_primitives_per_action: 128     # of those, the ones with an external effect
 
 # ---------------------------------------------------------------------------------------------------------------
 # Data use. A class is permitted only if TaskSpec.data_permissions[permission] is true (or default is true).
@@ -300,6 +340,18 @@ platforms:
     match: ["discord.com", "*.discord.com", "discord.gg", "discordapp.com", "*.discordapp.com",
             "channel:discord:*", "account:discord:*"]
     require_disclosure: false
+    # how logical operations reach the platform's HTTP interface: a grant for the operation on channel {id} covers
+    # exactly these requests (never another method, path or channel)
+    transport:
+      - {ops: [discord.send_message], method: POST, path: "/api/v*/channels/{id}/messages"}
+      - {ops: [discord.edit_message], method: PATCH, path: "/api/v*/channels/{id}/messages/*"}
+      - {ops: [discord.delete_message], method: DELETE, path: "/api/v*/channels/{id}/messages/*"}
+      - {ops: [discord.pin_message], method: PUT, path: "/api/v*/channels/{id}/messages/pins/*"}
+      - {ops: [discord.unpin_message], method: DELETE, path: "/api/v*/channels/{id}/messages/pins/*"}
+      - {ops: [discord.create_invite], method: POST, path: "/api/v*/channels/{id}/invites"}
+      - {ops: [discord.modify_channel], method: PATCH, path: "/api/v*/channels/{id}"}
+      - {ops: [discord.delete_channel], method: DELETE, path: "/api/v*/channels/{id}"}
+      - {ops: [discord.set_channel_permissions], method: PUT, path: "/api/v*/channels/{id}/permissions/*"}
     rules:
       - id: PL-DISCORD-NO-USER-AUTOMATION
         when: {modalities: [structured_browser, visual], effects: [interact, external_write]}
@@ -322,20 +374,40 @@ identity:
 # ---------------------------------------------------------------------------------------------------------------
 # Prohibited classes (operator specification 12.6). Structural rules deny; rules that need judgement about
 # content ask the operator (needs_approval) — they never allow silently.
+#
+# These detectors are lexical and structural, and every lexical classifier can be evaded by rephrasing. That is
+# why, in live mode, every publication or message to an external destination already needs the operator's
+# approval unless the signed live record pre-authorizes that destination (publishing.require_approval,
+# record.preauthorized): the detectors below are a second line for pre-authorized destinations, not the guarantee
+# (docs/EA/SECURITY.md section 2).
+# Field names are compared normalised (case, "_", "-" removed); JSON / form-encoded string bodies are parsed and
+# their keys checked as well.
 # ---------------------------------------------------------------------------------------------------------------
 prohibited:
   mass_outreach:
-    recipient_fields: [recipients, to, user_ids, users, members, member_ids, targets, mentions, cc, bcc, audience_ids]
-    max_recipients: 3
+    recipient_fields: [recipients, recipient_ids, recipient_list, rcpt, rcpts, to, user_ids, users, members,
+                       member_ids, targets, target_ids, mentions, cc, bcc, audience_ids, emails, email_list,
+                       addresses, phone_numbers, numbers, contacts, contact_list, invitees, people, followers,
+                       subscribers, dm_targets, send_to, notify]
+    max_recipients: 3               # also: recipient-shaped values (addresses, numbers, mentions, handles, user
+                                    # ids under a person-like key) in a list under ANY field name
     max_write_destinations: 3
     duplicate: {similarity: 0.8, max_destinations: 2, window_s: 604800, min_chars: 40}
     broadcast_tokens: ["@everyone", "@here"]
+    max_mentions: 5                 # more distinct user mentions than this in one outbound content: denied
+    mention_patterns:               # applied to every outbound content field
+      - {id: M-BROADCAST, kind: broadcast, regex: "(?i)(?<![\\w])@(everyone|here|channel|all|room)\\b"}
+      - {id: M-ROLE, kind: broadcast, regex: "<@&\\d+>"}
+      - {id: M-SLACK-BROADCAST, kind: broadcast, regex: "<!(channel|here|everyone)(\\|[^>]*)?>"}
+      - {id: M-USER, kind: user, regex: "<@!?\\d+>"}
+      - {id: M-HANDLE, kind: user, regex: "(?<![\\w@.])@[A-Za-z0-9_][A-Za-z0-9_.]{1,31}\\b"}
   direct_message:
     require_opt_in: true            # recipients must be in task.resources.opted_in_recipients
   identity:
-    impersonation_fields: [impersonate, impersonating, as_user, on_behalf_of, sender_name, from_name, display_name,
-                           username, username_override, webhook_username, avatar_url, avatar_override, persona,
-                           pretend_to_be, spoof]
+    impersonation_fields: [impersonate, impersonating, impersonate_user, as_user, on_behalf_of, sender_name, from_name,
+                           display_name, username, username_override, webhook_username, webhook_name, avatar_url,
+                           avatar_override, avatar, persona, pretend_to_be, spoof, spoof_as, nickname, nick,
+                           author_name, as_identity, fake_name, act_as]
   membership:
     deny_kinds: [account_create, member_add, join_external]
     fields: [fake_accounts, bot_accounts, alt_accounts, sockpuppets, accounts_to_create, auto_join, bulk_join,
@@ -350,15 +422,21 @@ prohibited:
     personal_fields: [email, emails, phone, phone_number, address, ip, ip_address, real_name, full_name, birthday,
                       date_of_birth, age, location, gender, private_messages, dms, dm_history]
     field_list_args: [fields, columns, attributes, collect, export_fields, scrape_fields, select]
-  profiling:
+  profiling:                        # field names; in generated code (opaque payloads) the same words as parts of
+                                    # identifiers send the action to the operator
     fields: [profile_user, profile_users, user_profile, user_traits, traits, personality, psychographic,
-             per_user_scores, sentiment_by_user, user_dossier, track_user, track_users, infer_attributes]
+             per_user_scores, sentiment_by_user, user_dossier, track_user, track_users, infer_attributes,
+             psychological_profile, vulnerability_score, per_user_traits]
   vulnerable:
     audience_fields: [audience, target_audience, segment, target_users, target_group, target_segment, filter,
                       age_range, min_age, max_age, cohort]
     terms: [minor, minors, child, children, kid, kids, underage, "under 13", "under 18", teen, teens, teenager,
             teenagers, elderly, senior, seniors, addict, addicts, addiction, gambling, depressed, depression,
             suicidal, grieving, bereaved, lonely, disabled, "in debt", "financial distress", vulnerable]
+    # outbound content naming two vulnerable groups, or one together with one of these, goes to the operator
+    exploit_terms: ["quick cash", "easy money", "fast money", "free money", "get rich", "payday", "loan", "loans",
+                    "crypto", "investment", "invest", "betting", "casino", "jackpot", "cash prize", "debt relief",
+                    "need money", "need cash", "dm me", "private message me"]
   credentials:
     field_names: [password, passwd, passphrase, api_key, apikey, secret, client_secret, access_token, refresh_token,
                   bot_token, auth_token, token, authorization, private_key, cookie, session_cookie]
@@ -370,13 +448,31 @@ prohibited:
       - {id: K-AWS-KEY, regex: "\\bAKIA[0-9A-Z]{16}\\b"}
       - {id: K-BASIC-AUTH-URL, regex: "(?i)\\bhttps?://[^/\\s:@]+:[^/\\s:@]+@"}
   content_patterns:                 # applied to outbound content of writes; verdict: deny | needs_approval
+    # join-for-join and reciprocal membership
     - {id: C-JOIN-FOR-JOIN, class: join_for_join, verdict: deny,
-       regex: "(?i)\\b(join\\s*(for|4)\\s*join|j4j|sub\\s*(for|4)\\s*sub|s4s|follow\\s*(for|4)\\s*follow|f4f|like\\s*(for|4)\\s*like|l4l)\\b"}
+       regex: "(?i)\\b(join|sub|subscribe|follow|like|member)[\\s\\-_]*(for|4|2)[\\s\\-_]*(join|sub|subscribe|follow|like|member)s?\\b|\\b(j4j|s4s|f4f|l4l|sub4sub|follow4follow)\\b"}
     - {id: C-RECIPROCAL-JOIN, class: join_for_join, verdict: needs_approval,
        regex: "(?i)\\bjoin\\s+(mine|ours|my\\s+\\w+|our\\s+\\w+)\\b.{0,60}\\b(i|we)('ll| will)\\s+join\\b"}
+    - {id: C-RECIPROCAL-MEMBERSHIP, class: join_for_join, verdict: needs_approval,
+       regex: "(?i)\\b(join|joins|joining|become\\s+(a\\s+)?members?|follow|subscribe)\\b[^.!?\\n]{0,80}\\b(and|then|&)\\b[^.!?\\n]{0,60}\\b(we|i|our\\s+\\w+(\\s+\\w+)?|my\\s+\\w+)('ll|\\s+will)?\\s+(also\\s+)?(join|joins|become|becomes|follow|follows|subscribe|subscribes)\\b"}
+    - {id: C-MEMBER-SWAP, class: join_for_join, verdict: needs_approval,
+       regex: "(?i)\\b(member|members|server|sub|follow|join)\\s*(swap|swaps|exchange|trade|trading)\\b|\\b(mutual|reciprocal)\\s+(join|joins|follow|follows|sub|subs|membership|members)\\b|\\bpartners?\\s+wanted\\b"}
+    # payment or reward conditional on engagement, in either order
     - {id: C-PAID-ENGAGEMENT, class: paid_engagement, verdict: needs_approval,
-       regex: "(?i)\\b(paid|pay|payment|cash|money|reward|rewards|prize|gift\\s*card|nitro|\\$\\s?\\d+)\\b.{0,80}\\b(join|joining|invite|inviting|react|member|members|boost|follow|upvote|review)\\b"}
+       regex: "(?i)\\b(paid|pay|pays|payment|cash|money|reward|rewards|rewarded|prize|prizes|gift\\s*cards?|vouchers?|coupons?|discounts?|nitro|bonus|bonuses|giveaway|free\\s+(nitro|money|stuff|gift|gifts|items?|coins?)|\\d+\\s*(dollars?|usd|eur|euros?|pounds?|gbp|bucks)|\\$\\s?\\d+|€\\s?\\d+|£\\s?\\d+|airdrop)\\b.{0,100}\\b(join|joins|joined|joining|invite|invites|invited|inviting|refer|referral|referrals|react|reacts|reaction|reactions|member|members|membership|boost|boosts|boosting|follow|follows|followers|upvote|upvotes|review|reviews|likes|subscribe|subscribers|sign\\s*up|signups?)\\b"}
+    - {id: C-ENGAGEMENT-REWARD, class: paid_engagement, verdict: needs_approval,
+       regex: "(?i)\\b(join|joins|joining|invite|invites|inviting|refer|referral|referrals|react|reacts|boost|boosts|follow|upvote|upvotes|review|reviews|subscribe|sign\\s*up|bring)\\b.{0,100}\\b(paid|pay|pays|payment|cash|money|reward|rewards|rewarded|prize|prizes|gift\\s*cards?|vouchers?|coupons?|discounts?|nitro|bonus|bonuses|giveaway|\\d+\\s*(dollars?|usd|eur|euros?|pounds?|gbp|bucks)|\\$\\s?\\d+|€\\s?\\d+|£\\s?\\d+|airdrop)\\b"}
+    # deceptive identity: claiming to be human / not automated
     - {id: C-HUMAN-CLAIM, class: deceptive_identity, verdict: deny,
        regex: "(?i)\\b(i\\s*am|i'm)\\s+(a\\s+)?(real\\s+)?(human|person)\\b|\\b(i\\s*am|i'm)\\s+not\\s+a\\s+(bot|robot|ai)\\b"}
+    - {id: C-HUMAN-CLAIM-BROAD, class: deceptive_identity, verdict: needs_approval,
+       regex: "(?i)\\b(i\\s*am|i'm|we\\s*are|we're|speaking\\s+as|writing\\s+as|posting\\s+as|here\\s+as)\\b[^.!?\\n]{0,40}\\b(real\\s+|actual\\s+|genuine\\s+)?(human|humans|person|people)\\b"}
+    - {id: C-AUTOMATION-DENIAL, class: deceptive_identity, verdict: needs_approval,
+       regex: "(?i)\\b(no|not|without|zero|never|nothing)\\s+(any\\s+)?(automation|automated|automatic|bots?|robots?|ai|scripts?|scripted)\\b|\\b(is|are|am)\\s*n[o']?t\\s+(a\\s+|an\\s+)?(bot|robot|ai|automated)\\b|\\bnot\\s+a\\s+(bot|robot|ai)\\b|\\b(written|run|operated|typed)\\s+by\\s+(a\\s+)?(real\\s+)?(human|person)\\b"}
+    # deceptive identity: claiming authority / platform staff, phishing
     - {id: C-AUTHORITY-CLAIM, class: deceptive_identity, verdict: needs_approval,
        regex: "(?i)\\b(official|verified)\\b.{0,30}\\b(staff|support|moderator|admin|representative|employee|team)\\b"}
+    - {id: C-PLATFORM-STAFF, class: deceptive_identity, verdict: needs_approval,
+       regex: "(?i)\\btrust\\s*(and|&)\\s*safety\\b|\\b(discord|slack|telegram|reddit|google|meta|facebook|instagram|twitter|apple|microsoft|steam|paypal|github|youtube|tiktok|whatsapp)\\s+(staff|support|team|admins?|moderation|moderators?|security|safety|official|employees?|hq)\\b"}
+    - {id: C-ACCOUNT-PHISHING, class: deceptive_identity, verdict: needs_approval,
+       regex: "(?i)\\b(account|server|profile)\\s+(is|has\\s+been|was|will\\s+be)\\s+(flagged|suspended|banned|terminated|locked|disabled|deleted|compromised|reported|under\\s+review)\\b|\\b(confirm|verify|validate|update|re-?enter)\\s+(your\\s+)?(account\\s+|login\\s+|payment\\s+|personal\\s+|billing\\s+)?(details|identity|credentials|password|login|information|info|card)\\b"}

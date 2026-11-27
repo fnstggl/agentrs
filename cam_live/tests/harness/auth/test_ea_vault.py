@@ -41,6 +41,7 @@ def test_vault_files_are_private(svc):
 
 
 def test_release_needs_a_running_granted_action_and_the_bound_destination(svc, clock):
+    svc.register_local_service("127.0.0.1:8766", "operator")      # a second owned local service
     svc.put_secret("site_token", CANARY, [API + "/*"])
     t = task()
     a = act("http.post", arguments={"url": API + "/items", "headers": {"Authorization": "secret:site_token"}, "json": {"n": 1}})
@@ -52,7 +53,8 @@ def test_release_needs_a_running_granted_action_and_the_bound_destination(svc, c
     assert svc.secret_get("site_token", a, d, API + "/items") == CANARY
     refusals = [
         ("site_token", a, d, "http://127.0.0.1:8765/other"),                 # allowed host, not where the secret is bound
-        ("site_token", a, d, "http://localhost:8765/api/items"),             # another owned host
+        ("site_token", a, d, "http://localhost:8766/api/items"),             # another owned service
+        ("site_token", a, d, "http://127.0.0.1:11111/api/items"),            # a local port nobody registered
         ("site_token", a, d, "https://public.example/api/items"),            # outside the task's destinations
         ("no_such_secret", a, d, API + "/items"),
         ("site_token", act("http.post", arguments={"url": API + "/items"}), d, API + "/items"),   # another action
@@ -117,7 +119,7 @@ def test_revocation_by_scope(svc, clock):
     svc.revoke("scope:extra", "olga")
     with pytest.raises(SecretError):
         get("b_token")
-    assert get("c_token", "http://localhost:1/x") == "third-secret-value-456"
+    assert get("c_token", "http://localhost:8765/x") == "third-secret-value-456"     # localhost = 127.0.0.1
     s2 = reopen(svc, clock)                                      # revocation is persistent
     assert {n["name"]: n["revoked"] for n in s2.secret_names()} == {"a_token": True, "b_token": True, "c_token": False}
     s2.revoke("all", "olga")
@@ -126,14 +128,15 @@ def test_revocation_by_scope(svc, clock):
 
 
 def test_revoking_a_destination_denies_it_and_its_secrets(svc):
-    svc.put_secret("a_token", CANARY, ["localhost"])
+    svc.register_local_service("127.0.0.1:8766", "operator")
+    svc.put_secret("a_token", CANARY, ["localhost:8766"])
     t = task()
-    a = act("http.get", arguments={"url": "http://localhost:8765/x"})
+    a = act("http.get", arguments={"url": "http://localhost:8766/x"})
     d = start(svc, a, t)
-    svc.revoke("destination:localhost", "olga")
+    svc.revoke("destination:localhost:8766", "olga")
     with pytest.raises(SecretError):
-        svc.secret_get("a_token", a, d, "http://localhost:8765/x")
-    dd = svc.authorize(act("http.get", arguments={"url": "http://localhost:8765/y"}), t, {})
+        svc.secret_get("a_token", a, d, "http://localhost:8766/x")
+    dd = svc.authorize(act("http.get", arguments={"url": "http://[::1]:8766/y"}), t, {})       # any spelling
     assert dd.verdict == DENY and "P-DEST-DENIED" in dd.policy_ids
     assert svc.authorize(act("http.get", arguments={"url": LOOP}), t, {}).verdict == ALLOW
 

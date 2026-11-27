@@ -49,6 +49,11 @@ def _b64_fragments(value: bytes) -> List[str]:
     return out
 
 
+def squeeze(text: str) -> str:
+    """Letters and digits only, case-folded: the form in which a disguised secret is still recognisable."""
+    return "".join(c for c in text.casefold() if c.isalnum())
+
+
 def variants(value: str) -> List[str]:
     """The value itself plus the encodings an executor or a page is likely to echo it in."""
     raw = value.encode()
@@ -212,6 +217,31 @@ class SecretBroker:
         with self._lock:
             self._fresh()
             return [s.name for s in self._secrets.values() if any(f in text for f in s.forms)]
+
+    def find_loose(self, text: str) -> List[str]:
+        """Names of secrets present in ``text`` in a disguised form: with separators, other case or punctuation
+        (``t o k - A B C``), or in parts -- any run of at least max(8, 40 %) of the value's letters and digits that
+        contains both a letter and a digit."""
+        if not isinstance(text, str) or not text:
+            return []
+        flat = squeeze(text)
+        out = []
+        with self._lock:
+            self._fresh()
+            for s in self._secrets.values():
+                sq = squeeze(s.value)
+                if len(sq) < MIN_SECRET_LEN:
+                    continue
+                if sq in flat:
+                    out.append(s.name)
+                    continue
+                k = max(MIN_SECRET_LEN, -(-len(sq) * 2 // 5))
+                for i in range(0, len(sq) - k + 1):
+                    w = sq[i:i + k]
+                    if any(c.isdigit() for c in w) and any(c.isalpha() for c in w) and w in flat:
+                        out.append(s.name)
+                        break
+        return out
 
     def scrub(self, text: str) -> str:
         if not isinstance(text, str) or not text:

@@ -163,10 +163,17 @@ class AuditLog:
 
 
 def verify_audit_log(path: str, key: Optional[bytes] = None, head_path: Optional[str] = None,
-                     require_head: bool = False, expect_head: Optional[Tuple[int, str]] = None) -> AuditVerification:
+                     require_head: Optional[bool] = None, expect_head: Optional[Tuple[int, str]] = None) -> AuditVerification:
     """Check the whole chain. Detects edited, deleted, inserted, duplicated and reordered entries; with the head
     file (or an externally kept ``expect_head = (seq, hash)`` anchor) also a truncated tail. With ``key`` every MAC
-    is checked too, so a chain rebuilt without the key fails."""
+    is checked too, so a chain rebuilt without the key fails.
+
+    The head file is REQUIRED by default: a log that was emptied (or truncated) together with the removal of its
+    head file fails. ``require_head=False`` checks the bare chain only (consistency, not completeness); an
+    ``expect_head`` anchor replaces the head file. Without ``head_path`` the head is looked for next to the log
+    (``<log>.head``) and where the authorization service keeps it (``<dir of log>/auth/audit.head``)."""
+    if require_head is None:
+        require_head = expect_head is None or expect_head[0] <= 0
     res = AuditVerification(ok=True)
     try:
         with open(path, "rb") as f:
@@ -201,7 +208,8 @@ def verify_audit_log(path: str, key: Optional[bytes] = None, head_path: Optional
         if expect_head is not None and n == expect_head[0]:
             anchored = ehash
     res.entries, res.head_hash = n, prev
-    hp = head_path or (path + ".head")
+    hp = head_path or next((c for c in (path + ".head", os.path.join(os.path.dirname(os.path.abspath(path)), "auth",
+                                                                     "audit.head")) if os.path.exists(c)), path + ".head")
     if os.path.exists(hp):
         try:
             with open(hp, "rb") as f:

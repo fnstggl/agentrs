@@ -13,19 +13,21 @@ import json
 import math
 import re
 import zlib
+from urllib.parse import parse_qsl
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple
 
 from ... import contracts as C
 from . import destinations as D
-from .schema import EFFECT_RANK, ModeRule, Policy, ToolRule, norm_field
+from . import localnet
+from .schema import EFFECT_RANK, ModeRule, Policy, RateRule, ToolRule, norm_field
 
 _OP_RE = re.compile(r"^[A-Za-z0-9_.\-:]{1,128}$")
 _READ_METHODS = ("GET", "HEAD", "OPTIONS")
 #: findings that say "this target is not permitted" (as opposed to "this content must change" or "not now"):
 #: these are remembered so the same target cannot be reached through another modality or spelling
 INTENT_PIDS = ("P-DEST-DENIED", "P-DEST-NOT-ALLOWED", "P-MODE-ENVELOPE", "P-WRITE-NON-OWNED", "P-INTERACT-DENIED",
-               "P-FILE-ROOT")
+               "P-FILE-ROOT", "P-LOCAL-ADDRESS")
 #: of those, the ones that deny only *writing* to the target (reading it may still be allowed)
 WRITE_ONLY_PIDS = ("P-WRITE-NON-OWNED", "P-INTERACT-DENIED")
 
@@ -50,6 +52,9 @@ class TaskCtx:
     window: Optional[Tuple[float, float]] = None
     record_id: str = ""
     file_base: str = ""
+    local_services: Set[Tuple[str, int]] = field(default_factory=set)   # registered (canonical host, port)
+    own_process: bool = False            # loopback ports served only by this process count as registered
+    rates: Dict[str, RateRule] = field(default_factory=dict)            # effective write / write_global rules
 
     @property
     def task_id(self) -> str:
@@ -78,6 +83,8 @@ class NodeEval:
     content: str = ""
     blob: str = ""               # lower-cased text of every string in the node (opaque tools only)
     disclose: bool = False       # the destination's platform requires the configured disclosure
+    method: str = ""             # HTTP method of a by_method tool ("" otherwise): part of the operation class
+    location_used: str = ""      # destination taken from the tracked browser location (approval binds to it)
 
 
 def truthy(v: Any) -> bool:
@@ -95,6 +102,87 @@ def walk_keys(obj: Any, depth: int = 0) -> Iterator[Tuple[str, Any]]:
     elif isinstance(obj, (list, tuple)):
         for v in obj:
             yield from walk_keys(v, depth + 1)
+
+
+_FORM_RE = re.compile(r"^[\w.\-\[\]%]+=[^&=]*(&[\w.\-\[\]%]+=[^&=]*)*$")
+
+
+def expand(obj: Any, depth: int = 0) -> Any:
+    """``obj`` with string values that are JSON objects / arrays or form-encoded bodies replaced by what they
+    encode, so that field rules see keys inside a request body sent as a string."""
+    if depth > 8:
+        return obj
+    if isinstance(obj, dict):
+        return {k: expand(v, depth + 1) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [expand(v, depth + 1) for v in obj]
+    if isinstance(obj, str) and 2 <= len(obj) <= 262144:
+        t = obj.strip()
+        if t[:1] in "{[" and t[-1:] in "}]":
+            try:
+                return expand(json.loads(t), depth + 1)
+            except ValueError:
+                return obj
+        if "=" in t and _FORM_RE.match(t):
+            pairs = parse_qsl(t, keep_blank_values=True)
+            if pairs:
+                return {k: v for k, v in pairs}
+    return obj
+
+
+_EMAIL_RE = re.compile(r"^[^@\s<>]+@[^@\s<>]+\.[A-Za-z]{2,}$")
+_PHONE_RE = re.compile(r"^\+?[\d\s\-().]{7,20}$")
+_MENTION_RE = re.compile(r"^<@[!&]?\d+>$")
+_HANDLE_RE = re.compile(r"^@[A-Za-z0-9_][A-Za-z0-9_.]{1,31}$")
+_SNOWFLAKE_RE = re.compile(r"^\d{15,21}$")
+_PERSON_KEY_RE = re.compile(r"(user|member|rcpt|recipient|people|person|contact|target|audience|follower|friend|"
+                            r"invitee|subscriber|dm|to$|^to|cc$|bcc|customer|lead|account)")
+
+
+def _recipient_shaped(v: str, person_key: bool) -> bool:
+    v = v.strip()
+    if not v or len(v) > 254:
+        return False
+    if _EMAIL_RE.match(v) or _MENTION_RE.match(v) or _HANDLE_RE.match(v) or v.startswith("account:"):
+        return True
+    if _PHONE_RE.match(v) and sum(c.isdigit() for c in v) >= 7:
+        return True
+    return person_key and bool(_SNOWFLAKE_RE.match(v))
+
+
+def recipient_lists(obj: Any, depth: int = 0, key: str = "") -> Iterator[Tuple[str, int]]:
+    """(key, number of recipient-shaped values) for every list (or separator-joined string under a person-like
+    key) at any depth of an (expanded) argument tree."""
+    if depth > 16:
+        return
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            yield from recipient_lists(v, depth + 1, norm_field(k))
+    elif isinstance(obj, (list, tuple)):
+        person = bool(_PERSON_KEY_RE.search(key))
+        n = sum(1 for x in obj if isinstance(x, (str, int)) and not isinstance(x, bool)
+                and _recipient_shaped(str(x), person))
+        if n:
+            yield key, n
+        for x in obj:
+            if isinstance(x, (dict, list, tuple)):
+                yield from recipient_lists(x, depth + 1, key)
+    elif isinstance(obj, str) and key and _PERSON_KEY_RE.search(key) and re.search(r"[,;\s]", obj.strip()):
+        n = sum(1 for x in re.split(r"[,;\s]+", obj) if _recipient_shaped(x, True))
+        if n:
+            yield key, n
+
+
+def ident_words(text: str) -> Set[Tuple[str, ...]]:
+    """Word sequences of identifiers and string words in program text: ``per_user_traits`` / ``perUserTraits`` ->
+    every contiguous run of (per, user, traits)."""
+    out: Set[Tuple[str, ...]] = set()
+    for tok in re.findall(r"[A-Za-z][A-Za-z0-9_]{2,80}", text or ""):
+        words = [w.lower() for w in re.findall(r"[A-Z]?[a-z0-9]+|[A-Z]+(?![a-z])", tok.replace("_", " ")) if w]
+        for i in range(len(words)):
+            for j in range(i + 1, min(len(words), i + 4) + 1):
+                out.add(tuple(words[i:j]))
+    return out
 
 
 def shingles(text: str, cap: int = 600) -> List[int]:
@@ -140,6 +228,9 @@ class Evaluator:
                           for t in policy.prohibited["vulnerable_terms"]]
         self._purpose_res = [re.compile(r"(?<![a-z0-9])" + re.escape(t) + r"(?![a-z0-9])")
                              for t in policy.prohibited["denied_purposes"]]
+        #: profiling field names as word sequences (``user_traits`` -> ("user", "traits")) for program text
+        self._profiling_words = [tuple(w for w in re.split(r"[^a-z0-9]+", f.lower()) if w)
+                                 for f in policy_profiling_names(policy)]
 
     # -- structure -------------------------------------------------------------------------------------------
     def structure(self, action: Any) -> List[str]:
@@ -232,6 +323,7 @@ class Evaluator:
                                                   f"(modality {node.modality!r}) among its interfaces"))
 
         # destinations ------------------------------------------------------------------------------------------
+        context_ids: Set[int] = set()
         for rule in tool.dests:
             found: List[D.Destination] = []
             invalid = False
@@ -251,12 +343,15 @@ class Evaluator:
             if not found and rule.location and location:
                 try:
                     found.append(D.normalise_url(location))
+                    ne.location_used = location
                 except D.DestinationError:
                     pass
             if not found and rule.required and not invalid:
                 hint = " (no page location is known: navigate first)" if rule.location else ""
                 ne.deny.append(Finding("P-DEST-MISSING", f"{node.operation!r} names no {rule.kind} destination in "
                                                          f"{' / '.join(rule.frm)}{hint}"))
+            if rule.context:
+                context_ids.update(id(d) for d in found)
             ne.dests.extend(found)
         if tool.require_dest and not ne.dests and not ne.deny:
             ne.deny.append(Finding("P-DEST-MISSING", f"{node.operation!r} names no destination"))
@@ -265,6 +360,7 @@ class Evaluator:
         base = tool.effect
         if base == "by_method":
             method = str(args.get("method") or node.operation.rsplit(".", 1)[-1]).upper()
+            ne.method = method if method in _READ_METHODS + ("POST", "PUT", "PATCH", "DELETE") else "WRITE"
             base = "external_read" if method in _READ_METHODS else "external_write"
         network = bool(tool.network_flags) and any(k in tool.network_flags and truthy(v) for k, v in walk_keys(args))
         rank = EFFECT_RANK[base if base != "interact" else "external_read"]
@@ -274,6 +370,7 @@ class Evaluator:
         if tool.opaque:
             pot = EFFECT_RANK["external_write"]
 
+        specific = [d for d in ne.dests if d.kind not in ("file", "skill", "sim") and id(d) not in context_ids]
         for d in ne.dests:
             if d.kind == "file":
                 self._file(ne, d)
@@ -284,6 +381,12 @@ class Evaluator:
             if D.match_any(d, p.deny) or D.match_any(d, tc.deny):
                 ne.deny.append(Finding("P-DEST-DENIED", f"{d.key} is on the deny list", d))
                 continue
+            lk = self.local_denial(d, tc)
+            if lk:
+                ne.deny.append(Finding("P-LOCAL-ADDRESS", f"{d.key} is an address of this machine or its network "
+                                                          f"({lk}) and not a registered local service; the "
+                                                          f"instance's own services are never reachable", d))
+                continue
             if d.kind == "url" and tc.envelope is not None and D.match_any(d, tc.envelope) is None:
                 ne.deny.append(Finding("P-MODE-ENVELOPE", f"{d.key} is outside what {tc.mode.name} mode may reach", d))
                 continue
@@ -291,6 +394,15 @@ class Evaluator:
             readable = owned or D.match_any(d, tc.read) is not None
             pre = owned and D.match_any(d, tc.preauth) is not None
             interactive = D.match_any(d, p.interactive) is not None or D.match_any(d, tc.interactive) is not None
+            if id(d) in context_ids and specific:
+                # the place the operation acts *in* (e.g. the server of a channel): it must be one the task may act
+                # on, but the effect, approval and rate accounting belong to the more specific destination
+                if eff == "external_read" and not readable:
+                    ne.deny.append(Finding("P-DEST-NOT-ALLOWED", f"{d.key} is not an allowed destination for this task", d))
+                elif eff != "external_read" and not owned and not interactive:
+                    ne.deny.append(Finding("P-WRITE-NON-OWNED", f"external write in {d.key}, which the operator does "
+                                                                f"not own", d))
+                continue
             self._platform(ne, d, tool, eff)
             if eff == "external_read":
                 if not readable:
@@ -299,7 +411,15 @@ class Evaluator:
                     ne.effects.append(("read", d))
                     rank = max(rank, EFFECT_RANK["external_read"])
                 continue
-            if owned:                                   # write, or interaction with an owned destination
+            if owned and eff == "interact":            # clicks and typing on an owned page: an interaction
+                rank = max(rank, EFFECT_RANK["external_write"])
+                ne.effects.append(("input", d))
+                if not pre:
+                    ne.approve.append(Finding("P-INTERACT-APPROVAL", f"interaction with owned page {d.key} needs the "
+                                                                     f"operator's approval (not pre-authorized)", d,
+                                              "input"))
+                continue
+            if owned:                                   # an external write to an owned destination
                 rank = max(rank, EFFECT_RANK["external_write"])
                 ne.effects.append(("write", d))
                 always = p.publishing_always and tool.kind == "publish"
@@ -381,14 +501,34 @@ class Evaluator:
         return ne
 
     # -- helpers ---------------------------------------------------------------------------------------------
+    def local_denial(self, d: D.Destination, tc: TaskCtx) -> str:
+        """'' when ``d`` may be reached as far as the local-address rule goes, else why not (its local class)."""
+        if d.kind != "url":
+            return ""
+        lk = localnet.local_kind(d.host)
+        if not lk:
+            return ""
+        port = d.port or D._DEFAULT_PORTS.get(d.scheme, 0)
+        if (d.host, port) in tc.local_services:
+            return ""
+        if lk == "loopback" and tc.own_process and localnet.own_listener(port):
+            return ""
+        return lk
+
     def _file(self, ne: NodeEval, d: D.Destination) -> None:
+        """Inside a file root and not inside a protected path -- a file root that lies *inside* a protected path
+        (the environment's workspace below its private directory) is more specific and wins."""
         low = d.path.lower()
-        for prot in self.p.protected_paths:
-            pl = prot.lower()
-            if low == pl or low.startswith(pl.rstrip("/") + "/"):
-                ne.deny.append(Finding("P-FILE-ROOT", f"{d.path} is a protected path", d))
-                return
-        if D.match_any(d, self.p.file_roots) is None:
+
+        def depth_in(root: str) -> int:
+            rl = root.lower().rstrip("/") or "/"
+            return len(rl) if (low == rl or low.startswith(rl.rstrip("/") + "/")) else -1
+
+        prot = max([depth_in(pp) for pp in self.p.protected_paths] or [-1])
+        root = max([depth_in(r.path) for r in self.p.file_roots] or [-1])
+        if prot >= 0 and root <= prot:
+            ne.deny.append(Finding("P-FILE-ROOT", f"{d.path} is a protected path", d))
+        elif root < 0:
             ne.deny.append(Finding("P-FILE-ROOT", f"{d.path} is outside the permitted file roots", d))
 
     def _platform(self, ne: NodeEval, d: Optional[D.Destination], tool: ToolRule, eff: str) -> None:
@@ -449,6 +589,9 @@ class Evaluator:
         pr = self.p.prohibited
         if self.vault is not None and self.vault.find(text_all):
             ne.deny.append(Finding("X-CREDENTIAL-LEAK", "a stored secret value appears in the action"))
+        elif self.vault is not None and hasattr(self.vault, "find_loose") and self.vault.find_loose(text_all):
+            ne.deny.append(Finding("X-CREDENTIAL-LEAK", "a stored secret value appears in the action (spaced out, "
+                                                        "re-cased, punctuated or in parts)"))
         low = text_all.lower()
         if any(s in low for s in self.sensitive):
             ne.deny.append(Finding("X-CREDENTIAL-LEAK", "the action refers to the credential vault or the "
@@ -458,7 +601,7 @@ class Evaluator:
                 ne.deny.append(Finding("X-CREDENTIAL-LEAK", f"the action contains what looks like a credential ({kid})"))
                 break
         prefix = pr["credential_ref_prefix"]
-        for k, v in walk_keys(args):
+        for k, v in walk_keys(expand(args)):
             if k in pr["credential_fields"] and isinstance(v, str) and v and not v.startswith(prefix):
                 ne.deny.append(Finding("X-CREDENTIAL-LEAK", f"a credential field carries a literal value; credentials "
                                                             f"are referenced by vault name ({prefix}<name>) and "
@@ -467,13 +610,18 @@ class Evaluator:
 
     def _prohibited(self, ne: NodeEval, tool: ToolRule, tc: TaskCtx, args: Dict[str, Any], outbound: bool) -> None:
         pr, p = self.p.prohibited, self.p
-        keys = [(k, v) for k, v in walk_keys(args) if truthy(v)]
+        xargs = expand(args)                   # JSON / form bodies sent as strings are judged by their keys too
+        keys = [(k, v) for k, v in walk_keys(xargs) if truthy(v)]
         present = {k for k, _ in keys}
         # unsolicited mass outreach ---------------------------------------------------------------------------
         n_rcpt = sum(_count_items(v) for k, v in keys if k in pr["recipient_fields"])
-        if n_rcpt > pr["max_recipients"]:
-            ne.deny.append(Finding("X-MASS-OUTREACH", f"{n_rcpt} recipients addressed in one action "
-                                                      f"(at most {pr['max_recipients']})"))
+        shaped = sorted(recipient_lists(xargs), key=lambda kv: -kv[1])
+        n_shaped = sum(n for _k, n in shaped)
+        if max(n_rcpt, n_shaped) > pr["max_recipients"]:
+            where = f" (recipient-shaped values under {', '.join(sorted({k or '?' for k, _ in shaped}))[:120]})" \
+                if n_shaped > n_rcpt else ""
+            ne.deny.append(Finding("X-MASS-OUTREACH", f"{max(n_rcpt, n_shaped)} recipients addressed in one action "
+                                                      f"(at most {pr['max_recipients']}){where}"))
         if tool.kind == "direct_message" and pr["dm_require_opt_in"]:
             rcpts = {d.ident for d in ne.dests if d.kind == "account"}
             for k, v in keys:
@@ -484,9 +632,21 @@ class Evaluator:
                 ne.deny.append(Finding("X-DM-OPT-IN", "direct message to recipients who have not opted in",
                                        next((d for d in ne.dests if d.kind == "account"), None)))
         low = ne.content.lower()
-        if outbound and any(t in low for t in pr["broadcast_tokens"]):
-            ne.approve.append(Finding("X-MASS-OUTREACH-BROADCAST", "the content notifies every member at once", None,
-                                      "content"))
+        broadcast = outbound and any(t in low for t in pr["broadcast_tokens"])
+        users: Set[str] = set()
+        if outbound and ne.content:
+            for _mid, kind, rx in p.mention_patterns:
+                found = rx.findall(ne.content) if kind == "user" else ([1] if rx.search(ne.content) else [])
+                if kind == "broadcast" and found:
+                    broadcast = True
+                elif kind == "user":
+                    users.update(m if isinstance(m, str) else "".join(m) for m in found)
+        if broadcast:
+            ne.approve.append(Finding("X-MASS-OUTREACH-BROADCAST", "the content notifies every member (or a whole "
+                                                                   "role / channel) at once", None, "content"))
+        if len(users) > pr["max_mentions"]:
+            ne.deny.append(Finding("X-MASS-OUTREACH", f"the content mentions {len(users)} people individually "
+                                                      f"(at most {pr['max_mentions']})"))
         # deceptive identity ------------------------------------------------------------------------------------
         imp = sorted(present & set(pr["impersonation_fields"]))
         if imp:
@@ -522,6 +682,13 @@ class Evaluator:
         prof = sorted(present & set(pr["profiling_fields"]))
         if prof:
             ne.deny.append(Finding("X-PROFILING", f"individual-profiling field(s) present: {', '.join(prof)}"))
+        elif tool.opaque and ne.blob:
+            words = ident_words(ne.blob)
+            hits = sorted({" ".join(w) for w in self._profiling_words if w in words})
+            if hits:
+                ne.approve.append(Finding("X-PROFILING-CODE", f"generated code names individual-profiling data "
+                                                              f"({', '.join(hits[:4])}): the operator decides",
+                                          None, "content"))
         aud = [(k, v) for k, v in keys if k in pr["audience_fields"]]
         if aud:
             vulnerable = False
@@ -536,12 +703,25 @@ class Evaluator:
             elif outbound:
                 ne.approve.append(Finding("X-AUDIENCE-TARGETING", "the action selects an audience by attribute", None,
                                           "content"))
+        if outbound and ne.content:
+            vul = {t for t, rx in zip(pr["vulnerable_terms"], self._term_res) if rx.search(low)}
+            exploit = [t for t in pr["exploit_terms"] if re.search(r"(?<![a-z0-9])" + re.escape(t) + r"(?![a-z0-9])", low)]
+            if len(vul) >= 2 or (vul and exploit):
+                ne.approve.append(Finding("X-VULNERABLE-CONTENT", f"the content addresses vulnerable people "
+                                                                  f"({', '.join(sorted(vul)[:4])}"
+                                                                  f"{'; ' + ', '.join(exploit[:2]) if exploit else ''})",
+                                          None, "content"))
         # content patterns (judgement) ----------------------------------------------------------------------------
         if outbound and ne.content:
             for cp in p.content_patterns:
                 if cp.regex.search(ne.content):
                     f = Finding(cp.id, f"content matches prohibited class {cp.cls!r} ({cp.id})", None, "content")
                     (ne.deny if cp.verdict == "deny" else ne.approve).append(f)
+
+
+def policy_profiling_names(policy: Policy) -> List[str]:
+    """The operator's profiling field names with word boundaries kept (the compiled policy stores them squashed)."""
+    return list(policy.prohibited.get("profiling_raw") or [])
 
 
 def _values_only(obj: Any, depth: int = 0) -> List[str]:

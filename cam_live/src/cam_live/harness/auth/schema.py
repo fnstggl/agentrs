@@ -24,7 +24,18 @@ MODES = ("diagnostic", "staging", "live")
 VERDICTS3 = ("allow", "needs_approval", "deny")
 CAP_KEYS = ("money", "money_per_action", "money_per_day", "compute_s", "max_external_actions", "max_decisions",
             "duration_s")
+#: rate rules a task (staging) or a signed live record may set, within the mode's ``rate_caps``
+RATE_CAP_KEYS = ("write", "write_global")
 DEFAULT_POLICY_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "default_policy.yaml")
+#: the run policy of a source checkout (same content as the packaged default; docs/EA/README.md "Run policy")
+RUN_POLICY_PATH = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..",
+                                               "configs", "authorization.yaml"))
+
+
+def run_policy_path() -> str:
+    """The policy a run uses when none is named: ``cam_live/configs/authorization.yaml`` if it exists (a source
+    checkout), else the packaged ``default_policy.yaml``."""
+    return RUN_POLICY_PATH if os.path.isfile(RUN_POLICY_PATH) else DEFAULT_POLICY_PATH
 
 
 class PolicyError(ValueError):
@@ -113,6 +124,8 @@ class DestRule:
     required: bool = False
     multi: bool = False
     location: bool = False       # may fall back to the browser location tracked from executor reports
+    context: bool = False        # checked like any destination, but when the node names another (more specific)
+                                 # destination the effect lands there: e.g. the server of a channel
 
 
 @dataclass
@@ -133,6 +146,8 @@ class ToolRule:
     interact_class: str = "input"
     modes: List[str] = field(default_factory=list)       # [] = every mode
     sets_location: bool = False  # an allowed primitive of this tool moves the tracked browser location
+    counts_as_action: bool = True  # false: a primitive of this tool is not charged as an external action (a
+                                   # subresource of a page the action already loads); rate limits still apply
 
     def matches(self, op: str) -> bool:
         return any(fnmatch.fnmatchcase(op, p) for p in self.ops)
@@ -153,6 +168,9 @@ class ModeRule:
     code_network: str
     requires_authorization_record: bool
     caps: Dict[str, float]
+    own_process_services: bool = False      # loopback services of the authorization service's own process count
+                                            # as registered local services (in-process staging only)
+    rate_caps: Dict[str, "RateRule"] = field(default_factory=dict)   # most a task / live record may configure
 
 
 @dataclass
@@ -168,11 +186,21 @@ class PlatformRule:
 
 
 @dataclass
+class TransportRule:
+    """``ops`` of a platform are realised as ``method`` requests to ``path`` (glob; ``{id}`` = the logical
+    destination's id). A grant for the logical operation covers exactly these requests."""
+    ops: List[str]
+    method: str
+    path: str
+
+
+@dataclass
 class Platform:
     name: str
     match: List[D.Pattern]
     require_disclosure: bool
     rules: List[PlatformRule]
+    transport: List[TransportRule] = field(default_factory=list)
 
 
 @dataclass
@@ -222,6 +250,10 @@ class Policy:
     prohibited: Dict[str, Any]
     content_patterns: List[ContentPattern]
     credential_patterns: List[Tuple[str, "re.Pattern[str]"]]
+    local_services: List[Tuple[str, int]] = field(default_factory=list)
+    rate_write_global: Optional[RateRule] = None
+    max_external_primitives_per_action: int = 0
+    mention_patterns: List[Tuple[str, str, "re.Pattern[str]"]] = field(default_factory=list)   # (id, kind, regex)
 
     def tool_for(self, op: str) -> Optional[ToolRule]:
         for t in self.tools:
@@ -248,7 +280,9 @@ def _mode(name: str, d: Any, run_dir: str) -> ModeRule:
     w = f"modes.{name}"
     d = _keys(d, w, required=("max_effect", "url_envelope", "owned", "read", "preauthorized",
                               "honour_task_resources", "default_interfaces", "simulated_money",
-                              "interact_non_owned", "code_network", "requires_authorization_record", "caps"))
+                              "interact_non_owned", "code_network", "requires_authorization_record", "caps"),
+              optional=("own_process_services", "rate_caps"))
+    rc = _keys(d.get("rate_caps") or {}, f"{w}.rate_caps", optional=RATE_CAP_KEYS)
     ino = _keys(d["interact_non_owned"], f"{w}.interact_non_owned", required=("navigate", "input"))
     caps = _keys(d["caps"], f"{w}.caps", required=CAP_KEYS)
     ifaces = _strs(d["default_interfaces"], f"{w}.default_interfaces")
@@ -262,27 +296,29 @@ def _mode(name: str, d: Any, run_dir: str) -> ModeRule:
         interact_non_owned={k: _choice(ino[k], f"{w}.interact_non_owned.{k}", VERDICTS3) for k in ("navigate", "input")},
         code_network=_choice(d["code_network"], f"{w}.code_network", VERDICTS3),
         requires_authorization_record=_bool(d["requires_authorization_record"], f"{w}.requires_authorization_record"),
-        caps={k: float(_num(caps[k], f"{w}.caps.{k}")) for k in CAP_KEYS})
+        caps={k: float(_num(caps[k], f"{w}.caps.{k}")) for k in CAP_KEYS},
+        own_process_services=_bool(d.get("own_process_services", False), f"{w}.own_process_services"),
+        rate_caps={k: _rate(v, f"{w}.rate_caps.{k}") for k, v in rc.items()})
 
 
 def _tool(i: int, d: Any) -> ToolRule:
     w = f"tools[{i}]"
     d = _keys(d, w, required=("id", "ops", "modalities", "effect"),
               optional=("dests", "require_dest", "kind", "platform", "data", "content_from", "amount_from", "opaque",
-                        "network_flags", "interact_class", "modes", "sets_location"))
+                        "network_flags", "interact_class", "modes", "sets_location", "counts_as_action"))
     mods = _strs(d["modalities"], f"{w}.modalities")
     for m in mods:
         _choice(m, f"{w}.modalities", C.Modality.ALL)
     dests = []
     for jx, r in enumerate(d.get("dests") or []):
         ww = f"{w}.dests[{jx}]"
-        r = _keys(r, ww, required=("kind", "from"), optional=("platform", "required", "multi", "location"))
+        r = _keys(r, ww, required=("kind", "from"), optional=("platform", "required", "multi", "location", "context"))
         kind = _choice(r["kind"], f"{ww}.kind", D.KINDS)
         if kind in ("account", "channel") and not r.get("platform"):
             raise PolicyError(f"{ww}: account/channel destinations need a platform")
         dests.append(DestRule(kind=kind, frm=_strs(r["from"], f"{ww}.from"), platform=_str(r.get("platform", ""), ww),
                               required=_bool(r.get("required", False), ww), multi=_bool(r.get("multi", False), ww),
-                              location=_bool(r.get("location", False), ww)))
+                              location=_bool(r.get("location", False), ww), context=_bool(r.get("context", False), ww)))
     ops = _strs(d["ops"], f"{w}.ops")
     if not ops:
         raise PolicyError(f"{w}.ops: empty")
@@ -296,7 +332,8 @@ def _tool(i: int, d: Any) -> ToolRule:
         network_flags=[norm_field(x) for x in _strs(d.get("network_flags"), f"{w}.network_flags")],
         interact_class=_choice(d.get("interact_class", "input"), f"{w}.interact_class", ("navigate", "input")),
         modes=[_choice(m, f"{w}.modes", MODES) for m in _strs(d.get("modes"), f"{w}.modes")],
-        sets_location=_bool(d.get("sets_location", False), f"{w}.sets_location"))
+        sets_location=_bool(d.get("sets_location", False), f"{w}.sets_location"),
+        counts_as_action=_bool(d.get("counts_as_action", True), f"{w}.counts_as_action"))
 
 
 def _rate(d: Any, w: str, with_match: bool = False) -> RateRule:
@@ -329,7 +366,17 @@ def compile_policy(doc: Any, *, run_dir: str = "", path: str = "", raw: bytes = 
     if not modes["live"].requires_authorization_record:
         raise PolicyError("modes.live.requires_authorization_record must be true")
 
-    ds = _keys(top["destinations"], "destinations", required=("deny", "interactive", "file_roots", "protected_paths"))
+    ds = _keys(top["destinations"], "destinations", required=("deny", "interactive", "file_roots", "protected_paths"),
+               optional=("local_services",))
+    local_services = []
+    for i, txt in enumerate(_strs(ds.get("local_services"), "destinations.local_services")):
+        try:
+            pat = D.parse_pattern(txt)
+        except D.DestinationError as e:
+            raise PolicyError(f"destinations.local_services[{i}]: {e}") from e
+        if pat.kind != "url" or not pat.port or pat.path or pat.scheme or any(c in pat.host for c in "*?"):
+            raise PolicyError(f"destinations.local_services[{i}]: expected an exact host:port, got {txt!r}")
+        local_services.append((pat.host, pat.port))
     if not isinstance(top["tools"], list) or not top["tools"]:
         raise PolicyError("tools: expected a non-empty list")
     tools = [_tool(i, t) for i, t in enumerate(top["tools"])]
@@ -341,10 +388,12 @@ def compile_policy(doc: Any, *, run_dir: str = "", path: str = "", raw: bytes = 
     _choice(pub["require_approval"], "publishing.require_approval", ("unless_preauthorized", "always"))
     sp = _keys(top["spending"], "spending", required=("auto_approve_below", "per_action", "per_day"))
     spending = {k: float(_num(sp[k], f"spending.{k}")) for k in sp}
-    rl = _keys(top["rate_limits"], "rate_limits", required=("default", "write", "primitive", "per_destination"))
+    rl = _keys(top["rate_limits"], "rate_limits", required=("default", "write", "primitive", "per_destination"),
+               optional=("write_global",))
     if not isinstance(rl["per_destination"], list):
         raise PolicyError("rate_limits.per_destination: expected a list")
-    lm = _keys(top["limits"], "limits", required=("max_primitives_per_action",))
+    lm = _keys(top["limits"], "limits", required=("max_primitives_per_action",),
+               optional=("max_external_primitives_per_action",))
 
     du = _keys(top["data_use"], "data_use", required=("classes", "store_flags", "train_flags"))
     classes: Dict[str, Dict[str, Any]] = {}
@@ -363,7 +412,19 @@ def compile_policy(doc: Any, *, run_dir: str = "", path: str = "", raw: bytes = 
     platforms = []
     for name, p in _keys(top["platforms"], "platforms", optional=tuple(top["platforms"] or {})).items():
         w = f"platforms.{name}"
-        p = _keys(p, w, required=("match", "rules"), optional=("require_disclosure",))
+        p = _keys(p, w, required=("match", "rules"), optional=("require_disclosure", "transport"))
+        transport = []
+        if not isinstance(p.get("transport") or [], list):
+            raise PolicyError(f"{w}.transport: expected a list")
+        for i, t in enumerate(p.get("transport") or []):
+            ww = f"{w}.transport[{i}]"
+            t = _keys(t, ww, required=("ops", "method", "path"))
+            path = _str(t["path"], f"{ww}.path", allow_empty=False)
+            if not path.startswith("/") or path.count("{id}") != 1:
+                raise PolicyError(f"{ww}.path: must start with '/' and contain {{id}} exactly once")
+            transport.append(TransportRule(ops=_strs(t["ops"], f"{ww}.ops"),
+                                           method=_str(t["method"], f"{ww}.method", allow_empty=False).upper(),
+                                           path=path))
         rules = []
         if not isinstance(p["rules"], list):
             raise PolicyError(f"{w}.rules: expected a list")
@@ -381,7 +442,8 @@ def compile_policy(doc: Any, *, run_dir: str = "", path: str = "", raw: bytes = 
                 effects=[_choice(e, f"{ww}.when.effects", TOOL_EFFECTS) for e in _strs(wh.get("effects"), ww)],
                 kinds=_strs(wh.get("kinds"), ww), ops=_strs(wh.get("ops"), ww), data=_strs(wh.get("data"), ww)))
         platforms.append(Platform(name=str(name), match=_patterns(p["match"], f"{w}.match"),
-                                  require_disclosure=_bool(p.get("require_disclosure", False), w), rules=rules))
+                                  require_disclosure=_bool(p.get("require_disclosure", False), w), rules=rules,
+                                  transport=transport))
 
     idn = _keys(top["identity"], "identity", required=("disclosure_text", "require_disclosure_for_kinds",
                                                        "acting_identities"))
@@ -389,7 +451,8 @@ def compile_policy(doc: Any, *, run_dir: str = "", path: str = "", raw: bytes = 
                                                           "incentives", "data_collection", "profiling", "vulnerable",
                                                           "credentials", "content_patterns"))
     mo = _keys(pr["mass_outreach"], "prohibited.mass_outreach",
-               required=("recipient_fields", "max_recipients", "max_write_destinations", "duplicate", "broadcast_tokens"))
+               required=("recipient_fields", "max_recipients", "max_write_destinations", "duplicate", "broadcast_tokens"),
+               optional=("max_mentions", "mention_patterns"))
     dup = _keys(mo["duplicate"], "prohibited.mass_outreach.duplicate",
                 required=("similarity", "max_destinations", "window_s", "min_chars"))
     sim = _num(dup["similarity"], "prohibited.mass_outreach.duplicate.similarity")
@@ -401,7 +464,8 @@ def compile_policy(doc: Any, *, run_dir: str = "", path: str = "", raw: bytes = 
     inc = _keys(pr["incentives"], "prohibited.incentives", required=("fields", "purpose_fields", "denied_purposes"))
     dc = _keys(pr["data_collection"], "prohibited.data_collection", required=("personal_fields", "field_list_args"))
     prof = _keys(pr["profiling"], "prohibited.profiling", required=("fields",))
-    vul = _keys(pr["vulnerable"], "prohibited.vulnerable", required=("audience_fields", "terms"))
+    vul = _keys(pr["vulnerable"], "prohibited.vulnerable", required=("audience_fields", "terms"),
+                optional=("exploit_terms",))
     cred = _keys(pr["credentials"], "prohibited.credentials", required=("field_names", "reference_prefix", "patterns"))
 
     def fields(v: Any, w: str) -> List[str]:
@@ -427,8 +491,11 @@ def compile_policy(doc: Any, *, run_dir: str = "", path: str = "", raw: bytes = 
         "personal_fields": fields(dc["personal_fields"], "prohibited.data_collection.personal_fields"),
         "field_list_args": fields(dc["field_list_args"], "prohibited.data_collection.field_list_args"),
         "profiling_fields": fields(prof["fields"], "prohibited.profiling.fields"),
+        "profiling_raw": [x.lower() for x in _strs(prof["fields"], "prohibited.profiling.fields")],
         "audience_fields": fields(vul["audience_fields"], "prohibited.vulnerable.audience_fields"),
         "vulnerable_terms": [t.lower() for t in _strs(vul["terms"], "prohibited.vulnerable.terms")],
+        "exploit_terms": [t.lower() for t in _strs(vul.get("exploit_terms"), "prohibited.vulnerable.exploit_terms")],
+        "max_mentions": int(_num(mo.get("max_mentions", 10), "prohibited.mass_outreach.max_mentions", integer=True)),
         "credential_fields": fields(cred["field_names"], "prohibited.credentials.field_names"),
         "credential_ref_prefix": _str(cred["reference_prefix"], "prohibited.credentials.reference_prefix",
                                       allow_empty=False),
@@ -442,6 +509,14 @@ def compile_policy(doc: Any, *, run_dir: str = "", path: str = "", raw: bytes = 
         cps.append(ContentPattern(id=_str(c["id"], w, allow_empty=False), cls=_str(c["class"], w, allow_empty=False),
                                   verdict=_choice(c["verdict"], f"{w}.verdict", ("deny", "needs_approval")),
                                   regex=_regex(c["regex"], f"{w}.regex")))
+    mps = []
+    if not isinstance(mo.get("mention_patterns") or [], list):
+        raise PolicyError("prohibited.mass_outreach.mention_patterns: expected a list")
+    for i, c in enumerate(mo.get("mention_patterns") or []):
+        w = f"prohibited.mass_outreach.mention_patterns[{i}]"
+        c = _keys(c, w, required=("id", "kind", "regex"))
+        mps.append((_str(c["id"], w, allow_empty=False), _choice(c["kind"], f"{w}.kind", ("broadcast", "user")),
+                    _regex(c["regex"], f"{w}.regex")))
     kps = []
     for i, c in enumerate(cred["patterns"]):
         w = f"prohibited.credentials.patterns[{i}]"
@@ -472,7 +547,12 @@ def compile_policy(doc: Any, *, run_dir: str = "", path: str = "", raw: bytes = 
         disclosure_text=_str(idn["disclosure_text"], "identity.disclosure_text"),
         disclosure_kinds=_strs(idn["require_disclosure_for_kinds"], "identity.require_disclosure_for_kinds"),
         acting_identities=int(_num(idn["acting_identities"], "identity.acting_identities", lo=1, integer=True)),
-        prohibited=prohibited, content_patterns=cps, credential_patterns=kps)
+        prohibited=prohibited, content_patterns=cps, credential_patterns=kps, local_services=local_services,
+        rate_write_global=_rate(rl["write_global"], "rate_limits.write_global") if rl.get("write_global") else None,
+        max_external_primitives_per_action=int(_num(lm.get("max_external_primitives_per_action",
+                                                            lm["max_primitives_per_action"]),
+                                                     "limits.max_external_primitives_per_action", lo=1, integer=True)),
+        mention_patterns=mps)
 
 
 def load_policy(path: Optional[str] = None, run_dir: str = "") -> Policy:
