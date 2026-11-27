@@ -45,7 +45,7 @@ from ...core.canonical import digest
 from ...rapid import families as RF
 from ...rapid.generator import CHANNELS, TEMPORAL, TOPOLOGIES, GraphBuilder, topo_order
 
-COMPOSE_VERSION = "n-compose/4"
+COMPOSE_VERSION = "n-compose/5"
 MOTIFS = ("saturation", "threshold", "non_monotonic", "linear_nonlinear", "decay", "delay", "hysteresis", "feedback",
           "path_dependence")
 COMBINERS = ("sum", "complementarity", "multiplicative", "substitution")
@@ -275,6 +275,11 @@ def _pathways(gb: GraphBuilder, rng, s: dict, levers: list[str]) -> tuple[str, l
     return drive, path, levers[0]
 
 
+# ranges of the wandering-optimum driver's hidden parameters (lever units of a 0-10 lever; fidelity gen.wandering_optimum)
+WANDER = {"half_width": (1.0, 1.5), "path_sd": (2.0, 2.6), "shock_ar": (0.85, 0.9), "lowpass_rate": (0.08, 0.14),
+          "centre_low": (2.0, 3.0), "centre_high": (7.0, 8.0)}
+
+
 def _wandering(gb, rng, drive: str, key: str) -> tuple[str, str]:
     """Driver `wandering_optimum`: the key-lever setting at which what the facility makes fits the market (a taste,
     a position, a specification) follows a hidden, smooth random path for the whole episode, and sales fall off
@@ -284,17 +289,19 @@ def _wandering(gb, rng, drive: str, key: str) -> tuple[str, str]:
     multiplies the drive. A constant setting is right only while the path passes it, so the best constant in
     hindsight earns far less than following the path, and a two-setting rule covers at most two places on it;
     nothing observable reveals the path except how sales respond to the setting. The key lever carries no cost (its
-    economics are the fit), and its default is the noise-free best setting (the centre), so leaving it alone is the
-    best fixed choice in expectation and there is nothing to gain from where the default sits (DEF-N-6)."""
-    w = _u(rng, 1.0, 1.5)                                # half-width of the fit, lever units (range 0-10)
-    A = _u(rng, 2.0, 2.6)                                # stationary sd of the path, lever units
-    a = _u(rng, 0.85, 0.9)                               # AR(1) coefficient of the shocks
-    r = _u(rng, 0.08, 0.14)                              # low-pass rate (decay: level' = (1 - r) level + r v)
+    economics are the fit). Its public default is drawn uniformly over the lever's range, independently of every
+    hidden parameter (c0, w, the path): the default carries no information about where the market's taste is
+    (DEF-N-8: a default at c0 disclosed the hidden centre, and admission's dominance check then measured gains
+    over a waiting policy that already sat at the centre)."""
+    w = _u(rng, *WANDER["half_width"])                   # half-width of the fit, lever units (range 0-10)
+    A = _u(rng, *WANDER["path_sd"])                      # stationary sd of the path, lever units
+    a = _u(rng, *WANDER["shock_ar"])                     # AR(1) coefficient of the shocks
+    r = _u(rng, *WANDER["lowpass_rate"])                 # low-pass rate (decay: level' = (1 - r) level + r v)
     b = 1.0 - r
     gain = r * math.sqrt((1 + a * b) / ((1 - a * b) * (1 - a * a) * (1 - b * b)))
     shocks = gb.prim("hidden_confounding", {"mean": 0.0, "sd": A / gain, "ar": a}, role="taste_shock")
     path = gb.prim("decay", {"rate": r, "init": 0.0}, role="taste", x=[(shocks, 0, r)])
-    c0 = _u(rng, 2.0, 3.0) if rng.random() < 0.5 else _u(rng, 7.0, 8.0)
+    c0 = _u(rng, *WANDER["centre_low"]) if rng.random() < 0.5 else _u(rng, *WANDER["centre_high"])
     k = 2.0 / w
     lo_edge = gb.prim("linear_nonlinear", {"form": "logistic", "a": 1.0, "b": 0.0, "c": k, "m": 0.0},
                       bias={"x": -(c0 - w)}, x=[(key, 0, 1.0), (path, 0, -1.0)])
@@ -302,7 +309,8 @@ def _wandering(gb, rng, drive: str, key: str) -> tuple[str, str]:
                       bias={"x": -(c0 + w)}, x=[(key, 0, 1.0), (path, 0, -1.0)])
     fit = gb.prim("multiplicative", {"k": 1.0}, role="ideal", a=[(lo_edge, 0, 1.0)], b=[(hi_edge, 0, 1.0)])
     nd = gb.nodes[int(key[1:])]
-    nd["lever"]["default"] = float(c0)
+    lo, hi = float(nd["lever"]["lo"]), float(nd["lever"]["hi"])
+    nd["lever"]["default"] = float(rng.uniform(lo, hi))  # independent of c0, w and the path (DEF-N-8)
     nd["lever"]["cost"] = 0.0
     out = gb.prim("multiplicative", {"k": 1.0}, a=[(drive, 0, 1.0)], b=[(fit, 0, 1.0)])
     return out, key

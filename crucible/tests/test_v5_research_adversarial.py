@@ -120,6 +120,69 @@ def test_generator_has_no_fixed_rule_shortcut():
     assert r["passed"], r["median_share_of_oracle"]
 
 
+def _wandering_default_and_centre(cfg):
+    """(public default of the key lever, hidden centre c0) of a composed wandering-optimum world: c0 enters the two
+    logistic fit edges of the key lever as biases -(c0 - w) and -(c0 + w) (`compose._wandering`)."""
+    key = cfg["claim"]["lever"]
+    kn = next(nd for nd in cfg["nodes"] if nd["id"] == key)
+    edges = [nd for nd in cfg["nodes"] if nd.get("type") == "prim" and (nd.get("bias") or {}).get("x") is not None
+             and any(t[0] == key for t in (nd.get("ports") or {}).get("x", []))]
+    b = sorted(-float(nd["bias"]["x"]) for nd in edges[-2:])
+    return float(kn["lever"]["default"]), (b[0] + b[1]) / 2.0, float(kn["lever"]["lo"]), float(kn["lever"]["hi"])
+
+
+def test_wandering_default_does_not_disclose_the_hidden_centre():
+    """DEF-N-8 (verifier probe probe_t4.py): the public default of a wandering-optimum lever was the hidden centre c0
+    of the optimum's path (|default - c0| <= 9e-16 in 24 of 24 worlds), so a tracker starting at the default started
+    at the hidden optimum and admission's dominance check measured gains over a waiting policy already sitting
+    there. The default is now drawn uniformly over the lever's range independently of c0: in 120 composed worlds it
+    is nowhere near c0 systematically (share within 0.25 lever units about what independence gives, ~0.05), its
+    correlation with c0 is small, and it covers the whole range."""
+    from crucible.research.v5 import compose as C
+    rng = np.random.default_rng(2026)
+    s = C.normalize({"topology": "chain", "motifs": ["saturation"], "combiner": "sum", "temporal": "instant",
+                     "channels": [], "n_levers": 1, "drivers": ["wandering_optimum"], "population": {"kind": "none"},
+                     "horizon": 60})
+    rows = [_wandering_default_and_centre(C._compose_once(rng, s, {})) for _ in range(120)]
+    d = np.array([r[0] for r in rows])
+    c0 = np.array([r[1] for r in rows])
+    lo, hi = rows[0][2], rows[0][3]
+    assert np.all((c0 >= 1.9) & (c0 <= 8.1))                 # the fit edges were read correctly
+    near = float(np.mean(np.abs(d - c0) < 0.25))
+    assert near <= 0.15, near                                # was 1.0 (default == c0)
+    assert abs(float(np.corrcoef(d, c0)[0, 1])) <= 0.25
+    assert d.min() <= lo + 0.15 * (hi - lo) and d.max() >= hi - 0.15 * (hi - lo)
+
+
+def test_wandering_reference_reads_no_hidden_parameter():
+    """DEF-N-8: the scripted reference of wandering worlds (`genref.play`) acts only through the public view; it
+    scans the lever range first because the default carries no information. Its first SCAN actions are the evenly
+    spaced scan settings whatever the world's hidden centre is (two worlds with centres on opposite sides)."""
+    from crucible.rapid.families import make
+    from crucible.rapid.identify import PublicView
+    from crucible.research.v5 import compose as C
+    from crucible.research.v5 import genref as GR
+    s = C.normalize({"topology": "chain", "motifs": ["saturation"], "combiner": "sum", "temporal": "instant",
+                     "channels": [], "n_levers": 1, "drivers": ["wandering_optimum"], "population": {"kind": "none"},
+                     "horizon": 40})
+    firsts = []
+    with C.registered(s) as names:
+        for sd in (0, 1, 2, 3):
+            env = make(names[0], sd)
+            seen = []
+
+            class V(PublicView):
+                def step(self, a):
+                    seen.append(sorted((a or {}).get("values", {}).values()))
+                    return super().step(a)
+            GR.play(V(env), env)
+            firsts.append([round(v[0], 6) for v in seen[:GR.SCAN]])
+            assert len(seen) == env.horizon
+    lo, hi = 0.0, C.LEVER_HI
+    expect = [round(lo + (i + 0.5) / GR.SCAN * (hi - lo), 6) for i in range(GR.SCAN)]
+    assert all(f == expect for f in firsts), firsts
+
+
 def test_control_labels_control_false_labels_and_keep_power():
     """The instrument's own statistics, adversarially: on crossed null data (learner-seed and world effects, no
     learner effect) a label is given in at most 1% of batteries at `instrument.LABEL_LEVEL`, for learner-seed sds
@@ -164,6 +227,24 @@ def test_widened_layers_checkpoint_is_refused(reg, tmp_path):
         assert LR.params_hash({k: z[k] for k in z.files}) == wide["params_hash"]     # the manifest matches
     r = FR.weights_only_eval(wide, spec)
     assert not r["ok"] and r["checks"]["authorised_parameters"] is False and "shapes" in r["refused"]
+
+
+@pytest.mark.parametrize("dtype", ["complex128", "float32", "float16", "int64"])
+def test_retyped_checkpoint_is_refused(reg, tmp_path, dtype):
+    """DEF-O-12 (verifier probe probe_sp158.py): a 'weights' checkpoint with the declared shapes but another dtype
+    (complex128 carries a second real per entry), under a manifest the adversary rehashed, is refused by its dtypes;
+    the honest checkpoint of the same learner is accepted."""
+    w = LR.make("weights", 2)
+    _train(w, reg, n=2, reps=1)
+    man = FR.save_checkpoint(w, str(tmp_path / "w"))
+    spec = [{"entry": FAM, "seed": 1_000_102}]
+    assert FR.weights_only_eval(man, spec)["ok"]
+    bad = FR.tampered_copy(man, f"retyped:{dtype}", str(tmp_path / dtype))
+    with np.load(os.path.join(bad["dir"], "params.npz")) as z:
+        assert all(z[k].dtype == np.dtype(dtype) and z[k].shape == w.parameters()[k].shape for k in z.files)
+        assert LR.params_hash({k: z[k] for k in z.files}) == bad["params_hash"]     # the manifest matches
+    r = FR.weights_only_eval(bad, spec)
+    assert not r["ok"] and r["checks"]["authorised_parameters"] is False and "dtypes" in r["refused"]
 
 
 def test_evaluator_enforces_the_interaction_budget(reg):

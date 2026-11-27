@@ -18,6 +18,9 @@ attack works where the defence is absent (the in-process gain, or the unjailed r
     arch_edit            the architecture configuration changed after its hash was recorded: refused
     widened_layers       every parameter array widened (more capacity than declared) under a rehashed manifest:
                          refused (shapes must be the declared architecture's)
+    retyped_parameters   the declared shapes in other types (complex128: a hidden second real per entry; float32,
+                         float16, int64) under a rehashed manifest: refused (dtypes must be the declared
+                         architecture's, DEF-O-12)
     evaluator_reach      `EvaluatorProber` looks for the evaluator from inside its learner (objects in its process,
                          the evaluator's environment and the sealed directory through the operating system): driven
                          in the harness process (`evaluator.run_remote_episode`) it finds the evaluator (the attack
@@ -48,7 +51,8 @@ from .episodes import run_episode, score_episode
 from .sampler import build_env
 
 CONTROLS = ("process_stash", "file_stash", "config_smuggle", "memory_in_params", "pickle_checkpoint", "arch_edit",
-            "widened_layers", "evaluator_reach", "calibration_shortcut")
+            "widened_layers", "retyped_parameters", "evaluator_reach", "calibration_shortcut")
+RETYPED = ("complex128", "float32", "float16", "int64")
 SHORTCUT_MAX = 0.5          # a fixed public rule reaching half the oracle's improvement in the median world is a shortcut
 GAIN_MIN = 0.02             # an attack "works" when it gains at least this much (normalised score) where undefended
 TRAIN_SEEDS = tuple(760_000 + i for i in range(8))
@@ -153,6 +157,13 @@ def _tamper_controls(reg: Registry, families: list[str], workdir: str) -> dict:
         r = FR.weights_only_eval(FR.tampered_copy(man, kind, os.path.join(workdir, kind)), spec)
         out[name] = {"refused": r.get("refused"), "honest_checkpoint_accepted": bool(honest.get("ok")),
                      "passed": bool(honest.get("ok") and not r.get("ok") and r.get("refused"))}
+    rt = {}
+    for dt in RETYPED:
+        r = FR.weights_only_eval(FR.tampered_copy(man, f"retyped:{dt}", os.path.join(workdir, f"retyped_{dt}")), spec)
+        rt[dt] = {"refused": r.get("refused"), "ok": bool(r.get("ok"))}
+    out["retyped_parameters"] = {"by_dtype": rt, "honest_checkpoint_accepted": bool(honest.get("ok")),
+                                 "passed": bool(honest.get("ok") and all(not v["ok"] and v["refused"]
+                                                                         for v in rt.values()))}
     return out
 
 

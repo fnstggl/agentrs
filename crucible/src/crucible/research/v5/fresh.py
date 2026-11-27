@@ -257,15 +257,18 @@ def _child(pre_imported: list[str]) -> None:
     except OSError:
         checks["filesystem_confined"] = True
     learner = LR.make(arch["arch"], int(arch.get("seed", 0)), **dict(cfg))
-    shapes = {k: np.asarray(v).shape for k, v in learner.parameters().items()}
-    declared = set(shapes)
-    numeric = all(np.issubdtype(a.dtype, np.number) for a in params.values())
-    # every entry has exactly the shape the declared architecture gives it: a checkpoint with widened layers (more
-    # capacity than the configuration declares, under a manifest the adversary rehashed) is refused (SP-15.8)
-    wrong = sorted(k for k in set(params) & declared if params[k].shape != shapes[k])
-    checks["authorised_parameters"] = set(params) == declared and numeric and not wrong
+    fresh_params = {k: np.asarray(v) for k, v in learner.parameters().items()}
+    declared = set(fresh_params)
+    # every entry has exactly the shape AND dtype the freshly constructed architecture gives it (DEF-O-12): a
+    # checkpoint with widened layers, or with the declared shapes in a wider type (complex128 carries two reals per
+    # entry; float16/float32/int64 change what the declared architecture computes), under a manifest the adversary
+    # rehashed, is refused (SP-15.8)
+    wrong = sorted(k for k in set(params) & declared if params[k].shape != fresh_params[k].shape)
+    wrong_type = sorted(k for k in set(params) & declared if params[k].dtype != fresh_params[k].dtype)
+    checks["authorised_parameters"] = set(params) == declared and not wrong and not wrong_type
     if not checks["authorised_parameters"]:
         out["refused"] = (f"parameter shapes differ from the declared architecture {wrong}" if wrong else
+                          f"parameter dtypes differ from the declared architecture {wrong_type}" if wrong_type else
                           f"unauthorised parameter entries {sorted(set(params) ^ declared)}")
         return done()
     h0 = params_hash(params)
@@ -326,8 +329,10 @@ def in_process_eval(learner, worlds: list[Mapping], *, rng_seed: int = 12345) ->
 def tampered_copy(manifest: Mapping, kind: str, directory: str) -> dict:
     """Adversarial checkpoints for the gate: ``memory_in_params`` (a memory table added to the parameter file),
     ``pickle`` (an object array that needs pickle to load), ``arch_edit`` (architecture configuration changed after
-    the hash was recorded) or ``widened_layers`` (every array of the parameter file doubled along its last axis, and
-    the manifest's parameter hash recomputed by the adversary, which controls its own checkpoint). Returns a
+    the hash was recorded), ``widened_layers`` (every array of the parameter file doubled along its last axis) or
+    ``retyped:<dtype>`` (the declared shapes in another type: ``complex128`` carries a second real per entry,
+    ``float32``/``float16``/``int64`` change what the declared architecture computes; DEF-O-12); for the last two
+    the manifest's parameter hash is recomputed by the adversary, which controls its own checkpoint. Returns a
     manifest pointing at the copy (with the original expected hashes, except where the kind rehashes)."""
     os.makedirs(directory, exist_ok=True)
     shutil.copyfile(os.path.join(manifest["dir"], "arch.json"), os.path.join(directory, "arch.json"))
@@ -348,10 +353,18 @@ def tampered_copy(manifest: Mapping, kind: str, directory: str) -> dict:
                           W2=np.concatenate([0.5 * W2, 0.5 * W2], axis=0))
         else:
             params = {k: (np.concatenate([v, v], axis=-1) if v.ndim else v) for k, v in params.items()}
+    elif kind.startswith("retyped:"):
+        dt = np.dtype(kind.split(":", 1)[1])
+        if dt.kind == "c":                              # a hidden second real per entry (twice the capacity)
+            params = {k: v.astype(dt) + 1j * 0.25 for k, v in params.items()}
+        elif dt.kind in "iu":
+            params = {k: np.round(v * 1000).astype(dt) for k, v in params.items()}
+        else:
+            params = {k: v.astype(dt) for k, v in params.items()}
     else:
         raise ValueError(kind)
     with open(os.path.join(directory, "params.npz"), "wb") as fh:
         np.savez(fh, **params)
-    if kind == "widened_layers":
+    if kind == "widened_layers" or kind.startswith("retyped:"):
         return dict(manifest, dir=directory, params_hash=params_hash(params))
     return dict(manifest, dir=directory)
