@@ -1,0 +1,154 @@
+{
+ "NA-08": {
+  "status": "verified",
+  "by": "G-cl",
+  "notes": "Experiential weights receive real gradients through D's ContinualLearner. Debug scale (CPU): one frequent update changes experiential + heads tensors, adapters and reward untouched (reward tensors carry no .grad), behaviour probe moves (max |dz| 0.017). Real configuration (Qwen3-4B + 50m core, CUDA, own parameter snapshots): 127 experiential and 56 head tensors changed, 0 adapter / 0 reward tensors, frozen backbone hash unchanged (checked in a fresh process), predictions moved (max |db| 1.32, |dNLL| 0.064); grad norm experiential 0.425 (D: 0.344), weight delta 0.2540 (D: 0.2529). Not shown by anyone: a learning curve on the real configuration (D says so).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_learner.py --only learn",
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_real.py --part write --dir DIR",
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_real.py --part read --dir DIR",
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu"
+  ]
+ },
+ "RC-01": {
+  "status": "partial",
+  "by": "G-cl",
+  "notes": "Declared queries link exactly to their decision and queue it; equal window evidence splits 0.5/0.5 with uncertainty 0.5 kept into the simple credit; recency is not evidence (no evidence -> no link); a decision after the outcome is refused and its share stays unattributed; duplicate events are dropped; a verified copy replaces the unverified one; an outcome dated before its query is refused. REFUTED: an attribution map with a negative amount (by_action {a: 3, b: -1}, event value 2) gives a link weight 1.5 > 1 and credits 3.0 for an outcome of 2.0; b's -1 is silently dropped (defect M3, links.py:213-221).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_store_links.py --only links"
+  ]
+ },
+ "RC-02": {
+  "status": "partial",
+  "by": "G-cl",
+  "notes": "ReturnDecomposer verified with random non-zero weights, padding, irregular times and beta in {0, 1e-4, 2e-3, 0.05}: signal = (G - F(H_<t))/Gamma_t, return-to-go identity, unmatured rows NaN and loss None, no gradient from unmatured rows, perturbing decisions >= j (latents and times) leaves pred[:, :j+1], signal[:, :j] and earlier contributions bit-identical. Gaps: (1) the redistributed credit is not consumed by any training update (spec 9.2 'use redistributed credit during eligible training updates'; D discloses); (2) trajectories longer than max_len (64): earlier decisions get no RUDDER credit and the window is discounted from its own first decision while G is referenced at the trajectory start (rudder_rtg 0.1273 vs 0.1579 expected after 10800 s at beta 2e-5; defect m3); (3) the validation of RUDDER against experiments is in-sample (M1, see RC-08).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_rudder.py",
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_providers.py"
+  ]
+ },
+ "RC-03": {
+  "status": "verified",
+  "by": "G-cl",
+  "notes": "sum_t Gamma_t c_t = G with Gamma_t = exp(-beta * (t_t - t_first)) recomputed independently: max error 0.0 (float64) for beta 0 .. 0.05 over 7 trajectories of length 1..13 with padding; D's Gamma equals the own one to 1e-12; trajectory_return G = sum of distinct events discounted to the first decision (own value equal to 1e-12, one event per dedup key). Caveat: for trajectories truncated to max_len the convention is applied to the window (m3).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_rudder.py"
+  ]
+ },
+ "RC-04": {
+  "status": "verified",
+  "by": "G-cl",
+  "notes": "Independent ground truth (own trajectory enumeration, own exact gradient by autograd, own hindsight coefficients w = p(a|s,u)/pi(a|s) - 1 with multiplicity counting, own Eq. 4 estimator) on key_to_door d3, noisy_key_to_door, two random trees: D's coefficients equal to 1e-15, D's cocoa_grad equal per trajectory to 4e-16, exact relative bias <= 1.2e-30. Monte Carlo with an own sampler, 200 seeds x 400 trajectories, z against the exact per-component variance: mean z^2 0.989 / 0.972 / 0.999 / 1.013 (SE 0.02-0.03), pooled max |z| inside the Bonferroni band; noisy rewards (key_to_door d4, sigma 0.5): pooled max |z| 2.43; a +0.3 bias in w is detected at |z| = 201 (the test can fail). Variance: COCOA below REINFORCE everywhere (exact trace 0.74 vs 4.65 etc.). Reproduced D's numbers: exact_rel_var_reinforce 23.458 (D 23.46), exact_rel_var_cocoa 10.517 (D 10.52), key-decision variance 8.03 / 0.0609 (D 8.09 / 0.0593, MC).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_cocoa.py --seeds 200 --n 400"
+  ]
+ },
+ "RC-05": {
+  "status": "partial",
+  "by": "G-cl",
+  "notes": "check_support refuses missing / NaN / >1 / unnormalised / near-zero / -inf propensities and open_ended-without-tracking, and the refused rows are NaN (not numbers); an untrained hindsight model claims w = 0; learned association / counterfactual estimate / experimental effect are separate fields (attach_experiment refuses non-randomised effects). Gaps: (m1) open-endedness is read only from decision.diagnostics['open_ended'] (default False) which no producer in the tree sets; ActionSpec.provenance ('backbone') is ignored, so backbone-generated candidate sets are 'supported' (probe D); (m2) the CAM extension's training pairs and credit sum exclude outcomes declared by an earlier decision but observed after t, which Eq. 4 includes (9 of 12 such pairs left out in one 6-decision lifetime): the extension is not the reference estimator's sum.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_cocoa.py",
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_providers.py"
+  ]
+ },
+ "RC-06": {
+  "status": "verified",
+  "by": "G-cl",
+  "notes": "A matured declared outcome links to its decision and queues it for re-training; CreditAssigner withholds RUDDER/COCOA until the objective is closed and nothing goal-relevant is pending (open objective and pending query both keep the return unmatured), then writes versioned credit for all earlier decisions (6-decision door lifetime: credit present after closing). D's provider tests (default + slow) pass. Depends on the agent calling put_objective_outcome (D-10, not integrated).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_store_links.py --only links",
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_rudder.py",
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+  ]
+ },
+ "RC-07": {
+  "status": "verified",
+  "by": "G-cl",
+  "notes": "Decision after the outcome refused as a cause; outcome before its query refused; audit_leakage reports exactly a planted future-dated context item and nothing else; put_item never replaces a stored item; RUDDER prefix predictions are bit-identical under perturbation of later decisions and times. Caveat (M2): SqliteExperienceStore.update() accepts a rewritten decision / context_item_refs / ts for a stored record; audit_leakage catches it only when the injected items are dated after the decision.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_store_links.py --only links,immut",
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_rudder.py"
+  ]
+ },
+ "RC-08": {
+  "status": "partial",
+  "by": "G-cl",
+  "notes": "Mechanism exists (selector starts at 'simple', scores only randomised evidence, gate on mean z^2 / sign agreement), RUDDER and COCOA are exercised. REFUTED as 'selected by evidence': the experiments used to validate the estimators are the lifetimes they were trained on (71 % of the experiment records are in the learner's training split, compare_with_experiment uses all of them; D's synthetic selection test also trains and validates on the same data). In D's recorded LabWorld run the RUDDER estimate has standard error 0.0 in all 6 experiments: each arm's estimate is a single fitted value F(first decision | arm) regressed on the same returns that define the measured difference, so agreement is largely by construction (defect M1). The promotion of 'rudder' is not independent evidence; D itself reports it as unstable across seeds.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_providers.py",
+   "cam_live/docs/evidence/D/diagnostics.json (credit.experiments[*].estimate_se.rudder == 0.0)"
+  ]
+ },
+ "CL-01": {
+  "status": "partial",
+  "by": "G-cl",
+  "notes": "kill -9 x12 of a writer appending (a third of records blob-backed) and adding outcomes: 2198 acknowledged appends and 1098 outcomes, none lost, integrity_check ok, seq strictly increasing. Single writer enforced in-process, cross-process and through a symlinked directory; readers read-only. Sampling (3000 batches of 32): no repeated record, per-stratum draws equal the configured quotas exactly, failures / delayed over-represented vs the pool, family stratum balanced over families of size 600/250/100/50 (chi2 5.2), informative stratum follows the configured priority (chi2 6.2 over 10 bins), pure strata contain only members, provenance never mixed unless named. REFUTED: update() rewrites the stored decision, probabilities, ts, context refs and provenance of an existing record without refusal, and the index columns stay old: sample(provenance='live') then returns a record whose stored provenance is 'staging' (defect M2).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_store_links.py --kills 12"
+  ]
+ },
+ "CL-02": {
+  "status": "verified",
+  "by": "G-cl",
+  "notes": "Changed groups recorded with before/after hashes and deltas; effect on predictions measured by a probe (debug: latent and world prediction move; real: |db| 1.32, |dNLL| 0.064, |dprobs| 0.0014 after one frequent update). Held-out learning reproduced qualitatively from D's own experiment (current tree): mean NLL 2.863 -> 2.300 (-0.563 +- 0.226, n 151), median worse (1.906 -> 2.195), 47.7 % improved; D recorded 2.954 -> 2.284 (not regenerable exactly from the committed code, m5).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_learner.py --only learn",
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_real.py --part write --dir DIR",
+   ".venv/bin/python -m cam_live.credit.diagnose --out OUT --work DIR"
+  ]
+ },
+ "CL-03": {
+  "status": "partial",
+  "by": "G-cl",
+  "notes": "Adapter updates occur: debug scale every adapter_every frequent updates, changing only semantic_adapters; real configuration (forced slow step): 144/144 LoRA and 26/28 bridge tensors changed, experiential / heads / reward unchanged, adapter delta norms 0.01513 / 0.00876 (D 0.01513 / 0.00876). The held-out guard does not protect: on Qwen3-4B the slow step raised held-out loss 3.437 -> 3.579 (+4.1 %; D's run +4.3 %) and was kept because the tolerance is 5 % per step relative to the immediately preceding value, so repeated steps can compound (M4); a reverted step leaves its Adam state behind (m4). The world-NLL gradient into the adapters is 250x smaller than the grounding loss here (0.028 vs 7.09; D: 0.001 vs 5.58).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_real.py --part write --dir DIR",
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_learner.py --only learn"
+  ]
+ },
+ "CL-04": {
+  "status": "partial",
+  "by": "G-cl",
+  "notes": "The retention test functions and the mechanism reduces forgetting in D's experiment re-run on the current tree: NLL increase on family A +2.772 +- 0.655 (naive, replay of B only) vs -0.023 +- 0.077 (family-balanced replay + functional regulariser), two identical runs; with the pre-commit warm-up default (0) +2.537 vs +0.154. D's recorded +2.085 vs +0.150 is not regenerable from the committed code (m5). Single seed, single family pair; replay and regulariser not ablated separately (D discloses).",
+  "evidence": [
+   ".venv/bin/python -m cam_live.credit.diagnose --only retention --out OUT --work DIR",
+   ".venv/bin/python cam_live/docs/verification/repro/cl/repro_retention.py --warmup 0 --work DIR"
+  ]
+ },
+ "CL-05": {
+  "status": "verified",
+  "by": "G-cl",
+  "notes": "promote_learner: first checkpoint with validation + retention promoted; a checkpoint whose retention metric dropped 0.5 is refused and the learner is rolled back to the promoted weights AND optimizer state; missing retention -> refused; internal-reward-only validation -> refused. Minor (m6): the internal-reward filter is name-based ('heldout/neg_reward_return' is accepted as validation).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_learner.py --only promote"
+  ]
+ },
+ "CL-06": {
+  "status": "partial",
+  "by": "G-cl",
+  "notes": "Debug/CPU: kill -9 at random times during 196 checkpoint writes (10 kills): newest intact checkpoint >= last acknowledged, verifies and loads consistently; weights-only export reloaded in a fresh process gives bit-identical belief / latent / NLL / action probabilities (only with the same thread count: 2 vs 1 threads differ by 1e-6); optimizer state restored exactly into a fresh learner by parameter name. Real configuration (new evidence): the fresh-process reload on CUDA restores every group hash exactly (incl. frozen backbone) but predictions are not bit-exact (max |db| 0.053, |dNLL| 0.0014; see G_cl.md section on m7). Integrated agent / runtime restart not covered (D marks partial).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_learner.py --only kill,export",
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_real.py --part read --dir DIR",
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_real.py --part within --dir DIR"
+  ]
+ },
+ "CL-08": {
+  "status": "verified",
+  "by": "G-cl",
+  "notes": "poll() returns nothing without matured outcomes and triggers on independent units (36 units / 36 matured rows of 67 queued); a five-record intervention/procedure/primitive hierarchy is one unit; slow adapter updates run exactly after every adapter_every (=3) applied frequent updates (timescales F F S F F F S); fast_update changes the fast belief and no persistent parameter. The meta timescale belongs to C.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_learner.py --only learn",
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_smdp.py"
+  ]
+ },
+ "CU-20": {
+  "status": "verified",
+  "by": "G-cl",
+  "notes": "Duration-aware discount composes (smdp_target chain = time-discounted return to 1e-15); an event reported by the primitive that produced it and as the answer to the intervention's declared query (same dedup key) is credited once over the hierarchy (simple credit 1.0 on the intervention only), enters the return once (G = exp(-beta*500)), and the hierarchy is one learning unit; CreditLedger refuses a second counted assignment. Limits (disclosed by D): the ledger is not wired into CreditAssigner, and two reports of one consequence under different dedup keys cannot be recognised as the same event.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_smdp.py"
+  ]
+ }
+}
