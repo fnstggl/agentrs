@@ -29,7 +29,7 @@ from crucible.social import audience as AUD
 from crucible.social import experiments as X
 from crucible.social.recsys import REGISTRY
 from crucible.substrate import attention, columns, ids
-from social_helpers import assert_met  # noqa: E402
+from social_helpers import assert_met, failed_ticks  # noqa: E402
 
 crucible.load_all_modules()
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_D.py"
@@ -365,12 +365,14 @@ def test_D5_exposure_and_attention_accounting_consistent(base):
                "exposures_recounted": rc["exposures_checked"], "distinct_viewers_recounted":
                    rc["distinct_viewers_checked"], "consumption_rows": rc["consumption_rows"],
                "views_without_prior_exposure": rc["views_without_prior_exposure"],
-               "other_invariant_violations": sum(len(c["other"]) for c in checks), "run_wall_s": round(base["wall_s"], 1)}
+               "other_invariant_violations": sum(len(c["other"]) for c in checks), "run_wall_s": round(base["wall_s"], 1),
+               **failed_ticks(w)}
     evidence.record("D.5", metrics, command=CMD,
                     notes="Invariants checked after every 15-minute step of the 4-day run (audience counters vs exact "
                           "sets, unique <= totals, repeat = views - unique; attention left >= 0 and spent <= budget); "
                           "then every audience quantity recounted from the recorded batch blobs; per individual and "
                           "day, seconds consumed never exceed the attention budget.")
     assert_met('D.5', metrics)
+    assert metrics["failed_ticks"] == 0, metrics["failed_tick_errors"]
     assert rc["impression_rows"] > 10000 and rc["consumption_rows"] > 1000
     assert len(checks) >= 4 * 96 - 1

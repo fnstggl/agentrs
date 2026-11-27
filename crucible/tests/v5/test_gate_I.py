@@ -34,7 +34,7 @@ from crucible.acceptance.v5 import evidence
 from crucible.core.kernel import World
 from crucible.social import audience as AUD
 from crucible.social import cascade
-from social_helpers import assert_met  # noqa: E402
+from social_helpers import assert_met, failed_ticks  # noqa: E402
 
 crucible.load_all_modules()
 CMD = ('PYTHONPATH=src python -m crucible.scale.slots --cpu 4 --label "ws-C2: gate I" -- '
@@ -106,6 +106,8 @@ def test_I1_ten_million_identities(positive_control):
                "identities_with_decisions": m["identities_with_decisions"],
                "materialised_sample_principals": m["materialised_sample"], "estimated": False})
     assert m["distinct_identities"] == N_PC and m["materialised_sample"] == 1000
+    ft = failed_ticks(positive_control["world"])
+    assert ft["failed_ticks"] == 0, ft["failed_tick_errors"]
 
 
 def test_I2_verified_exposure_accounting(positive_control):
@@ -241,6 +243,8 @@ def test_In1_organic_large_adoption(organic):
                "total_recount_mismatches": m["total_recount_mismatches"],
                "items": m["items"]})
     assert m["total_recount_mismatches"] == 0
+    ft = failed_ticks(w)
+    assert ft["failed_ticks"] == 0, ft["failed_tick_errors"]
 
 
 def test_In2_no_unsupported_realism_claims():

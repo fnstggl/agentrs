@@ -31,7 +31,7 @@ from crucible.social import communities as CM
 from crucible.social import nodes
 from crucible.social.worlds import social_world
 from crucible.substrate import ids
-from social_helpers import assert_met  # noqa: E402
+from social_helpers import assert_met, failed_ticks  # noqa: E402
 
 crucible.load_all_modules()
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_4_7b.py"
@@ -110,6 +110,7 @@ def test_SP_4_7b_community_membership_churn_and_sustained_participation():
                "population_proposals": len(props), "population_votes": len(votes),
                "population_moderators": moderators,
                "proposals_decided": sum(1 for p in props if p["status"] in ("approved", "rejected"))}
+    metrics.update(failed_ticks(w))
     evidence.record("SP-4.7b", metrics, command=CMD, notes=(
         "40 simulated days of the integrated social internet on 2,000 population members; communities founded, "
         "joined, used, governed (moderators appointed, rules proposed and voted on) and left by the members "
@@ -117,5 +118,6 @@ def test_SP_4_7b_community_membership_churn_and_sustained_participation():
         "distinct population contributors (posts or replies) in the trailing 7 days, from the recorded events. "
         f"Per community: {json.dumps(sustained)[:2000]}"))
     assert_met('SP-4.7b', metrics)
+    assert metrics["failed_ticks"] == 0, metrics["failed_tick_errors"]
     assert errs == []
     assert len(comms) >= 1

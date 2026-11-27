@@ -34,7 +34,7 @@ from crucible.acceptance.v5 import evidence
 from crucible.core.kernel import World
 from crucible.social import audience as AUD
 from crucible.social.worlds import social_world
-from social_helpers import assert_met  # noqa: E402
+from social_helpers import assert_met, failed_ticks  # noqa: E402
 
 crucible.load_all_modules()
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_4_6b.py"
@@ -170,10 +170,12 @@ def test_SP_4_6b_no_virality_multipliers_and_views_have_provenance():
                "aa_exposed_p": round(p_aa_ex, 4), "aa_viewers_p": round(p_aa_vw, 4),
                "tagged_exposed_p": round(p_tag_ex, 4), "tagged_viewers_p": round(p_tag_vw, 4),
                "forgery_detected_rows": int(fprov["forced_rows"]), "planted_multiplier_hits": len(planted)}
+    metrics.update(failed_ticks(w))
     evidence.record("SP-4.6b", metrics, command=CMD, notes=(
         "Static AST scan of crucible.social for virality vocabulary and counter x constant products; dynamic A/A "
         "test of identical posts by fresh accounts and of a copy declaring 'viral/trending' tags on the one "
         f"population (1,500, 2 days); provenance of every consumption row; forgery control. Static hits: {static[:20]}"))
     assert_met('SP-4.6b', metrics)
+    assert metrics["failed_ticks"] == 0, metrics["failed_tick_errors"]
     assert fprov["forced_rows"] >= 50                   # the provenance check sees injected rows
     assert rc["total_mismatches"] == 0

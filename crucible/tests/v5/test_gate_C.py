@@ -35,7 +35,7 @@ import numpy as np
 import pytest
 
 from crucible.acceptance.v5 import evidence
-from social_helpers import Actor, social_world, assert_met
+from social_helpers import Actor, social_world, assert_met, failed_ticks
 
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_C.py"
 DAY = 86400
@@ -269,12 +269,13 @@ def test_C_3_consumption_produces_analytics(pop_run):
     metrics = {"consumption_events": int(rc["consumption_rows"]), "analytics_mismatches": mism,
                "views": int(rc["views"]), "items": int(rc["items"]), "measured": True,
                "decision_rows_without_provenance": int(prov["forced_rows"]),
-               "creator_analytics_correlation_with_exact": round(corr, 4)}
+               "creator_analytics_correlation_with_exact": round(corr, 4), **failed_ticks(w)}
     evidence.record("C.3", metrics, command=CMD, notes=(
         "Consumption decisions of the one population (feeds of 8 platforms, communities, newsletters) recorded as "
         "decision batches with provenance; every audience quantity of every item recounted independently from the "
         "batch blobs; creator analytics are the platform's delayed, noisy publication of the same quantities."))
     assert_met('C.3', metrics)
+    assert metrics["failed_ticks"] == 0, metrics["failed_tick_errors"]
     assert prov["forced_rows"] == 0
 
 

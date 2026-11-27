@@ -39,7 +39,7 @@ from crucible.social import audience as AUD
 from crucible.social import experiments as X
 from crucible.social.worlds import social_world
 from crucible.substrate import columns
-from social_helpers import assert_met  # noqa: E402
+from social_helpers import assert_met, failed_ticks  # noqa: E402
 
 crucible.load_all_modules()
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_4_5b.py"
@@ -181,11 +181,13 @@ def test_SP_4_5b_attention_competition_and_dynamics():
                "recommender_fits": len(fits),
                "media_by_day": ";".join(f"{d}:{len(v)}" for d, v in sorted(media.items())),
                "creators_whose_medium_values_changed": int(np.sum(np.any(np.abs(value1 - value0) > 1e-6, axis=1)))}
+    metrics.update(failed_ticks(w))
     evidence.record("SP-4.5b", metrics, command=CMD, notes=(
         "One persistent run on 2,000 population members (4 platforms, 4 days). Attention competition: randomised "
         "inbox placement (no notification) of two popular items for 800 of 1,600 individuals at day 3; primary "
         "outcome = feed slots of other items in each individual's first posts session afterwards (one-sided "
         "Mann-Whitney); day totals, views and seconds reported. Dynamic kinds observed in the run itself."))
     assert_met('SP-4.5b', metrics)
+    assert metrics["failed_ticks"] == 0, metrics["failed_tick_errors"]
     assert got_item[treat].sum() > got_item[ctrl].sum()
     assert w.check_invariants() == []

@@ -149,3 +149,11 @@ def assert_met(req: str, metrics: dict) -> None:
     crit = next(e for e in MF.load()["requirements"] if e["id"] == req)["criteria"]
     fails = [msg for c in crit for ok, msg in [criterion_met(c, metrics)] if not ok]
     assert not fails, f"{req}: {fails}"
+
+
+def failed_ticks(w) -> dict:
+    """Failed scheduled processes of a world (`proc.failed` events in its log): a population tick that fails leaves
+    the population idle for that tick, so a measurement on such a world is not a measurement of the mechanism.
+    Returns the count and the distinct errors (first 200 characters each)."""
+    errs = [str((e.payload or {}).get("error", ""))[:200] for e in w.log if e.type == "proc.failed"]
+    return {"failed_ticks": len(errs), "failed_tick_errors": " | ".join(sorted(set(errs))[:5])}

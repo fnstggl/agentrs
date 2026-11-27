@@ -40,7 +40,7 @@ import crucible
 from crucible.acceptance.v5 import evidence
 from crucible.social import experiments as X
 from crucible.substrate import ids
-from social_helpers import assert_met  # noqa: E402
+from social_helpers import assert_met, failed_ticks  # noqa: E402
 
 crucible.load_all_modules()
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_4_8b.py"
@@ -168,10 +168,12 @@ def test_SP_4_8b_population_social_economy_chains():
                "sellers": len(sellers), "chain_compute_units": round(cu_total, 3), "chain_overloaded_requests":
                int(overloads), "chain_readers_who_recommended_it_in_turn": recommended_back,
                "cancellations_by_readers": len(cancels & {c["reader"] for c in chains}), "days": DAYS}
+    metrics.update(failed_ticks(w))
     evidence.record("SP-4.8b", metrics, command=CMD, notes=(
         "A balanced civilisation (development population, 14 days). Chains read from the log: a qualifying view of "
         "an item linking or naming a product, then the reader's own shop consideration of it, its adoption "
         "(subscription) and its use on the seller's deployment, with the effects that followed. "
         f"Chains: {json.dumps(chains[:20])}"))
     assert_met('SP-4.8b', metrics)
+    assert metrics["failed_ticks"] == 0, metrics["failed_tick_errors"]
     assert w.check_invariants() == []
