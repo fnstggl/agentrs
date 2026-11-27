@@ -171,6 +171,10 @@ CREATE TABLE IF NOT EXISTS retrain_queue(exp_id TEXT NOT NULL, reason TEXT NOT N
   enqueued_at REAL, PRIMARY KEY(exp_id, reason, outcome_key));
 CREATE TABLE IF NOT EXISTS credit_ledger(outcome_key TEXT NOT NULL, exp_id TEXT NOT NULL, level TEXT NOT NULL,
   weight REAL NOT NULL, counted INTEGER NOT NULL, note TEXT, PRIMARY KEY(outcome_key, exp_id));
+CREATE TABLE IF NOT EXISTS objective_outcomes(objective_id TEXT PRIMARY KEY, status TEXT, value REAL, evaluated_at REAL,
+  verified INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS credit_history(exp_id TEXT NOT NULL, estimator TEXT NOT NULL, version INTEGER NOT NULL,
+  value REAL, uncertainty REAL, ts REAL, reason TEXT, PRIMARY KEY(exp_id, estimator, version));
 """
 
 
@@ -403,7 +407,7 @@ class SqliteExperienceStore:
                                   "they are skipped. Further misses are only counted in "
                                   "store.stats['missing_item_refs'].", stacklevel=2)
                 self.stats["missing_item_refs"] += len(missing)
-        return [ExperienceItem.from_dict(json.loads(self._unpack(found[r]))) for r in refs if r in found]
+        return [record_from_dict(ExperienceItem, json.loads(self._unpack(found[r]))) for r in refs if r in found]
 
     def item_times(self, refs: Sequence[str]) -> Dict[str, float]:
         refs, out = list(refs), {}
@@ -566,7 +570,7 @@ class SqliteExperienceStore:
             if not target:
                 return AddOutcomeResult(False, reason="no record registered this query", dedup_key=key)
             if qrow is not None and obs.status in _MATURED:
-                q = OutcomeQuery.from_dict(json.loads(qrow[1]))
+                q = record_from_dict(OutcomeQuery, json.loads(qrow[1]))
                 if obs.observed_at and obs.observed_at + 1e-9 < q.issued_at:
                     return AddOutcomeResult(False, target, reason="observed before the query was issued", dedup_key=key)
             # one final answer per query: a repeated event (same dedup key) or a second answer to an answered query
@@ -676,10 +680,10 @@ class SqliteExperienceStore:
         rows = self._q("SELECT exp_id, body FROM queries WHERE resolved=0 AND due_at<=? ORDER BY due_at, query_id",
                        (float(now),))
         recs = {r.exp_id: r for r in self.get_many(list({e for e, _ in rows}))}
-        return [(recs[e], OutcomeQuery.from_dict(json.loads(b))) for e, b in rows if e in recs]
+        return [(recs[e], record_from_dict(OutcomeQuery, json.loads(b))) for e, b in rows if e in recs]
 
     def pending_all(self) -> List[OutcomeQuery]:
-        return [OutcomeQuery.from_dict(json.loads(b)) for (b,) in
+        return [record_from_dict(OutcomeQuery, json.loads(b)) for (b,) in
                 self._q("SELECT body FROM queries WHERE resolved=0 ORDER BY due_at, query_id")]
 
     def next_due(self) -> Optional[float]:
@@ -695,7 +699,7 @@ class SqliteExperienceStore:
 
     def query(self, query_id: str) -> Optional[OutcomeQuery]:
         rows = self._q("SELECT body FROM queries WHERE query_id=?", (query_id,))
-        return OutcomeQuery.from_dict(json.loads(rows[0][0])) if rows else None
+        return record_from_dict(OutcomeQuery, json.loads(rows[0][0])) if rows else None
 
     def queries_for_metric(self, metric: str, at: float) -> List[Tuple[str, OutcomeQuery]]:
         """(exp_id, query) of every registered query on ``metric`` whose declared window [issued_at, due_at] contains
@@ -703,7 +707,7 @@ class SqliteExperienceStore:
         out = []
         for e, b in self._q("SELECT exp_id, body FROM queries WHERE metric=? AND due_at>=? ORDER BY due_at, query_id",
                             (metric, float(at))):
-            q = OutcomeQuery.from_dict(json.loads(b))
+            q = record_from_dict(OutcomeQuery, json.loads(b))
             if q.issued_at <= at:
                 out.append((e, q))
         return out
@@ -828,6 +832,122 @@ class SqliteExperienceStore:
                     rec.credit_uncertainty[estimator] = float(uncertainty)
             self._write(rec, new=False)
 
+    def set_credits(self, exp_id: str, values: Dict[str, Optional[Tuple[float, Optional[float]]]], *, version: int = 0,
+                    reason: str = "", ts: float = 0.0) -> Dict[str, float]:
+        """Write several estimators' credit for one record in one transaction and append each *changed* value to
+        the credit history under ``version`` (``credit.providers.CreditAssigner`` supplies a monotone version).
+        ``values[name] = (value, uncertainty)``; ``None`` removes the entry (no credit is not zero credit).
+        Returns estimator -> change of the stored value (new entries count with their full value)."""
+        changes: Dict[str, float] = {}
+        with self._tx() as db:
+            rec = self.get(exp_id)
+            if rec is None:
+                raise KeyError(exp_id)
+            for name, v in values.items():
+                old = rec.credit.get(name)
+                if v is None:
+                    if old is None:
+                        continue
+                    rec.credit.pop(name, None)
+                    rec.credit_uncertainty.pop(name, None)
+                    changes[name] = -float(old)
+                    db.execute("INSERT OR REPLACE INTO credit_history VALUES(?,?,?,?,?,?,?)",
+                               (exp_id, name, int(version), None, None, float(ts), reason))
+                    continue
+                val, unc = float(v[0]), (None if v[1] is None else float(v[1]))
+                if not math.isfinite(val):
+                    raise ValueError(f"credit {name} for {exp_id} is not finite")
+                old_unc = rec.credit_uncertainty.get(name)
+                if old is not None and old == val and (unc is None or old_unc == unc):
+                    continue
+                rec.credit[name] = val
+                if unc is not None:
+                    rec.credit_uncertainty[name] = unc
+                changes[name] = val - (old or 0.0)
+                db.execute("INSERT OR REPLACE INTO credit_history VALUES(?,?,?,?,?,?,?)",
+                           (exp_id, name, int(version), val, unc, float(ts), reason))
+            if changes:
+                self._write(rec, new=False)
+        return changes
+
+    def credit_history(self, exp_id: str = "", estimator: str = "") -> List[Dict[str, Any]]:
+        """Every stored version of a record's credit, oldest first (``value`` None = the entry was withdrawn)."""
+        sql, args = "SELECT exp_id, estimator, version, value, uncertainty, ts, reason FROM credit_history WHERE 1=1", []
+        if exp_id:
+            sql += " AND exp_id=?"
+            args.append(exp_id)
+        if estimator:
+            sql += " AND estimator=?"
+            args.append(estimator)
+        try:
+            rows = self._q(sql + " ORDER BY version, exp_id, estimator", args)
+        except sqlite3.OperationalError:          # a read-only store written before this table existed
+            return []
+        return [dict(zip(("exp_id", "estimator", "version", "value", "uncertainty", "ts", "reason"), r)) for r in rows]
+
+    # ------------------------------------------------------------------------------------------ objectives / small state
+    def put_objective_outcome(self, objective_id: str, *, status: str, value: float = 0.0, evaluated_at: float = 0.0,
+                              verified: bool = False, body: Optional[Dict[str, Any]] = None) -> None:
+        """Record that an objective was closed with this (verified) result. A closed objective is what makes a
+        trajectory's return final for return decomposition; a verified statement is never replaced by an unverified
+        one."""
+        with self._tx() as db:
+            old = db.execute("SELECT verified FROM objective_outcomes WHERE objective_id=?", (objective_id,)).fetchone()
+            if old is not None and old[0] and not verified:
+                return
+            db.execute("INSERT OR REPLACE INTO objective_outcomes VALUES(?,?,?,?,?,?)",
+                       (objective_id, status, float(value), float(evaluated_at), int(bool(verified)), _dumps(body or {})))
+
+    def objective_outcome(self, objective_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            rows = self._q("SELECT status, value, evaluated_at, verified, body FROM objective_outcomes WHERE "
+                           "objective_id=?", (objective_id,))
+        except sqlite3.OperationalError:
+            return None
+        if not rows:
+            return None
+        st, v, t, ver, body = rows[0]
+        return {"objective_id": objective_id, "status": st, "value": v, "evaluated_at": t, "verified": bool(ver),
+                "body": json.loads(body)}
+
+    def objective_ids(self, *, closed: Optional[bool] = None, family: str = "",
+                      provenance: Union[None, str, Sequence[str]] = None) -> List[str]:
+        """Objective ids in order of their first decision; ``closed`` filters on a recorded objective outcome."""
+        sql, args = "SELECT e.objective_id, MIN(e.seq) FROM experiences e", []
+        where = []
+        if closed is not None:
+            sql += " LEFT JOIN objective_outcomes o ON o.objective_id=e.objective_id"
+            where.append("o.objective_id IS NOT NULL" if closed else "o.objective_id IS NULL")
+        if family:
+            where.append("e.family=?")
+            args.append(family)
+        if provenance:
+            prov = (provenance,) if isinstance(provenance, str) else tuple(provenance)
+            where.append(f"e.provenance IN ({','.join('?' * len(prov))})")
+            args += list(prov)
+        if where:
+            sql += " WHERE " + " AND ".join(where)
+        return [o for o, _ in self._q(sql + " GROUP BY e.objective_id ORDER BY 2", args)]
+
+    def objective_of(self, exp_ids: Sequence[str]) -> Dict[str, str]:
+        """exp_id -> objective_id without decoding the records."""
+        out: Dict[str, str] = {}
+        ids = list(exp_ids)
+        for i in range(0, len(ids), 500):
+            chunk = ids[i:i + 500]
+            out.update(self._q(f"SELECT exp_id, objective_id FROM experiences WHERE exp_id IN ({','.join('?' * len(chunk))})",
+                               chunk))
+        return out
+
+    def kv_get(self, key: str, default: Any = None) -> Any:
+        """Small JSON-native state kept durably next to the experience (credit version counter, trigger state)."""
+        rows = self._q("SELECT value FROM meta WHERE key=?", ("kv:" + key,))
+        return json.loads(rows[0][0]) if rows else default
+
+    def kv_put(self, key: str, value: Any) -> None:
+        with self._tx() as db:
+            db.execute("INSERT OR REPLACE INTO meta VALUES(?,?)", ("kv:" + key, _dumps(value)))
+
     def labels(self, exp_id: str) -> Dict[str, Any]:
         r = self._q("SELECT seq, provenance, family, success, success_explicit, delayed, n_pending, n_outcomes, surprise, "
                     "credit_mag FROM experiences WHERE exp_id=?", (exp_id,))
@@ -853,7 +973,7 @@ class SqliteExperienceStore:
                 args.append(v)
         if unresolved_only:
             sql += " AND resolved=0"
-        return [PredictionRecord.from_dict(json.loads(self._unpack(b))) for (b,) in self._q(sql + " ORDER BY made_at", args)]
+        return [record_from_dict(PredictionRecord, json.loads(self._unpack(b))) for (b,) in self._q(sql + " ORDER BY made_at", args)]
 
     def put_experiment(self, e: ExperimentRecord) -> None:
         with self._tx() as db:
@@ -862,10 +982,10 @@ class SqliteExperienceStore:
 
     def experiment(self, experiment_id: str) -> Optional[ExperimentRecord]:
         rows = self._q("SELECT body FROM experiments WHERE experiment_id=?", (experiment_id,))
-        return ExperimentRecord.from_dict(json.loads(self._unpack(rows[0][0]))) if rows else None
+        return record_from_dict(ExperimentRecord, json.loads(self._unpack(rows[0][0]))) if rows else None
 
     def experiments(self) -> List[ExperimentRecord]:
-        return [ExperimentRecord.from_dict(json.loads(self._unpack(b))) for (b,) in
+        return [record_from_dict(ExperimentRecord, json.loads(self._unpack(b))) for (b,) in
                 self._q("SELECT body FROM experiments ORDER BY created_at")]
 
     def experiment_records(self, experiment_id: str) -> List[ExperienceRecord]:

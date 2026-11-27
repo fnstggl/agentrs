@@ -43,3 +43,32 @@ def build_record(i: int, *, ts: float = None, objective: str = "obj1", family: s
 @pytest.fixture
 def make_record():
     return build_record
+
+
+# ---- stage 2: the real model (debug scale) in LabWorld --------------------------------------------------------------
+def make_lab(tmp_path, *, n_worlds=10, n_decisions=6, seed=3, family="lab/base", collect=True, lab_cfg=None, **kw):
+    """A debug-scale CamLiveModel with heads, a durable store, the linker and the learner, plus (optionally) a few
+    LabWorld lifetimes collected through the linker."""
+    import torch
+    from cam_live.credit.labkit import build_lab, collect_family
+    from cam_live.diagnostics.world import LabConfig
+    torch.manual_seed(0)
+    lab = build_lab(str(tmp_path / "store.sqlite"), **kw)
+    if collect:
+        base = lab_cfg or LabConfig(n_channels=4, family=family)
+        collect_family(lab.store, lab.linker, base, n_worlds, n_decisions, seed=seed, clock=lab.clock)
+    return lab
+
+
+@pytest.fixture
+def lab_factory(tmp_path):
+    labs = []
+
+    def build(**kw):
+        sub = tmp_path / f"lab{len(labs)}"
+        sub.mkdir()
+        labs.append(make_lab(sub, **kw))
+        return labs[-1]
+    yield build
+    for lab in labs:
+        lab.close()

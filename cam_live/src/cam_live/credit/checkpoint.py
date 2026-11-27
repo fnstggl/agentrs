@@ -95,6 +95,7 @@ class CheckpointState:
     reward_version: str = ""
     arch_signature: Dict[str, Any] = field(default_factory=dict)
     extra: Dict[str, Any] = field(default_factory=dict)                      # JSON-native
+    aux_state: Any = None                    # nested tensors / numbers owned by loss providers (e.g. retention anchors)
 
 
 @dataclass
@@ -495,6 +496,8 @@ def _write_checkpoint(root: str, state: CheckpointState, *, seq: int, name: Opti
     _save_pt({"fast_state": state.fast_state}, os.path.join(tmp, "fast_state.pt"))
     _save_pt({"lifetime_context": state.lifetime_context}, os.path.join(tmp, "lifetime.pt"))
     _save_pt(state.rng, os.path.join(tmp, "rng.pt"))
+    if state.aux_state is not None:
+        _save_pt({"aux_state": state.aux_state}, os.path.join(tmp, "aux.pt"))
     _write_json({"current_task": state.current_task, "replay_state": state.replay_state,
                  "pending_pointer": state.pending_pointer, "schedules": state.schedules,
                  "auth_config_hash": state.auth_config_hash, "model_version": state.model_version,
@@ -589,6 +592,8 @@ def load_checkpoint(path_or_root: str, checkpoint_id: Optional[str] = None, *, m
     st.fast_state = _load_pt(os.path.join(path, "fast_state.pt"), map_location)["fast_state"]
     st.lifetime_context = _load_pt(os.path.join(path, "lifetime.pt"), map_location)["lifetime_context"]
     st.rng = _load_pt(os.path.join(path, "rng.pt"), "cpu")
+    if os.path.exists(os.path.join(path, "aux.pt")):
+        st.aux_state = _load_pt(os.path.join(path, "aux.pt"), map_location)["aux_state"]
     st.extra = dict(st.extra or {})
     st.extra["checkpoint_id"] = m["checkpoint_id"]
     return st
@@ -889,3 +894,149 @@ class CheckpointManager:
         if removed:
             fsync_dir(self.root)
         return removed
+
+
+# ------------------------------------------------------------------------------------------------ complete learner state
+def capture_learner(learner: Any, *, extra_optimizers: Optional[Dict[str, torch.optim.Optimizer]] = None,
+                    generators: Optional[Dict[str, torch.Generator]] = None, lifetime_context: Any = None,
+                    current_task: Optional[Dict[str, Any]] = None, auth_config_hash: str = "", reward_version: str = "",
+                    extra: Optional[Dict[str, Any]] = None) -> CheckpointState:
+    """Everything a restart of the learning process needs, from a ``credit.learner.ContinualLearner`` on the real
+    model: all trainable groups (experiential, heads, semantic adapters, reward), the learner's optimizers (plus
+    ``extra_optimizers``, e.g. the reward workstream's meta optimizer), the fast belief state, the lifetime context,
+    replay sampler indices and pending-outcome pointer, learning schedules and counters, RNG states, versions, the
+    architecture signature, the configuration, the credit selector and the tensor state of loss providers."""
+    opts = dict(learner.optimizers)
+    for k, o in (extra_optimizers or {}).items():
+        if k in opts:
+            raise ValueError(f"optimizer name {k!r} is already used by the learner")
+        opts[k] = o
+    fast = learner.fast_state.state_dict() if getattr(learner, "fast_state", None) is not None else None
+    aux = {"providers": {p.name: p.state_dict() for p in learner.providers if hasattr(p, "state_dict")}}
+    ex = dict(extra or {})
+    ex["config"] = learner.cfg.to_dict()
+    if getattr(learner, "credit", None) is not None:
+        ex["credit"] = learner.credit.state_dict()
+    return capture_state(learner.model, opts, store=learner.store, generators=generators, fast_state=fast,
+                         lifetime_context=lifetime_context, current_task=current_task, schedules=learner.state_dict(),
+                         auth_config_hash=auth_config_hash, model_version=learner.model_version,
+                         reward_version=reward_version, extra=json.loads(json.dumps(ex, default=str)), aux_state=aux)
+
+
+def restore_learner(learner: Any, state: CheckpointState, *, strict: bool = False,
+                    extra_optimizers: Optional[Dict[str, torch.optim.Optimizer]] = None,
+                    generators: Optional[Dict[str, torch.Generator]] = None, rng: bool = True,
+                    expected_auth_hash: Optional[str] = None) -> Dict[str, Any]:
+    """Apply a loaded checkpoint to a freshly built learner (same configuration, same providers registered).
+    Returns the report of everything that did not match exactly. RNG states are restored last."""
+    learner._sync_optimizers()
+    opts = dict(learner.optimizers)
+    opts.update(extra_optimizers or {})
+    rep = restore_state(state, learner.model, opts, strict=strict, store=learner.store, generators=generators,
+                        rng=False, expected_auth_hash=expected_auth_hash)
+    if hasattr(learner.model, "mark_adapters_updated"):
+        learner.model.mark_adapters_updated()
+    rep["learner"] = learner.load_state_dict(state.schedules or {})
+    if getattr(learner, "fast_state", None) is not None and state.fast_state is not None:
+        learner.fast_state.load_state_dict(state.fast_state)
+        rep["fast_state"] = "restored"
+    saved = (state.aux_state or {}).get("providers", {}) if isinstance(state.aux_state, dict) else {}
+    rep["provider_state"] = {"restored": [], "missing": []}
+    for p in learner.providers:
+        if hasattr(p, "load_state_dict"):
+            if p.name in saved:
+                p.load_state_dict(saved[p.name])
+                rep["provider_state"]["restored"].append(p.name)
+            else:
+                rep["provider_state"]["missing"].append(p.name)
+    if getattr(learner, "credit", None) is not None and "credit" in (state.extra or {}):
+        learner.credit.load_state_dict(state.extra["credit"])
+    if rng:
+        restore_rng(state.rng, generators)
+    return rep
+
+
+def save_learner(target: Union[str, "CheckpointManager"], learner: Any, *, notes: str = "", **capture_kw: Any
+                 ) -> CheckpointInfo:
+    """Atomic checkpoint of the complete learner state into a checkpoint root (path or manager)."""
+    state = capture_learner(learner, **capture_kw)
+    if isinstance(target, CheckpointManager):
+        return target.save(state, notes=notes)
+    return save_checkpoint(target, state, notes=notes, clock=getattr(learner, "clock", None))
+
+
+def load_learner(source: Union[str, "CheckpointManager"], learner: Any, *, checkpoint_id: Optional[str] = None,
+                 strict: bool = False, map_location: Any = "cpu", **restore_kw: Any) -> Dict[str, Any]:
+    """Resume: load a checkpoint (default: the newest intact one under the root) into ``learner``."""
+    root = source.root if isinstance(source, CheckpointManager) else source
+    state = load_checkpoint(root, checkpoint_id, map_location=map_location)
+    rep = restore_learner(learner, state, strict=strict, **restore_kw)
+    rep["checkpoint_id"] = state.extra.get("checkpoint_id", "")
+    return rep
+
+
+def promote_learner(manager: "CheckpointManager", learner: Any, *, retention: Dict[str, float],
+                    validation: Optional[Dict[str, float]] = None, notes: str = "", rollback: bool = True,
+                    **capture_kw: Any) -> Tuple[PromotionDecision, CheckpointInfo, Optional[Dict[str, Any]]]:
+    """Checkpoint the learner and ask for promotion on independent evidence: ``validation`` (default: the negated
+    held-out losses of ``learner.validate()``) and ``retention`` (``retention.retention_metrics`` of a measured
+    forgetting report). When promotion is refused and ``rollback`` is set, the learner is returned to the last
+    promoted checkpoint (weights, optimizers, schedules, fast state); experience is never rolled back.
+    Returns (decision, the checkpoint that was judged, rollback report or None)."""
+    if validation is None:
+        validation = {f"heldout/neg_{k}": -float(v) for k, v in learner.validate().items()}
+    info = save_learner(manager, learner, notes=notes, **capture_kw)
+    dec = manager.promote(info.checkpoint_id, validation=validation, retention=retention, notes=notes)
+    rb = None
+    if not dec.promoted and rollback and manager.promoted() is not None:
+        _info, state = manager.rollback("; ".join(dec.reasons)[:500])
+        rb = restore_learner(learner, state)
+        rb["rolled_back_to"] = dec.baseline_id
+    return dec, info, rb
+
+
+# ------------------------------------------------------------------------------------------------ weights-only transfer
+@dataclass
+class ExportedModel:
+    model: nn.Module
+    fast_state: Any                      # a fresh fast belief state at the exported learned prior (no evidence)
+    report: LoadReport
+    config: Dict[str, Any]
+
+
+def export_learner_weights(learner: Any, out_dir: str) -> Dict[str, Any]:
+    """Weights-only export of the live learner's model with the configuration needed to rebuild it."""
+    state = CheckpointState(weights=collect_weights(learner.model), arch_signature=dict(learner.model.arch_signature()),
+                            model_version=learner.model_version)
+    return export_weights_only(state, out_dir, config=learner.cfg.to_dict())
+
+
+def load_exported_model(export_dir: str, *, cfg: Any = None, register_heads: Optional[Callable[[nn.Module], Any]] = None,
+                        strict: bool = True, device: Optional[str] = None) -> ExportedModel:
+    """Build a *fresh* model from configuration plus a weights-only export: no experience store, no optimizer, no
+    task, and fast beliefs reset to the exported learned prior.
+
+    ``cfg`` defaults to the configuration stored in the export. ``register_heads(model)`` must register the same
+    heads the exporting process had (head modules are code, not data); with ``strict`` any tensor that does not
+    find its place raises :class:`CheckpointMismatch`."""
+    from ..config import CamLiveConfig
+    from ..nn.model import build_model
+    weights, meta = load_weights_only(export_dir)
+    if cfg is None:
+        if not meta.get("config"):
+            raise CheckpointError(f"{export_dir} carries no configuration; pass cfg")
+        cfg = CamLiveConfig.from_dict(meta["config"])
+    if device is not None:
+        cfg.device = device
+    model = build_model(cfg)
+    if register_heads is not None:
+        register_heads(model)
+    rep = load_weights(model, weights, strict=strict)
+    if hasattr(model, "mark_adapters_updated"):
+        model.mark_adapters_updated()
+    diff = signature_differences(meta.get("arch_signature", {}),
+                                 json.loads(json.dumps(dict(model.arch_signature()), default=str)))
+    if strict and diff:
+        raise CheckpointMismatch(f"architecture signature differs in {diff}", rep)
+    fast = model.new_fast_state() if hasattr(model, "new_fast_state") else None
+    return ExportedModel(model, fast, rep, meta)
