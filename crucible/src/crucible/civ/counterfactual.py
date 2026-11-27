@@ -110,7 +110,8 @@ def run_seed(exp: Experiment, seed: int, *, log=None, isolate: bool | None = Non
     w.close()
     store.close()
     out = {"seed": seed, "t0": t0, "t1": t0 + int(exp.horizon_days * 86400), "arms": {}, "footprint": {},
-           "wall_s": {}, "warmup_wall_s": round(time.time() - t_start, 1), "invariants": {}, "isolated": bool(isolate)}
+           "wall_s": {}, "warmup_wall_s": round(time.time() - t_start, 1), "invariants": {}, "proc_failed": {},
+           "isolated": bool(isolate)}
     bpath = spath
     env = dict(os.environ, OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
     try:
@@ -129,6 +130,7 @@ def run_seed(exp: Experiment, seed: int, *, log=None, isolate: bool | None = Non
             out["arms"][arm] = r["measures"]
             out["footprint"][arm] = r["footprint"]
             out["invariants"][arm] = r["invariants"]
+            out["proc_failed"][arm] = r.get("proc_failed", 0)
             out["wall_s"][arm] = r["wall_s"]
             if "chains" in r:
                 out["chains"] = r["chains"]
@@ -173,6 +175,9 @@ def run_arm(exp: Experiment, seed: int, store_path: str, arm: str, t0: int, t1: 
         wa.advance_time(t1)
     r["measures"] = {k: float(fn(wa, t0, t1, ctx)) for k, fn in exp.measures.items()}
     r["invariants"] = wa.check_invariants()[:5]
+    # arms run non-strict (a handler bug is recorded, not raised): every failed process run of the arm's window is
+    # counted and reported with the experiment (an arm whose world broke is visible, never silently compared)
+    r["proc_failed"] = sum(1 for e in wa.events_range(ctx["seq0"]) if e.type == "proc.failed")
     if exp.chain and arm == exp.reference_arm:
         r["chains"] = [_chain_record(c) for c in chains.mine(wa, from_seq=base_seq)]
     r["wall_s"] = round(time.time() - ta, 1)
@@ -242,6 +247,7 @@ def analyze(exp: Experiment, per_seed: list[dict]) -> dict:
         res["chains"] = [r.get("chains", []) for r in per_seed]
     res["footprints"] = [r["footprint"] for r in per_seed]
     res["invariant_errors"] = sum(len(v) for r in per_seed for v in r["invariants"].values())
+    res["proc_failed"] = sum(int(v) for r in per_seed for v in (r.get("proc_failed") or {}).values())
     res["wall_s"] = sum(sum(r["wall_s"].values()) + r["warmup_wall_s"] for r in per_seed)
     return res
 

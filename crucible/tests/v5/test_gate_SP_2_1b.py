@@ -30,7 +30,8 @@ def test_SP_2_1b_invention_changes_four_kinds_of_outcome():
     from crucible.civ import gates
     r = gates.invention()
     m = {"invention_effect_kinds_confirmed": r["invention_effect_kinds_confirmed"],
-         "invariant_errors": r["invariant_errors"] if r["invariant_errors"] is not None else -1}
+         "invariant_errors": r["invariant_errors"] if r["invariant_errors"] is not None else -1,
+         "failed_process_runs_in_arms": r["proc_failed"] if r.get("proc_failed") is not None else -1}
     evidence.record("SP-2.1b", m, command=CMD, notes=f"scripted reference inventor (labelled); seeds {r['seeds']}; "
                     f"error {r['error']}; kinds {r['kinds']}")
     assert r["error"] is None, r["error"]

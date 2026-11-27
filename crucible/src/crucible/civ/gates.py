@@ -97,7 +97,8 @@ def effects(seeds=EFFECT_SEEDS, names=None) -> dict:
     from .couplings import CATALOGUE
     pending = sorted({c.category for c in CATALOGUE.values() if c.pending})
     return {"cross_domain_effect_types": len(confirmed), "confirmed_categories": confirmed,
-            "pending_categories": pending, "experiments": out}
+            "pending_categories": pending, "experiments": out,
+            "proc_failed": sum(int(out[n].get("proc_failed") or 0) for n in names)}
 
 
 def _safe(name: str, kind: str, seeds) -> dict:
@@ -144,7 +145,7 @@ def invention(seeds=INVENTION_SEEDS) -> dict:
         kinds[kind]["confirmed"] = any(v.get("confirmed") for v in kinds[kind].values() if isinstance(v, dict))
     return {"invention_effect_kinds_confirmed": sum(1 for v in kinds.values() if v["confirmed"]), "kinds": kinds,
             "error": r.get("error"), "seeds": list(seeds), "scripted_inventor": True,
-            "invariant_errors": r.get("invariant_errors")}
+            "invariant_errors": r.get("invariant_errors"), "proc_failed": r.get("proc_failed")}
 
 
 # --------------------------------------------------------------------------------------------- O.6, SP-10.3
@@ -213,6 +214,7 @@ def chain_results(seeds=CHAIN_SEEDS) -> dict:
             "chains_with_agent_artifact": sum(1 for c in good if c["class"] == "agent_artifact"),
             "chains_with_social_activity": sum(1 for c in good if c["class"] == "social"),
             "chains_with_technical_activity": sum(1 for c in good if c["class"] == "technical"),
+            "proc_failed": sum(int(r.get("proc_failed") or 0) for r in raw.values()),
             "chains": chains_out, "experiments": raw}
 
 

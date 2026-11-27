@@ -53,3 +53,28 @@ def test_agent_compute_counts_requests_from_others_and_not_the_operators_own():
     assert after_visitor > 0 and abs(after_visitor - sum(e.payload["cu"] for e in usage[:3])) < 1e-9
     # another host's requests never count
     assert X.m_agent_compute(w, 0, w.now, {"agent": SimpleNamespace(handle="nosuch"), "seq0": ctx["seq0"]}) == 0.0
+
+
+def test_analyze_reports_failed_process_runs_of_the_arms_and_keeps_the_every_seed_sign_rule():
+    """Arms run non-strict: their failed process runs are summed into the result. A seed with no effect (zero
+    difference) breaks the every-seed sign rule: the effect is not confirmed although the interval excludes zero."""
+    from crucible.civ import counterfactual as CF
+    e = X.EXPERIMENTS["agent_shop"]
+
+    def per(effects):
+        out = []
+        for s, eff in enumerate(effects):
+            arms = {a: {m: 100.0 + s for m in e.measures} for a in CF._arms(e)}
+            for a in e.interventions:
+                arms[a] = {m: 100.0 + s - eff for m in e.measures}
+            out.append({"seed": s, "arms": arms, "footprint": {a: {"placebo_1": 1, "placebo_5": 5}.get(a, 0)
+                                                               for a in arms},
+                        "invariants": {a: [] for a in arms}, "proc_failed": {a: int(a == "factual" and s == 0)
+                                                                             for a in arms},
+                        "wall_s": {a: 1.0 for a in arms}, "warmup_wall_s": 1.0, "chains": []})
+        return out
+    r = CF.analyze(e, per([5.0, 6.0, 7.0, 5.0]))
+    assert r["proc_failed"] == 1 and r["effects"]["no_agent"]["agent_compute"]["confirmed"]
+    r0 = CF.analyze(e, per([5.0, 6.0, 0.0, 7.0, 5.0, 6.0]))
+    v = r0["effects"]["no_agent"]["agent_compute"]
+    assert v["ci95"][1] < 0 and not v["sign_consistent"] and not v["confirmed"]

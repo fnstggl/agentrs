@@ -108,7 +108,7 @@ def test_O_5_cross_domain_effect_types():
     m = {"cross_domain_effect_types": r["cross_domain_effect_types"],
          "confirmed_categories": ",".join(map(str, r["confirmed_categories"])) or "none",
          "pending_categories": ",".join(map(str, r["pending_categories"])) or "none",
-         "seeds": len(gates.EFFECT_SEEDS)}
+         "seeds": len(gates.EFFECT_SEEDS), "failed_process_runs_in_arms": r.get("proc_failed")}
     evidence.record("O.5", m, command=CMD, notes="; ".join(rows))
     assert r["cross_domain_effect_types"] >= 6, rows
 
@@ -119,7 +119,7 @@ def test_O_6_multi_stage_chains():
     from crucible.civ import gates
     r = gates.chain_results()
     m = {"multi_stage_chains": r["multi_stage_chains"], "min_chain_stages": r["min_chain_stages"],
-         "chains_evaluated": len(r["chains"])}
+         "chains_evaluated": len(r["chains"]), "failed_process_runs_in_arms": r.get("proc_failed")}
     evidence.record("O.6", m, command=CMD, notes="; ".join(
         f"{c['experiment']}/{c['arm']} ({c['class']}, removed {c['removed']}): confirmed stages "
         f"{c['confirmed_stages']}, mined with provenance in {c['mined_in_reference_arm']} reference runs "
