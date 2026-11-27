@@ -108,3 +108,50 @@ def test_a_member_relying_on_a_service_after_three_uses_writes_about_it(monkeypa
     assert time.time() - t0 < 600
     assert not [e for e in w.log if e.type == "proc.failed"]
     assert w.check_invariants() == []
+
+
+def test_a_member_who_just_started_using_a_service_posts_it_on_the_discovery_platform_once(monkeypatch):
+    """A hunter: a member that just started relying on a launched service nobody has posted on the product-discovery
+    platform shares the find there (a launch post linking the product, saying how far it got); once it is posted,
+    nobody posts it again. Setup as above, without uses (adoption only); FIND_P set to 1 for the test."""
+    w = _world()
+    st = w.state
+    work = w.modules["work"]
+    services = [(pid, p["need"], p["delivery"]["host"]) for pid, p in st.scan("products")
+                if p["status"] == "launched" and (p["delivery"] or {}).get("type") == "service"]
+    pid, need, host = services[0]
+    fam = columns.col(w, "work", "fam")
+    act = columns.col(w, "work", "active")
+    users = [i for i in range(columns.rows(w, "pop")) if fam[i] >= 0 and act[i]
+             and need in {n for _, n in work._steps(i)}][:10]
+    from crucible.economy.work import _needs
+    size = columns.col(w, "work", "size")
+    adopted = []
+
+    def setup(ctx):
+        prov = work._provider(st, pid)
+        for i in users:
+            p = ids.ensure_principal(ctx, i)
+            sample, _ = _needs()[need].generate(w.rng_for("work-sample", i, need), float(size[i]))
+            if work._adopt(ctx, p, i, need, pid, prov, sample):
+                adopted.append(i)
+    w._run_system("test.adoption", setup)
+    assert len(adopted) >= 6
+    res = {}
+    w._run_system("test.finds", lambda ctx: res.update(f=PC._new_finds(ctx, adopted[0]), g=PC._recommendable(ctx, adopted[0])))
+    assert [x[0] for x in res["f"]] == [pid] and res["g"] == []      # a find, not yet a verdict
+    monkeypatch.setattr(PC, "FIND_P", 1.0)
+    pop_social = w.modules["pop_social"]
+    idx = np.array(sorted(adopted[:6]), np.int64)
+    w._run_system("test.create", lambda ctx: pop_social.act_create(ctx, idx, ctx.now))
+    launches = [L for L in st.tables.get("launches", {}).values() if L["link"] == "product" and L["target"] == pid]
+    assert len(launches) == 1                                         # the first hunter posts it, nobody again
+    from crucible.social.content import text_of
+    from crucible.social.popinbox import _hosts_of
+    lid = next(k for k, L in st.tables["launches"].items() if L["target"] == pid)
+    assert ids.index(st.tables["content"][lid]["creator"]) in adopted
+    assert host in _hosts_of(w, lid) and "just started using" in text_of(w, lid)
+    w._run_system("test.finds2", lambda ctx: res.update(f2=PC._new_finds(ctx, adopted[1])))
+    assert res["f2"] == []                                            # launched now: no longer a find to post
+    assert not [e for e in w.log if e.type == "proc.failed"]
+    assert w.check_invariants() == []

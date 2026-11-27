@@ -209,6 +209,7 @@ def _topic_for(coords: np.ndarray, rng, tech: bool, k: int) -> np.ndarray:
 
 REVIEW_P = 0.35            # a member with a provider that pays off for it writes about it this often when it creates
 HUNT_P = 0.5               # ... and, when nobody has launched it yet, posts it on the product-discovery platform
+FIND_P = 0.3               # a member who just started relying on a service nobody launched yet posts it as a hunter
 TEXT_MEDIA = ("post", "status", "article")     # the media a recommendation is written in
 
 
@@ -231,6 +232,43 @@ def _recommendable(ctx: Ctx, i: int) -> list[tuple[str, dict, dict]]:
             if prov is not None and prov.get("host"):
                 good.append((r["prov"], r, prov))
     return good
+
+
+def _new_finds(ctx: Ctx, i: int) -> list[tuple[str, dict, dict]]:
+    """[(product id, adoption record, public description)] of launched service products the member started relying on
+    for its work recently (fewer than 3 uses) and that nobody has posted on the product-discovery platform yet - what
+    a hunter posts there (a find, not a verdict). Read-only use of the member's own records and of public launches."""
+    st = ctx.state
+    work = ctx.world.modules.get("work")
+    if work is None or "work_exp" not in st.tables or "launch" not in ctx.world.modules:
+        return []
+    out = []
+    for key in st.find_ids("work_exp", "i", int(i)):
+        r = st.tables["work_exp"][key]
+        if not r["active"] or r["uses"] >= 3 or not str(r["prov"]).startswith("prd_"):
+            continue
+        pr = st.get("products", r["prov"]) if "products" in st.tables else None
+        prov = work._provider(st, r["prov"])
+        if pr is None or prov is None or pr.get("status") != "launched" or _launched(st, {"product": r["prov"]}):
+            continue
+        out.append((r["prov"], r, prov))
+    return out
+
+
+def _find_post(ctx: Ctx, i: int, rng, finds: list[tuple[str, dict, dict]]) -> tuple[str, str, dict, str]:
+    """(title, body, link, name) of a hunter's launch post of a service it just started using (its own counts)."""
+    st = ctx.state
+    work = ctx.world.modules["work"]
+    pid, r, prov = finds[int(rng.integers(0, len(finds)))]
+    task = work.task_text(r["step_need"])
+    name = (st.get("products", pid) or {}).get("name") or prov["host"]
+    uses = int(r["uses"])
+    so_far = "I have not run a task through it yet" if uses == 0 else \
+        f"{int(r['ok'])} of my first {uses} tasks with it went through"
+    title = f"Found a service for {task.split()[0].lower()} work"[:C.MAX_TITLE]
+    body = (f"For my work I need {task}. I just started using {name} (http://{prov['host']}.crucible/); {so_far}. "
+            "Posting it here for anyone with the same work.")
+    return title, body, {"product": pid}, name
 
 
 def _recommendation(ctx: Ctx, i: int, rng, good: list[tuple[str, dict, dict]]) -> tuple[str, str, dict, str]:
@@ -303,12 +341,21 @@ def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
         i = int(idx[j])
         cj = int(choice[j])
         rec_post = None
+        hunt = False
         good = _recommendable(ctx, i) if writer[j] and text_media else []
         if good and rng.random() < REVIEW_P:
             # a member with a service that pays off for its work sometimes writes about it instead of its usual
             # piece, in the text medium it likes best right now (its own logits over this world's text media)
             cj = max(text_media, key=lambda c: float(logits[j, c]))
             rec_post = _recommendation(ctx, i, rng, good)
+        elif writer[j] and text_media:
+            finds = _new_finds(ctx, i)
+            if finds and rng.random() < FIND_P:
+                # a member who just started using a service nobody posted yet shares the find on the
+                # product-discovery platform, as a hunter (a launch post linking the product)
+                cj = max(text_media, key=lambda c: float(logits[j, c]))
+                rec_post = _find_post(ctx, i, rng, finds)
+                hunt = True
         m = MEDIUM_NAMES[cj]
         plat, kind, (lo, hi), (s_lo, s_hi) = MEDIA[m]
         minutes = min(left[j], lo + (hi - lo) * rng.random() * (0.5 + skills[j, 1]))
@@ -344,7 +391,7 @@ def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
                 title, body, link, name = rec_post
                 data = f"{title}\n\n{body}\n".encode("utf-8")
                 ref = artifacts.put(ctx, data, "text/plain", owner=p, meta={"title": title[:80]}, kind="text")
-                if "launch" in w.modules and not _launched(ctx.state, link) and rng.random() < HUNT_P:
+                if "launch" in w.modules and not _launched(ctx.state, link) and (hunt or rng.random() < HUNT_P):
                     cid = ctx.call("launch.post", {"ref": ref, "title": f"{name} - {title}"[:C.MAX_TITLE], **link},
                                    as_principal=p)["id"]
                     media_made.append("hunt")
