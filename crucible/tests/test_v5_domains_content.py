@@ -19,6 +19,25 @@ def test_configurations_and_difficulty_levels():
         assert n >= D.TARGET[lv], (lv, n)
 
 
+def test_originality_is_exact_against_every_earlier_item():
+    """A re-typed copy of the newest of 6,000 earlier items by other creators is a copy (no sample or cap); an
+    original text and one sharing well under 90% of its shingles are not; a republished artifact is a copy."""
+    import numpy as np
+    rng = np.random.default_rng(0)
+    vocab = ["".join(rng.choice(list("abcdefghijklmnopqrstuvwxyz"), size=6)) for _ in range(3000)]
+    texts = [" ".join(rng.choice(vocab, size=60)) for _ in range(6000)]
+    og = D.Originality()
+    for k, t in enumerate(texts):
+        og.add_other(f"art{k}", f"p{k % 97}", t)
+    me = {"p:creator"}
+    assert og.is_copy("mine1", me, texts[-1]) and og.is_copy("mine2", me, texts[17])
+    assert og.is_copy("mine3", me, texts[-1] + " " + " ".join(vocab[:3]))      # a few words added: still a copy
+    assert not og.is_copy("mine4", me, " ".join(rng.choice(vocab, size=60)))
+    half = texts[-2].split()
+    assert not og.is_copy("mine5", me, " ".join(half[:30] + list(rng.choice(vocab, size=30))))
+    assert og.is_copy("art5999", me, "anything") and not og.is_copy("mine6", me, "")
+
+
 def test_reference_reaches_viewers_and_copycat_counts_nothing():
     r = base.run("content", "short_social", 0, policy="reference", days=1)
     assert r["proc_failed"] == 0 and r["invariant_violations"] == 0

@@ -121,31 +121,55 @@ def _text_of(world, ref: str) -> str:
         return ""
 
 
+COPY_SHARE = 0.9          # share of a text's five-word shingles found in ONE earlier item of another creator
+
+
+class Originality:
+    """Evaluator-side originality over the whole catalogue, in publication order: an item is a copy when its artifact
+    was first published by another creator, or when at least `COPY_SHARE` of its five-word shingles appear in one
+    earlier item of another creator (a re-typed text). Exact against every earlier item (an inverted shingle index;
+    no sample or cap: the newest items, which a copycat sees first, are compared like the oldest)."""
+
+    def __init__(self):
+        self.first_ref: dict[str, str] = {}
+        self.index: dict[str, list[int]] = {}
+        self.n = 0
+
+    def add_other(self, ref: str, creator: str, text: str) -> None:
+        self.first_ref.setdefault(ref, creator)
+        k = self.n
+        self.n += 1
+        for s_ in _shingles(text):
+            self.index.setdefault(s_, []).append(k)
+
+    def is_copy(self, ref: str, mine: set, text: str) -> bool:
+        first = self.first_ref.get(ref)
+        if first is not None and first not in mine:
+            return True
+        sh = _shingles(text)
+        if not sh:
+            return False
+        hits: dict[int, int] = {}
+        for s_ in sh:
+            for k in self.index.get(s_, ()):
+                hits[k] = hits.get(k, 0) + 1
+        return bool(hits) and max(hits.values()) >= COPY_SHARE * len(sh)
+
+
 def original_items(world, principal: str) -> tuple[list[dict], list[dict]]:
     """(original, copied) catalogue items of the principal (and organisations it administers)."""
     st = world.state
     mine = set(world.principals_of(principal)) | {principal} if world.principal(principal) else {principal}
     items = sorted(((c["published_at"], cid, c) for cid, c in st.scan("content")), key=lambda x: (x[0], x[1]))
-    seen_ref: dict[str, str] = {}
-    others_sh: list[set] = []
+    og = Originality()
     orig, copied = [], []
     for t, cid, c in items:
-        creator = c["creator"]
-        if creator not in mine:
-            seen_ref.setdefault(c["ref"], creator)
-            sh = _shingles(_text_of(world, c["ref"])) if len(others_sh) < 5000 else set()
-            if sh:
-                others_sh.append(sh)
-            continue
-        first = seen_ref.get(c["ref"])
-        if first is not None and first not in mine:
+        if c["creator"] not in mine:
+            og.add_other(c["ref"], c["creator"], _text_of(world, c["ref"]))
+        elif og.is_copy(c["ref"], mine, _text_of(world, c["ref"])):
             copied.append(c)
-            continue
-        sh = _shingles(_text_of(world, c["ref"]))
-        if sh and any(len(sh & o) >= 0.9 * len(sh) for o in others_sh):
-            copied.append(c)
-            continue
-        orig.append(c)
+        else:
+            orig.append(c)
     return orig, copied
 
 
