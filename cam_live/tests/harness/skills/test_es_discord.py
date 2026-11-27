@@ -199,9 +199,10 @@ def test_executor_tools_describe_capabilities_only(staging):
     ex = executor_for(staging)
     assert isinstance(ex, ModalityExecutor) and ex.modality == Modality.API
     tools = {t.name: t for t in ex.tools()}
-    assert set(tools) == {"discord.get_guild_stats", "discord.list_channels", "discord.create_channel", "discord.send_message",
+    assert set(tools) >= {"discord.get_guild_stats", "discord.list_channels", "discord.create_channel", "discord.send_message",
                           "discord.edit_message", "discord.get_channel_activity", "discord.list_invites",
                           "discord.create_invite", "discord.list_events", "discord.create_event"}
+    assert set(tools) == set(discord_mod.TOOLS)          # the administration tools are covered in test_es_discord_admin.py
     assert all(t.available and not t.unavailable_reason for t in tools.values())
     assert tools["discord.send_message"].side_effects == "external_write" and tools["discord.get_guild_stats"].side_effects == "external_read"
     # descriptions say what a tool does; there is no advice on when or why, and no direct-message or user-account tool
@@ -324,7 +325,7 @@ def test_tools_are_unavailable_without_credentials_and_nothing_is_sent(staging, 
     }
     for label, (ex, reason) in cases.items():
         tools = ex.tools()
-        assert len(tools) == 10 and all(not t.available and t.unavailable_reason == reason for t in tools), label
+        assert len(tools) == len(discord_mod.TOOLS) and all(not t.available and t.unavailable_reason == reason for t in tools), label
         for name, args in (("get_guild_stats", {}), ("send_message", {"channel_id": st.general_id, "content": "x"})):
             res = ex.execute(dact(name, args), make_ctx(pol))
             assert res.status == ResultStatus.DENIED and res.failure_class == FailureClass.MISSING_PERMISSION, label
