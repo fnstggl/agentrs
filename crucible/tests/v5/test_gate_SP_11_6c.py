@@ -26,8 +26,8 @@ Learner and world per tier (D-68 addendum, wave 3b; the rule above is the same i
 * Tier 1: `ReferenceLearner` (neural, PPO) in `mech:scm_additive`, 3000 training decisions in one world.
 * Tier 2: `ToolValueLearner` (statistical: per-tool value of the observed change of its own money) in
   `crisis:storm_radial`, trained 300 decisions in each of the training seeds 1-4, evaluated 120 hourly decisions.
-* Tier 3: `ToolValueLearner` in the `balanced` civilisation, trained 500 decisions (10 simulated minutes apart) in
-  each of the training seeds 1-2, evaluated 240 decisions.
+* Tier 3: `ToolValueLearner` in the `balanced` civilisation, trained 1000 decisions (10 simulated minutes apart) in
+  each of the training seeds 1-2 (about 3.5 tries of each of its ~580 tools), evaluated 240 decisions.
 
 Why not the neural learner in the kernel tiers (measured on this branch, observation-only, held-out seeds): its
 near-uniform policy over 60-580 tools rarely repeats a tool, so a few thousand decisions move its tool preferences
@@ -213,7 +213,7 @@ def _tier2():
 
 def _tier3():
     # decisions 10 simulated minutes apart (a civilisation hour costs about a second on the GPU text path)
-    return _improvement(_statistical_learner, lambda s: make(3, CIV, s, agents=["learner"]), (1, 2), 500, 240,
+    return _improvement(_statistical_learner, lambda s: make(3, CIV, s, agents=["learner"]), (1, 2), 1000, 240,
                         600, _kernel_outcome)
 
 
