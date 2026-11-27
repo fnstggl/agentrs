@@ -342,7 +342,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; passed in the 684eeb5 head job (GPU slot, 15 domains; 684eeb5 predates 022eff6e/eacf373c and the repair pass). Rerun at HEAD queued ('L: repair gates OO.1-OO.12 without OO.5')",
+   "status_claim": "implemented; gate PASSED at the repair head 08fe101 on a GPU slot (15 Part 9 domains after the domains-framework/3 merges, real civilisations; job 'L: repair gates OO.1-OO.12 without OO.5', log scratch w3b-obs/gates_oo_r.log: 11 passed in 1656 s). Earlier: passed at 684eeb5",
    "notes": "only Part 9 domains count as Tier 2 (fixtures never); wave 3b (2): dev harness (CPU, 10 domains = 50 configurations): 0 families not observation-only; Tier 3 measured in the gate run"
   },
   "OO.2": {
@@ -355,7 +355,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; passed in the 684eeb5 head job (GPU slot, 15 domains; 684eeb5 predates 022eff6e/eacf373c and the repair pass). Rerun at HEAD queued ('L: repair gates OO.1-OO.12 without OO.5')",
+   "status_claim": "implemented; gate PASSED at the repair head 08fe101 on a GPU slot (15 Part 9 domains after the domains-framework/3 merges, real civilisations; job 'L: repair gates OO.1-OO.12 without OO.5', log scratch w3b-obs/gates_oo_r.log: 11 passed in 1656 s). Earlier: passed at 684eeb5",
    "notes": ""
   },
   "OO.3": {
@@ -368,7 +368,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; passed in the 684eeb5 head job (GPU slot, 15 domains; 684eeb5 predates 022eff6e/eacf373c and the repair pass). Rerun at HEAD queued ('L: repair gates OO.1-OO.12 without OO.5')",
+   "status_claim": "implemented; gate PASSED at the repair head 08fe101 on a GPU slot (15 Part 9 domains after the domains-framework/3 merges, real civilisations; job 'L: repair gates OO.1-OO.12 without OO.5', log scratch w3b-obs/gates_oo_r.log: 11 passed in 1656 s). Earlier: passed at 684eeb5",
    "notes": "wave 3b (2): dev harness (CPU): startup shows all 7 kinds; industry/labor/software/crisis/marketplace lose none of the kinds they compose (D-68)"
   },
   "OO.4": {
@@ -381,7 +381,7 @@
     "tests/v5/test_gate_OO.py",
     "tests/test_v5_experience_isolation.py"
    ],
-   "status_claim": "implemented; passed in the 684eeb5 head job (GPU slot, 15 domains; 684eeb5 predates 022eff6e/eacf373c and the repair pass). Rerun at HEAD queued ('L: repair gates OO.1-OO.12 without OO.5')",
+   "status_claim": "implemented; gate PASSED at the repair head 08fe101 on a GPU slot (15 Part 9 domains after the domains-framework/3 merges, real civilisations; job 'L: repair gates OO.1-OO.12 without OO.5', log scratch w3b-obs/gates_oo_r.log: 11 passed in 1656 s). Earlier: passed at 684eeb5",
    "notes": "reachability now measured on the evaluation path (remote.evaluate + adversarial evaluated learner, sealed seed) per tier; wave 3b (2): dev harness (CPU, crisis + Tier 1 + Tier 3 civ isolation probe): verifier matches, not reachable, 0 hidden values reached; wave 3b (2): after merging the latest domain commits (dom1 d52bc5c, dom2 8a4ad73, dom3 4690070) the hosted verification matched and the evaluation path held in 14 domains (CPU dev; community/content not run): 0 evaluator objects or hidden values (incl. the science laws) in the learner's process"
   },
   "OO.5": {
@@ -404,7 +404,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; passed in the 684eeb5 head job (GPU slot, 15 domains; 684eeb5 predates 022eff6e/eacf373c and the repair pass). Rerun at HEAD queued ('L: repair gates OO.1-OO.12 without OO.5')",
+   "status_claim": "implemented; gate PASSED at the repair head 08fe101 on a GPU slot (15 Part 9 domains after the domains-framework/3 merges, real civilisations; job 'L: repair gates OO.1-OO.12 without OO.5', log scratch w3b-obs/gates_oo_r.log: 11 passed in 1656 s). Earlier: passed at 684eeb5",
    "notes": "wave 3b (2): dev harness (CPU, 12 domains): every domain's curiosity learner made 5 weight-changing updates, env paid 0.0"
   },
   "OO.7": {
@@ -415,7 +415,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; passed in the 684eeb5 head job (GPU slot, 15 domains; 684eeb5 predates 022eff6e/eacf373c and the repair pass). Rerun at HEAD queued ('L: repair gates OO.1-OO.12 without OO.5'); repair pass, CPU at 31712ab4+ (single thread, not a slot run): SP-11.6d, OO.7, OO.8, OO.9, OO.12 gate tests 5 passed (71.5 s)",
+   "status_claim": "implemented; gate PASSED at the repair head 08fe101 on a GPU slot (15 Part 9 domains after the domains-framework/3 merges, real civilisations; job 'L: repair gates OO.1-OO.12 without OO.5', log scratch w3b-obs/gates_oo_r.log: 11 passed in 1656 s). Earlier: passed at 684eeb5",
    "notes": ""
   },
   "OO.8": {
@@ -426,7 +426,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; FAILED in the 684eeb5 head job (shallow clone without the 4.0 commit c07098b - environment, the same cause as R.6/SP-11.3/SP-11.6d; the earlier 'gate passes; rerun running' claim omitted this); passes on CPU at HEAD with the 4.0 commit (verifier: R.6 + OO.8 2 passed). Rerun queued ('L: repair gates OO.1-OO.12 without OO.5', log gates_oo_r.log); repair pass, CPU at 31712ab4+ (single thread, not a slot run): SP-11.6d, OO.7, OO.8, OO.9, OO.12 gate tests 5 passed (71.5 s)",
+   "status_claim": "implemented; gate PASSED at the repair head 08fe101 on a GPU slot (15 Part 9 domains after the domains-framework/3 merges, real civilisations; job 'L: repair gates OO.1-OO.12 without OO.5', log scratch w3b-obs/gates_oo_r.log: 11 passed in 1656 s). Earlier: passed at 684eeb5 except OO.8 (shallow clone)",
    "notes": ""
   },
   "OO.9": {
@@ -440,7 +440,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; passed in the 684eeb5 head job (GPU slot, 15 domains; 684eeb5 predates 022eff6e/eacf373c and the repair pass). Rerun at HEAD queued ('L: repair gates OO.1-OO.12 without OO.5'); repair pass, CPU at 31712ab4+ (single thread, not a slot run): SP-11.6d, OO.7, OO.8, OO.9, OO.12 gate tests 5 passed (71.5 s)",
+   "status_claim": "implemented; gate PASSED at the repair head 08fe101 on a GPU slot (15 Part 9 domains after the domains-framework/3 merges, real civilisations; job 'L: repair gates OO.1-OO.12 without OO.5', log scratch w3b-obs/gates_oo_r.log: 11 passed in 1656 s). Earlier: passed at 684eeb5",
    "notes": "the evaluation entry point (remote.evaluate) and its CLI are checked too; wave 3b (3): experience.statistical.ToolValueLearner added to the checked entry points (default observation_only)"
   },
   "OO.10": {
@@ -452,7 +452,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; passed in the 684eeb5 head job (GPU slot, 15 domains; 684eeb5 predates 022eff6e/eacf373c and the repair pass). Rerun at HEAD queued ('L: repair gates OO.1-OO.12 without OO.5')",
+   "status_claim": "implemented; gate PASSED at the repair head 08fe101 on a GPU slot (15 Part 9 domains after the domains-framework/3 merges, real civilisations; job 'L: repair gates OO.1-OO.12 without OO.5', log scratch w3b-obs/gates_oo_r.log: 11 passed in 1656 s). Earlier: passed at 684eeb5",
    "notes": "wave 3b (2): dev harness (CPU, 8 domains): objective delivered, 0 progress values exposed, 0 rewards"
   },
   "OO.11": {
@@ -464,7 +464,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; passed in the 684eeb5 head job (GPU slot, 15 domains; 684eeb5 predates 022eff6e/eacf373c and the repair pass). Rerun at HEAD queued ('L: repair gates OO.1-OO.12 without OO.5')",
+   "status_claim": "implemented; gate PASSED at the repair head 08fe101 on a GPU slot (15 Part 9 domains after the domains-framework/3 merges, real civilisations; job 'L: repair gates OO.1-OO.12 without OO.5', log scratch w3b-obs/gates_oo_r.log: 11 passed in 1656 s). Earlier: passed at 684eeb5",
    "notes": "Tier 2 worlds get the learner-side exp/goals modules; wave 3b (2): dev harness (CPU, 10 domains): every self-experiment resolved, 0 rewards"
   },
   "OO.12": {
@@ -474,7 +474,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; passed in the 684eeb5 head job (GPU slot, 15 domains; 684eeb5 predates 022eff6e/eacf373c and the repair pass). Rerun at HEAD queued ('L: repair gates OO.1-OO.12 without OO.5'); repair pass, CPU at 31712ab4+ (single thread, not a slot run): SP-11.6d, OO.7, OO.8, OO.9, OO.12 gate tests 5 passed (71.5 s)",
+   "status_claim": "implemented; gate PASSED at the repair head 08fe101 on a GPU slot (15 Part 9 domains after the domains-framework/3 merges, real civilisations; job 'L: repair gates OO.1-OO.12 without OO.5', log scratch w3b-obs/gates_oo_r.log: 11 passed in 1656 s). Earlier: passed at 684eeb5",
    "notes": ""
   },
   "OO.14": {
@@ -1176,7 +1176,8 @@
   },
   "repair_pass": {
    "sp_11_6c_f59a267": "1 failed (tiers_with_learning_improvement 1 == 3; learner kinds 4/4), 2387 s, GPU slot",
-   "queued": "OO.5 (gate_OO5.log), fast lane R/S/SP-11.x/SP-2.2 (gates_fast_r.log), OO.1-OO.12 without OO.5 (gates_oo_r.log), OO.14+OO.16 (gates_oo14_r.log); each clones the latest c5c/w3b-obs commit at admission and fetches the 4.0 commit"
+   "queued": "OO.5 (gate_OO5.log), fast lane R/S/SP-11.x/SP-2.2 (gates_fast_r.log), OO.1-OO.12 without OO.5 (gates_oo_r.log), OO.14+OO.16 (gates_oo14_r.log); each clones the latest c5c/w3b-obs commit at admission and fetches the 4.0 commit",
+   "oo_1_12_08fe101": "11 passed (OO.1-OO.4, OO.6-OO.12), 1656 s, GPU slot"
   }
  }
 }
