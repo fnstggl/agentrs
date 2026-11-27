@@ -1,21 +1,26 @@
 {
  "workstream": "C",
- "stage": "1 of 2",
- "commit": "4b4266753f3a5f59a6082909b36e3f29a81db7d0",
- "summary": "Model-independent mathematics and machinery of the learned intrinsic reward: exact tabular lifetime meta-gradient reference (autograd = finite differences to 1e-10 for K in 1,2,4,8; sampled estimator with inner-data score term and leave-one-out baselines unbiased by z-score and relative error against an enumerated truth); general MetaGradient engine over parameter dictionaries (unroll / adjoint checkpoint / first-order, on-policy and importance-weighted outer estimators with refusal); signal schema; IntrinsicReward with LifetimeContext; labelled bootstrap signal and evidence-gated RewardMixer; support/query windows with independent-outcome counting; integrity guards and a hash-chained outcome ledger; budgeted goal-free machinery. Nothing is wired onto the real model yet and no real meta-update has been run.",
+ "commit": "3fcfd54b34d289089e52e580276478a85c1adbe1",
+ "summary": "Stage 1 + stage 2. The learned intrinsic reward R_psi and its lifetime meta-gradient are implemented end to end on the real model at debug scale: PolicyImprovementLoss (one function used as the learner's LossProvider with R_psi detached and, functionally over the policy head + decision trunk, as the inner step of the unroll); MetaLearner (real policy updates with snapshots, support/query windows inside one lifetime, utilities only from a hash-chained ledger of signed outcomes, on-policy or importance-weighted outer step, held-out promotion of the bootstrap mix, MetaUpdateRecord also for skipped updates); signal assembly with a documented source for every signal; a budgeted goal-free mode on the fast posterior; integrity guards. The mathematics checks out (finite differences, exact zeros under the two ablations, psi bit-identical under the inner loss). The science does not: in the multi-lifetime LabWorld comparison the learned reward used from scratch HURT (it collapsed in 5 of 10 seeds, in 3 of them onto the noisy gauge, which the learned reward then paid for), and the cold-start path made no detectable difference to bootstrap-only. Nothing here has seen live or staging experience, and the agent / runtime do not call it yet.",
  "requirements": {
   "MR-01": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
+    "src/cam_live/reward/assemble.py",
+    "src/cam_live/reward/bootstrap.py",
+    "src/cam_live/reward/inner.py",
     "src/cam_live/reward/intrinsic.py",
-    "src/cam_live/reward/signals.py",
-    "src/cam_live/reward/bootstrap.py"
+    "src/cam_live/reward/metalearner.py",
+    "src/cam_live/reward/signals.py"
    ],
    "integration_points": [
     "cam_live.reward.intrinsic.IntrinsicReward.forward",
     "cam_live.reward.intrinsic.IntrinsicReward.reward_sequence",
     "cam_live.reward.signals.RewardSignals.to_tensor",
-    "cam_live.reward.bootstrap.RewardMixer.combine"
+    "cam_live.reward.bootstrap.RewardMixer.combine",
+    "cam_live.reward.metalearner.MetaLearner.internal_rewards",
+    "cam_live.reward.inner.PolicyImprovementLoss.reward_step",
+    "cam_live.reward.assemble.SignalAssembler.assemble"
    ],
    "tests": [
     "tests/reward/test_reward_intrinsic.py::test_reward_is_bounded_nonlinear_and_uses_every_input",
@@ -24,105 +29,145 @@
     "tests/reward/test_reward_intrinsic.py::test_signals_to_tensor_order_transforms_masks_and_one_hots",
     "tests/reward/test_reward_intrinsic.py::test_lifetime_context_persists_across_objectives_and_checkpoints",
     "tests/reward/test_reward_intrinsic.py::test_version_is_a_hash_that_changes_exactly_when_parameters_change",
-    "tests/reward/test_reward_intrinsic.py::test_normalisation_statistics_update_and_freeze_inside_a_meta_window"
+    "tests/reward/test_reward_intrinsic.py::test_normalisation_statistics_update_and_freeze_inside_a_meta_window",
+    "tests/reward/test_reward_inner.py::test_reward_step_labels_every_decision_and_replay_moves_no_state",
+    "tests/reward/test_reward_inner.py::test_signal_sources_are_documented_and_causal",
+    "tests/reward/test_reward_inner.py::test_prediction_error_uses_only_prospective_predictions_seen_by_reward_time",
+    "tests/reward/test_reward_inner.py::test_evaluator_head_fills_success_signals"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.diagnose --out cam_live/docs/evidence/C   (then: ... --skip-experiment, which re-runs the checks and re-summarises the stored runs)"
    ],
    "evidence": [
+    "docs/evidence/C/diagnostics.json",
     "docs/evidence/test_results/C.xml"
    ],
-   "limitations": "R_psi module, signal schema and mixer exist and are tested on synthetic tensors. Stage 1 is model-independent: not yet wired onto CamLiveModel / the agent / the runtime (stage 2). No real or staging meta-update has been run."
+   "limitations": "R_psi rewards every real decision of the debug model in LabWorld and writes intrinsic_reward / bootstrap_reward / reward_version to the record. AgentAPI.internal_rewards has to call MetaLearner.internal_rewards (integration is the master's). In the LabWorld runs the signals that come from trained predict heads (success estimate, delta V, VOI, information gain, epistemic uncertainty, prediction error) had no source and were masked; only costs, elapsed time, execution status and verified progress were live."
   },
   "MR-02": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
     "src/cam_live/reward/intrinsic.py",
-    "src/cam_live/reward/meta.py"
+    "src/cam_live/reward/meta.py",
+    "src/cam_live/reward/metalearner.py"
    ],
    "integration_points": [
     "cam_live.reward.intrinsic.IntrinsicReward.meta_parameters",
-    "cam_live.reward.meta.MetaGradient.apply"
+    "cam_live.reward.meta.MetaGradient.apply",
+    "cam_live.reward.metalearner.MetaLearner.meta_update"
    ],
    "tests": [
     "tests/reward/test_reward_intrinsic.py::test_meta_parameters_are_exactly_the_reward_group",
     "tests/reward/test_reward_intrinsic.py::test_meta_gradient_through_the_real_reward_module_reaches_every_parameter_including_the_recurrence",
     "tests/reward/test_reward_meta.py::test_apply_steps_only_the_reward_optimizer_and_ascends_the_verified_objective",
     "tests/reward/test_reward_meta.py::test_meta_training_improves_verified_utility_of_fresh_learners_on_held_out_support",
-    "tests/reward/test_reward_exact.py::test_meta_trained_reward_values_delayed_payoff_action_and_speeds_up_learning"
+    "tests/reward/test_reward_exact.py::test_meta_trained_reward_values_delayed_payoff_action_and_speeds_up_learning",
+    "tests/reward/test_reward_metalearner.py::test_single_lifetime_windows_and_on_policy_meta_update",
+    "tests/reward/test_reward_inner.py::test_meta_gradient_matches_finite_differences_on_the_real_adaptable_subset",
+    "tests/reward/test_reward_experiment.py::test_three_learners_with_equal_experience_in_labworld"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward/test_reward_experiment.py -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/C_slow.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.diagnose --out cam_live/docs/evidence/C   (then: ... --skip-experiment, which re-runs the checks and re-summarises the stored runs)"
    ],
    "evidence": [
+    "docs/evidence/C/diagnostics.json",
     "docs/evidence/C/exact_meta_gradient.json",
-    "docs/evidence/test_results/C.xml"
+    "docs/evidence/test_results/C.xml",
+    "docs/evidence/test_results/C_slow.xml"
    ],
-   "limitations": "Trainable and trained only on diagnostic problems (tabular MDPs, neural bandit). Stage 1 is model-independent: not yet wired onto CamLiveModel / the agent / the runtime (stage 2). No real or staging meta-update has been run."
+   "limitations": "psi is trained by real meta-updates on the debug model in LabWorld (80 applied updates per seed in the experiment). Trained does not mean useful: see scientific_failures. Never trained on live or staging experience, never with Qwen3-4B (cost only)."
   },
   "MR-03": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
-    "src/cam_live/reward/meta.py",
     "src/cam_live/reward/exact.py",
-    "src/cam_live/reward/intrinsic.py"
+    "src/cam_live/reward/inner.py",
+    "src/cam_live/reward/intrinsic.py",
+    "src/cam_live/reward/meta.py",
+    "src/cam_live/reward/metalearner.py"
    ],
    "integration_points": [
     "cam_live.reward.meta.MetaGradient.inner_update",
     "cam_live.reward.meta.policy_gradient_inner_loss",
-    "cam_live.reward.intrinsic.IntrinsicReward.as_reward_fn"
+    "cam_live.reward.intrinsic.IntrinsicReward.as_reward_fn",
+    "cam_live.reward.inner.PolicyImprovementLoss.loss",
+    "cam_live.reward.metalearner.MetaLearner.policy_update"
    ],
    "tests": [
     "tests/reward/test_reward_meta.py::test_inner_update_changes_behaviour_depends_on_psi_and_never_touches_psi",
     "tests/reward/test_reward_meta.py::test_meta_gradient_is_zero_when_the_pathway_is_cut",
     "tests/reward/test_reward_exact.py::test_cutting_the_pathway_gives_exactly_zero",
-    "tests/reward/test_reward_intrinsic.py::test_meta_gradient_through_the_real_reward_module_reaches_every_parameter_including_the_recurrence"
+    "tests/reward/test_reward_intrinsic.py::test_meta_gradient_through_the_real_reward_module_reaches_every_parameter_including_the_recurrence",
+    "tests/reward/test_reward_inner.py::test_provider_contract_and_same_function_as_the_unroll",
+    "tests/reward/test_reward_inner.py::test_meta_gradient_matches_finite_differences_on_the_real_adaptable_subset",
+    "tests/reward/test_reward_metalearner.py::test_single_lifetime_windows_and_on_policy_meta_update",
+    "tests/reward/test_reward_inner.py::test_returns_are_duration_aware_and_stop_at_lifetime_boundaries"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.diagnose --out cam_live/docs/evidence/C   (then: ... --skip-experiment, which re-runs the checks and re-summarises the stored runs)"
    ],
    "evidence": [
+    "docs/evidence/C/diagnostics.json",
     "docs/evidence/test_results/C.xml"
    ],
-   "limitations": "Shown for a tabular policy, an MLP policy and a linear policy driven by the real IntrinsicReward module; the live policy's update is not wired. Stage 1 is model-independent: not yet wired onto CamLiveModel / the agent / the runtime (stage 2). No real or staging meta-update has been run."
+   "limitations": "The live policy head + decision trunk of the debug model are updated by L_inner on intrinsic rewards (policy_update, or the LossProvider under the continual learner). Which of the two paths the integrated agent uses is open (change request C-8)."
   },
   "MR-04": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
-    "src/cam_live/reward/meta.py",
-    "src/cam_live/reward/exact.py"
+    "src/cam_live/reward/exact.py",
+    "src/cam_live/reward/inner.py",
+    "src/cam_live/reward/meta.py"
    ],
    "integration_points": [
     "cam_live.reward.meta.MetaGradient.inner_step",
     "cam_live.reward.meta.MetaGradient.inner_update",
-    "cam_live.reward.meta.functional_logp"
+    "cam_live.reward.meta.functional_logp",
+    "cam_live.reward.inner.PolicyImprovementLoss.inner_loss",
+    "cam_live.reward.inner.AdaptableSubset.forward"
    ],
    "tests": [
     "tests/reward/test_reward_meta.py::test_meta_gradient_matches_finite_differences",
     "tests/reward/test_reward_meta.py::test_checkpointed_unroll_gives_the_same_gradient_without_keeping_the_graph",
     "tests/reward/test_reward_meta.py::test_first_order_approximation_is_exact_for_one_step_and_biased_beyond",
     "tests/reward/test_reward_meta.py::test_discounted_returns_and_dtype_paths",
-    "tests/reward/test_reward_integrity.py::test_the_functional_inner_update_leaves_psi_bit_identical"
+    "tests/reward/test_reward_integrity.py::test_the_functional_inner_update_leaves_psi_bit_identical",
+    "tests/reward/test_reward_inner.py::test_meta_gradient_matches_finite_differences_on_the_real_adaptable_subset",
+    "tests/reward/test_reward_inner.py::test_value_baseline_must_not_be_plainly_detached_for_K_above_one",
+    "tests/reward/test_reward_inner.py::test_checkpointed_unroll_equals_full_unroll_on_the_real_model",
+    "tests/reward/test_reward_inner.py::test_group_clip_is_per_group_and_differentiable",
+    "tests/reward/test_reward_experiment.py::test_meta_update_cost_at_the_50m_preset_on_the_gpu"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward/test_reward_experiment.py -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/C_gpu.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.diagnose --out cam_live/docs/evidence/C   (then: ... --skip-experiment, which re-runs the checks and re-summarises the stored runs)"
    ],
    "evidence": [
+    "docs/evidence/C/diagnostics.json",
     "docs/evidence/C/meta_cost.json",
-    "docs/evidence/test_results/C.xml"
+    "docs/evidence/C/meta_cost_50m.json",
+    "docs/evidence/test_results/C.xml",
+    "docs/evidence/test_results/C_gpu.xml"
    ],
-   "limitations": "Functional inner update (torch.func.functional_call, K in 1,2,4,8; unroll / adjoint checkpoint / first-order) verified on small policies; cost measured on synthetic MLP theta up to 10M parameters, not on the model's policy head + trunk. Stage 1 is model-independent: not yet wired onto CamLiveModel / the agent / the runtime (stage 2). No real or staging meta-update has been run."
+   "limitations": "Functional inner update over the real adaptable subset (62,211 parameters at debug scale, 5,422,467 at the 50m preset) on cached latents, K in 1, 2, 4 checked against finite differences in float64; K = 8 only in the stage-1 diagnostics. The decision trunk is reached through model.exp.trunk (change request C-6). Adapters and the experiential core are not in theta."
   },
   "MR-05": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
+    "src/cam_live/reward/exact.py",
     "src/cam_live/reward/meta.py",
-    "src/cam_live/reward/exact.py"
+    "src/cam_live/reward/metalearner.py"
    ],
    "integration_points": [
     "cam_live.reward.meta.MetaGradient.outer_surrogate",
     "cam_live.reward.meta.MetaGradient.meta_gradient",
-    "cam_live.reward.meta.MetaGradient.apply"
+    "cam_live.reward.meta.MetaGradient.apply",
+    "cam_live.reward.metalearner.MetaLearner.meta_update"
    ],
    "tests": [
     "tests/reward/test_reward_meta.py::test_sampled_on_policy_estimator_with_score_term_is_unbiased",
@@ -131,52 +176,72 @@
     "tests/reward/test_reward_meta.py::test_importance_weights_are_clipped_and_reported",
     "tests/reward/test_reward_meta.py::test_nonzero_meta_gradient_reaches_every_reward_parameter",
     "tests/reward/test_reward_exact.py::test_sampled_estimator_is_unbiased_by_z_score_and_relative_error",
-    "tests/reward/test_reward_exact.py::test_meta_training_with_the_sampled_estimator_also_learns_the_key"
+    "tests/reward/test_reward_exact.py::test_meta_training_with_the_sampled_estimator_also_learns_the_key",
+    "tests/reward/test_reward_metalearner.py::test_single_lifetime_windows_and_on_policy_meta_update",
+    "tests/reward/test_reward_metalearner.py::test_shadow_update_with_importance_weights_while_bootstrap_drives_the_policy",
+    "tests/reward/test_reward_metalearner.py::test_skipped_update_reports_the_reason_and_leaves_psi_bit_identical",
+    "tests/reward/test_reward_metalearner.py::test_external_optimizer_path_and_unroll_across_two_events",
+    "tests/reward/test_reward_experiment.py::test_three_learners_with_equal_experience_in_labworld"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward/test_reward_experiment.py -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/C_slow.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.diagnose --out cam_live/docs/evidence/C   (then: ... --skip-experiment, which re-runs the checks and re-summarises the stored runs)"
    ],
    "evidence": [
+    "docs/evidence/C/diagnostics.json",
     "docs/evidence/C/exact_meta_gradient.json",
-    "docs/evidence/test_results/C.xml"
+    "docs/evidence/test_results/C.xml",
+    "docs/evidence/test_results/C_slow.xml"
    ],
-   "limitations": "Outer objective and psi optimisation verified on diagnostics only. Importance mode is checked for exactness on enumerated rows and for refusal; clipped weights are biased by design and that bias is not quantified. No lifetime value V_L bootstrap beyond the window (truncation bias measured, not corrected). Stage 1 is model-independent: not yet wired onto CamLiveModel / the agent / the runtime (stage 2). No real or staging meta-update has been run."
+   "limitations": "Outer step (Adam on psi, clipped) runs on-policy and importance-weighted on the real debug model. The window is truncated to the K steps of one policy update by default; the bias of that truncation and of weight clipping is not quantified on the real model. The optimisation did not produce a useful reward in the LabWorld experiment (scientific_failures)."
   },
   "MR-06": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
     "src/cam_live/reward/integrity.py",
-    "src/cam_live/reward/windows.py",
-    "src/cam_live/reward/meta.py"
+    "src/cam_live/reward/meta.py",
+    "src/cam_live/reward/metalearner.py",
+    "src/cam_live/reward/windows.py"
    ],
    "integration_points": [
     "cam_live.reward.integrity.OutcomeLedger.admit_verified",
     "cam_live.reward.integrity.screen_verified",
     "cam_live.reward.meta.QueryData",
-    "cam_live.reward.windows.verified_outcomes"
+    "cam_live.reward.windows.verified_outcomes",
+    "cam_live.reward.metalearner.MetaLearner.admit_objective",
+    "cam_live.reward.metalearner.MetaLearner.admit_measurements"
    ],
    "tests": [
     "tests/reward/test_reward_integrity.py::test_objective_outcomes_need_a_valid_signature_and_an_independent_objective",
     "tests/reward/test_reward_integrity.py::test_only_authenticated_verifier_measurements_pass_screening",
     "tests/reward/test_reward_integrity.py::test_ledger_admits_signed_outcomes_once_and_rejects_fabrications",
     "tests/reward/test_reward_integrity.py::test_fabricated_outcomes_never_reach_the_outer_objective",
-    "tests/reward/test_reward_windows.py::test_only_admissible_verified_outcomes_count"
+    "tests/reward/test_reward_windows.py::test_only_admissible_verified_outcomes_count",
+    "tests/reward/test_reward_metalearner.py::test_fabricated_unsigned_duplicated_imagined_outcomes_never_enter_the_outer_objective",
+    "tests/reward/test_reward_metalearner.py::test_unauthenticated_measurements_never_supervise",
+    "tests/reward/test_reward_metalearner.py::test_repeated_evaluations_of_one_objective_credit_progress_once",
+    "tests/reward/test_reward_metalearner.py::test_ledger_tampering_stops_meta_learning"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.diagnose --out cam_live/docs/evidence/C   (then: ... --skip-experiment, which re-runs the checks and re-summarises the stored runs)"
    ],
    "evidence": [
+    "docs/evidence/C/diagnostics.json",
     "docs/evidence/test_results/C.xml"
    ],
-   "limitations": "The signature check is injected; tests use an HMAC signer standing in for the verifier process. Verifier measurements (OutcomeObservation) cannot be authenticated with the current contract (change request C-1): they are rejected unless a check is injected. Not fed by the runtime verifier yet. Stage 1 is model-independent: not yet wired onto CamLiveModel / the agent / the runtime (stage 2). No real or staging meta-update has been run."
+   "limitations": "Utilities come only from the hash-chained ledger: signed VerifiedOutcome records (LabVerifier HMAC in the tests) and measurements authenticated by an injected check. contracts.OutcomeObservation has no signature (change request C-1), so in live operation verifier measurements cannot supervise until the verifier supplies check_measurement; LabWorld tests authenticate by asking the verifier again."
   },
   "MR-07": {
    "state": "implemented",
    "files": [
-    "src/cam_live/reward/exact.py",
-    "src/cam_live/reward/meta.py",
     "src/cam_live/reward/bandit_lifetime.py",
-    "src/cam_live/reward/evidence.py"
+    "src/cam_live/reward/diagnose.py",
+    "src/cam_live/reward/evidence.py",
+    "src/cam_live/reward/exact.py",
+    "src/cam_live/reward/inner.py",
+    "src/cam_live/reward/meta.py"
    ],
    "integration_points": [
     "cam_live.reward.exact.exact_meta_gradient",
@@ -184,7 +249,8 @@
     "cam_live.reward.exact.sampled_meta_gradient",
     "cam_live.reward.exact.enumerated_sampled_gradient",
     "cam_live.reward.exact.truncation_bias",
-    "cam_live.reward.meta.finite_difference"
+    "cam_live.reward.meta.finite_difference",
+    "cam_live.reward.diagnose.meta_gradient_check"
    ],
    "tests": [
     "tests/reward/test_reward_exact.py::test_exact_meta_gradient_equals_finite_differences",
@@ -199,29 +265,39 @@
     "tests/reward/test_reward_meta.py::test_meta_gradient_matches_finite_differences",
     "tests/reward/test_reward_meta.py::test_checkpointed_unroll_gives_the_same_gradient_without_keeping_the_graph",
     "tests/reward/test_reward_meta.py::test_sampled_on_policy_estimator_with_score_term_is_unbiased",
-    "tests/reward/test_reward_meta.py::test_meta_gradient_is_zero_when_the_pathway_is_cut"
+    "tests/reward/test_reward_meta.py::test_meta_gradient_is_zero_when_the_pathway_is_cut",
+    "tests/reward/test_reward_inner.py::test_meta_gradient_matches_finite_differences_on_the_real_adaptable_subset",
+    "tests/reward/test_reward_inner.py::test_value_baseline_must_not_be_plainly_detached_for_K_above_one",
+    "tests/reward/test_reward_inner.py::test_checkpointed_unroll_equals_full_unroll_on_the_real_model"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.diagnose --out cam_live/docs/evidence/C   (then: ... --skip-experiment, which re-runs the checks and re-summarises the stored runs)"
    ],
    "evidence": [
+    "docs/evidence/C/diagnostics.json",
     "docs/evidence/C/exact_meta_gradient.json",
     "docs/evidence/C/meta_cost.json",
     "docs/evidence/test_results/C.xml"
    ],
-   "limitations": "Correctness is established on tabular MDPs and a small neural bandit (float64). The sampled estimator is unbiased for the sampled-inner-update objective, which differs from the exact-update objective by O(1/n_inner). Truncated windows are biased against the full lifetime (measured)."
+   "limitations": "Stage 1: exact tabular reference, K in 1, 2, 4, 8, relative error and z-scores. Stage 2: the real adaptable subset of the debug model, K in 1, 2, 4, float64, relative error 1e-5 on 57 sampled coordinates (central differences, eps 1e-4) and 3e-8 or better along a random direction. K = 8 is not checked on the real model."
   },
   "MR-08": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
+    "src/cam_live/reward/assemble.py",
     "src/cam_live/reward/bootstrap.py",
-    "src/cam_live/reward/integrity.py"
+    "src/cam_live/reward/inner.py",
+    "src/cam_live/reward/integrity.py",
+    "src/cam_live/reward/metalearner.py"
    ],
    "integration_points": [
     "cam_live.reward.bootstrap.BootstrapReward.__call__",
     "cam_live.reward.bootstrap.RewardMixer.combine",
     "cam_live.reward.bootstrap.RewardMixer.update",
-    "cam_live.reward.bootstrap.paired_policy_value_diffs"
+    "cam_live.reward.bootstrap.paired_policy_value_diffs",
+    "cam_live.reward.metalearner.MetaLearner._promotion",
+    "cam_live.reward.inner.PolicyImprovementLoss.intrinsic"
    ],
    "tests": [
     "tests/reward/test_reward_bootstrap.py::test_learning_progress_is_improvement_on_the_same_targets_not_raw_error",
@@ -230,22 +306,33 @@
     "tests/reward/test_reward_bootstrap.py::test_mixer_starts_as_pure_bootstrap_and_logs_which_component_produced_what",
     "tests/reward/test_reward_bootstrap.py::test_promotion_lowers_mix_only_on_held_out_evidence_of_no_harm_and_moves_back",
     "tests/reward/test_reward_bootstrap.py::test_paired_policy_value_diffs_count_each_independent_group_once",
-    "tests/reward/test_reward_bootstrap.py::test_mixing_is_not_a_gradient_path_into_the_reward_parameters"
+    "tests/reward/test_reward_bootstrap.py::test_mixing_is_not_a_gradient_path_into_the_reward_parameters",
+    "tests/reward/test_reward_metalearner.py::test_shadow_update_with_importance_weights_while_bootstrap_drives_the_policy",
+    "tests/reward/test_reward_metalearner.py::test_promotion_moves_the_mix_only_on_held_out_evidence",
+    "tests/reward/test_reward_inner.py::test_reward_step_labels_every_decision_and_replay_moves_no_state",
+    "tests/reward/test_reward_experiment.py::test_three_learners_with_equal_experience_in_labworld"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward/test_reward_experiment.py -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/C_slow.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.diagnose --out cam_live/docs/evidence/C   (then: ... --skip-experiment, which re-runs the checks and re-summarises the stored runs)"
    ],
    "evidence": [
-    "docs/evidence/test_results/C.xml"
+    "docs/evidence/C/diagnostics.json",
+    "docs/evidence/test_results/C.xml",
+    "docs/evidence/test_results/C_slow.xml"
    ],
-   "limitations": "Bootstrap signal and promotion rule are implemented and labelled; their inputs (learning progress, delta V, epistemic uncertainty) are not yet produced by the model's heads, and the bootstrap weights are untuned defaults. No Crucible dependency. Stage 1 is model-independent: not yet wired onto CamLiveModel / the agent / the runtime (stage 2). No real or staging meta-update has been run."
+   "limitations": "Bootstrap mode works without any pretraining and is labelled in every record; psi is meta-updated by shadow updates while the bootstrap reward drives the policy; the mix moves only on held-out verified evidence. The promotion rule is uncalibrated (margin and step chosen ad hoc): in the experiment it fired in 1 of 10 seeds. Of the four bootstrap components only the verified-outcome one had inputs in LabWorld, and it misattributes (it pays the step during which outcomes mature)."
   },
   "MR-09": {
    "state": "implemented",
    "files": [
-    "src/cam_live/reward/integrity.py",
     "src/cam_live/reward/bootstrap.py",
-    "src/cam_live/reward/meta.py"
+    "src/cam_live/reward/diagnose.py",
+    "src/cam_live/reward/integrity.py",
+    "src/cam_live/reward/meta.py",
+    "src/cam_live/reward/metalearner.py",
+    "src/cam_live/reward/selfgoals.py"
    ],
    "integration_points": [
     "cam_live.reward.integrity.PsiGuard",
@@ -254,7 +341,8 @@
     "cam_live.reward.integrity.SelfGoalDiscount",
     "cam_live.reward.integrity.NoisyTVGate",
     "cam_live.reward.integrity.noisy_tv_audit",
-    "cam_live.reward.integrity.is_prospective"
+    "cam_live.reward.integrity.is_prospective",
+    "cam_live.reward.diagnose.integrity_check"
    ],
    "tests": [
     "tests/reward/test_reward_integrity.py::test_inflating_reward_magnitude_cannot_change_the_induced_policy_update",
@@ -265,27 +353,40 @@
     "tests/reward/test_reward_integrity.py::test_ledger_tampering_is_detected",
     "tests/reward/test_reward_integrity.py::test_inner_loss_cannot_update_psi_and_the_guard_catches_a_leak",
     "tests/reward/test_reward_bootstrap.py::test_noisy_tv_reward_for_irreducible_randomness_decays",
-    "tests/reward/test_reward_bootstrap.py::test_noisy_tv_gate_reopens_when_uncertainty_falls_again"
+    "tests/reward/test_reward_bootstrap.py::test_noisy_tv_gate_reopens_when_uncertainty_falls_again",
+    "tests/reward/test_reward_metalearner.py::test_fabricated_unsigned_duplicated_imagined_outcomes_never_enter_the_outer_objective",
+    "tests/reward/test_reward_metalearner.py::test_noisy_gauge_earns_no_sustained_bootstrap_reward",
+    "tests/reward/test_reward_metalearner.py::test_ledger_tampering_stops_meta_learning",
+    "tests/reward/test_reward_metalearner.py::test_unauthenticated_measurements_never_supervise",
+    "tests/reward/test_reward_inner.py::test_prediction_error_uses_only_prospective_predictions_seen_by_reward_time",
+    "tests/reward/test_reward_goalfree.py::test_goal_free_mode_is_budgeted_and_stops_when_nothing_is_left_to_learn"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.diagnose --out cam_live/docs/evidence/C   (then: ... --skip-experiment, which re-runs the checks and re-summarises the stored runs)"
    ],
    "evidence": [
+    "docs/evidence/C/diagnostics.json",
     "docs/evidence/test_results/C.xml"
    ],
-   "limitations": "Tests exist and execute against the reward machinery in isolation. The same checks against the integrated agent (fabricated events arriving through the runtime, engagement statistics without genuine participation) belong to stage 2 / the verifier and are not covered here."
+   "limitations": "The tests exist and execute on the real debug model. One of the things they are meant to rule out did happen in the experiment: with the learned reward used from scratch the static gauge ended up paid above average and chosen in 40-76 % of decisions in 3 of 10 seeds (scientific_failures). Detection of engagement without genuine participation is verifier-side and not covered here."
   },
   "MR-10": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
-    "src/cam_live/reward/windows.py",
-    "src/cam_live/reward/meta.py"
+    "src/cam_live/reward/meta.py",
+    "src/cam_live/reward/metalearner.py",
+    "src/cam_live/reward/windows.py"
    ],
    "integration_points": [
     "cam_live.reward.windows.WindowBuilder.pairs",
     "cam_live.reward.windows.WindowBuilder.cut",
     "cam_live.reward.windows.held_out_groups",
-    "cam_live.reward.meta.QueryData.groups"
+    "cam_live.reward.meta.QueryData.groups",
+    "cam_live.reward.metalearner.MetaLearner.observe",
+    "cam_live.reward.metalearner.MetaLearner.ready",
+    "cam_live.reward.metalearner.MetaLearner.meta_update",
+    "cam_live.reward.metalearner.MetaLearner.state_dict"
    ],
    "tests": [
     "tests/reward/test_reward_windows.py::test_independent_outcomes_are_counted_per_group_not_per_row",
@@ -295,22 +396,31 @@
     "tests/reward/test_reward_windows.py::test_window_ids_are_deterministic_and_content_addressed",
     "tests/reward/test_reward_windows.py::test_blocks_and_pairs_chain_through_one_lifetime_and_report_thin_evidence",
     "tests/reward/test_reward_windows.py::test_held_out_groups_are_deterministic",
-    "tests/reward/test_reward_meta.py::test_query_groups_count_independent_outcomes_and_leave_one_group_out"
+    "tests/reward/test_reward_meta.py::test_query_groups_count_independent_outcomes_and_leave_one_group_out",
+    "tests/reward/test_reward_metalearner.py::test_single_lifetime_windows_and_on_policy_meta_update",
+    "tests/reward/test_reward_metalearner.py::test_skipped_update_reports_the_reason_and_leaves_psi_bit_identical",
+    "tests/reward/test_reward_metalearner.py::test_state_round_trip_rebuilds_windows_from_the_store",
+    "tests/reward/test_reward_metalearner.py::test_repeated_evaluations_of_one_objective_credit_progress_once"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.diagnose --out cam_live/docs/evidence/C   (then: ... --skip-experiment, which re-runs the checks and re-summarises the stored runs)"
    ],
    "evidence": [
+    "docs/evidence/C/diagnostics.json",
     "docs/evidence/test_results/C.xml"
    ],
-   "limitations": "Windows are cut from lists of contract ExperienceRecords built in tests; not yet connected to the experience store or to a scheduler that triggers meta-updates. Stage 1 is model-independent: not yet wired onto CamLiveModel / the agent / the runtime (stage 2). No real or staging meta-update has been run."
+   "limitations": "Support / query windows inside one lifetime, independence per group, skip-with-reason until enough verified outcomes, persistence across restarts: exercised in LabWorld only. No live or staging experience has passed through it; the runtime does not call it yet."
   },
   "MR-11": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
+    "src/cam_live/reward/diagnose.py",
+    "src/cam_live/reward/inner.py",
     "src/cam_live/reward/integrity.py",
+    "src/cam_live/reward/intrinsic.py",
     "src/cam_live/reward/meta.py",
-    "src/cam_live/reward/intrinsic.py"
+    "src/cam_live/reward/metalearner.py"
    ],
    "integration_points": [
     "cam_live.reward.integrity.assert_optimizers_disjoint",
@@ -318,7 +428,10 @@
     "cam_live.reward.integrity.PsiGuard",
     "cam_live.reward.integrity.assert_no_grad_path",
     "cam_live.reward.integrity.OutcomeLedger.verify_chain",
-    "cam_live.reward.meta.MetaGradient.apply"
+    "cam_live.reward.meta.MetaGradient.apply",
+    "cam_live.reward.metalearner.MetaLearner.check_learner_optimizers",
+    "cam_live.reward.metalearner.MetaLearner.policy_update",
+    "cam_live.reward.diagnose.psi_isolation_check"
    ],
    "tests": [
     "tests/reward/test_reward_integrity.py::test_no_learner_optimizer_may_hold_reward_parameters",
@@ -326,41 +439,57 @@
     "tests/reward/test_reward_integrity.py::test_the_functional_inner_update_leaves_psi_bit_identical",
     "tests/reward/test_reward_integrity.py::test_ledger_tampering_is_detected",
     "tests/reward/test_reward_integrity.py::test_objective_outcomes_need_a_valid_signature_and_an_independent_objective",
-    "tests/reward/test_reward_meta.py::test_apply_steps_only_the_reward_optimizer_and_ascends_the_verified_objective"
+    "tests/reward/test_reward_meta.py::test_apply_steps_only_the_reward_optimizer_and_ascends_the_verified_objective",
+    "tests/reward/test_reward_inner.py::test_inner_loss_and_real_policy_update_leave_psi_bit_identical",
+    "tests/reward/test_reward_inner.py::test_provider_contract_and_same_function_as_the_unroll",
+    "tests/reward/test_reward_metalearner.py::test_external_optimizer_path_and_unroll_across_two_events",
+    "tests/reward/test_reward_metalearner.py::test_ledger_tampering_stops_meta_learning",
+    "tests/reward/test_reward_metalearner.py::test_fabricated_unsigned_duplicated_imagined_outcomes_never_enter_the_outer_objective"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.diagnose --out cam_live/docs/evidence/C   (then: ... --skip-experiment, which re-runs the checks and re-summarises the stored runs)"
    ],
    "evidence": [
+    "docs/evidence/C/diagnostics.json",
     "docs/evidence/test_results/C.xml"
    ],
-   "limitations": "Guards exist; they are not yet installed around the continual learner. Success criteria and verification records are protected by the verifier's signature and by process separation, which other workstreams own; the ledger here only detects tampering of the meta-learning copy. Stage 1 is model-independent: not yet wired onto CamLiveModel / the agent / the runtime (stage 2). No real or staging meta-update has been run."
+   "limitations": "Inside the learner process: R_psi is detached in every learner loss, psi has its own optimizer, PsiGuard wraps the real policy update, the outcome ledger is hash-chained and a broken chain stops meta-learning. Success criteria and verifier records live with the verifier / authorization service (other workstreams); these guards detect interference from the learner's code paths, they are not process isolation."
   },
   "AE-04": {
    "state": "partial",
    "files": [
-    "src/cam_live/reward/selfgoals.py",
-    "src/cam_live/reward/integrity.py"
+    "src/cam_live/reward/integrity.py",
+    "src/cam_live/reward/selfgoals.py"
    ],
    "integration_points": [
     "cam_live.reward.selfgoals.SelfGoalSelector.select",
     "cam_live.reward.selfgoals.GoalFreeBudget",
     "cam_live.reward.selfgoals.SelfGoalSelector.usefulness",
-    "cam_live.reward.intrinsic.IntrinsicReward.forward (e_g=None)"
+    "cam_live.reward.intrinsic.IntrinsicReward.forward (e_g=None)",
+    "cam_live.reward.selfgoals.GoalFreeMode.propose",
+    "cam_live.reward.selfgoals.GoalFreeMode.resolve",
+    "cam_live.reward.selfgoals.GoalFreeMode.usefulness"
    ],
    "tests": [
     "tests/reward/test_reward_selfgoals.py::test_budget_must_be_finite_and_is_enforced",
     "tests/reward/test_reward_selfgoals.py::test_goals_are_ranked_by_uncertainty_and_achievable_progress_not_by_unpredictability",
     "tests/reward/test_reward_selfgoals.py::test_repeating_the_same_self_goal_is_discounted_and_progress_predictions_are_scored",
-    "tests/reward/test_reward_selfgoals.py::test_usefulness_is_judged_only_on_later_independent_verified_objectives"
+    "tests/reward/test_reward_selfgoals.py::test_usefulness_is_judged_only_on_later_independent_verified_objectives",
+    "tests/reward/test_reward_goalfree.py::test_goal_free_mode_is_budgeted_and_stops_when_nothing_is_left_to_learn",
+    "tests/reward/test_reward_goalfree.py::test_fixed_budget_is_never_exceeded",
+    "tests/reward/test_reward_goalfree.py::test_achievement_is_decided_by_observation_only",
+    "tests/reward/test_reward_goalfree.py::test_self_goals_never_supervise_and_usefulness_needs_later_independent_objectives"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.diagnose --out cam_live/docs/evidence/C   (then: ... --skip-experiment, which re-runs the checks and re-summarises the stored runs)"
    ],
    "evidence": [
+    "docs/evidence/C/diagnostics.json",
     "docs/evidence/test_results/C.xml"
    ],
-   "limitations": "Budget, goal scoring, discounting and usefulness bookkeeping only. No runtime mode, no candidate generation from the model, no run in which goal-free learning was followed by independently assigned objectives."
+   "limitations": "GoalFreeMode proposes budgeted learning goals from the fast posterior of the real debug model, decides achievement from observations, discounts repeats, goes idle when nothing is worth a decision and records usefulness against later signed objectives (LabWorld). Not done: the runtime does not call it; candidate (action, query) pairs must be supplied by the candidate generators; expected transferable competence is a constant 1.0, not an estimate; only real-valued queries were exercised."
   }
  },
  "public_api": [
@@ -380,12 +509,27 @@
   "cam_live.reward.integrity.OutcomeLedger(check_signature, check_measurement=None, path=None).admit_verified(v, *, utility=None, group='', exp_ids=(), objective_origin=Trust.OPERATOR) -> AdmitResult; .admit_measurement(o, ...); .head; .verify_chain()",
   "cam_live.reward.integrity.PsiGuard(reward_params, name); assert_optimizers_disjoint(inner_optimizers, reward_params); assert_no_grad_path(value, params, what); scale_normalise(r, group=None); SelfGoalDiscount.weight(goal_text, p_success_before); NoisyTVGate.update(key, epistemic)",
   "cam_live.reward.selfgoals.SelfGoalSelector(budget: GoalFreeBudget, discount=None, gate=None, min_objectives=5).select(candidates, k=1, *, objective_assigned=False) -> List[SelectedGoal]",
-  "cam_live.reward.exact.exact_meta_gradient(mdp, psi, theta0, K, alpha, *, features=None, bound=None, detach_reward=False, stop_unroll=False) -> (grad, J); sampled_meta_gradient(...); enumerated_sampled_gradient(...); truncation_bias(...)"
+  "cam_live.reward.exact.exact_meta_gradient(mdp, psi, theta0, K, alpha, *, features=None, bound=None, detach_reward=False, stop_unroll=False) -> (grad, J); sampled_meta_gradient(...); enumerated_sampled_gradient(...); truncation_bias(...)",
+  "cam_live.reward.inner.PolicyImprovementLoss(model, policy, reward, *, mixer=None, bootstrap=None, assembler=None, cfg=None, lifetime_of=None, life_states=None)  # LossProvider: name='policy_improvement', timescale='frequent', weight, eligible(record), loss(model, batch, store)",
+  "PolicyImprovementLoss.build_batch(store, records, *, batch=None, policy_only=False, gate_update=False) -> InnerBatch",
+  "PolicyImprovementLoss.functional(theta, psi, ib, *, detach_reward=False, return_aux=False, theta_sg=None); .inner_loss(theta, psi, ib, theta_sg=None); .logp(theta, ib); .reward_step(store, records, *, write=True)",
+  "cam_live.reward.inner.AdaptableSubset(model, policy, adapt_trunk=True): live(), snapshot(dtype=None), write(theta), forward(theta, lat), n_params()",
+  "cam_live.reward.inner.GroupClip({prefix: max_norm}); InnerConfig(value_coef=0.5, entropy_coef=0.01, half_life_s=86400.0, normalise=True, sequence=True, adapt_trunk=True, weight=1.0)",
+  "cam_live.reward.assemble.SignalAssembler(evaluator=None, horizon_fn=None, default_horizon_s=86400.0).assemble(records, store, *, b=None, b_next=None, e_g=None, has_next=None, device=None) -> AssembledSignals; record_signals(rec, store); SIGNAL_SOURCES; STORED_KEY='reward_signals'",
+  "cam_live.reward.metalearner.MetaLearner(model, store, cfg, *, policy=None, reward=None, check_signature=None, check_measurement=None, ledger=None, ledger_path=None, clock=None, assembler=None, bootstrap=None, mixer=None, inner_cfg=None, meta_cfg=None, measurement_utility=None, policy_head='predict_policy', reward_head='reward', evaluator_head='predict_evaluator')",
+  "MetaLearner.internal_rewards(records, *, write=True) -> dict; .policy_update(records, *, steps=None, inner_lr=None, trigger='policy_improvement') -> Optional[LearningUpdateRecord]; .note_policy_update(records, *, inner_lr=None, steps=None) -> Optional[UpdateEvent]",
+  "MetaLearner.admit_objective(verified, *, exp_ids=None, utility=None, group='', objective_origin=Trust.OPERATOR) -> AdmitResult; .admit_measurements(records) -> int; .ready() -> (bool, reason); .meta_update(now=None) -> contracts.MetaUpdateRecord",
+  "MetaLearner.new_lifetime(); .observe(records); .check_learner_optimizers(optimizers); .state_dict(); .load_state_dict(sd); attributes inner, subset, engine, optimizer, ledger, mixer, events, records, stats",
+  "cam_live.reward.metalearner.MetaConfig.from_cfg(cfg, **over)  # cfg.optim + cfg.section('reward')['meta']",
+  "cam_live.reward.selfgoals.GoalFreeMode(model, fast, budget, *, selector=None, achieve_fraction=0.25, calibration_rate=0.3, replay_per_key=8, min_progress=0.02, clock=None): active(objective_assigned), propose(b, pairs, *, k=1, objective_assigned=False) -> List[SelfGoal], resolve(goal, value, cost, *, censored=None), record_later_objective(entry, predicted_without), usefulness(), report()",
+  "cam_live.reward.meta.MetaGradient(..., grad_transform=None); inner losses with attribute stopgrad_aware=True are called as inner_loss(theta, psi, batch, theta_sg=...)",
+  "cam_live.reward.integrity.OutcomeLedger.by_exp(exp_id) -> List[LedgerEntry]; .has_observation(obs) -> bool; BootstrapReward.__call__(..., gate_update=True)",
+  "python -m cam_live.reward.diagnose --out DIR [--seeds ... --lifetimes N --kinds ... --workers N --skip-experiment | --gpu-cost]"
  ],
- "change_requests": 4,
+ "change_requests": 9,
  "extra_packages": [],
  "measured": {
-  "tests_passed": 89,
+  "tests_passed": 115,
   "tests_failed": 0,
   "exact_vs_fd_rel_err_K1": 1.6634395462974882e-10,
   "exact_vs_fd_rel_err_K2": 9.457725826234791e-11,
@@ -491,25 +635,148 @@
    "evidence": "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.evidence --out cam_live/docs/evidence/C --device cuda --reps 200000",
    "engine_statistics": "printed by an ad-hoc run of the loop in tests/reward/test_reward_meta.py::test_sampled_on_policy_estimator_with_score_term_is_unbiased (24 calls x 4000 lifetimes, seed 11); the test asserts z < 4.5 and rel_err < 0.05",
    "first_order": "ad-hoc run of BanditLifetime(seed=0), 8 support batches of 12 rows, inner_lr 0.5, normalise=True; the test asserts exact at K=1 and biased beyond"
-  }
+  },
+  "tests_skipped_by_marker_in_default_run": 2,
+  "tests_slow_passed": 1,
+  "tests_gpu_passed": 1,
+  "s2_default_suite_seconds": 100.6,
+  "s2_adaptable_subset_params_debug": 62211,
+  "s2_reward_params_debug": 30049,
+  "s2_real_model_fd_rel_err_K1": 9.519430106984726e-06,
+  "s2_real_model_fd_rel_err_K2": 9.562805487019147e-06,
+  "s2_real_model_fd_rel_err_K4": 9.628300627683919e-06,
+  "s2_real_model_fd_directional_rel_err_K1": 3.3422957006261536e-08,
+  "s2_real_model_fd_directional_rel_err_K2": 1.4922728315491245e-08,
+  "s2_real_model_fd_directional_rel_err_K4": 2.2536900761121252e-09,
+  "s2_real_model_grad_norm_reward_detached_K1": 0.0,
+  "s2_real_model_grad_norm_reward_detached_K2": 0.0,
+  "s2_real_model_grad_norm_reward_detached_K4": 0.0,
+  "s2_real_model_min_psi_tensor_grad_norm_K1": 1.2857959838786367e-05,
+  "s2_real_model_min_psi_tensor_grad_norm_K2": 2.5353526485202388e-05,
+  "s2_real_model_min_psi_tensor_grad_norm_K4": 4.997509670266043e-05,
+  "s2_real_model_policy_prob_mean_abs_change_K1": 0.003142421941706358,
+  "s2_real_model_policy_prob_mean_abs_change_K2": 0.006223351838287596,
+  "s2_real_model_policy_prob_mean_abs_change_K4": 0.01236193059634997,
+  "s2_bias_if_value_baseline_plainly_detached_K1": 0.0,
+  "s2_bias_if_value_baseline_plainly_detached_K2": 0.009973946262988179,
+  "s2_bias_if_value_baseline_plainly_detached_K4": 0.03306600175402949,
+  "s2_psi_bit_identical_after_inner_loss_step": true,
+  "s2_psi_bit_identical_after_policy_update": true,
+  "s2_scaling_output_x1000_max_abs_update_diff": 2.9802322387695312e-08,
+  "s2_scaling_pre_bound_x1000_update_norm_ratio": 0.9900239109992981,
+  "s2_scaling_pre_bound_x1000_cosine": 0.978081226348877,
+  "s2_experiment_seeds": 10,
+  "s2_experiment_lifetimes_per_seed": 320,
+  "s2_experiment_decisions_per_lifetime": 16,
+  "s2_final_quarter_achieved_bootstrap": 0.4725,
+  "s2_final_quarter_achieved_learned": 0.2625,
+  "s2_final_quarter_achieved_mixed": 0.47875000000000006,
+  "s2_final_quarter_achieved_verified_pg": 0.47125000000000006,
+  "s2_final_quarter_achieved_bootstrap_lo": 0.4052137628237899,
+  "s2_final_quarter_achieved_learned_lo": 0.07905050625710253,
+  "s2_final_quarter_achieved_mixed_lo": 0.3646995763755907,
+  "s2_final_quarter_achieved_verified_pg_lo": 0.41595907332906257,
+  "s2_final_quarter_achieved_bootstrap_hi": 0.53978623717621,
+  "s2_final_quarter_achieved_learned_hi": 0.4459494937428975,
+  "s2_final_quarter_achieved_mixed_hi": 0.5928004236244094,
+  "s2_final_quarter_achieved_verified_pg_hi": 0.5265409266709375,
+  "s2_diff_bootstrap_minus_verified_pg": 0.00124999999999999,
+  "s2_diff_learned_minus_bootstrap": -0.21000000000000002,
+  "s2_diff_learned_minus_verified_pg": -0.20875000000000005,
+  "s2_diff_mixed_minus_bootstrap": 0.006249999999999994,
+  "s2_diff_mixed_minus_learned": 0.21625,
+  "s2_diff_bootstrap_minus_verified_pg_lo": -0.11118427455882254,
+  "s2_diff_learned_minus_bootstrap_lo": -0.3791793455945874,
+  "s2_diff_learned_minus_verified_pg_lo": -0.3846363562785809,
+  "s2_diff_mixed_minus_bootstrap_lo": -0.12113590320274222,
+  "s2_diff_mixed_minus_learned_lo": 0.05920320221215411,
+  "s2_diff_bootstrap_minus_verified_pg_hi": 0.11368427455882252,
+  "s2_diff_learned_minus_bootstrap_hi": -0.04082065440541266,
+  "s2_diff_learned_minus_verified_pg_hi": -0.0328636437214192,
+  "s2_diff_mixed_minus_bootstrap_hi": 0.1336359032027422,
+  "s2_diff_mixed_minus_learned_hi": 0.37329679778784586,
+  "s2_learned_seeds_collapsed_on_non_intervention": 5,
+  "s2_learned_seeds_gauge_paid_and_chosen_over_25pct": 3,
+  "s2_mixed_seeds_collapsed_on_non_intervention": 1,
+  "s2_mixed_seeds_gauge_paid_and_chosen_over_25pct": 0,
+  "s2_gauge_frequency_last_quarter_bootstrap": 0.036310782793473786,
+  "s2_gauge_frequency_last_quarter_learned": 0.17858811711892106,
+  "s2_gauge_frequency_last_quarter_mixed": 0.02654210817633096,
+  "s2_gauge_frequency_last_quarter_verified_pg": 0.07761451793300654,
+  "s2_learned_reward_pays_act_last_locked_sd_units": 0.09102901333401255,
+  "s2_learned_reward_pays_act_last_unlocked_sd_units": 0.08254689619605779,
+  "s2_learned_reward_pays_act_other_sd_units": 0.21324591532511422,
+  "s2_learned_reward_pays_noise_gauge_sd_units": -0.1564377695357857,
+  "s2_learned_reward_pays_probe_sd_units": -0.041767169606914234,
+  "s2_learned_reward_pays_unlock_first_sd_units": -0.2662133064761846,
+  "s2_learned_reward_pays_unlock_repeat_sd_units": -0.3129663975564248,
+  "s2_learned_reward_pays_wait_sd_units": -0.20362900657591493,
+  "s2_bootstrap_reward_pays_act_last_locked_sd_units": 0.1106720908142899,
+  "s2_bootstrap_reward_pays_act_last_unlocked_sd_units": 0.28866403071259344,
+  "s2_bootstrap_reward_pays_act_other_sd_units": 0.22697994354454268,
+  "s2_bootstrap_reward_pays_noise_gauge_sd_units": -0.5905392658437856,
+  "s2_bootstrap_reward_pays_probe_sd_units": -0.5777054538679331,
+  "s2_bootstrap_reward_pays_unlock_first_sd_units": 0.011486626291546705,
+  "s2_bootstrap_reward_pays_unlock_repeat_sd_units": 0.3684466938277519,
+  "s2_bootstrap_reward_pays_wait_sd_units": 0.6539493954030454,
+  "s2_meta_updates_applied_per_seed_learned": 80,
+  "s2_mixed_seeds_with_any_promotion": 1,
+  "s2_50m_theta_params": 5422467,
+  "s2_50m_psi_params": 949121,
+  "s2_50m_meta_gradient_seconds_K2_checkpoint": 0.1601247787475586,
+  "s2_50m_meta_gradient_seconds_K2_unroll": 0.10462172826131184,
+  "s2_50m_meta_gradient_seconds_K4_checkpoint": 0.2720601558685303,
+  "s2_50m_meta_gradient_seconds_K4_unroll": 0.19729105631510416,
+  "s2_50m_meta_gradient_extra_gpu_mb_K2_checkpoint": 221.27490234375,
+  "s2_50m_meta_gradient_extra_gpu_mb_K2_unroll": 198.30126953125,
+  "s2_50m_meta_gradient_extra_gpu_mb_K4_checkpoint": 264.89990234375,
+  "s2_50m_meta_gradient_extra_gpu_mb_K4_unroll": 343.27685546875,
+  "s2_50m_end_to_end_meta_update_seconds_K2": 1.3017592430114746,
+  "s2_50m_end_to_end_meta_update_seconds_K4": 1.8564560413360596,
+  "s2_50m_end_to_end_meta_update_extra_gpu_mb_K2": 224.2099609375,
+  "s2_50m_end_to_end_meta_update_extra_gpu_mb_K4": 388.6513671875,
+  "s2_50m_policy_update_seconds_K2": 0.21278464794158936,
+  "s2_50m_policy_update_seconds_K4": 0.24482446908950806,
+  "s2_50m_gpu_peak_total_gb": 8.55699634552002,
+  "s2_50m_lock_held_seconds": 32.502209186553955,
+  "s2_scripted_uniform_achieved": 0.2966666666666667,
+  "s2_scripted_interventions_only_achieved": 0.5533333333333333,
+  "s2_scripted_unlock_then_interventions_achieved": 0.9
  },
  "not_done": [
-  "Wiring onto CamLiveModel (stage 2): logp_fn / value_fn over the policy head + decision trunk on cached latents, RewardSignals filled from the evaluator / world model / VOI heads, register_head(group='reward'), ledger fed by the runtime verifier, MetaUpdateRecord writing, PsiGuard around the continual learner.",
-  "No meta-update on real or staging experience has been run; nothing here is evidence that the reward has meta-learned outside the diagnostics.",
-  "Lifetime value V_L (bootstrap of verified utility beyond the truncation window, Zheng Eq. 5-6) is not implemented; truncation bias is measured but not corrected.",
-  "Engine cost is measured on synthetic MLP theta of 1.9M and 10M parameters on the shared GPU, not on the model's real adaptable subset (up to 50M) and not together with Qwen3-4B.",
-  "No Monte Carlo quantification of the bias introduced by clipping importance weights; importance mode is tested for exactness on enumerated rows and for refusal only.",
-  "Reverse-over-forward (jvp) Hessian-vector products for the adjoint sweep are not implemented; the checkpoint mode uses double backward.",
-  "Authentication of verifier measurements (OutcomeObservation) needs change request C-1; until then only signed VerifiedOutcome records can supervise the outer objective unless a check is injected.",
-  "Detection of engagement statistics without genuine participation is a verifier-side task and is not covered by reward.integrity.",
-  "Goal-free mode: budget / scoring / usefulness bookkeeping only; no runtime mode and no candidate generation.",
-  "Bootstrap component weights are untuned defaults; promotion evidence has only been exercised with synthetic differences."
+  "Integration: cam_live/agent.py and the runtime do not call any of this yet. AgentAPI.internal_rewards -> MetaLearner.internal_rewards, AgentAPI.meta_learn -> MetaLearner.meta_update, verifier outcomes -> MetaLearner.admit_objective, checkpoint -> MetaLearner.state_dict, and who applies the policy-improvement step (change request C-8) are the master's to wire.",
+  "No live or staging experience. Every learning result is from LabWorld (diagnostic provenance) on CamLiveConfig.debug(): a tiny random backbone and an untrained debug core, where candidate actions differ almost only by operation type (cosine 0.99 between interventions on different channels). The Qwen3-4B / 50m run measured cost only; no learning was attempted at that scale.",
+  "The predict workstream's trained heads were not in the loop of the experiment: success estimate, delta V, action quality, VOI, information gain, epistemic uncertainty and prediction error were masked, so R_psi saw latents, costs, elapsed time, execution status and verified progress only, and the bootstrap reward reduced to its verified-outcome component.",
+  "No remedy for the collapse of the learned-reward learner was tried (exploration floor in the acting rule, entropy schedule, resetting theta per lifetime, slower promotion). The inner learning rate and entropy bonus were picked on seeds 0-2 (160 lifetimes) by the bootstrap and verified-outcome learners' results; the reported seeds 10-19 were not used for tuning.",
+  "The promotion rule is uncalibrated: non-inferiority margin (0.01 utility units), step (0.25) and held-out fraction (0.25) were set by hand.",
+  "Lifetime value beyond the truncation window (Zheng et al. Eq. 5-6) is not implemented; intrinsic returns stop at the end of the support batch.",
+  "Truncation bias, importance-weight clipping bias and the multi-event unroll (unroll_events > 1, inner-data score term) are not quantified on the real model; the multi-event path has one functional test.",
+  "K = 8 is not checked against finite differences on the real model (stage-1 diagnostics only).",
+  "Verifier measurements cannot supervise in live operation until contracts.OutcomeObservation carries a signature or the verifier supplies check_measurement (change request C-1); only signed VerifiedOutcome records can.",
+  "Goal-free mode: not called by the runtime; needs (action, query) pairs from the candidate generators; expected transferable competence is a constant; real-valued queries only in the tests.",
+  "MetaLearner's bookkeeping maps (decision -> lifetime, used rows, lifetime-context snapshots) grow with the lifetime and are not pruned.",
+  "Detection of engagement statistics without genuine participation is verifier-side and not covered here.",
+  "Reverse-over-forward Hessian-vector products for the adjoint sweep are not implemented (double backward is used)."
  ],
  "scientific_failures": [
-  "First-order approximation is not a validated lower-cost approximation: relative error against the exact window gradient 13 % / 30 % / 46 % at K = 2 / 4 / 8 (bandit MLP, inner_lr 0.5, normalised advantages) and it used more peak memory than the full unroll at K = 8 in all three cost configurations (e.g. 698 vs 477 MiB at 10M theta). Kept for comparison only.",
-  "Adjoint checkpointing does not reduce memory when parameter tensors dominate: 529 vs 477 MiB at K = 8 with 10M theta and 64 rows per step, at 2.5x the time. It helps only when activations dominate (184 vs 479 MiB at 2048 rows per step, 1.9x the time).",
-  "The meta-learned reward does not beat an extrinsic reward whose magnitude is tuned by an oracle when the learner takes exact updates: held-out key-to-door, J after 3 updates 1.005 (learned, scale-matched) vs 1.049 (extrinsic x32) vs 0.728 (extrinsic). It does beat the extrinsic reward at equal step size and magnitude, and every step-scaled extrinsic learner (x4, x16, x32) when updates are sampled (n=4: 0.972 vs at most 0.940; n=16: 0.997 vs at most 0.993).",
-  "Truncated windows are strongly biased in magnitude against the full lifetime gradient: relative error 0.75 / 0.55 / 0.24 for K = 1 / 2 / 4 of an 8-update lifetime (sum objective), 0.87 / 0.75 / 0.50 (final objective), and still 0.18 / 0.49 for K = 8 of 16 updates, with cosine above 0.999 throughout.",
-  "With very small inner batches the sampled-inner-update objective itself differs from the exact-update objective: gradient gap 9-22 % at n_inner <= 2 on the test tree (below 3 % at n_inner = 16)."
- ]
+  "The learned reward used from scratch (mix 0, 80 meta-updates per seed) HURT. Verified goal achievement over the last quarter of 320 LabWorld lifetimes, 10 seeds: learned 0.263 [0.079, 0.446] vs bootstrap-only 0.472 [0.405, 0.540] vs verified-outcome-only policy gradient 0.471 [0.416, 0.527]; paired differences -0.210 [-0.379, -0.041] and -0.209 [-0.385, -0.033]. In 5 of 10 seeds the policy collapsed onto a non-intervention (seeds [11, 12, 13, 15, 19]): once every lifetime behaves the same, the outer objective has no contrast left to correct the reward. In the other 5 seeds it reached 0.39-0.58, in the range of the two baselines.",
+  "Reward integrity failed in that arm: in 3 of 10 seeds ([13, 15, 19]) the learned reward ended up paying the noisy gauge above average (+0.37 to +1.77 standard deviations) and the policy chose it in 40-76 % of decisions in the last quarter. The guards that hold are structural (bounded, scale-normalised, gated bootstrap curiosity, verified-only outer utility); they did not stop a randomly initialised reward from steering a persistent policy into the gauge before meta-learning corrected it.",
+  "The cold-start path (bootstrap mix 1, shadow meta-updates by importance weighting, promotion on held-out evidence) made no detectable difference to bootstrap-only: +0.006 [-0.121, +0.134]. Promotion fired in 1 of 10 seeds (mix 1.0 -> 0.5) and that seed is the one that collapsed (onto repeating the unlock action, 0.05 achievement). It did keep the gauge away: 0 of 10 seeds above 25 %.",
+  "Bootstrap-only and verified-outcome-only policy gradient are indistinguishable here (+0.001 [-0.111, +0.114]); both end near 0.47, below the scripted 'only run interventions' policy (0.55) and far below 'prepare the last channel, then run interventions' (0.90; uniform behaviour: 0.30).",
+  "No learner discovered the key-to-door dependency. Averaged over seeds the learned reward pays the first unlock -0.27 sd (interval [-1.01, +0.47]), interventions +0.21, the probe -0.04, the noisy gauge -0.16, waiting -0.20; every interval includes zero because the sign differs between seeds.",
+  "The labelled bootstrap reward misattributes in LabWorld: it pays the step during which verified outcomes mature, so waiting earns +0.65 sd and repeating the unlock +0.37 sd, more than an intervention (+0.23).",
+  "Stage-1 engine bug found on the real model and fixed: with the value baseline written as v.detach() the unroll lost the path theta_k(psi) -> V -> advantage; relative error of the meta-gradient 0.010 at K = 2 and 0.033 at K = 4 (zero at K = 1). Stage-1 finite-difference tests had not combined a value function with K >= 2.",
+  "Adjoint checkpointing buys little at the 50m preset: at K = 2 it uses more memory than the full unroll (221 vs 198 MB) and 1.5x the time (0.16 vs 0.10 s); at K = 4 it saves 23 % memory (265 vs 343 MB) for 1.4x the time (0.27 vs 0.20 s).",
+  "(stage 1) First-order approximation is not a validated lower-cost approximation: relative error against the exact window gradient 13 % / 30 % / 46 % at K = 2 / 4 / 8 (bandit MLP, inner_lr 0.5, normalised advantages) and it used more peak memory than the full unroll at K = 8 in all three cost configurations (e.g. 698 vs 477 MiB at 10M theta). Kept for comparison only.",
+  "(stage 1) Adjoint checkpointing does not reduce memory when parameter tensors dominate: 529 vs 477 MiB at K = 8 with 10M theta and 64 rows per step, at 2.5x the time. It helps only when activations dominate (184 vs 479 MiB at 2048 rows per step, 1.9x the time).",
+  "(stage 1) The meta-learned reward does not beat an extrinsic reward whose magnitude is tuned by an oracle when the learner takes exact updates: held-out key-to-door, J after 3 updates 1.005 (learned, scale-matched) vs 1.049 (extrinsic x32) vs 0.728 (extrinsic). It does beat the extrinsic reward at equal step size and magnitude, and every step-scaled extrinsic learner (x4, x16, x32) when updates are sampled (n=4: 0.972 vs at most 0.940; n=16: 0.997 vs at most 0.993).",
+  "(stage 1) Truncated windows are strongly biased in magnitude against the full lifetime gradient: relative error 0.75 / 0.55 / 0.24 for K = 1 / 2 / 4 of an 8-update lifetime (sum objective), 0.87 / 0.75 / 0.50 (final objective), and still 0.18 / 0.49 for K = 8 of 16 updates, with cosine above 0.999 throughout.",
+  "(stage 1) With very small inner batches the sampled-inner-update objective itself differs from the exact-update objective: gradient gap 9-22 % at n_inner <= 2 on the test tree (below 3 % at n_inner = 16)."
+ ],
+ "measured_commands": {
+  "s2_real_model_*, s2_psi_*, s2_scaling_*, s2_final_*, s2_diff_*, s2_*gauge*, s2_*pays*": "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.diagnose --out cam_live/docs/evidence/C   (then: ... --skip-experiment, which re-runs the checks and re-summarises the stored runs)",
+  "s2_50m_*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward/test_reward_experiment.py -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/C_gpu.xml",
+  "tests_*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml ; cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward/test_reward_experiment.py -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/C_slow.xml ; cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward/test_reward_experiment.py -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/C_gpu.xml",
+  "stage-1 numbers": "PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.evidence --out cam_live/docs/evidence/C"
+ }
 }
