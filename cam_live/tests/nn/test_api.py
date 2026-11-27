@@ -14,6 +14,7 @@ from cam_live.learning_api import encode_decisions
 from cam_live.nn.api import (GROUP_ADAPTERS, GROUP_BACKBONE_FROZEN, GROUP_EXPERIENTIAL, GROUP_HEADS, GROUP_REWARD,
                              GROUPS, KIND_INDEX, CoreOutput, CoreState, LatentModelAPI, TokenBatch)
 from cam_live.nn.model import CamLiveModel, build_model
+from nn_realistic_inputs import gram_stats as _gram_stats, realistic_decisions as _realistic_decisions
 
 
 def _acts():
@@ -69,57 +70,6 @@ def test_api_shapes_and_dtypes(model, items):
     assert mean.shape == epi.shape == noise.shape == (2, 3, 2) and mean.dtype == torch.float32
     info = fs.update(phi[0, 0, 0], 4.0, OutcomeKind.COUNT, exposure=2.0)
     assert info["kl"] > 0 and fs.n_updates(OutcomeKind.COUNT) == 1
-
-
-def _realistic_decisions(model, n_ctx=48, seed=0):
-    """phi over realistic (context, action, goal, query) combinations through the whole pipeline: contexts of 1-6
-    items of mixed kinds with texts, quantities spanning many magnitudes and irregular timestamps; eight different
-    actions with arguments; four goals; six queries of every fast-layer kind. -> phi [n_ctx, 8, 6, F]."""
-    from cam_live.contracts import ExperienceItem, ItemKind, Quantity
-    g = torch.Generator().manual_seed(seed)
-    kinds = [ItemKind.OBSERVATION, ItemKind.ACTION, ItemKind.OUTCOME, ItemKind.EVENT, ItemKind.DOCUMENT,
-             ItemKind.FAILURE, ItemKind.SOFTWARE]
-    words = ("checkout form export job search results login page error log pricing table signup funnel api "
-             "response unit tests").split()
-    rint = lambda lo, hi: int(torch.randint(lo, hi, (1,), generator=g))
-    ctxs = []
-    for i in range(n_ctx):
-        its = []
-        for t in range(rint(1, 7)):
-            w = " ".join(words[rint(0, len(words))] for _ in range(rint(2, 9)))
-            v = float(torch.sinh(torch.randn(1, generator=g) * 2.0))
-            its.append(ExperienceItem(kind=kinds[rint(0, len(kinds))], text=w,
-                                      ts=1000.0 * i + 10.0 ** float(torch.rand(1, generator=g) * 6) + 10.0 * t,
-                                      quantities=[Quantity(f"{w.split()[0]}.count", round(v, 2))] if t % 2 == 0 else []))
-        ctxs.append(sorted(its, key=lambda it: it.ts))
-    acts = [ActionSpec("a1", "browser.click", arguments={"ref": "e3"}),
-            ActionSpec("a2", "sandbox.python", modality="code", arguments={"code": "print(1)"}),
-            ActionSpec("a3", "internal.wait", arguments={"seconds": 600}),
-            ActionSpec("a4", "browser.type", arguments={"ref": "e7", "text": "hello"}),
-            ActionSpec("a5", "api.call", modality="api", arguments={"endpoint": "/export", "rows": 100}),
-            ActionSpec("a6", "skill.run", modality="skill", level="procedure", arguments={"skill": "publish_page"}),
-            ActionSpec("a7", "browser.navigate", arguments={"url": "https://example.org/docs"}),
-            ActionSpec("a8", "visual.click", modality="visual", arguments={"x": 310, "y": 88})]
-    qs = [OutcomeQuery("q1", "signups", kind=OutcomeKind.COUNT, horizon_s=3600.0),
-          OutcomeQuery("q2", "signups", kind=OutcomeKind.COUNT, horizon_s=30 * 86400.0),
-          OutcomeQuery("q3", "latency", horizon_s=30.0, description="seconds until the job is done"),
-          OutcomeQuery("q4", "done", kind=OutcomeKind.BINARY, horizon_s=600.0),
-          OutcomeQuery("q5", "time_to_first_reply", kind=OutcomeKind.TIME_TO_EVENT, horizon_s=86400.0),
-          OutcomeQuery("q6", "revenue", horizon_s=7 * 86400.0, description="money received")]
-    goals = ["Reach the stated target within the time limit.", "Find out why the export job fails.",
-             "Increase voluntary sign-ups.", "Reduce the page load time."]
-    with torch.no_grad():
-        o = model.core_forward(model.tokenize(ctxs))
-        e_a, _ = model.encode_actions([acts] * n_ctx)
-        e_g = model.encode_goals([goals[i % 4] for i in range(n_ctx)])
-        e_q = model.encode_queries([qs] * n_ctx)[0]
-        return model.features(model.decision_latent(o.b, e_a, e_g), e_q)
-
-
-def _gram_stats(phi):
-    P = phi.reshape(-1, phi.shape[-1]).double()
-    ev = torch.linalg.eigvalsh(P.T @ P / P.shape[0]).flip(0)
-    return float(ev[0] / ev[-1]), float(ev.sum() ** 2 / ev.pow(2).sum())
 
 
 def test_features_on_realistic_inputs_conditioning_and_fast_layer_numerics(model):
@@ -185,10 +135,13 @@ def test_candidates_differing_in_one_argument_are_distinguishable(model, items):
     assert torch.allclose(z[0], z[1], atol=1e-6)
     z_alone = z_of([ActionSpec("c", "internal.wait", arguments={"seconds": 5})])
     assert torch.allclose(z[2], z_alone[0], atol=1e-6)
-    # magnitudes stay ordered in the value part: 600 vs 601 closer than 600 vs 6e5
-    z = z_of([ActionSpec("a", "internal.wait", arguments={"seconds": 600}), ActionSpec("b", "internal.wait", arguments={"seconds": 601}),
-              ActionSpec("c", "internal.wait", arguments={"seconds": 6e5})])
-    assert cos(z[0], z[1]) > cos(z[0], z[2])
+    # what reaches the value channel: exact numbers (smooth in the value) and a hashed identity of every leaf
+    from cam_live.nn.tokens import argument_quantities
+    q = argument_quantities(ActionSpec("a", "api.call", target="e9",
+                                       arguments={"b": {"n": 600, "on": True}, "a": [1.5, None], "s": "x"}))
+    assert [(x.name, x.value) for x in q] == [
+        ("arg.target=\"e9\"", 1.0), ("arg.a[0]", 1.5), ("arg.a[0]=1.5", 1.0), ("arg.a[1]=null", 1.0),
+        ("arg.b.n", 600.0), ("arg.b.n=600.0", 1.0), ("arg.b.on=true", 1.0), ("arg.s=\"x\"", 1.0)]
     # more than MAX_ARGUMENTS leaves are dropped and counted
     from cam_live.nn.tokens import MAX_ARGUMENTS
     before = model.exp.tokenizer.stats["dropped_arguments"]
@@ -353,6 +306,59 @@ def test_trainable_state_round_trips_bit_exactly(cfg, items):
     buf.seek(0)
     again = torch.load(buf, weights_only=True)
     assert all(torch.equal(again[k], state[k]) for k in state)
+
+
+_FRESH = r"""
+import sys, torch
+from torch import nn
+from cam_live.config import CamLiveConfig
+from cam_live.contracts import ActionSpec, ExperienceItem, ItemKind, OutcomeKind, OutcomeQuery, Quantity
+from cam_live.nn.model import build_model
+torch.manual_seed(int(sys.argv[3]))                  # a different global RNG state in every process
+m = build_model(CamLiveConfig.debug())
+m.register_head("world", nn.Linear(m.d_model, 3))
+if sys.argv[1] == "load":
+    m.load_trainable_state(torch.load(sys.argv[2] + "/state.pt", weights_only=True), strict=True)
+else:
+    opt = torch.optim.Adam([p for p in m.parameters() if p.requires_grad], lr=1e-2)
+    for _ in range(2):
+        opt.zero_grad()
+        o = m.core_forward(m.tokenize([[ExperienceItem(kind=ItemKind.OBSERVATION, text="the page loaded", ts=1.0)]], with_grad=True))
+        (o.b.pow(2).sum() + m.head("world")(o.b).sum()
+         - m.generation_logprob(["a prompt"], ["its completion"], latent=o.b).sum()).backward()
+        opt.step()
+    torch.save(m.trainable_state(), sys.argv[2] + "/state.pt")
+ctx = [[ExperienceItem(kind=ItemKind.OBSERVATION, text="the page loaded", ts=10.0, quantities=[Quantity("visits", 100.0)]),
+        ExperienceItem(kind=ItemKind.OUTCOME, text="three sign ups", ts=3600.0, quantities=[Quantity("signups", 3.0)])]]
+with torch.no_grad():
+    o = m.core_forward(m.tokenize(ctx))
+    e_a, _ = m.encode_actions([[ActionSpec("a", "browser.click", arguments={"ref": "e3"}), ActionSpec("b", "internal.wait")]])
+    z = m.decision_latent(o.b, e_a, m.encode_goals(["goal"]))
+    phi = m.features(z, m.encode_queries([[OutcomeQuery("q", "signups", kind=OutcomeKind.COUNT, horizon_s=60.0)]])[0])
+    lp = m.generation_logprob(["a prompt"], ["its completion"], latent=o.b)
+    txt = m.generate(["a prompt"], latent=o.b, max_new_tokens=5, seed=3)
+torch.save({"b": o.b, "z": z, "phi": phi, "lp": lp, "head": m.head("world")(o.b), "text": txt,
+            "hashes": m.group_hashes(), "sig": m.arch_signature()}, sys.argv[2] + f"/out_{sys.argv[1]}.pt")
+"""
+
+
+def test_trainable_state_round_trips_into_a_fresh_process(tmp_path):
+    """Save in one process, load in another (different global RNG, fresh caches): every output bit-identical."""
+    import os
+    import subprocess
+    import sys
+    import cam_live
+    script = tmp_path / "fresh.py"
+    script.write_text(_FRESH)
+    env = dict(os.environ, PYTHONPATH=os.path.dirname(os.path.dirname(cam_live.__file__)))
+    for mode, seed in (("save", "0"), ("load", "123")):
+        r = subprocess.run([sys.executable, str(script), mode, str(tmp_path), seed], env=env, capture_output=True,
+                           text=True, timeout=600)
+        assert r.returncode == 0, r.stderr[-2000:]
+    a, b = (torch.load(tmp_path / f"out_{m}.pt", weights_only=False) for m in ("save", "load"))
+    assert a["hashes"] == b["hashes"] and a["sig"] == b["sig"] and a["text"] == b["text"]
+    for k in ("b", "z", "phi", "lp", "head"):
+        assert torch.equal(a[k], b[k]), k
 
 
 def test_tolerant_loading_reports_new_heads(cfg):
