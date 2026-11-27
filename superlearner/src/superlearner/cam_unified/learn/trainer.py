@@ -37,6 +37,47 @@ import torch
 import torch.nn as nn
 
 
+class SplitOptimizer:
+    """One role's optimiser as AdamW for the core groups + Adafactor for the satellite groups (cfg.sat_optimizer
+    "adafactor"; plan 2026-11-26 §4 G3): the trainer's per-group lr warmup, clipping and zero_grad see the union of
+    both optimisers' param groups (the same dicts)."""
+
+    def __init__(self, core, sat):
+        self.parts = [o for o in (core, sat) if o is not None]
+
+    @property
+    def param_groups(self) -> list:
+        return [g for o in self.parts for g in o.param_groups]
+
+    @property
+    def state(self) -> dict:
+        st: dict = {}
+        for o in self.parts:
+            st.update(o.state)
+        return st
+
+    @property
+    def defaults(self) -> dict:
+        return self.parts[0].defaults
+
+    def step(self, closure=None):
+        for o in self.parts:
+            o.step()
+
+    def zero_grad(self, set_to_none: bool = True) -> None:
+        for o in self.parts:
+            o.zero_grad(set_to_none=set_to_none)
+
+    def state_dict(self) -> dict:
+        return {"split": [o.state_dict() for o in self.parts], "kinds": [type(o).__name__ for o in self.parts]}
+
+    def load_state_dict(self, sd: dict) -> None:
+        if "split" not in sd or [type(o).__name__ for o in self.parts] != list(sd.get("kinds") or []):
+            raise ValueError("optimiser state of a different cfg.sat_optimizer")
+        for o, s in zip(self.parts, sd["split"]):
+            o.load_state_dict(s)
+
+
 @dataclass(frozen=True)
 class Stage:
     index: int
@@ -249,6 +290,19 @@ class CombinedTrainer:
     def _make_opt(self, pg: list):
         if not pg:
             return None
+        if str(getattr(self.cfg, "sat_optimizer", "adamw") or "adamw") == "adafactor" and \
+                any(str(g.get("group", "")) for g in pg):
+            # fresh dicts with the trainer's own keys only (torch writes its defaults, e.g. AdamW's eps, into the
+            # dicts it is given, and those are the trainer's _pg_spec entries)
+            base = [{k: g[k] for k in ("params", "lr", "weight_decay", "name", "base_lr", "group") if k in g}
+                    for g in pg]
+            core = [g for g in base if str(g.get("group", "")).startswith("core")]
+            sat = [g for g in base if not str(g.get("group", "")).startswith("core")]
+            if sat:
+                return SplitOptimizer(self._make_adamw(core) if core else None, torch.optim.Adafactor(sat))
+        return self._make_adamw(pg)
+
+    def _make_adamw(self, pg: list):
         fused = self.fused
         if fused is None:
             fused = all(p.is_cuda and p.dtype in (torch.float32, torch.float16, torch.bfloat16)

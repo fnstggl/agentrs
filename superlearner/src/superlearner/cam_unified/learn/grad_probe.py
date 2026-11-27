@@ -198,7 +198,8 @@ class GradTable:
                 "cosine_exact": self.cosine_exact, "total": dict(self.total),
                 "sizes": dict(self.sizes),
                 "absent": sorted(g for g, n in self.sizes.items() if not n),
-                "nonzero": {g: self.nonzero(g) for g in self.sizes}}
+                "nonzero": {g: self.nonzero(g) for g in self.sizes},
+                "hook_multi": getattr(self, "hook_multi", None)}
 
     def dom08(self, required: Iterable[str] = DOM08_REQUIRED) -> dict:
         """{group: "nonzero" | "zero" | "absent"} for the DOM-08 groups."""

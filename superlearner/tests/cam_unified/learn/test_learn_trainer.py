@@ -180,3 +180,33 @@ def test_critic_weight_must_be_unambiguous():
     cfg = make_config("dev", value_coef=2.0)
     cfg.loss_weights["value"] = 2.0
     assert CombinedTrainer(cfg, core=m.backbone, amp=False).weights["value"] == 2.0
+
+
+def test_sat_optimizer_adafactor_splits_core_adamw_from_satellite_adafactor():
+    """cfg.sat_optimizer="adafactor" (plan 2026-11-26 §4 G3): AdamW for the core groups, Adafactor for the others,
+    one role optimiser to the trainer (lr writes, apply, zero_grad, state_dict round trip)."""
+    from superlearner.cam_unified.learn.trainer import SplitOptimizer
+    m = _Model()
+    cfg = make_config("dev", lr=1e-2, grad_clip=1.0, sat_optimizer="adafactor")
+    tr = CombinedTrainer(cfg, groups={"core": list(m.backbone.parameters()),
+                                      "heads": [*m.world.parameters(), *m.actor.parameters()]}, amp=False)
+    assert isinstance(tr.opt, SplitOptimizer)
+    kinds = [type(o).__name__ for o in tr.opt.parts]
+    assert kinds == ["AdamW", "Adafactor"]
+    core_ids = {id(p) for p in m.backbone.parameters()}
+    assert all(id(p) in core_ids for g in tr.opt.parts[0].param_groups for p in g["params"])
+    assert not any(id(p) in core_ids for g in tr.opt.parts[1].param_groups for p in g["params"])
+    x = torch.randn(16, 8)
+    before = [p.detach().clone() for p in m.parameters()]
+    L = m.losses(x)
+    (L["world"] + L["actor"]).backward()
+    out = tr.apply("slow")
+    assert not out["skipped"]
+    moved = [not torch.equal(a, p.detach()) for a, p in zip(before, m.parameters())]
+    assert moved[0] and any(moved[4:8])                   # a core and a satellite parameter moved
+    assert all(p.grad is None for p in m.parameters())
+    sd = tr.state_dict()
+    tr2 = CombinedTrainer(cfg, groups={"core": list(m.backbone.parameters()),
+                                       "heads": [*m.world.parameters(), *m.actor.parameters()]}, amp=False)
+    tr2.load_state_dict(sd)
+    assert len(tr2.opt.state) == len(tr.opt.state) > 0

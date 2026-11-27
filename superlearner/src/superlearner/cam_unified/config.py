@@ -192,6 +192,8 @@ class CamConfig:
     balance_every: int = 0            # recompute loss weights from the named-group gradient probe every k updates
     world_core_share_max: float = 1.0  # cap on the world objective's share of the core gradient (balancing target)
     microbatch: int = 0               # learner microbatch in decisions (0 = the whole batch)
+    sat_optimizer: str = "adamw"      # optimiser of the non-core groups in the W7 named-group trainer: "adamw" or
+                                      # "adafactor" (factored second moments, no first moment; plan §4 G3 fallback)
 
     def to_dict(self) -> dict:
         return asdict(self)
