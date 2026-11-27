@@ -42,7 +42,7 @@ from .metalearner import MetaConfig, MetaLearner
 
 DAY = 86400.0
 #: short worlds: 16 decisions, uniform behaviour reaches the target in ~30 % of worlds, "only run interventions"
-#: in ~55 %, "prepare the last channel, then run interventions" in ~90 % (measured with scripted policies)
+#: in ~55 %, "prepare the last channel, then run interventions" in ~90 % (``scripted_baselines``)
 LAB = dict(n_channels=4, horizon_s=1.5 * DAY, target=35, budget=100.0, mean_delay_s=(600.0, 5400.0),
            outcome_horizon_s=2 * 3600.0)
 KINDS = ("bootstrap", "learned", "verified_pg")
@@ -281,6 +281,35 @@ def run_learner(kind: str, seed: int, ec: ExperimentConfig, profile: bool = True
         "seconds": time.time() - t0}
     if profile and kind in ("learned", "mixed"):
         out["reward_profile"] = reward_profile(ml, seed, ec)
+    return out
+
+
+def scripted_baselines(ec: ExperimentConfig, n_worlds: int = 300) -> Dict[str, Dict[str, float]]:
+    """Reference points for the experiment's worlds (no model, no learning): fixed rules over operation types."""
+    import random
+
+    def rule(kind: str, seed: int) -> Callable[[List[ActionSpec], Dict[str, Any]], Tuple[int, List[float]]]:
+        rng, state = random.Random(seed), {"unlocked": False}
+
+        def fn(cands: List[ActionSpec], info: Dict[str, Any]) -> Tuple[int, List[float]]:
+            ops = [c.operation for c in cands]
+            p = [1.0 / len(cands)] * len(cands)
+            if kind == "unlock_then_interventions" and not state["unlocked"] and "lab.unlock" in ops:
+                state["unlocked"] = True
+                return ops.index("lab.unlock"), p
+            idx = list(range(len(cands))) if kind == "uniform" else \
+                ([i for i, o in enumerate(ops) if o == "lab.act"] or list(range(len(cands))))
+            return rng.choice(idx), p
+        return fn
+    out = {}
+    for kind in ("uniform", "interventions_only", "unlock_then_interventions"):
+        ach, tot = [], []
+        for i in range(n_worlds):
+            lt = LabCollector(MemoryStore(), max_context=ec.max_context).run(
+                LabWorld(LabConfig(seed=i, **ec.lab)), rule(kind, i), ec.n_decisions, seed=i)
+            ach.append(float(lt.verified.status == GoalStatus.ACHIEVED))
+            tot.append(float(lt.verified.value))
+        out[kind] = {"achieved": sum(ach) / n_worlds, "mean_adopters": sum(tot) / n_worlds, "n_worlds": n_worlds}
     return out
 
 
@@ -805,11 +834,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         ec = ExperimentConfig(n_lifetimes=a.lifetimes)
         out["experiment"] = labworld_experiment([int(s) for s in a.seeds.split(",")], ec, a.kinds.split(","),
                                                 workers=a.workers)
+        out["experiment"]["scripted_baselines"] = scripted_baselines(ec)
     elif "experiment" in out and out["experiment"].get("runs"):
         old = out["experiment"]                                  # re-summarise the stored runs, nothing is re-run
         ec = ExperimentConfig(**old["config"])
         runs = old["runs"]
         out["experiment"] = {**summarise(runs, ec, old.get("block", 20)), "config": old["config"], "runs": runs}
+        out["experiment"]["scripted_baselines"] = scripted_baselines(ec)
         out["command"] = old.get("command_experiment", "") or out["command"]
         out["command_checks"] = ("PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.diagnose "
                                  "--skip-experiment   (checks re-run, stored experiment runs re-summarised)")

@@ -55779,6 +55779,23 @@
     ]
    }
   ],
+  "scripted_baselines": {
+   "interventions_only": {
+    "achieved": 0.5533333333333333,
+    "mean_adopters": 42.303333333333335,
+    "n_worlds": 300
+   },
+   "uniform": {
+    "achieved": 0.2966666666666667,
+    "mean_adopters": 28.756666666666668,
+    "n_worlds": 300
+   },
+   "unlock_then_interventions": {
+    "achieved": 0.9,
+    "mean_adopters": 92.30666666666667,
+    "n_worlds": 300
+   }
+  },
   "seconds_total": 31003.44223356247,
   "seeds": [
    10,
@@ -55891,7 +55908,7 @@
     "policy_prob_mean_abs_change_support": 0.003142421941706358,
     "rel_error_if_value_baseline_plainly_detached": 0.0,
     "rel_error_sampled_coords": 9.519430106984726e-06,
-    "seconds_autograd": 0.07965278625488281,
+    "seconds_autograd": 0.09990644454956055,
     "surrogate_has_graph_when_theta_K_detached": false
    },
    "2": {
@@ -55926,7 +55943,7 @@
     "policy_prob_mean_abs_change_support": 0.006223351838287596,
     "rel_error_if_value_baseline_plainly_detached": 0.009973946262988179,
     "rel_error_sampled_coords": 9.562805487019147e-06,
-    "seconds_autograd": 0.04663562774658203,
+    "seconds_autograd": 0.07451176643371582,
     "surrogate_has_graph_when_theta_K_detached": false
    },
    "4": {
@@ -55961,7 +55978,7 @@
     "policy_prob_mean_abs_change_support": 0.01236193059634997,
     "rel_error_if_value_baseline_plainly_detached": 0.03306600175402949,
     "rel_error_sampled_coords": 9.628300627683919e-06,
-    "seconds_autograd": 0.0949716567993164,
+    "seconds_autograd": 0.14798474311828613,
     "surrogate_has_graph_when_theta_K_detached": false
    }
   },
@@ -55989,5 +56006,5 @@
   "theta_changed_by_optimizer_step": true
  },
  "scale": "CamLiveConfig.debug(): tiny random backbone, debug core, CPU; LabWorld (diagnostic provenance)",
- "seconds_checks": 12.694227695465088
+ "seconds_checks": 38.19579863548279
 }

@@ -116,6 +116,6 @@ calls `MetaLearner.note_policy_update(records)` immediately before it steps. No 
 ## C-9 Engine fix inside this workstream (information only, stage 2)
 
 `reward.meta.policy_gradient_inner_loss` used `v.detach()` as the advantage baseline. For K >= 2 this removes the
-path theta_k(psi) -> V -> advantage from the unroll (bias measured on the real model: 1.7 % at K = 2, 4 % at K = 4;
+path theta_k(psi) -> V -> advantage from the unroll (bias measured on the real model: 1.0 % at K = 2, 3.3 % at K = 4, docs/evidence/C/diagnostics.json;
 stage-1 finite-difference tests did not combine a value function with K >= 2). Fixed with `theta_sg` (see
 docs/C/API.md); regression test `test_value_baseline_must_not_be_plainly_detached_for_K_above_one`.

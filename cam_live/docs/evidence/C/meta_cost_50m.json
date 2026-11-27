@@ -3,72 +3,72 @@
   "2": {
    "checkpoint": {
     "extra_peak_gpu_mb": 221.27490234375,
-    "grad_norm": 0.19359854213950778,
-    "seconds_mean": 0.6750330924987793,
-    "seconds_min": 0.6233484745025635,
+    "grad_norm": 0.006218904088631795,
+    "seconds_mean": 0.1601247787475586,
+    "seconds_min": 0.14879584312438965,
     "supported": true
    },
    "unroll": {
     "extra_peak_gpu_mb": 198.30126953125,
-    "grad_norm": 0.1935985458331833,
-    "seconds_mean": 0.23765325546264648,
-    "seconds_min": 0.20373106002807617,
+    "grad_norm": 0.006218902582632985,
+    "seconds_mean": 0.10462172826131184,
+    "seconds_min": 0.10210299491882324,
     "supported": true
    }
   },
   "4": {
    "checkpoint": {
-    "extra_peak_gpu_mb": 264.14990234375,
-    "grad_norm": 0.38429751407595586,
-    "seconds_mean": 0.6274197896321615,
-    "seconds_min": 0.5880441665649414,
+    "extra_peak_gpu_mb": 264.89990234375,
+    "grad_norm": 0.012412302865719005,
+    "seconds_mean": 0.2720601558685303,
+    "seconds_min": 0.2652900218963623,
     "supported": true
    },
    "unroll": {
-    "extra_peak_gpu_mb": 317.1591796875,
-    "grad_norm": 0.38429757957158894,
-    "seconds_mean": 0.5626049041748047,
-    "seconds_min": 0.5044169425964355,
+    "extra_peak_gpu_mb": 343.27685546875,
+    "grad_norm": 0.012412308682032535,
+    "seconds_mean": 0.19729105631510416,
+    "seconds_min": 0.1891326904296875,
     "supported": true
    }
   }
  },
  "backbone": "Qwen/Qwen3-4B",
  "backbone_pretrained": true,
- "command": "PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.diagnose --gpu-cost",
+ "command": "pytest cam_live/tests/reward/test_reward_experiment.py -m gpu",
  "d_model": 768,
  "encode_peak_gb": 7.924055099487305,
- "encode_seconds_16_rows_cached_text": 0.8897149562835693,
- "encode_seconds_first_48_rows": 2.5266335010528564,
+ "encode_seconds_16_rows_cached_text": 0.16451120376586914,
+ "encode_seconds_first_48_rows": 0.7602887153625488,
  "end_to_end_meta_update": {
   "2": {
    "applied": true,
    "estimator": "on_policy_query",
    "extra_peak_gpu_mb": 224.2099609375,
-   "meta_grad_norm": 0.022561662165837413,
+   "meta_grad_norm": 0.06200412325781577,
    "n_independent": 4,
    "n_query": 56,
-   "policy_update_seconds_mean": 0.7631239891052246,
-   "seconds": 3.833617687225342,
+   "policy_update_seconds_mean": 0.21278464794158936,
+   "seconds": 1.3017592430114746,
    "skipped_reason": ""
   },
   "4": {
    "applied": true,
    "estimator": "on_policy_query",
    "extra_peak_gpu_mb": 388.6513671875,
-   "meta_grad_norm": 0.02116233734653773,
+   "meta_grad_norm": 0.04778770745925216,
    "n_independent": 4,
    "n_query": 64,
-   "policy_update_seconds_mean": 0.7090617716312408,
-   "seconds": 5.71379542350769,
+   "policy_update_seconds_mean": 0.24482446908950806,
+   "seconds": 1.8564560413360596,
    "skipped_reason": ""
   }
  },
  "experiential_params": 50953765,
  "gpu_allocated_after_load_gb": 7.809755802154541,
  "gpu_peak_total_gb": 8.55699634552002,
- "load_seconds": 44.50880479812622,
- "lock_held_seconds": 137.71384191513062,
+ "load_seconds": 9.419947862625122,
+ "lock_held_seconds": 32.502209186553955,
  "n_decisions": 64,
  "n_psi": 949121,
  "n_theta": 5422467,

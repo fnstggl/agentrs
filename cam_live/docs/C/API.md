@@ -72,7 +72,7 @@ Semantics the caller must respect
   `theta'(psi)` is a shadow update and the query must use `estimator="importance"`.
 * **Stop-gradient inside the inner loss.** A quantity the inner loss holds fixed for the inner derivative (the
   value baseline of the advantage) is still a function of `theta_k(psi)`; writing it as `v.detach()` silently drops
-  that path from the unroll for K >= 2 (measured bias on the real model: 1.7 % at K=2, 4 % at K=4). An inner loss
+  that path from the unroll for K >= 2 (measured bias on the real model: 1.0 % at K=2, 3.3 % at K=4, `docs/evidence/C/diagnostics.json`). An inner loss
   with attribute `stopgrad_aware = True` is called as `inner_loss(theta, psi, batch, theta_sg=...)` and must
   evaluate such quantities on `theta_sg` (same values, different graph nodes). `policy_gradient_inner_loss` with a
   `value_fn` and `PolicyImprovementLoss.inner_loss` do this; the adjoint ("checkpoint") sweep handles it too.
