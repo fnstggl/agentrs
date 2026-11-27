@@ -21,7 +21,7 @@
     "tests/test_v5_innovation_pkg.py",
     "tests/test_v5_innovation_devs.py"
    ],
-   "status_claim": "implemented; verified in the civilisation (civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b))): J.1 15 executable products by population developers (14 services, 1 package; 0 scripted, 0 agent). Not re-measured after 29ae7f7 (announcement wording).",
+   "status_claim": "implemented; NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76): {'agent_created_executable_products': 19, 'creators_population': 19, 'creators_scripted': 0, 'creators_agent': 0, 'services': 15, 'packages': 4}",
    "notes": "products of the population's autonomous developers (services, packages) that executed for independent users | creation worlds (unofficial, 10 days, n=300, seeds 5-8): J.1 14-17 products by population developers (0 scripted), J.3 12-21 discoverers, J.4 12-15 users, J.5 p 1.9e-30..7.3e-77, J.6 34-120 paid calls from 12-15 payers, J.7 743-4294 hand-work minutes saved, J.n1 2-4 categories (1-2 generated)"
   },
   "J.2": {
@@ -40,7 +40,7 @@
    "tests": [
     "tests/v5/test_gate_J.py"
    ],
-   "status_claim": "implemented; verified in the civilisation (civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b))): J.2 11 published products. Not re-measured after 29ae7f7 (announcement wording).",
+   "status_claim": "implemented; NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76): {'published_products': 19}",
    "notes": "published = live and declared (services) or released (packages) at the end | creation worlds (unofficial, 10 days, n=300, seeds 5-8): J.1 14-17 products by population developers (0 scripted), J.3 12-21 discoverers, J.4 12-15 users, J.5 p 1.9e-30..7.3e-77, J.6 34-120 paid calls from 12-15 payers, J.7 743-4294 hand-work minutes saved, J.n1 2-4 categories (1-2 generated)"
   },
   "J.3": {
@@ -57,9 +57,10 @@
     "src/crucible/economy/work.py"
    ],
    "tests": [
-    "tests/v5/test_gate_J.py"
+    "tests/v5/test_gate_J.py",
+    "tests/test_v5_innovation_instruments.py"
    ],
-   "status_claim": "implemented; verified in the civilisation (civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b))): J.3 31 independent discoverers (best product), 6 categories. Not re-measured after 29ae7f7 (announcement wording).",
+   "status_claim": "implemented; instrument repaired (DEF-G-10: minimum over EVERY category, not only passing ones); NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76): {'independent_discoverers': 19, 'categories': 5, 'max_discoverers': 30}",
    "notes": "min over task categories of the best product's individuals who considered it after the interface check or tried it | creation worlds (unofficial, 10 days, n=300, seeds 5-8): J.1 14-17 products by population developers (0 scripted), J.3 12-21 discoverers, J.4 12-15 users, J.5 p 1.9e-30..7.3e-77, J.6 34-120 paid calls from 12-15 payers, J.7 743-4294 hand-work minutes saved, J.n1 2-4 categories (1-2 generated)"
   },
   "J.4": {
@@ -76,9 +77,10 @@
     "src/crucible/economy/work.py"
    ],
    "tests": [
-    "tests/v5/test_gate_J.py"
+    "tests/v5/test_gate_J.py",
+    "tests/test_v5_innovation_instruments.py"
    ],
-   "status_claim": "implemented; verified in the civilisation (civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b))): J.4 30 independent users. Not re-measured after 29ae7f7 (announcement wording).",
+   "status_claim": "implemented; instrument repaired (DEF-G-10: minimum over EVERY category, not only passing ones); NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76): {'independent_users': 17, 'max_users': 25}",
    "notes": "min over categories: individuals for whom it executed on their own input | creation worlds (unofficial, 10 days, n=300, seeds 5-8): J.1 14-17 products by population developers (0 scripted), J.3 12-21 discoverers, J.4 12-15 users, J.5 p 1.9e-30..7.3e-77, J.6 34-120 paid calls from 12-15 payers, J.7 743-4294 hand-work minutes saved, J.n1 2-4 categories (1-2 generated)"
   },
   "J.5": {
@@ -97,7 +99,7 @@
    "tests": [
     "tests/v5/test_gate_J.py"
    ],
-   "status_claim": "implemented; verified in the civilisation (civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b))): J.5 Fisher p 1.3e-166 (kept good 344, dropped good 77, kept garbage 0, dropped garbage 447). Not re-measured after 29ae7f7 (announcement wording).",
+   "status_claim": "implemented; NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76): {'measured_behavior_adoption_pvalue': 1.5780231018858515e-44, 'kept_good': 106, 'dropped_good': 116, 'kept_garbage': 2, 'dropped_garbage': 295}",
    "notes": "Fisher test kept/tried, factual vs garbage arm (developers ship input-ignoring programs), summed over categories | creation worlds (unofficial, 10 days, n=300, seeds 5-8): J.1 14-17 products by population developers (0 scripted), J.3 12-21 discoverers, J.4 12-15 users, J.5 p 1.9e-30..7.3e-77, J.6 34-120 paid calls from 12-15 payers, J.7 743-4294 hand-work minutes saved, J.n1 2-4 categories (1-2 generated)"
   },
   "J.6": {
@@ -114,9 +116,10 @@
     "src/crucible/economy/work.py"
    ],
    "tests": [
-    "tests/v5/test_gate_J.py"
+    "tests/v5/test_gate_J.py",
+    "tests/test_v5_innovation_instruments.py"
    ],
-   "status_claim": "implemented; verified in the civilisation (civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b))): J.6 745 independent transactions, 31 payers (best product). Not re-measured after 29ae7f7 (announcement wording).",
+   "status_claim": "implemented; instrument repaired (DEF-G-10: minimum over EVERY category, not only passing ones); NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76): {'independent_transactions': 130, 'independent_payers_min': 17}",
    "notes": "paid calls net of refunds from independent payers (commerce.integrity payer weights) | creation worlds (unofficial, 10 days, n=300, seeds 5-8): J.1 14-17 products by population developers (0 scripted), J.3 12-21 discoverers, J.4 12-15 users, J.5 p 1.9e-30..7.3e-77, J.6 34-120 paid calls from 12-15 payers, J.7 743-4294 hand-work minutes saved, J.n1 2-4 categories (1-2 generated)"
   },
   "J.7": {
@@ -133,9 +136,10 @@
     "src/crucible/economy/work.py"
    ],
    "tests": [
-    "tests/v5/test_gate_J.py"
+    "tests/v5/test_gate_J.py",
+    "tests/test_v5_innovation_instruments.py"
    ],
-   "status_claim": "implemented; verified in the civilisation (civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b))): J.7 19053 hand-work minutes saved vs removal arm, developer compute +262891 CU, +10 cores. Not re-measured after 29ae7f7 (announcement wording).",
+   "status_claim": "implemented; instrument repaired (DEF-G-10: minimum over EVERY category, not only passing ones); NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76): {'resource_consumption_delta': 5779.2, 'developer_compute_cu_delta': 167669.45, 'developer_cores_delta': 5}",
    "notes": "population hand-work minutes saved against the arm where the category is not built (pre-existing resource); developers' compute drawn from providers reported | creation worlds (unofficial, 10 days, n=300, seeds 5-8): J.1 14-17 products by population developers (0 scripted), J.3 12-21 discoverers, J.4 12-15 users, J.5 p 1.9e-30..7.3e-77, J.6 34-120 paid calls from 12-15 payers, J.7 743-4294 hand-work minutes saved, J.n1 2-4 categories (1-2 generated)"
   },
   "J.n1": {
@@ -154,7 +158,7 @@
    "tests": [
     "tests/v5/test_gate_J.py"
    ],
-   "status_claim": "implemented; verified in the civilisation (civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b))): J.n1 4 product categories (2 generated), each with its own measured-behaviour test. Not re-measured after 29ae7f7 (announcement wording).",
+   "status_claim": "implemented; NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76): {'product_categories': 4, 'novel_categories': 3, 'categories': 'gen.allocate.e8fdefdd,gen.compose.52bd437d,gen.transform.aabe118b,route.shortest'}",
    "notes": "task categories passing J.1-J.7, incl. generated undocumented and composed categories | creation worlds (unofficial, 10 days, n=300, seeds 5-8): J.1 14-17 products by population developers (0 scripted), J.3 12-21 discoverers, J.4 12-15 users, J.5 p 1.9e-30..7.3e-77, J.6 34-120 paid calls from 12-15 payers, J.7 743-4294 hand-work minutes saved, J.n1 2-4 categories (1-2 generated)"
   },
   "L.1": {
@@ -173,7 +177,7 @@
    "tests": [
     "tests/v5/test_gate_L.py"
    ],
-   "status_claim": "implemented; verified in the civilisation (civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b))): L.1 5 capability effects measured (novel hand minutes 68750, documented 117196, tasks lost 69, incumbent live subscriptions 8, provider compute 262891 CU). Not re-measured after 29ae7f7 (announcement wording).",
+   "status_claim": "implemented; NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76): {'capability_effects_measured': 5, 'effect_novel_hand_minutes': 33794.73512458801, 'effect_documented_hand_minutes': 24535.173157691956, 'effect_tasks_lost': 23.0, 'effect_incumbent_live_subscriptions': -4.0, 'effect_provider_compute_cu': 167669.45}",
    "notes": "pre-existing conditions changed by inventions (counterfactual removal): hand-work minutes of novel and documented activities, tasks lost, incumbents' subscriptions, provider compute | creation worlds (unofficial, 10 days, n=300, seeds 5-8): L.1 5 effects, L.2 3-4 emerged needs, L.3 5-8, L.4 9-10 independent chains (min 5 stages, top 3 cover artifact/social/technical, 0 scripted stages), L.5 5-9 confirmed by removal arms, L.n1 0 bonuses (208-270 income deposits verified)"
   },
   "L.2": {
@@ -193,7 +197,7 @@
     "tests/v5/test_gate_L.py",
     "tests/test_v5_innovation_needs.py"
    ],
-   "status_claim": "implemented; verified in the civilisation (civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b))): L.2 6 emerged needs (6 at genesis). Not re-measured after 29ae7f7 (announcement wording).",
+   "status_claim": "implemented; NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76): {'emerged_needs': 5, 'needs_at_genesis': 5}",
    "notes": "needs first labelled after genesis by the evaluator's relation graph | creation worlds (unofficial, 10 days, n=300, seeds 5-8): L.1 5 effects, L.2 3-4 emerged needs, L.3 5-8, L.4 9-10 independent chains (min 5 stages, top 3 cover artifact/social/technical, 0 scripted stages), L.5 5-9 confirmed by removal arms, L.n1 0 bonuses (208-270 income deposits verified)"
   },
   "L.3": {
@@ -213,7 +217,7 @@
     "tests/v5/test_gate_L.py",
     "tests/test_v5_innovation_needs.py"
    ],
-   "status_claim": "implemented; verified in the civilisation (civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b))): L.3 9 needs addressed by new services. Not re-measured after 29ae7f7 (announcement wording).",
+   "status_claim": "implemented; NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76): {'needs_addressed_by_new_services': 6}",
    "notes": "needs served by a provider created after the need's chain began and adopted by holders | creation worlds (unofficial, 10 days, n=300, seeds 5-8): L.1 5 effects, L.2 3-4 emerged needs, L.3 5-8, L.4 9-10 independent chains (min 5 stages, top 3 cover artifact/social/technical, 0 scripted stages), L.5 5-9 confirmed by removal arms, L.n1 0 bonuses (208-270 income deposits verified)"
   },
   "L.4": {
@@ -230,9 +234,10 @@
     "src/crucible/economy/work.py"
    ],
    "tests": [
-    "tests/v5/test_gate_L.py"
+    "tests/v5/test_gate_L.py",
+    "tests/test_v5_innovation_instruments.py"
    ],
-   "status_claim": "implemented; verified in the civilisation (civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b))): L.4 12 independent chains, min 5 stages, 12 with an agent artifact, 9 social, 12 technical, 0 scripted stages. Not re-measured after 29ae7f7 (announcement wording).",
+   "status_claim": "implemented; chain mining repaired (DEF-G-9: a need is relieved only after it arose); NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76): {'independent_chains': 10, 'min_chain_stages': 5, 'chains_with_agent_artifact': 10, 'chains_with_social': 5, 'chains_with_technical': 10, 'top3_covers_artifact_social_technical': True, 'scripted_stages': 0}",
    "notes": "chains mined generically (need -> public request -> developer artifact -> adoption -> relief; adoption creating a need; package -> independent developer's adoption by execution -> service -> adoption); distinct first changes; no scripted stage | creation worlds (unofficial, 10 days, n=300, seeds 5-8): L.1 5 effects, L.2 3-4 emerged needs, L.3 5-8, L.4 9-10 independent chains (min 5 stages, top 3 cover artifact/social/technical, 0 scripted stages), L.5 5-9 confirmed by removal arms, L.n1 0 bonuses (208-270 income deposits verified)"
   },
   "L.5": {
@@ -249,10 +254,11 @@
     "src/crucible/economy/work.py"
    ],
    "tests": [
-    "tests/v5/test_gate_L.py"
+    "tests/v5/test_gate_L.py",
+    "tests/test_v5_innovation_instruments.py"
    ],
-   "status_claim": "implemented; verified in the civilisation (civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b))): L.5 11 of 12 chains confirmed by their removal arm. Not re-measured after 29ae7f7 (announcement wording).",
-   "notes": "chains whose later stages do not happen in the arm where the first change was removed | creation worlds (unofficial, 10 days, n=300, seeds 5-8): L.1 5 effects, L.2 3-4 emerged needs, L.3 5-8, L.4 9-10 independent chains (min 5 stages, top 3 cover artifact/social/technical, 0 scripted stages), L.5 5-9 confirmed by removal arms, L.n1 0 bonuses (208-270 income deposits verified)"
+   "status_claim": "implemented; instrument repaired (DEF-G-7: removal arm by the chain's task, confirmation by measured world outcomes of the removal arm, never by same-named artifacts; need chains need factual relief); NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76): {'counterfactual_removals_confirming': 4, 'chains_tested': 10}; confirmations ['need:provide:capability/pack.knapsack (ban_published): confirmed', 'need:provide:capability/gen.allocate.e8fdefdd (ban_novel): confirmed', 'need:provide:capability/gen.transform.aabe118b (ban_novel): confirmed', 'need:provide:capability/route.shortest (ban_published): confirmed', 'package:allocate-budget-kit-d216->p77/d77allocatebudget (ban_novel): not confirmed', 'package:normalise-records-kit-d216->p171/d171normaliserecords (ban_novel): not confirmed', 'package:shortest-path-kit-d263->p144/d144shortestpath (ban_published): not confirmed', 'need:alternative:capability/gen.allocate.e8fdefdd (ban_novel): not confirmed', 'need:provide:capability/gen.compose.52bd437d (ban_novel): not confirmed', 'package:normalise-records-kit-d148->p171/d171normaliserecords2 (None): not confirmed']",
+   "notes": "chains whose later-stage world outcome happens in the factual arm and not in the arm that removes the inventions they depend on: adoption creating a need -> the need never arises; need -> relief -> the factual arm relieved it and it persists without inventions for the target (what is removed is the artifact stage); competition -> the same incumbents do not lose and respond; package -> hand work on the step does not fall. Package chains whose step's hand work also falls without any invention are NOT confirmed (an honest result: the fall did not depend on the package)."
   },
   "L.n1": {
    "implementation_files": [
@@ -268,9 +274,10 @@
     "src/crucible/economy/work.py"
    ],
    "tests": [
-    "tests/v5/test_gate_L.py"
+    "tests/v5/test_gate_L.py",
+    "tests/test_v5_innovation_instruments.py"
    ],
-   "status_claim": "implemented; verified in the civilisation (civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b))): L.n1 special_case_bonuses 0 (runtime bonuses 0, static grants 0), 1553 income deposits verified, 18 creators. Not re-measured after 29ae7f7 (announcement wording).",
+   "status_claim": "implemented; instrument repaired (DEF-G-11: income credits pair one-to-one with the population's own deposit record of the same amount); NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76): {'runtime_bonuses': 0, 'income_deposits_verified': 688, 'creators': 9}; negative control: a planted 50,000-cent 'income' credit at every developer deposit is counted (tests/test_v5_innovation_instruments.py)",
    "notes": "system credits to creators after admission (population income deposits verified against the population's deposit records) + static scan | creation worlds (unofficial, 10 days, n=300, seeds 5-8): L.1 5 effects, L.2 3-4 emerged needs, L.3 5-8, L.4 9-10 independent chains (min 5 stages, top 3 cover artifact/social/technical, 0 scripted stages), L.5 5-9 confirmed by removal arms, L.n1 0 bonuses (208-270 income deposits verified)"
   },
   "SP-6.3": {
@@ -290,7 +297,7 @@
     "tests/v5/test_gate_SP_6_3.py",
     "tests/test_v5_innovation_caps.py"
    ],
-   "status_claim": "implemented; verified in the civilisation (civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b))): SP-6.3 3 novel services discovered, tested and adopted; 0 of 183 garbage trials adopted; 3 novel categories undocumented. Not re-measured after 29ae7f7 (announcement wording).",
+   "status_claim": "implemented; NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76): novel services discovered, tested and adopted: 60",
    "notes": "a service for a generated undocumented category, created after genesis, discovered, tried on own input, adopted; garbage counterpart tried and not adopted"
   },
   "SP-6.3b": {
@@ -307,9 +314,10 @@
     "src/crucible/economy/work.py"
    ],
    "tests": [
-    "tests/v5/test_gate_SP_6_3b.py"
+    "tests/v5/test_gate_SP_6_3b.py",
+    "tests/test_v5_innovation_instruments.py"
    ],
-   "status_claim": "implemented; civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b)): SP-6.3b FAILED composed_workflows_registered 0 (single-judge paths 0, novel-category adoptions 108, 353/353 adoptions grounded, 11 providers kept and dropped): one workflow (wflow_000001, p271, components of two independent developers) was registered on day 14 but never called. 29ae7f7 fixes the SP-6.3b cause (offline on the 7bc3ddc dump: the workflow's announcement replies ranked 18th-28th behind short off-topic replies under the same Re: title, so the 68 holders of the composed activity - 64 with positive expected value and an interface match - never saw it; with replies that say what the service does they rank 1st-8th); re-run of the lane at the new head queued (slot queue position 35 of 38 at 02:20 UTC, not run in this session). 7c9447c removes a second failure mode the composed workflow would have met once used: its service paid the components under a fixed 30-day grant of 400 calls, after which every call failed with 402 and maintenance could rewrite the workflow as an own program; the grant now grows with the workflow's own profitable use (creation world seed 5, 24 days: workflow verified, 25 users, 10 keep it, 78 calls ok, 0 errors, cap raised once). Expected to pass after the civilisation re-run; not verified in the civilisation.",
+   "status_claim": "implemented; scan repaired (DEF-G-12: cross-module, semantic space / audience / population semantics flagged, negative controls); composed activities from the raw-feed world rule and workflows planned from public request text (DEF-G-8); NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76): {'single_judge_usefulness_paths': 0, 'novel_category_adoptions': 60, 'composed_workflows_registered': 2, 'composed_workflows_used': 2, 'workflow_users': 50, 'novel_categories_undocumented': 3, 'capability_adoptions': 107, 'grounded_adoptions': 107, 'providers_with_keep_and_drop': 7}",
    "notes": "workflows: caps.compose registry objects verified by observed service-to-service calls (D-44); single-judge scan is static (AST) over the usefulness decision functions with an LM negative control"
   },
   "SP-6.5b": {
@@ -329,7 +337,7 @@
    "tests": [
     "tests/v5/test_gate_SP_6_5b.py"
    ],
-   "status_claim": "implemented; verified in the civilisation (civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b))): SP-6.5b forged adoptions 0 of 6 forgeries (honest control credited), star-only 0, autonomous developer adoptions 7 (4 compatible upgrades, 3 later releases), agent programs outside the sandbox 0 (31 deployments, 236 package executions). Not re-measured after 29ae7f7 (announcement wording).",
+   "status_claim": "implemented; NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). labels corrected: forged_adoptions and star_only run in lean worlds with scripted red-team principals; autonomous_developer_adoptions and sandbox coverage in the civilisation. creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76): autonomous developer adoptions 6",
    "notes": "attested package boundary (D-42); autonomous developers adopt other developers' packages through CI; creators' deployments never trusted in-process"
   },
   "W.4 (G share)": {
@@ -357,10 +365,11 @@
    ],
    "tests": [
     "tests/v5/test_gate_SP_6_4b.py",
-    "tests/test_v5_innovation_relations.py"
+    "tests/test_v5_innovation_relations.py",
+    "tests/test_v5_innovation_instruments.py"
    ],
-   "status_claim": "partially implemented; civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b)): SP-6.4b FAILED need_mechanism_examples 2 of 5 (workflow change 1, content communities/tools 1; transport, coordination, education 0), novel_combinations_changing_state 0; designer_supplied_demand_paths 0. The novel-combination part depends on the same workflow fix (29ae7f7, re-run pending); need_mechanism_examples >= 5 is expected to stay FAILED until labour (coordination), education and binding freight are live in civilisations (integration notes).",
-   "notes": "One relation graph with providers over work activities, cloud, compute providers' capacity (compute_market), the freight network (freight), organisations' coordination overhead (orgs, civ coupling org_coordination) and communities' moderation backlog (community); mechanisms classified by the provider and rule of each need's derivation path. Workflow change arises in every measured world; coordination overhead is read but stays 6.5-15% (headcounts fixed at genesis); community backlogs and freight congestion depend on the run; education has no provider (learn inert in civilisations, rewritten by dom2)."
+   "status_claim": "partially implemented; FAILED by its own criterion (need_mechanism_examples < 5); designer-supplied demand detector repaired (DEF-G-8), strict classification; NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76): {'need_mechanism_examples': 0, 'mechanism_workflow_change': 0, 'mechanism_transport_market_access': 0, 'mechanism_coordination': 0, 'mechanism_content_communities_tools': 0, 'mechanism_education_skill_availability': 0, 'mechanism_reliability_bottleneck': 0, 'mechanism_computing_demand': 0, 'extra_mechanisms_demonstrated': 0, 'designer_supplied_demand_paths': 0, 'data_relation_paths': 0, 'configured_combination_names': 0, 'configured_composed_activities': 0, 'configured_pipelines': 1, 'examples_excluded_as_configured': 1, 'novel_combinations_changing_state': 2, 'excluded': [{'need': 'provide:capability/pack.knapsack', 'first_day': 4, 'earlier_step_adopted_day': 2, 'absent_in': 'ban_published', 'mechanism': 'workflow_change', 'why': 'activity route.shortest+pack.knapsack configured by the invention world builder'}]}",
+   "notes": "One relation graph; mechanisms classified by provider and rule of each need's derivation path. Strict (repair pass): a workflow change on the two-step activity the invention world builder configures (inventworld.PIPELINE) and a moderation backlog of a community that existed at genesis or whose reported content is of forms published since genesis are reported as examples_excluded_as_configured, not counted. Composed activities come from the generic raw-feed rule (every producer/consumer pair of the world's generated categories; with the world's two generated categories allocate and transform this yields exactly one pair, transform -> allocate, the same activity the old COMPOSE constant planted: what changed is that no pair is named, the detector flags a hand-picked set, and developers read the stages from public text). Expected civilisation result: need_mechanism_examples 0-1 of 5 (education has no provider, coordination headcounts are fixed, freight does not bind, the civilisation's own generator makes no multi-step activity)."
   },
   "SP-6.4": {
    "implementation_files": [
@@ -383,27 +392,31 @@
     "src/crucible/innovation/pkg.py",
     "src/crucible/innovation/caps.py",
     "src/crucible/services/code.py",
-    "src/crucible/innovation/gates.py"
+    "src/crucible/innovation/gates.py",
+    "src/crucible/innovation/devs.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_6_5.py",
-    "tests/test_v5_innovation_pkg.py"
+    "tests/test_v5_innovation_pkg.py",
+    "tests/test_v5_innovation_devs.py"
    ],
-   "status_claim": "implemented; passed in the 7bc3ddc lane session: software_features 15, adoptions_by_execution 2, 0 of 4 forgeries recorded, advisory fixed by a reviewed PR and verified by the fixing release, incompatible upgrade refused",
+   "status_claim": "implemented; software collaboration now LIVE among autonomous developers (DEF-G-13): issues, pull requests from forks, independent review, merges, releases, fork packages, advisories on breaking releases; the criterion metric software_features still comes from the scripted scenario (labelled), the civilisation's count is recorded as civ_software_features; NOT VERIFIED AT HEAD in the civilisation: the last civilisation measurement (lane at 7bc3ddc: 18 passed, 2 failed) predates the repaired instruments and the developer changes; the re-run at the branch head is queued as slot job 'G: invention civ lane 3' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s; replaces the mis-sized 'lane 2' job, which hid the GPU). creation world (unofficial; seed 5, 24 days, n=300, 4 arms, at 8ce15b76) factual: {'features': 14, 'hosting': 7, 'package_discovery': 29, 'dependency_graph': 10, 'issue_tracker': 4, 'pull_requests': 2, 'independent_review': 2, 'testing': 72, 'releases': 11, 'documentation': 11, 'deployment': 7, 'developer_adoption': 6, 'maintenance': 4, 'forks': 2, 'compatibility': 10, 'security_reliability_failures': 0}",
    "notes": "SCRIPTED reference developers establish feasibility of each feature (labelled in evidence); the autonomous developers' use of the ecosystem is measured in SP-6.5b"
   }
  },
  "limitations": [
-  "Developer labour is modelled (devs.labour, FR-DEV-1): an understood task is written as one of its known reference approaches chosen by craft; developers do not synthesise new algorithms. Quality is measured by world physics (employers accept or reject the individuals' work).",
-  "The invention civilisations are built by innovation.inventworld.civ_spec on the civilisation generator's own spec (adds module devs and generated, composed and pipeline work activities) until CIV adds them to every profile (integration note).",
+  "LABOUR LIMIT (FR-DEV-1): developers never write programs. Every program is one of the designer's reference approaches for the task (economy.needs / usefulness tiers): a first version drawn from craft, an improvement one step up with probability craft; outcomes decide only WHEN a developer improves (retention, errors, tickets, issues), never what it writes. For a generated category the best approach implements its hidden rule, so 'novel category' services are designer code; their novelty is only that participants have no documentation for the category. Code review and pull requests recognise approaches by their exact source.",
+  "Technology invention is still inert in the DEFAULT civilisation profiles: crucible.civ.generator.ORDER has no 'devs' (CIV's file; integration note). Every Gate J/L/SP-6.3b-6.5b world is innovation.inventworld.civ_spec, the civilisation generator's own spec plus module devs, the world's generated categories (allocate, transform), the raw-feed composed activities and the configured two-step pipeline route.shortest -> pack.knapsack.",
+  "The two-step pipeline (inventworld.PIPELINE, second step 3-7 minutes against 20-45) is configured by the invention world builder: needs derived from it feed L.2-L.5 as world conditions but are not counted as SP-6.4b workflow-change examples (strict classification).",
+  "Composed activities: the raw-feed rule needs a table-producing category; with the world's two generated categories it yields exactly one composed activity (transform -> allocate). A world without a table producer has no composed activity and no workflow demand.",
+  "Seed dependence: workflows are seed dependent (creation worlds before this pass: seed 5 and 8 one verified workflow each, seeds 6 and 7 none); the civilisation gates run on one seed (balanced, seed 3); seed 4 is a factual-only robustness job in the G lane.",
   "Package adoption is attested through the declared JSON API only (D-42).",
-  "Demand for composed workflows comes from a work activity whose task is a composition of two generated categories (inventworld.composed_family): the activity is configured like every work family; which services are combined, by whom and whether at all is the developers' own choice.",
-  "SP-6.4b: of the five listed mechanisms, workflow change arises in every measured world; content communities/tools and coordination are read from live state but need conditions (moderation backlogs, growing organisations) that may not occur; transport needs a binding freight link; education has no relation provider (the learn module is inert in civilisations and being rewritten by dom2).",
-  "One civilisation seed (balanced, seed 3, 30 days) for the gate tests; replication across seeds is on small creation worlds only (unofficial).",
-  "Discovery runs through the shared search engine: one developer's replies to many requests can fill the first page for a task (no host crowding in services/search.py), and population social replies to service requests are off-topic news snippets (integration notes A, C)."
+  "SP-6.4b need_mechanism_examples >= 5 is not reachable on this branch: coordination needs organisations whose headcount grows (labour inert in civilisations), education has no relation provider (learn v2 in dom2), freight does not bind (busiest link 54% of capacity over 30 days), and the civilisation generator makes no multi-step activity of its own. No mechanism is relabelled to fill the count.",
+  "SP-6.5 security_reliability_failures among autonomous developers arise only when a release breaks a dependent's tests (an advisory with the dependent's repository as reproduction); none occurred in the measured creation world, so the civilisation's feature count may stay at 14 of 15; the criterion metric comes from the scripted scenario (labelled).",
+  "Discovery runs through the shared search engine: one developer's replies to many requests can fill the first page for a task (no host crowding in services/search.py; integration note for A)."
  ],
  "integration_notes": [
-  "CIV (crucible/civ/generator.py, owner of civ): to make technology invention live in every civilisation, add 'devs' to ORDER directly after 'pkg' (devs depends on identity, bank, pop, cols, code, cloud, caps, pkg, forum, search, docs, support), add 'devs' to SUBSYSTEMS['technology_invention']['modules'] (civ/subsystems.py), and draw the generated work activities per profile into commerce_config's work families: innovation.inventworld.novel_family(fam, seed, k) for fam in inventworld.NOVEL, composed_family(pair, NOVEL, seed) for pair in inventworld.COMPOSE, and inventworld.PIPELINE. inventworld.civ_spec then reduces to civ.generator.spec, and the Gate J/L/SP-6.3b-6.5b worlds are plain civilisations. Timing: developers start on day 2 (devs first_day) and build only for tasks with requests from >= 3 distinct askers, so the first declarations, trials and packages appear on day 3 (balanced seed 3: 2 services and 2 packages by day 3, 22 trials by day 4); a 2-day liveness run will still report technology_invention as inert - measure it over >= 4 days.",
+  "CIV (crucible/civ/generator.py, crucible/civ/subsystems.py; owner CIV): to make technology invention live in every civilisation, add 'devs' to ORDER directly after 'pkg' (devs depends on identity, bank, pop, cols, code, cloud, caps, pkg, forum, search, docs, support) and to the technology subsystem; its default config is the one the G gates measure (3% of individuals, 8-400 developers, first sessions from day 2-3). Generated work categories (usefulness families) and the raw-feed composed activities (innovation.inventworld.raw_feed_compositions) should be drawn by the profiles' own work recipe; until then inventworld.civ_spec adds them.",
   "F (economy/work.py): additive change kept from wave 3b - work families may carry 'compose': [{family, seed}, {family, seed}] (a composed generated category registered like other generated categories).",
   "A/services (services/code.py): additive change - population principals p<i> own repositories (handle = principal).",
   "O (redteam/v5/suite.py): minimal edit kept - v5.innovation.adoption_by_reading_the_package_source moved from KNOWN_OPEN to FIXED_BY_OWNERS; redteam/v5/innovation.py has two more probes (adoption_by_inspecting_the_measurement_runs, advisory_by_sniffing_the_package_source). All nine innovation probes hold locally (wave 3b continuation run). O may re-verify and close DEF-O-3 (adoption forgery through the in-sandbox tracer: the tracer no longer decides adoption).",
@@ -412,7 +425,9 @@
   "QA: implementation_files of J.*, L.*, SP-6.3*, SP-6.4b, SP-6.5b are listed in docs/v5/workstreams/G.json; the gate tests share one civilisation experiment per pytest session (tests/v5/_invention_kit.py), so run tests/v5/test_gate_J.py test_gate_L.py test_gate_SP_6_3.py test_gate_SP_6_3b.py test_gate_SP_6_4b.py test_gate_SP_6_5b.py in ONE pytest invocation (about 4 civilisation arms of 24 days in a GPU slot).",
   "C (social population, forum replies): population members reply to 'Looking for a service: ...' requests with off-topic news snippets (MIND text); the forum indexes every reply under 'Re: <request title>', so these short replies outrank on-topic answers for the request's own words (7bc3ddc civilisation: 17 off-topic replies above the only workflow's announcements). Replies chosen for relevance to the post would remove the noise.",
   "A/services (services/search.py): no host crowding - a developer that answers 12 requests has 12 near-identical reply documents and can fill a task's first result page; collapsing results per referenced host (as web search engines do) would keep competitors visible.",
-  "Re-run: the G civilisation lane at 29ae7f7+ is queued as slot job 'G: invention civ lane 2 (J, L, SP-6.3/6.3b/6.4b/6.5b)' running <scratch>/w3b-econ2/lane/lane.sh (results in lane/done/02_gates.sh.log, a diagnostic dump in dump/); whoever continues should read it or re-run the eight gate files in one session."
+  "Re-run: the G civilisation lane at the branch head is queued as slot job 'G: invention civ lane 3 (J, L, SP-6.3/6.3b/6.4/6.4b/6.5/6.5b; GPU text path)' (cpu 1, gpu 3000 MB, ram 8500 MB, timeout 9000 s) running <scratch>/w3b-econ2/lane/lane.sh: job 02 = all G gate files in one pytest session with a diagnostic dump, job 03 = factual civilisation seed 4 (robustness). The earlier 'lane 2' job hid the GPU (--gpu-mb 0) and was cancelled.",
+  "Social (W.4): tests/v5/test_gate_W.py::test_W4_metric_manipulation fails at f94ce3f1 with open_metric_manipulations 1 = v5.social.sybils_with_a_fake_footprint (owned by social, not G); all 9 innovation probes hold.",
+  "O / red team: pkg gained a read-only listing tool pkg.prs(repo, status, limit) and pkg summaries carry the package's issue project (public trackers); no adoption, advisory or review rule changed."
  ],
  "history": {
   "wave 1 (worktree-wf_62a0cf0b-bb3-5)": {
@@ -669,6 +684,14 @@
    "7c9447c workflow spending grant grows with profitable use; maintenance never rewrites a registered workflow",
    "DEF-G-5 closed with the civilisation Gate L run; G.json, FIDELITY_REGISTER updated",
    "civilisation lane re-run queued (slot queue position 34-35 of 40; not run in this session)"
+  ],
+  "wave 3b repair pass (c5c/w3b-econ2, 2026-11-27)": [
+   "independent verifier at f94ce3f1 found 17 issues; all addressed with a test or probe (DEF-G-7..DEF-G-14)",
+   "cancelled the mis-sized civilisation lane job (gpu 0) and queued 'lane 3' with the GPU text path",
+   "instruments: L.5 confirmations, chain relief order, J minima over all categories, L.n1 amount pairing, cross-module single-judge scan with negative controls (eb517a1e)",
+   "designer-supplied demand: raw-feed composition rule, configured compositions detected, developers read stages from public text, strict SP-6.4b classification (eb517a1e)",
+   "developers collaborate: issues, pull requests from forks, independent review, merge/release, fork packages, advisories on breaking releases; tickets resolved only after a shipped change (8ce15b76)",
+   "labels of SP-6.5/SP-6.5b evidence corrected; FR-DEV-1 states the labour limit"
   ]
  },
  "test_results_unofficial": {

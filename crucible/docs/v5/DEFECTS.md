@@ -693,7 +693,7 @@ B_population verdict) and P's own findings.
 ```json
 {
  "area": "G_innovation",
- "fixed_by": "wave 3b (c5c/w3b-econ2, D-43): Gate L is measured in the integrated civilisation (crucible.civ generator spec + the population's autonomous developers, innovation.inventworld.civ_spec) with counterfactual arms that differ only in the developers' config; chains are mined generically from the labelled-need history and the event log (no host-keyed extractor, no scripted stage); unofficial civilisation run of tests/v5/test_gate_L.py at 7bc3ddc (balanced seed 3, 30 days, 4 arms, G slot lane 2026-11-27): L.4 12 independent chains, minimum 5 stages, 0 scripted stages, all 12 with an agent artifact; L.5 11 of 12 chains confirmed by their removal arm; L.n1 0 runtime bonuses, 1553 income deposits verified. Replication: 4 seeds of small creation worlds (unofficial); the civilisation is measured on one seed (limitation recorded in workstreams/G.json). The 4.0-era alternative-seed checks of the lean worlds no longer exist (those worlds were removed).",
+ "fixed_by": "wave 3b (c5c/w3b-econ2, D-43): Gate L is measured in the integrated civilisation (crucible.civ generator spec + the population's autonomous developers, innovation.inventworld.civ_spec) with counterfactual arms that differ only in the developers' config; chains are mined generically from the labelled-need history and the event log (no host-keyed extractor, no scripted stage); unofficial civilisation run of tests/v5/test_gate_L.py at 7bc3ddc (balanced seed 3, 30 days, 4 arms, G slot lane 2026-11-27): L.4 12 independent chains, minimum 5 stages, 0 scripted stages, all 12 with an agent artifact; L.5 11 of 12 chains confirmed by their removal arm (that count used the faulty confirmation of DEF-G-7; the repaired instrument is re-measured in the civilisation by the G lane); L.n1 0 runtime bonuses, 1553 income deposits verified. Replication: 4 seeds of small creation worlds (unofficial); the civilisation is measured on one seed (limitation recorded in workstreams/G.json). The 4.0-era alternative-seed checks of the lean worlds no longer exist (those worlds were removed).",
  "id": "DEF-G-5",
  "owner": "G (ECON)",
  "regression_tests": "tests/v5/test_gate_L.py (L.4 scripted_stages == 0, L.5 removal arms); tests/test_v5_innovation_gates.py; tests/test_v5_innovation_devs.py",
@@ -729,6 +729,184 @@ B_population verdict) and P's own findings.
  },
  "status": "fixed",
  "summary": "Observation-only conflicts: the needs oracle reaches holders (adopters read nmod._held); 'independent' verdicts appear in search results and caps.tried/adopted (a Sybil oracle). L.n1 misses system 'endowment' bonuses."
+}
+```
+
+### DEF-G-7 (high, fixed): L.5 confirmed chains by construction or by name: every package chain went to ban_published whatever its task and was con
+
+```json
+{
+ "area": "G_innovation",
+ "fixed_by": "eb517a1e: the removal arm is chosen by the chain's task (chain['need']); confirmation compares measured world outcomes of the removal arm (need never arises / persists at the end after factual relief, incumbents lose and respond, hand work on the step falls), never same-named artifacts",
+ "id": "DEF-G-7",
+ "owner": "G (ECON)",
+ "regression_tests": "tests/test_v5_innovation_instruments.py::test_a_package_chain_is_confirmed_only_when_hand_work_does_not_fall_without_the_inventions; tests/test_v5_innovation_instruments.py::test_a_need_chain_needs_relief_in_the_factual_arm_and_persistence_without_the_invention; tests/test_v5_innovation_instruments.py::test_a_competition_chain_is_not_confirmed_when_incumbents_lose_and_respond_anyway; tests/test_v5_innovation_instruments.py::test_removal_arm_is_chosen_by_the_chains_task",
+ "requirements": [
+  "L.5"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "independent verifier of c5c/w3b-econ2 at f94ce3f1 (wave 3b repair pass)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "L.5 confirmed chains by construction or by name: every package chain went to ban_published whatever its task and was confirmed when no same-named chain existed there (names carry developer indices); need chains were confirmed because the removal arm bans their own target, without checking that the factual arm relieved the need (2 of 8 package confirmations false in a creation probe; a gen.compose need confirmed although never relieved)."
+}
+```
+
+### DEF-G-8 (high, fixed): The novel combination's demand was designer-supplied and undetected: inventworld planted the composed activity (COMPOSE 
+
+```json
+{
+ "area": "G_innovation",
+ "fixed_by": "eb517a1e: composed activities come from a generic raw-feed world rule over every producer/consumer pair of the world's generated categories (inventworld.raw_feed_compositions; no pair is named); configured compositions count as designer-supplied demand (gates.configured_compositions) and their combinations are excluded from novel_combinations; developers plan a workflow from the public request text (devs.stages_of), never from the category; strict SP-6.4b classification reports needs from the builder's configured pipeline and pre-genesis community backlogs without counting them",
+ "id": "DEF-G-8",
+ "owner": "G (ECON)",
+ "regression_tests": "tests/test_v5_innovation_instruments.py::test_composed_activities_follow_the_world_rule_and_a_hand_picked_pair_is_flagged; tests/test_v5_innovation_instruments.py::test_the_demand_detector_counts_a_configured_combination_in_a_world; tests/test_v5_innovation_instruments.py::test_a_developer_reads_the_stages_from_the_public_request_text_only",
+ "requirements": [
+  "SP-6.4b",
+  "SP-6.3b"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "independent verifier of c5c/w3b-econ2 at f94ce3f1 (wave 3b repair pass)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "The novel combination's demand was designer-supplied and undetected: inventworld planted the composed activity (COMPOSE = transform then allocate), developers composed only for usefulness.compose categories read from the category object, and designer_supplied_demand checked only data relations and literal workflow names (0 in both the planted and the compose=() world)."
+}
+```
+
+### DEF-G-9 (medium, fixed): Chain mining found 'need relieved' before the need arose: relief was searched from the adoption onward, not from the nee
+
+```json
+{
+ "area": "G_innovation",
+ "fixed_by": "eb517a1e: experiments.relief_t (relief only after both the adoption and the need's first appearance); _chain marks a chain unordered when relief does not follow the need",
+ "id": "DEF-G-9",
+ "owner": "G (ECON)",
+ "regression_tests": "tests/test_v5_innovation_instruments.py::test_a_need_is_never_relieved_before_it_arose",
+ "requirements": [
+  "L.4"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "independent verifier of c5c/w3b-econ2 at f94ce3f1 (wave 3b repair pass)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Chain mining found 'need relieved' before the need arose: relief was searched from the adoption onward, not from the need's first appearance, and the ordered check ignored the need stage (a 6-stage pack.knapsack chain with relief on day 9 and the need first labelled on day 17 led min_chain_stages)."
+}
+```
+
+### DEF-G-10 (medium, fixed): J.3/J.4/J.6/J.7 took the minimum over categories that already pass J.n1 only (ok = passing or all), so they passed whene
+
+```json
+{
+ "area": "G_innovation",
+ "fixed_by": "eb517a1e: minima over every category in which developers' services were used",
+ "id": "DEF-G-10",
+ "owner": "G (ECON)",
+ "regression_tests": "tests/test_v5_innovation_instruments.py::test_j_minima_cover_every_category_not_only_the_passing_ones",
+ "requirements": [
+  "J.3",
+  "J.4",
+  "J.6",
+  "J.7"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "independent verifier of c5c/w3b-econ2 at f94ce3f1 (wave 3b repair pass)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "J.3/J.4/J.6/J.7 took the minimum over categories that already pass J.n1 only (ok = passing or all), so they passed whenever J.n1 did (reported J.6 152 against 49 over all categories)."
+}
+```
+
+### DEF-G-11 (medium, fixed): L.n1 exempted any acct_external credit of kind 'income' and memo 'income deposited' that coincided with a pop.deposit ba
+
+```json
+{
+ "area": "G_innovation",
+ "fixed_by": "eb517a1e: an income credit is exempt only when it pairs one-to-one with the population module's own pop.deposit record of the same individual, time and exact amount",
+ "id": "DEF-G-11",
+ "owner": "G (ECON)",
+ "regression_tests": "tests/test_v5_innovation_instruments.py::test_an_income_credit_booked_next_to_a_real_deposit_is_counted",
+ "requirements": [
+  "L.n1"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "independent verifier of c5c/w3b-econ2 at f94ce3f1 (wave 3b repair pass)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "L.n1 exempted any acct_external credit of kind 'income' and memo 'income deposited' that coincided with a pop.deposit batch, without comparing amounts: a planted 50,000-cent bonus per developer at every deposit (46 payments, 2,300,000 cents) reported special_case_bonuses 0."
+}
+```
+
+### DEF-G-12 (medium, fixed): The SP-6.3b single-judge scan was name-based and same-module only: a call to the shared semantic space (space.text_vecto
+
+```json
+{
+ "area": "G_innovation",
+ "fixed_by": "eb517a1e: the scan follows calls across crucible modules and flags any call into the semantic space, social.audience, population.semantics, substrate.inference or a model library; negative controls inject each into every listed decision and through a helper module; the developer interest path (not a usefulness verdict) is reported separately",
+ "id": "DEF-G-12",
+ "owner": "G (ECON)",
+ "regression_tests": "tests/test_v5_innovation_instruments.py::test_a_language_model_call_injected_into_a_participant_decision_is_flagged; tests/test_v5_innovation_instruments.py::test_the_scan_reaches_every_listed_decision; tests/test_v5_innovation_instruments.py::test_a_judgement_hidden_in_a_helper_of_another_module_is_flagged",
+ "requirements": [
+  "SP-6.3b"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "independent verifier of c5c/w3b-econ2 at f94ce3f1 (wave 3b repair pass)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "The SP-6.3b single-judge scan was name-based and same-module only: a call to the shared semantic space (space.text_vector, which runs Qwen3) or social.audience.encode injected into economy/work.py::_accepted was flagged on 0 paths, and no negative control existed."
+}
+```
+
+### DEF-G-13 (high, fixed): Software collaboration was inert in the integrated world: devs never called pkg.pr_open, pr_review, pr_merge, fork, repo
+
+```json
+{
+ "area": "G_innovation",
+ "fixed_by": "8ce15b76: autonomous developers file issues, propose better approaches as pull requests from forks, maintainers read, review (independently), merge and release, dependents upgrade, unmerged or rejected proposals become fork packages, breaking releases get an issue and a reliability advisory (devs._contribute/_triage/_adopt_fork/_upgrade); SP-6.5 reports the civilisation's features next to the scripted scenario",
+ "id": "DEF-G-13",
+ "owner": "G (ECON)",
+ "regression_tests": "tests/test_v5_innovation_devs.py::test_developers_collaborate_through_issues_pull_requests_review_and_forks; tests/v5/test_gate_SP_6_5.py",
+ "requirements": [
+  "SP-6.5"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "independent verifier of c5c/w3b-econ2 at f94ce3f1 (wave 3b repair pass)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Software collaboration was inert in the integrated world: devs never called pkg.pr_open, pr_review, pr_merge, fork, report, advisory or any issues tool, so SP-6.5's issue trackers, pull requests, independent review and forks came only from a scripted scenario."
+}
+```
+
+### DEF-G-14 (low, fixed): devs._maintain replied to and resolved every open support ticket in the same session ('handled') with no change to the s
+
+```json
+{
+ "area": "G_innovation",
+ "fixed_by": "8ce15b76: tickets are acknowledged once and resolved only after a change shipped after the ticket was opened (new version, more cores, upgrade, workflow), with a note naming it",
+ "id": "DEF-G-14",
+ "owner": "G (ECON)",
+ "regression_tests": "tests/test_v5_innovation_devs.py::test_developers_collaborate_through_issues_pull_requests_review_and_forks",
+ "requirements": [],
+ "severity": "low",
+ "source": {
+  "audit": "independent verifier of c5c/w3b-econ2 at f94ce3f1 (wave 3b repair pass)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "devs._maintain replied to and resolved every open support ticket in the same session ('handled') with no change to the service."
 }
 ```
 
