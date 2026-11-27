@@ -21,6 +21,8 @@ class PendingItem:
     experiment_id: str = ""
     not_before: float = 0.0          # retry time after the environment answered "still pending"
     attempts: int = 0
+    origin: str = "environment"      # "environment": issued by the environment's result; "learner": a query the
+                                     # learner registered with a prediction for an executed action
 
     @property
     def ready_at(self) -> float:
@@ -28,12 +30,14 @@ class PendingItem:
 
     def to_dict(self) -> Dict[str, Any]:
         return {"query": self.query.to_dict(), "action_id": self.action_id, "decision_id": self.decision_id,
-                "experiment_id": self.experiment_id, "not_before": self.not_before, "attempts": self.attempts}
+                "experiment_id": self.experiment_id, "not_before": self.not_before, "attempts": self.attempts,
+                "origin": self.origin}
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "PendingItem":
         return cls(OutcomeQuery.from_dict(d["query"]), d.get("action_id", ""), d.get("decision_id", ""),
-                   d.get("experiment_id", ""), float(d.get("not_before", 0.0)), int(d.get("attempts", 0)))
+                   d.get("experiment_id", ""), float(d.get("not_before", 0.0)), int(d.get("attempts", 0)),
+                   str(d.get("origin", "environment")))
 
 
 class PendingOutcomes:
@@ -51,12 +55,19 @@ class PendingOutcomes:
     def items(self) -> List[PendingItem]:
         return sorted(self._items.values(), key=lambda i: (i.ready_at, i.query.query_id))
 
-    def add(self, query: OutcomeQuery, *, action_id: str = "", decision_id: str = "", experiment_id: str = "") -> bool:
+    def add(self, query: OutcomeQuery, *, action_id: str = "", decision_id: str = "", experiment_id: str = "",
+            origin: str = "environment") -> bool:
         if query.query_id in self._items or query.query_id in self._resolved:
             return False
         self._items[query.query_id] = PendingItem(query, action_id, decision_id or query.decision_id,
-                                                  experiment_id or query.experiment_id)
+                                                  experiment_id or query.experiment_id, origin=origin)
         return True
+
+    def has(self, query_id: str) -> bool:
+        return query_id in self._items or query_id in self._resolved
+
+    def count_origin(self, origin: str) -> int:
+        return sum(1 for i in self._items.values() if i.origin == origin)
 
     def due(self, now: float) -> List[PendingItem]:
         return [i for i in self.items() if i.ready_at <= now]

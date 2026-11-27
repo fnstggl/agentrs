@@ -56,7 +56,7 @@ def _check_invariants(h, run_dir, summary):
     decisions = r.records(RunFiles.DECISIONS)
     assert st["counters"]["decisions"] == len({d["data"]["decision"]["decision_id"] for d in decisions})
     # 4. no outcome was lost: every query the world issued is reconciled by the learner or still pending
-    pending = {i["query"]["query_id"] for i in st["live"]["pending"]["items"]}
+    pending = {i["query_id"] for i in st["live"]["pending"]["items"]}       # redacted summaries in state.json
     reconciled = set(s["reconciled"])
     assert set(h.issued_queries) <= pending | reconciled
     assert reconciled and len(s["reconciled"]) == len(reconciled)          # and none was reconciled twice

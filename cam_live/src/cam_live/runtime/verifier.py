@@ -290,6 +290,17 @@ class SignedVerifier:
         return bool(getattr(outcome, "signature", "")) and hmac.compare_digest(outcome.signature,
                                                                               self._signature(outcome))
 
+    def _obs_signature(self, obs: OutcomeObservation) -> str:
+        d = obs.to_dict()
+        d.pop("signature", None)
+        return hmac.new(self._key, b"measurement:" + _canon(d), hashlib.sha256).hexdigest()
+
+    def check_measurement(self, obs: OutcomeObservation) -> bool:
+        """True only for an observation this verifier produced and signed (``contracts.OutcomeVerifier``)."""
+        sig = str(getattr(obs, "signature", "") or "")
+        return (isinstance(obs, OutcomeObservation) and bool(sig) and obs.verified is True
+                and hmac.compare_digest(sig, self._obs_signature(obs)))
+
     # ---- helpers -------------------------------------------------------------------------------------------
     def _task(self, task: TaskSpec) -> TaskSpec:
         """The task the verifier judges. When the operator pinned one, the caller's copy is only an identifier:
@@ -334,10 +345,12 @@ class SignedVerifier:
                 out.append(OutcomeObservation(q.query_id, OutcomeStatus.UNOBSERVABLE, observed_at=now,
                                               source="verifier"))
                 continue
-            out.append(OutcomeObservation(q.query_id, OutcomeStatus.OBSERVED, float(vals[q.metric]), observed_at=now,
-                                          verified=True, source=f"verifier:{source_name}",
-                                          evidence_refs=[f"verifier-log:{self.log.seq + 1}"],
-                                          dedup_key=f"{q.metric}@{q.due_at:.0f}"))
+            o = OutcomeObservation(q.query_id, OutcomeStatus.OBSERVED, float(vals[q.metric]), observed_at=now,
+                                   verified=True, source=f"verifier:{source_name}",
+                                   evidence_refs=[f"verifier-log:{self.log.seq + 1}"],
+                                   dedup_key=f"{q.metric}@{q.due_at:.0f}")
+            o.signature = self._obs_signature(o)
+            out.append(o)
         if any(o.status == OutcomeStatus.OBSERVED for o in out):
             self.log.append(now, "measure", {"observations": [o.to_dict() for o in out
                                                               if o.status == OutcomeStatus.OBSERVED]})

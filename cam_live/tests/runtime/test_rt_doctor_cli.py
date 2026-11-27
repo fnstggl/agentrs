@@ -164,7 +164,7 @@ def test_cli_doctor_preflight_and_refusals(tmp_path):
             continue                                     # the component has landed; its own tests cover it
         except ImportError:
             code, _, err = _cli(*args)
-            assert code == 4 and "not present in this installation" in err, args
+            assert code == 4 and "is not available yet" in err and module in err, args
     code, _, err = _cli("evaluate-transfer", "--checkpoint", str(tmp_path / "missing"))
     assert code == 2
 

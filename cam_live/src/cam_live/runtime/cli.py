@@ -35,9 +35,9 @@ from ..contracts import RunFiles, WallClock, new_id
 from ..harness import SOCK_AUTH, SOCK_EXEC, SOCK_VERIFY, users_exist
 from . import doctor as _doctor
 from . import preflight as _preflight
-from .control import PID_FILE, OperatorControl, pid_alive, read_pid
+from .control import PID_FILE, OperatorControl, OperatorKey, pid_alive, read_pid
 from .logs import RunReader, atomic_write_json, atomic_write_text, read_json
-from .tasks import TaskValidationError, load_task, load_task_raw, strategy_findings
+from .tasks import TaskValidationError, has_discord, load_task, load_task_raw, strategy_findings
 
 CURRENT = "current_run"
 SUPERVISOR_PID = "supervisor.pid"
@@ -74,6 +74,58 @@ def _run_dir(a: argparse.Namespace, cfg: Optional[CamLiveConfig] = None) -> str:
 def _missing(component: str, e: BaseException) -> int:
     print(f"cam-live: {component} is not present in this installation ({type(e).__name__}: {e})", file=sys.stderr)
     return 4
+
+
+def _absent(module: str, e: BaseException) -> bool:
+    """True when ``e`` says that ``module`` itself (or a package above it) is not installed — not that it exists
+    and failed to import."""
+    if not isinstance(e, ModuleNotFoundError):
+        return False
+    name = getattr(e, "name", "") or ""
+    return bool(name) and (module == name or module.startswith(name + "."))
+
+
+def load_hook(spec: str, what: str) -> Any:
+    """``module:attribute`` of a component other workstreams provide (``cam_live.agent:build_agent``,
+    ``cam_live.validation:run_staging``, ``cam_live.eval.transfer:main``). Raises :class:`ComponentMissing` with a
+    clear "not available yet" message only when the module is not installed; an import error *inside* an existing
+    module is reported as such."""
+    module, _, attr = spec.partition(":")
+    try:
+        mod = importlib.import_module(module)
+    except ImportError as e:
+        if _absent(module, e):
+            raise ComponentMissing(f"{what} is not available yet: module {module} is not in this installation "
+                                   f"(needed: {spec})") from e
+        raise ComponentBroken(f"{what}: module {module} exists but failed to import: {type(e).__name__}: {e}") from e
+    if not hasattr(mod, attr):
+        raise ComponentBroken(f"{what}: module {module} is installed but does not define {attr} (needed: {spec})")
+    return getattr(mod, attr)
+
+
+class ComponentMissing(RuntimeError):
+    """A component of another workstream is not installed (exit code 4, "not available yet")."""
+
+
+class ComponentBroken(RuntimeError):
+    """A component is installed but cannot be used (exit code 4, with the real error)."""
+
+
+AGENT_HOOK = "cam_live.agent:build_agent"
+VALIDATION_HOOK = "cam_live.validation:run_staging"
+TRANSFER_HOOK = "cam_live.eval.transfer:main"
+COMPLETION_HOOK = "cam_live.verify_completion:main"
+
+
+def _hook_failed(e: BaseException) -> int:
+    print(f"cam-live: {e}", file=sys.stderr)
+    return 4
+
+
+def _clean(text: Any) -> str:
+    """Terminal-safe text: learner- or environment-derived strings never carry control sequences to the terminal."""
+    import re
+    return re.sub(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]", "?", str(text))
 
 
 @contextlib.contextmanager
@@ -156,14 +208,14 @@ def cmd_init(a: argparse.Namespace) -> int:
         report["agent"] = "skipped (--no-agent): no initial checkpoint was written"
         _out(report, a.json, "\n".join(f"{k}: {v}" for k, v in report.items()))
         return 0
-    from .loop_service import DEFAULT_AGENT_FACTORY, call_factory, load_factory
+    from .loop_service import DEFAULT_AGENT_FACTORY, call_factory
     factory = a.agent_factory or cfg.section("runtime").get("agent_factory") or DEFAULT_AGENT_FACTORY
     try:
-        build = load_factory(factory)
-    except (ImportError, AttributeError) as e:
-        report["agent"] = f"not initialised: {factory} is not present"
+        build = load_hook(factory, "the agent factory")
+    except (ComponentMissing, ComponentBroken) as e:
+        report["agent"] = f"not initialised: {e}"
         _out(report, a.json, "\n".join(f"{k}: {v}" for k, v in report.items()))
-        return _missing(f"the agent factory {factory}", e)
+        return _hook_failed(e)
     ckpt = os.path.join(home, "checkpoints", "init")
     with gpu_lock(cfg.backbone.name != "tiny" and cfg.resolved_device() == "cuda"):
         agent = call_factory(build, cfg=cfg, run_dir=os.path.join(home, "runs", "_init"), clock=WallClock())
@@ -204,9 +256,9 @@ def cmd_validate(a: argparse.Namespace) -> int:
         return 2
     cfg = _cfg(a.config)
     try:
-        run_staging = importlib.import_module("cam_live.validation").run_staging
-    except (ImportError, AttributeError) as e:
-        return _missing("cam_live.validation (staging validation)", e)
+        run_staging = load_hook(VALIDATION_HOOK, "staging validation")
+    except (ComponentMissing, ComponentBroken) as e:
+        return _hook_failed(e)
     report = run_staging(cfg)
     out = os.path.join(cfg.resolved_home(), "validation", "staging_report.json")
     atomic_write_json(out, report)
@@ -253,11 +305,8 @@ def cmd_inspect_harness(a: argparse.Namespace) -> int:
                           "unavailable_reason": t.unavailable_reason, "description": t.description} for t in tools]
         info["missing_integrations"] = [{"tool": t.name, "reason": t.unavailable_reason or "listed as unavailable"}
                                         for t in tools if not t.available]
-        if a.task:
-            task = load_task(a.task, for_run=False)
-            have = {t.modality for t in tools if t.available}
-            info["missing_integrations"] += [{"tool": f"interface:{m}", "reason": "permitted by the task, but no "
-                                              "available tool offers it"} for m in task.interfaces if m not in have]
+        task = load_task(a.task, for_run=False) if a.task else None
+        info["missing_integrations"] += _preflight.missing_integrations(task, tools)
         info["permissions"] = {"policy_engine": type(policy).__name__,
                                "scopes_requested_by_tools": sorted({t.auth_scope for t in tools if t.auth_scope}),
                                "limits_state": policy.limits_state() if policy is not None else None,
@@ -330,7 +379,9 @@ def cmd_run(a: argparse.Namespace) -> int:
     atomic_write_json(os.path.join(run_dir, "run.json"),
                       {"task_file": os.path.abspath(a.task), "config": os.path.abspath(a.config) if a.config else "",
                        "agent_factory": a.agent_factory, "separated": separated, "mode": task.mode,
-                       "created_at": WallClock().now()})
+                       "authorization": os.path.abspath(a.authorization) if a.authorization else "",
+                       "verifier_source": a.verifier_source, "created_at": WallClock().now()})
+    OperatorKey(run_dir).ensure()          # the operator's command key exists before any service or learner starts
     atomic_write_json(os.path.join(run_dir, "preflight.json"), rep)
     os.makedirs(home, exist_ok=True)
     atomic_write_text(os.path.join(home, CURRENT), run_dir)
@@ -417,7 +468,7 @@ def cmd_supervise(a: argparse.Namespace) -> int:
         except Exception as e:  # noqa: BLE001
             vinfo = None
             print(f"supervisor: verifier not reachable: {type(e).__name__}: {e}", flush=True)
-        rep = _preflight.preflight(a.task, cfg, policy=auth, env=env, verifier_info=vinfo)
+        rep = _preflight.preflight(a.task, cfg, policy=auth, env=env, verifier_info=vinfo, run_dir=run_dir)
         atomic_write_json(os.path.join(run_dir, "preflight.json"), rep)
         print(_preflight.render(rep), flush=True)
         if task.mode == "live" and not rep["live"]["ready"]:
@@ -451,7 +502,7 @@ def cmd_status(a: argparse.Namespace) -> int:
            "meta_learning": {k: meta[k] for k in ("n_updates", "n_applied", "skipped_reasons", "bootstrap_mix")},
            "calibration": v.calibration(), "process": health["process"]}
     vo = st["verified"]
-    text = "\n".join([
+    text = _clean("\n".join([
         f"run:        {run_dir}",
         f"status:     {st['status']}" + (f" — {st['status_reason']}" if st["status_reason"] else "")
         + f" (process {'alive' if health['process']['alive'] else 'not running'})",
@@ -464,7 +515,7 @@ def cmd_status(a: argparse.Namespace) -> int:
         f"change); meta: {meta['n_applied']} applied of {meta['n_updates']}, bootstrap mix {meta['bootstrap_mix']}",
         f"checkpoint: {(st['checkpoint'] or {}).get('id', 'none')}",
         f"pending:    {st['pending_outcomes']} outcomes, {st['pending_approvals']} approvals",
-    ])
+    ]))
     _out(rep, a.json, text)
     return 0
 
@@ -477,7 +528,7 @@ def _command(a: argparse.Namespace, send, expect: Optional[Sequence[str]] = None
     res = ctl.wait_result(cid, timeout_s=a.timeout if alive else 0.0)
     out = {"run_dir": run_dir, "command_id": cid, "runtime_alive": alive, "result": res}
     _out(out, getattr(a, "json", False),
-         f"command {cid}: " + (f"{'ok' if res['ok'] else 'NOT applied'} — {res['detail']} (status {res['status']})"
+         f"command {cid}: " + (f"{'ok' if res['ok'] else 'NOT applied'} — {_clean(res['detail'])} (status {res['status']})"
                                if res else ("queued; the runtime has not acknowledged it yet" if alive else
                                             "queued; no runtime process is running — it is applied when one starts")))
     if res is None:
@@ -502,7 +553,8 @@ def cmd_reject(a: argparse.Namespace) -> int:
 
 
 def cmd_resume(a: argparse.Namespace) -> int:
-    """Resume a paused runtime; if no runtime process is alive, restart it from the persisted state."""
+    """Resume a paused runtime; if no runtime process is alive, restart it from the persisted state. A stopped run
+    (operator stop or emergency stop) is not restarted."""
     run_dir = _run_dir(a)
     if pid_alive(read_pid(run_dir)):
         return _command(a, lambda c: c.resume())
@@ -511,8 +563,18 @@ def cmd_resume(a: argparse.Namespace) -> int:
     if not st:
         print(f"cam-live resume: no runtime state in {run_dir}", file=sys.stderr)
         return 1
+    if st.get("status") == "stopped":
+        print(f"cam-live resume: REFUSED — the run in {run_dir} was stopped ({_clean(st.get('status_reason', ''))}); a "
+              "stopped run is not restarted. Its committed checkpoint can be exported (cam-live export-checkpoint).",
+              file=sys.stderr)
+        return 3
+    sup = read_json(os.path.join(run_dir, SUPERVISOR_PID))
+    if meta.get("separated") and pid_alive(sup if isinstance(sup, int) else None):
+        print(f"cam-live resume: the supervisor of {run_dir} (pid {sup}) is still running; it restarts the learner "
+              "itself", file=sys.stderr)
+        return 3
     if st.get("status") == "paused":
-        OperatorControl(run_dir).channel.send("resume", wake=False)
+        OperatorControl(run_dir).resume(wake=False)      # signed; applied when the restarted runtime reads it
     common = ["--run-dir", run_dir, "--task", os.path.join(run_dir, "task.yaml")]
     if meta.get("config"):
         common += ["--config", meta["config"]]
@@ -521,12 +583,18 @@ def cmd_resume(a: argparse.Namespace) -> int:
         common += ["--agent-factory", factory]
     if meta.get("separated"):
         argv = [sys.executable, "-m", "cam_live.runtime.cli", "_supervise"] + common
+        if meta.get("authorization"):
+            argv += ["--authorization", meta["authorization"]]
+        if meta.get("verifier_source"):
+            argv += ["--verifier-source", meta["verifier_source"]]
         log = os.path.join(run_dir, "logs", "supervisor.log")
     else:
         argv = [sys.executable, "-m", "cam_live.runtime.loop_service"] + common + ["--inproc"]
         log = os.path.join(run_dir, "logs", "runtime.log")
     before = len(RunReader(run_dir).records(RunFiles.EVENTS, types=["run_resumed"]))
     pid = _spawn_detached(argv, log, _child_env())
+    if meta.get("separated"):
+        atomic_write_text(os.path.join(run_dir, SUPERVISOR_PID), str(pid))
     end = time.monotonic() + a.timeout
     while time.monotonic() < end and pid_alive(pid):
         if len(RunReader(run_dir).records(RunFiles.EVENTS, types=["run_resumed"])) > before:
@@ -534,7 +602,8 @@ def cmd_resume(a: argparse.Namespace) -> int:
         time.sleep(0.1)
     resumed = RunReader(run_dir).records(RunFiles.EVENTS, types=["run_resumed"])
     ok = len(resumed) > before
-    out = {"run_dir": run_dir, "restarted": True, "launcher_pid": pid, "restored": resumed[-1]["data"] if ok else None}
+    out = {"run_dir": run_dir, "restarted": True, "launcher_pid": pid, "restored": resumed[-1]["data"] if ok else None,
+           "supervisor_pid": pid if meta.get("separated") else None}
     _out(out, a.json, f"restarted the runtime in {run_dir} (pid {pid}); restored: {out['restored']}")
     if not ok:
         print(f"cam-live resume: the runtime did not come back; last lines of {log}:\n{_tail(log)}", file=sys.stderr)
@@ -583,21 +652,26 @@ def cmd_journal(a: argparse.Namespace) -> int:
 
 
 def cmd_dashboard(a: argparse.Namespace) -> int:
-    from .dashboard import load_or_create_token, serve
+    from .dashboard import load_or_create_operator_token, load_or_create_token, serve
     cfg = _cfg(a.config)
     run_dir = _run_dir(a, cfg)
-    token = load_or_create_token(cfg.resolved_home())
+    home = cfg.resolved_home()
+    token = load_or_create_token(home)
+    operator = None if a.view_only else load_or_create_operator_token(home)
     print(f"dashboard for {run_dir}: http://127.0.0.1:{a.port}/?token=<contents of "
-          f"{os.path.join(cfg.resolved_home(), 'dashboard.token')}>", flush=True)
-    serve(run_dir, token, "127.0.0.1", a.port, policy=_policy_handle(run_dir))
+          f"{os.path.join(home, 'dashboard.token')}>", flush=True)
+    print("operator actions: " + ("disabled (--view-only)" if operator is None else
+                                  f"enter the operator credential from {os.path.join(home, 'dashboard.operator')} "
+                                  "(mode 0600; never share it with the viewing token)"), flush=True)
+    serve(run_dir, token, "127.0.0.1", a.port, policy=_policy_handle(run_dir), operator_token=operator)
     return 0
 
 
-def _delegate(module: str, what: str, argv: List[str]) -> int:
+def _delegate(spec: str, what: str, argv: List[str]) -> int:
     try:
-        main_fn = importlib.import_module(module).main
-    except (ImportError, AttributeError) as e:
-        return _missing(f"{module} ({what})", e)
+        main_fn = load_hook(spec, what)
+    except (ComponentMissing, ComponentBroken) as e:
+        return _hook_failed(e)
     code = main_fn(argv)
     return int(code or 0)
 
@@ -606,12 +680,12 @@ def cmd_evaluate_transfer(a: argparse.Namespace) -> int:
     if not os.path.exists(a.checkpoint):
         print(f"cam-live evaluate-transfer: checkpoint {a.checkpoint} does not exist", file=sys.stderr)
         return 2
-    return _delegate("cam_live.eval.transfer", "fresh-process transfer evaluation",
-                     ["--checkpoint", a.checkpoint] + (["--config", a.config] if a.config else []) + a.rest)
+    return _delegate(TRANSFER_HOOK, "fresh-process transfer evaluation",
+                     ["--checkpoint", a.checkpoint] + (["--config", a.config] if a.config else []) + list(a.rest))
 
 
 def cmd_verify_completion(a: argparse.Namespace) -> int:
-    return _delegate("cam_live.verify_completion", "the completion checker", a.rest)
+    return _delegate(COMPLETION_HOOK, "the completion checker", list(a.rest))
 
 
 # --------------------------------------------------------------------------------------------------------------
@@ -687,11 +761,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--print", action="store_true")
     p = add("dashboard", cmd_dashboard, "serve the monitoring interface on 127.0.0.1", run_dir=True)
     p.add_argument("--port", type=int, default=8787)
-    p = add("evaluate-transfer", cmd_evaluate_transfer, "run fresh-process transfer evaluations")
+    p.add_argument("--view-only", action="store_true", help="no operator actions (no operator credential is loaded)")
+    p = add("evaluate-transfer", cmd_evaluate_transfer, "run fresh-process transfer evaluations "
+            "(further options are passed to cam_live.eval.transfer)")
     p.add_argument("--checkpoint", required=True)
-    p.add_argument("rest", nargs=argparse.REMAINDER)
-    p = add("verify-completion", cmd_verify_completion, "run the executable completion checker", config=False)
-    p.add_argument("rest", nargs=argparse.REMAINDER)
+    p.set_defaults(rest=[])
+    sub.add_parser("verify-completion", help="run the executable completion checker (every option is passed to "
+                   "cam_live.verify_completion; `cam-live verify-completion --help` shows the checker's own help)",
+                   add_help=False).set_defaults(fn=cmd_verify_completion, rest=[])
     p = add("_supervise", cmd_supervise, "(internal) supervisor of a separated run")
     p.add_argument("--run-dir", required=True)
     p.add_argument("--task", required=True)
@@ -701,8 +778,22 @@ def build_parser() -> argparse.ArgumentParser:
     return ap
 
 
+#: commands whose options belong to another component: everything after the command name is passed through
+PASS_THROUGH = {"verify-completion": None, "evaluate-transfer": ("--checkpoint", "--config")}
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    a = build_parser().parse_args(argv)
+    args = list(sys.argv[1:] if argv is None else argv)
+    ap = build_parser()
+    if args and args[0] in PASS_THROUGH:
+        own = PASS_THROUGH[args[0]]
+        if own is None:                                     # verify-completion: the checker parses everything
+            a = argparse.Namespace(fn=cmd_verify_completion, rest=args[1:])
+        else:
+            a, rest = ap.parse_known_args(args)
+            a.rest = rest
+    else:
+        a = ap.parse_args(args)
     try:
         return int(a.fn(a) or 0)
     except TaskValidationError as e:

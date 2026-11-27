@@ -70,6 +70,7 @@ def build_inproc(task: TaskSpec, cfg: CamLiveConfig, run_dir: str) -> Tuple[Any,
         return build_lab(task, cfg)
     from ..harness.auth.policy import PolicyService
     from ..harness.service import build_environment
+    from .tasks import evidence_source
     from .verifier import build_verifier, source_from_spec
     clock = WallClock()
     policy = PolicyService(run_dir, clock=clock)
@@ -77,7 +78,7 @@ def build_inproc(task: TaskSpec, cfg: CamLiveConfig, run_dir: str) -> Tuple[Any,
     # the environment keeps its own state and execution log under <run_dir>/exec, apart from the runtime's records
     env = build_environment(os.path.join(run_dir, "exec"), policy, provenance=task.mode, clock=clock,
                             executors=tuple(sec.get("executors", ())), browser=bool(sec.get("browser", True)))
-    source = source_from_spec(str(task.success.get("evidence_source", "")), task, run_dir)
+    source = source_from_spec(evidence_source(task), task, run_dir)
     verifier = build_verifier(task, os.path.join(run_dir, "verifier"), clock, source,
                               log_path=os.path.join(run_dir, "verifier.jsonl"))
     return env, policy, verifier, clock
@@ -136,6 +137,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 return 3
             time.sleep(0.2)
     factory = a.agent_factory or cfg.section("runtime").get("agent_factory") or DEFAULT_AGENT_FACTORY
+    module = factory.partition(":")[0]
+    try:
+        load_factory(factory)
+    except ModuleNotFoundError as e:
+        if e.name and (module == e.name or module.startswith(e.name + ".")):
+            print(f"learner: the agent factory {factory} is not available yet: module {module} is not in this "
+                  "installation", file=sys.stderr)
+            return 4
+        raise
+    except AttributeError:
+        print(f"learner: module {module} is installed but does not define {factory.partition(':')[2]}",
+              file=sys.stderr)
+        return 4
     status = run_service(run_dir, task, cfg, agent_factory=factory, inproc=a.inproc,
                          max_iterations=a.max_iterations or None)
     print(f"learner: run ended with status {status}", flush=True)

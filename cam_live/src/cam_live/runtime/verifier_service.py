@@ -20,10 +20,10 @@ from typing import Any, Dict, List, Optional, Sequence
 from ..contracts import (OutcomeObservation, OutcomeQuery, RunFiles, TaskSpec, VerifiedOutcome, WallClock)
 from ..harness import SERVICE_GROUP, SOCK_VERIFY, uid_of
 from ..harness.rpc import RpcClient, RpcServer
-from .tasks import load_task
+from .tasks import evidence_source, load_task
 from .verifier import SignedVerifier, build_verifier, source_from_spec
 
-METHODS = ("verify", "measure", "check_signature", "info")
+METHODS = ("verify", "measure", "check_signature", "check_measurement", "info")
 
 
 class VerifierEndpoint:
@@ -43,6 +43,9 @@ class VerifierEndpoint:
 
     def check_signature(self, outcome: VerifiedOutcome) -> bool:
         return self._v.check_signature(outcome)
+
+    def check_measurement(self, obs: OutcomeObservation) -> bool:
+        return bool(self._v.check_measurement(obs))
 
     def info(self) -> Dict[str, Any]:
         pinned = self._v.pinned_task
@@ -65,6 +68,9 @@ class RemoteVerifier:
 
     def check_signature(self, outcome: VerifiedOutcome) -> bool:
         return bool(self._rpc.call("check_signature", outcome))
+
+    def check_measurement(self, obs: OutcomeObservation) -> bool:
+        return bool(self._rpc.call("check_measurement", obs))
 
     def info(self) -> Dict[str, Any]:
         return self._rpc.call("info")
@@ -90,12 +96,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--socket", default="")
     ap.add_argument("--task", default="", help="operator task file (default: <run-dir>/task.yaml)")
     ap.add_argument("--source", default="", help="evidence source: jsonl:<path> | json:<path> | <module>:<factory>; "
-                                                 "default: success.evidence_source of the task")
+                                                 "default: success.evidence_source of the task, or for a task with "
+                                                 "Discord resources cam_live.harness.discord_membership:"
+                                                 "membership_source")
     a = ap.parse_args(argv)
     run_dir = os.path.abspath(a.run_dir)
     task_path = a.task or os.path.join(run_dir, "task.yaml")
     task = load_task(task_path, for_run=True)
-    spec = a.source or str(task.success.get("evidence_source", ""))
+    spec = a.source or evidence_source(task)
     if ":" not in spec:
         print(f"verifier: no usable evidence source ({spec!r}); give --source", file=sys.stderr)
         return 2

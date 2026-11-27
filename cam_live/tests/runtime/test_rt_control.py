@@ -23,7 +23,7 @@ def _queue_one_approval(tmp_path, wait_ok=True):
             break
     assert len(lab.rt.approvals) == 1
     (aid, entry), = lab.rt.approvals.items()
-    return lab, aid, entry["decision"]["chosen"]["action_id"]
+    return lab, aid, lab.rt._approval_raw[aid]["decision"]["chosen"]["action_id"]
 
 
 def test_approval_required_action_queues_and_is_not_reproposed(tmp_path):
@@ -161,7 +161,7 @@ def test_assign_subsequent_objective(tmp_path):
     with pytest.raises(TaskValidationError):
         op.assign_objective(bad)
     # ... and by the runtime itself if it is put on the control channel directly
-    cid = op.channel.send("assign_objective", path=bad)
+    cid = op.channel.send("assign_objective", signer=op.key.sign, path=bad)   # signed, so only the content is judged
     lab.rt.step()
     res = RunReader(lab.run_dir).state()["control_results"][cid]
     assert res["ok"] is False and "strategy" in res["detail"]

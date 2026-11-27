@@ -8,10 +8,16 @@ The journal is a *derived* document: every line is computed from records in the 
 Nothing here is written by a language model, and nothing here is an input to learning. The journal states that
 learning happened only where a ``LearningUpdateRecord`` with a measured behavioural change (a non-zero change of
 probe predictions or action probabilities) supports it.
+
+Text that comes from the environment or the learner (failure details, operation names, explanations, learning
+triggers) is quoted with :func:`untrusted`: line breaks and control characters are removed and the journal's own
+tags are neutralised, so such text can never start a statement line of its own. What the learner says about its
+own experiments (``supported``) is reported as its assessment, never as a fact.
 """
 from __future__ import annotations
 
 import os
+import re
 from collections import Counter, defaultdict
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -20,6 +26,25 @@ from .logs import RunReader, atomic_write_text
 
 SHIFT_THRESHOLD = 0.25           # total-variation distance between the operation mixes of the two halves of a run
 MIN_FOR_TREND = 8                # resolved predictions needed before an early/late comparison is reported
+
+
+_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029\u200b-\u200f\u202a-\u202e\u2066-\u2069]+")
+_TAGS = re.compile(r"\[\s*(FACT|HYPOTHESIS)\s*\]", re.IGNORECASE)
+
+
+def untrusted(value: Any, limit: int = 300) -> str:
+    """Text from the environment or the learner, made safe to place inside one journal line: one line, no control
+    characters, the journal's ``[FACT]`` / ``[HYPOTHESIS]`` tags and markdown structure neutralised, bounded."""
+    t = _CONTROL.sub(" ", str(value if value is not None else ""))
+    t = _TAGS.sub(lambda m: f"({m.group(1).lower()})", t)
+    t = re.sub(r"\s+", " ", t).strip().replace("`", "'")
+    if len(t) > limit:
+        t = t[:limit - 1] + "…"
+    return t
+
+
+def _q(value: Any, limit: int = 300) -> str:
+    return f"“{untrusted(value, limit)}”"
 
 
 def _ids(rids: Iterable[str], limit: int = 6) -> str:
@@ -55,7 +80,7 @@ def _tv(a: Counter, b: Counter) -> float:
 
 def _mix(c: Counter) -> str:
     n = sum(c.values()) or 1
-    return ", ".join(f"{k} {v}/{n}" for k, v in c.most_common(6))
+    return ", ".join(f"{untrusted(k, 80)} {v}/{n}" for k, v in c.most_common(6))
 
 
 def prediction_stats(resolutions: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
@@ -84,6 +109,13 @@ def prediction_stats(resolutions: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
             out["early_rids"], out["late_rids"] = [e[3] for e in errs[:h]], [e[3] for e in errs[h:]]
             out["split_seq"] = errs[h][0]
     return out
+
+
+def _num(v: Any) -> str:
+    """A number for a statement line (anything else is quoted as untrusted text)."""
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        return f"{v:g}"
+    return _q(v, 60)
 
 
 def generate_journal(run_dir: str, state: Optional[Dict[str, Any]] = None) -> str:
@@ -119,28 +151,41 @@ def generate_journal(run_dir: str, state: Optional[Dict[str, Any]] = None) -> st
     start = (by_type["objective_assigned"] or by_type["run_started"])[-1:] if (by_type["objective_assigned"]
                                                                                  or by_type["run_started"]) else []
     objective = task.get("objective", "")
-    add(fact(f"Objective `{task.get('objective_id', '')}` (mode {task.get('mode', '')}, data provenance "
-             f"{task.get('mode', '')}): " + (f"“{objective}”" if objective else "none assigned (autonomous learning "
-                                                                              "inside a fixed budget)"),
+    prov = Counter(d.get("provenance", "unknown") for d in decisions)
+    only = sorted(prov) == [task.get("mode", "")] or not prov
+    add(fact(f"Objective `{untrusted(task.get('objective_id', ''), 120)}` (mode {untrusted(task.get('mode', ''), 20)}"
+             f", data provenance {untrusted(task.get('mode', ''), 20)}) — records of this objective carry that "
+             "provenance" + ("" if only else "; earlier records of this run directory carry another (see the record "
+                             "counts by provenance below)") + ": "
+             + (_q(objective, 700) if objective else "none assigned (autonomous learning inside a fixed budget)"),
              [e["rid"] for e in start], "state.json"))
-    add(fact(f"Run status: {st.get('status', 'unknown')}" + (f" — {st['status_reason']}" if st.get("status_reason") else ""),
+    if not only:
+        add(fact("Decision records of this run directory by provenance (earlier objectives of another mode "
+                 "included): " + ", ".join(f"{k} {v}" for k, v in sorted(prov.items())),
+                 [d["rid"] for d in decisions[:1]] + [d["rid"] for d in decisions[-1:]]))
+    add(fact(f"Run status: {untrusted(st.get('status', 'unknown'), 40)}"
+             + (f" — {_q(st['status_reason'])}" if st.get("status_reason") else ""),
              [e["rid"] for e in (by_type["objective_finished"] + by_type["paused"] + by_type["halted"])[-1:]],
              "state.json"))
     ver = by_type["verified_outcome"]
     if ver:
         o = ver[-1]["data"]["outcome"]
         excl = ", ".join(f"{k} {v}" for k, v in (o.get("excluded") or {}).items()) or "none"
-        add(fact(f"Latest independently verified result: status {o.get('status')}, value {o.get('value'):g} against "
-                 f"target {o.get('target'):g}, uncertainty {o.get('uncertainty'):g}; excluded: {excl}. "
-                 f"{len(ver)} signed verifications so far", [ver[-1]["rid"]]))
+        excl = untrusted(excl, 300)
+        add(fact(f"Latest independently verified result: status {untrusted(o.get('status'), 30)}, value "
+                 f"{_num(o.get('value'))} against target {_num(o.get('target'))}, uncertainty "
+                 f"{_num(o.get('uncertainty'))}; excluded: {excl}. {len(ver)} signed verifications so far",
+                 [ver[-1]["rid"]]))
         for q in o.get("secondary") or []:
-            add(fact(f"Secondary measurement (kept apart from the objective): {q.get('name')} = {q.get('value'):g} "
-                     f"{q.get('unit', '')}".rstrip(), [ver[-1]["rid"]]))
+            add(fact(f"Secondary measurement (kept apart from the objective): {untrusted(q.get('name'), 120)} = "
+                     f"{_num(q.get('value'))} {untrusted(q.get('unit', ''), 30)}".rstrip(), [ver[-1]["rid"]]))
     else:
         add(fact("No signed verification of the objective has been recorded", source="events.jsonl"))
     lim = st.get("limits") or {}
     if lim:
-        parts = [f"{k} {v['used']:.6g}" + (f" of {v['limit']:.6g}" if v["limit"] > 0 else " (no limit set)")
+        parts = [f"{k} {_num(v.get('used'))}" + (f" of {_num(v.get('limit'))}" if (v.get("limit") or 0) > 0 else
+                                                  f" (invalid limit: {untrusted(v['invalid'], 80)})" if v.get("invalid")
+                                                  else " (no limit set)")
                  for k, v in lim.items()]
         add(fact("Resources used: " + "; ".join(parts), source="state.json"))
 
@@ -149,11 +194,12 @@ def generate_journal(run_dir: str, state: Optional[Dict[str, Any]] = None) -> st
     add("## 2. What it has attempted")
     ops = Counter(d["data"]["decision"]["chosen"]["operation"] for d in decisions)
     if decisions:
-        add(fact(f"{len(decisions)} decisions recorded; chosen operations: {_mix(ops)}",
+        by_prov = ", ".join(f"{k} {v}" for k, v in sorted(prov.items()))
+        add(fact(f"{len(decisions)} decisions recorded (by data provenance: {by_prov}); chosen operations: {_mix(ops)}",
                  [decisions[0]["rid"], decisions[-1]["rid"]] if len(decisions) > 1 else [decisions[0]["rid"]]))
         for op, n in ops.most_common(8):
             rids = [d["rid"] for d in decisions if d["data"]["decision"]["chosen"]["operation"] == op]
-            add(fact(f"`{op}` chosen {n} time(s)", rids))
+            add(fact(f"operation {_q(op, 80)} chosen {n} time(s)", rids))
     else:
         add(fact("No decision has been recorded", source="decisions.jsonl"))
     reg = [e for e in experiments if e["type"] == "experiment"]
@@ -182,12 +228,14 @@ def generate_journal(run_dir: str, state: Optional[Dict[str, Any]] = None) -> st
     for op, es in sorted(grouped.items()):
         vals = [float(e["data"]["observation"]["value"]) for e in es]
         nv = sum(1 for e in es if e["data"]["observation"].get("verified"))
-        add(fact(f"{len(es)} delayed outcome(s) matured for `{op}` actions: total {sum(vals):g}, mean "
+        add(fact(f"{len(es)} delayed outcome(s) matured for {_q(op, 80)} actions: total {sum(vals):g}, mean "
                  f"{sum(vals) / len(vals):.3g}, range {min(vals):g}–{max(vals):g} ({nv} measured by the verifier)",
                  [e["rid"] for e in es]))
     sup = [e for e in exp_latest.values() if e["data"].get("supported") is True]
     if sup:
-        add(fact(f"{len(sup)} experiment(s) ended with the registered hypothesis supported", [e["rid"] for e in sup]))
+        add(hypothesis(f"The learner assesses {len(sup)} of its experiment(s) as supporting their registered "
+                       "hypothesis (its own judgement; the runtime does not test hypotheses, and the actual outcomes "
+                       "are the runtime's experiment_outcome records)", [e["rid"] for e in sup]))
     if ver and ver[-1]["data"]["outcome"].get("status") == "achieved":
         add(fact("The objective was verified as achieved", [ver[-1]["rid"]]))
 
@@ -196,7 +244,8 @@ def generate_journal(run_dir: str, state: Optional[Dict[str, Any]] = None) -> st
     add("## 4. What failed")
     bad = [e for e in results if e["data"].get("status") not in ("ok", "needs_approval")]
     if bad:
-        kinds = Counter(f"{e['data'].get('status')}/{e['data'].get('failure_class')}" for e in bad)
+        kinds = Counter(f"{untrusted(e['data'].get('status'), 30)}/{untrusted(e['data'].get('failure_class'), 40)}"
+                        for e in bad)
         add(fact(f"{len(bad)} action(s) did not complete: {_mix(kinds)}", [e["rid"] for e in bad]))
     else:
         add(fact("No failed, refused or timed-out action has been recorded", source="events.jsonl"))
@@ -205,14 +254,17 @@ def generate_journal(run_dir: str, state: Optional[Dict[str, Any]] = None) -> st
         add(fact(f"{len(obstacles)} obstacle record(s): {_mix(cats)}", [o["rid"] for o in obstacles]))
         for o in obstacles[-5:]:
             ob = o["data"]["obstacle"]
-            add(fact(f"Obstacle on action {ob.get('action_id')}: {ob.get('description')}"
-                     + (f"; next: {ob.get('outcome')}" if ob.get("outcome") else ""), [o["rid"]]))
+            add(fact(f"Obstacle on action {untrusted(ob.get('action_id'), 80)}: {_q(ob.get('description'))}"
+                     + (f"; next: {_q(ob.get('outcome'), 200)}" if ob.get("outcome") else ""), [o["rid"]]))
             for ex in ob.get("explanations") or []:
-                add(hypothesis(f"Possible explanation (p={ex.get('p')}): {ex.get('hypothesis')}", [o["rid"]]))
+                if not isinstance(ex, dict):
+                    continue
+                add(hypothesis(f"Possible explanation offered by the learner (p={untrusted(ex.get('p'), 20)}): "
+                               f"{_q(ex.get('hypothesis'))}", [o["rid"]]))
     unsup = [e for e in exp_latest.values() if e["data"].get("supported") is False]
     if unsup:
-        add(fact(f"{len(unsup)} experiment(s) ended with the registered hypothesis not supported",
-                 [e["rid"] for e in unsup]))
+        add(hypothesis(f"The learner assesses {len(unsup)} of its experiment(s) as not supporting their registered "
+                       "hypothesis (its own judgement)", [e["rid"] for e in unsup]))
     if by_type["verified_outcome_refused"]:
         add(fact(f"{len(by_type['verified_outcome_refused'])} claimed objective outcome(s) were refused because the "
                  "verifier signature did not check; they were not used", [e["rid"] for e in by_type["verified_outcome_refused"]]))
@@ -228,12 +280,13 @@ def generate_journal(run_dir: str, state: Optional[Dict[str, Any]] = None) -> st
     pend_apr = [a for a in (st.get("approvals") or {}).values() if a.get("status") == "pending"]
     if pend_apr:
         add(fact(f"{len(pend_apr)} action(s) await operator approval: "
-                 + ", ".join(f"{a.get('approval_id')} ({a.get('operation')})" for a in pend_apr), source="state.json"))
+                 + ", ".join(f"{untrusted(a.get('approval_id'), 60)} ({untrusted(a.get('operation'), 80)})"
+                             for a in pend_apr[:20]), source="state.json"))
     if ver:
         o = ver[-1]["data"]["outcome"]
         if o.get("uncertainty"):
-            add(fact(f"The verifier reports uncertainty {o['uncertainty']:g} on the objective value"
-                     + (f": {o['notes']}" if o.get("notes") else ""), [ver[-1]["rid"]]))
+            add(fact(f"The verifier reports uncertainty {_num(o['uncertainty'])} on the objective value"
+                     + (f": {_q(o['notes'], 500)}" if o.get("notes") else ""), [ver[-1]["rid"]]))
     ps = prediction_stats(resolutions)
     if ps["n"]:
         txt = f"{ps['n']} registered prediction(s) have been resolved; mean absolute error {ps['mean_abs_error']:.3g}"
@@ -252,7 +305,7 @@ def generate_journal(run_dir: str, state: Optional[Dict[str, Any]] = None) -> st
         add(fact(f"{len(open_obs)} obstacle(s) have no recorded follow-up outcome yet", [o["rid"] for o in open_obs]))
     und = [e for e in exp_latest.values() if e["data"].get("supported") is None]
     if und:
-        add(fact(f"{len(und)} experiment(s) have no verdict yet", [e["rid"] for e in und]))
+        add(fact(f"{len(und)} experiment(s) have no assessment by the learner yet", [e["rid"] for e in und]))
 
     # ------------------------------------------------------------------------------------------ 6 change
     add("")
@@ -292,8 +345,9 @@ def generate_journal(run_dir: str, state: Optional[Dict[str, Any]] = None) -> st
         add(fact(f"{len(behav)} of {len(learning)} learning update(s) measurably changed probe predictions or action "
                  f"probabilities; parameter groups updated: {_mix(groups)}", [u["rid"] for u in behav]))
         last = behav[-1]["data"]
-        add(fact(f"Latest such update ({last.get('timescale')}; trigger: {last.get('trigger')}): prediction change "
-                 f"{last.get('prediction_change')}, weight change {last.get('weight_delta')}, losses {last.get('losses')}",
+        add(fact(f"Latest such update ({untrusted(last.get('timescale'), 40)}; trigger: {_q(last.get('trigger'), 200)}):"
+                 f" prediction change {untrusted(last.get('prediction_change'), 300)}, weight change "
+                 f"{untrusted(last.get('weight_delta'), 300)}, losses {untrusted(last.get('losses'), 300)}",
                  [behav[-1]["rid"]]))
         if "early_mae" in ps:
             add(fact(f"Mean absolute error of resolved predictions: {ps['early_mae']:.3g} over the earlier half, "
@@ -309,7 +363,8 @@ def generate_journal(run_dir: str, state: Optional[Dict[str, Any]] = None) -> st
         reasons = Counter(m["data"].get("skipped_reason") or "unspecified" for m in skipped)
         add(fact(f"Meta-learning of the reward function: {len(applied)} update(s) applied, {len(skipped)} skipped"
                  + (f" ({_mix(reasons)})" if skipped else "")
-                 + f"; latest bootstrap mix {meta[-1]['data'].get('bootstrap_mix')}", [m["rid"] for m in meta]))
+                 + f"; latest bootstrap mix {untrusted(meta[-1]['data'].get('bootstrap_mix'), 40)}",
+                 [m["rid"] for m in meta]))
     else:
         add(fact("No meta-learning update has been recorded", source="meta_updates.jsonl"))
 
@@ -317,7 +372,8 @@ def generate_journal(run_dir: str, state: Optional[Dict[str, Any]] = None) -> st
     add("")
     add("## 8. Record index")
     ck = (st.get("committed") or {}).get("ckpt") or {}
-    add(fact(f"Current learner checkpoint: {ck.get('id', 'none')} (generation {ck.get('generation', 0)})",
+    add(fact(f"Current learner checkpoint: {untrusted(ck.get('id', 'none'), 120)} (generation "
+             f"{untrusted(ck.get('generation', 0), 20)})",
              [e["rid"] for e in by_type["checkpoint"][-1:]], "state.json"))
     if by_type["run_resumed"]:
         add(fact(f"The process was restarted {len(by_type['run_resumed'])} time(s) and resumed from persisted state",

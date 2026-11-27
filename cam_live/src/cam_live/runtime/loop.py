@@ -16,35 +16,50 @@ Things this module deliberately does not do: it computes no reward, it contains 
 back to the learner as results, observations and obstacle records), and it never acts to fill time.
 
 Crash safety. ``state.json`` is replaced atomically. Evidence delivery (event cursor, pending-outcome queue) is
-committed together with a learner checkpoint; everything decided since that commit is in a write-ahead journal
-(``wal.jsonl``), so a restarted process loads the checkpoint, re-delivers the journalled results, re-reads the
-evidence after the committed cursor, and resolves an action that was in flight through the environment's
-de-duplication by action id — it is never executed a second time.
+committed together with a learner checkpoint; everything since that commit is in a write-ahead journal
+(``wal.jsonl``): a decision is journalled before its decision record is written, an execution before the executor
+is called, a result and a matured outcome before they are logged, and a wait in progress is carried into the journal
+of the next commit. A restarted process repairs a torn journal line, loads the checkpoint, re-delivers the journalled
+results and outcomes (writing any record the crash prevented, never a second one), closes a decision that was never
+handled, re-reads the evidence after the committed cursor, and resolves an action that was in flight through the
+environment's de-duplication by action id — it is never executed a second time. Without de-duplication the action
+is reported with unknown effect and booked at its estimated cost.
+
+Private records. The journal, the raw decision of every pending approval and the exact resume state are sealed
+(``runtime.private``); ``state.json`` itself holds only redacted, human-readable fields next to the sealed part.
+
+What the learner receives. ``agent.set_objective`` gets :func:`runtime.tasks.learner_view` of the task — never the
+success definition, exclusion rules, evidence source or measurement protocol, which only the verifier uses.
 """
 from __future__ import annotations
 
+import copy
 import dataclasses
 import hashlib
 import json
+import math
 import os
 import shutil
 import threading
 import time
 import traceback
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from ..contracts import (ActionResult, ActionSpec, AgentAPI, AuthorizationDecision, AuthVerdict, Clock, Cost, Decision,
-                         EnvironmentAdapter, FailureClass, GoalStatus, Modality, Observation, OutcomeObservation,
-                         OutcomeStatus, OutcomeVerifier, PolicyEngine, Provenance, ResultStatus, RunFiles, TaskSpec,
-                         Trust, VerifiedOutcome, new_id)
-from .control import PID_FILE, ControlChannel, file_sha256
-from .logs import Redactor, RunLog, atomic_write_json, atomic_write_text, iter_jsonl, load_salt, read_json
+                         EnvironmentAdapter, ExperimentRecord, FailureClass, GoalStatus, Modality, Observation,
+                         OutcomeObservation, OutcomeQuery, OutcomeStatus, OutcomeVerifier, PolicyEngine,
+                         PredictionRecord, Provenance, ResultStatus, RunFiles, TaskSpec, Trust, VerifiedOutcome,
+                         new_id)
+from .control import PID_FILE, PRIVILEGED, ControlChannel, file_sha256
+from .logs import (Redactor, RunLog, _repair_torn_tail, atomic_write_json, atomic_write_text, iter_jsonl,
+                   iter_since, load_salt, read_json)
 from .obstacles import ObstacleTracker, is_obstacle
+from .private import PrivateBox, SealError
 from .scheduler import PendingItem, PendingOutcomes, SimSleeper, WallSleeper, make_sleeper, plan_wake
-from .tasks import LIMIT_FIELDS, TaskValidationError, check_runnable, load_task
+from .tasks import LIMIT_FIELDS, TaskValidationError, check_runnable, learner_view, limit_problems, load_task
 
-STATE_VERSION = 1
+STATE_VERSION = 2
 RUNNING, PAUSED, STOPPED = "running", "paused", "stopped"
 COMPLETED, FAILED, EXHAUSTED = "completed", "failed", "exhausted"
 TERMINAL = (COMPLETED, FAILED, EXHAUSTED)
@@ -53,6 +68,22 @@ _COUNTERS = {"decisions": 0, "external_actions": 0, "actions_executed": 0, "wait
              "money": 0.0, "compute_s": 0.0}
 _LIMIT_COUNTER = {"money": "money", "compute_s": "compute_s", "max_external_actions": "external_actions",
                   "max_decisions": "decisions"}
+#: the parts of a task the learner never receives (``tasks.learner_view``); named in ``run_started``
+WITHHELD_FROM_LEARNER = ("success (except metric and target)", "measurement", "resources: credential names, test "
+                         "accounts, operator authorization record, evidence settings")
+MAX_LEARNER_QUERIES_PER_DECISION = 16
+MAX_LEARNER_QUERIES_PENDING = 2000
+MAX_LEARNER_HORIZON_S = 10 * 365 * 86400.0
+#: results of these kinds mean the chosen action (or the wait) actually happened
+_RAN = (ResultStatus.OK, ResultStatus.FAILED, ResultStatus.TIMEOUT)
+
+
+def _finite(v: Any) -> Optional[float]:
+    """float(v) when v is a real finite number (bool excluded), else None."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    f = float(v)
+    return f if math.isfinite(f) else None
 
 
 @dataclass
@@ -122,9 +153,10 @@ class LiveRuntime:
         if task.mode == "live" and not self.cfg.fsync:
             raise ValueError("runtime.fsync=false is not allowed for a live task")
         self._durable = bool(self.cfg.fsync)
+        self.box = PrivateBox(self.run_dir)
         self.log = RunLog(self.run_dir, clock, provenance=task.mode, durable=self._durable,
                           redactor=Redactor.from_config(self.cfg.redaction, load_salt(self.run_dir),
-                                                        task.data_permissions))
+                                                        task.data_permissions, keep_ids=self._keep_ids(task)))
         self.obstacles = ObstacleTracker(self.log, clock)
         self.pending = PendingOutcomes()
         self.cursor = ""
@@ -134,7 +166,8 @@ class LiveRuntime:
         self.iterations = self.cycles = self.generation = 0
         self.counters: Dict[str, Any] = dict(_COUNTERS)
         self.lifetime: Dict[str, Any] = {"decisions": 0, "actions_executed": 0, "objectives": []}
-        self.approvals: Dict[str, Dict[str, Any]] = {}
+        self.approvals: Dict[str, Dict[str, Any]] = {}           # redacted rows (state.json)
+        self._approval_raw: Dict[str, Dict[str, Any]] = {}       # approval id -> exact decision / preds / auth (sealed)
         self.hooks: Dict[str, List[Callable[["LiveRuntime"], None]]] = {"after_cycle": []}
         self._committed: Dict[str, Any] = {}
         self._ckpts: List[Dict[str, Any]] = []
@@ -144,6 +177,7 @@ class LiveRuntime:
         self._control_applied = 0
         self._control_results: Dict[str, Dict[str, Any]] = {}
         self._control_mtime = -1.0
+        self._seen_cmds: List[str] = []
         self._activity: Dict[str, Any] = {"phase": "new", "detail": "", "since": clock.now()}
         self._wake_info: Dict[str, Any] = {}
         self._last_verified: Dict[str, Any] = {}
@@ -160,23 +194,52 @@ class LiveRuntime:
         self._last_ckpt_ts: Optional[float] = None
         self._stop_requested = ""
         self._started = False
+        self._tools: Dict[str, Any] = {}
         self._tool_effects: Dict[str, str] = {}
         self._cycle_obs: List[Observation] = []
         self._metrics: Dict[str, float] = {}
         self._interrupt_checks = 0
         self._last_result_ok = True
         self._last_journal_at = float("-inf")
+        self._redeliver: List[OutcomeObservation] = []          # outcomes restored from the journal after a restart
+        self._wal_known: set = set()                             # action ids with a begin entry in this generation
+        self._red_cache: Dict[str, str] = {}
         self._wal_fh = None
         self._wal_path = os.path.join(self.run_dir, WAL_FILE)
         self._state_path = os.path.join(self.run_dir, RunFiles.STATE)
+
+    @staticmethod
+    def _keep_ids(task: TaskSpec) -> List[str]:
+        """Identifiers the operator configured (guild, channels, application): they stay readable in the logs."""
+        r = task.resources if isinstance(task.resources, dict) else {}
+        d = r.get("discord") if isinstance(r.get("discord"), dict) else {}
+        out = [r.get("discord_guild_id"), d.get("guild_id"), d.get("application_id"), d.get("metric_channel_id")]
+        out += list((d.get("channels") or {}).values()) if isinstance(d.get("channels"), dict) else []
+        return [str(x) for x in out if x not in (None, "") and not str(x).upper().startswith("REQUIRED")]
 
     def _with_measurement(self, task: TaskSpec) -> RuntimeConfig:
         """The operator's measurement protocol (task file) sets the verification and evidence-poll intervals."""
         m, over = task.measurement or {}, {}
         for key, field_name in (("verify_interval_s", "verify_every_s"), ("evidence_poll_interval_s", "evidence_poll_s")):
-            if isinstance(m.get(key), (int, float)) and not isinstance(m.get(key), bool) and m[key] >= 0:
-                over[field_name] = float(m[key])
+            v = _finite(m.get(key))
+            if v is not None and v >= 0:
+                over[field_name] = v
         return dataclasses.replace(self._base_cfg, **over)
+
+    def _use_task(self, task: TaskSpec) -> None:
+        """Make ``task`` the current task of the runtime (configuration, provenance, redaction)."""
+        self.task = task
+        self.cfg = self._with_measurement(task)
+        self.log.provenance = task.mode
+        self.log.redact.set_permissions(task.data_permissions)
+        self.log.redact.set_keep_ids(self._keep_ids(task))
+
+    def _write_task_file(self) -> None:
+        """``task.json``: what the learner received and the hash of the operator's task (the task file itself is
+        ``task.yaml``; the full task is kept in the sealed state)."""
+        atomic_write_json(os.path.join(self.run_dir, TASK_FILE),
+                          {"learner_view": learner_view(self.task).to_dict(), "task_sha256": self.task.content_hash(),
+                           "withheld_from_learner": list(WITHHELD_FROM_LEARNER)}, durable=self._durable)
 
     # ==========================================================================================================
     # start / resume
@@ -185,17 +248,36 @@ class LiveRuntime:
         if self._started:
             return
         st = read_json(self._state_path)
-        resume = isinstance(st, dict) and st.get("version") == STATE_VERSION and bool(st.get("status"))
-        self._guard_live(TaskSpec.from_dict(st["task"]) if resume else self.task)
+        resume = isinstance(st, dict) and st.get("version") in (1, STATE_VERSION) and bool(st.get("status"))
+        inner = self._inner(st) if resume else {}
+        self._guard_live(TaskSpec.from_dict(inner["task"]) if resume else self.task)
         atomic_write_text(os.path.join(self.run_dir, PID_FILE), str(os.getpid()), durable=self._durable)
         self._started = True
         if resume:
-            self._restore(st)
+            self._restore(st, inner)
         else:
             self._fresh()
 
+    def _inner(self, st: Dict[str, Any]) -> Dict[str, Any]:
+        """The exact resume state: the sealed part of state.json (or the plain fields of a version-1 file)."""
+        if st.get("sealed"):
+            try:
+                return self.box.open(st["sealed"])
+            except SealError as e:
+                raise RuntimeError(f"cannot resume {self.run_dir}: {e}; the runtime does not continue on a state it "
+                                   "cannot read exactly") from e
+        raw = {aid: {"decision": a.get("decision"), "auth": a.get("auth"), "preds": []}
+               for aid, a in (st.get("approvals") or {}).items() if a.get("decision")}
+        return {"task": st["task"], "committed": st.get("committed", {}), "approvals_raw": raw,
+                "next_tasks": st.get("next_tasks", []), "obstacles_open": st.get("obstacles_open"), "seen_cmds": []}
+
     def _guard_live(self, task: TaskSpec) -> None:
         problems = check_runnable(task)
+        if task.mode != "live":
+            # outside live mode an invalid limit does not prevent the start: the run ends at once instead (fail
+            # closed, reported in run_started) — it is never treated as unlimited
+            bad = limit_problems(task)
+            problems = [p for p in problems if not any(p.startswith(f"limits.{f} is invalid") for f in bad)]
         if task.mode == "live":
             caps = self.env.get_capabilities() or {}
             if not caps.get("live", False) or caps.get("provenance") in ("diagnostic", "staging"):
@@ -207,10 +289,16 @@ class LiveRuntime:
     def _fresh(self) -> None:
         now = self.clock.now()
         self.status, self.started_at = RUNNING, now
-        self._agent("set_objective", self.task)
-        atomic_write_json(os.path.join(self.run_dir, TASK_FILE), self.task.to_dict(), durable=self._durable)
-        unset = [f for f in LIMIT_FIELDS if getattr(self.task.limits, f) <= 0]
-        self.log.event("run_started", {"task": self.task.to_dict(), "limits_not_enforced": unset,
+        self._use_task(self.task)
+        self._agent("set_objective", learner_view(self.task))
+        self._write_task_file()
+        invalid = limit_problems(self.task)
+        unset = [f for f in LIMIT_FIELDS if f not in invalid and getattr(self.task.limits, f) <= 0]
+        self.log.event("run_started", {"task": learner_view(self.task).to_dict(), "task_sha256": self.task.content_hash(),
+                                       "withheld_from_learner": list(WITHHELD_FROM_LEARNER),
+                                       "limits_not_enforced": unset + sorted(invalid), "limits_invalid": invalid,
+                                       "invalid_limit_policy": "an invalid limit is never treated as unlimited: the "
+                                                               "run ends at once with status exhausted",
                                        "actor_id": self.actor_id, "environment": self._caps(),
                                        "config": dataclasses.asdict(self.cfg)}, consequential=True,
                        trust=Trust.OPERATOR)
@@ -225,25 +313,25 @@ class LiveRuntime:
         except Exception as e:  # noqa: BLE001
             return {"error": f"{type(e).__name__}: {e}"}
 
-    def _restore(self, st: Dict[str, Any]) -> None:
+    def _restore(self, st: Dict[str, Any], inner: Dict[str, Any]) -> None:
         self.status, self.status_reason = st["status"], st.get("status_reason", "")
-        self.task = TaskSpec.from_dict(st["task"])
-        self.cfg = self._with_measurement(self.task)
-        self.log.provenance = self.task.mode
-        self.log.redact.set_permissions(self.task.data_permissions)
+        self._use_task(TaskSpec.from_dict(inner["task"]))
         self.started_at, self.paused_at = float(st.get("started_at", 0.0)), float(st.get("paused_at", 0.0))
         self.paused_total_s = float(st.get("paused_total_s", 0.0))
         self.iterations, self.cycles = int(st.get("iterations", 0)), int(st.get("cycles", 0))
         self.lifetime = dict(st.get("lifetime", self.lifetime))
-        self.approvals = dict(st.get("approvals", {}))
+        self.approvals = {aid: {k: v for k, v in a.items() if k not in ("decision", "auth")}
+                          for aid, a in (st.get("approvals") or {}).items()}
+        self._approval_raw = dict(inner.get("approvals_raw") or {})
         self._ckpts, self._exports = list(st.get("checkpoints", [])), list(st.get("exports", []))
-        self._next_tasks = list(st.get("next_tasks", []))
+        self._next_tasks = list(inner.get("next_tasks", []))
         self._control_applied = int(st.get("control_applied", 0))
         self._control_results = dict(st.get("control_results", {}))
+        self._seen_cmds = list(inner.get("seen_cmds") or [])
         self._last_verified = dict(st.get("last_verified", {}))
         self._refused_verified = int(st.get("refused_verified", 0))
-        self.obstacles.load_state(st.get("obstacles_open"))
-        c = self._committed = dict(st.get("committed", {}))
+        self.obstacles.load_state(inner.get("obstacles_open"))
+        c = self._committed = dict(inner.get("committed", {}))
         self.generation = int(c.get("generation", 0))
         self.cursor = c.get("cursor", "")
         self.pending = PendingOutcomes.from_state(c.get("pending"))
@@ -255,7 +343,7 @@ class LiveRuntime:
             self._agent("load", ckpt["path"])
             self._last_ckpt_ts = ckpt.get("ts")
         else:
-            self._agent("set_objective", self.task)
+            self._agent("set_objective", learner_view(self.task))
         replay = self._replay_wal()
         self.log.event("run_resumed", {"status": self.status, "checkpoint": (ckpt or {}).get("id", ""),
                                        "generation": self.generation, "log_repairs": self.log.repaired, **replay},
@@ -264,56 +352,189 @@ class LiveRuntime:
         self._save_state()
 
     # ==========================================================================================================
-    # write-ahead journal
+    # write-ahead journal (sealed lines: {"g", "t", "kind", "action_id", "x": <sealed payload>})
     # ==========================================================================================================
+    def _wal_line(self, entry: Dict[str, Any]) -> str:
+        entry["g"] = self.generation
+        head = {k: entry[k] for k in ("g", "t", "kind", "action_id") if k in entry}
+        head["x"] = self.box.seal({k: v for k, v in entry.items() if k not in head})
+        return json.dumps(head, sort_keys=True) + "\n"
+
     def _wal_write(self, entry: Dict[str, Any]) -> None:
         if self._wal_fh is None:
+            _repair_torn_tail(self._wal_path)            # a torn last line would swallow the next entry
             fd = os.open(self._wal_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
             self._wal_fh = os.fdopen(fd, "a")
-        entry["g"] = self.generation
-        self._wal_fh.write(json.dumps(entry, sort_keys=True, default=str) + "\n")
+        line = self._wal_line(entry)
+        self._wal_fh.write(line)
         self._wal_fh.flush()
         if self._durable:
             os.fsync(self._wal_fh.fileno())
+        if entry.get("t") == "begin":
+            self._wal_known.add(entry.get("action_id", ""))
+
+    def _wal_carry(self) -> List[Dict[str, Any]]:
+        """Entries that outlive a commit: a wait in progress (its decision was counted in the committed counters)."""
+        w = self._waiting
+        if w is None:
+            return []
+        return [{"t": "begin", "kind": "wait", "action_id": w["decision"].chosen.action_id,
+                 "decision": w["decision"].to_dict(), "preds": w["preds"], "approval_id": "", "started": w["started"],
+                 "until": w["until"], "delta": {}, "carried": True}]
 
     def _wal_reset(self) -> None:
+        """Empty the journal after a commit, atomically keeping the carried entries (same generation)."""
         if self._wal_fh is not None:
             self._wal_fh.close()
             self._wal_fh = None
-        atomic_write_text(self._wal_path, "", 0o600, self._durable)
+        carry = self._wal_carry()
+        atomic_write_text(self._wal_path, "".join(self._wal_line(e) for e in carry), 0o600, self._durable)
+        self._wal_known = {e["action_id"] for e in carry}
+
+    def _wal_entries(self) -> List[Dict[str, Any]]:
+        out: List[Dict[str, Any]] = []
+        for e in iter_jsonl(self._wal_path):
+            if "x" in e:
+                try:
+                    body = self.box.open(e["x"])
+                except SealError as ex:
+                    self.log.event("error", {"who": "runtime", "what": "journal",
+                                             "error": f"a journal line does not decrypt and is ignored: {ex}"},
+                                   consequential=True)
+                    continue
+                out.append({**body, **{k: v for k, v in e.items() if k != "x"}})
+            else:
+                out.append(e)                            # version-1 journal line
+        return out
+
+    def _logged_since_commit(self) -> Dict[str, set]:
+        """What the logs already hold since the committed position (read backwards from the end of each file)."""
+        seq = int(self._committed.get("seq", 0) or 0)
+        got: Dict[str, Any] = {k: set() for k in ("results", "observations", "outcomes", "decisions", "resolutions",
+                                                  "exp_outcomes")}
+        got["outcome_rids"] = {}
+        d = self.log.log_dir
+        for r in iter_since(os.path.join(d, RunFiles.EVENTS), seq):
+            data = r.get("data") or {}
+            if r.get("type") == "action_result":
+                got["results"].add(data.get("action_id", ""))
+            elif r.get("type") == "observation":
+                got["observations"].add((data.get("observation") or {}).get("obs_id", ""))
+            elif r.get("type") == "outcome":
+                qid = (data.get("query") or {}).get("query_id", "")
+                got["outcomes"].add(qid)
+                got["outcome_rids"][qid] = r.get("rid", "")
+        for r in iter_since(os.path.join(d, RunFiles.DECISIONS), seq):
+            got["decisions"].add(((r.get("data") or {}).get("decision") or {}).get("decision_id", ""))
+        for r in iter_since(os.path.join(d, RunFiles.PREDICTIONS), seq):
+            if r.get("type") == "resolution":
+                got["resolutions"].add((r.get("data") or {}).get("prediction_id", ""))
+        for r in iter_since(os.path.join(d, RunFiles.EXPERIMENTS), seq):
+            if r.get("type") == "experiment_outcome":
+                data = r.get("data") or {}
+                got["exp_outcomes"].add((data.get("experiment_id", ""), (data.get("outcome") or {}).get("query_id", "")))
+        return got
 
     def _replay_wal(self) -> Dict[str, Any]:
-        begins: Dict[str, Dict[str, Any]] = {}
+        logged = self._logged_since_commit()
+        open_: Dict[str, Dict[str, Any]] = {}
         done: List[str] = []
-        for e in iter_jsonl(self._wal_path):
+        outcomes = 0
+        self._wal_known = set()
+        for e in self._wal_entries():
             if e.get("g") != self.generation:
                 continue
-            if e.get("t") == "begin":
-                begins[e["action_id"]] = e
+            t, aid = e.get("t"), e.get("action_id", "")
+            if t == "begin":
                 self._apply_delta(e.get("delta", {}))
-            elif e.get("t") == "end":
-                b = begins.pop(e["action_id"], None)
-                if b is not None:
-                    self._absorb(Decision.from_dict(b["decision"]), ActionResult.from_dict(e["result"]),
-                                 e.get("delta", {}), b.get("preds", []), e.get("approval_id", ""), e.get("kind", ""))
-                    done.append(e["action_id"])
-        inflight = list(begins)
-        for b in begins.values():
-            self._recover_inflight(b)
-        return {"replayed_results": done, "inflight_recovered": inflight}
+                self._wal_known.add(aid)
+                slot = open_.setdefault(aid, {})
+                slot["decided" if e.get("kind") == "decided" else "begin"] = e
+            elif t == "end":
+                slot = open_.pop(aid, {})
+                b = slot.get("begin") or slot.get("decided") or e
+                if not b.get("decision"):
+                    continue                             # an end of an earlier generation's decision without its copy
+                decision = Decision.from_dict(b["decision"])
+                result = ActionResult.from_dict(e["result"])
+                self._ensure_decision_record(decision, slot.get("decided"), logged)
+                self._ensure_result_records(decision, result, e, logged)
+                self._absorb(decision, result, e.get("delta", {}), (slot.get("decided") or b).get("preds", []),
+                             e.get("approval_id", ""), e.get("kind", ""))
+                done.append(aid)
+            elif t == "outcome":
+                self._replay_outcome(e, logged)
+                outcomes += 1
+        inflight, interrupted = [], []
+        for aid, slot in open_.items():
+            if slot.get("begin") is not None:
+                self._ensure_decision_record(Decision.from_dict(slot["begin"]["decision"]), slot.get("decided"), logged)
+                self._recover_inflight(slot["begin"], (slot.get("decided") or slot["begin"]).get("preds", []))
+                inflight.append(aid)
+            elif slot.get("decided") is not None:
+                d = slot["decided"]
+                decision = Decision.from_dict(d["decision"])
+                self._ensure_decision_record(decision, d, logged)
+                self._complete(decision, self._synthetic(decision.chosen, ResultStatus.CANCELLED, FailureClass.UNKNOWN,
+                                                         "interrupted by a process restart before the decision was "
+                                                         "handled; nothing was executed"),
+                               "interrupted", d.get("preds", []), d.get("approval_id", ""))
+                interrupted.append(aid)
+        return {"replayed_results": done, "inflight_recovered": inflight, "decisions_closed_unhandled": interrupted,
+                "replayed_outcomes": outcomes, "redelivered_outcomes": len(self._redeliver)}
 
-    def _recover_inflight(self, b: Dict[str, Any]) -> None:
-        """An action was started and the process died before its result was journalled."""
+    def _ensure_decision_record(self, decision: Decision, decided: Optional[Dict[str, Any]],
+                                logged: Dict[str, set]) -> None:
+        """The decision record of a decision journalled in this generation, if the crash came before it."""
+        if decided is None or decision.decision_id in logged["decisions"]:
+            return
+        self.log.decision(self._clean_decision(decision), objective=self.task.objective,
+                          situation={**(decided.get("situation") or {}), "written_after_restart": True})
+        logged["decisions"].add(decision.decision_id)
+
+    def _ensure_result_records(self, decision: Decision, result: ActionResult, end: Dict[str, Any],
+                               logged: Dict[str, set]) -> None:
+        """The action_result and observation records of a journalled result, if the crash came before them."""
+        if result.action_id not in logged["results"]:
+            self._log_result(decision, result, end.get("kind", ""), end.get("approval_id", ""),
+                             end.get("normalised") or [], replayed=True)
+            logged["results"].add(result.action_id)
+        else:
+            for o in result.observations:
+                if o.obs_id not in logged["observations"]:
+                    self.log.observation(o, "action")
+
+    def _replay_outcome(self, e: Dict[str, Any], logged: Dict[str, set]) -> None:
+        o = OutcomeObservation.from_dict(e["observation"])
+        item = PendingItem.from_dict(e["item"])
+        self.pending.resolve(o)
+        resolved = set(e.get("preds") or [])
+        matched = [p for p in self._open_preds if p["prediction_id"] in resolved]
+        self._open_preds = [p for p in self._open_preds if p["prediction_id"] not in resolved]
+        if o.query_id not in logged["outcomes"]:
+            self._log_outcome(item, o, matched, replayed=True)
+        else:
+            rid = logged["outcome_rids"].get(o.query_id, "")
+            for p in matched:
+                if p["prediction_id"] not in logged["resolutions"]:
+                    self._log_resolution(p, item, o, rid)
+            if item.experiment_id and (item.experiment_id, o.query_id) not in logged["exp_outcomes"]:
+                self.log.experiment_outcome(item.experiment_id, item.decision_id, {**o.to_dict(), "outcome_rid": rid})
+        self._redeliver.append(o)
+
+    def _recover_inflight(self, b: Dict[str, Any], preds: List[Dict[str, Any]]) -> None:
+        """An action (or a wait) was started and the process died before its result was journalled."""
         decision = Decision.from_dict(b["decision"])
         action, now = decision.chosen, self.clock.now()
         kind, approval_id = b.get("kind", "execute"), b.get("approval_id", "")
         if kind == "wait":
             self._waiting = {"decision": decision, "started": float(b.get("started", now)),
-                             "until": float(b.get("until", now)), "preds": b.get("preds", [])}
+                             "until": float(b.get("until", now)), "preds": preds}
             self._finish_wait()
             return
         caps = self._caps()
-        how = ""
+        how, est = "", self._estimate(action)
+        unknown = (f"whether it took effect is unknown; its estimated cost {est:g} is booked against the limits")
         if (caps.get("idempotent_actions") or caps.get("dedup_by_action_id")
                 or (caps.get("features") or {}).get("at_most_once_by_action_id")):
             try:
@@ -324,17 +545,19 @@ class LiveRuntime:
                 else:
                     result = self._synthetic(action, ResultStatus.CANCELLED, FailureClass.UNKNOWN,
                                              "interrupted by a process restart; not re-authorized afterwards "
-                                             f"({'; '.join(auth.reasons)}); whether it took effect is unknown")
+                                             f"({'; '.join(auth.reasons)}); {unknown}", cost=Cost(money=est))
             except Exception as e:  # noqa: BLE001
                 result = self._synthetic(action, ResultStatus.CANCELLED, FailureClass.UNKNOWN,
-                                         f"interrupted by a process restart; recovery failed: {type(e).__name__}: {e}")
+                                         f"interrupted by a process restart; recovery failed: {type(e).__name__}: {e}; "
+                                         f"{unknown}", cost=Cost(money=est))
         else:
             result = self._synthetic(action, ResultStatus.CANCELLED, FailureClass.UNKNOWN,
                                      "interrupted by a process restart; the environment does not de-duplicate by "
-                                     "action id, so it was not issued again; whether it took effect is unknown")
-        self.log.event("inflight_recovered", {"action_id": action.action_id, "status": result.status, "how": how},
+                                     f"action id, so it was not issued again; {unknown}", cost=Cost(money=est))
+        status = result.status if isinstance(result, ActionResult) else "malformed"
+        self.log.event("inflight_recovered", {"action_id": action.action_id, "status": status, "how": how},
                        consequential=True)
-        self._complete(decision, result, kind, b.get("preds", []), approval_id, journalled=True)
+        self._complete(decision, result, kind, preds, approval_id)
 
     # ==========================================================================================================
     # state
@@ -344,30 +567,64 @@ class LiveRuntime:
                 "counters": dict(self.counters), "open_predictions": list(self._open_preds), "ckpt": ckpt,
                 "agent_wake_at": self._agent_wake_at, "ts": self.clock.now(), "seq": self.log.next_seq}
 
-    def _limit_state(self) -> Dict[str, Dict[str, float]]:
+    def _limit_state(self) -> Dict[str, Dict[str, Any]]:
         lim, out = self.task.limits, {}
-        out["duration_s"] = {"used": self._elapsed(), "limit": lim.duration_s}
-        for f, c in _LIMIT_COUNTER.items():
-            out[f] = {"used": float(self.counters[c]), "limit": float(getattr(lim, f))}
+        bad = limit_problems(self.task)
+        used = {"duration_s": self._elapsed(), **{f: float(self.counters[c]) for f, c in _LIMIT_COUNTER.items()}}
+        used["compute_s"] += self._compute_unbooked
+        for f in ("duration_s",) + tuple(_LIMIT_COUNTER):
+            row: Dict[str, Any] = {"used": used[f], "limit": 0.0 if f in bad else float(getattr(lim, f))}
+            if f in bad:
+                row["invalid"] = bad[f]
+            out[f] = row
         return out
 
+    def _red(self, text: Any) -> str:
+        """Redacted text for state.json (cached: the same metric names recur in every save)."""
+        t = str(text)
+        r = self._red_cache.get(t)
+        if r is None:
+            r = self.log.redact.text(t)
+            if len(self._red_cache) > 20000:
+                self._red_cache.clear()
+            self._red_cache[t] = r
+        return r
+
+    def _pending_rows(self) -> List[Dict[str, Any]]:
+        return [{"query_id": i.query.query_id, "metric": self._red(i.query.metric), "due_at": i.query.due_at,
+                 "ready_at": i.ready_at, "action_id": i.action_id, "decision_id": i.decision_id, "origin": i.origin,
+                 "attempts": i.attempts} for i in self.pending.items()]
+
     def _state(self) -> Dict[str, Any]:
+        """state.json: redacted, human-readable fields plus the sealed exact state used to resume."""
         w = self._waiting
+        c = self._committed or {}
+        red = self.log.redact
+        inner = {"task": self.task.to_dict(), "committed": c, "approvals_raw": self._approval_raw,
+                 "next_tasks": self._next_tasks, "obstacles_open": self.obstacles.to_state(),
+                 "seen_cmds": self._seen_cmds[-100000:]}
         return {
             "version": STATE_VERSION, "run_id": self.log.run_id, "actor_id": self.actor_id, "pid": os.getpid(),
-            "status": self.status, "status_reason": self.status_reason, "task": self.task.to_dict(),
+            "status": self.status, "status_reason": self._red(self.status_reason),
+            "task": learner_view(self.task).to_dict(), "task_sha256": self.task.content_hash(),
             "awaiting_operator": self.status in (PAUSED,) + TERMINAL,
-            "next_tasks": self._next_tasks, "started_at": self.started_at, "paused_at": self.paused_at,
+            "next_tasks": [{"task": {"objective_id": (t.get("task") or {}).get("objective_id", ""),
+                                     "mode": (t.get("task") or {}).get("mode", "")},
+                            "path": t.get("path", ""), "by": t.get("by", ""), "assigned_at": t.get("assigned_at")}
+                           for t in self._next_tasks],
+            "started_at": self.started_at, "paused_at": self.paused_at,
             "paused_total_s": self.paused_total_s, "updated_at": self.clock.now(), "iterations": self.iterations,
             "cycles": self.cycles, "counters": dict(self.counters), "lifetime": self.lifetime,
-            "limits": self._limit_state(), "approvals": self.approvals, "committed": self._committed,
-            "live": {"cursor": self.cursor, "pending": self.pending.to_state(), "generation": self.generation},
+            "limits": self._limit_state(), "approvals": red(self.approvals),
+            "committed": {k: c.get(k) for k in ("generation", "ckpt", "counters", "ts", "seq")},
+            "live": {"pending": {"items": self._pending_rows()}, "generation": self.generation},
             "checkpoints": self._ckpts, "exports": self._exports, "control_applied": self._control_applied,
-            "control_results": self._control_results, "activity": self._activity, "wake": self._wake_info,
-            "last_verified": self._last_verified, "refused_verified": self._refused_verified,
-            "obstacles_open": self.obstacles.to_state(), "errors": self._errors[-20:],
+            "control_results": red(self._control_results), "activity": self._activity, "wake": self._wake_info,
+            "last_verified": red(self._last_verified), "refused_verified": self._refused_verified,
+            "obstacles_open": self.obstacles.open_count(), "errors": red(self._errors[-20:]),
             "waiting": None if w is None else {"until": w["until"], "started": w["started"],
                                                 "action_id": w["decision"].chosen.action_id},
+            "sealed": self.box.seal(inner),
         }
 
     def _save_state(self) -> None:
@@ -382,23 +639,33 @@ class LiveRuntime:
         return max(0.0, now - self.started_at - paused)
 
     def _deadline(self) -> Optional[float]:
-        d = self.task.limits.duration_s
-        return None if d <= 0 else self.started_at + self.paused_total_s + d
+        d = _finite(self.task.limits.duration_s)
+        return None if d is None or d <= 0 else self.started_at + self.paused_total_s + d
 
     def _exhausted(self) -> str:
         """Name of the first exhausted limit, or ''. A limit of 0 is "not set": allowed only outside live mode,
-        and reported at run start rather than silently treated as unlimited."""
+        and reported at run start rather than silently treated as unlimited. A limit that is not a finite
+        non-negative number counts as exhausted (fail closed)."""
+        bad = limit_problems(self.task)
+        if bad:
+            return sorted(bad)[0]
         for name, s in self._limit_state().items():
             if s["limit"] > 0 and s["used"] >= s["limit"] - 1e-9:
                 return name
         return ""
 
+    def _exhaust_text(self, name: str) -> str:
+        why = limit_problems(self.task).get(name)
+        return (f"limit {name} is invalid ({why}): the run does not proceed with a limit that cannot be enforced"
+                if why else f"limit {name} exhausted")
+
     def status_report(self) -> Dict[str, Any]:
         st = self._state()
+        st.pop("sealed", None)
         try:
             st["agent"] = self.agent.status()
         except Exception as e:  # noqa: BLE001
-            st["agent"] = {"error": f"{type(e).__name__}: {e}"}
+            st["agent"] = {"error": self._red(f"{type(e).__name__}: {e}")}
         return st
 
     # ==========================================================================================================
@@ -423,7 +690,7 @@ class LiveRuntime:
         self._consecutive_errors += 1
         self._error_total += 1
         rec = {"ts": self.clock.now(), "who": who, "what": what, "error": f"{type(e).__name__}: {e}"[:500]}
-        self._errors.append(rec)
+        self._errors.append({**rec, "error": self.log.redact.text(rec["error"])})
         self._errors = self._errors[-50:]
         self.log.event("error", {**rec, "trace": traceback.format_exc(limit=8)}, consequential=True)
 
@@ -453,18 +720,30 @@ class LiveRuntime:
         self._control_mtime = self.control.mtime()
         new = cmds[self._control_applied:]
         for c in new:
-            try:
-                ok, detail = self._apply_command(c.get("cmd", ""), c.get("args", {}) or {}, c.get("by", "operator"))
-            except Exception as e:  # noqa: BLE001
-                ok, detail = False, f"{type(e).__name__}: {e}"
+            cmd, cid = c.get("cmd", ""), str(c.get("id", ""))
+            signed, why = self.control.authenticate(c)
+            by = str(c.get("by", "operator")) if signed else "unauthenticated"
+            if signed and cid in self._seen_cmds:
+                ok, detail = False, "refused: a signed command with this id was already applied (replayed command)"
+            elif cmd in PRIVILEGED and not signed:
+                ok, detail = False, (f"refused: {cmd} needs a command signed with the operator's key ({why}); "
+                                     "use the cam-live CLI or the dashboard as the operator")
+            else:
+                try:
+                    ok, detail = self._apply_command(cmd, c.get("args", {}) or {}, by)
+                except Exception as e:  # noqa: BLE001
+                    ok, detail = False, f"{type(e).__name__}: {e}"
+            if signed:
+                self._seen_cmds.append(cid)
             self._control_applied += 1
-            self._control_results[c.get("id", "")] = {"ok": ok, "detail": detail, "ts": self.clock.now(),
-                                                      "cmd": c.get("cmd"), "status": self.status}
+            self._control_results[cid] = {"ok": ok, "detail": detail, "ts": self.clock.now(), "cmd": cmd,
+                                          "status": self.status, "authenticated": signed}
             for k in list(self._control_results)[:-200]:
                 del self._control_results[k]
-            self.log.event("operator_command", {"id": c.get("id"), "cmd": c.get("cmd"), "by": c.get("by"),
-                                                "args": c.get("args"), "ok": ok, "detail": detail},
-                           consequential=True, trust=Trust.OPERATOR)
+            self.log.event("operator_command", {"id": cid, "cmd": cmd, "by": by, "declared_by": c.get("by"),
+                                                "authenticated": signed, "args": c.get("args"), "ok": ok,
+                                                "detail": detail},
+                           consequential=True, trust=Trust.OPERATOR if signed else Trust.UNTRUSTED)
         if new:
             self._save_state()
         return len(new)
@@ -473,7 +752,7 @@ class LiveRuntime:
         if cmd == "pause":
             if self.status != RUNNING:
                 return False, f"not running (status {self.status})"
-            self._pause(args.get("reason") or f"paused by {by}")
+            self._pause(str(args.get("reason") or "")[:200] or f"paused by {by}")
             return True, "paused; learner state checkpointed"
         if cmd == "resume":
             if self.status != PAUSED:
@@ -485,10 +764,11 @@ class LiveRuntime:
             self._triggers.append("resume")
             return True, "resumed"
         if cmd == "stop":
-            self._halt(STOPPED, args.get("reason") or f"stopped by {by}")
+            self._halt(STOPPED, str(args.get("reason") or "")[:200] or f"stopped by {by}")
             return True, "stopped; learner state checkpointed"
         if cmd in ("approve", "reject"):
-            return self._relay_approval(args.get("approval_id", ""), cmd == "approve", by, args.get("note", ""))
+            return self._relay_approval(str(args.get("approval_id", "")), cmd == "approve", by,
+                                        str(args.get("note", ""))[:200])
         if cmd == "approval_notice":
             self._triggers.append("approval_notice")
             return True, "approvals will be re-read from the authorization service"
@@ -496,9 +776,9 @@ class LiveRuntime:
             self._triggers.append("operator_wake")
             return True, "woken"
         if cmd == "export_checkpoint":
-            return self._export(args.get("dest", ""))
+            return self._export(str(args.get("dest", "")))
         if cmd == "assign_objective":
-            return self._assign(args.get("path", ""), args.get("sha256", ""), by)
+            return self._assign(str(args.get("path", "")), str(args.get("sha256", "")), by)
         return False, f"unknown command {cmd!r}"
 
     def _pause(self, reason: str) -> None:
@@ -539,10 +819,8 @@ class LiveRuntime:
         self._guard_live(task)
         entry = {"task": task.to_dict(), "path": path, "by": by, "assigned_at": self.clock.now()}
         if task.objective_id == self.task.objective_id:
-            self.task = task                            # updated boundaries for the same objective
-            self.cfg = self._with_measurement(task)
-            self.log.redact.set_permissions(task.data_permissions)
-            atomic_write_json(os.path.join(self.run_dir, TASK_FILE), task.to_dict(), durable=self._durable)
+            self._use_task(task)                       # updated boundaries for the same objective
+            self._write_task_file()
             if self.status in TERMINAL and not self._exhausted():
                 self.status, self.status_reason = RUNNING, ""
                 self._triggers.append("limits_updated")
@@ -554,17 +832,15 @@ class LiveRuntime:
         return True, f"objective {task.objective_id} queued; it starts when the current objective ends"
 
     def _switch_objective(self, entry: Dict[str, Any]) -> None:
-        self.task = TaskSpec.from_dict(entry["task"])
-        self.cfg = self._with_measurement(self.task)
-        self.log.provenance = self.task.mode
-        self.log.redact.set_permissions(self.task.data_permissions)
+        self._use_task(TaskSpec.from_dict(entry["task"]))
         self.counters = dict(_COUNTERS)
         self.started_at, self.paused_total_s, self.paused_at = self.clock.now(), 0.0, 0.0
         self.status, self.status_reason = RUNNING, ""
         self._last_verified, self._last_verify_at, self._agent_wake_at = {}, None, None
-        self._agent("set_objective", self.task)        # the learner's weights and lifetime context carry over
-        atomic_write_json(os.path.join(self.run_dir, TASK_FILE), self.task.to_dict(), durable=self._durable)
-        self.log.event("objective_assigned", {"task": self.task.to_dict(), "by": entry.get("by", ""),
+        self._agent("set_objective", learner_view(self.task))   # the learner's weights and lifetime context carry over
+        self._write_task_file()
+        self.log.event("objective_assigned", {"task": learner_view(self.task).to_dict(),
+                                              "task_sha256": self.task.content_hash(), "by": entry.get("by", ""),
                                               "path": entry.get("path", "")}, consequential=True, trust=Trust.OPERATOR)
         self._dirty = True
         self._commit(force=True)
@@ -579,7 +855,8 @@ class LiveRuntime:
             return False, f"no pending approval {approval_id!r}"
         auth = self.policy.resolve_approval(approval_id, approve, by, note)
         if approve and auth.verdict == AuthVerdict.ALLOW:
-            a.update(status="approved", resolved_at=self.clock.now(), by=by, note=note, auth=auth.to_dict())
+            a.update(status="approved", resolved_at=self.clock.now(), by=by, note=note)
+            self._approval_raw.setdefault(approval_id, {})["auth"] = auth.to_dict()
         elif not approve and auth.verdict != AuthVerdict.ALLOW:
             a.update(status="rejected", resolved_at=self.clock.now(), by=by, note=note,
                      reasons=list(auth.reasons) or a.get("reasons", []))
@@ -604,9 +881,15 @@ class LiveRuntime:
             state = str((e or {}).get("status", "pending" if e is not None else "")).lower()
             if e is not None and state in ("pending", "queued", "waiting", ""):
                 continue
-            decision = Decision.from_dict(a["decision"])
+            raw = self._approval_raw.get(aid) or {}
+            if not raw.get("decision"):
+                a.update(status="rejected", resolved_at=self.clock.now(),
+                         reasons=["the exact decision of this approval could not be restored; not executed"])
+                changed = True
+                continue
+            decision = Decision.from_dict(raw["decision"])
             if state in ("rejected", "denied", "deny"):
-                a.update(status="rejected", resolved_at=self.clock.now(), note=str((e or {}).get("note", "")))
+                a.update(status="rejected", resolved_at=self.clock.now(), note=str((e or {}).get("note", ""))[:200])
                 changed = True
                 continue
             # approved there, or no longer listed: the authorization service is asked again and is the only judge
@@ -616,7 +899,8 @@ class LiveRuntime:
                 self._note_error("authorization", "authorize", ex)
                 continue
             if auth.verdict == AuthVerdict.ALLOW:
-                a.update(status="approved", resolved_at=self.clock.now(), auth=auth.to_dict())
+                a.update(status="approved", resolved_at=self.clock.now())
+                raw["auth"] = auth.to_dict()
                 changed = True
             elif auth.verdict == AuthVerdict.DENY:
                 a.update(status="rejected", resolved_at=self.clock.now(), reasons=list(auth.reasons))
@@ -624,30 +908,45 @@ class LiveRuntime:
             elif auth.approval_id and auth.approval_id != aid:
                 a["approval_id"] = auth.approval_id
                 self.approvals[auth.approval_id] = self.approvals.pop(aid)
+                self._approval_raw[auth.approval_id] = self._approval_raw.pop(aid, raw)
         return changed
 
     def _process_approvals(self) -> bool:
-        """Execute each approved action exactly once; report each rejected one exactly once."""
+        """Execute each approved action exactly once — if the limits still allow it at that moment — and report
+        each rejected one exactly once."""
         acted = False
         for aid in list(self.approvals):
-            a = self.approvals[aid]
-            if a["status"] not in ("approved", "rejected"):
+            a = self.approvals.get(aid)
+            if a is None or a["status"] not in ("approved", "rejected"):
                 continue
-            decision = Decision.from_dict(a["decision"])
-            action = decision.chosen
+            raw = self._approval_raw.get(aid) or {}
+            if not raw.get("decision"):
+                a.update(status="reported", result_status="not_restorable")
+                self.log.event("approval_not_restorable", {"approval_id": aid}, consequential=True)
+                continue
+            decision = Decision.from_dict(raw["decision"])
+            action, preds = decision.chosen, list(raw.get("preds") or [])
             if a["status"] == "approved":
-                auth = AuthorizationDecision.from_dict(a.get("auth") or {"verdict": AuthVerdict.DENY})
-                if auth.verdict != AuthVerdict.ALLOW or not self.policy.check_grant(action, auth):
-                    result = self._synthetic(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
-                                             "the approval did not yield a grant valid for this action")
-                    self._complete(decision, result, "denied", [], aid, new_decision=False)
+                over = self._exhausted()
+                why = self._exhaust_text(over) if over else self._would_exceed(action)
+                if not why and self._policy_stopped():
+                    why = "the emergency stop is engaged at the authorization service"
+                auth = AuthorizationDecision.from_dict(raw.get("auth") or {"verdict": AuthVerdict.DENY})
+                if why:
+                    self._complete(decision, self._synthetic(action, ResultStatus.FAILED, FailureClass.RESOURCE_LIMIT,
+                                                             f"approved by the operator, but {why}; not executed"),
+                                   "over_limit", preds, aid, new_decision=False)
+                elif auth.verdict != AuthVerdict.ALLOW or not self.policy.check_grant(action, auth):
+                    self._complete(decision, self._synthetic(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
+                                                             "the approval did not yield a grant valid for this action"),
+                                   "denied", preds, aid, new_decision=False)
                 else:
-                    self._execute(decision, auth, [], approval_id=aid, new_decision=False)
+                    self._execute(decision, auth, preds, approval_id=aid, new_decision=False)
             else:
                 # the operator's note stays in the audit trail; no free text from the operator reaches the learner
-                result = self._synthetic(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
-                                         f"the operator rejected approval {aid}")
-                self._complete(decision, result, "rejected", [], aid, new_decision=False)
+                self._complete(decision, self._synthetic(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
+                                                         f"the operator rejected approval {aid}"),
+                               "rejected", preds, aid, new_decision=False)
             acted = True
         return acted
 
@@ -655,19 +954,34 @@ class LiveRuntime:
     # evidence: steps 2-4
     # ==========================================================================================================
     def _ingest(self, obs: Sequence[Observation], via: str) -> None:
+        obs = [o for o in obs if isinstance(o, Observation)]
         if not obs:
             return
         for o in obs:
             self.log.observation(o, via)
             for q in o.quantities:
-                self._metrics[q.name] = q.value
+                v = _finite(getattr(q, "value", None))
+                if v is not None:
+                    self._metrics[str(q.name)] = v
         self._cycle_obs.extend(obs)
         self._agent_try("ingest", list(obs))
         self._dirty = True
 
+    def _verified_measurement(self, o: Any) -> bool:
+        """True only for an observation the verifier signed and confirms (``check_measurement``)."""
+        fn = getattr(self.verifier, "check_measurement", None)
+        if not callable(fn):
+            return False
+        try:
+            return bool(fn(o))
+        except Exception as e:  # noqa: BLE001
+            self._note_error("verifier", "check_measurement", e)
+            return False
+
     def _measure(self, due: List[PendingItem]) -> List[OutcomeObservation]:
-        """Step 4 for matured queries. Goal-relevant queries are asked of the independent verifier first; anything
-        the environment measures is unverified whatever it claims."""
+        """Step 4 for matured queries. Goal-relevant queries are asked of the independent verifier first; an
+        observation counts as verified only when the verifier's signature on it checks. Anything the environment
+        measures is unverified whatever it claims."""
         if not due:
             return []
         now = self.clock.now()
@@ -676,8 +990,10 @@ class LiveRuntime:
         if goal:
             try:
                 for o in self.verifier.measure(goal) or []:
-                    if o.status in (OutcomeStatus.OBSERVED, OutcomeStatus.CENSORED):
-                        o.verified = True
+                    if isinstance(o, OutcomeObservation) and o.status in (OutcomeStatus.OBSERVED, OutcomeStatus.CENSORED):
+                        o.verified = self._verified_measurement(o)
+                        if not o.verified:
+                            o.source = f"unsigned:{o.source}"
                         got[o.query_id] = o
             except Exception as e:  # noqa: BLE001
                 self._note_error("verifier", "measure", e)
@@ -685,8 +1001,9 @@ class LiveRuntime:
         if rest:
             try:
                 for o in self.env.measure(rest) or []:
-                    o.verified = False
-                    got.setdefault(o.query_id, o)
+                    if isinstance(o, OutcomeObservation):
+                        o.verified = False
+                        got.setdefault(o.query_id, o)
             except Exception as e:  # noqa: BLE001
                 self._note_error("environment", "measure", e)
         out: List[OutcomeObservation] = []
@@ -695,31 +1012,45 @@ class LiveRuntime:
             if o is None or o.status == OutcomeStatus.PENDING:
                 self.pending.defer(item.query.query_id, now + self.cfg.pending_retry_s)
                 continue
+            if o.value is not None and _finite(o.value) is None:
+                o.value, o.status = None, OutcomeStatus.UNOBSERVABLE
             if self.pending.resolve(o) is None:
                 continue                                       # duplicate of an event already reconciled
-            rid = self.log.event("outcome", {"query": item.query.to_dict(), "observation": o.to_dict(),
-                                             "action_id": item.action_id, "decision_id": item.decision_id,
-                                             "experiment_id": item.experiment_id}, consequential=True,
-                                 trust=Trust.VERIFIER if o.verified else Trust.UNTRUSTED)
-            self._resolve_predictions(item, o, rid)
-            if item.experiment_id:
-                self.log.experiment_outcome(item.experiment_id, item.decision_id, {**o.to_dict(), "outcome_rid": rid})
+            matched = self._matching_preds(item, o)
+            # journalled before it is logged: a restart neither measures it again nor loses it
+            self._wal_write({"t": "outcome", "kind": item.origin, "action_id": item.action_id,
+                             "query_id": o.query_id, "item": item.to_dict(), "observation": o.to_dict(),
+                             "preds": [p["prediction_id"] for p in matched]})
+            ids = {p["prediction_id"] for p in matched}
+            self._open_preds = [p for p in self._open_preds if p["prediction_id"] not in ids]
+            self._log_outcome(item, o, matched)
             out.append(o)
         return out
 
-    def _resolve_predictions(self, item: PendingItem, o: OutcomeObservation, outcome_rid: str) -> None:
-        keep = []
-        for p in self._open_preds:
-            if p["query_id"] == o.query_id or (p["action_id"] and p["action_id"] == item.action_id
-                                                 and p["metric"] == item.query.metric):
-                self.log.resolution(p["prediction_id"], o.query_id,
-                                    {"status": o.status, "value": o.value, "observed_at": o.observed_at,
-                                     "verified": o.verified, "outcome_rid": outcome_rid, "metric": item.query.metric},
-                                    registered_rid=p.get("rid", ""), predicted_mean=p.get("mean"),
-                                    predicted_std=p.get("std"))
-            else:
-                keep.append(p)
-        self._open_preds = keep[-5000:]
+    def _matching_preds(self, item: PendingItem, o: OutcomeObservation) -> List[Dict[str, Any]]:
+        return [p for p in self._open_preds
+                if p["query_id"] == o.query_id or (p["action_id"] and p["action_id"] == item.action_id
+                                                    and p["metric"] == item.query.metric)]
+
+    def _log_outcome(self, item: PendingItem, o: OutcomeObservation, matched: List[Dict[str, Any]],
+                     replayed: bool = False) -> str:
+        data = {"query": item.query.to_dict(), "observation": o.to_dict(), "action_id": item.action_id,
+                "decision_id": item.decision_id, "experiment_id": item.experiment_id, "query_origin": item.origin}
+        if replayed:
+            data["written_after_restart"] = True
+        rid = self.log.event("outcome", data, consequential=True,
+                             trust=Trust.VERIFIER if o.verified else Trust.UNTRUSTED)
+        for p in matched:
+            self._log_resolution(p, item, o, rid)
+        if item.experiment_id:
+            self.log.experiment_outcome(item.experiment_id, item.decision_id, {**o.to_dict(), "outcome_rid": rid})
+        return rid
+
+    def _log_resolution(self, p: Dict[str, Any], item: PendingItem, o: OutcomeObservation, outcome_rid: str) -> None:
+        self.log.resolution(p["prediction_id"], o.query_id,
+                            {"status": o.status, "value": o.value, "observed_at": o.observed_at,
+                             "verified": o.verified, "outcome_rid": outcome_rid, "metric": item.query.metric},
+                            registered_rid=p.get("rid", ""), predicted_mean=p.get("mean"), predicted_std=p.get("std"))
 
     def _verify(self, force: bool = False) -> Optional[VerifiedOutcome]:
         """Objective verification. Only an outcome whose signature the verifier confirms is ever returned."""
@@ -774,11 +1105,29 @@ class LiveRuntime:
                                                                                            "uncertainty")},
                 "remaining": {k: (v["limit"] - v["used"]) for k, v in lim.items() if v["limit"] > 0}}
 
+    @staticmethod
+    def _clean_prediction(p: PredictionRecord) -> Tuple[PredictionRecord, bool]:
+        """A registered prediction carries no outcome: resolved_* fields filled in by the learner are cleared."""
+        if (p.resolved_at is None and p.resolved_value is None and p.nll is None
+                and p.resolved_status == OutcomeStatus.PENDING):
+            return p, False
+        c = copy.deepcopy(p)
+        c.resolved_at, c.resolved_value, c.nll, c.resolved_status = None, None, None, OutcomeStatus.PENDING
+        return c, True
+
+    def _clean_decision(self, decision: Decision) -> Decision:
+        d = Decision.from_dict(decision.to_dict())
+        for c in d.candidates:
+            c.predictions = [self._clean_prediction(p)[0] for p in c.predictions]
+        return d
+
     def _decide_and_act(self) -> bool:
         tools = list(self.env.discover_tools() or [])
+        self._tools = {t.name: t for t in tools}
         self._tool_effects = {t.name: t.side_effects for t in tools}
         self._set_activity("deciding")
-        cands = self._agent_try("propose", tools, self.cfg.candidates_k, default=[])
+        cands = [c for c in (self._agent_try("propose", tools, self.cfg.candidates_k, default=[]) or [])
+                 if isinstance(c, ActionSpec)]
         queued = {a["signature"]: k for k, a in self.approvals.items() if a["status"] in ("pending", "approved")}
         kept = [c for c in cands if action_signature(c) not in queued]
         if len(kept) != len(cands):
@@ -794,17 +1143,31 @@ class LiveRuntime:
         if not evals:
             return False
         decision = self._agent_try("select", evals)
-        if decision is None:
+        if not isinstance(decision, Decision) or not isinstance(decision.chosen, ActionSpec):
             return False
         action = decision.chosen
-        # ---- registered before anything is executed (steps 7-8 -> disk) ----
-        all_preds = [p for e in evals for p in e.predictions]
+        # ---- registered before anything is executed (steps 7-8 -> disk); learner-filled outcomes are cleared ----
+        all_preds, cleared = [], 0
+        for e in evals:
+            for p in getattr(e, "predictions", []) or []:
+                if isinstance(p, PredictionRecord):
+                    c, changed = self._clean_prediction(p)
+                    all_preds.append(c)
+                    cleared += changed
         rids = self.log.predictions(all_preds, decision_id=decision.decision_id, chosen_action_id=action.action_id)
+        if cleared:
+            self.log.event("prediction_fields_cleared",
+                           {"n": cleared, "decision_id": decision.decision_id,
+                            "reason": "a registered prediction carries no outcome; resolved_* fields supplied by the "
+                                      "learner were removed before registration"})
         preds = [{"prediction_id": p.prediction_id, "query_id": p.query.query_id, "metric": p.query.metric,
                   "action_id": p.action_id, "decision_id": decision.decision_id, "mean": p.dist.mean,
-                  "std": p.dist.std, "rid": rid}
+                  "std": p.dist.std, "rid": rid, "query": p.query.to_dict()}
                  for p, rid in zip(all_preds, rids) if p.action_id == action.action_id]
-        self.log.decision(decision, objective=self.task.objective, situation=self._situation())
+        situation = self._situation()
+        # the decision exists from this journal entry on: a crash after it closes the decision at restart
+        self._begin(decision, "decided", preds, situation=situation)
+        self.log.decision(self._clean_decision(decision), objective=self.task.objective, situation=situation)
         self.obstacles.on_decision(decision)
         # ---- step 10: structure, then authorization ----
         try:
@@ -813,7 +1176,7 @@ class LiveRuntime:
             errs = [f"validation failed: {type(e).__name__}: {e}"]
         if errs:
             self._complete(decision, self._synthetic(action, ResultStatus.FAILED, FailureClass.INVALID_ARGUMENTS,
-                                                     "; ".join(errs)), "invalid", preds)
+                                                     "; ".join(str(x) for x in errs)), "invalid", preds)
             return True
         if is_wait(action):
             self._begin_wait(decision, preds)
@@ -848,14 +1211,27 @@ class LiveRuntime:
         self._execute(decision, auth, preds, new_decision=True)
         return True
 
+    def _estimate(self, action: ActionSpec) -> float:
+        """Money an action may spend: the larger of the learner's estimate and the tool's declared estimate."""
+        vals = [_finite(getattr(getattr(action, "est_cost", None), "money", None))]
+        tool = self._tools.get(action.operation)
+        if tool is not None:
+            vals.append(_finite(getattr(getattr(tool, "est_cost", None), "money", None)))
+        return max([v for v in vals if v is not None and v > 0] or [0.0])
+
     def _would_exceed(self, action: ActionSpec) -> str:
+        """Why executing ``action`` now would exceed a limit ('' = it would not). Checked before every execution,
+        including actions the operator approved earlier."""
         lim = self.task.limits
-        est = action.est_cost.money
-        if lim.money > 0 and est > 0 and self.counters["money"] + est > lim.money + 1e-9:
+        est = self._estimate(action)
+        money = _finite(lim.money) or 0.0
+        if money > 0 and self.counters["money"] >= money - 1e-9:
+            return "the money limit is reached; not executed"
+        if money > 0 and est > 0 and self.counters["money"] + est > money + 1e-9:
             return (f"estimated cost {est:g} exceeds the remaining budget "
-                    f"{lim.money - self.counters['money']:g}; not executed")
-        if (lim.max_external_actions > 0 and self._is_external(action)
-                and self.counters["external_actions"] >= lim.max_external_actions):
+                    f"{money - self.counters['money']:g}; not executed")
+        ext = _finite(lim.max_external_actions) or 0.0
+        if ext > 0 and self._is_external(action) and self.counters["external_actions"] >= ext:
             return "the limit on external actions is reached; not executed"
         return ""
 
@@ -868,7 +1244,7 @@ class LiveRuntime:
                  approval_id: str = "", new_decision: bool = True) -> None:
         action = decision.chosen
         # the journal entry is durable before the executor is called; the grant itself is never written to disk
-        self._begin(decision, "execute", preds, approval_id, new_decision)
+        self._begin(decision, "execute", preds, approval_id, new_decision=False)
         self._set_activity("executing", action.render())
         self.log.event("action_start", {"decision_id": decision.decision_id, "action_id": action.action_id,
                                         "operation": action.operation, "modality": action.modality,
@@ -877,14 +1253,16 @@ class LiveRuntime:
             result = self.env.execute(action, auth)
         except Exception as e:  # noqa: BLE001 — an executor error is an observation for the learner, not a crash
             self._note_error("environment", "execute", e)
+            est = self._estimate(action)
             result = self._synthetic(action, ResultStatus.FAILED, FailureClass.UNKNOWN,
-                                     f"executor error: {type(e).__name__}: {e}")
-        self._complete(decision, result, "execute", preds, approval_id, journalled=True)
+                                     f"executor error: {type(e).__name__}: {e}; whether the action took effect is "
+                                     f"unknown, its estimated cost {est:g} is booked", cost=Cost(money=est))
+        self._complete(decision, result, "execute", preds, approval_id)
 
     def _begin(self, decision: Decision, kind: str, preds: List[Dict[str, Any]], approval_id: str = "",
                new_decision: bool = True, **extra: Any) -> None:
-        """Journal the start of a decision's handling; the decision is counted from this moment."""
-        delta = {"decisions": int(new_decision), "waits": int(kind == "wait")}
+        """Journal the start of a decision's handling. ``decided`` counts the decision; ``wait`` counts a wait."""
+        delta = {"decisions": int(new_decision and kind == "decided"), "waits": int(kind == "wait")}
         self._wal_write({"t": "begin", "kind": kind, "action_id": decision.chosen.action_id,
                          "decision": decision.to_dict(), "preds": preds, "approval_id": approval_id,
                          "started": self.clock.now(), "delta": delta, **extra})
@@ -898,8 +1276,9 @@ class LiveRuntime:
 
     def _begin_wait(self, decision: Decision, preds: List[Dict[str, Any]]) -> None:
         """A wait is a decision to do nothing: the runtime sleeps; no executor is involved and nothing is spent."""
-        a, now = decision.chosen.arguments, self.clock.now()
-        seconds = float(a.get("seconds", a.get("duration_s", 0.0)) or 0.0)
+        a, now = decision.chosen.arguments or {}, self.clock.now()
+        seconds = _finite(a.get("seconds", a.get("duration_s", 0.0))) if isinstance(a, dict) else None
+        seconds = min(max(seconds or 0.0, 0.0), MAX_LEARNER_HORIZON_S)
         self._begin(decision, "wait", preds, until=now + seconds)
         self._waiting = {"decision": decision, "started": now, "until": now + seconds, "preds": preds}
         self._agent_wake_at = now + seconds
@@ -916,14 +1295,64 @@ class LiveRuntime:
                           parent_action_id=action.action_id)
         result = ActionResult(action_id=action.action_id, status=ResultStatus.OK, started=w["started"], ended=now,
                               observations=[obs], cost=Cost(seconds=elapsed), verified=True)
-        self._complete(w["decision"], result, "wait", w["preds"], journalled=True)
+        self._complete(w["decision"], result, "wait", w["preds"])
 
-    def _complete(self, decision: Decision, result: ActionResult, kind: str, preds: List[Dict[str, Any]],
-                  approval_id: str = "", *, journalled: bool = False, new_decision: bool = True) -> None:
-        """Step 12 for every decision, executed or not: journal, account, log, hand the result to the learner."""
+    def _normalise_result(self, action: ActionSpec, result: Any, kind: str) -> Tuple[ActionResult, List[str]]:
+        """Whatever the executor returned becomes a well-formed ActionResult; nothing here can raise. A cost that is
+        not a finite non-negative number is booked as the action's estimate (money) or 0."""
+        notes: List[str] = []
+        if not isinstance(result, ActionResult):
+            est = self._estimate(action) if kind == "execute" else 0.0
+            return self._synthetic(action, ResultStatus.FAILED, FailureClass.UNKNOWN,
+                                   f"the executor returned {type(result).__name__}, not an ActionResult; whether the "
+                                   f"action took effect is unknown", cost=Cost(money=est)), ["not an ActionResult"]
+        r = copy.copy(result)
+        if r.action_id != action.action_id:
+            notes.append(f"result named action {str(r.action_id)[:80]!r}")
+            r.action_id = action.action_id
+        if not isinstance(r.status, str) or not r.status:
+            notes.append(f"status {r.status!r} is not a status")
+            r.status = ResultStatus.FAILED
+        for f in ("failure_class", "failure_detail"):
+            if not isinstance(getattr(r, f), str):
+                setattr(r, f, str(getattr(r, f)))
+        c = r.cost if isinstance(r.cost, Cost) else Cost()
+        c = copy.copy(c)
+        for f in ("seconds", "money", "compute_s"):
+            v = _finite(getattr(c, f, 0.0))
+            if v is None or v < 0:
+                repl = self._estimate(action) if (f == "money" and kind == "execute") else 0.0
+                notes.append(f"cost.{f} {getattr(c, f, None)!r} is not a finite non-negative number; {repl:g} booked")
+                setattr(c, f, repl)
+            else:
+                setattr(c, f, v)
+        for f in ("primitive_ops", "tokens"):
+            v = _finite(getattr(c, f, 0))
+            setattr(c, f, int(v) if v is not None and v >= 0 else 0)
+        r.cost = c
+        for f in ("started", "ended"):
+            if _finite(getattr(r, f)) is None:
+                setattr(r, f, self.clock.now())
+        r.observations = [o for o in (r.observations or []) if isinstance(o, Observation)]
+        r.ops = [o for o in (r.ops or []) if not isinstance(o, (str, bytes))]
+        qs = []
+        for q in r.expected_outcomes or []:
+            if (isinstance(q, OutcomeQuery) and isinstance(q.query_id, str) and q.query_id
+                    and _finite(q.horizon_s) is not None and q.horizon_s >= 0 and _finite(q.issued_at) is not None):
+                qs.append(q)
+            else:
+                notes.append("a malformed expected outcome was dropped")
+        r.expected_outcomes = qs
+        if not isinstance(r.artifacts, dict):
+            r.artifacts = {}
+        return r, notes
+
+    def _complete(self, decision: Decision, result: Any, kind: str, preds: List[Dict[str, Any]],
+                  approval_id: str = "", *, new_decision: bool = True) -> None:
+        """Step 12 for every decision, executed or not: journal, account, log, hand the result to the learner.
+        The journal entry is written first, so a result that exists anywhere reaches the logs and the learner."""
         action = decision.chosen
-        if not journalled:
-            self._begin(decision, kind, preds, approval_id, new_decision)
+        result, notes = self._normalise_result(action, result, kind)
         delta: Dict[str, Any] = {"compute_s": float(result.cost.compute_s) + self._compute_unbooked}
         self._compute_unbooked = 0.0
         if kind == "execute":
@@ -933,26 +1362,17 @@ class LiveRuntime:
             delta["money"] = float(result.cost.money)
         if is_obstacle(result):
             delta["failures"] = 1
-        self._wal_write({"t": "end", "kind": kind, "action_id": action.action_id, "result": result.to_dict(),
-                         "delta": delta, "approval_id": approval_id})
+        end = {"t": "end", "kind": kind, "action_id": action.action_id, "result": result.to_dict(), "delta": delta,
+               "approval_id": approval_id, "normalised": notes}
+        if action.action_id not in self._wal_known:
+            end["decision"], end["preds"] = decision.to_dict(), preds   # no begin of it in this generation
+        self._wal_write(end)
         if kind == "execute" and self.cfg.record_at_policy:
             try:
                 self.policy.record(action, result)
             except Exception as e:  # noqa: BLE001
                 self._note_error("authorization", "record", e)
-        self.log.event("action_result",
-                       {"decision_id": decision.decision_id, "action_id": action.action_id, "kind": kind,
-                        "operation": action.operation, "status": result.status,
-                        "failure_class": result.failure_class, "failure_detail": result.failure_detail,
-                        "started": result.started, "ended": result.ended, "cost": result.cost.to_dict(),
-                        "verified": result.verified, "retries": result.retries, "artifacts": result.artifacts,
-                        "n_ops": len(result.ops), "observation_ids": [o.obs_id for o in result.observations],
-                        "expected_outcomes": [q.to_dict() for q in result.expected_outcomes],
-                        "approval_id": approval_id}, consequential=True)
-        for o in result.observations:
-            self.log.observation(o, "action")
-            for q in o.quantities:
-                self._metrics[q.name] = q.value
+        self._log_result(decision, result, kind, approval_id, notes)
         self._absorb(decision, result, delta, preds, approval_id, kind)
         self._last_result_ok = result.status == ResultStatus.OK
         if is_obstacle(result):
@@ -960,38 +1380,119 @@ class LiveRuntime:
         self.obstacles.on_result(action, result)
         self._save_state()
 
+    def _log_result(self, decision: Decision, result: ActionResult, kind: str, approval_id: str, notes: List[str],
+                    replayed: bool = False) -> None:
+        action = decision.chosen
+        data = {"decision_id": decision.decision_id, "action_id": action.action_id, "kind": kind,
+                "operation": action.operation, "status": result.status,
+                "failure_class": result.failure_class, "failure_detail": result.failure_detail,
+                "started": result.started, "ended": result.ended, "cost": result.cost.to_dict(),
+                "verified": result.verified, "retries": result.retries, "artifacts": result.artifacts,
+                "n_ops": len(result.ops), "observation_ids": [o.obs_id for o in result.observations],
+                "expected_outcomes": [q.to_dict() for q in result.expected_outcomes],
+                "approval_id": approval_id}
+        if notes:
+            data["normalised"] = notes
+        if replayed:
+            data["written_after_restart"] = True
+        self.log.event("action_result", data, consequential=True)
+        for o in result.observations:
+            self.log.observation(o, "action")
+            for q in o.quantities:
+                v = _finite(getattr(q, "value", None))
+                if v is not None:
+                    self._metrics[str(q.name)] = v
+
     def _absorb(self, decision: Decision, result: ActionResult, delta: Dict[str, Any], preds: List[Dict[str, Any]],
                 approval_id: str, kind: str) -> None:
         """The part of step 12 that is repeated when the journal is replayed after a restart."""
         self._apply_delta(delta)
+        action = decision.chosen
+        exp_id = decision.experiment_id or action.experiment_id
         for q in result.expected_outcomes:
-            self.pending.add(q, action_id=result.action_id, decision_id=decision.decision_id,
-                             experiment_id=decision.experiment_id or decision.chosen.experiment_id)
-        known = {p["prediction_id"] for p in self._open_preds}
-        self._open_preds.extend(p for p in preds if p["prediction_id"] not in known)
+            self.pending.add(q, action_id=result.action_id, decision_id=decision.decision_id, experiment_id=exp_id)
+        happened = kind == "wait" or (kind == "execute" and result.status in _RAN)
+        if kind in ("execute", "wait", "queued"):
+            known = {p["prediction_id"] for p in self._open_preds}
+            self._open_preds.extend(p for p in preds if p["prediction_id"] not in known)
+            self._open_preds = self._open_preds[-5000:]
+        if happened:
+            mine = preds or [p for p in self._open_preds if p.get("action_id") == action.action_id]
+            self._add_learner_queries(decision, result, mine, exp_id)
         if kind == "queued" and approval_id and approval_id not in self.approvals:
-            action = decision.chosen
             self.approvals[approval_id] = {
-                "approval_id": approval_id, "status": "pending", "decision": decision.to_dict(),
-                "signature": action_signature(action), "queued_at": result.started,
-                "preview": self.log.redact.text(action.render())[:4000], "operation": action.operation,
-                "reasons": [result.failure_detail]}
+                "approval_id": approval_id, "status": "pending", "signature": action_signature(action),
+                "queued_at": result.started, "preview": self.log.redact.text(action.render())[:4000],
+                "operation": action.operation, "reasons": [result.failure_detail]}
+            self._approval_raw[approval_id] = {"decision": decision.to_dict(), "preds": preds, "auth": None}
         elif approval_id and approval_id in self.approvals and kind != "queued":
-            self.approvals[approval_id]["status"] = "reported" if kind in ("rejected", "denied") else "executed"
-            self.approvals[approval_id]["result_status"] = result.status
-            self.approvals[approval_id].pop("auth", None)
+            row = self.approvals[approval_id]
+            row["status"] = "executed" if kind == "execute" else "reported"
+            row["result_status"] = result.status
+            self._approval_raw.pop(approval_id, None)
         self._agent_try("record_result", decision, result)
         self._dirty = True
 
-    def _drain_agent_records(self) -> None:
-        """Experiment records registered by the learner (optional ``drain_experiments`` hook)."""
-        fn = getattr(self.agent, "drain_experiments", None)
-        if callable(fn):
+    def _add_learner_queries(self, decision: Decision, result: ActionResult, preds: List[Dict[str, Any]],
+                             exp_id: str) -> None:
+        """Step 4 also measures what the learner itself predicted for an action that happened: a registered
+        prediction whose question no query of the environment covers is queued as a query of the learner's."""
+        covered = {q.metric for q in result.expected_outcomes} | {q.query_id for q in result.expected_outcomes}
+        n = 0
+        for p in preds:
+            qd = p.get("query")
+            if not qd or p.get("action_id") != decision.chosen.action_id:
+                continue
             try:
-                for rec in fn() or []:
-                    self.log.experiment(rec)
-            except Exception as e:  # noqa: BLE001
-                self._note_error("learner", "drain_experiments", e)
+                q = OutcomeQuery.from_dict(qd)
+            except Exception:  # noqa: BLE001
+                continue
+            if q.metric in covered or q.query_id in covered or self.pending.has(q.query_id):
+                continue
+            horizon, issued = _finite(q.horizon_s), _finite(q.issued_at)
+            if (not isinstance(q.metric, str) or not q.metric or len(q.metric) > 200 or not isinstance(q.query_id, str)
+                    or not q.query_id or horizon is None or horizon < 0 or horizon > MAX_LEARNER_HORIZON_S):
+                continue
+            if (n >= MAX_LEARNER_QUERIES_PER_DECISION
+                    or self.pending.count_origin("learner") >= MAX_LEARNER_QUERIES_PENDING):
+                self.log.event("learner_queries_capped", {"decision_id": decision.decision_id})
+                break
+            # the question is asked from the moment the action started, never earlier
+            q.issued_at = max(issued if issued is not None else result.started, result.started)
+            q.decision_id = q.decision_id or decision.decision_id
+            self.pending.add(q, action_id=decision.chosen.action_id, decision_id=decision.decision_id,
+                             experiment_id=exp_id or q.experiment_id, origin="learner")
+            covered.add(q.metric)
+            n += 1
+
+    def _drain_agent_records(self) -> None:
+        """Experiment records registered by the learner (``AgentAPI.drain_experiments``). They are the learner's
+        registrations and assessments: an ``actual`` the learner reports is kept apart as unverified
+        (``learner_reported_actual``) — actual outcomes are only the runtime's own ``experiment_outcome`` records —
+        and predictions carry no resolution."""
+        fn = getattr(self.agent, "drain_experiments", None)
+        if not callable(fn):
+            return
+        try:
+            recs = list(fn() or [])
+        except Exception as e:  # noqa: BLE001
+            self._note_error("learner", "drain_experiments", e)
+            return
+        for rec in recs:
+            if not isinstance(rec, ExperimentRecord):
+                continue
+            d = rec.to_dict()
+            claimed = []
+            for o in d.get("actual") or []:
+                o = dict(o, verified=False, source=f"learner-reported:{o.get('source', '')}")
+                claimed.append(o)
+            d["actual"] = []
+            if claimed:
+                d["learner_reported_actual"] = claimed
+            for p in d.get("predicted") or []:
+                p.update(resolved_at=None, resolved_value=None, nll=None, resolved_status=OutcomeStatus.PENDING)
+            d["assessed_by"] = "learner"
+            self.log.append(RunFiles.EXPERIMENTS, "experiment", d, consequential=True)
 
     # ==========================================================================================================
     # step 16: commit
@@ -1023,6 +1524,8 @@ class LiveRuntime:
         ckpt = {"id": cid, "path": path, "ts": now, "generation": self.generation, "cycle": self.cycles}
         self._committed = self._snapshot(ckpt)
         self._ckpts.append(ckpt)
+        for e in self._wal_carry():                          # journalled under the new generation before the commit
+            self._wal_write(e)
         self._save_state()                                   # the commit point
         self._wal_reset()
         self._dirty, self._last_ckpt_ts = False, now
@@ -1042,7 +1545,9 @@ class LiveRuntime:
         try:
             from .journal import write_journal
             self.log.sync()
-            write_journal(self.run_dir, state=self._state())
+            st = self._state()
+            st.pop("sealed", None)
+            write_journal(self.run_dir, state=st)
         except Exception as e:  # noqa: BLE001 — the journal is derived; failing to render it must not stop the run
             self._note_error("runtime", "journal", e)
 
@@ -1069,6 +1574,18 @@ class LiveRuntime:
     # ==========================================================================================================
     # the loop
     # ==========================================================================================================
+    def _authorization_revoked(self) -> str:
+        """Why the authorization service says access for this task was revoked ('' = it does not)."""
+        try:
+            st = self.policy.limits_state() or {}
+        except Exception as e:  # noqa: BLE001
+            self._note_error("authorization", "limits_state", e)
+            return ""
+        t = (st.get("tasks") or {}).get(self.task.objective_id) if isinstance(st, dict) else None
+        reasons = [str(r) for r in ((t or {}).get("unavailable") or [])] if isinstance(t, dict) else []
+        hits = [r for r in reasons if "revok" in r.lower()]
+        return "; ".join(hits)[:300]
+
     def step(self) -> Dict[str, Any]:
         self.start()
         self.iterations += 1
@@ -1079,6 +1596,10 @@ class LiveRuntime:
             self._halt(STOPPED, self._stop_requested)
         elif self.status in (RUNNING, PAUSED) and self._policy_stopped():
             self._halt(STOPPED, "emergency stop raised at the authorization service")
+        elif self.status in (RUNNING, PAUSED) and "authorization_revoked" in self.task.stop_conditions:
+            why = self._authorization_revoked()
+            if why:
+                self._halt(STOPPED, f"stop condition authorization_revoked: {why}")
         if self.status != RUNNING:
             rep["status"] = self.status
             if self.status != STOPPED and self.sleeper.blocking:
@@ -1105,6 +1626,8 @@ class LiveRuntime:
         due = self.pending.due(now)
         if due:
             reasons.append("outcomes_due")
+        if self._redeliver:
+            reasons.append("outcomes_restored")
         if self._refresh_approvals() or any(a["status"] in ("approved", "rejected") for a in self.approvals.values()):
             reasons.append("approval_resolved")
         exhausted = self._exhausted()
@@ -1126,9 +1649,10 @@ class LiveRuntime:
             self._ingest(list(self.env.observe() or []), "observe")                # step 2
         except Exception as e:  # noqa: BLE001
             self._note_error("environment", "observe", e)
-        self._ingest(list(events), "poll")                                         # step 3 (deliver)
+        self._ingest(list(events or []), "poll")                                   # step 3 (deliver)
         self.cursor = cursor
-        outcomes = self._measure(due)                                              # step 4
+        outcomes = list(self._redeliver) + self._measure(due)                      # step 4
+        self._redeliver = []
         verified = self._verify(force=bool(exhausted))
         if outcomes or verified is not None:
             info = self._agent_try("reconcile", outcomes, verified, default={})
@@ -1143,7 +1667,9 @@ class LiveRuntime:
             terminal = COMPLETED
         elif verified is not None and verified.status == GoalStatus.FAILED and "verified_failure" in stops:
             terminal = FAILED
-        self._agent_try("update_beliefs")                                          # step 5
+        beliefs = self._agent_try("update_beliefs", default={})                    # step 5
+        self.log.event("beliefs_updated", {"learner_report": beliefs if isinstance(beliefs, dict) else
+                                           {"value": str(beliefs)[:500]}})
         acted = False
         if not terminal and not exhausted:
             try:
@@ -1157,23 +1683,28 @@ class LiveRuntime:
         rewards = self._agent_try("internal_rewards", default={})                  # step 13
         if rewards:
             self.log.event("internal_rewards", rewards if isinstance(rewards, dict) else {"value": rewards})
-        updates = self._agent_try("learn", self.cfg.learn_budget_s, default=[])    # step 14
+        updates = [u for u in (self._agent_try("learn", self.cfg.learn_budget_s, default=[]) or [])
+                   if u is not None]                                               # step 14
         for u in updates:
             self.log.learning_update(u)
-        self.obstacles.on_learning(updates)
-        metas = self._agent_try("meta_learn", self.cfg.meta_budget_s, default=[])  # step 15
+        self.obstacles.on_learning([u for u in updates if hasattr(u, "update_id")])
+        metas = [m for m in (self._agent_try("meta_learn", self.cfg.meta_budget_s, default=[]) or [])
+                 if m is not None]                                                 # step 15
         for m in metas:
             self.log.meta_update(m)
         if updates or metas:
             self._dirty = True
-        for hook in self.hooks["after_cycle"]:
-            hook(self)
+        for hook in list(self.hooks["after_cycle"]):
+            try:
+                hook(self)
+            except Exception as e:  # noqa: BLE001 — e.g. an unreachable central learner: recorded, the loop goes on
+                self._note_error("runtime", f"after_cycle hook {getattr(hook, '__name__', type(hook).__name__)}", e)
         if terminal:                                                               # step 16
             vo = self._last_verified.get("outcome", {})
             self._finish(terminal, f"verifier status {vo.get('status')}: value {vo.get('value')} "
                                    f"against target {vo.get('target')}")
         elif exhausted:
-            self._finish(EXHAUSTED, f"limit {exhausted} exhausted")
+            self._finish(EXHAUSTED, self._exhaust_text(exhausted))
         else:
             self._commit()
             if (self.cycles % max(1, self.cfg.journal_every) == 0
@@ -1193,8 +1724,8 @@ class LiveRuntime:
         if self._triggers:
             return rep
         if self._waiting is None:
-            nw = self._agent_try("next_wake")
-            self._agent_wake_at = float(nw) if nw is not None else None
+            nw = _finite(self._agent_try("next_wake"))
+            self._agent_wake_at = nw
         self._sleep(rep)
         return rep
 
@@ -1241,6 +1772,7 @@ class LiveRuntime:
         self.start()
         block = self.sleeper.blocking if block is None else block
         n = 0
+        rep: Dict[str, Any] = {}
         while True:
             rep = self.step()
             n += 1

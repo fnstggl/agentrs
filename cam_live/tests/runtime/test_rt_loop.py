@@ -173,7 +173,11 @@ def test_delayed_outcomes_reconcile_exactly_once(tmp_path):
     for e in matured:
         reg = first[e["data"]["experiment_id"]]
         assert reg["data"]["status"] == "registered" and reg["seq"] < e["seq"] and reg["data"]["actual"] == []
-        assert e["data"]["actual"] and e["data"]["supported"] in (True, False)
+        # what the learner reports as the actual outcome is kept apart, unverified; the actual outcomes are the
+        # runtime's own experiment_outcome records [D10]
+        assert e["data"]["actual"] == [] and e["data"]["learner_reported_actual"]
+        assert all(o["verified"] is False for o in e["data"]["learner_reported_actual"])
+        assert e["data"]["supported"] in (True, False) and e["data"]["assessed_by"] == "learner"
     assert r.records(RunFiles.EXPERIMENTS, types=["experiment_outcome"])
 
 
