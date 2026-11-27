@@ -992,15 +992,26 @@ class InfoEco(Module):
         return {"ok": True}
 
     def _wiki_write(self, ctx, did: str, body: str, claims: dict) -> None:
-        """The community wiki is an open-edit document host: anyone's edit becomes the page's next version (the same
-        `docs.edit` record and search re-indexing an owner's edit produces), with the editor recorded as its author."""
-        from ..services.search import extract_hosts, index as search_index
-        d = ctx.state.tables["documents"][did]
-        hosts = extract_hosts(ctx.world, d["title"] + "\n" + body)
-        ctx.emit("docs.edit", {"id": did, "v": int(d["version"]) + 1, "title": d["title"], "body": body,
-                               "hosts": hosts, "by": ctx.actor}, vis="public")
-        search_index(ctx, did, "doc", d["title"], body, d["owner"], ref=did, hosts=hosts)
-        ctx.emit("info.src_claims", {"doc": did, "claims": claims}, vis="internal")
+        """The community wiki is open to every editor: the edit is carried out at once by the wiki's own process
+        (`infoeco.wiki_apply`): its manager grants the editor write access to the page (`docs.share`, once per editor
+        and page) and the editor's change is an ordinary `docs.edit` by the editor (a new version, re-indexed by
+        search, the editor recorded as its author) - the docs module's own tools, never its events."""
+        ctx.schedule(ctx.now, "infoeco.wiki_apply", {"doc": did, "body": body, "editor": ctx.actor,
+                                                     "claims": claims}, prio=45)
+
+    @process("wiki_apply")
+    def pr_wiki_apply(self, ctx, doc, body, editor, claims):
+        st = ctx.state
+        mgr = st.tables["info_sources"]["o:wiki"]["manager"]
+        err = None
+        if editor != mgr and (st.get("doc_shares", f"{doc}|{editor}") or {}).get("perm") != "write":
+            err = contain(ctx, ctx.call, "docs.share", {"doc": doc, "principal": editor, "perm": "write"}, mgr)
+        if err is None:
+            err = contain(ctx, ctx.call, "docs.edit", {"doc": doc, "body": body}, editor)
+        if err is not None:
+            ctx.emit("info.failed", {"what": "wiki edit", "doc": doc, "error": str(err)[:200]}, vis="internal")
+            return
+        ctx.emit("info.src_claims", {"doc": doc, "claims": claims}, vis="internal")
 
     @process("billing")
     def pr_billing(self, ctx):
