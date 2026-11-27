@@ -57,9 +57,15 @@ def load_experienced(root: str, work: str) -> Any:
     from ..credit import checkpoint as ck
     orig = agent_mod.load_checkpoint
     # retention removed the optimizer states of evaluation checkpoints (storage rules); the checks never use them
-    agent_mod.load_checkpoint = functools.partial(ck.load_checkpoint, verify=not _optim_pruned(root))
+    pruned = _optim_pruned(root)
+    src = os.path.join(root, "ckpt_post")
+    if pruned:                                   # a copy with an empty optim/ directory (load_checkpoint lists it)
+        shutil.copytree(src, os.path.join(work, "ckpt_post"))
+        src = os.path.join(work, "ckpt_post")
+        os.makedirs(os.path.join(src, "optim"), exist_ok=True)
+    agent_mod.load_checkpoint = functools.partial(ck.load_checkpoint, verify=not pruned)
     try:
-        agent.load(os.path.join(root, "ckpt_post"))
+        agent.load(src)
     finally:
         agent_mod.load_checkpoint = orig
     return agent
