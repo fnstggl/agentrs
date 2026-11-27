@@ -260,3 +260,11 @@ are answered, not done (`docs/change_requests/EA.md`). Tests at the end of `test
 now fails: `tools/discord_live_check.py --live-policy` runs the live policy against unregistered in-process
 loopback servers. Fix = two `register_local_service` calls (change request EA-9, verified by patching them in at run
 time: exit 0, `{"ok": 23, "scope_refusal": 2, "skipped": 1}`).
+
+
+## Master decision after the fix pass (2026-11-27)
+
+`discord.get_member_events` and `discord.listen_events` process the member list (pseudonymous per-member join/leave
+events), so they now require `data_permissions.member_list` (rule `T-DISCORD-MEMBERSHIP-EVENTS`); plain counts
+(`discord.get_guild_stats`) remain aggregate reads under `aggregate_metrics`. p07 now: 13 properties hold, 0 defects.
+Test `test_discord_member_events_need_the_member_list_permission` replaces the test that encoded the earlier reading.

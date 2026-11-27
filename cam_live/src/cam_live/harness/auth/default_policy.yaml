@@ -259,10 +259,18 @@ tools:
     platform: discord
     data: [member_list, personal_data]
     dests: *discord_dests
-  - id: T-DISCORD-READ              # aggregate reads, including the event stream and membership changes (counts,
-                                    # pseudonymous join times; message text only via discord.read_messages)
+  - id: T-DISCORD-MEMBERSHIP-EVENTS # per-member events, reduced to pseudonyms and join times: they process the member
+                                    # list, so the task must grant data_permissions.member_list (master decision
+                                    # 2026-11-27, G-sec p07); no personal data leaves the adapter
+    ops: [discord.get_member_events, discord.listen_events]
+    modalities: [api, skill]
+    effect: external_read
+    platform: discord
+    data: [member_list]
+    dests: *discord_dests
+  - id: T-DISCORD-READ              # aggregate reads: counts only (message text only via discord.read_messages)
     ops: ["discord.get_*", "discord.list_*", "discord.fetch_*", "discord.metrics*", "discord.stats*",
-          "discord.analytics*", discord.guild_info, discord.member_count, discord.status, discord.listen_events]
+          "discord.analytics*", discord.guild_info, discord.member_count, discord.status]
     modalities: [api, skill]
     effect: external_read
     platform: discord

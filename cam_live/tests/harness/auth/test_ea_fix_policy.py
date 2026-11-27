@@ -382,17 +382,28 @@ def test_uploads_from_the_workspace_are_allowed(svc, run_dir):
     assert svc.authorize(up(exec_ws), t, {}).verdict == ALLOW
 
 
-def test_discord_event_stream_and_member_events_are_aggregate_reads(svc, tmp_path, clock):
-    t = live(svc, tmp_path, clock)
+def test_discord_member_events_need_the_member_list_permission(svc, tmp_path, clock):
+    """Master decision (2026-11-27, G-sec p07): per-member join/leave events and the gateway event stream process the
+    member list, so the task must grant data_permissions.member_list; the output stays pseudonymous and aggregate,
+    so collect_personal_data is not needed. Plain counts (get_guild_stats) stay aggregate reads."""
     for op, args in (("discord.listen_events", {"guild_id": "guild-000001", "seconds": 10}),
                      ("discord.get_member_events", {"guild_id": "guild-000001"})):
+        t = live(svc, tmp_path, clock, oid=f"obj-nomembers-{op[8:]}")          # aggregate_metrics only
         d = svc.authorize(act(op, API, arguments=args), t, {})
+        assert d.verdict == DENY and {"P-DATA-USE", "X-DATA-COLLECTION"} & set(d.policy_ids), (op, d.verdict, d.policy_ids)
+        t2 = live_task(oid=f"obj-members-{op[8:]}", data_permissions={"aggregate_metrics": True, "member_list": True})
+        authorize_live(svc, tmp_path, t2, clock, record_id=f"rec-members-{op[8:]}",
+                       owned=["account:discord:guild-000001", "channel:discord:*"],
+                       read=["account:discord:guild-000001", "channel:discord:*"])
+        d = svc.authorize(act(op, API, arguments=args), t2, {})
         assert d.verdict == ALLOW, (op, d.reasons)
         effects = [e for e in svc.audit_tail(5) if e["event"] == "authorize"][-1]["data"]["effects"]
         assert effects == ["read:account:discord:guild-000001"]
-    t2 = live_task(oid="obj-no-aggregates", data_permissions={"aggregate_metrics": False})
-    authorize_live(svc, tmp_path, t2, clock, record_id="rec-noagg", read=["account:discord:guild-000001"])
-    d = svc.authorize(act("discord.listen_events", API, arguments={"guild_id": "guild-000001", "seconds": 5}), t2, {})
+    t3 = live(svc, tmp_path, clock, oid="obj-counts")
+    assert svc.authorize(act("discord.get_guild_stats", API, arguments={"guild_id": "guild-000001"}), t3, {}).verdict == ALLOW
+    t4 = live_task(oid="obj-no-aggregates", data_permissions={"aggregate_metrics": False})
+    authorize_live(svc, tmp_path, t4, clock, record_id="rec-noagg", read=["account:discord:guild-000001"])
+    d = svc.authorize(act("discord.get_guild_stats", API, arguments={"guild_id": "guild-000001"}), t4, {})
     assert d.verdict == DENY and "P-DATA-USE" in d.policy_ids
 
 
