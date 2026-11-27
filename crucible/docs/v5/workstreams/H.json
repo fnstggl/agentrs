@@ -94,7 +94,9 @@
    "plan_spoilage (8.4.2)",
    "plan_serial_stages (8.4.3)",
    "net_interdependent (8.7.4, evaluation)"
-  ]
+  ],
+  "unit_tests_second_continuation": "rapid unit + kernel + invariant tests (10 files incl. the two new ones), direct single-CPU run 2026-11-27 03:44: 457 passed, 1 failed (batch path of net_interdependent: cascading_failure did not broadcast per-instance parameters) -> fixed in fed6640b; tests/test_v5_rapid_engines.py + test_v5_rapid_primitives.py then 196 passed",
+  "gate_tests_run_without_admission_cache_second_continuation": "test_gate_M M5 and Mn1 passed (direct, 2026-11-27 03:47): 97 families, 0 missing or numeric fingerprint components; 474 variants, 0 counted, 0 at nonzero distance. The admission-based gates (M.1-M.4, M.6, M.7, SP-8.0, SP-8.0b, SP-7.3, SP-7.4, SP-8.11, SP-8.12) and the longer ones (M.8, SP-7.0-7.2, SP-7.5, SP-8.12b, SP-0.9) wait for the slot job."
  },
  "requirements": {
   "M.1": {
@@ -108,6 +110,7 @@
     "crucible/src/crucible/rapid/families_h3.py",
     "crucible/src/crucible/rapid/families_pg.py",
     "crucible/src/crucible/rapid/oracles.py",
+    "crucible/src/crucible/rapid/primitives.py",
     "crucible/src/crucible/rapid/references.py",
     "crucible/src/crucible/rapid/refs_adapt.py",
     "src/crucible/rapid/admission.py",
@@ -141,10 +144,24 @@
   },
   "M.2": {
    "implementation_files": [
-    "src/crucible/rapid/families.py",
-    "src/crucible/rapid/admission.py"
+    "crucible/src/crucible/rapid/claims_w3b.py",
+    "crucible/src/crucible/rapid/distinct.py",
+    "crucible/src/crucible/rapid/engines/planning.py",
+    "crucible/src/crucible/rapid/eval_experiment_lab.py",
+    "crucible/src/crucible/rapid/evaluator_h2.py",
+    "crucible/src/crucible/rapid/families_h1.py",
+    "crucible/src/crucible/rapid/families_h3.py",
+    "crucible/src/crucible/rapid/families_pg.py",
+    "crucible/src/crucible/rapid/oracles.py",
+    "crucible/src/crucible/rapid/primitives.py",
+    "crucible/src/crucible/rapid/references.py",
+    "crucible/src/crucible/rapid/refs_adapt.py",
+    "src/crucible/rapid/admission.py",
+    "src/crucible/rapid/families.py"
    ],
    "tests": [
+    "crucible/tests/test_v5_rapid_inventory_refs.py",
+    "crucible/tests/test_v5_rapid_prediction_v3.py",
     "tests/v5/test_gate_M.py"
    ],
    "status_claim": "MET in probes (22 of 20), to be confirmed by the registry-wide run",
@@ -152,9 +169,23 @@
   },
   "M.3": {
    "implementation_files": [
+    "crucible/src/crucible/rapid/claims_w3b.py",
+    "crucible/src/crucible/rapid/distinct.py",
+    "crucible/src/crucible/rapid/engines/planning.py",
+    "crucible/src/crucible/rapid/eval_experiment_lab.py",
+    "crucible/src/crucible/rapid/evaluator_h2.py",
+    "crucible/src/crucible/rapid/families_h1.py",
+    "crucible/src/crucible/rapid/families_h3.py",
+    "crucible/src/crucible/rapid/families_pg.py",
+    "crucible/src/crucible/rapid/oracles.py",
+    "crucible/src/crucible/rapid/primitives.py",
+    "crucible/src/crucible/rapid/references.py",
+    "crucible/src/crucible/rapid/refs_adapt.py",
     "src/crucible/rapid/families.py"
    ],
    "tests": [
+    "crucible/tests/test_v5_rapid_inventory_refs.py",
+    "crucible/tests/test_v5_rapid_prediction_v3.py",
     "tests/v5/test_gate_M.py"
    ],
    "status_claim": "MET (measured on robustly admitted families)",
@@ -173,12 +204,26 @@
   },
   "M.5": {
    "implementation_files": [
-    "src/crucible/rapid/fingerprints.py",
-    "src/crucible/rapid/engines/base.py"
+    "crucible/src/crucible/rapid/claims_w3b.py",
+    "crucible/src/crucible/rapid/distinct.py",
+    "crucible/src/crucible/rapid/engines/planning.py",
+    "crucible/src/crucible/rapid/eval_experiment_lab.py",
+    "crucible/src/crucible/rapid/evaluator_h2.py",
+    "crucible/src/crucible/rapid/families_h1.py",
+    "crucible/src/crucible/rapid/families_h3.py",
+    "crucible/src/crucible/rapid/families_pg.py",
+    "crucible/src/crucible/rapid/oracles.py",
+    "crucible/src/crucible/rapid/primitives.py",
+    "crucible/src/crucible/rapid/references.py",
+    "crucible/src/crucible/rapid/refs_adapt.py",
+    "src/crucible/rapid/engines/base.py",
+    "src/crucible/rapid/fingerprints.py"
    ],
    "tests": [
-    "tests/v5/test_gate_M.py",
-    "tests/test_v5_rapid_families.py"
+    "crucible/tests/test_v5_rapid_inventory_refs.py",
+    "crucible/tests/test_v5_rapid_prediction_v3.py",
+    "tests/test_v5_rapid_families.py",
+    "tests/v5/test_gate_M.py"
    ],
    "status_claim": "MET (gate test run, worktree)",
    "notes": "test_M5 passed at 433c4356-era tree: 93+ families, 0 missing fingerprints, 0 numeric components (fingerprint rapid-fp/3)."
@@ -197,10 +242,24 @@
   },
   "M.7": {
    "implementation_files": [
+    "crucible/src/crucible/rapid/claims_w3b.py",
+    "crucible/src/crucible/rapid/distinct.py",
+    "crucible/src/crucible/rapid/engines/planning.py",
+    "crucible/src/crucible/rapid/eval_experiment_lab.py",
+    "crucible/src/crucible/rapid/evaluator_h2.py",
+    "crucible/src/crucible/rapid/families_h1.py",
+    "crucible/src/crucible/rapid/families_h3.py",
+    "crucible/src/crucible/rapid/families_pg.py",
+    "crucible/src/crucible/rapid/oracles.py",
+    "crucible/src/crucible/rapid/primitives.py",
+    "crucible/src/crucible/rapid/references.py",
+    "crucible/src/crucible/rapid/refs_adapt.py",
     "src/crucible/rapid/admission.py",
     "src/crucible/rapid/oracles.py"
    ],
    "tests": [
+    "crucible/tests/test_v5_rapid_inventory_refs.py",
+    "crucible/tests/test_v5_rapid_prediction_v3.py",
     "tests/v5/test_gate_M.py"
    ],
    "status_claim": "MET (f1 registry run: 91 of 92 families feasible on both seed sets; 0 infeasible admitted); to be re-measured",
@@ -208,25 +267,53 @@
   },
   "M.8": {
    "implementation_files": [
+    "crucible/src/crucible/rapid/claims_w3b.py",
+    "crucible/src/crucible/rapid/distinct.py",
+    "crucible/src/crucible/rapid/engines/planning.py",
+    "crucible/src/crucible/rapid/eval_experiment_lab.py",
+    "crucible/src/crucible/rapid/evaluator_h2.py",
+    "crucible/src/crucible/rapid/families_h1.py",
+    "crucible/src/crucible/rapid/families_h3.py",
+    "crucible/src/crucible/rapid/families_pg.py",
+    "crucible/src/crucible/rapid/oracles.py",
+    "crucible/src/crucible/rapid/primitives.py",
+    "crucible/src/crucible/rapid/references.py",
+    "crucible/src/crucible/rapid/refs_adapt.py",
     "src/crucible/rapid/claims.py",
     "src/crucible/rapid/claims_h3.py",
     "src/crucible/rapid/claims_v2.py",
-    "src/crucible/rapid/evaluator_h2.py",
-    "src/crucible/rapid/eval_program_exec.py"
+    "src/crucible/rapid/eval_program_exec.py",
+    "src/crucible/rapid/evaluator_h2.py"
    ],
    "tests": [
-    "tests/v5/test_gate_M.py",
+    "crucible/tests/test_v5_rapid_inventory_refs.py",
+    "crucible/tests/test_v5_rapid_prediction_v3.py",
     "tests/test_v5_rapid_families.py",
-    "tests/test_v5_rapid_h1h2.py"
+    "tests/test_v5_rapid_h1h2.py",
+    "tests/v5/test_gate_M.py"
    ],
    "status_claim": "MET (gate test run, worktree)",
    "notes": "test_M8 passed: 92 families with intervention tests, 690 tests run on seeds 0-2 and 10-12, 0 failures; look-alike rules distinguished."
   },
   "M.n1": {
    "implementation_files": [
+    "crucible/src/crucible/rapid/claims_w3b.py",
+    "crucible/src/crucible/rapid/distinct.py",
+    "crucible/src/crucible/rapid/engines/planning.py",
+    "crucible/src/crucible/rapid/eval_experiment_lab.py",
+    "crucible/src/crucible/rapid/evaluator_h2.py",
+    "crucible/src/crucible/rapid/families_h1.py",
+    "crucible/src/crucible/rapid/families_h3.py",
+    "crucible/src/crucible/rapid/families_pg.py",
+    "crucible/src/crucible/rapid/oracles.py",
+    "crucible/src/crucible/rapid/primitives.py",
+    "crucible/src/crucible/rapid/references.py",
+    "crucible/src/crucible/rapid/refs_adapt.py",
     "src/crucible/rapid/fingerprints.py"
    ],
    "tests": [
+    "crucible/tests/test_v5_rapid_inventory_refs.py",
+    "crucible/tests/test_v5_rapid_prediction_v3.py",
     "tests/v5/test_gate_M.py"
    ],
    "status_claim": "MET (gate test run, worktree)",
@@ -299,10 +386,24 @@
   },
   "SP-7.5": {
    "implementation_files": [
+    "crucible/src/crucible/rapid/claims_w3b.py",
+    "crucible/src/crucible/rapid/distinct.py",
+    "crucible/src/crucible/rapid/engines/planning.py",
+    "crucible/src/crucible/rapid/eval_experiment_lab.py",
+    "crucible/src/crucible/rapid/evaluator_h2.py",
+    "crucible/src/crucible/rapid/families_h1.py",
+    "crucible/src/crucible/rapid/families_h3.py",
+    "crucible/src/crucible/rapid/families_pg.py",
+    "crucible/src/crucible/rapid/oracles.py",
+    "crucible/src/crucible/rapid/primitives.py",
+    "crucible/src/crucible/rapid/references.py",
+    "crucible/src/crucible/rapid/refs_adapt.py",
     "src/crucible/rapid/distinct.py",
     "src/crucible/rapid/fingerprints.py"
    ],
    "tests": [
+    "crucible/tests/test_v5_rapid_inventory_refs.py",
+    "crucible/tests/test_v5_rapid_prediction_v3.py",
     "tests/v5/test_gate_SP_7_5.py"
    ],
    "status_claim": "MET (gate test run, worktree)",
@@ -310,9 +411,23 @@
   },
   "SP-8.0": {
    "implementation_files": [
+    "crucible/src/crucible/rapid/claims_w3b.py",
+    "crucible/src/crucible/rapid/distinct.py",
+    "crucible/src/crucible/rapid/engines/planning.py",
+    "crucible/src/crucible/rapid/eval_experiment_lab.py",
+    "crucible/src/crucible/rapid/evaluator_h2.py",
+    "crucible/src/crucible/rapid/families_h1.py",
+    "crucible/src/crucible/rapid/families_h3.py",
+    "crucible/src/crucible/rapid/families_pg.py",
+    "crucible/src/crucible/rapid/oracles.py",
+    "crucible/src/crucible/rapid/primitives.py",
+    "crucible/src/crucible/rapid/references.py",
+    "crucible/src/crucible/rapid/refs_adapt.py",
     "src/crucible/rapid/families.py"
    ],
    "tests": [
+    "crucible/tests/test_v5_rapid_inventory_refs.py",
+    "crucible/tests/test_v5_rapid_prediction_v3.py",
     "tests/v5/test_gate_SP_8_0.py"
    ],
    "status_claim": "MET in probes (60 of 60 named items admitted), to be confirmed by the registry-wide run",
@@ -320,9 +435,23 @@
   },
   "SP-8.0b": {
    "implementation_files": [
+    "crucible/src/crucible/rapid/claims_w3b.py",
+    "crucible/src/crucible/rapid/distinct.py",
+    "crucible/src/crucible/rapid/engines/planning.py",
+    "crucible/src/crucible/rapid/eval_experiment_lab.py",
+    "crucible/src/crucible/rapid/evaluator_h2.py",
+    "crucible/src/crucible/rapid/families_h1.py",
+    "crucible/src/crucible/rapid/families_h3.py",
+    "crucible/src/crucible/rapid/families_pg.py",
+    "crucible/src/crucible/rapid/oracles.py",
+    "crucible/src/crucible/rapid/primitives.py",
+    "crucible/src/crucible/rapid/references.py",
+    "crucible/src/crucible/rapid/refs_adapt.py",
     "src/crucible/rapid/categories.py"
    ],
    "tests": [
+    "crucible/tests/test_v5_rapid_inventory_refs.py",
+    "crucible/tests/test_v5_rapid_prediction_v3.py",
     "tests/v5/test_gate_SP_8_0b.py"
    ],
    "status_claim": "MET in probes (6 of 6 category checks on the probe-admitted families), to be confirmed by the gate run",
