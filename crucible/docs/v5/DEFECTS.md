@@ -1211,6 +1211,190 @@ B_population verdict) and P's own findings.
 }
 ```
 
+### DEF-L-7 (high, fixed): Controller labels given at admin.join (the relatedness analysis's ground truth: which identities one party con
+
+```json
+{
+ "area": "L_experience",
+ "fixed_by": "022eff6e (core/evaluator_only.py EVENT_FIELDS id.person/id.org -> controller, observation-only worlds only; 4.0 contract unchanged) and 17a3645d (labels reach Tier 2 seats)",
+ "id": "DEF-L-7",
+ "owner": "L",
+ "regression_tests": "tests/test_v5_experience_core.py::test_kernel_env_admits_participants_with_their_controller_label, tests/test_v5_experience_repair.py::test_controller_labels_reach_tier2_seats_or_raise",
+ "requirements": [
+  "R.3",
+  "OO.2",
+  "OO.14"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream L wave 3b: found by the implementing engineer (third wave-3b agent)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Controller labels given at admin.join (the relatedness analysis's ground truth: which identities one party controls) reached every other participant through the public id.person / id.org events in observation-only worlds"
+}
+```
+
+### DEF-L-8 (high, fixed): The neural ReferenceLearner sent every integer argument as a float (2.0), which every integer schema rejects, 
+
+```json
+{
+ "area": "L_experience",
+ "fixed_by": "c5c/w3b-obs wave 3b (ReferenceLearner integer arguments are ints; ArgumentMemory, checkpointed with the learner state)",
+ "id": "DEF-L-8",
+ "owner": "L",
+ "regression_tests": "tests/test_v5_experience_core.py::test_reference_learner_draws_id_arguments_from_ids_it_has_seen",
+ "requirements": [
+  "S.2",
+  "S.3",
+  "SP-11.6c"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream L wave 3b: found by the implementing engineer (third wave-3b agent)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "The neural ReferenceLearner sent every integer argument as a float (2.0), which every integer schema rejects, so none of its integer-argument tool calls ever ran in a kernel world; it also never reused ids or name tokens from its own results"
+}
+```
+
+### DEF-L-9 (high, fixed): R.4 (legitimate_fields_missing) lost sensitivity: experience.leakage.registered_hidden stripped EVERY field th
+
+```json
+{
+ "area": "L_experience",
+ "fixed_by": "f4695894 (leakage.REVIEWED_EVALUATOR_FIELDS: the legacy side is normalised only for reviewed evaluator-only fields; leakage.unreviewed_hidden_fields() names any other registry entry and gate R.4 asserts none)",
+ "id": "DEF-L-9",
+ "owner": "L",
+ "regression_tests": "tests/test_v5_experience_repair.py::test_over_hiding_legitimate_fields_is_counted_missing_by_every_legacy_comparison, tests/test_v5_experience_repair.py::test_a_field_hidden_without_review_is_named, tests/v5/test_gate_R.py::test_R4_legitimate_observations_remain",
+ "requirements": [
+  "R.4",
+  "OO.3"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream L wave 3b: independent verification of c5c/w3b-obs at 507adb24 (verify-w3b-obs)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "R.4 (legitimate_fields_missing) lost sensitivity: experience.leakage.registered_hidden stripped EVERY field the evaluator-only registry hides from the legacy side before comparing, so a legitimate field wrongly registered as evaluator-only was not counted missing (verifier probe p6: hiding amount/memo/title/body was seen by 1 of 4 comparisons instead of 4)"
+}
+```
+
+### DEF-L-10 (medium, fixed): KernelExperienceEnv(controllers=...) silently did nothing for participants that are existing principals (every
+
+```json
+{
+ "area": "L_experience",
+ "fixed_by": "17a3645d (registry._label_seats writes the labels into the seat configuration before the world is created, recorded in the spec; add_agent raises when a label differs from an existing principal's)",
+ "id": "DEF-L-10",
+ "owner": "L",
+ "regression_tests": "tests/test_v5_experience_repair.py::test_controller_labels_reach_tier2_seats_or_raise",
+ "requirements": [
+  "SP-11.1b"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "workstream L wave 3b: independent verification of c5c/w3b-obs at 507adb24 (verify-w3b-obs)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "KernelExperienceEnv(controllers=...) silently did nothing for participants that are existing principals (every Tier 2 seat): make(2, 'crisis', 3, controllers='learner-X') left the seat's controller '' without an error"
+}
+```
+
+### DEF-L-11 (high, fixed): SP-11.6c counted degenerate 'learning improvement': Tier 1's trained copy was bit-identical to doing nothing o
+
+```json
+{
+ "area": "L_experience",
+ "fixed_by": "e3fbe109 (a tier counts only when the trained copy beats the frozen copy AND the do-nothing outcome on the mean and on >= 3 of 4 held-out seeds; the kernel-tier outcome is the money earned over the evaluation, endowments and grants excluded; cash and the domain verdict reported)",
+ "id": "DEF-L-11",
+ "owner": "L",
+ "regression_tests": "tests/v5/test_gate_SP_11_6c.py::test_SP_11_6c_learner_kinds_and_improvement_over_frozen_copies",
+ "requirements": [
+  "SP-11.6c"
+ ],
+ "resolution_note": "The measurement defect is fixed; whether SP-11.6c is MET is decided by its gate (with the current reference learners the non-degenerate improvement is not shown in every tier; see docs/v5/workstreams/L.json).",
+ "severity": "high",
+ "source": {
+  "audit": "workstream L wave 3b: independent verification of c5c/w3b-obs at 507adb24 (verify-w3b-obs)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "SP-11.6c counted degenerate 'learning improvement': Tier 1's trained copy was bit-identical to doing nothing on all four held-out seeds, and Tier 2's gain over its frozen copy was the crisis coordinator's one-time $60,000 grant held unspent (the domain's own verdict equal for trained, frozen and do-nothing)"
+}
+```
+
+### DEF-L-12 (medium, fixed): Gate OO.5 measured resident-memory growth from the end of each run's first simulated day (changed after a fail
+
+```json
+{
+ "area": "L_experience",
+ "fixed_by": "d8f8f9e1, 4635c667 (growth counted from each run's start, first day included; the process's resident memory checked every day against 9000 MB, the slot's RAM grant; one explicit, reported process warm-up)",
+ "id": "DEF-L-12",
+ "owner": "L",
+ "regression_tests": "tests/v5/test_gate_OO.py::test_OO5_operation_without_an_objective_within_resource_limits",
+ "requirements": [
+  "OO.5"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "workstream L wave 3b: independent verification of c5c/w3b-obs at 507adb24 (verify-w3b-obs)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Gate OO.5 measured resident-memory growth from the end of each run's first simulated day (changed after a failure), so growth during the first day of operation was unbounded"
+}
+```
+
+### DEF-L-13 (medium, fixed): Tier 2 leak probe: the domain-evaluator verdict channel was not probed for domains whose verdict has no distin
+
+```json
+{
+ "area": "L_experience",
+ "fixed_by": "85168502 (probes_tiers.planted_verdict: a canary and a distinctive number planted in every domain's verdict and looked for in everything the seat reaches; the real-verdict reference drive bounded by verdict_wall_s; per-domain timing; OO.14 asserts a planted scan per domain)",
+ "id": "DEF-L-13",
+ "owner": "L",
+ "regression_tests": "tests/test_v5_experience_repair.py::test_every_domain_verdict_channel_is_probed_with_a_planted_verdict",
+ "requirements": [
+  "OO.14",
+  "OO.16"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "workstream L wave 3b: independent verification of c5c/w3b-obs at 507adb24 (verify-w3b-obs)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Tier 2 leak probe: the domain-evaluator verdict channel was not probed for domains whose verdict has no distinctive number (organization, commercialization), and the OO.14 / OO.16 fixture exceeded its 9000 s budget on a GPU slot at 684eeb5 (the verdict probe drove the reference up to 30 days per domain)"
+}
+```
+
+### DEF-L-14 (low, fixed): experience.remote.evaluate started the world and learner processes with the spawn method, which re-ran an eval
+
+```json
+{
+ "area": "L_experience",
+ "fixed_by": "6291c625 (remote._without_main: both processes start without the caller's __main__)",
+ "id": "DEF-L-14",
+ "owner": "L",
+ "regression_tests": "tests/test_v5_experience_repair.py::test_an_unguarded_evaluator_script_never_runs_in_the_learner_process",
+ "requirements": [
+  "OO.4",
+  "W.2"
+ ],
+ "severity": "low",
+ "source": {
+  "audit": "workstream L wave 3b: independent verification of c5c/w3b-obs at 507adb24 (verify-w3b-obs)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "experience.remote.evaluate started the world and learner processes with the spawn method, which re-ran an evaluator script's unguarded top-level code in both, putting what it built (worlds, hidden values) into the learner's process (a garbage-collector scan found it)"
+}
+```
+
 ### DEF-M-1 (critical, fixed): Workstream M never ran: no gate V / SP-13.7 / SP-13.8 tests, no v5 benchmark, no recorded throughput targets; 
 
 ```json
