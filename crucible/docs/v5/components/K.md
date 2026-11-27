@@ -43,7 +43,12 @@ advantages divided by a running RMS of the signal (no per-batch renormalisation)
 trained on; an update counts only when the weights hash changes. Every learning group feeds a no-signal twin the
 same batches with signal 0 (it must not change). Pre-training: behaviour cloning on decisions recorded from the
 scripted demonstrator in CPU training worlds (open_digital + v5 commerce/software modules), never the evaluated
-civilisation; groups share the demonstration corpus but have their own seeds and batch orders.
+civilisation; groups share the demonstration corpus but have their own seeds and batch orders (one Adam optimiser
+across the epochs). After pre-training a frozen private copy of the network is kept as the anchor of
+behaviour-regularised learning: every reinforcement update adds 0.1 x KL(pi || prior) over the batch's tool
+distributions (as AlphaStar's league kept a KL to its supervised policy), so the sparse, mostly intrinsic signal
+refines the demonstrated workflows instead of drifting away from them (eb6f1d7; before it, rejection rates of the PPO
+and A2C groups rose from ~0.44 to ~0.71 over a civilisation run).
 
 ## Parties and integrity
 
