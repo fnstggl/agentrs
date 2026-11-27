@@ -416,10 +416,12 @@ participation targets vary by +-10% per instance; research's accuracy threshold 
 content level 4 stays at the spec's 10,000,000 viewers), and a success predicate over a domain metric registered in
 `crucible.goals.metrics` without an in-world subject and added to `EVALUATOR_ONLY_METRICS` (never readable through an
 agreement between participants). `Domain.evaluate` remains the evaluator and reads the generated parameters. References
-read only the objective's text (research parses the target phenomenon from it). The research reference fits, besides
-the handbook forms and polynomials, five general response shapes beyond the handbook (switch, damped oscillation,
-ratio of powers, two decays, periodic trend) and assumes instruments are sold at a nominal unit gain (a weak prior that
-only matters with one certified standard); population researchers still know only the handbook. This makes the
+read only the objective's text (research parses the target phenomenon from it). The research reference fits the
+handbook forms and polynomials first and, only when none explains its readings within their noise (chi-square per
+degree of freedom above 2; handbook laws give 0.83-0.87, held-out laws 13-250 on simulated readings), five general
+response shapes beyond the handbook (switch, damped oscillation, ratio of powers, two decays, periodic trend); it
+assumes instruments are sold at a nominal unit gain (a weak prior that only matters with one certified standard,
+where the gain is unidentifiable); population researchers still know only the handbook. This makes the
 structural evaluation configuration (a law outside the handbook, one standard, an optimistic datasheet) feasible for a
 researcher with a richer hypothesis space (seeds 0 and 1: novel-condition nRMSE 0.034 and 0.05 in unofficial runs). The
 content domain's platforms carry a back catalogue at genesis (module `catalogue`, FR-CATALOGUE-1): which platforms and
