@@ -1737,7 +1737,9 @@ def mechanics_report(world, since_seq: int = 0) -> dict:
     # installed, the scarce parts, fuel and crews it allocated
     me = set(K.seats_in(world, DOMAIN))
     mine = {"requests": 0, "request_priorities": 0, "agreed": 0, "help": 0, "restored": 0, "installed": 0,
-            "parts_given": 0, "parts_bought": 0, "fuelled": 0, "lent": 0}
+            "parts_given": 0, "parts_bought": 0, "fuelled": 0, "lent": 0, "repair_dispatches": 0,
+            "restored_it_touched": 0}
+    touched: set[str] = set()
     my_req: set[str] = set()
     my_inv: set[str] = set()
     my_crews = {cid for cid, x in world.state.scan("cr_crews") if x["owner"] in me}
@@ -1747,14 +1749,22 @@ def mechanics_report(world, since_seq: int = 0) -> dict:
         if t == "crisis.request" and p.get("by") in me:
             mine["requests"] += 1
             my_req.add(f"{p['operator']}|{p['target']}")
+        elif t == "crisis.crew_task" and (p.get("task") or {}).get("by") in me:
+            touched.add(p["task"]["target"])
+            mine["repair_dispatches"] += int(p["task"].get("kind") == "repair")
+        elif t == "crisis.known" and p.get("src") == "shared" and p["observer"].startswith("o:") and \
+                p.get("damaged"):
+            touched.add(p["asset"])
         elif t == "crisis.priority" and p["reason"] == "request" and f"{p['operator']}|{p['target']}" in my_req:
             mine["request_priorities"] += 1
+            touched.add(p["target"])
         elif t == "crisis.agreed" and p.get("with") in me:
             mine["agreed"] += 1
         elif t == "crisis.help" and p.get("by") in me:
             mine["help"] += 1
-        elif t == "crisis.restored" and p.get("by") in me:
-            mine["restored"] += 1
+        elif t == "crisis.restored":
+            mine["restored"] += int(p.get("by") in me)
+            mine["restored_it_touched"] += int(p.get("by") in me or p["id"] in touched)
         elif t == "crisis.invest" and p.get("owner") in me:
             my_inv.add(p["id"])
         elif t == "crisis.installed" and p["id"] in my_inv:
@@ -1797,14 +1807,18 @@ def mechanics_report(world, since_seq: int = 0) -> dict:
                                         "fuel_deliveries": mine["fuelled"], "crews_lent": mine["lent"],
                                         "crisis.wait_part": c["crisis.wait_part"],
                                         "crisis.backup_dry": c["crisis.backup_dry"]}},
-        "Prioritization": {"exercised": mine["requests"] > 0 and mine["request_priorities"] > 0,
+        # its priorities took effect: operators working its requests, or its own crews sent to repair by its order
+        "Prioritization": {"exercised": mine["request_priorities"] + mine["repair_dispatches"] > 0,
                            "events": {"its_requests": mine["requests"],
                                       "operator_tasks_on_its_requests": mine["request_priorities"],
-                                      **{f"priority:{k}": v for k, v in reasons.items()}}},
+                                      "its_repair_dispatches": mine["repair_dispatches"]}},
         "Coordination": {"exercised": mine["agreed"] > 0 and mine["help"] > 0,
                          "events": {"agreements_with_it": mine["agreed"], "its_help": mine["help"]}},
-        "Recovery": {"exercised": mine["restored"] > 0, "events": {"restored_by_its_crews": mine["restored"],
-                                                                   "crisis.restored": c["crisis.restored"]}},
+        # restorations its decisions contributed to: by its crews, of assets an operator worked on at its request,
+        # it sent its crews to, or whose damage it reported to the operator
+        "Recovery": {"exercised": mine["restored_it_touched"] > 0,
+                     "events": {"restored_by_its_crews": mine["restored"],
+                                "restored_where_it_acted": mine["restored_it_touched"]}},
         "Resilience": {"exercised": on_backup > 0 and mine["installed"] > 0,
                        "events": {"facility_states_on_backup": on_backup, "its_investments_installed": mine["installed"]}},
         "Independent service-restoration metrics": {
