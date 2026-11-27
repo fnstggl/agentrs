@@ -585,7 +585,16 @@
  "test_results_unofficial": {
   "tests/test_v5_population_core.py": "16 passed, 0 failed (CPU, in chunks, 178cab6; incl. test_same_seed_same_hashes_replay_regeneration_and_resume, which failed at 44fa731 and earlier in this environment because the interest-space projection was batch-dependent, and the new day-review and projection regression tests)",
   "tests/test_v5_population_api.py tests/test_kernel.py tests/test_invariants.py": "57 passed, 0 failed (CPU)",
-  "tests/test_v5_population_api.py": "6 passed, 0 failed (CPU, 178cab6)"
+  "tests/test_v5_population_api.py": "6 passed, 0 failed (CPU, 178cab6)",
+  "tests/test_v5_population_core.py tests/test_v5_population_api.py (9fcb0a0e code, CPU)": "25 passed, 0 failed across this session's runs: 24 passed at 804c27fa; after the attention deferral 23 passed + the fork-alignment test failed once on a sandbox billing difference under load (test then narrowed to the population's decision batches: passed 3 of 3 later runs); new tests: fork alignment, session utilities, class-2 pending-attention observation",
+  "queued slot jobs (snapshots of 9fcb0a0e; outputs)": {
+   "gate B (30 d standard + social)": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_B2.full, evidence /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/evidence_B2",
+   "gate G + SP-4.4": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_G2.full, evidence /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/evidence_G2",
+   "SP-3.1 SP-4.1 SP-3.2c SP-3.4": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_I2.full, evidence /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/evidence_I2",
+   "trial merge (this branch + c5c/w3b-soc + c5c/w3b-sem): SP-3.2 (class 4) and SP-4.0": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_T.log, evidence /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/evidence_T",
+   "regression of population-dependent tests (25 files)": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_R2.full"
+  },
+  "regression at 178cab6 (predecessor, GPU slot)": "351 passed, 6 failed of 357: test_v5_calibration_inworld x4 (fixture grants; c5c/w3b-kcal updated the test file for this branch), test_v5_substrate_history::test_events_of_an_individual_include_its_cohort_decisions and test_v5_econ_work::test_demand_comes_from_population_individuals_paying_their_own_money (both assume pre-D-30 population behaviour; precise patches in integration_notes)"
  },
  "performance": {
   "world": "population_world('development', 41, n=1500, sites=14, 32 adaptive, no strategic/semantic), strict, one CPU thread, CUDA hidden, warm machine text cache, days 2-4, no profiler (probe perfcmp.py)",
