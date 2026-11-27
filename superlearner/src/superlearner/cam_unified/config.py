@@ -166,6 +166,8 @@ class CamConfig:
     wm_ema_target: bool = True        # EMA target encoder for the latent targets (False = no EMA target)
     kl_free_bits_group: float = 0.0   # free bits per stochastic group (0 = kl_free_nats over the whole latent)
     wm_consistency: float = 0.0       # weight of L_cons = ||(Z_hat_{t+1} - sg(Z_post)) / sd||^2 (0 = off)
+    wm_open_loop_starts: Optional[int] = None   # open-loop rollout starts per replay window (random subset; None =
+                                                # the WorldModel default 8; fewer = less world-loss activation memory)
     burn_in: int = 0                  # replay burn-in decisions without gradient before the graded steps
     bptt_steps: int = 0               # graded replay decisions after the burn-in (0 = the agent's seq_len)
     # reward channels, labels and the integrated learner [W1 / W2 / W7 / W8]
@@ -193,7 +195,8 @@ class CamConfig:
     world_core_share_max: float = 1.0  # cap on the world objective's share of the core gradient (balancing target)
     microbatch: int = 0               # learner microbatch in decisions (0 = the whole batch)
     sat_optimizer: str = "adamw"      # optimiser of the non-core groups in the W7 named-group trainer: "adamw" or
-                                      # "adafactor" (factored second moments, no first moment; plan §4 G3 fallback)
+                                      # "adafactor" (factored second moments, no first moment; plan §4 G3 fallback);
+                                      # "adafactor_all": Adafactor for the core groups too
 
     def to_dict(self) -> dict:
         return asdict(self)

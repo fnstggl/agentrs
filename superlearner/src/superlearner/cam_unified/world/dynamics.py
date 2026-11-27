@@ -257,7 +257,8 @@ class WorldModel(nn.Module):
         self.weights = dict(self.DEFAULT_WEIGHTS, **(loss_weights or {}))
         self.ema_decay = cfg.ema_target if ema_decay is None else ema_decay
         self.open_loop_samples = open_loop_samples
-        self.open_loop_starts = open_loop_starts
+        ols_cfg = getattr(cfg, "wm_open_loop_starts", None)
+        self.open_loop_starts = open_loop_starts if ols_cfg is None else (int(ols_cfg) or None)
         self.latent_temperature = latent_temperature
         self.latent_floor_rms = latent_floor_rms
         self.obs_temperature = obs_temperature

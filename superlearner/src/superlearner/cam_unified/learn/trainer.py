@@ -290,14 +290,18 @@ class CombinedTrainer:
     def _make_opt(self, pg: list):
         if not pg:
             return None
-        if str(getattr(self.cfg, "sat_optimizer", "adamw") or "adamw") == "adafactor" and \
-                any(str(g.get("group", "")) for g in pg):
+        mode = str(getattr(self.cfg, "sat_optimizer", "adamw") or "adamw")
+        if mode not in ("adamw", "adafactor", "adafactor_all"):
+            raise ValueError(f"cfg.sat_optimizer {mode!r}: 'adamw', 'adafactor' or 'adafactor_all'")
+        if mode != "adamw" and any(str(g.get("group", "")) for g in pg):
             # fresh dicts with the trainer's own keys only (torch writes its defaults, e.g. AdamW's eps, into the
             # dicts it is given, and those are the trainer's _pg_spec entries)
             base = [{k: g[k] for k in ("params", "lr", "weight_decay", "name", "base_lr", "group") if k in g}
                     for g in pg]
-            core = [g for g in base if str(g.get("group", "")).startswith("core")]
-            sat = [g for g in base if not str(g.get("group", "")).startswith("core")]
+            is_core = (lambda g: False) if mode == "adafactor_all" else \
+                (lambda g: str(g.get("group", "")).startswith("core"))
+            core = [g for g in base if is_core(g)]
+            sat = [g for g in base if not is_core(g)]
             if sat:
                 return SplitOptimizer(self._make_adamw(core) if core else None, torch.optim.Adafactor(sat))
         return self._make_adamw(pg)
