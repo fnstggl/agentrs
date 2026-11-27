@@ -98,3 +98,30 @@ def test_random_insertion_places_one_uniform_recent_item_after_the_inbox():
     assert np.all((feed[ins] >= 100) & (feed[ins] < 200))
     picked = feed[ins]
     assert len(np.unique(picked)) > 60                   # spread over the candidates (uniform draw)
+
+
+def test_random_insertion_on_a_catalogue_smaller_than_the_feed_swaps_the_drawn_item_into_its_slot():
+    """A catalogue of fewer live items than feed slots (a young civilisation's short-video platform): every drawn
+    item is already in the feed, and the experiment still exposes it at the drawn slot (the recommendation there
+    moves to the item's old slot) - the random arm exists, nothing is lost or duplicated, inbox items stay."""
+    from crucible.social import audience as AUD
+    from crucible.social import contentopen as CO
+    V, k = 3000, 8
+    cand = np.arange(6, dtype=np.int64)                  # six live items
+    feed = np.tile(np.array([5, 4, 3, 2, 1, 0, -1, -1], np.int64), (V, 1))   # recommenders placed all six
+    src = np.full((V, k), 5, np.int8)
+    src[:, 6:] = 0
+    gen = np.zeros((V, k), np.uint8)
+    n_in = np.full(V, 1)                                 # slot 0 is the share inbox (item 5 was shared)
+    before = feed.copy()
+    CO.insert_into(feed, src, gen, n_in, cand, np.random.default_rng(2), 0.2)
+    ins = src == AUD.SOURCE_CODE["random"]
+    rows = ins.any(axis=1)
+    assert 0.14 < rows.mean() < 0.2                      # rate x 5/6 (draws of the inbox item are not inserted)
+    assert ins.sum(axis=1).max() == 1 and not ins[:, 0].any()
+    assert np.all(feed[:, 0] == 5)                       # the share inbox is untouched
+    for v in np.flatnonzero(rows)[:300]:
+        assert sorted(feed[v].tolist()) == sorted(before[v].tolist())   # a permutation: nothing lost or doubled
+    slots = np.flatnonzero(ins.any(axis=0))
+    assert set(slots.tolist()) == set(range(1, k))       # every slot after the inbox can hold the random item
+    assert set(np.unique(feed[ins]).tolist()) == {0, 1, 2, 3, 4}

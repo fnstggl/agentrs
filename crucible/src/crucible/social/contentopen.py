@@ -240,7 +240,14 @@ def insert_random(world, platform: str, feed: np.ndarray, src: np.ndarray, gen: 
 
 def insert_into(feed: np.ndarray, src: np.ndarray, gen: np.ndarray, n_in: np.ndarray, cand: np.ndarray, rng,
                 rate: float) -> None:
-    """The insertion itself (pure): three uniform draws per feed (insert?, slot, item) whatever the outcome."""
+    """The insertion itself (pure): three uniform draws per feed (insert?, slot, item) whatever the outcome.
+
+    The drawn item takes the drawn slot. When the recommenders already placed that item elsewhere in the feed (the
+    usual case on a small catalogue, where a feed holds most live items), the two slots swap: the item is shown at
+    the drawn slot as the random exposure and the recommendation that held the slot moves to the item's old slot,
+    so the random arm's item and position stay the uniform draws whatever the recommenders chose (skipping such
+    draws, as before, left a catalogue of fewer items than slots with no random exposure at all). An item already
+    in the viewer's share inbox (shared to it) is not drawn again (no insertion)."""
     V, k = feed.shape
     if V == 0 or k == 0 or rate <= 0:
         return
@@ -254,9 +261,13 @@ def insert_into(feed: np.ndarray, src: np.ndarray, gen: np.ndarray, n_in: np.nda
         if lo >= k:
             continue
         item = int(cand[min(int(pick[v] * cand.size), cand.size - 1)])
-        if np.any(feed[v] == item):
+        if np.any(feed[v, :lo] == item):
             continue
         s = lo + min(int(pos[v] * (k - lo)), k - lo - 1)
+        at = np.flatnonzero(feed[v] == item)
+        if at.size and int(at[0]) != s:
+            t = int(at[0])
+            feed[v, t], src[v, t], gen[v, t] = feed[v, s], src[v, s], gen[v, s]
         feed[v, s] = item
         src[v, s] = AUD.SOURCE_CODE["random"]
         gen[v, s] = 0
