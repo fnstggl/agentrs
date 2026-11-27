@@ -1,0 +1,180 @@
+"""cam_live.eval.meta_checks — the six reward meta-learning checks of spec 16.5 on the integrated agent.
+
+Inputs: a run directory written by ``experiments.run_condition(..., save_dir=...)`` (its experience store, the
+pre-experience export and the experienced checkpoint) and the run's result JSON (its meta-update records).
+The experienced agent is rebuilt from the checkpoint over a *copy* of the run's learner directory; nothing is
+written back. Per run:
+
+1. reward parameters affect the inner update: theta_K(psi_post) vs theta_K(psi_pre) from the same theta_0 on the
+   same support batch, both at the live bootstrap mix and at mix 0 (the differentiated update); noise floor =
+   the same update repeated with the same psi
+2. the inner update changes policy behaviour: total variation of pi_theta0 vs pi_thetaK on held-out rows
+3. verified outcomes drive reward optimisation: every applied meta-update had >= min_independent independent
+   verified outcome groups; the run-level ablation (``E_unverified``: signatures refused) has no applied update
+4. nonzero valid meta-gradients reach psi: applied updates with |dJ/dpsi| > 0 and a changed reward version; the
+   reward group hash of the experienced export differs from the pre-experience export
+5. removing the meta-gradient removes the pathway: ``D`` (meta-updates off) and ``E_unverified`` keep psi
+   bit-identical to the pre-experience export while their other groups change
+6. changes beyond magnitude: rank correlation of learned rewards (psi_pre vs psi_post) over the run's records,
+   and the policy update under a pure rescaling of R_psi's output (must be identical: magnitude is normalised
+   away) against the update under psi_pre (differs only if the reward's *shape* changed)
+"""
+from __future__ import annotations
+
+import json
+import math
+import os
+import shutil
+import tempfile
+from typing import Any, Dict, List, Optional, Sequence
+
+import torch
+
+from .stats import spearman
+
+
+def _tv(p: torch.Tensor, q: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    return 0.5 * ((p - q).abs() * mask).sum(-1)
+
+
+def _norm(theta: Dict[str, torch.Tensor], other: Dict[str, torch.Tensor]) -> float:
+    return math.sqrt(sum(float(((theta[k].double() - other[k].double()) ** 2).sum()) for k in theta))
+
+
+def load_experienced(root: str, work: str) -> Any:
+    from ..agent import CamLiveAgent
+    from ..config import CamLiveConfig
+    from ..validation import OffsetClock
+    with open(os.path.join(root, "export_post", "config.json")) as f:
+        meta = json.load(f)
+    cfg = CamLiveConfig.from_dict(meta["config"])
+    cfg.device = "cpu" if not torch.cuda.is_available() or cfg.backbone.name == "tiny" else cfg.device
+    shutil.copytree(os.path.join(root, "agent"), os.path.join(work, "agent"))
+    agent = CamLiveAgent(cfg, os.path.join(work, "agent"), clock=OffsetClock())
+    agent.load(os.path.join(root, "ckpt_post"))
+    return agent
+
+
+def reward_group(export_dir: str) -> Dict[str, torch.Tensor]:
+    from ..credit.checkpoint import load_weights_only
+    w, _ = load_weights_only(export_dir)
+    return dict(w.get("reward", {}))
+
+
+def group_hashes(export_dir: str) -> Dict[str, str]:
+    with open(os.path.join(export_dir, "config.json")) as f:
+        return json.load(f).get("group_hashes", {})
+
+
+def _psi_from(agent: Any, tensors: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    """psi (as ``meta.reward.psi()`` names it) with the reward-group tensors ``tensors`` (model parameter names)."""
+    params = dict(agent.model.named_parameters())
+    saved = {n: params[n].detach().clone() for n in tensors if n in params}
+    with torch.no_grad():
+        for n, t in tensors.items():
+            if n in params:
+                params[n].copy_(t.to(params[n].device, params[n].dtype))
+        psi = {k: v.detach().clone() for k, v in agent.meta.reward.psi().items()}
+        for n, t in saved.items():
+            params[n].copy_(t)
+    return psi
+
+
+def run_checks(root: str, result: Dict[str, Any], *, max_support: int = 16) -> Dict[str, Any]:
+    work = tempfile.mkdtemp(prefix="camlive_meta_checks_")
+    try:
+        agent = load_experienced(root, work)
+        meta = agent.meta
+        recs = [r for r in sorted(agent.store.all(), key=lambda r: r.seq) if meta.inner.eligible(r)]
+        out: Dict[str, Any] = {"condition": result["condition"], "seed": result["seed"], "n_eligible": len(recs),
+                               "live_mix": float(meta.mixer.mix)}
+        if len(recs) < 6:
+            out["skipped"] = "fewer than 6 eligible records"
+            return out
+        half = max(3, min(max_support, len(recs) // 2))
+        sup, held = recs[-2 * half:-half] if len(recs) >= 2 * half else recs[:half], recs[-half:]
+        ib = meta.inner.build_batch(agent.store, sup)
+        ibh = meta.inner.build_batch(agent.store, held)
+        theta0 = meta.subset.snapshot()
+        psi_post = {k: v.detach().clone() for k, v in meta.reward.psi().items()}
+        psi_pre = _psi_from(agent, reward_group(os.path.join(root, "export_pre")))
+        lr, K = float(meta.mc.inner_lr), int(meta.mc.inner_steps)
+
+        def thetaK(psi: Dict[str, torch.Tensor], mix: float) -> Dict[str, torch.Tensor]:
+            tr = meta.engine.inner_update(theta0, psi, [ib.with_mix(mix)], lr, K, create_graph=False)
+            return {k: v.detach() for k, v in tr.detached().items()}
+
+        res1: Dict[str, Any] = {}
+        for label, mix in (("live_mix", float(meta.mixer.mix)), ("mix0_differentiated", 0.0)):
+            a = thetaK(psi_post, mix)
+            a2 = thetaK(psi_post, mix)
+            b = thetaK(psi_pre, mix)
+            res1[label] = {"mix": mix, "delta_theta_psi_post_vs_psi_pre": _norm(a, b),
+                           "noise_floor_same_psi": _norm(a, a2), "update_norm": _norm(a, theta0)}
+        out["1_reward_params_affect_inner_update"] = res1
+        # 2: behaviour change of the inner update on held-out rows
+        a = thetaK(psi_post, float(meta.mixer.mix))
+        with torch.no_grad():
+            p0 = meta.subset.forward(theta0, ibh).probs.double()
+            p1 = meta.subset.forward(a, ibh).probs.double()
+            m = ibh.a_mask.double()
+            tv = _tv(p0, p1, m)
+        out["2_inner_update_changes_policy"] = {"heldout_rows": int(tv.numel()), "tv_mean": float(tv.mean()),
+                                                "tv_max": float(tv.max())}
+        # 6: beyond magnitude
+        with torch.no_grad():
+            _, aux_post = meta.inner.functional(theta0, psi_post, ibh.with_mix(0.0), detach_reward=True,
+                                                return_aux=True)
+            _, aux_pre = meta.inner.functional(theta0, psi_pre, ibh.with_mix(0.0), detach_reward=True,
+                                               return_aux=True)
+        lp, lq = [float(x) for x in aux_pre["learned"].flatten()], [float(x) for x in aux_post["learned"].flatten()]
+        scaled = dict(psi_post)
+        last_w = [k for k, v in psi_post.items() if v.dim() == 2][-1]
+        last_b = last_w.replace("weight", "bias")
+        scaled[last_w] = psi_post[last_w] * 3.0
+        if last_b in scaled:
+            scaled[last_b] = psi_post[last_b] * 3.0
+        a0 = thetaK(psi_post, 0.0)
+        a_scaled = thetaK(scaled, 0.0)
+        a_pre = thetaK(psi_pre, 0.0)
+        out["6_beyond_magnitude"] = {
+            "spearman_learned_reward_pre_vs_post": spearman(lp, lq), "n_rows": len(lp),
+            "mean_abs_learned_pre": sum(abs(x) for x in lp) / len(lp),
+            "mean_abs_learned_post": sum(abs(x) for x in lq) / len(lq),
+            "delta_theta_output_scaled_x3_vs_post": _norm(a_scaled, a0), "rescaled_layer": last_w,
+            "delta_theta_psi_pre_vs_post": _norm(a_pre, a0)}
+        # 3 / 4 from the run's meta-update records
+        metas = result.get("extract", {}).get("meta_updates", [])
+        applied = [x for x in metas if x.get("applied")]
+        valid = [x for x in applied if (x.get("meta_grad_norm") or 0.0) > 0 and
+                 x.get("reward_version_before") != x.get("reward_version_after")]
+        out["3_4_meta_updates"] = {
+            "n_records": len(metas), "applied": len(applied), "applied_nonzero_changed_version": len(valid),
+            "min_independent_required": int(meta.mc.min_independent),
+            "applied_with_fewer_independent_outcomes": sum(1 for x in applied if (x.get("n_independent_outcomes") or 0)
+                                                           < meta.mc.min_independent),
+            "meta_grad_norms": [x.get("meta_grad_norm") for x in valid][:20],
+            "skip_reasons": _count(str(x.get("skipped_reason", "")).split(":")[0] for x in metas
+                                   if not x.get("applied"))}
+        hp, hq = group_hashes(os.path.join(root, "export_pre")), group_hashes(os.path.join(root, "export_post"))
+        out["group_changed_pre_to_post"] = {g: hp.get(g) != hq.get(g) for g in sorted(set(hp) | set(hq))}
+        return out
+    finally:
+        try:
+            agent.close()  # type: ignore[possibly-undefined]
+        except Exception:  # noqa: BLE001
+            pass
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def _count(xs: Any) -> Dict[str, int]:
+    d: Dict[str, int] = {}
+    for x in xs:
+        d[x] = d.get(x, 0) + 1
+    return d
+
+
+def pathway_ablation(root: str) -> Dict[str, Any]:
+    """Check 5 for a run without the meta pathway (D / E_unverified): which groups changed pre -> post."""
+    hp, hq = group_hashes(os.path.join(root, "export_pre")), group_hashes(os.path.join(root, "export_post"))
+    return {g: hp.get(g) != hq.get(g) for g in sorted(set(hp) | set(hq))}
