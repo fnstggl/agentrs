@@ -219,3 +219,26 @@ def test_a_refused_publication_undoes_the_text_it_stored(ablated):
     assert a.history[-1]["ok"] is True and "artifact.stored" in ok["types"]
     assert len(a.seen["own_refs"]) == 1 and a.seen["own_refs"][0] in a.known
     assert a.history[-1]["seq"][0] <= a.history[-1]["seq"][1]
+
+
+def test_a_reasoning_first_choice_runs_the_thinking_mode_then_picks_an_option():
+    """LMBrain with a reasoning budget (D-38): the Qwen3 model first generates in its thinking mode (bounded), then an
+    option is named or scored after the closed reasoning; without a budget the options are scored directly."""
+    import torch
+    torch.set_num_threads(1)
+    from crucible.semantic.generalists import brain as B
+    small = "Qwen/Qwen3-0.6B"
+    req = {"messages": [{"role": "system", "content": "You choose services."},
+                        {"role": "user", "content": "You want to send $20 to a friend. Which service do you use?\n"
+                                                    "- bank: accounts and payments\n- blog: articles\n- tube: videos\n"
+                                                    "Answer with the service name only."}],
+           "choices": ["bank", "blog", "tube"], "normalize": "mean", "prefix_messages": 1}
+    b = B.LMBrain({c: small for c in routing.TABLE}, think={"tool_choice": 24})
+    svc = b.service("tool_choice")
+    n0 = svc.stats["requests"]
+    picks = b.choose(None, "tool_choice", [req])
+    assert len(picks) == 1 and 0 <= picks[0] < 3 and b.calls["think"] == 1
+    assert svc.stats["requests"] - n0 >= 1          # the thinking generation (plus a rescoring when it named none)
+    plain = B.LMBrain({c: small for c in routing.TABLE}, think={})
+    assert plain.think_tokens("tool_choice") == 0 and plain.choose(None, "tool_choice", [req])[0] in (0, 1, 2)
+    assert B.LMBrain({c: SMALL for c in routing.TABLE}, think={"tool_choice": 24}).think_tokens("tool_choice") == 0
