@@ -723,6 +723,7 @@ def test_OO9_every_public_entry_point_defaults_to_observation_only(tmp_path):
     from crucible.experience.gym import ExperienceGymEnv, ExperienceParallelEnv
     from crucible.experience.loop import run_learner
     from crucible.experience.reference import ReferenceLearner
+    from crucible.experience.statistical import ToolValueLearner
     from crucible.research import protocols as P
     from crucible.research.bridge import KernelMechEnv
     from crucible.research.envs import MechVecEnv
@@ -753,6 +754,7 @@ def test_OO9_every_public_entry_point_defaults_to_observation_only(tmp_path):
         "selfplay.arena.KernelSelfPlayEnv": lambda: KernelSelfPlayEnv(t2),
         "scale.rollout.WorldEnv": lambda: WorldEnv({"family": "tiny", "seed": 0, "overrides": {"n_consumers": 40}}),
         "experience.reference.ReferenceLearner": lambda: ReferenceLearner(),
+        "experience.statistical.ToolValueLearner": lambda: ToolValueLearner(),
         "experience.gym.ExperienceGymEnv": lambda: ExperienceGymEnv(1, "rapid:net_routing", 0),
         "experience.gym.ExperienceParallelEnv": lambda: ExperienceParallelEnv(1, "rapid:team_commons", 0),
         "api.mcp_server.MCPHandler": lambda: _mcp_default(mcp_server),
