@@ -138,7 +138,7 @@ def make_overlay(base_snapshot: str, eval_commit: str = "HEAD") -> str:
     dest = base + f"+eval{sha[:12]}"
     if not os.path.exists(os.path.join(dest, "COMMIT")):
         import shutil
-        shutil.copytree(base, dest)
+        shutil.copytree(base, dest, ignore=shutil.ignore_patterns("runs"))
         ev = os.path.join(dest, "cam_live", "src", "cam_live", "eval")
         shutil.rmtree(ev)
         arch = subprocess.run(["git", "-C", repo, "archive", sha, "cam_live/src/cam_live/eval"], capture_output=True,

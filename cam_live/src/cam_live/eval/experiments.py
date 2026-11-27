@@ -138,7 +138,9 @@ def run_condition(condition: str, family: str, seed: int, *, n_lifetimes: int, m
         base.device = device
     if base.device == "cuda" or (base.device == "auto" and torch.cuda.is_available()):
         torch.cuda.reset_peak_memory_stats()
-    root = os.path.abspath(save_dir or os.path.join(EVAL_HOME, "runs", f"{condition}_{family}_s{seed}"))
+    tag = f"{condition}_{family}_s{seed}" + (f"_{scale}" if scale else "") + ("_real" if real else "") + \
+        (f"_{device}" if device else "")
+    root = os.path.abspath(save_dir or os.path.join(EVAL_HOME, "runs", tag))     # distinct per scale / backbone
     if os.path.exists(root):
         shutil.rmtree(root)
     os.makedirs(root)
