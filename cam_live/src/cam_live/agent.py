@@ -1702,6 +1702,10 @@ class CamLiveAgent:
         immediate: List[OutcomeObservation] = []
         for q in selfq:
             if q.metric == QUERY_EXEC_OK:
+                if result.status == ResultStatus.NEEDS_APPROVAL:
+                    # not executed yet: answered when the approved action executes (a stored final outcome is
+                    # history and can never be replaced, D-14)
+                    continue
                 ok = result.status == ResultStatus.OK and result.verified is not False
                 o = OutcomeObservation(query_id=q.query_id, status=OutcomeStatus.OBSERVED, value=1.0 if ok else 0.0,
                                        observed_at=float(result.ended or decision.ts), verified=False,
@@ -1725,8 +1729,8 @@ class CamLiveAgent:
             existing.result, existing.post_item_refs = result, post
             existing.pending_queries = list(result.expected_outcomes) + askedq
             existing.queries = selfq
-            existing.outcomes = [o for o in existing.outcomes if o.query_id not in {x.query_id for x in outcomes}]
-            existing.outcomes += outcomes
+            held = {x.query_id for x in existing.outcomes}
+            existing.outcomes = list(existing.outcomes) + [o for o in outcomes if o.query_id not in held]
             existing.duration_s = max(0.0, float(result.ended - result.started)) if result.ended else 0.0
             self.store.update(existing)
         if immediate:

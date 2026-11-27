@@ -98,3 +98,38 @@ def test_backbone_program_takes_the_modality_of_the_program_tool(tmp_path):
             inv.get("interface_not_permitted") == 1
     finally:
         agent.close()
+
+
+def test_a_result_after_approval_is_recorded_without_rewriting_history(tmp_path):
+    """Defect measured on the real configuration (staging validation of 2026-11-27, computer phase): the result of an
+    action executed after the operator approved it was refused by the append-only store ("stored outcome of query ...
+    removed or rewritten"), because the queued placeholder had already been given an execution outcome (failed) that
+    the executed result then replaced. The agent now answers the execution question only when the action executes."""
+    from cam_live.contracts import ActionResult, ResultStatus
+    from cam_live.diagnostics.world import LabVerifier, LabWorld, lab_task
+    from int_helpers import lab_config
+    clock = SimClock()
+    world = LabWorld(lab_config(71), clock)
+    agent = CamLiveAgent(agent_config(use_backbone=False, planner=False), str(tmp_path / "a"), clock=clock,
+                         verifier=LabVerifier(world))
+    try:
+        agent.set_objective(lab_task(world, "obj_approval"))
+        agent.ingest(list(world.observe()))
+        agent.update_beliefs()
+        evals = agent.evaluate([c for c in agent.propose(world.discover_tools(), 8) if not world.validate_action(c)])
+        d = agent.select(evals)
+        t0 = clock.now()
+        agent.record_result(d, ActionResult(action_id=d.chosen.action_id, status=ResultStatus.NEEDS_APPROVAL,
+                                            started=t0, ended=t0))
+        queued = agent.store.by_decision(d.decision_id)
+        assert queued is not None and queued.result.status == ResultStatus.NEEDS_APPROVAL
+        assert not [o for o in queued.outcomes if o.status in DONE]      # nothing executed, nothing answered
+        clock.advance(60.0)
+        agent.record_result(d, ActionResult(action_id=d.chosen.action_id, status=ResultStatus.OK, started=clock.now(),
+                                            ended=clock.now() + 1.0, verified=True))
+        rec = agent.store.by_decision(d.decision_id)
+        assert rec.result.status == ResultStatus.OK
+        ok = [o for o in rec.outcomes if o.status in DONE]
+        assert ok and all(o.value == 1.0 for o in ok if o.source == "environment:action_result"), ok
+    finally:
+        agent.close()
