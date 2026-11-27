@@ -118,3 +118,15 @@ def test_evaluator_gives_the_same_verdict_on_a_world_rebuilt_from_its_log():
     rep = base.evaluator_report(O.DOMAIN, "four_goals", 0, 6)
     assert rep["ok"] and rep["replay_equal"] and rep["replay_digest_equal"], rep
 
+
+
+@pytest.mark.slow
+@pytest.mark.timeout(1800)
+def test_every_configuration_has_a_feasibility_witness():
+    """The hidden scripted reference succeeds on seed 0 of every configuration (measured 2026-11-27: 20/20 on seeds
+    0, 1, 2, 12) - growth_heavy and no_mission_tight had no witness before levies were weighed by their amount and
+    the convener priced them from the public telemetry."""
+    for c in O.DOMAIN.configs:
+        r = base.run("organization", c.name, 0, policy="reference")
+        assert r["success"], (c.name, (r["outcome"] or {}).get("details"))
+        assert r["labels"]["scripted"] is True
