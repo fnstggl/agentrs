@@ -228,7 +228,7 @@ class Marketplace(Module):
             if x["status"] != "active":
                 continue
             r = st.get("mkt_sellers", x["seller"])
-            if r is None or r["category"] != cat:
+            if r is None or r["category"] != cat or st.has("mkt_bans", f"{ex}|{x['seller']}"):
                 continue
             inv = st.get("inventory", f"{x['seller']}|{r['sku']}")
             if inv is None or inv["qty"] <= 0:
@@ -627,15 +627,28 @@ class Marketplace(Module):
     @endpoint("ban", S.obj({"exchange": S.s_str(maxLength=40), "seller": S.s_str(maxLength=40)},
                            ["exchange", "seller"]), cost_s=60)
     def ep_ban(self, ctx, exchange, seller):
-        """Remove a trader from an exchange you operate (its listings close; it cannot list there again)."""
+        """Remove a trader from an exchange you operate: its listings there are no longer shown to the exchange's
+        shoppers, the trader withdraws them (`xchg.delist`, its own act) and it cannot list there again."""
         self._operator_of(ctx, exchange)
         st = ctx.state
-        for lid in st.find_ids("xchg_listings", "seller", seller):
+        if not st.has("principals", seller):
+            raise NotFound(f"no trader {seller}")
+        ctx.emit("mkt.ban", {"id": f"{exchange}|{seller}", "exchange": exchange, "seller": seller}, vis="public")
+        if st.has("mkt_sellers", seller):
+            ctx.schedule(ctx.now, "mktplace.withdraw", {"exchange": exchange, "seller": seller}, prio=40)
+        return {"ok": True}
+
+    @process("withdraw")
+    def pr_withdraw(self, ctx, exchange, seller):
+        """A banned trader withdraws its listings from the exchange that banned it."""
+        st = ctx.state
+        for lid in sorted(st.find_ids("xchg_listings", "seller", seller)):
             x = st.tables["xchg_listings"][lid]
             if x["exchange"] == exchange and x["status"] == "active":
-                ctx.emit("xchg.listing_status", {"id": lid, "status": "closed"}, vis="public")
-        ctx.emit("mkt.ban", {"id": f"{exchange}|{seller}", "exchange": exchange, "seller": seller}, vis="public")
-        return {"ok": True}
+                err = contain(ctx, ctx.call, "xchg.delist", {"listing": lid}, seller)
+                if err is not None:
+                    ctx.emit("mkt.failed", {"what": "withdraw", "seller": seller, "error": str(err)[:200]},
+                             vis="internal")
 
     @endpoint("promote", S.obj({"exchange": S.s_str(maxLength=40), "cents": S.s_int(minimum=100, maximum=10**8)},
                                ["exchange", "cents"]), cost_s=60)
