@@ -55,3 +55,13 @@ activations of the bound runtime, not by the activations.
   nothing (deposited earlier the same day, nothing accrued).
 * A page the population fetches for the first time is represented with ONE call of the shared space for its text and
   its slate's headlines (it was two).
+* `popweb.seen` (the resource table's entry-page record) is delta-only: a page served from its cached record rewrites
+  nothing. A web session spends its attention in ONE ledger batch at its end (within the session the session budget
+  binds; class 2's observation subtracts the minutes still pending).
+* Measured (population-only development world, 1,500 individuals, warm text cache, one CPU thread, days 2-4, no
+  profiler; `perfcmp.py` of the wave-3b continuation): 55433e7 4.01 ms CPU per web visit (1,270-1,450 visits a day,
+  664 simulated days per CPU-hour); this branch 1.50 ms per web visit (5,660-6,840 visits a day: sessions now spend
+  real session budgets over up to five visits) and 377 simulated days per CPU-hour; 4184cce (wave 3b before the R6/R7
+  work) 1.45 ms per web visit, 382 simulated days per CPU-hour. The R6/R7 work cut the population's batches a day
+  from 3,840-4,040 to 2,250-2,370 and its events from 12,800-13,450 to 9,510-9,770, but CPU per visit is unchanged
+  within the noise of this heavily loaded machine (load average 20-28 on about 11 CPUs during the runs).

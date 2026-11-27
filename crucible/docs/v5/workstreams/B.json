@@ -544,7 +544,8 @@
  "history": {
   "wave 1/2 (ws-B, CORE-POP c5c/w2-corepop)": "columnar population, profiles, event-driven activation, popweb over net.fetch, purchases through the bank, class 2 adaptive groups, a 4-head class 3, package API of ONE_WORLD_CONTRACTS section 1, gate tests B/G/SP-3.x/SP-4.1 (no report: the wave-2 engineer was stopped before writing one)",
   "wave 3b (this branch)": "fitted runtime models in class 1 (D-30), provenance on every population batch, class 3 redesign (D-31), class 2 activity choice and memory through time (D-32), SP-3.2c/SP-4.0/SP-4.4 gate tests, criteria asserted in every B-owned gate test",
-  "wave 3b continuation (this branch, after the usage-limit stop)": "gate B fixture fix, class-2 day review (G.1-G.3), SP-4.4 measurement structure, SP-4.0 recognition of the social modules' population batches, delta-only popweb batches, one visit log / counter batch per web session, class-3 decision grid, no-op deposits, resume-from-snapshot determinism (row-independent projection), DECISION_LOG D-32 addendum"
+  "wave 3b continuation (this branch, after the usage-limit stop)": "gate B fixture fix, class-2 day review (G.1-G.3), SP-4.4 measurement structure, SP-4.0 recognition of the social modules' population batches, delta-only popweb batches, one visit log / counter batch per web session, class-3 decision grid, no-op deposits, resume-from-snapshot determinism (row-independent projection), DECISION_LOG D-32 addendum",
+  "wave 3b continuation 2 (this branch, after the second usage-limit stop)": "G.6 measured as change-specific improvement (fork frozen at the switch), G.n1 as identical-init adaptation with activity decisions and class 3's policy change reported (D-32 addendum 2); SP-3.2 counts class-4 members' own tool actions; popweb: one space call per page, delta-only popweb.seen, one attention batch per web session; measured population-only throughput before/after; regression analysis of the 6 failures of the predecessor's run (4 calibration/inworld tests updated by kcal, the history and econ tests need the patches in integration_notes)"
  },
  "limitations": [
   "session_minutes@1 is not used: its minutes count KuaiRand pool videos only (median 0.06-0.2 min per session) and its contract declares no scale factor; session length stays the individual's plausible log-normal (pop.decision.session_length).",
@@ -556,7 +557,8 @@
   "Class 3 roles are entrepreneurs/publishers, competitors and collaborators; researchers, engineers, employees, organisations and investors are not class-3 roles here.",
   "Personal memory benefit in the integrated worlds is measured (SP-3.4) but not significant: most of what predicts an individual's utility is in its observation; the BPTT unit test shows the memory can carry hidden traits.",
   "G.1 counts members whose policy stepped their memory on one day (day review or session); members that took sessions on one day are fewer (fitted daily return, about 40-60% of class-2 members per day in the small worlds).",
-  "Population-world throughput (social internet + web, development, CPU): the wave-3b population changes (multi-visit sessions, provenance on every batch, article slates) made it slower than the integration head (118 vs 155 simulated days per CPU-hour at 4184cce, GPU run); measured before/after of this continuation's optimisations pending (job perf2)."
+  "Population-world throughput (population-only development world, CPU, warm cache): 377 simulated days per CPU-hour on this branch vs 664 at 55433e7 - the population browses ~4.7x more per day; CPU per web visit fell from 4.01 to 1.50 ms. The R6/R7 batch/event reductions did not measurably reduce CPU per visit. The D-27 targets bind the civilisation world, where the shared space's encoders, the social consumption engine and shopping searches dominate (OPTIMISATION_REQUESTS.md on c5c/w3b-perf).",
+  "Two forks of one snapshot can bill sandboxed site compute differently under heavy machine load (a fresh measurement beyond the D-20 metering tolerance is billed instead of the anchor); G.6's frozen-at-switch fork therefore shares random streams and population decisions with the main world until the first post-switch update, but not necessarily every operator's billed compute."
  ],
  "integration_notes": [
   "E (calibration): register the population's in-world probes: `from crucible.population import fidelity_probes; INWORLD_PROBES.update(fidelity_probes.PROBES)` (lazy, inside inworld_claims) - the register's default claims population.daily_return / session_frequency / article_choice and commerce.customer_retention need them (population code may import only calibration.runtime).",
@@ -583,5 +585,29 @@
   "tests/test_v5_population_core.py": "16 passed, 0 failed (CPU, in chunks, 178cab6; incl. test_same_seed_same_hashes_replay_regeneration_and_resume, which failed at 44fa731 and earlier in this environment because the interest-space projection was batch-dependent, and the new day-review and projection regression tests)",
   "tests/test_v5_population_api.py tests/test_kernel.py tests/test_invariants.py": "57 passed, 0 failed (CPU)",
   "tests/test_v5_population_api.py": "6 passed, 0 failed (CPU, 178cab6)"
+ },
+ "performance": {
+  "world": "population_world('development', 41, n=1500, sites=14, 32 adaptive, no strategic/semantic), strict, one CPU thread, CUDA hidden, warm machine text cache, days 2-4, no profiler (probe perfcmp.py)",
+  "55433e7 (integration head)": {
+   "sim_days_per_cpu_hour": 664.2,
+   "cpu_ms_per_web_visit": 4.01,
+   "web_visits_per_day": "1,270-1,449",
+   "batches_per_day": "949-985"
+  },
+  "4184cce (wave 3b, before R6/R7)": {
+   "sim_days_per_cpu_hour": 381.6,
+   "cpu_ms_per_web_visit": 1.45,
+   "web_visits_per_day": "5,871-7,022",
+   "batches_per_day": "3,836-4,039",
+   "events_per_day": "12,801-13,457"
+  },
+  "2ca6c927 (this branch)": {
+   "sim_days_per_cpu_hour": 377.1,
+   "cpu_ms_per_web_visit": 1.5,
+   "web_visits_per_day": "5,660-6,844",
+   "batches_per_day": "2,248-2,369",
+   "events_per_day": "9,508-9,765"
+  },
+  "reading": "Per unit of browsing the population is 2.7x cheaper than at 55433e7; per simulated day it is 1.76x slower because it browses about 4.7x more (sessions spend real session budgets over up to five visits, article slates with the fitted open model). The R6/R7 work cut batches 40% and events 27% (storage, R6) but did not measurably change CPU per visit (machine load average 20-28 during the runs). In the social+web development world the shared space's representation path (semantics._reps -> semantic.space.reps) took 130 of 344 profiled CPU-s even with a warm cache (workstream D/C)."
  }
 }
