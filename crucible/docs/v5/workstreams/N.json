@@ -443,7 +443,7 @@
   "The 4.0 research harness (research/protocols.py etc.) is unchanged and legacy-bound; v5 protocols live in research/v5."
  ],
  "integration_notes": [
-  "Orchestrator: queued repair-pass gate jobs run from snapshots under <scratch>/w3b-research/snapT5 and snapA (git archive of this branch; snapA is at b4878794, snapT5 at 6d9dd9ef); their pytest tails go to <scratch>/w3b-research/runT5.log, runA.log (T.4 alone in runA_T4.log, it runs last in that job), runB.log, runC.log and the unofficial evidence to /tmp/crucible-v5-unofficial-evidence/{T,U,SP,K,I,S}/. If this session ends before they finish, read those files for T.4, T.5, SP-15.0, U.2-U.8, SP-15.3/3b/4/6/7, U.1, SP-14.1/1b/2/2b, K.n2, SP-15.5.",
+  "Orchestrator: queued repair-pass gate jobs run from snapshots under <scratch>/w3b-research/snapT5 and snapA (git archive of this branch; snapA holds the branch head at the time of the last refresh (fff2f075 or later; see snapA/COMMIT), snapT5 is at 6d9dd9ef (T.5 code unchanged since)); their pytest tails go to <scratch>/w3b-research/runT5.log, runA.log (T.4 alone in runA_T4.log, it runs last in that job), runB.log, runC.log and the unofficial evidence to /tmp/crucible-v5-unofficial-evidence/{T,U,SP,K,I,S}/. If this session ends before they finish, read those files for T.4, T.5, SP-15.0, U.2-U.8, SP-15.3/3b/4/6/7, U.1, SP-14.1/1b/2/2b, K.n2, SP-15.5.",
   "Orchestrator: this branch merged feat/crucible-5-complete (1e11451) and c5c/w3b-domfw, dom1 (81c4802), dom2 (4e7c077), dom3 (31eb000) read-only; DECISION_LOG and FIDELITY_REGISTER conflicts resolved by keeping both sides' entries. All 15 domains register with domains.load_all on this branch.",
   "O (security, SP-15.8): DEF-O-10, DEF-O-11 and DEF-O-12 (owner N, filed on c5c/w3b-sec) are fixed here: DEF-O-12 by the shape AND dtype check in research/v5/fresh.py (_child: authorised_parameters; complex128/float32/float16/int64 under a rehashed manifest were accepted before the repair), DEF-O-11 by evaluator-side budgets (Evaluator.open_episode(..., budget=k)), DEF-O-10 by research/v5/hosted.py (HostedLearner + run_hosted_episode). Please set those entries fixed_by this branch. research.v5.adversarial.run_controls now has 10 controls (retyped_parameters added; fresh.tampered_copy kind 'retyped:<dtype>'); the calibration-shortcut control also runs an explore-then-commit quartile rule.",
   "O/sandbox: research.v5.fresh and research.v5.hosted run their children through crucible.sandbox.jail (isolation.RO_SYSTEM, _write_cfg, _loaders, uid_for('weights-only-eval')); please keep those helpers or offer a public equivalent.",
@@ -616,6 +616,16 @@
    "N.json stale notes": "fixed (SP-14.1, SP-14.2b, K.n2)",
    "T.8 fails": "unchanged (correctly reported); credit diagnosis added",
    "SP-15.5 uninformative": "unchanged (DEF-N-7 open, owner L/N)"
+  },
+  "second_repair_pass": {
+   "date": "2026-11-27 07:00-09:00 UTC",
+   "verified_in_shell_on_the_head": "tests/test_v5_research_unit.py + tests/test_v5_research_adversarial.py 30 passed; tests/test_kernel.py + tests/test_invariants.py 51 passed; gates K.n2, I.n2, S.n1, SP-15.1, SP-15.2 passed (unofficial, in-shell)",
+   "changes": [
+    "T.4: sequential generate-then-admit design (genadmit.admit_until; D-69 addendum 3, recorded before the run): the T.1 stream (seed 7) is walked until 50 worlds validate or 1000 structures; its first 200 structures (the addendum-2 sample) are admitted in full and reported on their own; unbuildable structures are counted, not fatal",
+    "T.4 development (stream 5151): three local-first genref variants were within noise of the shipped reference (6-8 vs 5 of 48 dominance passes); not adopted",
+    "T.8 development (dev seeds 900, 7300): a contextual variant of TargetableMeta did not separate targeted from untargeted training (both +0.15); on uniformly drawn worlds the lag-blind arm is the best generalist; no T.8 redesign was attempted"
+   ],
+   "verifier_findings_status": "all ten findings handled: eight repaired with regression tests or probes (their gate re-measurements are queued), T.8 still fails (correctly reported), SP-15.5 stays uninformative (DEF-N-7 open, owner L/N)"
   }
  }
 }
