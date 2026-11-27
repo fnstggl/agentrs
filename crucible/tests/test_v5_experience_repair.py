@@ -221,3 +221,34 @@ def json_dumps(x):
 def json_loads(x):
     import json
     return json.loads(x)
+
+
+def test_sp_11_6c_earned_money_excludes_grants_endowments_and_related_parties():
+    """SP-11.6c's kernel-tier outcome (the verifier: the crisis 'improvement' was a $60,000 grant held unspent):
+    money paid to the learner by an unrelated participant counts; an endowment, a grant and a transfer from a
+    participant of the same controller do not."""
+    import importlib.util
+    import os
+    from crucible.experience import make
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "v5", "test_gate_SP_11_6c.py")
+    spec = importlib.util.spec_from_file_location("gate_sp_11_6c", path)
+    g = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(g)
+    env = make(0, "tiny", 2, agents=["learner"], controllers={"learner": "lab"}, endowment=100_000,
+               overrides={"n_consumers": 20})
+    a = env.agents()[0]
+    w = env.world
+    other = w.system_call("admin.join", {"handle": "stranger", "endowment": 50_000})["principal"]
+    twin = w.system_call("admin.join", {"handle": "twin", "endowment": 50_000, "controller": "lab"})["principal"]
+    start = g._start(env)
+    bank = w.modules["bank"]
+    mine = bank.primary_account(w.state, a)
+
+    def pay(src, amount):
+        r = w.execute(src, {"tool": "bank.transfer", "args": {"from_account": bank.primary_account(w.state, src),
+                                                              "to": a, "amount": amount, "memo": "x"}})
+        assert r.ok, r.error
+    pay(other, 1_234)
+    pay(twin, 20_000)
+    w.system_call("admin.endow", {"principal": a, "amount": 9_000})
+    assert mine and g._earned_cents(env, start) == 1_234.0

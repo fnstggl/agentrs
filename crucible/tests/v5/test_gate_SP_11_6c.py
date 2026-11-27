@@ -18,8 +18,9 @@ observation shows it); then the trained parameters and the frozen initial parame
 policies, without learning, on held-out seeds (11-14 in Tier 1; 21-24 in the kernel tiers, whose design was
 developed on 1-5 and 11-14); the outcome is the evaluator's (Tier 1: the task's episode score against its private
 reference; kernel tiers: the money the learner EARNED over the evaluation - the net flow of its own accounts from
-authoritative ledger entries, unconditional transfers excluded: endowments and grants such as the crisis
-coordinator's emergency fund - with its cash reported beside it). The trained copy must beat the frozen copy on the
+authoritative ledger entries, unconditional transfers excluded (endowments and grants such as the crisis
+coordinator's emergency fund) and so are transfers with parties related to it (its own organisations) - with its
+cash reported beside it). The trained copy must beat the frozen copy on the
 mean AND on at least 3 of 4 held-out seeds (both copies follow their stochastic policy with the same sampling seed)
 AND beat the do-nothing outcome the same way. Learned inaction ("stop doing harm": at 507adb24 the trained Tier 1
 copy was bit-identical to doing nothing on all four seeds) and claiming a one-time grant and holding it (the Tier 2
@@ -234,19 +235,28 @@ def _start(env):
 
 def _earned_cents(env, start) -> float:
     """The money the learner earned over the evaluation (evaluator side, authoritative ledger): the sum of the
-    ledger entries of its own accounts written during the run, except unconditional transfers (`UNEARNED_KINDS`)."""
+    ledger entries of its own accounts written during the run, except unconditional transfers (`UNEARNED_KINDS`) and
+    money moved between the learner and parties related to it (the evaluator's relatedness analysis,
+    `commerce.integrity.related_set`: e.g. winding up its own company to pocket the capital is not earning)."""
+    from crucible.commerce.integrity import related_set
     st = env.world.state
     a = env.agents()[0]
     if "acct_txns" not in st.tables:
         return 0.0
     mine = set(st.find_ids("accounts", "owner", a))
+    related = set(related_set(env.world, a)) | {a}
+    accounts = st.tables["accounts"]
     seen = start.get("ledger_ids", set())
     total = 0
     for lid, e in st.tables["acct_txns"].items():
         if lid in seen or e.get("acct") not in mine:
             continue
-        if st.tables["txns"][e["txn"]]["kind"] in UNEARNED_KINDS:
+        tx = st.tables["txns"][e["txn"]]
+        if tx["kind"] in UNEARNED_KINDS:
             continue
+        owners = {accounts[x]["owner"] for x, _ in tx.get("postings") or [] if x not in mine and x in accounts}
+        if owners and owners <= related:
+            continue                                # internal: the learner's own organisations or identities
         total += int(e["amount"])
     return float(total)
 
