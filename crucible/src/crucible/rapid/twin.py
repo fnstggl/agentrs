@@ -182,7 +182,8 @@ class ScalarGraph:
         rev = cost = 0.0
         if m:
             q = cur[m["revenue_node"]]
-            if m.get("realisation_sd", 0.0) > 0.0:        # realised sales: the last normal draw of the tick
+            if m.get("realisation_sd", 0.0) > 0.0 and zi < len(z):   # realised sales: the tick's last normal
+                # (the warm-up hands no such draw: nothing is booked before the participant arrives)
                 q = q * (1.0 + m["realisation_sd"] * z[zi])
                 zi += 1
             rev = m["price"] * min(max(q, 0.0), m["cap"])
@@ -206,6 +207,8 @@ class ScalarGraph:
         `init` generator (as the documented contract says)."""
         W = int(self.c.get("warmup", 0))
         nn, nu = self.draws()
+        m = self.c.get("money") or {}
+        nn -= 1 if m and m.get("realisation_sd", 0.0) > 0.0 else 0      # nothing is booked in the warm-up
         for w in range(W):
             z = list(rng.standard_normal(nn))
             u = list(rng.random(nu))

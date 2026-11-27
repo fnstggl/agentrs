@@ -224,7 +224,7 @@ class PrimitiveGraph(RapidEngine):
         W = int(self.config.get("warmup", 0))
         vis = [k for k, g in enumerate(self.gauges) if not g.get("on_demand")]
         for w in range(W):
-            z, u = self.draw(rng)
+            z, u = self.draw(rng, revenue=False)      # no money is booked before the participant arrives
             cur, read = self.tick(st, z, u, -W + w)
             for k in vis:
                 st[f"hist:g{k}"][:, w] = read[:, k]
@@ -238,8 +238,11 @@ class PrimitiveGraph(RapidEngine):
             return state[f"hist:g{self.gauge_names.index(name)}"][0]
         return state[f"hist:l{[lv['name'] for lv in self.lev].index(name)}"][0]
 
-    def draw(self, rng: np.random.Generator, B: int = 1) -> tuple[np.ndarray, np.ndarray]:
-        z = rng.standard_normal(self.n_normal * B).reshape(B, self.n_normal)
+    def draw(self, rng: np.random.Generator, B: int = 1, revenue: bool = True) -> tuple[np.ndarray, np.ndarray]:
+        """This tick's draws; `revenue=False` leaves out the realised-revenue normal (the last one), as in the
+        warm-up, where nothing is booked."""
+        nn = self.n_normal - (0 if revenue or self.rev_z is None else 1)
+        z = rng.standard_normal(nn * B).reshape(B, nn)
         u = rng.random(self.n_uniform * B).reshape(B, self.n_uniform)
         return z, u
 
