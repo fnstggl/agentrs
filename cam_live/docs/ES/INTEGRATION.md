@@ -129,5 +129,8 @@ moment it was printed. If the registration is done through a running authorizati
 --run-dir $R register-live`. Exit codes: 0 every step the scope allows succeeded, 1 a step failed, 2 setup error,
 3 the bot is not a member of the server (stops after `get_identity`), 4 the policy's write rate is too low
 (stops before any write), 5 a step waits for approval (`--approve-wait-s N` re-issues it for N seconds), 6 a vault
-secret was found in the evidence (written redacted). The preparation above is exercised on a made-up token and
-server id, without executing any action, in `test_es_discord_live_check.py`.
+secret was found in the evidence (written redacted). A cleanup step (restore the name, delete the temporary role,
+delete the temporary channel) that meets a rate limit or a network fault is issued again after the stated wait, up
+to three more times and `--cleanup-wait-s` (default 900) in total; if it still fails the script prints what to
+undo by hand. The preparation above is exercised on a made-up token and server id, without executing any action,
+in `test_es_discord_live_check.py`.

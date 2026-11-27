@@ -32,6 +32,9 @@ delete_invite, modify_channel, set_channel_permissions, create_role / modify_rol
 (rename) and modify_guild (restore the original name, in a ``finally``); get_member_events twice, listen_events
 for 10 s, get_audit_summary; delete_channel (in a ``finally``: the temporary channel never survives the script).
 
+A cleanup step that meets a rate limit or a network fault is issued again after the stated wait (at most three
+more times and ``--cleanup-wait-s`` in total); if it still fails, the script says what must be undone by hand.
+
 Exit codes: 0 every step the operator's scope allows succeeded; 1 a step failed; 2 usage or setup error; 3 the bot
 is not a member of the server; 4 the policy's write rate does not allow the sequence (nothing was written);
 5 a step is waiting for the operator's approval; 6 a secret was found in the evidence (it is written redacted).
