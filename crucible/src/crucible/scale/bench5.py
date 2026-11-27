@@ -168,9 +168,11 @@ class EventCounter:
                 self.batch_sizes[cls][int(first.shape[0])] += 1
 
 
-#: recorded-call kinds (`infer.pop.<model>.<group>`) whose rows are class-2 / class-3 decisions (class 2: the
-#: resource choice and, where the population records it, the activity choice of the adaptive policies)
-BATCH_KINDS = {"pop.adaptive": "class2", "pop.adaptive_act": "class2", "pop.strategic": "class3"}
+#: recorded-call kinds (`infer.pop.<model>.<group>`) whose rows are class-2 / class-3 model evaluations (class 2:
+#: the resource choice and, where the population records them, the activity choice and the day review's memory step
+#: of the adaptive policies; c5c/w3b-pop records the day review as `pop.adaptive_day.<group>`)
+BATCH_KINDS = {"pop.adaptive": "class2", "pop.adaptive_act": "class2", "pop.adaptive_day": "class2",
+               "pop.strategic": "class3"}
 
 
 # ====================================================================== the world

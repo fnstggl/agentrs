@@ -475,7 +475,8 @@ _METHOD_OPS: dict[str, Op] = {}
 def method_op(method: str, args: tuple, outputs: tuple | None = None, keep: tuple | None = None) -> Op:
     """The Op that calls `model.<method>(*[inputs[a] for a in args])` on the merged rows: for any row-independent
     model method without a dedicated Op (e.g. a policy's `act_scores(obs, mem, acand) -> (scores, memory)`). The
-    output is an array, a dict of arrays, or a tuple of arrays named by `outputs`; `keep` names the outputs that are
+    output is an array, a dict of arrays, or a tuple of arrays named by `outputs` (a single array with one name in
+    `outputs` is returned as a one-entry dict, e.g. `step_memory(obs, mem) -> memory`); `keep` names the outputs that are
     returned and recorded (the others are dropped before recording, so a caller that needs only the scores does
     not store the memory). One Op per (method, args, outputs, keep), so requests of different methods never share
     a call."""
@@ -494,6 +495,8 @@ def method_op(method: str, args: tuple, outputs: tuple | None = None, keep: tupl
             def run(model, x, static, method=method, args=args, outputs=outputs, keep=keep):
                 out = getattr(model, method)(*[x[a] for a in args])
                 if outputs:
+                    if len(outputs) == 1 and not isinstance(out, (tuple, list, dict)):
+                        out = (out,)                  # one named output of a method returning a single array
                     if not isinstance(out, (tuple, list)) or len(out) != len(outputs):
                         raise ProtocolError(f"{name}: expected {len(outputs)} outputs")
                     out = {k: np.asarray(v) for k, v in zip(outputs, out)}
@@ -520,7 +523,8 @@ def method_request(model, method: str, inputs: dict, *, model_id: str, args: tup
     `method_request(pol, "act_scores", {"obs": o, "mem": m, "acand": a}, outputs=("scores", "memory"),
     model_id=f"adaptive:{gid}", cls=2, static={"use_memory": pol.use_memory})`; `choose` (scores only):
     `method_request(pol, "scores", {"obs": o, "mem": m, "cand": c}, outputs=("scores", "memory"), keep=("scores",),
-    model_id=f"adaptive:{gid}", cls=2)`."""
+    model_id=f"adaptive:{gid}", cls=2)`; `review_day` (memory step only): `method_request(pol, "step_memory",
+    {"obs": o, "mem": m}, outputs=("memory",), model_id=f"adaptive:{gid}", cls=2)`."""
     args = tuple(args or inputs)
     if set(args) != set(inputs):
         raise ProtocolError("method_request: args must name every input exactly once")

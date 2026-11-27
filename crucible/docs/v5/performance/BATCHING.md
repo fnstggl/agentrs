@@ -61,9 +61,9 @@ handlers keep working unchanged.
 
 ## How workstream B (population) uses it
 
-Call sites as they stand on c5c/w3b-pop (head of 2026-11-26 19:30); every change keeps the recorded
-outcome of a decision the same function of its inputs (masking, Gumbel sampling and the action draw stay with the
-caller):
+Call sites as they stand on c5c/w3b-pop (head 7f7387c, 2026-11-27 01:50; first written against the head of
+2026-11-26 19:30); every change keeps the recorded outcome of a decision the same function of its inputs (masking,
+Gumbel sampling and the action draw stay with the caller):
 
 1. `population/adaptive.py` `choose()`: replace
    `inference.recorded(ctx, f"pop.adaptive.{gid}", f"adaptive:{gid}", pol.weights_hash(), inp, lambda: {...})` by
@@ -71,6 +71,12 @@ caller):
    "memory"), keep=("scores",), model_id=f"adaptive:{gid}", cls=2, static={"use_memory": pol.use_memory}))`
    (records only the scores, as today; `IB.adaptive_request` records scores and memory; the `mask` stays with the
    caller).
+1b. `population/adaptive.py` `review_day()` (new on c5c/w3b-pop: one GRU memory step per policy group at a member's
+   first activation of a day, recorded as `pop.adaptive_day.{gid}`): replace it by
+   `out = IB.decide(ctx, IB.method_request(pol, "step_memory", {"obs": o, "mem": m}, outputs=("memory",),
+   model_id=f"adaptive:{gid}", cls=2, static={"use_memory": pol.use_memory}))` (a method returning one array with
+   one output name is returned as `{"memory": ...}`, 2026-11-27). bench5 already counts `pop.adaptive_day.*` calls in
+   the class-2 batch histograms.
 2. `population/adaptive.py` `choose_activity()`: replace the `pop.adaptive_act.{gid}` recorded call by
    `IB.decide(ctx, IB.method_request(pol, "act_scores", {"obs": o, "mem": m, "acand": a}, outputs=("scores",
    "memory"), model_id=f"adaptive:{gid}", cls=2, static={"use_memory": pol.use_memory}))` (generic Op for any
@@ -79,9 +85,10 @@ caller):
    `register_class_runtime(world, 3, ...)`): replace `inference.recorded(ctx, f"pop.strategic.{gname}", ...)` by
    `out = IB.decide(ctx, IB.strategic_request(grp, O, H, model_id=f"strategic:{gname}"))`. Groups have their own
    weights, so a call can only hold members of one group: class 3 is batched only when several members of a group
-   are due in the same tick. On 55433e7 every member has its own decision time (120 calls for 120 decisions in 30
-   development days): put members' `next` times on a per-group grid (`decide_every_s` boundaries plus the waking
-   hours), as the class-2 `adaptive_window_s` aggregation already does in `pr_tick`.
+   are due in the same tick. On 55433e7 every member had its own decision time (120 calls for 120 decisions in 30
+   development days). Done on c5c/w3b-pop: `decide()` now puts every member's next decision on the group's common
+   grid (multiples of `decide_every_s`), so from their second decision on the due members of a group share one
+   forward pass; the merged tree's suite measures the resulting batch sizes (`run['batching']['class3']['sizes']`).
 4. `population/core.py` `pr_tick` / `run_cohort` (class runtimes, then the activity handlers, one after the other):
    to share calls across activities and classes, let a handler return a generator (`out = yield request`) and
    drive the tick's handlers with one `IB.gather(ctx, [IB.Task(gen, lambda o=owner: running_as(ctx, o)), ...])`
@@ -89,7 +96,7 @@ caller):
 
 ## How workstream D (semantic) uses it
 
-Call sites as they stand on c5c/w3b-sem (2026-11-26 19:30): `semantic/generalists/module.py` binds class 4 with
+Call sites as they stand on c5c/w3b-sem (2026-11-26 19:30; unchanged at head 7417855, 2026-11-27 01:50): `semantic/generalists/module.py` binds class 4 with
 `population.register_class_runtime(world, 4, self._activate, owner=NAME)`; `mind.activate` makes the tick's due
 participants decide together (`brain.generate(ctx, "situation_interpretation", [...])`, `brain.choose(ctx,
 "tool_choice", [...])`), and `brain.LMBrain` routes each capability to its model's shared `SemanticService`, whose
@@ -105,6 +112,10 @@ calls carry more than one participant only when several class-4 rows are due in 
    `IB.gather`.
 3. Please expose `SemanticService.normalize(request, choices=False)` (the service's `_norm`); the batching service
    uses `normalize` when it exists and falls back to `_norm`.
+4. Class 4 acts in a civilisation only when the world installs the runtime: no civ profile on c5c/w3b-civ or
+   c5c/w3b-sem installs module `pop_semantic` (crucible.semantic.generalists) on 2026-11-27, so the merged civ world's
+   class-4 rows stay inert and V.1 / SP-13.1 fail on class 4 however the calls are batched. J (civ.generate) and D
+   must add it to the civ module list.
 
 ## Measurement
 

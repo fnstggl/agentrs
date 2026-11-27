@@ -173,13 +173,17 @@ def test_batch_sizes_are_read_from_the_recorded_outputs():
         H = rng.normal(size=(2, HIST, OBS_DIM)).astype(np.float32)
         inference.recorded(ctx, "pop.strategic.g", "strategic:g", grp.weights_hash(), {"obs": O, "hist": H},
                            lambda: grp.logits(O, H))
+        xd = {"obs": rng.normal(size=(4, 12)).astype(np.float32), "mem": rng.normal(size=(4, 8)).astype(np.float32)}
+        cd = rng.normal(size=(4, 5, 9)).astype(np.float32)      # day review: memory step only (pop.adaptive_day.*)
+        inference.recorded(ctx, "pop.adaptive_day.0", "adaptive:0", pol.weights_hash(), xd,
+                           lambda: {"memory": pol.scores(xd["obs"], xd["mem"], cd)[1]})
         inference.recorded(ctx, "other.model", "m", "h", {"x": O}, lambda: {"y": O})   # not a class-2/3 call
     w._run_system("bench.sizes", run)
     ec.size_batches(w)
-    assert dict(ec.batch_sizes["class2"]) == {3: 2, 7: 1} and dict(ec.batch_sizes["class3"]) == {2: 1}
+    assert dict(ec.batch_sizes["class2"]) == {3: 2, 7: 1, 4: 1} and dict(ec.batch_sizes["class3"]) == {2: 1}
     assert ec.model_refs == []
     b = bench5.batching(w, ec)
-    assert b["class2"]["sizes"] == {"3": 2, "7": 1} and b["class3"]["sizes"] == {"2": 1}
+    assert b["class2"]["sizes"] == {"3": 2, "4": 1, "7": 1} and b["class3"]["sizes"] == {"2": 1}
     w.close()
 
 

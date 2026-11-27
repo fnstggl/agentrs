@@ -358,3 +358,35 @@ def test_method_requests_batch_any_row_independent_model_method():
     with pytest.raises(ProtocolError):           # a tuple output must be named
         w._run_system("test.method2", lambda ctx: IB.decide(ctx, IB.method_request(a, "scores", x,
                                                                                     model_id="adaptive:0")))
+
+
+class _RowNet:
+    """A row-independent model method returning one array (like a policy's `step_memory(obs, mem) -> memory`)."""
+
+    def __init__(self, seed):
+        r = np.random.default_rng(seed)
+        self.w = r.normal(size=(OBS + MEM, MEM)).astype(np.float32)
+
+    def step_memory(self, obs, mem):
+        return np.tanh(np.concatenate([obs, mem], axis=1) @ self.w)
+
+    def weights_hash(self):
+        return I.weights_hash({"w": self.w})
+
+
+def test_a_single_named_output_wraps_a_method_returning_one_array():
+    net = _RowNet(7)
+    rng = np.random.default_rng(8)
+    sp = WorldSpec("ib-single", 1, [{"name": x, "config": {}} for x in ("identity", "bank", "admin", "artifacts")])
+    w = World.create(sp, strict=True)
+    xs = [{"obs": rng.normal(size=(n, OBS)).astype(np.float32), "mem": rng.normal(size=(n, MEM)).astype(np.float32)}
+          for n in (2, 3)]
+    got = {}
+    w._run_system("test.single", lambda ctx: got.update(o=IB.decide_many(ctx, [
+        IB.method_request(net, "step_memory", x, outputs=("memory",), model_id="rownet", cls=2) for x in xs])))
+    for o, x in zip(got["o"], xs):
+        assert set(o) == {"memory"}
+        np.testing.assert_allclose(o["memory"], net.step_memory(x["obs"], x["mem"]), rtol=1e-5, atol=1e-5)
+    st = IB.report(IB.stats(w))
+    assert st["by_class"]["2"]["calls"] == 1 and st["by_class"]["2"]["rows"] == 5
+    w.close()
