@@ -336,6 +336,26 @@ stratified by seed; criterion: the lower 95% bound > 0. G.n1 keeps the identical
 the change (adaptation through learning against the same network without it; lowest per-seed CI bound) and reports
 the other decisions next to it: the realised utility of the sessions whose activity the class-2 policy chose, and
 class 3's policy change on its own recorded observations (first checkpoint vs now, frozen control A0 at zero).
+Addendum 3 (wave 3b continuation 3, 2026-11-27, G.6 / G.n1 condition; fixed before the gate run that uses it): the
+first run of the addendum-2 measure (unofficial, snapshot of 9d3f98b0, three seeds, 5-day phases, controlled change
+"sites": the two most visited rich sites redeployed broken, the two broken ones rich) FAILED G.6: change-specific
+improvement +0.0014, pooled 95% CI [-0.022, +0.026] over 291 members (per-seed means -0.017, +0.017, +0.006); visits to
+failing sites 0.228 with learning vs 0.204 frozen at the switch (G.n1 at the same run: +0.249, lowest per-seed CI bound
++0.208). Diagnosis: every change of that condition is per site, and a reader's own satisfaction with a site (an
+exponential average with weight 0.35-0.65 on the latest visit) and the fitted abandonment decision follow per-site
+changes for any policy, learning or not; the frozen-at-switch network reads them in its inputs, so learning after the
+change had nothing to add (its recent examples of familiar sites failing made the learning group explore slightly
+more). The measure stays unchanged (fork at the switch, learning stopped in the fork, paired by member, pooled
+stratified bootstrap, criterion lower bound > 0). The controlled condition becomes "category"
+(`experiments.adaptation(condition="category")`): the same 10 sites (topics, behaviours, links) but the 5 rich ones are
+guides and the 5 poor ones (2 broken, 2 thin, 1 spam) blogs, a category readers perceive from the title (`res.kind`, a
+candidate feature of the class-2 network); at the switch the two most visited guides are redeployed broken and every
+blog is rewritten by its operator (thin and spam blogs get new articles from the real corpus on their own topic) and
+redeployed rich. Before the change a network can learn that blogs are poor; after it, behaving well needs revising
+that learned regularity for blogs a reader has not tried since (exploration of blog suggestions, blogs on topics no
+rich guide covers), which a reader's per-site experience cannot do for a frozen policy. G.n1 and G.2/G.5/G.7 use the
+same three runs. The "sites" condition stays available (SP-3.4 uses it). No pilot of the category condition produced
+a result (one CPU probe was stopped by its own timeout before finishing); its gate run is the first.
 
 ## D-48 The Tier 2 domain contract `domains-framework/2` (2026-11-26, workstream I, wave 3b)
 Resolves the contract split of audit I_domains section 2 (DEF-I-3) on the D-17 side: `crucible.domains.base.Domain`

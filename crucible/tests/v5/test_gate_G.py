@@ -3,11 +3,13 @@
 Class 2 runs in worlds of the one population (`crucible.population`, `population.experiments.adaptation`): 256
 adaptive individuals share policy groups (one weight copy per group, batched inference), each with its own GRU memory;
 two groups start from IDENTICAL weights, one learns online from its members' own experienced utilities, the other is
-frozen. After phase 1 a controlled new condition (the two most visited rich sites fail, the two broken ones become
-rich): G.6 measures the change-specific improvement against a fork of the same world in which the group stops
-learning at the switch (paired by member); G.n1 measures adaptation against the identical-init frozen twin, with the
-other decisions the networks take reported next to it (the activity of each session, class 3's policy change). Three
-seeds. Class-2 networks take two decisions: the activity of each session (which also steps the personal memory, trained
+frozen. The world's 10 sites are guides (the 5 rich ones) and blogs (the 5 poor ones), a category readers perceive
+from a site's title; after phase 1 the controlled new condition (`condition="category"`, D-32 addendum 3): the two
+most visited guides fail and every blog is rewritten and redeployed rich by its operator, so the regularity learned
+before the change (blogs are poor) is reversed. G.6 measures the change-specific improvement against a fork of the
+same world in which the group stops learning at the switch (paired by member); G.n1 measures adaptation against the
+identical-init frozen twin, with the other decisions the networks take reported next to it (the activity of each
+session, class 3's policy change). Three seeds. Class-2 networks take two decisions: the activity of each session (which also steps the personal memory, trained
 through time) and the web resource to visit. Class 3 (G.4, G.n1) runs its four strategic policy groups
 (population.strategic: ventures built through ordinary tools) in a world of its own.
 G.7 compares the compact policies with small pretrained language models on the same held-out decisions.
@@ -40,12 +42,13 @@ def _check(req, metrics):
 CMD = "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement G.1"
 DAY = 86400
 SEEDS = (0, 1, 2)
+CONDITION = "category"          # the controlled new condition of G.6 / G.n1 (D-32 addendum 3)
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(3 * 3600)]
 
 
 @pytest.fixture(scope="module")
 def runs():
-    return [PX.adaptation(s, 5, counterfactual=True) for s in SEEDS]
+    return [PX.adaptation(s, 5, counterfactual=True, condition=CONDITION) for s in SEEDS]
 
 
 @pytest.fixture(scope="module")
@@ -137,7 +140,11 @@ def test_G6_improvement_on_a_controlled_new_condition(runs):
     learning minus its utility in the fork (paired by member); the criterion is the lower bound of the 95% bootstrap
     CI over the members of the three seeds (resampled within each seed). This separates what learning under the new
     condition did from the general advantage learned before it, which the identical-init comparison (G.n1) contains
-    too (audit B, G.6)."""
+    too (audit B, G.6). The condition reverses a regularity the policy can perceive (guides rich and blogs poor before
+    the switch; two guides fail and every blog is rich after it): the first run of this measure under per-site changes
+    (condition "sites": two rich sites fail, two broken ones become rich) failed (mean +0.0014, CI [-0.022, +0.026])
+    because a reader's own satisfaction with a site follows such changes for every policy, learning or not (D-32
+    addendum 3)."""
     ad = [r["adaptation_after_change"] for r in runs]
     d = np.concatenate([np.asarray(a["member_utility_diffs"], np.float64) for a in ad])
     strata = np.concatenate([np.full(len(a["member_utility_diffs"]), k) for k, a in enumerate(ad)])
@@ -152,6 +159,10 @@ def test_G6_improvement_on_a_controlled_new_condition(runs):
          "policy_updates_after_switch_frozen": int(sum(a["policy_updates_after_switch_frozen"] for a in ad)),
          "share_failing_learning": float(np.mean([a["share_failing_learning"] for a in ad])),
          "share_failing_frozen_at_switch": float(np.mean([a["share_failing_frozen_at_switch"] for a in ad])),
+         "share_switched_to_rich_learning": float(np.mean([a["share_switched_to_rich_learning"] for a in ad])),
+         "share_switched_to_rich_frozen_at_switch": float(np.mean([a["share_switched_to_rich_frozen_at_switch"]
+                                                                   for a in ad])),
+         "condition": CONDITION,
          "weights_changed_after_switch_all_seeds": bool(all(a["hash_end_learning"] != a["hash_switch"] for a in ad)),
          "frozen_at_switch_unchanged_all_seeds": bool(all(a["hash_end_frozen_at_switch"] == a["hash_switch"]
                                                           for a in ad)),
@@ -160,8 +171,12 @@ def test_G6_improvement_on_a_controlled_new_condition(runs):
          "learning_phase2_mean_util": float(np.mean([r["behaviour"]["learning"]["phase2"]["mean_util"]
                                                      for r in runs]))}
     evidence.record("G.6", m, command=CMD, notes=(
-        "Controlled new condition: after phase 1 the two most visited rich sites fail and the two broken ones become "
-        "rich (their operators' ordinary tools; scripted by the experimenter). Each seed's world is forked at the "
+        "Controlled new condition (D-32 addendum 3, condition 'category'): the 10 sites are guides (5 rich) and blogs "
+        "(2 broken, 2 thin, 1 spam), a category readers perceive from a site's title; after phase 1 the two most "
+        "visited guides fail and every blog is rewritten and redeployed rich (their operators' ordinary tools; "
+        "scripted by the experimenter), reversing the regularity learned before the change. The first run of this "
+        "measure under per-site changes (condition 'sites', snapshot of 9d3f98b0) failed: mean +0.0014, pooled CI "
+        "[-0.022, +0.026], 291 members. Each seed's world is forked at the "
         "switch; in the fork the learning group stops learning (the main world records the same system call with "
         "learning on, so both worlds keep identical random streams until the first post-switch update). "
         "Improvement = phase-2 mean realised utility of each learning-group member's web visits, main world minus "

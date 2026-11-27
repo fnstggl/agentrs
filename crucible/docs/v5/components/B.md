@@ -42,7 +42,10 @@ G.6 and G.n1 measure different things: G.6 forks each seed's world at the contro
 group's learning in the fork only (`experiments.adaptation(counterfactual=True)`, D-32 addendum 2), so the paired
 per-member difference after the change is what learning under the new condition did; G.n1 compares the learning group
 with its identical-init frozen twin after the change (general plus change-specific learning) and reports the activity
-decisions and class 3's policy change next to it. SP-3.2 counts class 4 by its members' own tool actions during
+decisions and class 3's policy change next to it. Both use the controlled condition "category" (D-32 addendum 3):
+rich guides and poor blogs before the switch, two guides failing and every blog rewritten rich after it, so the
+change reverses a regularity the network can perceive (the site's category) instead of only per-site facts that a
+reader's own satisfaction already tracks for any policy (condition "sites", whose G.6 run failed). SP-3.2 counts class 4 by its members' own tool actions during
 activations of the bound runtime, not by the activations.
 
 ## Performance notes (wave 3b)
