@@ -5,7 +5,8 @@ No model, no learning: it looks for the words of the target description as rende
 at several sizes), and, when the description names a plain colour and no label matches, for the largest blob of
 that colour. It can only find controls that carry the literal label; icon-only controls, paraphrases and
 look-alike distractors are exactly what it cannot do, which is why it is the yardstick the neural grounders are
-compared against and never the default.
+compared against and never the default. It also produces false positives: a short word can match part of a
+different label ("Gear" on "Search"), which the benchmark counts as incorrect actions.
 """
 from __future__ import annotations
 

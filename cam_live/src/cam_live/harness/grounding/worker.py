@@ -79,7 +79,7 @@ class IsolatedGrounder:
         if self._proc is not None and self._proc.poll() is None:
             return
         self._proc = subprocess.Popen(
-            [os.path.realpath(sys.executable), "-m", "cam_live.harness.grounding.worker", self.name,
+            [sys.executable, "-m", "cam_live.harness.grounding.worker", self.name,
              json.dumps(self._options)],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=_child_env(), cwd="/",
             close_fds=True, start_new_session=True)

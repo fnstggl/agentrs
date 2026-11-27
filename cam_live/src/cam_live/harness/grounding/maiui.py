@@ -57,42 +57,69 @@ class MaiUIGrounder(NeuralGrounder):
     heavy = True
 
     def __init__(self, device: str = "auto", allow_inprocess: bool = False, max_new_tokens: int = 256,
-                 max_pixels: int = 1280 * 28 * 28, **kw: Any):
+                 max_pixels: int = 1344 * 32 * 32, **kw: Any):
         super().__init__(device=device, allow_inprocess=allow_inprocess, **kw)
         self.max_new_tokens, self.max_pixels = int(max_new_tokens), int(max_pixels)
-        self._proc: Any = None
+        self._ip: Any = None
+        self._tok: Any = None
 
     def _load(self, snapshot: str, device: str) -> Any:
         import torch
-        from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
+        from transformers import AutoTokenizer, Qwen3VLForConditionalGeneration
+        from transformers.models.qwen2_vl.image_processing_pil_qwen2_vl import Qwen2VLImageProcessorPil
         if not device.startswith("cuda"):
             raise GrounderUnavailable("MAI-UI-2B is only run on a GPU here (a 2B vision-language model on CPU is "
                                       "too slow for interactive grounding)")
-        self._proc = AutoProcessor.from_pretrained(snapshot, local_files_only=True, trust_remote_code=False)
+        # The packaged Qwen3VLProcessor also builds a video processor, which needs torchvision (not installed in
+        # this environment). Only still images are used here, so the two parts that matter are used directly:
+        # the PIL image processor and the tokenizer with the repository's chat template.
+        self._ip = Qwen2VLImageProcessorPil.from_pretrained(snapshot, local_files_only=True)
+        self._tok = AutoTokenizer.from_pretrained(snapshot, local_files_only=True, trust_remote_code=False)
         return Qwen3VLForConditionalGeneration.from_pretrained(
             snapshot, local_files_only=True, trust_remote_code=False, dtype=torch.bfloat16).to(device)
 
     def _drop(self) -> None:
-        self._proc = None
+        self._ip = self._tok = None
+
+    def _inputs(self, image: Any, instruction: str) -> Dict[str, Any]:
+        import torch
+        messages = [{"role": "system", "content": [{"type": "text", "text": SYSTEM_PROMPT}]},
+                    {"role": "user", "content": [{"type": "text", "text": instruction + "\n"}, {"type": "image"}]}]
+        text = self._tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        vision = self._ip(images=[image], return_tensors="pt", max_pixels=self.max_pixels)
+        n = int(vision["image_grid_thw"][0].prod()) // (self._ip.merge_size ** 2)
+        if text.count("<|image_pad|>") != 1:
+            raise GroundingError("the chat template did not produce exactly one image placeholder")
+        text = text.replace("<|image_pad|>", "<|image_pad|>" * n)         # as Qwen3VLProcessor.replace_image_token
+        enc = self._tok(text, return_tensors="pt")
+        dtype = next(self._model.parameters()).dtype
+        ids = enc["input_ids"].to(self.device)
+        # 0 = text, 1 = image token (ProcessorMixin.create_mm_token_type_ids). Without it this transformers version
+        # gives image tokens plain 1-D positions: the model then loses the horizontal position of what it sees
+        # (measured before this line existed: slope of predicted over true x = 0.50, of y = 1.07).
+        mm = (ids == self._model.config.image_token_id).to(torch.long)
+        if int(mm.sum()) != n:
+            raise GroundingError("image placeholder count does not match the image grid")
+        return {"input_ids": ids, "attention_mask": enc["attention_mask"].to(self.device), "mm_token_type_ids": mm,
+                "pixel_values": vision["pixel_values"].to(self.device, dtype),
+                "image_grid_thw": vision["image_grid_thw"].to(self.device)}
+
+    def _decode_text(self, ids: Any) -> str:
+        return self._tok.decode(ids, skip_special_tokens=True)
 
     def _ground(self, image: Any, instruction: str) -> Dict[str, Any]:
         import torch
-        messages = [{"role": "system", "content": [{"type": "text", "text": SYSTEM_PROMPT}]},
-                    {"role": "user", "content": [{"type": "text", "text": instruction + "\n"},
-                                                 {"type": "image", "image": image}]}]
-        inputs = self._proc.apply_chat_template(messages, tokenize=True, add_generation_prompt=True, return_dict=True,
-                                                return_tensors="pt",
-                                                images_kwargs={"max_pixels": self.max_pixels}).to(self.device)
+        inputs = self._inputs(image, instruction)
         out = self._model.generate(**inputs, do_sample=False, max_new_tokens=self.max_new_tokens,
                                    output_scores=True, return_dict_in_generate=True)
         new = out.sequences[0, inputs["input_ids"].shape[1]:]
-        text = self._proc.decode(new, skip_special_tokens=True)
+        text = self._decode_text(new)
         coord = parse_answer(text)
         if coord is None:
             raise GroundingError(f"no coordinate in the model output: {text[-160:]!r}")
         # likelihood of the answer part of the generation (the tokens after "<answer>"), not a calibrated probability
         lps = [torch.log_softmax(s[0].float(), -1)[t].item() for s, t in zip(out.scores, new.tolist())]
-        pieces = [self._proc.decode([t]) for t in new.tolist()]
+        pieces = [self._tok.decode([t]) for t in new.tolist()]
         acc, start = "", 0
         for i, piece in enumerate(pieces):
             acc += piece

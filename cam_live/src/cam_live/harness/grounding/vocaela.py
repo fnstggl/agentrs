@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 from typing import Any, Dict
 
@@ -76,30 +77,53 @@ class VocaelaGrounder(NeuralGrounder):
                  max_new_tokens: int = 64, **kw: Any):
         super().__init__(device=device, allow_inprocess=allow_inprocess, accept_noncommercial=accept_noncommercial, **kw)
         self.max_new_tokens = int(max_new_tokens)
-        self._proc: Any = None
+        self._ip: Any = None
+        self._tok: Any = None
 
     def _load(self, snapshot: str, device: str) -> Any:
         import torch
-        from transformers import AutoModelForImageTextToText, AutoProcessor
-        self._proc = AutoProcessor.from_pretrained(snapshot, local_files_only=True, trust_remote_code=False)
+        from transformers import AutoModelForImageTextToText, AutoTokenizer
+        from transformers.models.smolvlm.image_processing_pil_smolvlm import SmolVLMImageProcessorPil
+        # The packaged SmolVLMProcessor needs torchvision (video processor) and num2words (video prompts); neither
+        # is installed and neither matters for one still image. The image processor and tokenizer are used
+        # directly and the image placeholder is expanded with the library's own get_image_prompt_string.
+        with open(os.path.join(snapshot, "processor_config.json")) as f:
+            self._seq_len = int(json.load(f)["image_seq_len"])
+        self._ip = SmolVLMImageProcessorPil.from_pretrained(snapshot, local_files_only=True)
+        self._tok = AutoTokenizer.from_pretrained(snapshot, local_files_only=True, trust_remote_code=False)
         self._dtype = torch.float16 if device.startswith("cuda") else torch.float32
         return AutoModelForImageTextToText.from_pretrained(snapshot, local_files_only=True, trust_remote_code=False,
                                                            dtype=self._dtype).to(device)
 
     def _drop(self) -> None:
-        self._proc = None
+        self._ip = self._tok = None
+
+    def _inputs(self, image: Any, text: str) -> Dict[str, Any]:
+        from transformers.models.smolvlm.processing_smolvlm import get_image_prompt_string
+        messages = [{"role": "system", "content": [{"type": "text", "text": SYSTEM_MESSAGE}]},
+                    {"role": "user", "content": [{"type": "image"}, {"type": "text", "text": text}]}]
+        prompt = self._tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        vision = self._ip(images=[[image]], return_tensors="pt", return_row_col_info=True)
+        if prompt.count("<image>") != 1:
+            raise GroundingError("the chat template did not produce exactly one image placeholder")
+        expanded = get_image_prompt_string(vision["rows"][0][0], vision["cols"][0][0], self._seq_len,
+                                           fake_token_around_image="<fake_token_around_image>", image_token="<image>",
+                                           global_image_token="<global-img>")
+        enc = self._tok(prompt.replace("<image>", expanded), return_tensors="pt")
+        out = {"input_ids": enc["input_ids"].to(self.device), "attention_mask": enc["attention_mask"].to(self.device),
+               "pixel_values": vision["pixel_values"].to(self.device, self._dtype)}
+        if "pixel_attention_mask" in vision:
+            out["pixel_attention_mask"] = vision["pixel_attention_mask"].to(self.device)
+        return out
 
     def _ground(self, image: Any, instruction: str) -> Dict[str, Any]:
         import torch
         text = instruction if re.match(r"(?i)\s*(click|tap|press|select|open)\b", instruction) else f"Click the {instruction}"
-        messages = [{"role": "system", "content": [{"type": "text", "text": SYSTEM_MESSAGE}]},
-                    {"role": "user", "content": [{"type": "image", "image": image}, {"type": "text", "text": text}]}]
-        inputs = self._proc.apply_chat_template(messages, add_generation_prompt=True, tokenize=True, return_dict=True,
-                                                return_tensors="pt").to(self.device, dtype=self._dtype)
+        inputs = self._inputs(image, text)
         out = self._model.generate(**inputs, do_sample=False, max_new_tokens=self.max_new_tokens,
                                    output_scores=True, return_dict_in_generate=True)
         new = out.sequences[0, inputs["input_ids"].shape[1]:]
-        raw = self._proc.decode(new, skip_special_tokens=True)
+        raw = self._tok.decode(new, skip_special_tokens=True)
         coord = parse_action(raw)
         if coord is None:
             raise GroundingError(f"no coordinate in the model output: {raw[:160]!r}")
