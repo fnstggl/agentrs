@@ -14,9 +14,11 @@ Measured on the families of each category that pass admission on seeds 0-2 and o
           family no training family has
     8.9   genuine interdependence: independent adaptive learners (one per seat, no messages, no joint plans) gain
           at most half of the coordinating reference's gain (every admitted 8.9 family, 2 of seeds 0-2)
-    8.10  previously successful constant strategies fail after the change: the early-best constant falls short of
-          the best constant of a later fifth by a quarter of that fifth's gain (every admitted 8.10 family, 2 of
-          seeds 0-2); static families serve as negative controls and must not pass
+    8.10  previously successful strategies fail after the change: the early-best constant falls short of the best
+          constant of a later fifth by a quarter of that fifth's gain; for a family scored by held-out predictions,
+          on its scored channel - predictions exactly right for the world as it stood at the end of the first fifth
+          fall short of perfect by a quarter (every admitted 8.10 family, 2 of seeds 0-2); static families (three
+          prediction worlds) serve as negative controls and must not pass
 
 A requirement with no admitted family in its category is not met."""
 from __future__ import annotations

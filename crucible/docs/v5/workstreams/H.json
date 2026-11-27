@@ -2,8 +2,8 @@
  "workstream": "H",
  "branch": "c5c/w3b-rapid",
  "base": "55433e7 (integration head after waves 1, 2a, 3a and the integration fix) + feat/crucible-5-complete docs merge cb96e1c",
- "measured_at": "2026-11-27 (second wave-3b continuation; per-family probes on seeds 0-2 and 10-12, registry-wide run queued as slot job 'H: rapid final 2')",
- "status": "Second wave-3b continuation: M.1 63/60, M.2 22/20, SP-8.0 60/60 and all six SP-8.0b category checks in per-family probes on seeds 0-2 and 10-12; registry-wide confirmation queued (slot job 'H: rapid final 2').",
+ "measured_at": "2026-11-27 repair pass: per-family full admission probes on seeds 0-2 and 10-12 of every family the repair changed (48 families; the other 49 are bit-identical to the f2 registry run); registry-wide run queued as slot job 'H: rapid repair r1'",
+ "status": "Repair pass after the verifier's review of c09eb24a: all eight findings addressed with tests (tests/test_v5_rapid_repair.py). Probe counts under the strengthened admission: M.1 62/60 training families, M.2 21/20 evaluation families, SP-8.0 60/60 named items (seeds 0-2 and 10-12). Gate evidence for M.1-M.4, M.6-M.8, SP-7.3-7.5, SP-8.0, SP-8.0b, SP-8.11, SP-8.12, SP-8.12b is pending the slot job.",
  "progress": {
   "baseline_integrated_tree": {
    "robust_train": 22,
@@ -96,7 +96,45 @@
    "net_interdependent (8.7.4, evaluation)"
   ],
   "unit_tests_second_continuation": "rapid unit + kernel + invariant tests (test_v5_rapid_families, _h1h2, _admission_v2, _primitives, _actions, _engines, _inventory_refs, _prediction_v3, test_kernel, test_invariants), direct single-CPU run on 571ff996 (2026-11-27 04:22): 458 passed, 0 failed. An earlier run found one failure (batch path of net_interdependent: cascading_failure did not broadcast per-instance parameters), fixed in fed6640b.",
-  "gate_tests_run_without_admission_cache_second_continuation": "Direct single-CPU runs on the worktree, 2026-11-27 03:46-03:51 (unofficial evidence): test_gate_M M5 and Mn1 passed (97 families, 0 missing or numeric fingerprint components; 474 variants, 0 counted, 0 at nonzero distance); SP-7.0 passed (97 families, 0 with world-specific objective code, 328 generated worlds, 5 objective kinds); SP-7.1 passed (28 primitives, 27 per-instance checks, 0 failures); SP-7.2 passed (11 dimensions, 6 look-alike pairs confirmed different); SP-0.9 passed (68 training families checked, 0 matching a 4.0 held-out mechanism, min distance 0.39). SP-7.5 needs more than five minutes (left to the slot job); the distinctness of every family whose nearest neighbour changed was verified directly (all verified, two by the new pair protocols). The admission-based gates wait for the slot job."
+  "gate_tests_run_without_admission_cache_second_continuation": "Direct single-CPU runs on the worktree, 2026-11-27 03:46-03:51 (unofficial evidence): test_gate_M M5 and Mn1 passed (97 families, 0 missing or numeric fingerprint components; 474 variants, 0 counted, 0 at nonzero distance); SP-7.0 passed (97 families, 0 with world-specific objective code, 328 generated worlds, 5 objective kinds); SP-7.1 passed (28 primitives, 27 per-instance checks, 0 failures); SP-7.2 passed (11 dimensions, 6 look-alike pairs confirmed different); SP-0.9 passed (68 training families checked, 0 matching a 4.0 held-out mechanism, min distance 0.39). SP-7.5 needs more than five minutes (left to the slot job); the distinctness of every family whose nearest neighbour changed was verified directly (all verified, two by the new pair protocols). The admission-based gates wait for the slot job.",
+  "repair_pass": {
+   "verifier_findings_fixed": {
+    "HIGH prediction dominance": "dominance._naive_predictors adds hold-and-fit predictors (hold_settings blocks; linear, additive quadratic, leave-one-out choice); SP-7.4 negative control ctl_dominant_prediction; families redesigned: plan_spoilage, net_congestion_routes, cx_balancing_loop, ch_tech_transition, look-alike markets (shared held-out list)",
+    "HIGH program determinism": "program_exec.billed_units: 100 units per call + 10,000 per whole 10,000 measured (parent-side D-20 measurement, quantised); reference programs measure <= ~2,600 units per call; fresh-process repeat test",
+    "MEDIUM 8.10 channel": "categories.beliefs_fail_after_change on the scored predictions (true_response with t_frozen and exogenous_ticks); mutation test: cheaper new process leaves the verdict unchanged",
+    "MEDIUM revenue channel": "families._realised_revenue: realised quantities with relative sd 0.1 x observation_noise in every primitive-graph prediction world that books revenue; one extra normal per tick after all others, none in the warm-up; scalar twin updated",
+    "LOW spoilage claim": "claim_spoilage requires rise(8->10) <= 0.8 rise(2->4); linear and barely concave sales laws fail (tested)",
+    "LOW inventory reference": "trading terms stated in the brief (families_des.inventory_terms_text); references.public_inventory_terms parses the brief; test runs the reference on a config reduced to public names",
+    "SCOPE": "not resolved: 8.4.2, 8.4.3, 8.6.3, 8.7.1 and 8.7.4 are still covered only by compact prediction worlds; their decision worlds (plan_perishable, des_perishable, plan_supply_chain, net_routing, net_cascade, pe_rollout_targeting) remain dominated (measured again in this pass). The dominance of 8.4.2 (plan_spoilage) and 8.7.1 (net_congestion_routes) by generic predictors is fixed.",
+    "INFO stale report": "this report"
+   },
+   "probe_counts": {
+    "robust_train": 62,
+    "robust_eval": 21,
+    "named_items": 60,
+    "not_robust": [
+     "ch_wandering_taste",
+     "cxc_balancing_constraint",
+     "cxs_lockin",
+     "cxs_selected_layers",
+     "des_perishable",
+     "mk_drift",
+     "net_cascade",
+     "net_routing",
+     "net_topology_shift",
+     "pe_rollout_targeting",
+     "pe_router",
+     "plan_perishable",
+     "plan_supply_chain",
+     "strat_price_war"
+    ],
+    "lost_to_the_stronger_check": [
+     "mk_drift (train)",
+     "cxc_balancing_constraint (eval)"
+    ]
+   },
+   "probe_tools": "scratchpad w3b-rapid/r3: predprobe.py (generic predictors vs reference), admchunk.py (full admission), riskprobe.py (identification and claims), pe_det.py (program determinism), c810.py (8.10 check)"
+  }
  },
  "requirements": {
   "M.1": {
@@ -1050,6 +1088,151 @@
      "cx_latched_pathway"
     ]
    }
+  },
+  "wave3b_second_continuation": {
+   "measured_at": "2026-11-27 (second wave-3b continuation; per-family probes on seeds 0-2 and 10-12, registry-wide run queued as slot job 'H: rapid final 2')",
+   "status": "Second wave-3b continuation: M.1 63/60, M.2 22/20, SP-8.0 60/60 and all six SP-8.0b category checks in per-family probes on seeds 0-2 and 10-12; registry-wide confirmation queued (slot job 'H: rapid final 2').",
+   "progress": {
+    "baseline_integrated_tree": {
+     "robust_train": 22,
+     "robust_eval": 8,
+     "note": "pe_stream_processor fell out after the D-20 line-metering merge (its reference program was priced out of its margin)"
+    },
+    "families_fixed_wave3b": [
+     "strat_blotto",
+     "strat_interdiction",
+     "strat_bargain",
+     "hc_causal_prediction",
+     "sci_slow_response",
+     "sci_selection_bias",
+     "pe_stream_processor",
+     "pe_contention_sched",
+     "hc_conditional",
+     "cx_competing_causes",
+     "cx_balancing_loop",
+     "cx_latched_pathway"
+    ],
+    "families_fixed_wave3b_continuation": [
+     "hc_feedback_hidden",
+     "hc_confounded",
+     "strat_entry",
+     "team_commons",
+     "team_discovery",
+     "team_formation",
+     "team_schedule",
+     "plan_portfolio",
+     "pe_cascade_guard",
+     "net_diffusion",
+     "ch_constraint_tightens",
+     "ch_demand_shift",
+     "ch_sign_reversal",
+     "mk_signal",
+     "mk_elastic",
+     "mk_drift",
+     "mk_gate",
+     "game_adaptive_rival",
+     "ch_drifting_ideal",
+     "cx_overdose",
+     "cx_reactive_history",
+     "cxc_balancing_constraint",
+     "cxc_latched_reversal"
+    ],
+    "continuation_note": "Continuation agent (after the usage-limit stop): each family above was re-measured with the full admission on seeds 0-2 and 10-12 after its change (single-CPU probes, not evidence). The registry-wide run is queued through the slot scheduler.",
+    "tried_and_reverted_continuation": [
+     "cx_overdose (lagged prediction)",
+     "cx_reactive_history (lagged prediction)",
+     "plan_supply_chain (demand regimes, holding costs)",
+     "net_routing (capacity incidents, AIMD reference)",
+     "strat_price_war (two learning rivals)",
+     "des_inventory (stronger season, forecasting reference)",
+     "ch_drifting_ideal (sharper peak with dither tracker; end-state prediction with window and drift-shift references)",
+     "net_cascade (zone heat waves)",
+     "ch_tech_transition (prediction version admitted, but its best constant does not change after obsolescence: SP-8.0b 8.10 check fails on 2 of 3 seeds)"
+    ],
+    "probe_counts_continuation": {
+     "train": 54,
+     "eval": 21,
+     "named_items_admitted": 54
+    },
+    "gate_tests_run_without_admission_cache": "SP-7.0, SP-7.1, SP-7.2, SP-7.5, SP-8.12b, SP-0.9, M.5, M.n1, M.8 passed on the worktree at ef7719b..0f4c27e (single-CPU, unofficial evidence); the admission-based gates wait for the registry-wide run",
+    "families_fixed_second_continuation": [
+     "plan_distribution",
+     "des_inventory",
+     "lab_drift_blanks (SP-8.0b 8.2)",
+     "ch_tech_transition (v3)",
+     "eng_delayed_controller (v2)",
+     "dl_short_term_damage (v2)"
+    ],
+    "probe_counts_second_continuation": {
+     "train": 63,
+     "eval": 22,
+     "named_items_admitted": 60,
+     "registered_families": 97
+    },
+    "tried_not_adopted_second_continuation": [
+     "plan_supply_chain (multi-regime demand, alternating regimes, larger single shift, holding 1.0-1.5 at the retailer; echelon base-stock reference with lag identification by matching shipments to receipts)",
+     "plan_perishable (three demand regimes; level-tracking reference with a learned weekday profile)",
+     "pe_rollout_targeting (readiness-aware targeting references: logistic propensity with group intercepts, readiness posterior over adopter-share thresholds; longer horizon and shorter delays)",
+     "eng_delayed_controller (model-predictive controller with lag identification, band search, state filter and integral action)",
+     "des_perishable (FIFO lot tracker for the shelf life inside the (s, Q) reference: still below the best simple policy)"
+    ],
+    "families_added_second_continuation": [
+     "dl_delayed_adoption (8.6.3)",
+     "net_congestion_routes (8.7.1)",
+     "plan_spoilage (8.4.2)",
+     "plan_serial_stages (8.4.3)",
+     "net_interdependent (8.7.4, evaluation)"
+    ],
+    "unit_tests_second_continuation": "rapid unit + kernel + invariant tests (test_v5_rapid_families, _h1h2, _admission_v2, _primitives, _actions, _engines, _inventory_refs, _prediction_v3, test_kernel, test_invariants), direct single-CPU run on 571ff996 (2026-11-27 04:22): 458 passed, 0 failed. An earlier run found one failure (batch path of net_interdependent: cascading_failure did not broadcast per-instance parameters), fixed in fed6640b.",
+    "gate_tests_run_without_admission_cache_second_continuation": "Direct single-CPU runs on the worktree, 2026-11-27 03:46-03:51 (unofficial evidence): test_gate_M M5 and Mn1 passed (97 families, 0 missing or numeric fingerprint components; 474 variants, 0 counted, 0 at nonzero distance); SP-7.0 passed (97 families, 0 with world-specific objective code, 328 generated worlds, 5 objective kinds); SP-7.1 passed (28 primitives, 27 per-instance checks, 0 failures); SP-7.2 passed (11 dimensions, 6 look-alike pairs confirmed different); SP-0.9 passed (68 training families checked, 0 matching a 4.0 held-out mechanism, min distance 0.39). SP-7.5 needs more than five minutes (left to the slot job); the distinctness of every family whose nearest neighbour changed was verified directly (all verified, two by the new pair protocols). The admission-based gates wait for the slot job.",
+    "repair_pass": {
+     "verifier_findings_fixed": {
+      "HIGH prediction dominance": "dominance._naive_predictors adds hold-and-fit predictors (hold_settings blocks; linear, additive quadratic, leave-one-out choice); SP-7.4 negative control ctl_dominant_prediction; families redesigned: plan_spoilage, net_congestion_routes, cx_balancing_loop, ch_tech_transition, look-alike markets (shared held-out list)",
+      "HIGH program determinism": "program_exec.billed_units: 100 units per call + 10,000 per whole 10,000 measured (parent-side D-20 measurement, quantised); reference programs measure <= ~2,600 units per call; fresh-process repeat test",
+      "MEDIUM 8.10 channel": "categories.beliefs_fail_after_change on the scored predictions (true_response with t_frozen and exogenous_ticks); mutation test: cheaper new process leaves the verdict unchanged",
+      "MEDIUM revenue channel": "families._realised_revenue: realised quantities with relative sd 0.1 x observation_noise in every primitive-graph prediction world that books revenue; one extra normal per tick after all others, none in the warm-up; scalar twin updated",
+      "LOW spoilage claim": "claim_spoilage requires rise(8->10) <= 0.8 rise(2->4); linear and barely concave sales laws fail (tested)",
+      "LOW inventory reference": "trading terms stated in the brief (families_des.inventory_terms_text); references.public_inventory_terms parses the brief; test runs the reference on a config reduced to public names",
+      "SCOPE": "not resolved: 8.4.2, 8.4.3, 8.6.3, 8.7.1 and 8.7.4 are still covered only by compact prediction worlds; their decision worlds (plan_perishable, des_perishable, plan_supply_chain, net_routing, net_cascade, pe_rollout_targeting) remain dominated (measured again in this pass). The dominance of 8.4.2 (plan_spoilage) and 8.7.1 (net_congestion_routes) by generic predictors is fixed.",
+      "INFO stale report": "this report"
+     },
+     "probe_counts": {
+      "robust_train": 62,
+      "robust_eval": 21,
+      "named_items": 60,
+      "not_robust": [
+       "ch_wandering_taste",
+       "cxc_balancing_constraint",
+       "cxs_lockin",
+       "cxs_selected_layers",
+       "des_perishable",
+       "mk_drift",
+       "net_cascade",
+       "net_routing",
+       "net_topology_shift",
+       "pe_rollout_targeting",
+       "pe_router",
+       "plan_perishable",
+       "plan_supply_chain",
+       "strat_price_war"
+      ],
+      "lost_to_the_stronger_check": [
+       "mk_drift (train)",
+       "cxc_balancing_constraint (eval)"
+      ]
+     },
+     "probe_tools": "scratchpad w3b-rapid/r3: predprobe.py (generic predictors vs reference), admchunk.py (full admission), riskprobe.py (identification and claims), pe_det.py (program determinism), c810.py (8.10 check)"
+    }
+   },
+   "limitations": [
+    "Gate M counts are probe counts until the registry-wide run lands: M.1 63/60 training families, M.2 22/20 evaluation families, SP-8.0 60/60 named items (last registry-wide run f1 at 7a4137d: 54/21/54).",
+    "Seventeen families became prediction tasks (D-63 and its amendment): their objective is the interventional or end-of-episode response at held-out settings, scored 1 - MSE / variance of the truth; their public references are model-fitting procedures (refs_adapt), several of them assuming a model class (a logit demand curve, a drifting bump, a rival that follows your average price, a peaked dose law, a saturating hub, a saturating output link).",
+    "Several prediction references are weak on one seed of a seed set (ch_sign_reversal, ch_demand_shift, cxc_balancing_constraint, cxc_latched_reversal); they pass the two-of-three rule, the margin is small.",
+    "Program-execution families pay compute by measured CPU time (D-20 metering); admission values of pe_* families can vary with machine load.",
+    "The planning families of 8.4.1-8.4.3 and the routing/cascade network families (8.7.1, 8.7.4) remain static-tuning or weak-reference worlds; their redesigns were reverted.",
+    "Six more families became interventional-prediction tasks or were added as such in the second continuation (ch_tech_transition v3, eng_delayed_controller v2, dl_short_term_damage v2, dl_delayed_adoption, net_congestion_routes, plan_spoilage, plan_serial_stages): 24 of the 63 admitted training families are now prediction tasks scored by 1 - MSE / variance of the truth at held-out conditions; their scripted references assume the model class of the mechanism (D-64), so a reference score of 0.9-1.0 shows feasibility, not that a generic learner can do it. The four new families are compact primitive-graph compositions (one to three stocks); their item coverage is honest but thinner than the planning/program engines' worlds they complement."
+   ],
+   "registry_run_f2": "The slot job 'H: rapid final 2' ran at c09eb24a (05:25-05:48 UTC, rc 0): 15+7 gate tests passed, 458 unit tests passed, robust counts 63 train / 22 eval, SP-8.0 60/60, SP-8.0b 6/6 - superseded by the repair pass (the verifier showed the prediction dominance check was too weak and program outcomes not reproducible)"
   }
  }
 }
