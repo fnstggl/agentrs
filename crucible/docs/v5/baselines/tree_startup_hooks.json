@@ -1,0 +1,11 @@
+{
+ "schema": "crucible.v5.tree-startup-hooks/1",
+ "note": "Start-up hook files committed to the tree on purpose (checker.pinned_tree_hooks; DECISION_LOG D-83 addendum). A path here is never at a start-up root of a measured process (src/, tests/, the crucible root, the repository top) and runs only where committed code puts its directory on PYTHONPATH. Any change of a pinned file un-pins it until this baseline is updated with the new sha256 after review of the diff.",
+ "hooks": {
+  "src/crucible/scale/_slotsite/sitecustomize.py": {
+   "sha256": "da0251cf6aba4da0e688b23293bb39316096d7b7bcf8f88d6d9cd7249ae3eb2c",
+   "owner": "M (resource governor, D-27)",
+   "why": "GPU memory cap and GPU usage reporter of governed slot jobs: the slot supervisor prepends this directory to PYTHONPATH of jobs granted GPU memory; the official runner's measured processes never have it (their PYTHONPATH is the clone's src only)"
+  }
+ }
+}

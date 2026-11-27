@@ -212,6 +212,29 @@ def open_blockers(root: str) -> dict[str, str]:
     return out
 
 
+TREE_HOOKS_BASELINE = "docs/v5/baselines/tree_startup_hooks.json"
+
+
+def _startup_root(path: str) -> bool:
+    """A file directly in a directory that is on a measured process's start-up path (the clone's src/ - PYTHONPATH -,
+    the crucible root and the repository top - the working directory of `python -m` -, tests/): a sitecustomize
+    there runs at interpreter start-up without anything naming it."""
+    d = os.path.dirname(os.path.normpath(path))
+    return d in ("", ".", "src") or d.startswith(("..", "tests")) or path.endswith(".pth")
+
+
+def pinned_tree_hooks(root: str) -> dict[str, str]:
+    """Start-up hook files a decision committed to the tree on purpose, pinned by content (D-83 addendum): path ->
+    sha256. A pinned path is never at a start-up root (`_startup_root`), so it runs only where committed code puts its
+    directory on PYTHONPATH (the slot governor's GPU cap, `crucible.scale._slotsite`)."""
+    try:
+        d = json.load(open(os.path.join(root, TREE_HOOKS_BASELINE)))
+    except (OSError, ValueError):
+        return {}
+    return {p: str(v.get("sha256")) for p, v in (d.get("hooks") or {}).items()
+            if isinstance(v, dict) and not _startup_root(p)}
+
+
 def is_startup_hook(path: str) -> bool:
     b = os.path.basename(path)
     return b.endswith(".pth") or b in {f"{n}.py" for n in STARTUP_HOOK_NAMES}
@@ -247,7 +270,9 @@ def hidden_changes(root: str) -> list[str]:
     if ignored:
         probs.append(f"{len(ignored)} ignored code files or startup hooks in the tree (git status does not show them, "
                      f"but they run): {ignored[:3]}")
-    hooks = [f for f in _git("ls-files", cwd=root).splitlines() if is_startup_hook(f)]
+    pinned = pinned_tree_hooks(root)
+    hooks = [f for f in _git("ls-files", cwd=root).splitlines() if is_startup_hook(f) and not (
+        f in pinned and sha256_file(os.path.join(root, f)) == pinned[f])]
     if hooks:
         probs.append(f"interpreter startup hooks committed in the tree (sitecustomize/usercustomize/.pth): {hooks[:3]}")
     return probs

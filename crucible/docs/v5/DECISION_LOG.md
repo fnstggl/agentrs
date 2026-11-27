@@ -411,3 +411,13 @@ Not covered (stated): implementation functions executed only in processes that d
 (the sandbox's `python -I -S` boot and jail scripts; each requirement listing them also lists the in-process modules that
 start them), generators started during an import and resumed later, and a test that detects the hook itself (it is
 visible to the measured process) - reviewers still read the tests.
+Second addendum (same session): the D-26 rule "start-up hook files in the tree are rejected" made every project
+status unreachable after the merge of workstream M's resource governor (D-27), which commits
+`src/crucible/scale/_slotsite/sitecustomize.py` (the GPU cap and usage reporter the slot supervisor activates by
+prepending that directory to a governed GPU job's PYTHONPATH). A start-up hook is dangerous where it runs unnamed: at a
+start-up root of a measured process (the clone's src/ on PYTHONPATH, the crucible root and repository top as working
+directory, tests/). Decision: a committed sitecustomize/usercustomize outside those roots is allowed only when
+docs/v5/baselines/tree_startup_hooks.json pins its path and sha256; any edit un-pins it (a project problem until the
+diff is reviewed and the baseline updated), a pin at a start-up root or of a .pth file is ignored, and ignored hook
+files stay rejected (probe P39). The measured processes' own start-up hooks are still checked against
+python_site_hooks.json, and the official runner never puts `_slotsite` on a measured process's PYTHONPATH.

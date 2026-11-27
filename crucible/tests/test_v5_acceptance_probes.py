@@ -964,3 +964,32 @@ def test_P38_criteria_derived_from_the_implementation_text_without_executing_it_
     _, row = attempt(r)
     assert row["status"] != "VERIFIED", row["problems"]
     assert has(row, "ablat"), row["problems"]
+
+
+def _pin(r: Repo, hooks: dict) -> None:
+    r.dump("docs/v5/baselines/tree_startup_hooks.json", {"schema": "crucible.v5.tree-startup-hooks/1", "hooks": {
+        p: {"sha256": evidence.sha256_file(os.path.join(r.root, p)), "why": "probe"} for p in hooks}})
+
+
+def test_P39_only_a_pinned_unchanged_startup_hook_outside_the_startup_roots_is_allowed(tmp_path, monkeypatch):
+    """The slot governor commits a sitecustomize (its GPU cap, activated only in governed jobs whose PYTHONPATH it
+    sets); the D-26 rule rejected every start-up hook in the tree, which blocked every project status. A hook file is
+    now allowed only when the tree's baseline pins its path and content and the path is not on a measured process's
+    start-up path: editing the pinned hook, or pinning a sitecustomize in src/ (on PYTHONPATH: it runs everywhere),
+    is still a project problem."""
+    r = Repo(str(tmp_path), monkeypatch)
+    r.write("src/crucible/scale/_slotsite/sitecustomize.py", "import os\n")
+    r.commit("governor hook")
+    assert any("startup hooks" in p for p in r.verify()[0]["global_problems"])
+    _pin(r, ["src/crucible/scale/_slotsite/sitecustomize.py"])
+    r.commit("pinned")
+    assert not any("startup hooks" in p for p in r.verify()[0]["global_problems"])
+    r.write("src/crucible/scale/_slotsite/sitecustomize.py", PATCHER)          # the pinned hook repurposed
+    r.commit("hook changed")
+    assert any("startup hooks" in p for p in r.verify()[0]["global_problems"])
+    r.write("src/crucible/scale/_slotsite/sitecustomize.py", "import os\n")
+    r.write("src/sitecustomize.py", PATCHER)
+    _pin(r, ["src/crucible/scale/_slotsite/sitecustomize.py", "src/sitecustomize.py"])
+    r.commit("a pinned hook on PYTHONPATH")
+    probs = r.verify()[0]["global_problems"]
+    assert any("startup hooks" in p and "src/sitecustomize.py" in p for p in probs), probs
