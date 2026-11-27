@@ -226,3 +226,30 @@ def test_labour_world_replays_and_regenerates():
     assert w.check_invariants() == []
     rep = OW.verify_reproducible(w)
     assert rep["replay_digest_equal"] and rep["regeneration_hash_equal"]
+
+
+def test_simulated_employees_work_the_support_queue_in_hours_their_tasks_leave():
+    """A support job is worked whoever holds it: a simulated worker spends the hours no assigned task needs on its
+    employer's unresolved tickets (the physics of `labor.shift`), and the work enters its verified record."""
+    w = OW.create(7, workers=14, extra=("support",))
+    boss, _ = OW.join(w, "boss", 30_000_000)
+    cust, _ = OW.join(w, "cust", 100_000)
+    org, _ = OW.found_company(w, boss, "helpdesk", 20_000_000)
+    _hire_team(w, boss, org, skill="writing", salary=650_000)
+    team = {t["worker"] for t in _ex(w, boss, "labor.team", org=org).result}
+    assert team and all(w.state.tables["labor_workers"][p]["sim"] for p in team)
+
+    def complain(ctx):
+        sup = ctx.world.modules["support"]
+        for k in range(15):
+            sup.open_ticket(ctx, "helpdesk-app", org, cust, f"problem {k}", "my results are wrong", 2)
+    w._run_system("test.complaints", complain)
+    w.advance_time(w.now + 2 * DAY)
+    st = w.state
+    tickets = [t for t in st.tables["sup_tickets"].values() if t["owner"] == org]
+    resolved = [t for t in tickets if t["status"] == "resolved"]
+    assert len(tickets) == 15 and len(resolved) >= 10
+    perf = [e.payload for e in w.log if e.type == "labor.perf" and e.payload["task"] is None]
+    assert perf and {p["worker"] for p in perf} <= team and all(p["org"] == org for p in perf)
+    replies = [e for e in w.log if e.type == "support.msg" and e.actor in team]
+    assert replies, "the employees themselves answered the tickets"

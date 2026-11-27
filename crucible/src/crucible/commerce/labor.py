@@ -33,7 +33,8 @@ quality). Agents can be workers too (`labor.register`) and do the work themselve
   contributions to the employer, and during them the employee works the employer's support queue (answers and
   resolves the oldest unresolved tickets of the employer's services as the organisation's member); how many it
   handles per hour is world physics from its own skills (writing, social, evaluating), recorded in its verified
-  record (`labor.perf`, skill `operations`).
+  record (`labor.perf`, skill `operations`). A simulated worker spends the hours its assigned tasks leave on the
+  same queue (`work_queue`), so a support job is worked whoever holds it.
 
 Evaluator metrics (goals/metrics.py, subject = the organisation): `labor_employees`, `labor_retention`,
 `project_completion`, `project_quality`, `project_delivered`.
@@ -492,6 +493,17 @@ class Labor(Module):
                                         "hours": round(t["effort_hours"] / max(prod, 1e-6), 2)}, vis=(person, org))
             else:
                 inst.set_progress(ctx, tid, prog)
+        # hours no task needed go to the employer's support queue, when it has one (the same physics as a shift)
+        if hours_left > 0.25 and self.has_queue(st, org):
+            h = round(hours_left, 3)
+            done, prod_s = ctx.run_as(person, lambda sub: self.work_queue(sub, org, h))
+            if done:
+                worked += h
+                hours_left = 0.0
+                used["operations"] = used.get("operations", 0.0) + h
+                ctx.emit("labor.perf", {"id": f"{person}|queue|{ctx.now}", "worker": person, "org": org, "task": None,
+                                        "skills": ["operations"], "quality": round(prod_s, 4), "late": False,
+                                        "hours": h}, vis=(person, org))
         if worked > 0:
             inst.record_labor(ctx, org, person, worked, int(round(worked * int(self.cfg("labor_hour_cents", 2_500)))))
         # satisfaction: pay against the market, interest in the work, fatigue, unpaid wages
@@ -588,24 +600,19 @@ class Labor(Module):
         sk = w.get("skills") or {}
         return _clip(0.5 * sk.get("writing", 0.5) + 0.5 * sk.get("operations", 0.5)) if sk else 0.5
 
-    @endpoint("shift", S.obj({"org": S.s_str("your employer", maxLength=40),
-                              "hours": S.s_num("hours worked in this shift", minimum=0.25, maximum=12)},
-                             ["org", "hours"]), cost_s=60)
-    def ep_shift(self, ctx, org, hours):
-        """Work a shift for your employer: the hours are recorded as your labour for it, and you work its support
-        queue - the oldest unresolved tickets of its services - answering and resolving as many as you manage."""
-        st = ctx.state
-        org = self._org(ctx, org)
-        w = st.get("labor_workers", ctx.actor)
-        if w is None or w["employer"] != org or not w["contract"]:
-            raise Forbidden("you are not employed by this organisation")
-        c = st.get("contracts", w["contract"])
-        if c is None or c["status"] not in ("active", "terminating"):
-            raise Conflict("your employment contract is not active")
-        hours = float(hours)
+    def has_queue(self, st, org: str) -> bool:
+        """The organisation has unresolved support tickets (its own books)."""
+        if "sup_tickets" not in st.tables:
+            return False
+        return any(st.tables["sup_tickets"][t]["status"] != "resolved" for t in st.find_ids("sup_tickets", "owner", org))
+
+    def work_queue(self, ctx, org: str, hours: float) -> tuple[list, float]:
+        """Support work, world physics for every employee (a shift of a population individual or agent, the idle
+        hours of a simulated worker): during `hours` the employee (`ctx.actor`) answers and resolves the oldest
+        unresolved tickets of its employer's services, as many as its productivity allows. Returns (tickets, prod)."""
         prod = self.productivity(ctx.world, ctx.actor)
         lo, hi = TICKETS_PER_HOUR
-        cap = int(hours * (lo + (hi - lo) * prod))
+        cap = int(float(hours) * (lo + (hi - lo) * prod))
         done = []
         if cap > 0 and "support" in ctx.world.modules:
             try:
@@ -621,6 +628,24 @@ class Labor(Module):
                     done.append(t["ticket"])
                 except CrucibleError:
                     continue
+        return done, prod
+
+    @endpoint("shift", S.obj({"org": S.s_str("your employer", maxLength=40),
+                              "hours": S.s_num("hours worked in this shift", minimum=0.25, maximum=12)},
+                             ["org", "hours"]), cost_s=60)
+    def ep_shift(self, ctx, org, hours):
+        """Work a shift for your employer: the hours are recorded as your labour for it, and you work its support
+        queue - the oldest unresolved tickets of its services - answering and resolving as many as you manage."""
+        st = ctx.state
+        org = self._org(ctx, org)
+        w = st.get("labor_workers", ctx.actor)
+        if w is None or w["employer"] != org or not w["contract"]:
+            raise Forbidden("you are not employed by this organisation")
+        c = st.get("contracts", w["contract"])
+        if c is None or c["status"] not in ("active", "terminating"):
+            raise Conflict("your employment contract is not active")
+        hours = float(hours)
+        done, prod = self.work_queue(ctx, org, hours)
         if "inst" in ctx.world.modules:
             ctx.world.modules["inst"].record_labor(ctx, org, ctx.actor, hours,
                                                    int(round(hours * int(self.cfg("labor_hour_cents", 2_500)))))
