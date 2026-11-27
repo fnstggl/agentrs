@@ -95,6 +95,23 @@ def _member_phase(log: dict, members: np.ndarray, t_switch: int, bad: set, good:
     return out
 
 
+def _per_day(log: dict, log_cf: dict, members: np.ndarray, t_switch: int, bad: tuple, good: tuple) -> list[dict]:
+    """Diagnostics of the change-specific comparison per simulated day after the switch: visits, mean realised
+    utility and the shares of visits to failing and to switched-to-rich sites of the group's members, in the main
+    world (learning) and in the fork (frozen at the switch)."""
+    out = []
+    for arm, lg, b, g in (("learning", log, bad[0], good[0]), ("frozen_at_switch", log_cf, bad[1], good[1])):
+        m = (lg["cls"] == 2) & (lg["activity"] == "web") & (lg["t"] >= t_switch) & np.isin(lg["ind"], members)
+        day = ((lg["t"][m] - t_switch) // DAY).astype(np.int64)
+        u, res = lg["util"][m].astype(np.float64), lg["res"][m]
+        for d in np.unique(day):
+            k = day == d
+            out.append({"arm": arm, "day": int(d), "visits": int(k.sum()), "mean_util": round(float(u[k].mean()), 4),
+                        "share_failing": round(float(np.isin(res[k], list(b)).mean()), 4),
+                        "share_switched_to_rich": round(float(np.isin(res[k], list(g)).mean()), 4)})
+    return out
+
+
 def session_utilities(world, groups: dict, t_switch: int) -> dict:
     """{(arm, "phase1" | "phase2"): realised utilities of the sessions of each policy group's class-2 members}: the
     outcome of the activity decision (class 2's policy chooses every session's activity), read from the population's
@@ -229,8 +246,9 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
             good_main = {r for r, h in enumerate(A.res_hosts(w)) if h in to_rich}
             good_cf = {r for r, h in enumerate(hosts_cf) if h in to_rich}
             bad_cf = {r for r, h in enumerate(hosts_cf) if h in {hosts[q] for q in bad_after}}
+            log_cf = A.visit_log(cf)
             a_main = _member_phase(log, members, t_switch, bad_after, good_main)
-            a_cf = _member_phase(A.visit_log(cf), members, t_switch, bad_cf, good_cf)
+            a_cf = _member_phase(log_cf, members, t_switch, bad_cf, good_cf)
             both = sorted(set(a_main) & set(a_cf))
             d = np.array([a_main[i][0] - a_cf[i][0] for i in both])
             g = f"adaptive:{gid[la]}"
@@ -249,7 +267,8 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
                 "policy_updates_after_switch": int(after(w.log)),
                 "policy_updates_after_switch_frozen": int(after(cf.log)),
                 "hash_switch": out["hash_switch"][la], "hash_end_learning": out["hash_end"][la],
-                "hash_end_frozen_at_switch": cf.modules["pop_adaptive"].policy(cf, gid[la]).weights_hash()}
+                "hash_end_frozen_at_switch": cf.modules["pop_adaptive"].policy(cf, gid[la]).weights_hash(),
+                "per_day": _per_day(log, log_cf, members, t_switch, (bad_after, bad_cf), (good_main, good_cf))}
         finally:
             cf.close()
     sess = session_utilities(w, gid, t_switch)
