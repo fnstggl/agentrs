@@ -6,7 +6,12 @@ about itself:
 * `actions(world)` - every call a participant made (from its persistent history), joined with the events the call
   emitted in the log: whether it changed shared state and whether anyone else can see the change (public events, or
   events visible to another principal). *Consequential* = succeeded, not read-only, and emitted at least one event
-  that another principal (or the public) can see.
+  that another principal (or the public) can see. What the call wrote is read from the log too (the text fields of
+  its events' payloads and the text artifacts it stored): a call whose main written content is junk - a tool or
+  service name, a line of the participants' prompt scaffolding, the participant's own goal sentence restated, or
+  under two letters - is *junk*, and `summary` counts consequential calls that are not junk once per participant,
+  tool and content (`signature`: a calendar entry titled 'cal' made again later, or the same text mailed to other
+  people, counts once; audit D skeptic "junk repetitions").
 * `provenance(world)` - SP-3.2d: every event in the log whose actor is a semantic participant must lie inside a
   call the participant's brain chose (the recorded step shortlist and pick); any other event acted as a participant
   is a scripted path.
@@ -18,6 +23,9 @@ about itself:
   transfer from one to another) that follow a message between them.
 """
 from __future__ import annotations
+
+import json
+import re
 
 import numpy as np
 
@@ -39,16 +47,115 @@ def _visible_to_others(ev, actor: str) -> bool:
     return False
 
 
-def actions(world) -> list[dict]:
+TEXT_KEYS = ("title", "subject", "body", "text", "message", "description", "name", "content", "bio", "summary", "note",
+             "comment", "answer", "q", "query", "label", "topic", "headline", "caption", "about", "question")
+
+
+def _texts(x, out: list, depth: int = 0) -> None:
+    if depth > 5:
+        return
+    if isinstance(x, dict):
+        for k, v in sorted(x.items()):
+            if isinstance(v, str) and k in TEXT_KEYS and v.strip():
+                out.append(v[:6000])
+            elif isinstance(v, (dict, list)):
+                _texts(v, out, depth + 1)
+    elif isinstance(x, list):
+        for v in x[:20]:
+            _texts(v, out, depth + 1)
+
+
+def written(world, evs, principal: str) -> tuple[list[str], list[str]]:
+    """(text fields of the call's event payloads, texts of the text artifacts the call stored in the participant's
+    name), from the event log and the artifact store."""
+    from ...substrate import artifacts
+    vals, arts = [], []
+    for e in evs:
+        _texts(e.payload, vals)
+        p = e.payload if isinstance(e.payload, dict) else {}
+        if e.type == "artifact.stored" and p.get("owner") == principal and str(p.get("mime", "")).startswith("text/"):
+            try:
+                arts.append(artifacts.get(world, p["ref"]).decode("utf-8", "replace")[:6000])
+            except Exception:  # noqa: BLE001 - bytes not in this store: judged by the other fields
+                pass
+    return list(dict.fromkeys(vals)), arts
+
+
+def _norm(t: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9']+", t.lower()))
+
+
+def junk_text(text: str, names: set, goal: str) -> bool:
+    """Evaluator-side: a written text that says nothing of its own (see the module docstring)."""
+    from .mind import SCAFFOLD, restates
+    flat = _norm(text)
+    if len(re.findall(r"[A-Za-z]", text)) < 2 or SCAFFOLD.search(text):
+        return True
+    if flat in names or text.strip().lower() in names:
+        return True
+    return bool(goal) and restates(text, goal)
+
+
+def _job_runs(world) -> dict:
+    """Events of each scheduled job's runs (a run lies between its ``proc`` event and the next ``proc`` or ``cmd``
+    event), by job id - as `provenance` delimits them."""
+    runs: dict = {}
+    cur = None
+    for ev in world.events_range(0, world.seq):
+        if ev.type == "proc":
+            cur = ev.payload.get("id")
+        elif ev.type == "cmd":
+            cur = None
+        if cur is not None:
+            runs.setdefault(cur, []).append(ev)
+    return runs
+
+
+def _consequences(evs, runs: dict, depth: int = 3) -> list:
+    """Events of the jobs a call scheduled (a delivery it sent, a renewal it ordered), and of the jobs those
+    scheduled, to `depth` levels."""
     out = []
+    jobs = [e.payload.get("id") for e in evs if e.type == "sched.add" and isinstance(e.payload, dict)]
+    for _ in range(depth):
+        nxt = []
+        for j in jobs:
+            r = runs.get(j) or []
+            out += r
+            nxt += [e.payload.get("id") for e in r if e.type == "sched.add" and isinstance(e.payload, dict)
+                    and e.payload.get("id") != j]
+        jobs = nxt
+        if not jobs:
+            break
+    return out
+
+
+def actions(world) -> list[dict]:
+    """Every call of every participant with its events and consequences (see the module docstring). The events of
+    jobs the call scheduled count as its consequences (a mail is delivered to its recipient by a job one minute
+    after mail.send)."""
+    out = []
+    tools = {}
+    runs = _job_runs(world)
     for r in rows(world):
+        p = r["principal"]
+        if p not in tools:
+            ns = {t["name"].lower() for t in world.available_tools(p)}
+            tools[p] = ns | {n.split(".", 1)[0] for n in ns}
+        goals = {g["id"]: g["text"] for g in r["goals"]}
         for h in r["history"]:
-            rec = dict(h, principal=r["principal"], i=int(r["i"]))
+            rec = dict(h, principal=p, i=int(r["i"]))
             seq = h.get("seq")
             evs = world.events_range(int(seq[0]) - 1, int(seq[1])) if seq else []
+            later = _consequences(evs, runs) if h["ok"] else []
             rec["events"] = len(evs)
-            rec["shared"] = any(_visible_to_others(e, r["principal"]) for e in evs)
+            rec["scheduled_events"] = len(later)
+            rec["shared"] = any(_visible_to_others(e, p) for e in evs + later)
             rec["consequential"] = bool(h["ok"] and not h.get("read_only") and rec["shared"])
+            vals, arts = written(world, evs, p) if rec["consequential"] else ([], [])
+            main = max(arts, key=len) if arts else (max(vals, key=len) if vals else None)
+            rec["written"] = bool(main)
+            rec["junk"] = bool(main is not None and junk_text(main, tools[p], goals.get(h.get("goal"), "")))
+            rec["signature"] = json.dumps([p, h["tool"], _norm(main)[:400] if main else h.get("args")])
             out.append(rec)
     return out
 
@@ -103,8 +210,10 @@ def productive(world, min_viewers: int = 3) -> list[dict]:
     if "aud" not in world.modules:
         return []
     from ...social import audience as A
+    from ...substrate import artifacts
     ps = principals(world)
     cls = columns.col(world, "pop", "class")
+    goals = {r["principal"]: [g["text"] for g in r["goals"]] for r in rows(world)}
     out = []
     for key, rec in world.state.scan("aud_item_info"):
         if rec.get("creator") not in ps:
@@ -112,10 +221,21 @@ def productive(world, min_viewers: int = 3) -> list[dict]:
         v = A.viewers_of(world, int(key))
         indep = v[(v < cls.shape[0]) & (cls[np.minimum(v, cls.shape[0] - 1)] != CLASS)] if v.size else v
         ex = A.audience(world, int(key))
+        text = str(rec.get("title") or "")
+        try:
+            info = artifacts.info(world, rec["ref"]) if rec.get("ref") else None
+            if info and str(info.get("mime", "")).startswith("text/"):
+                text = artifacts.get(world, rec["ref"]).decode("utf-8", "replace")[:6000]
+        except Exception:  # noqa: BLE001 - no text artifact: judged by its title
+            pass
+        ns = {t["name"].lower() for t in world.available_tools(rec["creator"])}
+        junk = any(junk_text(text, ns | {n.split(".", 1)[0] for n in ns}, g) for g in goals[rec["creator"]] or [""])
         out.append({"item": int(key), "creator": rec["creator"], "platform": rec.get("platform"),
                     "unique_viewers": int(ex["unique_viewers"]), "independent_viewers": int(indep.size),
-                    "views": int(ex["views"]), "shares": int(ex["shares"]),
-                    "verified": bool(indep.size >= min_viewers)})
+                    "views": int(ex["views"]), "shares": int(ex["shares"]), "junk_content": junk,
+                    # independent viewers of content that says something of its own (not a tool name, not the
+                    # creator's goal sentence restated)
+                    "verified": bool(indep.size >= min_viewers and not junk)})
     return out
 
 
@@ -194,8 +314,13 @@ def summary(world) -> dict:
         "acting": len({a["principal"] for a in acts if a["ok"]}),
         "calls": len(acts), "ok_calls": sum(a["ok"] for a in acts),
         "rejected_calls": sum(not a["ok"] for a in acts),
-        "consequential": sum(a["consequential"] for a in acts),
-        "consequential_by_tool": _count(a["tool"] for a in acts if a["consequential"]),
+        # consequential calls whose written content is not junk, once per (participant, tool, content)
+        "consequential": len({a["signature"] for a in acts if a["consequential"] and not a["junk"]}),
+        "consequential_raw": sum(a["consequential"] for a in acts),
+        "consequential_junk": sum(a["consequential"] and a["junk"] for a in acts),
+        "consequential_repeats": sum(a["consequential"] and not a["junk"] for a in acts) -
+        len({a["signature"] for a in acts if a["consequential"] and not a["junk"]}),
+        "consequential_by_tool": _count(a["tool"] for a in acts if a["consequential"] and not a["junk"]),
         "tools_used": len({a["tool"] for a in acts if a["ok"]}),
         "goals": len(goals), "distinct_goals": len({g["text"] for g in goals}),
         "goals_done": sum(g["status"] == "done" for g in goals),

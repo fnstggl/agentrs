@@ -164,6 +164,119 @@ def test_written_values_reusing_the_goal_are_kept_and_echoes_of_the_prompt_are_n
     assert M.accept(a, body, req, echo) is None and a.counts["copied_values"] == 2
 
 
+def _copy_case():
+    a = M.Agent(i=1, principal="p1", account=None,
+                persona={"about": "You are interested in travel (trips, hotels, flights) and cooking (recipes, "
+                                  "bread, ovens). You are good at writing. You have a job."})
+    a.situation = ["money: $12.00 in your account acct_000123", "unread mail: mail_000004 from p7: 'Lunch on Friday'"]
+    a.tools = [{"name": n} for n in ("blog.publish", "blog.latest", "mail.send", "cal.create", "search.query")]
+    a.new_goal(0, "I will write a travel article about a hidden gem in the Amazon rainforest and publish it.")
+    a.remember(0, "act", "You called search.query {\"q\":\"amazon\"} -> ok: [] nothing was found for the query you "
+                         "sent")
+    a.remember(0, "act", "You called blog.latest {} -> ok: [{\"title\": \"Ten cheap ways to heat a small flat\"}]")
+    tool = {"name": "blog.publish", "description": "Publish an artifact you own as a blog post with a title.",
+            "inputSchema": {"type": "object", "required": ["title"],
+                            "properties": {"title": {"type": "string", "maxLength": 200}}}}
+    return a, tool
+
+
+def test_copy_filter_rejects_foreign_prompt_text_tool_names_and_goal_restatements():
+    """Verifier probe P1 (2a6fd4d accepted verbatim copies of non-goal prompt text in short values, and tool names):
+    short values copied from someone else's title, the tool description, a memory line, the persona or a situation
+    line, a tool or service name, and the goal sentence itself are rejected; titles reusing the goal's words, fresh
+    titles and a rewrite of the participant's own earlier value are kept."""
+    a, tool = _copy_case()
+    title = M.Slot("title", tool["inputSchema"]["properties"]["title"], True, "text", tokens=24)
+    req = M.slot_request(a, 0, tool, title, {}, None)
+    junk = ["Ten cheap ways to heat", "Ten cheap ways to heat a small flat", "Publish an artifact you own",
+            "Publish an artifact you own as a blog post", "nothing was found for the query",
+            "You are interested in travel (trips,", "money: $12.00 in your account acct_000123", "blog.publish",
+            "blog", "mail.send",
+            "I will write a travel article about a hidden gem in the Amazon rainforest and publish it."]
+    for v in junk:
+        assert M.accept(a, title, req, v, "blog.publish") is None, v
+    for v in ("A hidden gem in the Amazon rainforest", "Seven days on the Rio Negro", "Lunch on Friday"):
+        assert M.accept(a, title, req, v, "blog.publish") == v, v
+    # a value it wrote itself in an earlier call (now in its last actions) may be written again
+    a.history.append({"t": 0, "tool": "blog.publish", "args": '{"title":"Seven boats a week on the Rio Negro"}',
+                      "ok": False, "code": "InvalidAction", "error": "args.ref: required"})
+    req = M.slot_request(a, 0, tool, title, {}, None)
+    assert M.accept(a, title, req, "Seven boats a week on the Rio Negro", "blog.publish") is not None
+    # a calendar entry titled after its service, a mail body that is a tool name (the audit's junk values)
+    cal = M.Slot("title", {"type": "string", "maxLength": 120}, True, "text", tokens=24)
+    req = M.slot_request(a, 0, {"name": "cal.create", "description": "Create a calendar event."}, cal, {}, None)
+    assert M.accept(a, cal, req, "cal", "cal.create") is None
+    body = M.Slot("body", {"type": "string", "maxLength": 4000}, True, "text", tokens=200)
+    reqb = M.slot_request(a, 0, {"name": "mail.send", "description": "Send a mail."}, body, {}, None)
+    for v in ("mail.send", "cal", "Ten cheap ways to heat a small flat"):
+        assert M.accept(a, body, reqb, v, "mail.send") is None, v
+    assert M.accept(a, body, reqb, "Yes, Friday works for me. Shall we meet at noon?", "mail.send") is not None
+
+
+def test_composed_publication_restating_the_goal_is_rejected():
+    """Verifier probe P1b: a composed article that is only the goal sentence (once, twice, or with filler) is not an
+    article; a real article about the goal is kept, as is a message whose content is what the goal asks for."""
+    goal = ("I will write a blog post about the challenges of winter travel and the importance of preparing for cold "
+            "weather, and publish it on the blog.")
+    a = M.Agent(i=1, principal="p1", account=None, persona={"about": "You like travel."})
+    a.new_goal(0, goal)
+    tool = {"name": "blog.publish", "description": "Publish an artifact you own as a blog post.",
+            "inputSchema": {"type": "object", "required": ["ref"], "properties": {"ref": {"type": "string"}}}}
+    body = M.Slot("ref", {"type": "string"}, True, "compose", tokens=200)
+    req = M.slot_request(a, 0, tool, body, {}, None)
+    for v in (goal, goal + " " + goal, goal + " I hope you like it."):
+        assert M.accept(a, body, req, v, "blog.publish") is None, v
+    real = ("Winter travel needs planning. Trains run late when snow falls, so leave an hour early. Pack layers, a "
+            "thermos and a phone charger. Check road reports before driving and keep a blanket in the car.")
+    assert M.accept(a, body, req, real, "blog.publish") == {M.COMPOSED: real}
+    b = M.Agent(i=2, principal="p2", account=None, persona={"about": "You bake bread."})
+    b.new_goal(0, "I will ask p7 whether he wants to join my bread-baking class on Saturday.")
+    msg = M.Slot("body", {"type": "string", "maxLength": 4000}, True, "text", tokens=200)
+    reqm = M.slot_request(b, 0, {"name": "mail.send", "description": "Send a mail."}, msg, {}, None)
+    text = "Hi p7, do you want to join my bread-baking class on Saturday? We start at ten."
+    assert M.accept(b, msg, reqm, text, "mail.send") == text
+
+
+def test_only_artifacts_the_participant_made_or_owns_become_its_own(ablated):
+    """Verifier probe P4: a read-only call (artifact.info / artifact.get) returning another participant's published
+    artifact does not make it the caller's own: it is not offered for the caller's publication; an artifact the
+    participant stores itself is."""
+    import base64
+    w = ablated
+    rows = G.members(w)
+    a = M.Agent.from_row(rows[0])
+    other = rows[1]["principal"]
+    tools = {t["name"]: t for t in w.available_tools(a.principal)}
+    box = {}
+
+    def other_publishes(ctx):
+        r = ctx.call("artifact.put", {"data_b64": base64.b64encode(b"Rye bread at home: a recipe by someone else.")
+                                      .decode(), "mime": "text/plain", "kind": "text"}, as_principal=other)
+        ctx.call("artifact.publish", {"ref": r["ref"]}, as_principal=other)
+        box["ref"] = r["ref"]
+    w._run_system("test.other", other_publishes)
+    ref = box["ref"]
+    for name in ("artifact.info", "artifact.get"):
+        if name in tools:
+            w._run_system("test.read", lambda ctx: M.execute(ctx, a, tools[name], {"ref": ref}, ctx.now, M.Config()))
+            assert a.history[-1]["ok"] and ref not in a.seen.get("own_refs", [])
+    slots = {s.name: s for s in M.plan_slots(a, tools["blog.publish"])}
+    assert ref not in (slots["ref"].values or [])
+    mine = {}
+
+    def put(ctx):
+        M.execute(ctx, a, tools["artifact.put"], {"data_b64": base64.b64encode(b"My own notes on rye.").decode(),
+                                                  "mime": "text/plain", "kind": "text"}, ctx.now, M.Config())
+        mine["ref"] = json.loads(a.history[-1]["result"])["ref"] if a.history[-1]["ok"] else None
+    w._run_system("test.put", put)
+    assert mine["ref"] and mine["ref"] in a.seen["own_refs"]
+    w._run_system("test.info", lambda ctx: M.execute(ctx, a, tools["artifact.info"], {"ref": mine["ref"]}, ctx.now,
+                                                    M.Config()))
+    assert a.seen["own_refs"].count(mine["ref"]) == 1
+    slots = {s.name: s for s in M.plan_slots(a, tools["blog.publish"])}
+    assert mine["ref"] in slots["ref"].values and ref not in slots["ref"].values
+
+
 def test_recorded_inference_regenerates_without_running_a_model():
     import torch
     from crucible.semantic import service as SV
@@ -235,10 +348,65 @@ def test_a_reasoning_first_choice_runs_the_thinking_mode_then_picks_an_option():
            "choices": ["bank", "blog", "tube"], "normalize": "mean", "prefix_messages": 1}
     b = B.LMBrain({c: small for c in routing.TABLE}, think={"tool_choice": 24})
     svc = b.service("tool_choice")
-    n0 = svc.stats["requests"]
+    bound = svc.max_new_tokens
+    write = {"messages": req["messages"], "max_new_tokens": 200, "temperature": 0.0, "seed": 0}
+    before = svc._norm(write)
+    n0, g0 = svc.stats["requests"], svc.stats["generate_calls"]
     picks = b.choose(None, "tool_choice", [req])
     assert len(picks) == 1 and 0 <= picks[0] < 3 and b.calls["think"] == 1
     assert svc.stats["requests"] - n0 >= 1          # the thinking generation (plus a rescoring when it named none)
+    # verifier P2: the reasoning's generation is attributed to the class-4 brain (SP-4.2b) ...
+    assert b.generation_calls() == svc.stats["generate_calls"] - g0 == 1 and b.calls["generate"] == 0
+    # ... and the shared service's bound is not raised by it: a later request normalises exactly as before (its
+    # recorded inputs digest does not depend on what ran earlier in the process)
+    assert svc.max_new_tokens == bound and svc._norm(write) == before
+    assert before["max_new_tokens"] == min(200, bound)
+    # thinking-mode requests have their own fixed bound (H.5 asks for 384 reasoning tokens: not clamped to 128)
+    assert svc._norm(dict(write, max_new_tokens=384, thinking=True))["max_new_tokens"] == min(384, svc.think_bound)
+    assert svc.think_bound >= 384
+    with pytest.raises(ValueError):
+        B.LMBrain({c: small for c in routing.TABLE}, think={"tool_choice": svc.think_bound + 1}).choose(
+            None, "tool_choice", [req])
     plain = B.LMBrain({c: small for c in routing.TABLE}, think={})
     assert plain.think_tokens("tool_choice") == 0 and plain.choose(None, "tool_choice", [req])[0] in (0, 1, 2)
     assert B.LMBrain({c: SMALL for c in routing.TABLE}, think={"tool_choice": 24}).think_tokens("tool_choice") == 0
+
+
+def test_evaluator_excludes_junk_content_and_counts_repeated_content_once(ablated):
+    """H.6 / SP-3.2d (audit D skeptic, verifier H.6 overclaim): a consequential call whose written content is junk (a
+    tool name as a mail body) does not count, and the same text sent again later counts once; read by the evaluator
+    from the event log, not from the participant's record. A mail counts through its delivery to the recipient, an
+    event of the job the call scheduled."""
+    from crucible.substrate import bus
+    w = ablated
+    rows = G.members(w)
+    a = M.Agent.from_row(rows[-1])
+    to = rows[0]["principal"]
+    tool = next(t for t in w.available_tools(a.principal) if t["name"] == "mail.send")
+    g = a.goal() or a.new_goal(w.now, "I will tell my friend about the rye bread I baked this morning.")
+    a.active = g["id"]
+    before = verify.summary(w)
+    good = "I baked rye bread this morning with a sourdough starter; it took eleven hours to rise."
+
+    def send(body, subject):
+        def run(ctx):
+            M.execute(ctx, a, tool, {"to": [to], "subject": subject, "body": body}, ctx.now, M.Config())
+            bus.emit(ctx, "semp.update", M.delta(a, int(ctx.now) + 86400), vis="internal")
+            a.add_memory, a.add_history, a.add_known = [], [], {}
+        w._run_system("test.mail", run)
+        w.advance_time(w.now + 600)          # the mail is delivered by a job the call scheduled (a consequence)
+        assert a.history[-1]["ok"], a.history[-1]
+    send("mail.send", "mail.send")
+    send(good, "Rye bread")
+    send(good, "Rye bread")
+    after = verify.summary(w)
+    acts = [x for x in verify.actions(w) if x["principal"] == a.principal][-3:]
+    assert [x["consequential"] for x in acts] == [True, True, True]
+    assert [x["junk"] for x in acts] == [True, False, False]
+    assert acts[1]["signature"] == acts[2]["signature"]
+    assert after["consequential_raw"] - before["consequential_raw"] == 3
+    assert after["consequential"] - before["consequential"] == 1
+    assert after["consequential_junk"] - before["consequential_junk"] == 1
+    goal = "I will tell my friend about the rye bread I baked this morning."
+    assert verify.junk_text(goal, set(), goal) and verify.junk_text("mail", {"mail", "mail.send"}, goal)
+    assert not verify.junk_text(good, {"mail", "mail.send"}, goal)

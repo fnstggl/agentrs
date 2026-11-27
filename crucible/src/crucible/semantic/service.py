@@ -12,6 +12,9 @@ What it does
   finish (end of turn or their own token bound) leave the batch, so short answers do not pay for long ones.
 * **Bounded generation.** Every request is capped at ``max_new_tokens`` (its own value, never more than the
   service's), prompts at ``max_context`` tokens (head and tail are kept and the request is flagged ``truncated``).
+  A request in the model's thinking mode (``thinking: true``, a bounded reasoning before an answer) is capped at
+  ``max(max_new_tokens, max_think_tokens)`` instead. Both bounds are fixed when the service is made: a request's
+  normalised form (and so its recorded inputs digest) never depends on what the process ran before.
 * **Prefix (KV) caching, exact by construction.** A request may say that its first ``prefix_messages`` messages are
   shared (for example the common system prompt of all participants). Such a prompt is *always* evaluated in two
   phases - the prefix alone (batch of one), then the rest of every row on top of the prefix's key/value cache - so
@@ -216,13 +219,14 @@ class SemanticService:
                  max_new_tokens: int = 128, *, revision: str | None = None, dtype: str | None = None,
                  quantization: str | None = None, max_context: int = 2048, prefix_cache: bool = True,
                  min_prefix_tokens: int = 32, prefix_cache_entries: int = 8, enable_thinking: bool = False,
-                 max_choice_rows: int = 64, kv_token_budget: int = 12288):
+                 max_choice_rows: int = 64, kv_token_budget: int = 12288, max_think_tokens: int = 1024):
         self.model_id = model_id
         self.device = _resolve_device(device)
         self.revision = revision or local_revision(model_id)
         self.dtype = dtype or ("bfloat16" if self.device.startswith("cuda") else "float32")
         self.quantization = quantization if quantization not in ("none",) else None
         self.max_batch, self.max_new_tokens, self.max_context = int(max_batch), int(max_new_tokens), int(max_context)
+        self.max_think_tokens = int(max_think_tokens)
         self.prefix_cache, self.min_prefix_tokens = bool(prefix_cache), int(min_prefix_tokens)
         self.prefix_cache_entries, self.enable_thinking = int(prefix_cache_entries), bool(enable_thinking)
         self.max_choice_rows = int(max_choice_rows)
@@ -273,6 +277,7 @@ class SemanticService:
         return {"model_id": self.model_id, "revision": self.revision, "params": w.params,
                 "weights_hash": self.model_hash(), "device": self.device, "dtype": self.dtype,
                 "quantization": self.quantization, "max_batch": self.max_batch, "max_new_tokens": self.max_new_tokens,
+                "max_think_tokens": self.think_bound,
                 "max_context": self.max_context, "prefix_cache": self.prefix_cache, "load_s": round(w.load_s, 2)}
 
     def close(self) -> None:
@@ -367,6 +372,15 @@ class SemanticService:
         return s
 
     # ------------------------------------------------------------------ request handling
+    @property
+    def think_bound(self) -> int:
+        """Token bound of a generation request in the model's thinking mode (``thinking: true``)."""
+        return max(self.max_new_tokens, self.max_think_tokens)
+
+    def bound_for(self, r: dict) -> int:
+        """The token bound `generate` applies to request `r` (fixed per service, see the module docstring)."""
+        return self.think_bound if r.get("thinking") else self.max_new_tokens
+
     def _norm(self, r: dict, choices: bool = False) -> dict:
         if not isinstance(r, dict) or not isinstance(r.get("messages"), list) or not r["messages"]:
             raise ValueError("a request needs a non-empty 'messages' list")
@@ -378,8 +392,9 @@ class SemanticService:
             out["choices"] = list(ch)
             out["normalize"] = r.get("normalize", "mean")
         else:
+            cap = self.bound_for(r)
             mnt = int(r.get("max_new_tokens") or self.max_new_tokens)
-            out["max_new_tokens"] = max(1, min(mnt, self.max_new_tokens))
+            out["max_new_tokens"] = max(1, min(mnt, cap))
             out["temperature"] = float(r.get("temperature") or 0.0)
             out["seed"] = None if r.get("seed") is None else int(r["seed"])
         if r.get("prefix_messages"):

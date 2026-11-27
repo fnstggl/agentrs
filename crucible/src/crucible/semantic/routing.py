@@ -51,7 +51,19 @@ def decision() -> dict | None:
         return None
 
 
-def derive(report: dict, in_situ: dict | None = None) -> dict:
+# Uses of a capability that an in-situ measurement may route on their own (D-38 amendment): the next-step phrase a
+# participant writes before choosing a service (what the service directory is searched for) is the only part of
+# situation interpretation the class-4 bench measures; goal formation and the choice among known identifiers stay on
+# the capability's own route (SP-3.2b held-out templates). A use without an in-situ route follows its capability.
+USES = {"next_step": "situation_interpretation"}
+
+
+def capabilities() -> list[str]:
+    """Every routing key: the SP-3.2b capabilities and their separately routable uses."""
+    return list(TABLE) + list(USES)
+
+
+def derive(report: dict, in_situ: dict | None = None, confirm: dict | None = None) -> dict:
     """Routes from an SP-3.2b report: for each capability the SMALLEST model effective on held-out templates
     (`recommendation_held_out`); where no candidate is effective, the best-measured language model (largest value,
     then smallest size). Returns {capability: {model, reason, measured: {model: value}}}.
@@ -61,21 +73,36 @@ def derive(report: dict, in_situ: dict | None = None) -> dict:
     route as derived from the report) - and replaces the report's entry for that capability by the same rule
     (smallest model with accuracy >= EFFECTIVE_ACCURACY, else the best measured)."""
     out = _derive_report(report)
+    for use, cap in USES.items():
+        out[use] = dict(out[cap], reason=f"follows {cap} ({out[cap]['reason']})")
     for cap, meas in (in_situ or {}).items():
         if cap not in out:
             continue
         vals = {m: v for m, v in meas.items() if base_model(m) in PARAMS and v is not None}
-        eff = [m for m, v in vals.items() if v >= EFFECTIVE_ACCURACY]
-        if eff:
-            # smallest model; at equal size the plain choice before the one that reasons first (cheaper)
-            pick, reason = min(eff, key=lambda m: (PARAMS[base_model(m)], think_of(m))), \
-                "smallest model effective in situ (class-4 bench, dev)"
+        cost = lambda m: (PARAMS[base_model(m)], think_of(m))      # noqa: E731
+        # smallest model; at equal size the plain choice before the one that reasons first (cheaper)
+        eff = sorted((m for m, v in vals.items() if v >= EFFECTIVE_ACCURACY), key=cost)
+        conf = {m: v for m, v in ((confirm or {}).get(cap) or {}).items() if v is not None}
+        if eff and (confirm or {}).get(cap) is not None:
+            # D-38 amendment: the pick among several variants on one sample is optimistic (winner's curse); it must
+            # also reach the bar on a fresh sample of the same DEV templates (other seed), else the next candidate
+            ok = [m for m in eff if conf.get(m, -1.0) >= EFFECTIVE_ACCURACY]
+            if ok:
+                pick, reason = ok[0], "smallest model effective in situ (class-4 bench, dev), confirmed on a fresh dev sample"
+            else:
+                both = {m: (vals[m] + conf[m]) / 2 for m in vals if m in conf}
+                pick = max(both or vals, key=lambda m: ((both or vals)[m], -PARAMS[base_model(m)], -think_of(m)))
+                reason = "no candidate confirmed in situ (class-4 bench, dev): best measured on both samples"
+        elif eff:
+            pick, reason = eff[0], "smallest model effective in situ (class-4 bench, dev)"
         elif vals:
             pick = max(vals, key=lambda m: (vals[m], -PARAMS[base_model(m)], -think_of(m)))
             reason = "no candidate effective in situ (class-4 bench, dev): best measured"
         else:
             continue
         r = dict(out[cap], model=base_model(pick), reason=reason, in_situ=vals)
+        if conf:
+            r["confirmed"] = conf
         r.pop("think_tokens", None)
         if think_of(pick):
             r["think_tokens"] = think_of(pick)
@@ -98,7 +125,8 @@ def think_tokens(capability: str) -> int:
     """Tokens of the model's own reasoning before a choice of this capability (0: options scored directly), from
     the committed decision (an in-situ measurement can route a capability to a model that reasons first)."""
     dec = decision() or {}
-    r = (dec.get("routes") or {}).get(capability) or {}
+    routes = dec.get("routes") or {}
+    r = routes.get(capability) or (routes.get(USES[capability]) if capability in USES else None) or {}
     return int(r.get("think_tokens", 0) or 0) if r.get("model") == route(capability) else 0
 
 
@@ -133,7 +161,7 @@ def table() -> dict[str, dict]:
     dec = decision()
     if dec:
         for cap, r in (dec.get("routes") or {}).items():
-            if cap in out and r.get("model") in PARAMS:
+            if (cap in out or cap in USES) and r.get("model") in PARAMS:
                 out[cap] = {"model": r["model"], "source": f"{DECISION_FILE} ({r.get('reason', '')})"}
         return out
     try:
@@ -151,7 +179,10 @@ def table() -> dict[str, dict]:
 
 
 def route(capability: str) -> str:
-    return table().get(capability, {"model": DEFAULT})["model"]
+    t = table()
+    if capability not in t and capability in USES:
+        return t[USES[capability]]["model"]
+    return t.get(capability, {"model": DEFAULT})["model"]
 
 
 def granted_gpu_mb() -> int:

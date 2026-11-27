@@ -10,7 +10,9 @@ a uniform random one (`brain="ablated"`, `crucible.semantic.generalists.brain.Ab
   any other is a scripted path (must be 0, in both runs);
 * own goals - participants that wrote at least one goal of their own (no goal is assigned anywhere);
 * ablation - with the models replaced, behaviour degrades measurably: the share of calls that are consequential
-  (succeeded, changed the world, and produced an event another principal can see; Fisher exact test, p <= 0.01) and
+  (succeeded, changed the world, and produced an event another principal can see, directly or through a job the
+  call scheduled; content judged by the evaluator not to be junk; a repeated call with the same content once:
+  `generalists.verify`; Fisher exact test, p <= 0.01) and
   the number of independently verified productive results (publications with at least three independent viewers)
   are both lower. The share of successful calls and of goals the participant itself judged achieved are reported,
   not asserted: uniform random choices spread over argument-free read tools (the third run: 31 distinct tools
@@ -67,8 +69,8 @@ def test_SP_3_2d_not_scripted_own_goals_routing_and_checkpoints():
     dec = routing.decision()
     assert dec is not None, "no committed routing decision (crucible/semantic/data/routing.json)"
     rederived = {cap: (r["model"], int(r.get("think_tokens", 0))) for cap, r in
-                 routing.derive(dec["report"], dec.get("in_situ")).items()}
-    routed = {cap: (routing.route(cap), routing.think_tokens(cap)) for cap in routing.TABLE}
+                 routing.derive(dec["report"], dec.get("in_situ"), dec.get("in_situ_confirm")).items()}
+    routed = {cap: (routing.route(cap), routing.think_tokens(cap)) for cap in routing.capabilities()}
     checks = [routing.tool_use(mdl) for mdl in MODELS]
     cards = [routing.model_card(mdl) for mdl in MODELS]
     verified = [c for c, t in zip(cards, checks) if c["license"] and t["verified"]]
@@ -86,6 +88,8 @@ def test_SP_3_2d_not_scripted_own_goals_routing_and_checkpoints():
          "models_with_licence_and_tool_use_verified": len(verified),
          "lm_ok_call_share": share(s), "ablated_ok_call_share": share(a), "ok_share_pvalue": float(f"{p_ok:.3g}"),
          "lm_consequential": s["consequential"], "ablated_consequential": a["consequential"],
+         "lm_consequential_raw": s["consequential_raw"], "ablated_consequential_raw": a["consequential_raw"],
+         "lm_consequential_junk": s["consequential_junk"], "ablated_consequential_junk": a["consequential_junk"],
          "consequential_pvalue": float(f"{p_cons:.3g}"),
          "lm_consequential_share": round(s["consequential"] / max(1, s["calls"]), 4),
          "ablated_consequential_share": round(a["consequential"] / max(1, a["calls"]), 4),

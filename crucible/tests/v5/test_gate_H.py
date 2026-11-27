@@ -25,7 +25,7 @@ from crucible.acceptance.v5.evidence import record
 
 DAYS = float(os.environ.get("CRUCIBLE_GATE_H_DAYS", "3"))
 SMALLER = ("HuggingFaceTB/SmolLM2-135M-Instruct", "HuggingFaceTB/SmolLM2-360M-Instruct")
-ORDINARY = ("situation_interpretation", "tool_choice", "communication", "content_understanding")
+ORDINARY = ("situation_interpretation", "next_step", "tool_choice", "communication", "content_understanding")
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_H.py"
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(14400)]
@@ -60,9 +60,15 @@ def society():
     t1 = time.time()
     w.advance_time(w.now + int(DAYS * 86400))
     run_s = time.time() - t1
+    brain = w.runtime.get("semp.brain")
+    services = dict(routing._SERVICES)
     out = {"world": w, "summary": verify.summary(w), "actions": verify.actions(w), "gen_s": gen_s, "run_s": run_s,
-           "services": dict(routing._SERVICES), "rows": G.members(w), "brain": w.runtime.get("semp.brain"),
-           "maxrss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0}
+           "services": services, "rows": G.members(w), "brain": brain,
+           "maxrss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0,
+           # what the standard run itself used, taken before any held-out evaluation (H.4, H.5, H.n1) sends requests
+           # through the same shared services: decisions per capability and each service's counters
+           "run_decisions_by_capability": {c: int(n) for c, n in sorted(brain.requests.items()) if n},
+           "run_usage": {m: sv.usage() for m, sv in services.items()}}
     out["rows_artifact"] = _artifact("H_society_rows.json", {"rows": out["rows"], "summary": out["summary"]})
     yield out
     w.close()
@@ -132,8 +138,12 @@ def test_H_3_separate_goals_and_histories(society):
 
 def test_H_4_tool_selection_on_held_out_situations(society):
     from crucible.semantic.generalists import bench
+    from crucible.semantic.generalists import brain as B
     items = bench.build(0, 6, ("test",))
-    res = bench.evaluate(items, society["brain"])
+    run = society["brain"]
+    # the participants' own decision code and routing (same routes and reasoning budgets), in a brain of its own so
+    # the held-out items do not count as decisions of the standard run (H.n1)
+    res = bench.evaluate(items, B.LMBrain(run.routes, think=run.think))
     t = res["splits"]["test"]
     art = _artifact("H4_items.json", res["items"])
     m = {"tool_selection_accuracy": t["accuracy"], "tool_selection_vs_random_pvalue": t["p_vs_random"],
@@ -185,18 +195,21 @@ def test_H_5_language_understanding(society):
 
 def test_H_6_consequential_world_actions(society):
     s, acts = society["summary"], society["actions"]
-    # a repeated identical call (same participant, tool and arguments: the audit's "8 bank.open_account calls by one
-    # participant") counts once
-    distinct = {(a["principal"], a["tool"], a["args"]) for a in acts if a["consequential"]}
-    m = {"consequential_actions_executed": len(distinct), "consequential_calls": s["consequential"],
+    # evaluator side (generalists.verify): junk content (a tool or service name, prompt scaffolding, the goal sentence
+    # restated, under two letters) does not count, and a repeated call with the same content (same participant, tool
+    # and written content, or the same arguments when it wrote nothing) counts once (audit D skeptic)
+    good = [a for a in acts if a["consequential"] and not a["junk"]]
+    m = {"consequential_actions_executed": s["consequential"], "consequential_calls_raw": s["consequential_raw"],
+         "consequential_junk": s["consequential_junk"], "consequential_repeats": s["consequential_repeats"],
          "ok_calls": s["ok_calls"], "calls": s["calls"],
          "rejected_share": round(s["rejected_calls"] / max(1, s["calls"]), 4),
          "by_tool": json.dumps(s["consequential_by_tool"])[:1500],
-         "participants_with_consequential_actions": len({a["principal"] for a in acts if a["consequential"]})}
+         "participants_with_consequential_actions": len({a["principal"] for a in good})}
     record("H.6", m, command=CMD, notes="Consequential = succeeded, not read-only, and emitted an event another "
                                         "principal or the public can see (checked in the event log by the "
-                                        "evaluator); identical repeated calls (same participant, tool, arguments) "
-                                        "count once.")
+                                        "evaluator); calls whose written content (event payload text fields, "
+                                        "stored text artifacts) is junk are excluded and calls repeating the same "
+                                        "content count once.")
     assert m["consequential_actions_executed"] >= 8
 
 
@@ -216,7 +229,7 @@ def test_H_7_verified_productive_or_collaborative_result(society):
 
 
 def test_H_8_memory_and_inference_measurements(society):
-    use = {m: s.usage() for m, s in society["services"].items()}
+    use = society["run_usage"]                    # the standard run's own requests (before H.4/H.5 evaluations)
     rows = society["rows"]
     state_bytes = sum(len(json.dumps(r, default=str)) for r in rows)
     tps = [u["tokens_per_s"] for u in use.values() if u.get("tokens_per_s")]
@@ -245,11 +258,11 @@ def test_H_n1_smallest_effective_models(society):
         acc[model] = res["splits"]["test"]["accuracy"]
     default = routing.DEFAULT
     brain = society["brain"]
-    esc = [c for c in routing.TABLE if routing.route(c) != default]
+    esc = [c for c in routing.capabilities() if routing.route(c) != default]
     # what the standard run actually used: decisions served per capability and requests served per model (every
     # class-4 decision goes through one of these process-wide services)
-    by_cap = {c: int(n) for c, n in sorted((getattr(brain, "requests", None) or {}).items()) if n}
-    req = {mdl: int(s.usage()["requests"]) for mdl, s in society["services"].items()}
+    by_cap = dict(society["run_decisions_by_capability"])      # the run's decisions only (not H.4's bench items)
+    req = {mdl: int(u["requests"]) for mdl, u in society["run_usage"].items()}
     total = max(1, sum(by_cap.values()))
     # the size that counts is the largest model serving the decisions every participant makes in every activation
     # (its goal and next step, the service and tool it uses, the values it chooses and writes, what it reads):

@@ -339,6 +339,31 @@ the ablation's degradation on the share of calls that are consequential (Fisher 
 productive results; the share of successful calls is reported, not asserted: uniform random choices spread over
 argument-free read tools (31 distinct tools ablated vs 5 with the models in the third run), which succeed whatever
 the caller understands (ablated 0.28 vs models 0.25 in that run, while consequential calls were 3 vs 16, p 3.6e-5).
+Amendment (2026-11-27, workstream D repair pass, written before the rule was applied for the first time; after an
+independent verification of D-38): (a) *Scope.* The class-4 bench measures how the next-step phrase (what the
+service directory is searched for) and the tool choice affect tool selection; it does not measure goal formation or
+the choice among known identifiers, which also ran as situation interpretation and whose only held-out measurement
+(SP-3.2b: Qwen3-0.6B 0.28, Qwen3-1.7B 0.65) says 0.6B is not effective. The next-step phrase is therefore a separately
+routable use (`routing.USES["next_step"]`, following situation interpretation unless measured itself); the in-situ
+rule may move only that use; goal formation and argument choice keep situation interpretation's SP-3.2b route.
+(b) *Winner's curse.* Choosing among four variants on the same 72 DEV items (95 % CI about +/-0.11) is optimistic, so a
+candidate effective on the selection sample (DEV templates, seed 0) is routed only if it also reaches 0.6 on a fresh
+confirmation sample of the DEV templates (seed 1: another civilisation, persona and goals), candidates confirmed in
+cost order; TEST templates stay held out for H.4 (`routing.derive(report, in_situ, confirm)`, procedure
+`crucible.semantic.generalists.insitu`). (c) *Process.* The measurement and the gate reruns run on a snapshot of a
+committed head (`git archive`), the derived `routing.json` is written in the snapshot and committed afterwards with
+the measurement's SHA-256, so every gate log describes a committed tree. (d) *Consequence for H.n1.* With goal
+formation and argument choice on Qwen3-1.7B, `semantic_model_params` stays 1.7B whatever the in-situ result: H.n1 is
+expected to fail by measurement unless a held-out measurement shows a <= 1.1B model effective for situation
+interpretation. (e) *H.n1 counting.* Decisions per capability and requests per model are taken from the standard
+run itself, before the held-out evaluations (H.4's 72 items added 216 decisions before), and H.4 evaluates through
+a brain of its own with the same routes. (f) *SP-3.2d methodology.* The consequential-call measure was chosen after
+the third run had failed the successful-call share (with that run's data in view); the next run is the first test of
+the measure fixed in advance. Consequential calls are counted by the evaluator from the event log, now including the
+events of jobs a call scheduled (a mail reaches its recipient through a delivery job), excluding calls whose written
+content is junk (a tool or service name, prompt scaffolding, the goal sentence restated) and counting a repeated call
+with the same content once (`generalists.verify`); the same counting serves H.6, and publications with junk content
+are not productive results (H.7, SP-3.2d).
 
 ## D-48 The Tier 2 domain contract `domains-framework/2` (2026-11-26, workstream I, wave 3b)
 Resolves the contract split of audit I_domains section 2 (DEF-I-3) on the D-17 side: `crucible.domains.base.Domain`

@@ -3,7 +3,8 @@
 A civilisation (`crucible.civ`, development population) runs one simulated day with every class active, including
 its semantic participants (class 4, which do use generation for their own decisions). We count every generation
 request any shared model served in this process (`SemanticService.stats`) and every generation request the class-4
-runtime made (`LMBrain.calls`), next to the ordinary decisions of the day: the population's recorded decision
+runtime made (`LMBrain.generation_calls`: its writing, goals and next steps, and the reasoning of choices routed to a
+model that reasons first), next to the ordinary decisions of the day: the population's recorded decision
 batches (browsing, consumption, purchases, work, social actions) and the rows they decided.
 ``ordinary_actions_requiring_generation`` = generation requests not made by class-4 participants (must be 0).
 Content the population writes comes from real corpora (`population.writing`), not from a generator.
@@ -44,10 +45,13 @@ def test_SP_4_2b_ordinary_actions_need_no_generation():
     w.advance_time(w.now + 86400)
     total = sum(s.stats["generate_calls"] for s in list(SV._SERVICES_ALL)) - before
     brain = w.runtime.get("semp.brain")
-    class4 = int(brain.calls["generate"]) if brain is not None else 0
+    # every generation batch the class-4 brain sent to a service: its own generation requests and the reasoning of
+    # choices routed to a model that reasons first (D-38)
+    class4 = int(brain.generation_calls()) if brain is not None else 0
     acts = sum(int(r["counts"].get("calls", 0)) for r in G.members(w))
     m = {"ordinary_actions_requiring_generation": int(total - class4), "generation_requests_total": int(total),
          "generation_requests_class4": class4, "class4_tool_calls": acts,
+         "class4_reasoning_first_choices": int((brain.calls if brain is not None else {}).get("think", 0)),
          "ordinary_decision_batches": dec.batches, "ordinary_decision_rows": dec.rows,
          "decision_models": len(dec.models)}
     record("SP-4.2b", m, command="PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_4_2b.py")

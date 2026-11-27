@@ -664,31 +664,83 @@ SCAFFOLD = re.compile(r"\b(you are calling|arguments so far|next argument|answer
                       r"services you can use:|tools of the service)", re.I)
 
 
+def _words(t: str) -> list[str]:
+    return re.findall(r"[a-z0-9']+", (t or "").lower())
+
+
 def _grams(t: str, n: int = 5) -> set:
-    w = re.findall(r"[a-z0-9']+", t.lower())
+    w = _words(t)
     return {tuple(w[i:i + n]) for i in range(max(0, len(w) - n + 1))}
 
 
-def copied_from_prompt(text: str, req: dict, own: str = "", n: int = 5, share: float = 0.3, short: bool = False) -> bool:
-    """Whether a written value is mostly the prompt copied back rather than the value itself.
+def tool_names(a: Agent, tool: str = "") -> tuple[set, set]:
+    """(names of the participant's tools and services, the called tool's own names): a written value that is one of
+    them names a service instead of being a title, query or text (the audit's junk values: calendar entries titled
+    'cal', mail bodies 'mail.send')."""
+    every = {t["name"].lower() for t in a.tools if isinstance(t, dict) and t.get("name")}
+    if tool:
+        every.add(tool.lower())
+    every |= {n.split(".", 1)[0] for n in every}
+    called = {tool.lower(), tool.lower().split(".", 1)[0]} if tool else set()
+    return every, called | {n for n in every if "." in n}
+
+
+def restates(value: str, goal: str, n: int = 5, cover: float = 0.6) -> bool:
+    """Whether a written value is the participant's goal sentence restated (most of the goal's word n-grams, and
+    mostly nothing else) rather than a value of its own."""
+    g, gg = _grams(value, n), _grams(goal, n)
+    if not g or not gg:
+        return False
+    both = g & gg
+    return len(both) / len(gg) > cover and len(both) / len(g) > cover
+
+
+def copied_from_prompt(text: str, req: dict, own: str = "", n: int = 5, share: float = 0.3, short: bool = False,
+                       goal: str = "", names: tuple[set, set] = (set(), set()), compose: bool = False) -> bool:
+    """Whether a written value is not the value itself: the prompt copied back, the goal restated, or a tool name.
 
     * any value that repeats a line of the prompt's scaffolding (`SCAFFOLD`) is an echo;
-    * a longer value is one when more than `share` of its word 5-grams occur in the prompt, not counting the 5-grams
-      of the participant's own goal (`own`): a title, query or post about its goal naturally reuses the goal's words
-      (the third standard run discarded 48 such titles and queries of one participant as copies, leaving every
-      publication without its required title);
-    * a short value (`short`: a title, subject, query, name ...) only by the scaffolding check and, from eight words
-      on, by a share above 0.5.
+    * a value that is the name of a tool or service (`tool_names`: for a short value the called tool, its service or
+      any tool; for a longer text any tool or service) names a service instead of saying anything;
+    * a value that restates the participant's goal sentence (`restates`) is not a title, query or text of its own;
+    * a short value (`short`: a title, subject, query, name ...) of four words or more is a copy when more than
+      half of its word 4-grams occur in the prompt outside the participant's own words (`own`: its goal and the
+      values it wrote in its earlier calls) - another person's title seen in a result, the tool's description, a
+      memory line, its persona, a situation line. A title or query about its goal naturally reuses the goal's words
+      (the third standard run discarded 48 such values of one participant as copies, leaving every publication
+      without its required title), and so does a rewrite of a value it wrote before;
+    * a longer value is one when more than `share` of its word 5-grams occur in the prompt outside its own words,
+      and a composed publication (`compose`: an article, post or message written for the call) also when more than
+      half of them occur anywhere in the prompt, its goal included (an article that only restates the goal sentence,
+      once, twice or with filler, is not an article; verifier probe P1b).
     """
     t = text if isinstance(text, str) else json.dumps(text, default=str)
     t = re.sub(r"<think>.*?</think>", "", t, flags=re.S)
     if SCAFFOLD.search(t):
         return True
-    g = _grams(t, n)
-    if not g or (short and len(t.split()) < 8):
+    words = _words(t)
+    if not words:
         return False
-    ref = _grams(" ".join(m.get("content", "") for m in req.get("messages", [])), n) - _grams(own or "", n)
-    return len(g & ref) / len(g) > (0.5 if short else share)
+    flat = " ".join(t.lower().split()).strip(" .,:;!?'\"`")
+    every, called = names
+    if flat in (called if short else every):
+        return True
+    if goal and restates(t, goal):
+        return True
+    prompt = " ".join(m.get("content", "") for m in req.get("messages", []))
+    if short:
+        if len(words) < 4:
+            return False
+        g = _grams(t, 4)
+        foreign = _grams(prompt, 4) - _grams(own or "", 4)
+        return len(g & foreign) / len(g) > 0.5
+    g = _grams(t, n)
+    if not g:
+        return False
+    ref = _grams(prompt, n)
+    if compose and len(g & ref) / len(g) > 0.5:
+        return True
+    return len(g & (ref - _grams(own or "", n))) / len(g) > share
 
 
 def written_value(slot: Slot, text: str):
@@ -791,8 +843,8 @@ def decide(ctx, brain, live: list[Agent], now: int, cfg: Config, step: int = 0) 
     """One decision of each live participant: its next step in words, the service, the tool (or finish / wait).
     Returns [(agent, tool, query vector)] of the participants that act."""
     qvecs = catalog.embed([_qtext(a) for a in live])
-    intents = brain.generate(ctx, "situation_interpretation", [intent_request(a, now, qv)
-                                                                for a, qv in zip(live, qvecs)])
+    # the next-step phrase: the use of situation interpretation the class-4 bench measures (routing.USES)
+    intents = brain.generate(ctx, "next_step", [intent_request(a, now, qv) for a, qv in zip(live, qvecs)])
     for a, t in zip(live, intents):
         a.intent = clean_intent(t)
     rest = []
@@ -888,7 +940,7 @@ def fill_arguments(ctx, brain, acting: list, now: int, cfg: Config) -> list[dict
             else:
                 out = brain.generate(ctx, cap, reqs)
                 for (j, slot, req), o in zip(items, out):
-                    v = accept(acting[j][0], slot, req, o)
+                    v = accept(acting[j][0], slot, req, o, acting[j][1]["name"])
                     if v is not None:
                         vals[j][slot.name] = v
                     elif slot.required:
@@ -903,7 +955,7 @@ def fill_arguments(ctx, brain, acting: list, now: int, cfg: Config) -> list[dict
                 reqs.append((j, s2, slot_request(a, now, tool, s2, vals[j], qv)))
             out = brain.generate(ctx, "communication", [x[2] for x in reqs])
             for (j, s2, req), o in zip(reqs, out):
-                v = accept(acting[j][0], s2, req, o)
+                v = accept(acting[j][0], s2, req, o, acting[j][1]["name"])
                 if v is not None:
                     vals[j][s2.name] = [v] if ("array" in str(s2.schema.get("type")) and s2.kind != "compose") else v
                 elif s2.required:
@@ -924,7 +976,7 @@ def fill_arguments(ctx, brain, acting: list, now: int, cfg: Config) -> list[dict
             for cap, items in sorted(groups2.items()):
                 out = brain.generate(ctx, cap, [x[2] for x in items])
                 for (j, slot, req), o in zip(items, out):
-                    v = accept(acting[j][0], slot, req, o)
+                    v = accept(acting[j][0], slot, req, o, acting[j][1]["name"])
                     acting[j][0].count("rewritten_values")
                     if v is not None:
                         vals[j][slot.name] = [v] if ("array" in str(slot.schema.get("type")) and
@@ -932,11 +984,20 @@ def fill_arguments(ctx, brain, acting: list, now: int, cfg: Config) -> list[dict
     return vals
 
 
-def accept(a: Agent, slot: Slot, req: dict, text: str):
-    """The value a participant wrote for a slot, or None when it wrote nothing usable or echoed the prompt."""
+def own_words(a: Agent) -> str:
+    """The participant's own words in its prompts: its goal and the values it wrote in its recent calls."""
+    return " ".join([(a.goal() or {}).get("text", "")] + [str(h.get("args", "")) for h in a.history[-8:]])
+
+
+def accept(a: Agent, slot: Slot, req: dict, text: str, tool: str = ""):
+    """The value a participant wrote for a slot, or None when it wrote nothing usable, echoed the prompt, restated
+    its goal or wrote a tool's name (`copied_from_prompt`)."""
     v = written_value(slot, text)
-    if v is not None and copied_from_prompt(text, req, own=(a.goal() or {}).get("text", ""),
-                                            short=slot.kind in ("text", "number", "list") and slot.tokens <= 40):
+    if v is None or slot.kind == "number":
+        return v                          # a number is chosen or written, never an echo
+    if copied_from_prompt(text, req, own=own_words(a), short=slot.kind in ("text", "list") and slot.tokens <= 40,
+                          goal=(a.goal() or {}).get("text", ""), names=tool_names(a, tool),
+                          compose=slot.kind == "compose"):
         a.count("copied_values")
         return None
     return v
@@ -983,6 +1044,22 @@ def own_ref(a: Agent, ref: str) -> None:
     a.seen["own_refs"] = own[-30:]
 
 
+def made_refs(a: Agent, evs: list, res: Any, read_only: bool) -> list[str]:
+    """Artifacts a successful call shows to be the participant's own: those its own non-read-only call stored in its
+    name (the `artifact.stored` events of the call, visible to their owner), and a result that names its owner
+    (`artifact.info` of one of its own artifacts). A read-only call that returns another participant's published
+    artifact (`artifact.info`, `artifact.get`) makes nothing its own (verifier P4: such a ref was offered for a
+    publication and refused "you can only publish artifacts you own")."""
+    out = []
+    if not read_only:
+        out += [e.payload["ref"] for e in evs if e.type == "artifact.stored" and
+                e.payload.get("owner") == a.principal and isinstance(e.payload.get("ref"), str)]
+    if isinstance(res, dict) and isinstance(res.get("ref"), str) and res["ref"].startswith("sha256:") and \
+            res.get("owner") == a.principal:
+        out.append(res["ref"])
+    return list(dict.fromkeys(out))
+
+
 def forget(a: Agent, refs: list[str]) -> None:
     """Identifiers of artifacts a refused decision stored and that the rollback removed again (the third standard
     run kept offering them: 17 calls "no artifact sha256:...")."""
@@ -1016,9 +1093,8 @@ def execute(ctx, a: Agent, tool: dict, args: dict, now: int, cfg: Config) -> Non
         found: dict[str, str] = {}
         harvest_ids(res, f"from your {name}", found)
         a.learn_ids(found)
-        if name.split(".", 1)[0] in ("studio", "artifact") and isinstance(res, dict) and \
-                isinstance(res.get("ref"), str) and res["ref"].startswith("sha256:"):
-            own_ref(a, res["ref"])      # an artifact it just made with its own tools
+        for r in made_refs(a, evs, res, ro):
+            own_ref(a, r)               # an artifact it just made with its own tools, or one a result says it owns
         text = f"You called {name} {cjson(args, 200)} -> ok: {cjson(view, 260)}"
         if name in READING_TOOLS and isinstance(res, dict):
             inner = res.get("message") if isinstance(res.get("message"), dict) else res

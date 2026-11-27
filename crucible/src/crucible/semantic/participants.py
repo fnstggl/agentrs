@@ -515,11 +515,16 @@ class SemanticGroup:
         p = SemanticParticipant(self, goal, **kw)
         if not any(f in self.service.model_id.lower() for f in THINKING_MODELS):
             p.choice_method, p.think_args = "mean", False   # the model has no thinking mode: score the tool names
-        need = max(p.think_tokens if p.choice_method == "think" else 0,
-                   p.arg_tokens + (p.think_tokens if p.think_args else 0))
-        if need > self.service.max_new_tokens:   # the service would cut the reasoning short, silently
-            raise ValueError(f"the service bounds generation at {self.service.max_new_tokens} tokens; participants "
-                             f"need {need} (think_tokens + arg_tokens): raise SemanticService(max_new_tokens=...)")
+        # requests in the thinking mode (a tool choice that reasons first, arguments written after reasoning) are
+        # bounded by the service's thinking bound, the others by max_new_tokens (`SemanticService.bound_for`)
+        think_need = max(p.think_tokens if p.choice_method == "think" else 0,
+                         p.arg_tokens + p.think_tokens if p.think_args else 0)
+        bound = getattr(self.service, "think_bound", self.service.max_new_tokens)
+        if think_need > bound or (not p.think_args and p.arg_tokens > self.service.max_new_tokens):
+            # the service would cut the reasoning or the arguments short, silently
+            raise ValueError(f"the service bounds generation at {self.service.max_new_tokens} tokens (thinking mode "
+                             f"{bound}); participants need {max(think_need, p.arg_tokens)} (think_tokens + "
+                             "arg_tokens): raise SemanticService(max_new_tokens=..., max_think_tokens=...)")
         self.members.append(p)
         return p
 

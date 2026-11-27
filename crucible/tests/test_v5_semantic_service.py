@@ -114,8 +114,8 @@ def test_routing_escalates_hard_capabilities_and_policy_needs_a_slot(monkeypatch
     # capability on held-out templates, else the best measured
     dec = R.decision()
     assert dec is not None
-    derived = {c: r["model"] for c, r in R.derive(dec["report"], dec.get("in_situ")).items()}
-    assert {c: R.route(c) for c in R.TABLE} == derived
+    derived = {c: r["model"] for c, r in R.derive(dec["report"], dec.get("in_situ"), dec.get("in_situ_confirm")).items()}
+    assert {c: R.route(c) for c in R.capabilities()} == derived
     assert R.route("programming") == R.route("negotiation") == R.route("strategic_decisions") == "Qwen/Qwen3-1.7B"
     assert R.route("content_understanding") == "Qwen/Qwen3-0.6B" and R.route("tool_choice") in R.PARAMS
     assert R.PARAMS[R.route("communication")] <= R.PARAMS["Qwen/Qwen3-0.6B"]
@@ -270,3 +270,45 @@ def test_in_situ_routing_prefers_the_smallest_effective_variant_including_reason
     r = routing.derive(dec["report"], {"tool_choice": {small: 0.5, f"{small}#think192": 0.55, big: 0.68}})
     assert r["tool_choice"]["model"] == big and "think_tokens" not in r["tool_choice"]
     assert routing.base_model(f"{small}#think384") == small and routing.think_of(f"{small}#think384") == 384
+
+
+def test_in_situ_routing_confirms_the_pick_on_a_fresh_sample_and_routes_uses_separately(tmp_path, monkeypatch):
+    """D-38 amendment: (1) with a confirmation sample, the smallest effective variant is routed only when it also
+    reaches the bar there, else the next effective one; (2) the next-step phrase (`routing.USES`) follows situation
+    interpretation unless measured itself, and an in-situ route for it does not move goal formation; (3) a brain
+    routing a capability explicitly routes its uses with it; (4) `insitu.apply` writes the derived decision."""
+    import json
+    from crucible.semantic import routing
+    from crucible.semantic.generalists import brain as B, insitu
+    dec = routing.decision()
+    small, big = "Qwen/Qwen3-0.6B", "Qwen/Qwen3-1.7B"
+    sel = {small: 0.54, f"{small}#think192": 0.63, f"{small}#think384": 0.65, big: 0.68}
+    r = routing.derive(dec["report"], {"tool_choice": sel}, {"tool_choice": {f"{small}#think192": 0.55,
+                                                                             f"{small}#think384": 0.61}})
+    assert r["tool_choice"]["model"] == small and r["tool_choice"]["think_tokens"] == 384
+    r = routing.derive(dec["report"], {"tool_choice": sel}, {"tool_choice": {f"{small}#think192": 0.5,
+                                                                             f"{small}#think384": 0.52, big: 0.66}})
+    assert r["tool_choice"]["model"] == big and "confirmed" in r["tool_choice"]["reason"]
+    base = routing.derive(dec["report"])
+    assert base["next_step"]["model"] == base["situation_interpretation"]["model"]
+    r = routing.derive(dec["report"], {"next_step": {small: 0.66, big: 0.7}}, {"next_step": {small: 0.62}})
+    assert r["next_step"]["model"] == small and r["situation_interpretation"]["model"] == base[
+        "situation_interpretation"]["model"]
+    assert set(routing.capabilities()) == set(routing.TABLE) | {"next_step"}
+    assert B.LMBrain({c: small for c in routing.TABLE}).model_for("next_step") == small
+    assert B.LMBrain({"next_step": big}).model_for("next_step") == big
+    # apply: a measurement in insitu.measure's shape -> a decision whose routes rederive from its own records
+    m = {"date": "2026-11-27", "samples": {"selection": {"seed": 0, "n": 72}, "confirmation": {"seed": 1, "n": 72}},
+         "tool_choice": {"next_step_route": big, "routed": f"{small}#think384",
+                         "selection": {v: {"accuracy": a, "ci95": [0, 1]} for v, a in sel.items()},
+                         "confirmation": {f"{small}#think192": {"accuracy": 0.55, "ci95": [0, 1]},
+                                          f"{small}#think384": {"accuracy": 0.61, "ci95": [0, 1]}}},
+         "next_step": {"tool_choice_route": f"{small}#think384",
+                       "selection": {small: {"accuracy": 0.5, "ci95": [0, 1]}, big: {"accuracy": 0.65, "ci95": [0, 1]}},
+                       "confirmation": {big: {"accuracy": 0.61, "ci95": [0, 1]}}}}
+    out = tmp_path / "routing.json"
+    routes = insitu.apply(json.dumps(m).encode(), str(out))
+    d = json.loads(out.read_text())
+    assert routes["tool_choice"][:2] == (small, 384) and routes["next_step"][0] == big
+    assert routing.derive(d["report"], d["in_situ"], d["in_situ_confirm"]) == d["routes"]
+    assert d["routes"]["situation_interpretation"]["model"] == dec["routes"]["situation_interpretation"]["model"]
