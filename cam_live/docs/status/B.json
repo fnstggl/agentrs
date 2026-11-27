@@ -1,71 +1,90 @@
 {
  "workstream": "B",
- "commit": "ae4ad7f7197b4c7d6de0bb344812744491be60e6",
- "summary": "Stage 1 of 2: tensor-level, model-independent prediction and decision modules under src/cam_live/predict (dists, world, imagination, errors, evaluator, calibration, policy, voi, registry, candidates), 120 tests (119 CPU default, 1 gpu-marked). All requirements are 'partial': modules implemented and tested on synthetic ground truth and LabWorld; wiring onto the real model and the agent is stage 2.",
+ "commit": "e2ec33ab834f015837d9411bde04efaa944ce0bb",
+ "summary": "Stage 1 + stage 2. Prediction and decision-making under src/cam_live/predict, wired onto the real CamLiveModel: five heads registered on the model, five LossProviders (world model incl. fast-prior and latent-consistency terms, ALPaCA-style fast prior, evaluator on signed verified outcomes, and adapter variants), the runtime Predictor (registered multi-horizon predictions, immediate fast-belief update, resolution, decision-relevant VOI), DecisionMaker (exact probabilities for five rules, self-proposed randomised experiments), LatentPlanner, BackboneProposer (100 % schema-valid proposals from Qwen3-4B on two tool sets), and debug-scale learning evidence in LabWorld with honest failures recorded.",
  "requirements": {
   "PI-01": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
     "src/cam_live/predict/world.py",
-    "src/cam_live/predict/dists.py"
+    "src/cam_live/predict/dists.py",
+    "src/cam_live/predict/heads.py",
+    "src/cam_live/predict/providers.py",
+    "src/cam_live/predict/predictor.py"
    ],
    "integration_points": [
-    "cam_live.predict.world.WorldHeads.forward",
-    "cam_live.predict.world.WorldOutput.predictive"
+    "cam_live.predict.predictor.Predictor.evaluate_candidates",
+    "cam_live.predict.providers.WorldModelLoss.loss",
+    "cam_live.predict.heads.attach_heads"
    ],
    "tests": [
     "tests/predict/test_world.py::test_recovers_action_conditioned_count_rates_and_delayed_effects",
     "tests/predict/test_world.py::test_all_kinds_learn_with_pending_entries",
     "tests/predict/test_world.py::test_candidate_selection_and_per_candidate_queries",
-    "tests/predict/test_flow_labworld.py::test_predict_register_act_resolve_learn_and_recalibrate"
+    "tests/predict/test_flow_labworld.py::test_predict_register_act_resolve_learn_and_recalibrate",
+    "tests/predict/test_predictor.py::test_predictions_are_registered_before_the_method_returns",
+    "tests/predict/test_predictor.py::test_every_outcome_kind_is_predicted_registered_and_absorbed",
+    "tests/predict/test_learning_evidence.py::test_world_model_learns_action_conditioned_counts_at_two_horizons",
+    "tests/predict/test_gpu_real_config.py::test_predictor_decisions_and_providers_on_the_real_configuration"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
-    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider"
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured_slow.json .venv/bin/python -m pytest cam_live/tests/predict/test_learning_evidence.py -m slow -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict/test_gpu_real_config.py -m gpu -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_gpu_real_config.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.predict.diagnose (run as three processes with --only 1a / --only 1b,2,3,4,5 / --only 4 and merged; see the 'runs' field of docs/evidence/B/diagnostics.json)"
    ],
    "evidence": [
-    "docs/evidence/test_results/B.xml",
-    "docs/evidence/B/measured.json"
+    "docs/evidence/B/diagnostics.json",
+    "docs/evidence/B/real_config.json"
    ],
-   "limitations": "Stage 1 (tensor-level, synthetic ground truth and the LabWorld diagnostic). Not yet wired onto CamLiveModel / the agent: no LossProvider, heads not registered on the model, nothing under runtime/ imports cam_live.predict. z comes from a synthetic projection in tests, not from the experiential core. World output is not yet combined with A's Bayesian fast layer."
+   "limitations": "Beats the action-independent baseline on held-out lifetimes of the *same* mechanism at both horizons; on held-out *new* mechanisms the heads alone do NOT beat it (gain CI includes 0) \u2014 there the gain comes from the fast layer after the first observations. Learning evidence is at debug scale only (tiny random backbone, debug core, LabWorld; provenance 'diagnostic'). On the real Qwen3-4B configuration the path is exercised at initialisation (docs/evidence/B/real_config.json), not trained. Not yet called by the integrated agent / runtime (master integrates)."
   },
   "PI-02": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
     "src/cam_live/predict/registry.py",
+    "src/cam_live/predict/predictor.py",
     "src/cam_live/predict/calibration.py"
    ],
    "integration_points": [
+    "cam_live.predict.predictor.Predictor.evaluate_candidates",
     "cam_live.predict.registry.PredictionRegistry.register",
     "cam_live.predict.registry.PredictionRegistry.resolve",
-    "cam_live.predict.calibration.prospective_guard"
+    "cam_live.predict.predictor.Predictor.resolve"
    ],
    "tests": [
     "tests/predict/test_registry.py::test_register_then_resolve_once_and_score",
     "tests/predict/test_registry.py::test_predictions_cannot_be_edited_or_registered_resolved",
     "tests/predict/test_registry.py::test_resolution_must_be_strictly_after_the_prediction",
     "tests/predict/test_registry.py::test_log_is_append_only_reloadable_and_tamper_evident",
-    "tests/predict/test_flow_labworld.py::test_predict_register_act_resolve_learn_and_recalibrate"
+    "tests/predict/test_flow_labworld.py::test_predict_register_act_resolve_learn_and_recalibrate",
+    "tests/predict/test_predictor.py::test_predictions_are_registered_before_the_method_returns",
+    "tests/predict/test_predictor.py::test_resolve_fills_the_records_once_and_scores_them",
+    "tests/predict/test_predictor.py::test_success_forecasts_resolve_only_with_a_signed_resolved_objective_outcome",
+    "tests/predict/test_learning_evidence.py::test_success_forecasts_are_prospective_and_scored_once"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
-    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider"
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured_slow.json .venv/bin/python -m pytest cam_live/tests/predict/test_learning_evidence.py -m slow -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_slow.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/B.xml",
-    "docs/evidence/B/measured.json"
+    "docs/evidence/test_results/B.xml"
    ],
-   "limitations": "Stage 1 (tensor-level, synthetic ground truth and the LabWorld diagnostic). Not yet wired onto CamLiveModel / the agent: no LossProvider, heads not registered on the model, nothing under runtime/ imports cam_live.predict. Single writer process per registry file. PredictionRecord has no registered_at field (change request B-CR-3); the registry keeps it."
+   "limitations": "The registry is single-writer; registered_at lives in the registry log, not in the contract record (B-CR-3). The cache that links later outcomes to decision-time features is in memory only."
   },
   "PI-03": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
+    "src/cam_live/predict/providers.py",
     "src/cam_live/predict/world.py",
-    "src/cam_live/predict/dists.py"
+    "src/cam_live/predict/heads.py",
+    "src/cam_live/predict/labdata.py"
    ],
    "integration_points": [
-    "cam_live.predict.world.world_nll",
-    "cam_live.predict.world.build_targets"
+    "cam_live.predict.providers.WorldModelLoss",
+    "cam_live.predict.providers.FastPriorLoss",
+    "cam_live.predict.providers.WorldModelAdapterLoss",
+    "cam_live.predict.providers.default_providers"
    ],
    "tests": [
     "tests/predict/test_world.py::test_all_kinds_learn_with_pending_entries",
@@ -74,168 +93,184 @@
     "tests/predict/test_dists.py::test_count_families_match_scipy",
     "tests/predict/test_dists.py::test_discrete_hazard_matches_geometric_and_brute_force",
     "tests/predict/test_dists.py::test_normal_and_student_t_match_scipy",
-    "tests/predict/test_dists.py::test_bernoulli_and_categorical_match_scipy"
+    "tests/predict/test_dists.py::test_bernoulli_and_categorical_match_scipy",
+    "tests/predict/test_providers.py::test_world_loss_trains_on_matured_outcomes_only",
+    "tests/predict/test_providers.py::test_world_loss_gradient_reaches_core_heads_and_fast_prior_only",
+    "tests/predict/test_providers.py::test_fast_prior_loss_is_prequential_within_an_objective",
+    "tests/predict/test_providers.py::test_adapter_providers_send_prediction_gradient_into_the_semantic_adapters",
+    "tests/predict/test_learning_evidence.py::test_family_training_uses_all_three_providers"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
-    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider"
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured_slow.json .venv/bin/python -m pytest cam_live/tests/predict/test_learning_evidence.py -m slow -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict/test_gpu_real_config.py -m gpu -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_gpu_real_config.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.predict.diagnose (run as three processes with --only 1a / --only 1b,2,3,4,5 / --only 4 and merged; see the 'runs' field of docs/evidence/B/diagnostics.json)"
    ],
    "evidence": [
-    "docs/evidence/test_results/B.xml",
-    "docs/evidence/B/measured.json"
+    "docs/evidence/B/diagnostics.json",
+    "docs/evidence/B/real_config.json"
    ],
-   "limitations": "Stage 1 (tensor-level, synthetic ground truth and the LabWorld diagnostic). Not yet wired onto CamLiveModel / the agent: no LossProvider, heads not registered on the model, nothing under runtime/ imports cam_live.predict. Training loop in tests is a plain Adam loop; the continual learner (D) will own optimisation through a LossProvider written in stage 2."
+   "limitations": "Trained here with a plain optimiser (predict.labdata.train); running under D's ContinualLearner is integration work. Adapter gradient is demonstrated (non-zero, bounded memory), adapter *learning* from real experience is not. Learning evidence is at debug scale only (tiny random backbone, debug core, LabWorld; provenance 'diagnostic'). On the real Qwen3-4B configuration the path is exercised at initialisation (docs/evidence/B/real_config.json), not trained. Not yet called by the integrated agent / runtime (master integrates)."
   },
   "PI-04": {
-   "state": "partial",
-   "files": [
-    "src/cam_live/predict/world.py"
-   ],
-   "integration_points": [
-    "cam_live.predict.world.WorldHeads.forward (horizon_s is an input)",
-    "cam_live.predict.world.time_features"
-   ],
-   "tests": [
-    "tests/predict/test_world.py::test_recovers_action_conditioned_count_rates_and_delayed_effects"
-   ],
-   "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
-    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider"
-   ],
-   "evidence": [
-    "docs/evidence/test_results/B.xml",
-    "docs/evidence/B/measured.json"
-   ],
-   "limitations": "Stage 1 (tensor-level, synthetic ground truth and the LabWorld diagnostic). Not yet wired onto CamLiveModel / the agent: no LossProvider, heads not registered on the model, nothing under runtime/ imports cam_live.predict. Horizons tested from 30 minutes to 3 days on a synthetic delayed-arrival process."
-  },
-  "PI-05": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
     "src/cam_live/predict/world.py",
-    "src/cam_live/predict/errors.py"
+    "src/cam_live/predict/predictor.py",
+    "src/cam_live/predict/labdata.py"
    ],
    "integration_points": [
+    "cam_live.predict.predictor.at_horizons",
+    "cam_live.predict.predictor.Predictor.evaluate_candidates",
+    "cam_live.predict.labdata.add_horizons"
+   ],
+   "tests": [
+    "tests/predict/test_world.py::test_recovers_action_conditioned_count_rates_and_delayed_effects",
+    "tests/predict/test_predictor.py::test_predictions_are_registered_before_the_method_returns",
+    "tests/predict/test_learning_evidence.py::test_world_model_learns_action_conditioned_counts_at_two_horizons"
+   ],
+   "commands": [
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured_slow.json .venv/bin/python -m pytest cam_live/tests/predict/test_learning_evidence.py -m slow -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_slow.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.predict.diagnose (run as three processes with --only 1a / --only 1b,2,3,4,5 / --only 4 and merged; see the 'runs' field of docs/evidence/B/diagnostics.json)"
+   ],
+   "evidence": [
+    "docs/evidence/B/diagnostics.json"
+   ],
+   "limitations": "Two horizons (6 h, 2 d) measured; the horizon is a continuous input, more horizons are a matter of asking. Stored experience keeps extra-horizon queries in result.expected_outcomes (B-CR-6)."
+  },
+  "PI-05": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/predict/world.py",
+    "src/cam_live/predict/predictor.py",
+    "src/cam_live/predict/heads.py"
+   ],
+   "integration_points": [
+    "cam_live.predict.predictor.Predictor.evaluate_candidates",
     "cam_live.predict.world.WorldOutput.predictive",
-    "cam_live.predict.world.WorldOutput.to_distribution",
-    "cam_live.predict.world.bootstrap_weights",
-    "cam_live.predict.errors.classify_error"
+    "cam_live.predict.predictor.Predictor.observe_outcomes"
    ],
    "tests": [
     "tests/predict/test_world.py::test_epistemic_uncertainty_shrinks_with_data_and_is_larger_off_distribution",
     "tests/predict/test_world.py::test_to_distribution_for_every_kind",
     "tests/predict/test_world.py::test_bootstrap_weights_are_deterministic_poisson",
     "tests/predict/test_world.py::test_thompson_means_draw_whole_members",
-    "tests/predict/test_imagination.py::test_change_detector_and_error_attribution"
+    "tests/predict/test_imagination.py::test_change_detector_and_error_attribution",
+    "tests/predict/test_predictor.py::test_predictions_are_registered_before_the_method_returns",
+    "tests/predict/test_predictor.py::test_outcomes_update_the_fast_belief_without_any_gradient_step",
+    "tests/predict/test_predictor.py::test_every_outcome_kind_is_predicted_registered_and_absorbed"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
-    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider",
-    "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/B/ablation_prior.py > cam_live/docs/evidence/B/ablation_prior.txt"
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict/test_gpu_real_config.py -m gpu -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_gpu_real_config.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/B.xml",
-    "docs/evidence/B/measured.json",
-    "docs/evidence/B/ablation_prior.txt"
+    "docs/evidence/B/real_config.json",
+    "docs/evidence/B/measured.json"
    ],
-   "limitations": "Stage 1 (tensor-level, synthetic ground truth and the LabWorld diagnostic). Not yet wired onto CamLiveModel / the agent: no LossProvider, heads not registered on the model, nothing under runtime/ imports cam_live.predict. Epistemic estimate = bootstrapped ensemble with randomised prior functions (stated; not a last-layer posterior). Real / count records are moment-matched, Bernoulli / hazard / categorical records are exact mixtures. Error attribution is threshold-based."
+   "limitations": "Epistemic = bootstrapped ensemble with randomised priors (amortised) combined with the fast layer's last-layer posterior (within lifetime) as independent factors; aleatoric from the head. The binary combination is an approximation (logit shift), categorical is head-only (B-CR-10). Calibration of the combined uncertainty on the real model was not measured."
   },
   "PI-06": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
+    "src/cam_live/predict/providers.py",
     "src/cam_live/predict/world.py",
-    "src/cam_live/predict/dists.py",
-    "src/cam_live/predict/evaluator.py",
-    "src/cam_live/predict/registry.py"
+    "src/cam_live/predict/predictor.py"
    ],
    "integration_points": [
-    "cam_live.predict.world.WorldTargets.mask",
-    "cam_live.predict.dists.masked_mean",
-    "cam_live.predict.world.build_targets"
+    "cam_live.predict.providers.record_rows",
+    "cam_live.predict.world.build_targets",
+    "cam_live.predict.providers.WorldModelLoss.eligible"
    ],
    "tests": [
     "tests/predict/test_world.py::test_pending_targets_contribute_exactly_zero_gradient",
     "tests/predict/test_world.py::test_build_targets_masks_pending_and_refuses_imagined",
     "tests/predict/test_dists.py::test_masked_targets_give_exactly_zero_loss_and_gradient",
     "tests/predict/test_evaluator.py::test_pending_objective_gives_zero_loss_and_zero_gradient",
-    "tests/predict/test_registry.py::test_statuses_values_and_imagined_outcomes"
+    "tests/predict/test_registry.py::test_statuses_values_and_imagined_outcomes",
+    "tests/predict/test_providers.py::test_world_loss_trains_on_matured_outcomes_only",
+    "tests/predict/test_predictor.py::test_outcomes_update_the_fast_belief_without_any_gradient_step",
+    "tests/predict/test_predictor.py::test_resolve_fills_the_records_once_and_scores_them"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
-    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider"
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/B.xml",
-    "docs/evidence/B/measured.json"
+    "docs/evidence/test_results/B.xml"
    ],
-   "limitations": "Stage 1 (tensor-level, synthetic ground truth and the LabWorld diagnostic). Not yet wired onto CamLiveModel / the agent: no LossProvider, heads not registered on the model, nothing under runtime/ imports cam_live.predict. Gradients for masked entries are bit-identical whatever the masked slot holds (NaN, 1e30)."
+   "limitations": ""
   },
   "PI-07": {
    "state": "partial",
    "files": [
+    "src/cam_live/predict/planner.py",
     "src/cam_live/predict/imagination.py",
     "src/cam_live/predict/world.py"
    ],
    "integration_points": [
-    "cam_live.predict.imagination.rollout",
-    "cam_live.predict.imagination.imagine_candidates",
-    "cam_live.predict.imagination.HorizonController",
-    "cam_live.predict.world.LatentTransition"
+    "cam_live.predict.planner.LatentPlanner.plan",
+    "cam_live.predict.planner.LatentPlanner.measure"
    ],
    "tests": [
     "tests/predict/test_imagination.py::test_rollout_is_flagged_tracks_truth_and_spread_grows",
     "tests/predict/test_imagination.py::test_horizon_grows_only_while_measured_error_is_small",
     "tests/predict/test_imagination.py::test_imagine_candidates_ranks_alternatives_like_the_true_model",
-    "tests/predict/test_world.py::test_latent_transition_learns_dynamics_and_masks_missing_next"
+    "tests/predict/test_world.py::test_latent_transition_learns_dynamics_and_masks_missing_next",
+    "tests/predict/test_decision.py::test_planner_outputs_are_imagined_and_refused_by_every_outcome_api",
+    "tests/predict/test_decision.py::test_imagination_horizon_follows_measured_error_on_real_transitions"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
-    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider"
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict/test_gpu_real_config.py -m gpu -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_gpu_real_config.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/B.xml",
     "docs/evidence/B/measured.json"
    ],
-   "limitations": "Stage 1 (tensor-level, synthetic ground truth and the LabWorld diagnostic). Not yet wired onto CamLiveModel / the agent: no LossProvider, heads not registered on the model, nothing under runtime/ imports cam_live.predict. Synthetic latent dynamics only; the HorizonController is not yet fed from real replay; imagine_candidates is one step."
+   "limitations": "The mechanism is complete (particles, continuation policy, evaluator read-out, horizon controller fed by held-out real transitions). It is NOT shown to be useful: the latent transition's measured error on held-out real LabWorld transitions stays above the no-skill level at debug scale (k=1: 1.44 after a short head-only fit, 1.80 untrained; 1.0 = predicting the mean), so the controller correctly never allows more than one step and imagined values carry little information. No comparison of decisions with and without planning was run."
   },
   "PI-08": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
     "src/cam_live/predict/policy.py",
-    "src/cam_live/predict/voi.py"
+    "src/cam_live/predict/predictor.py",
+    "src/cam_live/predict/registry.py"
    ],
    "integration_points": [
-    "cam_live.predict.policy.select",
-    "cam_live.predict.policy.selection_probs",
-    "cam_live.predict.voi.voi_linear_gaussian"
+    "cam_live.predict.policy.DecisionMaker.select",
+    "cam_live.predict.policy.DecisionMaker.select_experiment"
    ],
    "tests": [
     "tests/predict/test_policy.py::test_every_rule_returns_exact_propensities",
     "tests/predict/test_policy.py::test_rule_semantics",
     "tests/predict/test_policy.py::test_randomised_assignment_over_arms",
     "tests/predict/test_policy.py::test_select_is_seeded_and_reports_what_it_used",
-    "tests/predict/test_flow_labworld.py::test_registered_randomised_experiment_recovers_the_true_difference"
+    "tests/predict/test_flow_labworld.py::test_registered_randomised_experiment_recovers_the_true_difference",
+    "tests/predict/test_decision.py::test_every_rule_records_the_exact_distribution_it_sampled_from",
+    "tests/predict/test_decision.py::test_randomised_experiment_is_registered_before_assignment",
+    "tests/predict/test_decision.py::test_action_distribution_depends_on_the_belief_latent_on_the_real_model",
+    "tests/predict/test_learning_evidence.py::test_closed_loop_agent_registers_before_acting_and_learns_within_the_lifetime"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
-    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider"
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured_slow.json .venv/bin/python -m pytest cam_live/tests/predict/test_learning_evidence.py -m slow -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_slow.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.predict.diagnose (run as three processes with --only 1a / --only 1b,2,3,4,5 / --only 4 and merged; see the 'runs' field of docs/evidence/B/diagnostics.json)"
    ],
    "evidence": [
-    "docs/evidence/test_results/B.xml",
+    "docs/evidence/B/diagnostics.json",
     "docs/evidence/B/measured.json"
    ],
-   "limitations": "Stage 1 (tensor-level, synthetic ground truth and the LabWorld diagnostic). Not yet wired onto CamLiveModel / the agent: no LossProvider, heads not registered on the model, nothing under runtime/ imports cam_live.predict. Rules are not yet compared against each other on a live or staging task (Workstream S)."
+   "limitations": "All five rules select with exact recorded probabilities on the real model. Compared in closed loop only greedy vs VOI-aware (no significant difference at debug scale, see scientific_failures); Thompson / UCB / policy were not compared on a task."
   },
   "PI-09": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
     "src/cam_live/predict/candidates.py",
     "src/cam_live/predict/policy.py"
    ],
    "integration_points": [
-    "cam_live.predict.candidates.parse_actions",
-    "cam_live.predict.candidates.schema_candidates",
-    "cam_live.predict.candidates.merge_candidates",
-    "cam_live.predict.policy.CandidatePolicy.forward"
+    "cam_live.predict.candidates.BackboneProposer.propose",
+    "cam_live.predict.policy.DecisionMaker.select"
    ],
    "tests": [
     "tests/predict/test_candidates.py::test_parse_single_array_and_json_lines",
@@ -244,132 +279,144 @@
     "tests/predict/test_candidates.py::test_merge_keeps_every_provenance",
     "tests/predict/test_candidates.py::test_rejections_are_recorded_with_reasons",
     "tests/predict/test_policy.py::test_permuting_belief_changes_the_action_distribution",
-    "tests/predict/test_policy.py::test_variable_candidate_sets_padding_and_permutation"
+    "tests/predict/test_policy.py::test_variable_candidate_sets_padding_and_permutation",
+    "tests/predict/test_proposer.py::test_tiny_backbone_proposals_are_merged_with_walker_and_skills",
+    "tests/predict/test_proposer.py::test_backbone_text_is_parsed_strictly_and_keeps_its_provenance",
+    "tests/predict/test_proposer.py::test_real_backbone_proposes_schema_valid_actions"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
-    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider"
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict/test_proposer.py -m gpu -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_gpu_proposer.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/B.xml",
-    "docs/evidence/B/measured.json"
+    "docs/evidence/B/proposals_real_backbone.json"
    ],
-   "limitations": "Stage 1 (tensor-level, synthetic ground truth and the LabWorld diagnostic). Not yet wired onto CamLiveModel / the agent: no LossProvider, heads not registered on the model, nothing under runtime/ imports cam_live.predict. The backbone's generate() is not called here; parse_actions is tested on written text. Skill-library candidates come from ES."
+   "limitations": "The bridge is an exact no-op at initialisation, so 'conditioned on the latent' is exercised but has no effect until the adapters are trained; proposal usefulness (as opposed to validity) was not measured. JSON-Schema support is a subset ($ref, if/then/else, patternProperties unchecked)."
   },
   "PI-10": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
+    "src/cam_live/predict/planner.py",
     "src/cam_live/predict/imagination.py",
     "src/cam_live/predict/registry.py",
-    "src/cam_live/predict/world.py"
+    "src/cam_live/predict/predictor.py",
+    "src/cam_live/predict/providers.py"
    ],
    "integration_points": [
     "cam_live.predict.imagination.refuse_imagined",
-    "cam_live.predict.registry.PredictionRegistry.resolve",
-    "cam_live.predict.registry.ExperimentRegistry.add_outcome",
-    "cam_live.predict.world.build_targets"
+    "cam_live.predict.planner.ImaginedEvaluation"
    ],
    "tests": [
     "tests/predict/test_imagination.py::test_imagined_values_are_refused_as_outcomes",
     "tests/predict/test_imagination.py::test_rollout_is_flagged_tracks_truth_and_spread_grows",
     "tests/predict/test_registry.py::test_statuses_values_and_imagined_outcomes",
-    "tests/predict/test_world.py::test_build_targets_masks_pending_and_refuses_imagined"
+    "tests/predict/test_world.py::test_build_targets_masks_pending_and_refuses_imagined",
+    "tests/predict/test_decision.py::test_planner_outputs_are_imagined_and_refused_by_every_outcome_api",
+    "tests/predict/test_providers.py::test_imagined_values_cannot_become_training_targets",
+    "tests/predict/test_predictor.py::test_every_outcome_kind_is_predicted_registered_and_absorbed"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
-    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider"
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/B.xml",
-    "docs/evidence/B/measured.json"
+    "docs/evidence/test_results/B.xml"
    ],
-   "limitations": "Stage 1 (tensor-level, synthetic ground truth and the LabWorld diagnostic). Not yet wired onto CamLiveModel / the agent: no LossProvider, heads not registered on the model, nothing under runtime/ imports cam_live.predict. The guard works on objects (imagined flag, imagined_horizon_steps, Provenance.imagined); a bare tensor cannot be type-guarded, so callers must build targets through build_targets / prefix_targets."
+   "limitations": "contracts.OutcomeObservation has no imagined flag (B-CR-8): B never builds one from a model output and refuses sources named 'imagin*', but another package could still wrap an imagined value."
   },
   "SE-01": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
-    "src/cam_live/predict/evaluator.py"
+    "src/cam_live/predict/evaluator.py",
+    "src/cam_live/predict/heads.py",
+    "src/cam_live/predict/predictor.py",
+    "src/cam_live/predict/providers.py"
    ],
    "integration_points": [
-    "cam_live.predict.evaluator.GoalEvaluator.forward",
-    "cam_live.predict.evaluator.GoalEvaluator.forward_candidates"
+    "cam_live.predict.predictor.Predictor.evaluate_candidates",
+    "cam_live.predict.predictor.Predictor.belief_value"
    ],
    "tests": [
     "tests/predict/test_evaluator.py::test_overconfident_evaluator_receives_corrective_gradients_and_calibration_improves",
-    "tests/predict/test_evaluator.py::test_bce_is_stable_and_outputs_are_not_zero_initialised"
+    "tests/predict/test_evaluator.py::test_bce_is_stable_and_outputs_are_not_zero_initialised",
+    "tests/predict/test_predictor.py::test_success_forecasts_resolve_only_with_a_signed_resolved_objective_outcome",
+    "tests/predict/test_providers.py::test_evaluator_loss_needs_a_signed_resolved_outcome"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
-    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider"
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict/test_gpu_real_config.py -m gpu -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_gpu_real_config.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/B.xml",
-    "docs/evidence/B/measured.json"
+    "docs/evidence/B/real_config.json"
    ],
-   "limitations": "Stage 1 (tensor-level, synthetic ground truth and the LabWorld diagnostic). Not yet wired onto CamLiveModel / the agent: no LossProvider, heads not registered on the model, nothing under runtime/ imports cam_live.predict. Beliefs are synthetic."
+   "limitations": "Learning evidence is at debug scale only (tiny random backbone, debug core, LabWorld; provenance 'diagnostic'). On the real Qwen3-4B configuration the path is exercised at initialisation (docs/evidence/B/real_config.json), not trained. Not yet called by the integrated agent / runtime (master integrates)."
   },
   "SE-02": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
+    "src/cam_live/predict/providers.py",
     "src/cam_live/predict/evaluator.py"
    ],
    "integration_points": [
-    "cam_live.predict.evaluator.prefix_targets",
-    "cam_live.predict.evaluator.prefix_targets_from_outcome",
-    "cam_live.predict.evaluator.evaluator_loss"
+    "cam_live.predict.providers.EvaluatorLoss.add_outcome",
+    "cam_live.predict.providers.EvaluatorLoss.loss"
    ],
    "tests": [
     "tests/predict/test_evaluator.py::test_prefix_targets_semantics",
     "tests/predict/test_evaluator.py::test_overconfident_evaluator_receives_corrective_gradients_and_calibration_improves",
-    "tests/predict/test_evaluator.py::test_pending_objective_gives_zero_loss_and_zero_gradient"
+    "tests/predict/test_evaluator.py::test_pending_objective_gives_zero_loss_and_zero_gradient",
+    "tests/predict/test_providers.py::test_evaluator_loss_needs_a_signed_resolved_outcome",
+    "tests/predict/test_providers.py::test_overconfident_evaluator_receives_corrective_gradient",
+    "tests/predict/test_learning_evidence.py::test_family_training_uses_all_three_providers"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
-    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider"
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured_slow.json .venv/bin/python -m pytest cam_live/tests/predict/test_learning_evidence.py -m slow -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_slow.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/B.xml",
-    "docs/evidence/B/measured.json"
+    "docs/evidence/test_results/B.xml"
    ],
-   "limitations": "Stage 1 (tensor-level, synthetic ground truth and the LabWorld diagnostic). Not yet wired onto CamLiveModel / the agent: no LossProvider, heads not registered on the model, nothing under runtime/ imports cam_live.predict. The caller must pass signature_checked=True after OutcomeVerifier.check_signature; this module cannot verify signatures itself."
+   "limitations": "Whoever reconciles verified outcomes must call EvaluatorLoss.add_outcome (integration). VerifiedOutcome carries no achievement time, so the time-to-achievement head gets a target only when achieved_at is supplied (or as right-censoring on failure)."
   },
   "SE-03": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
     "src/cam_live/predict/evaluator.py",
+    "src/cam_live/predict/providers.py",
+    "src/cam_live/predict/world.py",
     "src/cam_live/predict/dists.py"
    ],
    "integration_points": [
-    "cam_live.predict.evaluator.EvalOutput.magnitude_count",
-    "cam_live.predict.evaluator.EvalOutput.time_dist",
-    "cam_live.predict.evaluator.EvalOutput.resources_expected"
+    "cam_live.predict.evaluator.GoalEvaluator",
+    "cam_live.predict.providers.EvaluatorLoss"
    ],
    "tests": [
     "tests/predict/test_evaluator.py::test_overconfident_evaluator_receives_corrective_gradients_and_calibration_improves",
     "tests/predict/test_evaluator.py::test_real_valued_magnitude_head_learns",
     "tests/predict/test_dists.py::test_discrete_hazard_matches_geometric_and_brute_force",
-    "tests/predict/test_dists.py::test_restricted_mean_equals_area_under_survival"
+    "tests/predict/test_dists.py::test_restricted_mean_equals_area_under_survival",
+    "tests/predict/test_providers.py::test_evaluator_loss_needs_a_signed_resolved_outcome",
+    "tests/predict/test_predictor.py::test_every_outcome_kind_is_predicted_registered_and_absorbed"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
-    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider"
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/B.xml",
-    "docs/evidence/B/measured.json"
+    "docs/evidence/test_results/B.xml"
    ],
-   "limitations": "Stage 1 (tensor-level, synthetic ground truth and the LabWorld diagnostic). Not yet wired onto CamLiveModel / the agent: no LossProvider, heads not registered on the model, nothing under runtime/ imports cam_live.predict. No dedicated sustainability head: sustainability and other future outcomes are world-model queries."
+   "limitations": "On the real model the distributional evaluator heads are trained and produce finite likelihoods, but their accuracy / calibration was measured only at tensor level (stage 1). Sustainability and other future outcomes are asked as world-model queries, not dedicated heads."
   },
   "SE-04": {
    "state": "partial",
    "files": [
     "src/cam_live/predict/calibration.py",
-    "src/cam_live/predict/registry.py"
+    "src/cam_live/predict/registry.py",
+    "src/cam_live/predict/predictor.py",
+    "src/cam_live/predict/diagnose.py"
    ],
    "integration_points": [
-    "cam_live.predict.calibration.score_predictions",
-    "cam_live.predict.calibration.grouped_binary_report",
-    "cam_live.predict.registry.PredictionRegistry.score"
+    "cam_live.predict.registry.PredictionRegistry.score",
+    "cam_live.predict.predictor.Predictor.resolve_objective",
+    "cam_live.predict.diagnose.calibration"
    ],
    "tests": [
     "tests/predict/test_calibration.py::test_slope_and_intercept_diagnose_miscalibration",
@@ -379,51 +426,58 @@
     "tests/predict/test_calibration.py::test_prospective_guard_and_record_scoring",
     "tests/predict/test_calibration.py::test_t_interval_coverage_of_expected_brier",
     "tests/predict/test_calibration.py::test_studentised_ci_matches_scipy_and_respects_clusters",
-    "tests/predict/test_registry.py::test_registry_score_uses_registration_time"
+    "tests/predict/test_registry.py::test_registry_score_uses_registration_time",
+    "tests/predict/test_predictor.py::test_success_forecasts_resolve_only_with_a_signed_resolved_objective_outcome",
+    "tests/predict/test_learning_evidence.py::test_success_forecasts_are_prospective_and_scored_once"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
-    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider"
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured_slow.json .venv/bin/python -m pytest cam_live/tests/predict/test_learning_evidence.py -m slow -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_slow.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.predict.diagnose (run as three processes with --only 1a / --only 1b,2,3,4,5 / --only 4 and merged; see the 'runs' field of docs/evidence/B/diagnostics.json)"
    ],
    "evidence": [
-    "docs/evidence/test_results/B.xml",
-    "docs/evidence/B/measured.json"
+    "docs/evidence/B/diagnostics.json"
    ],
-   "limitations": "Stage 1 (tensor-level, synthetic ground truth and the LabWorld diagnostic). Not yet wired onto CamLiveModel / the agent: no LossProvider, heads not registered on the model, nothing under runtime/ imports cam_live.predict. Measured only on synthetic forecasts and LabWorld so far; no live predictions exist yet."
+   "limitations": "The measurement is implemented and prospective (forecasts registered at decision time, resolved by the signed verified outcome, scored per lifetime cluster). What it measured on the real debug model is in measured / scientific_failures: see evaluator_calibration."
   },
   "SE-05": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
-    "src/cam_live/predict/evaluator.py"
+    "src/cam_live/predict/evaluator.py",
+    "src/cam_live/predict/diagnose.py",
+    "src/cam_live/predict/predictor.py"
    ],
    "integration_points": [
     "cam_live.predict.evaluator.action_quality",
     "cam_live.predict.evaluator.outcome_decomposition"
    ],
    "tests": [
-    "tests/predict/test_evaluator.py::test_action_quality_separates_a_good_decision_from_a_lucky_outcome"
+    "tests/predict/test_evaluator.py::test_action_quality_separates_a_good_decision_from_a_lucky_outcome",
+    "tests/predict/test_learning_evidence.py::test_action_quality_is_separated_from_luck"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
-    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider"
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured_slow.json .venv/bin/python -m pytest cam_live/tests/predict/test_learning_evidence.py -m slow -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_slow.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.predict.diagnose (run as three processes with --only 1a / --only 1b,2,3,4,5 / --only 4 and merged; see the 'runs' field of docs/evidence/B/diagnostics.json)"
    ],
    "evidence": [
-    "docs/evidence/test_results/B.xml",
-    "docs/evidence/B/measured.json"
+    "docs/evidence/B/diagnostics.json"
    ],
-   "limitations": "Stage 1 (tensor-level, synthetic ground truth and the LabWorld diagnostic). Not yet wired onto CamLiveModel / the agent: no LossProvider, heads not registered on the model, nothing under runtime/ imports cam_live.predict. Quality is relative to the evaluator's own Q estimates; it is as good as that model."
+   "limitations": "On the real debug model quality is far less luck-driven than the raw outcome, but the raw outcome is the better indicator of the decision's true advantage there (the model's ranking of actions in a new world is weak). Not yet consumed by the reward workstream's signals."
   },
   "SE-06": {
    "state": "partial",
    "files": [
-    "src/cam_live/predict/voi.py"
+    "src/cam_live/predict/voi.py",
+    "src/cam_live/predict/predictor.py",
+    "src/cam_live/predict/diagnose.py",
+    "src/cam_live/predict/heads.py"
    ],
    "integration_points": [
-    "cam_live.predict.voi.voi_linear_gaussian",
-    "cam_live.predict.voi.voi_glm",
+    "cam_live.predict.predictor.Predictor.evaluate_candidates",
     "cam_live.predict.voi.voi_sampling",
-    "cam_live.predict.voi.DownstreamValueEstimator",
-    "cam_live.predict.voi.score_downstream"
+    "cam_live.predict.predictor.Predictor.downstream_signals",
+    "cam_live.predict.voi.DownstreamValueEstimator"
    ],
    "tests": [
     "tests/predict/test_voi.py::test_noisy_irrelevant_observation_has_zero_voi_but_high_surprise",
@@ -432,55 +486,55 @@
     "tests/predict/test_voi.py::test_glm_voi_is_decision_relevant[bernoulli]",
     "tests/predict/test_voi.py::test_glm_voi_is_decision_relevant[poisson]",
     "tests/predict/test_voi.py::test_costs_time_and_opportunity_cost_are_netted",
-    "tests/predict/test_voi.py::test_downstream_estimator_learns_and_must_beat_the_computed_reference"
+    "tests/predict/test_voi.py::test_downstream_estimator_learns_and_must_beat_the_computed_reference",
+    "tests/predict/test_predictor.py::test_voi_is_decision_relevant_not_surprise",
+    "tests/predict/test_learning_evidence.py::test_value_of_information_fast_path_ignores_the_noisy_gauge"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
-    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider"
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured_slow.json .venv/bin/python -m pytest cam_live/tests/predict/test_learning_evidence.py -m slow -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_slow.xml",
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.predict.diagnose (run as three processes with --only 1a / --only 1b,2,3,4,5 / --only 4 and merged; see the 'runs' field of docs/evidence/B/diagnostics.json)"
    ],
    "evidence": [
-    "docs/evidence/test_results/B.xml",
-    "docs/evidence/B/measured.json"
+    "docs/evidence/B/diagnostics.json"
    ],
-   "limitations": "Stage 1 (tensor-level, synthetic ground truth and the LabWorld diagnostic). Not yet wired onto CamLiveModel / the agent: no LossProvider, heads not registered on the model, nothing under runtime/ imports cam_live.predict. Not yet connected to the model's feature map phi / FastBeliefState. The learned estimator did not beat an accurate computed VOI (see scientific_failures)."
+   "limitations": "Decision-relevant VOI through the fast posterior works on the real model and is exactly zero for the unpredictable-but-irrelevant gauge (surprise is not value). NOT done / not shown: (1) the probe is not valued above the gauge; (2) VOI-aware selection did not beat greedy; (3) the learned downstream-usefulness estimator is registered on the model and has its signal vector, but no LossProvider trains it and it is not scored against realised downstream learning on the real model (stage 1, tensor level: it did not beat the computed VOI)."
   },
   "AE-01": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
-    "src/cam_live/predict/registry.py",
-    "src/cam_live/predict/policy.py"
+    "src/cam_live/predict/policy.py",
+    "src/cam_live/predict/registry.py"
    ],
    "integration_points": [
-    "cam_live.predict.registry.ExperimentRegistry.register",
-    "cam_live.predict.registry.ExperimentRegistry.assign",
-    "cam_live.predict.registry.ExperimentRegistry.conclude"
+    "cam_live.predict.policy.DecisionMaker.propose_experiment",
+    "cam_live.predict.policy.DecisionMaker.select_experiment",
+    "cam_live.predict.registry.ExperimentRegistry"
    ],
    "tests": [
     "tests/predict/test_registry.py::test_experiment_lifecycle_with_randomised_assignment",
     "tests/predict/test_registry.py::test_experiment_registration_rules",
     "tests/predict/test_registry.py::test_welch_test_edge_cases",
-    "tests/predict/test_flow_labworld.py::test_registered_randomised_experiment_recovers_the_true_difference"
+    "tests/predict/test_flow_labworld.py::test_registered_randomised_experiment_recovers_the_true_difference",
+    "tests/predict/test_decision.py::test_randomised_experiment_is_registered_before_assignment"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
-    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider"
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/B.xml",
-    "docs/evidence/B/measured.json"
+    "docs/evidence/test_results/B.xml"
    ],
-   "limitations": "Stage 1 (tensor-level, synthetic ground truth and the LabWorld diagnostic). Not yet wired onto CamLiveModel / the agent: no LossProvider, heads not registered on the model, nothing under runtime/ imports cam_live.predict. The registry records and analyses experiments; choosing *which* experiment to run (from uncertainty / VOI) is agent logic for stage 2. Analysis is a two-arm Welch test. ExperimentRecord lacks fields for arm probabilities and the test (change request B-CR-2)."
+   "limitations": "The learner proposes one kind of experiment: a randomised comparison of the two candidates whose order it is least sure of; question and hypothesis only restate its registered predictions. It does not form mechanistic explanations, and concluding an experiment (analyse / conclude) and revising strategy from it are left to the agent loop."
   },
   "CU-12": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
     "src/cam_live/predict/candidates.py"
    ],
    "integration_points": [
+    "cam_live.predict.candidates.BackboneProposer.propose",
     "cam_live.predict.candidates.schema_candidates",
-    "cam_live.predict.candidates.parse_actions",
-    "cam_live.predict.candidates.build_proposal_prompt",
-    "cam_live.predict.candidates.validate_schema"
+    "cam_live.predict.candidates.parse_actions"
    ],
    "tests": [
     "tests/predict/test_candidates.py::test_parsed_actions_pass_the_lab_environment_validator",
@@ -490,20 +544,38 @@
     "tests/predict/test_candidates.py::test_values_for_types",
     "tests/predict/test_candidates.py::test_validate_schema_subset",
     "tests/predict/test_candidates.py::test_prompt_renders_environment_text_as_data",
-    "tests/predict/test_candidates.py::test_prompt_and_parser_round_trip"
+    "tests/predict/test_candidates.py::test_prompt_and_parser_round_trip",
+    "tests/predict/test_proposer.py::test_tiny_backbone_proposals_are_merged_with_walker_and_skills",
+    "tests/predict/test_proposer.py::test_backbone_text_is_parsed_strictly_and_keeps_its_provenance",
+    "tests/predict/test_proposer.py::test_real_backbone_proposes_schema_valid_actions"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
-    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider"
+    "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict/test_proposer.py -m gpu -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_gpu_proposer.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/B.xml",
-    "docs/evidence/B/measured.json"
+    "docs/evidence/B/proposals_real_backbone.json"
    ],
-   "limitations": "Stage 1 (tensor-level, synthetic ground truth and the LabWorld diagnostic). Not yet wired onto CamLiveModel / the agent: no LossProvider, heads not registered on the model, nothing under runtime/ imports cam_live.predict. JSON-Schema subset: $ref, if/then/else, patternProperties, dependent* and format are not validated (unsupported_keywords reports them). Strings are taken only from enum/const or a supplied vocabulary. Tested with LabWorld's tools and hand-written descriptors, not the browser tools."
+   "limitations": "Measured on LabWorld tools and on a hand-written list of generic browser / code descriptors, not on the harness's real discover_tools() output. Whether the real backbone proposes multi-step programs was not measured (programs are parsed and merged; tested with written text)."
   }
  },
  "public_api": [
+  "predict.heads.attach_heads(model, pcfg=None) -> PredictHeads(cfg, world, transition, evaluator, policy, downstream, scaler)",
+  "predict.heads.PredictConfig.from_cfg(cfg)  # section 'predict'",
+  "predict.providers.default_providers(heads, check_signature=None, *, adapters=True) -> List[LossProvider]",
+  "predict.providers.WorldModelLoss(heads) | FastPriorLoss(heads) | EvaluatorLoss(heads, check_signature) | WorldModelAdapterLoss(heads) | EvaluatorAdapterLoss(heads, check_signature)",
+  "EvaluatorLoss.add_outcome(outcome: VerifiedOutcome, *, deadline, achieved_at=None, trajectory=None, magnitude_is_count=True) -> bool",
+  "predict.predictor.Predictor(model, fast_state, registry, clock, cfg=None, *, heads=None, model_version='', checkpoint_id='')",
+  "Predictor.evaluate_candidates(context_items, goal_text, candidates, queries=None, *, decision_id=None, objective_id='', deadline=None, objective_scale=1.0, validate=None, compute_voi=True, generator=None) -> List[CandidateEvaluation]",
+  "Predictor.observe_outcomes(outcomes) -> {'n','surprise','kl','change_detected','details','skipped'}",
+  "Predictor.resolve(outcomes) -> List[PredictionRecord] ; .resolve_objective(verified, check_signature) ; .adopt_queries(action_id, env_queries) ; .commit(decision_id, chosen_action_id) ; .belief_value(context_items, goal_text, *, deadline=None)",
+  "predict.predictor.at_horizons(query, horizons_s) -> List[OutcomeQuery]",
+  "predict.policy.DecisionMaker(model, cfg=None, *, heads=None, clock=None, experiments=None, seed=0)",
+  "DecisionMaker.select(evaluations, mode='thompson', *, objective_id='', decision_id=None, ts=None, generator=None, **decision_fields) -> contracts.Decision",
+  "DecisionMaker.propose_experiment(evaluations, top_k=6) -> dict | None ; .select_experiment(evaluations, arms, *, question='', hypothesis='', experiment_id=None, arm_probs=None, ...) -> (Decision, ExperimentRecord)",
+  "predict.planner.LatentPlanner(model, cfg=None, *, heads=None, controller=None).measure(store, sequences) / .plan(context_items, goal_text, candidates, *, now, deadline=None, horizon=None, ...) -> List[ImaginedEvaluation]",
+  "predict.candidates.BackboneProposer(model, *, k=8, max_new_tokens=384, temperature=0.7, per_tool=4).propose(tools, observation_digest, *, objective='', latent=None, skills=(), vocab=(), validate=None, ...) -> ProposalResult(actions, stats, rejections, raw)",
+  "python -m cam_live.predict.diagnose [--quick] [--only 1a,1b,2,3,4,5] [--out PATH] [--update]",
   "predict.world.WorldHeads(cfg: WorldConfig).forward(z, e_q, kind_ids, horizon_s, phi=None, *, exposure=None, n_categories=None, real_loc=None, real_scale=None) -> WorldOutput",
   "predict.world.WorldOutput.predictive() -> {'mean','epistemic_std','aleatoric_std','total_std'} [B,N,Q]; .log_prob(y, event=None) -> [M,B,N,Q]; .thompson_means(generator) ; .to_distribution(b, n, q) -> contracts.Distribution",
   "predict.world.world_nll(out, targets: WorldTargets, *, chosen=None, q_mask=None, member_weights=None, kind_weights=None, normaliser=None) -> (loss, metrics)",
@@ -529,152 +601,512 @@
   "predict.candidates.parse_actions(text, tools, *, provenance='backbone', ...) -> ParseResult(actions, rejections) ; schema_candidates(tools, *, vocab=(), per_tool=8, n_sampled=0, rng=None, id_prefix='act', ...) ; merge_candidates(*sources) ; build_proposal_prompt(tools, observation_digest, *, objective='', k=8) -> ProposalPrompt",
   "full list with shapes: docs/B/API.md"
  ],
- "change_requests": 5,
+ "change_requests": 11,
  "packages_installed": [],
  "measured": {
-  "tests_default_cpu": {
-   "passed": 119,
-   "skipped_gpu_marked": 1,
-   "failed": 0,
-   "seconds": 64.3,
-   "command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml"
+  "tests": {
+   "default_cpu": {
+    "passed": 142,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 78.7,
+    "command": "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml"
+   },
+   "slow": {
+    "passed": 7,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 300.5,
+    "command": "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured_slow.json .venv/bin/python -m pytest cam_live/tests/predict/test_learning_evidence.py -m slow -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_slow.xml"
+   },
+   "gpu_proposer_qwen3_4b": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 272.5,
+    "command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict/test_proposer.py -m gpu -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_gpu_proposer.xml"
+   },
+   "gpu_real_config_qwen3_4b": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 51.8,
+    "command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict/test_gpu_real_config.py -m gpu -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_gpu_real_config.xml"
+   },
+   "gpu_device_stage1": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 0.8
+   }
   },
-  "tests_gpu_marked": {
-   "passed": 1,
-   "command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict/test_device.py -q --rootdir=cam_live -m gpu -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/B_gpu.xml",
-   "note": "tiny tensors, well under 4 GB; no shared lock needed"
+  "diagnostics_source": "docs/evidence/B/diagnostics.json (debug scale, LabWorld, provenance diagnostic)",
+  "diagnostics_command": "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.predict.diagnose (run as three processes with --only 1a / --only 1b,2,3,4,5 / --only 4 and merged; see the 'runs' field of docs/evidence/B/diagnostics.json)",
+  "world_same_mechanism_heldout_nll": {
+   "6h": {
+    "model": 0.7657,
+    "marginal": 0.9613,
+    "oracle": 0.773,
+    "gain_vs_marginal": {
+     "hi": 0.2517,
+     "lo": 0.104,
+     "mean": 0.1778,
+     "n": 20.0,
+     "n_rows": 156.0
+    },
+    "spearman_mean_vs_truth": 0.933
+   },
+   "2d": {
+    "model": 1.0735,
+    "marginal": 1.4609,
+    "oracle": 0.9836,
+    "gain_vs_marginal": {
+     "hi": 0.4474,
+     "lo": 0.2912,
+     "mean": 0.3693,
+     "n": 20.0,
+     "n_rows": 156.0
+    },
+    "spearman_mean_vs_truth": 0.931
+   }
   },
-  "source": "docs/evidence/B/measured.json, written by: cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live -p no:cacheprovider",
-  "decision_judged_by_action_quality_accuracy": 1.0,
-  "decision_judged_by_raw_outcome_accuracy": 0.7630000114440918,
-  "downstream_estimator_spearman_heldout": 0.6165905460848503,
-  "downstream_reference_accurate_spearman": 0.6708881969116581,
-  "downstream_reference_misspecified_spearman": -0.3351073197425549,
-  "evaluator_overconfident_after": {
-   "base_rate": 0.324,
-   "brier": 0.18600375075545816,
-   "ece": 0.06803710239976646,
-   "intercept": -0.06915883515784227,
-   "mean_p": 0.29827901598364115,
-   "nll": 0.5526147711053521,
-   "slope": 0.6931262403607342
+  "world_new_mechanisms_heldout_nll": {
+   "6h": {
+    "model": 1.6662,
+    "marginal": 1.6446,
+    "oracle": 1.1586,
+    "gain_vs_marginal": {
+     "hi": 0.0281,
+     "lo": -0.068,
+     "mean": -0.0199,
+     "n": 20.0,
+     "n_rows": 156.0
+    }
+   },
+   "2d": {
+    "model": 2.2113,
+    "marginal": 2.1634,
+    "oracle": 1.5645,
+    "gain_vs_marginal": {
+     "hi": -0.005,
+     "lo": -0.0981,
+     "mean": -0.0515,
+     "n": 20.0,
+     "n_rows": 156.0
+    }
+   }
   },
-  "evaluator_overconfident_before": {
-   "base_rate": 0.324,
-   "brier": 0.4465854124329758,
-   "ece": 0.47704368934631347,
-   "intercept": -6.926487783578644,
-   "mean_p": 0.8010436893463134,
-   "nll": 1.1633687836222768,
-   "slope": 4.444822184659371
+  "fast_adaptation_new_worlds": {
+   "nll_gain_after_first_observation": {
+    "hi": 0.1874,
+    "lo": 0.0515,
+    "mean": 0.1194,
+    "n": 38.0,
+    "n_rows": 318.0
+   },
+   "abs_err_gain_after_first_observation": {
+    "hi": 0.1151,
+    "lo": -0.532,
+    "mean": -0.2084,
+    "n": 38.0,
+    "n_rows": 318.0
+   },
+   "by_k": {
+    "k0": {
+     "nll_adapted": 2.313,
+     "nll_no_adaptation": 2.313,
+     "nll_gain": {
+      "hi": 0.0,
+      "lo": 0.0,
+      "mean": 0.0,
+      "n": 40.0,
+      "n_rows": 326.0
+     }
+    },
+    "k1-2": {
+     "nll_adapted": 2.173,
+     "nll_no_adaptation": 2.197,
+     "nll_gain": {
+      "hi": 0.1255,
+      "lo": -0.0465,
+      "mean": 0.0395,
+      "n": 27.0,
+      "n_rows": 136.0
+     }
+    },
+    "k3-5": {
+     "nll_adapted": 2.469,
+     "nll_no_adaptation": 2.689,
+     "nll_gain": {
+      "hi": 0.2882,
+      "lo": 0.0507,
+      "mean": 0.1694,
+      "n": 24.0,
+      "n_rows": 134.0
+     }
+    },
+    "k6+": {
+     "nll_adapted": 2.068,
+     "nll_no_adaptation": 2.18,
+     "nll_gain": {
+      "hi": 0.4398,
+      "lo": -0.1798,
+      "mean": 0.13,
+      "n": 12.0,
+      "n_rows": 48.0
+     }
+    }
+   }
   },
-  "glm_bernoulli_realised_gain": [
-   0.03272682817717422,
-   0.010407798686037664,
-   0.0
-  ],
-  "glm_bernoulli_voi": [
-   0.03386274459279881,
-   0.006266896545272238,
-   1.1102230246251565e-16
-  ],
-  "glm_poisson_realised_gain": [
-   0.3762515080569809,
-   0.10268607635094434,
-   0.0
-  ],
-  "glm_poisson_voi": [
-   0.5501263368295335,
-   0.13714785447579358,
-   0.0
-  ],
-  "imagination_allowed_horizon": 3,
-  "imagination_open_loop_nmse_by_steps": [
-   0.0012556765965806942,
-   0.0027572627179324625,
-   0.0046016707783564925,
-   0.006779503698150317,
-   0.009284863714128733
-  ],
-  "info_gain_spearman_vs_realised_regret_reduction_mean": 0.8538810045586237,
-  "labworld_count_nll_after_learning": 1.9101063227168276,
-  "labworld_count_nll_before_learning": 2.156872868995266,
-  "labworld_count_nll_oracle": 1.8993648815636053,
-  "labworld_cover90_after_learning": 0.9666666666666667,
-  "labworld_experiment_ci": [
-   1.9448145790168967,
-   3.2516139924116745
-  ],
-  "labworld_experiment_estimated_difference": 2.5982142857142856,
-  "labworld_experiment_true_difference": 2.5397634689911106,
-  "labworld_predicted_vs_true_mean_corr": 0.9849009776753656,
-  "policy_accuracy_permuted_belief": 0.25,
-  "policy_accuracy_true_belief": 0.984375,
-  "policy_kl_under_belief_permutation_at_init": 0.0002561377455693792,
-  "policy_kl_under_belief_permutation_trained": 15.655890642998441,
-  "policy_meta_gradient_max_rel_error_vs_finite_difference": 1.5542732962484487e-08,
-  "surprise_spearman_vs_realised_regret_reduction_mean": -0.22895188958716525,
-  "transition_nmse": 0.005289477833281063,
-  "transition_persistence_nmse": 0.15103715658187866,
-  "voi_spearman_vs_realised_regret_reduction_mean": 0.9743267731439639,
-  "world_count_mean_relative_error": 0.07100296765565872,
-  "world_count_pred_true_corr": 0.9944304823875427,
-  "world_epistemic_std_n2048_in_dist": [
-   0.09737424552440643,
-   0.09500590711832047
-  ],
-  "world_epistemic_std_n2048_off_dist": [
-   0.4066387414932251,
-   0.7019236087799072
-  ],
-  "world_epistemic_std_n24_in_dist": [
-   0.16561874747276306,
-   0.23591738939285278
-  ],
-  "world_nll_by_kind": {
-   "binary": 0.5895,
-   "categorical": 0.8156,
-   "count": 1.8702,
-   "real": 0.735,
-   "time_to_event": 1.8484
+  "evaluator_calibration": {
+   "untrained": {
+    "n": 640,
+    "n_lifetimes": 40,
+    "base_rate": 0.6,
+    "mean_p": 0.5,
+    "brier": {
+     "hi": 0.2502,
+     "lo": 0.2498,
+     "mean": 0.25,
+     "n": 40.0
+    },
+    "brier_of_base_rate": 0.24,
+    "slope": -56.6,
+    "slope_lo": -101.573,
+    "slope_hi": -11.628,
+    "ece": 0.0996
+   },
+   "trained": {
+    "n": 640,
+    "n_lifetimes": 40,
+    "base_rate": 0.6,
+    "mean_p": 0.581,
+    "brier": {
+     "hi": 0.266,
+     "lo": 0.2146,
+     "mean": 0.2403,
+     "n": 40.0
+    },
+    "brier_of_base_rate": 0.24,
+    "slope": 254.162,
+    "slope_lo": 122.429,
+    "slope_hi": 385.895,
+    "ece": 0.0191
+   }
   },
-  "world_nll_oracle_by_kind": {
-   "binary": 0.6047,
-   "categorical": 0.8364,
-   "count": 1.8766,
-   "real": 0.7258,
-   "time_to_event": 1.8888
+  "voi_probe_vs_gauge": {
+   "fast": {
+    "probe": {
+     "hi": 0.0,
+     "lo": 0.0,
+     "mean": 0.0,
+     "n": 20.0
+    },
+    "gauge": {
+     "hi": 0.0,
+     "lo": 0.0,
+     "mean": 0.0,
+     "n": 20.0
+    },
+    "act": {
+     "hi": 0.0117,
+     "lo": 0.0011,
+     "mean": 0.0064,
+     "n": 20.0
+    },
+    "act_against_current_value_baseline": {
+     "hi": 1.3072,
+     "lo": 0.0713,
+     "mean": 0.6893,
+     "n": 20.0
+    },
+    "probe_minus_gauge": {
+     "hi": 0.0,
+     "lo": 0.0,
+     "mean": 0.0,
+     "n": 20.0
+    }
+   },
+   "slow": {
+    "probe": {
+     "hi": 0.0604,
+     "lo": 0.0061,
+     "mean": 0.0332,
+     "n": 20.0
+    },
+    "gauge": {
+     "hi": 0.0644,
+     "lo": 0.0137,
+     "mean": 0.039,
+     "n": 20.0
+    },
+    "act": {
+     "hi": 0.0605,
+     "lo": 0.0142,
+     "mean": 0.0373,
+     "n": 20.0
+    },
+    "act_against_current_value_baseline": {
+     "hi": -0.4118,
+     "lo": -0.822,
+     "mean": -0.6169,
+     "n": 20.0
+    },
+    "probe_minus_gauge": {
+     "hi": 0.011,
+     "lo": -0.0226,
+     "mean": -0.0058,
+     "n": 20.0
+    }
+   }
   },
-  "world_trunk_grad_ratio_count_over_binary_normalised": 1.271062633639752,
-  "world_trunk_grad_ratio_count_over_binary_raw": 54344.30562873375,
-  "ablation_randomised_prior_min_off_over_in_ratio": {
-   "prior_scale_1.0": 2.57,
-   "prior_scale_0.0": 0.61,
-   "runs_each": 12,
-   "source": "docs/evidence/B/ablation_prior.txt",
-   "command": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/B/ablation_prior.py > cam_live/docs/evidence/B/ablation_prior.txt"
+  "voi_closed_loop": {
+   "n_seeds": 12,
+   "interventions_greedy": {
+    "hi": 15.7177,
+    "lo": 9.1157,
+    "mean": 12.4167,
+    "n": 12.0
+   },
+   "interventions_voi": {
+    "hi": 17.3508,
+    "lo": 10.8158,
+    "mean": 14.0833,
+    "n": 12.0
+   },
+   "interventions_greedy_minus_voi": {
+    "hi": 0.6848,
+    "lo": -4.0181,
+    "mean": -1.6667,
+    "n": 12.0
+   },
+   "reached_fraction": {
+    "greedy": 1.0,
+    "voi": 1.0
+   }
+  },
+  "action_quality": {
+   "lucky_outcomes_of_worse_than_average_decisions": {
+    "fraction_quality_negative": 0.1,
+    "fraction_raw_outcome_above_baseline": 0.9,
+    "n": 10
+   },
+   "n": 322,
+   "quality_less_luck_driven_than_outcome": true,
+   "quality_tracks_advantage": true,
+   "spearman_estimated_luck_vs_true_luck": 0.466,
+   "spearman_quality_vs_true_advantage": 0.346,
+   "spearman_quality_vs_true_luck": 0.047,
+   "spearman_raw_outcome_vs_true_advantage": 0.771,
+   "spearman_raw_outcome_vs_true_luck": 0.521,
+   "unlucky_outcomes_of_better_than_average_decisions": {
+    "fraction_quality_positive": 0.9333333333333333,
+    "n": 60
+   }
+  },
+  "real_backbone_proposals": {
+   "generic_browser_code": {
+    "n_generations": 8,
+    "n_items": 50,
+    "n_backbone_valid": 50,
+    "fraction_valid_of_items": 1.0,
+    "fraction_valid_of_lines": 1.0,
+    "mean_merged_candidates": 16.25,
+    "rejection_reasons": {}
+   },
+   "labworld": {
+    "n_generations": 8,
+    "n_items": 64,
+    "n_backbone_valid": 64,
+    "fraction_valid_of_items": 1.0,
+    "fraction_valid_of_lines": 1.0,
+    "mean_merged_candidates": 17.25,
+    "rejection_reasons": {}
+   }
+  },
+  "real_configuration": {
+   "heads_total": 4570280,
+   "head_parameters": {
+    "predict_downstream": 84195,
+    "predict_evaluator": 783192,
+    "predict_policy": 702339,
+    "predict_transition": 1977600,
+    "predict_world": 1022954
+   },
+   "evaluate_seconds_cached_embeddings": 0.4,
+   "peak_gpu_gb": 8.15,
+   "policy_kl_under_belief_permutation_init": 7.40667083031444e-05,
+   "adapter_grad_norm": 0.03373107686638832,
+   "adapter_extra_peak_gb": 0.12
+  },
+  "policy_latent_dependence_debug_model": {
+   "policy_accuracy_permuted_belief": 0.25,
+   "policy_accuracy_true_belief": 0.984375,
+   "policy_kl_under_belief_permutation_at_init": 0.0002561377455693792,
+   "policy_kl_under_belief_permutation_real_model_init": 5.8883581370431185e-05,
+   "policy_kl_under_belief_permutation_real_model_trained": 4.4242819312638835,
+   "policy_kl_under_belief_permutation_trained": 15.655890568755819,
+   "policy_meta_gradient_max_rel_error_vs_finite_difference": 1.5542732962484487e-08,
+   "policy_tv_after_experiential_only_change": 0.9573760808998486,
+   "policy_tv_under_belief_permutation_real_model_trained": 0.9691192087096473
+  },
+  "transition_heldout_error_debug_model": {
+   "transition_heldout_error_k1_trained": 1.4373240013917288,
+   "transition_heldout_error_k1_untrained": 1.7986942179501055,
+   "transition_heldout_error_k2_trained": 1.7325625044328195
+  },
+  "slow_tests": {
+   "slow_brier_trained": 0.2618991266757977,
+   "slow_brier_untrained": 0.2500941040373753,
+   "slow_fast_adaptation_nll_gain_after_first_observation": 0.17874667875445158,
+   "slow_outcome_vs_true_luck": 0.42727111043972515,
+   "slow_quality_vs_true_luck": -0.09092389587836446,
+   "slow_voi_probe_minus_gauge_slow_path": 1.4660730375444983e-05,
+   "slow_world_gain_vs_marginal_2d": 0.01942802353914536,
+   "slow_world_gain_vs_marginal_6h": 0.007309376834378598
+  },
+  "stage1_tensor_level": {
+   "decision_judged_by_action_quality_accuracy": 1.0,
+   "decision_judged_by_raw_outcome_accuracy": 0.7630000114440918,
+   "downstream_estimator_spearman_heldout": 0.6165905460848503,
+   "downstream_reference_accurate_spearman": 0.6708881969116581,
+   "downstream_reference_misspecified_spearman": -0.3351073197425549,
+   "evaluator_overconfident_after": {
+    "base_rate": 0.324,
+    "brier": 0.18600375075545816,
+    "ece": 0.06803710239976646,
+    "intercept": -0.06915883515784227,
+    "mean_p": 0.29827901598364115,
+    "nll": 0.5526147711053521,
+    "slope": 0.6931262403607342
+   },
+   "evaluator_overconfident_before": {
+    "base_rate": 0.324,
+    "brier": 0.4465854124329758,
+    "ece": 0.47704368934631347,
+    "intercept": -6.926487783578644,
+    "mean_p": 0.8010436893463134,
+    "nll": 1.1633687836222768,
+    "slope": 4.444822184659371
+   },
+   "glm_bernoulli_realised_gain": [
+    0.03272682817717422,
+    0.010407798686037664,
+    0.0
+   ],
+   "glm_bernoulli_voi": [
+    0.03386274459279881,
+    0.006266896545272238,
+    1.1102230246251565e-16
+   ],
+   "glm_poisson_realised_gain": [
+    0.3762515080569809,
+    0.10268607635094434,
+    0.0
+   ],
+   "glm_poisson_voi": [
+    0.5501263368295335,
+    0.13714785447579358,
+    0.0
+   ],
+   "imagination_allowed_horizon": 3,
+   "imagination_open_loop_nmse_by_steps": [
+    0.0012556765965806942,
+    0.0027572627179324625,
+    0.0046016707783564925,
+    0.006779503698150317,
+    0.009284863714128733
+   ],
+   "info_gain_spearman_vs_realised_regret_reduction_mean": 0.8538810045586237,
+   "labworld_count_nll_after_learning": 1.9101063227168276,
+   "labworld_count_nll_before_learning": 2.156872868995266,
+   "labworld_count_nll_oracle": 1.8993648815636053,
+   "labworld_cover90_after_learning": 0.9666666666666667,
+   "labworld_experiment_ci": [
+    1.9448145790168967,
+    3.2516139924116745
+   ],
+   "labworld_experiment_estimated_difference": 2.5982142857142856,
+   "labworld_experiment_true_difference": 2.5397634689911106,
+   "labworld_predicted_vs_true_mean_corr": 0.9849009776753656,
+   "policy_accuracy_permuted_belief": 0.25,
+   "policy_accuracy_true_belief": 0.984375,
+   "policy_kl_under_belief_permutation_at_init": 0.0002561377455693792,
+   "policy_kl_under_belief_permutation_trained": 15.655890642998441,
+   "policy_meta_gradient_max_rel_error_vs_finite_difference": 1.5542732962484487e-08,
+   "surprise_spearman_vs_realised_regret_reduction_mean": -0.22895188958716525,
+   "transition_nmse": 0.005289477833281063,
+   "transition_persistence_nmse": 0.15103715658187866,
+   "voi_spearman_vs_realised_regret_reduction_mean": 0.9743267731439639,
+   "world_count_mean_relative_error": 0.07100296765565872,
+   "world_count_pred_true_corr": 0.9944304823875427,
+   "world_epistemic_std_n2048_in_dist": [
+    0.09737424552440643,
+    0.09500590711832047
+   ],
+   "world_epistemic_std_n2048_off_dist": [
+    0.4066387414932251,
+    0.7019236087799072
+   ],
+   "world_epistemic_std_n24_in_dist": [
+    0.16561874747276306,
+    0.23591738939285278
+   ],
+   "world_nll_by_kind": {
+    "binary": 0.5895,
+    "categorical": 0.8156,
+    "count": 1.8702,
+    "real": 0.735,
+    "time_to_event": 1.8484
+   },
+   "world_nll_oracle_by_kind": {
+    "binary": 0.6047,
+    "categorical": 0.8364,
+    "count": 1.8766,
+    "real": 0.7258,
+    "time_to_event": 1.8888
+   },
+   "world_trunk_grad_ratio_count_over_binary_normalised": 1.271062633639752,
+   "world_trunk_grad_ratio_count_over_binary_raw": 54344.30562873375,
+   "ablation_randomised_prior_min_off_over_in_ratio": {
+    "prior_scale_1.0": 2.57,
+    "prior_scale_0.0": 0.61,
+    "runs_each": 12,
+    "source": "docs/evidence/B/ablation_prior.txt",
+    "command": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/B/ablation_prior.py > cam_live/docs/evidence/B/ablation_prior.txt"
+   }
   }
  },
  "not_done": [
-  "Stage 2 wiring is not done: no learning_api.LossProvider objects for world / evaluator / transition / downstream losses; heads are not registered on CamLiveModel; nothing in the runtime or agent imports cam_live.predict.",
-  "No test runs against Workstream A's real model (backbone, experiential core, decision_latent, features); every z / b in the tests is synthetic or a fixed projection of exact LabWorld quantities.",
-  "World-model output is not combined with A's Bayesian fast layer; VOI is not connected to the model's feature map phi or FastBeliefState (voi_sampling takes them as callables).",
-  "Backbone candidate generation is not exercised: no generate() call; parse_actions is tested on written JSON only.",
-  "Choosing which experiment to run (hypothesis formation from uncertainty) is not implemented here; the registry records, randomises, matures and analyses experiments.",
-  "Imagination is validated on synthetic latent dynamics only; HorizonController is not yet fed by real replay; imagine_candidates is single-step.",
-  "No dedicated evaluator head for sustainability / other future outcomes (spec 6.2): they must be asked as world-model queries.",
-  "Exploration rules are implemented with exact propensities but not yet compared with each other on a task (spec 5.1 'initially compare').",
-  "Error-source attribution is rule-based; 'incorrect causal assumptions' is not separated from other confident misses (label model_wrong).",
+  "Nothing in cam_live.agent / runtime calls cam_live.predict yet (master integrates): Predictor, DecisionMaker, BackboneProposer, LatentPlanner and default_providers are ready and documented in docs/B/API.md.",
+  "Providers were run with predict.labdata.train (plain Adam), not under Workstream D's ContinualLearner; EvaluatorLoss.add_outcome must be called by whoever reconciles verified outcomes.",
+  "No training on the real Qwen3-4B configuration: only an initialisation-level pass (prediction, decision, fast update, one backward per timescale). All learning evidence is debug scale in LabWorld.",
+  "The learned downstream-usefulness estimator (heads.downstream) has no LossProvider and is not scored against realised downstream learning on the real model.",
+  "No LossProvider trains the candidate policy (that is the reward workstream's inner update); B only shows that the policy head depends on the belief and can be trained.",
+  "Exploration rules are not compared with each other on a task beyond greedy vs VOI-aware.",
+  "The Predictor's cache of decision-time features is in memory: after a restart, outcomes of earlier predictions resolve their records but no longer update the fast belief (no rebuild from the experience store).",
+  "Experiment lifecycle beyond registration and assignment (analyse / conclude / revise) is available in ExperimentRegistry but not driven by B.",
+  "Planner: no evidence that imagined values improve decisions; continuation policy is the (untrained) candidate policy.",
+  "Binary fast-layer combination is an approximation; categorical outcomes are head-only; real-valued readings cannot inform count posteriors (B-CR-10).",
+  "heads.scaler (per-metric location / scale of real-valued outcomes) is plain data, not a tensor: the checkpoint code must store heads.scaler.state() next to the weights.",
+  "Diagnostics are statistically, not bit-wise, reproducible: record ids come from uuid4 (contracts.new_id) and select the bootstrap resamples of the ensemble.",
   "JSON-Schema support is a subset ($ref, if/then/else, patternProperties, dependent*, format unchecked).",
-  "Registries are single-writer: the in-memory index is not refreshed if another process appends to the same file.",
-  "No change was made to master-owned contracts; 5 change requests are open in docs/change_requests/B.md (PROGRAM_OPERATION currently lives in predict/candidates.py)."
+  "Registries are single-writer.",
+  "Master-owned contracts unchanged: 11 change requests open in docs/change_requests/B.md."
  ],
  "scientific_failures": [
-  "The learned DownstreamValueEstimator did not beat an accurate computed VOI on held-out probes (Spearman 0.617 vs 0.671; learned_beats_reference=False). It only beat a deliberately mis-specified reference (-0.335). The computed VOI stays the reference.",
-  "Poisson-GLM VOI with the assumed-density update over-estimates the realised gain in magnitude (computed [0.55, 0.137, 0.0] vs realised [0.376, 0.103, 0.0]); the ranking of probes is correct and the irrelevant probe is exactly 0. Bernoulli: computed [0.0339, 0.0063, 0.0] vs realised [0.0327, 0.0104, 0.0].",
-  "After training, the evaluator is still mildly over-confident on held-out trajectories: calibration slope 0.69 (1.0 = calibrated), ECE 0.068 (from 0.477).",
-  "A plain bootstrapped ensemble (prior_scale=0) did not reliably report higher epistemic uncertainty off-distribution (off/in ratio below 1 in 2 of 12 runs, minimum 0.61); randomised prior functions are therefore on by default (minimum ratio 2.57 over 12 runs).",
-  "At random initialisation the policy's dependence on the belief is weak in absolute terms (KL 2.6e-04 under belief permutation; all logits are near zero by the small-init design). It is 15.7 after training on a belief-dependent task.",
-  "Decision-blind information gain is a fairly good proxy in the random linear-Gaussian bandit family (Spearman 0.85 vs 0.97 for VOI and -0.23 for raw surprise): the family does not separate VOI from information gain as sharply as the noisy-TV case does."
+  "World model on NEW mechanisms (heads only, no adaptation) does not beat the action-independent baseline: held-out NLL 1.666 vs 1.645 (6 h) and 2.211 vs 2.163 (2 d); gain CIs {'hi': 0.0281, 'lo': -0.068, 'mean': -0.0199, 'n': 20.0, 'n_rows': 156.0} / {'hi': -0.005, 'lo': -0.0981, 'mean': -0.0515, 'n': 20.0, 'n_rows': 156.0}. At debug scale the core did not learn to read an unseen channel's rate from the features in its context.",
+  "Fast adaptation lowers predictive NLL after the first observation (gain {'hi': 0.1874, 'lo': 0.0515, 'mean': 0.1194, 'n': 38.0, 'n_rows': 318.0}) but NOT the absolute error of the predicted mean (gain {'hi': 0.1151, 'lo': -0.532, 'mean': -0.2084, 'n': 38.0, 'n_rows': 318.0}): the posterior mostly corrects the spread and the log-rate, the mean stays noisy.",
+  "Evaluator calibration, prospective, held-out lifetimes: Brier 0.250 untrained -> 0.240 trained (CI 0.215..0.266); predicting the base rate gives 0.240. brier_improved=True, beats_base_rate=False; calibration slope 254.16 (CI 122.43..385.90). The trained evaluator is a calibrated constant (mean forecast 0.581, base rate 0.600, ECE 0.019): it does not discriminate between lifetimes at debug scale. A first run that trained it on only 60 lifetimes was worse than the untrained constant (Brier 0.277 vs 0.250; docs/evidence/B/diagnostics_family_run1_evaluator_60_lifetimes.json): it memorised lifetimes. The reported run trains it on batches drawn from 400 lifetimes.",
+  "VOI of the probe is not higher than VOI of the noisy gauge. Fast-layer path: both exactly 0 (a real-valued reading cannot update the count posterior; posteriors are per kind). Slow path (imagined reading enters a copy of the context): probe {'hi': 0.0604, 'lo': 0.0061, 'mean': 0.0332, 'n': 20.0} vs gauge {'hi': 0.0644, 'lo': 0.0137, 'mean': 0.039, 'n': 20.0}, probe minus gauge {'hi': 0.011, 'lo': -0.0226, 'mean': -0.0058, 'n': 20.0} - the debug-scale core has not learned to use probe readings, and its sensitivity to the large gauge values shows up as spurious value. The slow path is therefore off by default (voi_slow_path=False) and was not used for selection.",
+  "The plain estimator E[max Q(updated)] - max Q(current) is biased upwards with the assumed-density count update (VOI of acting {'hi': 1.3072, 'lo': 0.0713, 'mean': 0.6893, 'n': 20.0} against {'hi': 0.0117, 'lo': 0.0011, 'mean': 0.0064, 'n': 20.0} for the Jensen-gap estimator E[max] - max E on the same samples). A run with the plain estimator made VOI-aware selection need MORE interventions than greedy (greedy minus VOI {'hi': -2.3258, 'lo': -7.3106, 'mean': -4.8182, 'n': 11.0}, 11 paired seeds; docs/evidence/B/diagnostics_value_of_information_plain_estimator.json); the Predictor now uses the Jensen gap.",
+  "VOI-aware selection does not reach the target with fewer interventions than greedy: greedy minus VOI = {'hi': 0.6848, 'lo': -4.0181, 'mean': -1.6667, 'n': 12.0} over 12 paired seeds that both reached the target (reached: greedy 1.00, VOI 1.00).",
+  "Action quality vs raw outcome: quality is much less luck-driven (Spearman with true luck 0.05 vs 0.52) but the raw outcome correlates better with the decision's true advantage (0.77 vs 0.35) in new worlds.",
+  "Latent transition on held-out real transitions is worse than predicting the mean belief (normalised error 1.44 at k=1 after a short fit; 1.68 batch NMSE at the end of family training): imagination never extends beyond one step and is not shown to help.",
+  "At random initialisation the policy's dependence on the belief is small in absolute terms (KL 5.9e-05 debug model, 7.4e-05 real configuration); 4.42 after imitating a history-dependent behaviour.",
+  "[stage 1, tensor level] The learned DownstreamValueEstimator did not beat an accurate computed VOI on held-out probes (Spearman 0.617 vs 0.671; learned_beats_reference=False). It only beat a deliberately mis-specified reference (-0.335). The computed VOI stays the reference.",
+  "[stage 1, tensor level] Poisson-GLM VOI with the assumed-density update over-estimates the realised gain in magnitude (computed [0.55, 0.137, 0.0] vs realised [0.376, 0.103, 0.0]); the ranking of probes is correct and the irrelevant probe is exactly 0. Bernoulli: computed [0.0339, 0.0063, 0.0] vs realised [0.0327, 0.0104, 0.0].",
+  "[stage 1, tensor level] After training, the evaluator is still mildly over-confident on held-out trajectories: calibration slope 0.69 (1.0 = calibrated), ECE 0.068 (from 0.477).",
+  "[stage 1, tensor level] A plain bootstrapped ensemble (prior_scale=0) did not reliably report higher epistemic uncertainty off-distribution (off/in ratio below 1 in 2 of 12 runs, minimum 0.61); randomised prior functions are therefore on by default (minimum ratio 2.57 over 12 runs)."
  ]
 }
