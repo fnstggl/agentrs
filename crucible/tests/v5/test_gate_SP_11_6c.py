@@ -12,14 +12,20 @@ Learner kinds (each must act through the interface and achieve the capability it
   tool calls that the world carries out and whose consequence another participant observes. Needs the model in the local Hugging Face cache; runs on the GPU when the
   slot scheduler grants one, else on the CPU.
 
-Improvement over a frozen copy (the rule, unchanged since wave 3a): a reference learner is trained in worlds of the
-tier (observation-only, its own signal: the change of its own money as its observation shows it); then the trained
-parameters and the frozen initial parameters act with their own stochastic policies, without learning, on held-out
-seeds (11-14 in Tier 1; 21-24 in the kernel tiers, whose design was developed on 1-5 and 11-14); the outcome is the evaluator's (Tier 1: the task's episode score against its private reference; kernel
-tiers: the evaluator's cash measure of the learner, from authoritative state). Improvement = the trained copy beats the
-frozen copy on the mean AND on at least 3 of 4 held-out seeds (both copies follow their stochastic policy with the same
-sampling seed). The do-nothing outcome is reported beside it, so that "learned to stop doing harm" is not mistaken
-for learning the mechanism, and so are the values the learner learned. A tier that cannot be built fails.
+Improvement over a frozen copy (the rule of wave 3a, made non-degenerate in the wave-3b repair pass): a reference
+learner is trained in worlds of the tier (observation-only, its own signal: the change of its own money as its
+observation shows it); then the trained parameters and the frozen initial parameters act with their own stochastic
+policies, without learning, on held-out seeds (11-14 in Tier 1; 21-24 in the kernel tiers, whose design was
+developed on 1-5 and 11-14); the outcome is the evaluator's (Tier 1: the task's episode score against its private
+reference; kernel tiers: the money the learner EARNED over the evaluation - the net flow of its own accounts from
+authoritative ledger entries, unconditional transfers excluded: endowments and grants such as the crisis
+coordinator's emergency fund - with its cash reported beside it). The trained copy must beat the frozen copy on the
+mean AND on at least 3 of 4 held-out seeds (both copies follow their stochastic policy with the same sampling seed)
+AND beat the do-nothing outcome the same way. Learned inaction ("stop doing harm": at 507adb24 the trained Tier 1
+copy was bit-identical to doing nothing on all four seeds) and claiming a one-time grant and holding it (the Tier 2
+crisis copy's $70,000 was the $10,000 endowment plus the $60,000 fund, the crisis domain's own verdict equal for the
+trained, frozen and do-nothing copies) are therefore not counted as learning improvement. The learned values and the
+domain's own verdict (Tier 2) are reported. A tier that cannot be built fails.
 
 Learner and world per tier (D-68 addendum, wave 3b; the rule above is the same in every tier):
 
@@ -162,24 +168,32 @@ def _improvement(make_learner, make_env, train_seeds, train_steps: int, eval_ste
     trained = L.params_blob()
     per = []
     for s in eval_seeds:
-        vals = []
-        for blob in (trained, init):
+        vals, extra = [], {}
+        for lab, blob in (("trained", trained), ("frozen", init)):
             X = make_learner()
             X.load_params(blob)
             env = make_env(s)
+            start = _start(env)
             run_learner(env, X, eval_steps, learn=False, explore=True, think_s=think_s)
-            vals.append(float(outcome(env)))
+            vals.append(float(outcome(env, start)))
+            extra[lab] = _report(env)
             _close(env)
         env = make_env(s)
+        start = _start(env)
         run_learner(env, _Wait(), eval_steps, learn=False, think_s=think_s)
-        per.append({"seed": s, "trained": vals[0], "frozen": vals[1], "wait_only": float(outcome(env))})
+        per.append({"seed": s, "trained": vals[0], "frozen": vals[1], "wait_only": float(outcome(env, start)),
+                    "reported": {**extra, "wait_only": _report(env)}})
         _close(env)
     wins = sum(1 for p in per if p["trained"] > p["frozen"])
+    wins_w = sum(1 for p in per if p["trained"] > p["wait_only"])
     mean_t = float(np.mean([p["trained"] for p in per]))
     mean_f = float(np.mean([p["frozen"] for p in per]))
     mean_w = float(np.mean([p["wait_only"] for p in per]))
-    out = {"improved": bool(mean_t > mean_f and wins >= 3), "wins": wins, "trained_mean": mean_t,
-           "frozen_mean": mean_f, "wait_only_mean": mean_w, "beats_wait_only": bool(mean_t > mean_w),
+    over_frozen = bool(mean_t > mean_f and wins >= 3)
+    over_wait = bool(mean_t > mean_w and wins_w >= 3)
+    out = {"improved": over_frozen and over_wait, "improved_over_frozen": over_frozen, "wins": wins,
+           "wins_over_wait_only": wins_w, "trained_mean": mean_t, "frozen_mean": mean_f, "wait_only_mean": mean_w,
+           "beats_wait_only": over_wait, "identical_to_wait_only": sum(1 for p in per if p["trained"] == p["wait_only"]),
            "per_seed": per, "learner": f"{L.name} ({L.kind})", "train_seeds": list(train_seeds),
            "train_steps_per_seed": train_steps, "eval_steps": eval_steps, "eval_seeds": list(eval_seeds)}
     if isinstance(L, ToolValueLearner):
@@ -193,20 +207,69 @@ def _close(env):
         close()
 
 
+# ledger kinds that are unconditional transfers to the learner, not money it earned: its endowment and grants (the
+# crisis coordinator's emergency fund is paid as a grant on the first call to any coordinator tool)
+UNEARNED_KINDS = ("endowment", "grant")
+
+
+def _ledger_seq(env) -> int:
+    st = getattr(getattr(env, "world", None), "state", None)
+    return len(st.tables["acct_txns"]) if st is not None and "acct_txns" in st.tables else 0
+
+
+def _start(env):
+    """Evaluator-side marker taken before the evaluation run (the number of ledger entries so far)."""
+    return {"ledger_ids": set(env.world.state.tables["acct_txns"]) if _ledger_seq(env) else set()} \
+        if getattr(env, "world", None) is not None else {}
+
+
+def _earned_cents(env, start) -> float:
+    """The money the learner earned over the evaluation (evaluator side, authoritative ledger): the sum of the
+    ledger entries of its own accounts written during the run, except unconditional transfers (`UNEARNED_KINDS`)."""
+    st = env.world.state
+    a = env.agents()[0]
+    if "acct_txns" not in st.tables:
+        return 0.0
+    mine = set(st.find_ids("accounts", "owner", a))
+    seen = start.get("ledger_ids", set())
+    total = 0
+    for lid, e in st.tables["acct_txns"].items():
+        if lid in seen or e.get("acct") not in mine:
+            continue
+        if st.tables["txns"][e["txn"]]["kind"] in UNEARNED_KINDS:
+            continue
+        total += int(e["amount"])
+    return float(total)
+
+
+def _report(env) -> dict:
+    """Reported beside the outcome (not part of the criterion): the learner's cash and, in a Tier 2 world, the
+    domain's own verdict (score, success)."""
+    out = {}
+    v = env.verify()
+    a = env.agents()[0] if hasattr(env, "agents") else None
+    m = (v.get("measures") or {}).get(a) or {}
+    if "cash_cents" in m:
+        out["cash_cents"] = m["cash_cents"]
+    ev = (v.get("evaluation") or {}).get(a)
+    if isinstance(ev, dict):
+        out["domain_verdict"] = {"score": ev.get("score"), "success": ev.get("success")}
+    return out
+
+
 def _tier1():
     def mk(seed):
         return make(1, "mech:scm_additive", seed, validate=True)
 
-    def outcome(env):
+    def outcome(env, start=None):
         eps = env.verify()["episodes"]
         return float(np.mean([e["score"] for e in eps])) if eps else float("-inf")
     return _improvement(lambda: ReferenceLearner(seed=7, reward_mode="observation_only"), mk, (5,), 3000, 300, None,
                         outcome)
 
 
-def _kernel_outcome(env):
-    a = env.agents()[0]
-    return env.verify()["measures"][a]["cash_cents"]
+def _kernel_outcome(env, start):
+    return _earned_cents(env, start)
 
 
 def _statistical_learner():
@@ -244,13 +307,16 @@ def test_SP_11_6c_learner_kinds_and_improvement_over_frozen_copies():
     metrics = {"learner_kinds_validated": sum(1 for v in kinds.values() if v["validated"]),
                "tiers_with_learning_improvement": sum(1 for v in imp.values() if v["improved"]),
                "tiers_measured_for_improvement": len(imp),
-               "tiers_beating_wait_only": sum(1 for v in imp.values() if v["beats_wait_only"])}
+               "tiers_beating_wait_only": sum(1 for v in imp.values() if v["beats_wait_only"]),
+               "tiers_improved_over_frozen_only": sum(1 for v in imp.values()
+                                                      if v["improved_over_frozen"] and not v["beats_wait_only"])}
     record("SP-11.6c", metrics, command=CMD, labels={"scripted": True, "learned": True},
            notes=f"learner kinds: {kinds}; could not run: {kind_err}; improvement over a frozen copy (trained vs "
                  f"initial parameters - Tier 1 the neural ReferenceLearner, Tiers 2 and 3 the statistical "
                  f"ToolValueLearner -, stochastic policies with one sampling seed, no learning, held-out seeds "
-                 f"{EVAL_SEEDS} (Tier 1) / {KERNEL_EVAL_SEEDS} (Tiers 2-3); prespecified: mean better and >= 3 of 4 "
-                 f"seeds; the do-nothing outcome beside it): "
+                 f"{EVAL_SEEDS} (Tier 1) / {KERNEL_EVAL_SEEDS} (Tiers 2-3); kernel-tier outcome: money earned over "
+                 f"the evaluation, endowments and grants excluded; a tier counts when the trained copy beats the "
+                 f"frozen copy AND the do-nothing outcome on the mean and on >= 3 of 4 seeds): "
                  f"{imp}; tiers that could not be measured: {imp_err}")
     assert metrics["learner_kinds_validated"] == 4, (kinds, kind_err)
     assert metrics["tiers_with_learning_improvement"] == 3, (imp, imp_err)
