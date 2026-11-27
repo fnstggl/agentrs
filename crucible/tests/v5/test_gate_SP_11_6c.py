@@ -29,7 +29,14 @@ domain's own verdict (Tier 2) are reported. A tier that cannot be built fails.
 
 Learner and world per tier (D-68 addendum, wave 3b; the rule above is the same in every tier):
 
-* Tier 1: `ReferenceLearner` (neural, PPO) in `mech:scm_additive`, 3000 training decisions in one world.
+* Tier 1: `ToolValueLearner` with argument levels (``arg_levels=5``: a tool with bounded numbers is offered as five
+  arms that set every bounded number, the levers included, to 0, 1/4, ..., 1 of its range - names never matter, and
+  the rapid families draw new lever names per world) in `rapid:mk_signal`, trained 3000 decisions in each of seeds
+  1-5, evaluated one episode (59 decisions) per held-out seed 31-34; outcome: the episode's net (the verifier's
+  `RapidEnv.outcome`). Developed (wave-3b repair) on seeds 11-14 over five families: mk_signal and mk_elastic
+  improved over both references, des_inventory and net_routing did not (des_inventory: the trained copy matched
+  doing nothing), dl_delayed_returns was not finished; seeds 31-34 were not used in that development. The neural
+  `ReferenceLearner` (wave 3a's Tier 1 learner, `mech:scm_additive`) matched doing nothing there (verifier, 507adb24).
 * Tier 2: `ToolValueLearner` (statistical: per-tool value of the observed change of its own money) in
   `crisis:storm_radial`, trained 300 decisions in each of the training seeds 1-4, evaluated 120 hourly decisions.
 * Tier 3: `ToolValueLearner` in the `balanced` civilisation, decisions a simulated minute apart, trained 4000
@@ -71,6 +78,8 @@ HOUR = 3600
 CIV = "balanced"
 T2_WORLD = "crisis:storm_radial"
 EVAL_SEEDS = (11, 12, 13, 14)
+T1_WORLD = "rapid:mk_signal"
+T1_EVAL_SEEDS = (31, 32, 33, 34)        # fresh: the Tier 1 design (family, arm levels) was developed on 11-14
 # the kernel tiers' design (learner, world, horizons, temperature) was developed on seeds 1-5 and 11-14 on this branch;
 # their improvement is measured on seeds never used in that development
 KERNEL_EVAL_SEEDS = (21, 22, 23, 24)
@@ -259,13 +268,13 @@ def _report(env) -> dict:
 
 def _tier1():
     def mk(seed):
-        return make(1, "mech:scm_additive", seed, validate=True)
+        return make(1, T1_WORLD, seed)
 
     def outcome(env, start=None):
-        eps = env.verify()["episodes"]
-        return float(np.mean([e["score"] for e in eps])) if eps else float("-inf")
-    return _improvement(lambda: ReferenceLearner(seed=7, reward_mode="observation_only"), mk, (5,), 3000, 300, None,
-                        outcome)
+        # the verifier's outcome of the episode the copy played (59 decisions: the horizon is 60, no reset)
+        return float(env.verify()["outcome"]["net"])
+    return _improvement(lambda: ToolValueLearner(seed=7, reward_mode="observation_only", arg_levels=5), mk,
+                        (1, 2, 3, 4, 5), 3000, 59, None, outcome, T1_EVAL_SEEDS)
 
 
 def _kernel_outcome(env, start):
@@ -312,9 +321,9 @@ def test_SP_11_6c_learner_kinds_and_improvement_over_frozen_copies():
                                                       if v["improved_over_frozen"] and not v["beats_wait_only"])}
     record("SP-11.6c", metrics, command=CMD, labels={"scripted": True, "learned": True},
            notes=f"learner kinds: {kinds}; could not run: {kind_err}; improvement over a frozen copy (trained vs "
-                 f"initial parameters - Tier 1 the neural ReferenceLearner, Tiers 2 and 3 the statistical "
-                 f"ToolValueLearner -, stochastic policies with one sampling seed, no learning, held-out seeds "
-                 f"{EVAL_SEEDS} (Tier 1) / {KERNEL_EVAL_SEEDS} (Tiers 2-3); kernel-tier outcome: money earned over "
+                 f"initial parameters of the statistical ToolValueLearner - Tier 1 with argument levels -, "
+                 f"stochastic policies with one sampling seed, no learning, held-out seeds "
+                 f"{T1_EVAL_SEEDS} (Tier 1) / {KERNEL_EVAL_SEEDS} (Tiers 2-3); kernel-tier outcome: money earned over "
                  f"the evaluation, endowments and grants excluded; a tier counts when the trained copy beats the "
                  f"frozen copy AND the do-nothing outcome on the mean and on >= 3 of 4 seeds): "
                  f"{imp}; tiers that could not be measured: {imp_err}")

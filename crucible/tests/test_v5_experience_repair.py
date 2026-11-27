@@ -163,3 +163,61 @@ def test_every_domain_verdict_channel_is_probed_with_a_planted_verdict(monkeypat
     monkeypatch.setattr(KernelExperienceEnv, "observe", forwarding)
     bad = PT.probe_domain(names=[name], reference_days=1.0, max_reference_days=1.0)
     assert any("verdict (planted)" in leak["what"] for leak in bad["leaks"]), bad["leaks"][:3]
+
+
+def test_learners_set_the_fields_of_a_set_any_subset_object():
+    """The rapid Tier 1 levers are a nested object whose fields are all optional ("set any subset"); both reference
+    learners sent it empty, so they could never change a lever (the frozen neural copy's episode equalled doing
+    nothing in des_inventory, mk_signal, net_routing, ...). Now they set such fields (the neural learner decides
+    per field with a learned Bernoulli; the statistical one with p = 1/2, or every field at an arm level)."""
+    from crucible.experience import make
+    from crucible.experience.reference import ReferenceLearner
+    from crucible.experience.statistical import ToolValueLearner
+    env = make(1, "rapid:mk_signal", 3)
+    a = env.agents()[0]
+    tools = [t for t in env.tools(a) if t["name"] == "rapid.levers"]
+    obs = env.observe(a)
+    levers = sorted(tools[0]["inputSchema"]["properties"]["values"]["properties"])
+    seen = set()
+    for L in (ReferenceLearner(seed=1), ToolValueLearner(seed=1)):
+        for _ in range(40):
+            act = L.act(obs, tools)
+            if act is not None:
+                seen |= set(act["args"]["values"])
+                r = env.execute(a, act)
+                assert r["ok"], r.get("error")
+    assert seen == set(levers)
+    arms = ToolValueLearner(seed=1, arg_levels=5)
+    acts = [arms.act(obs, tools) for _ in range(60)]
+    vals = {json_dumps(x["args"]["values"]) for x in acts if x is not None}
+    spec = tools[0]["inputSchema"]["properties"]["values"]["properties"]
+    for v in vals:                                   # every lever at one common fraction of its range
+        d = json_loads(v)
+        assert set(d) == set(levers)
+        fr = {round((d[k] - spec[k]["minimum"]) / (spec[k]["maximum"] - spec[k]["minimum"]), 1) for k in d}
+        assert len(fr) == 1 and fr.pop() in (0.0, 0.2, 0.3, 0.5, 0.7, 0.8, 1.0)
+    assert len(vals) >= 3
+
+
+def test_arm_level_values_survive_a_checkpoint(tmp_path):
+    from crucible.experience import make
+    from crucible.experience.loop import run_learner
+    from crucible.experience.statistical import ToolValueLearner
+    env = make(1, "rapid:mk_signal", 2)
+    L = ToolValueLearner(seed=3, arg_levels=5)
+    run_learner(env, L, 120, update_every=16)
+    assert any("@" in k for k in L.values)
+    L.save(str(tmp_path / "tv.json"))
+    M = ToolValueLearner(seed=0)
+    M.load(str(tmp_path / "tv.json"))
+    assert M.arg_levels == 5 and M.params_hash() == L.params_hash()
+
+
+def json_dumps(x):
+    import json
+    return json.dumps(x, sort_keys=True)
+
+
+def json_loads(x):
+    import json
+    return json.loads(x)

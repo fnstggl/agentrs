@@ -19,6 +19,12 @@ uniformly at random over the offered tools. Arguments come from the tool's JSON 
 shown (`ArgumentMemory`, as in `ReferenceLearner`): enums and bounded numbers uniformly, ids and name tokens it
 saw under the argument's name, its own accounts for account arguments.
 
+With ``arg_levels=k`` (k >= 2) a tool with bounded numeric arguments is offered as k arms ``tool@i``: every bounded
+number of the action (also the fields of a nested "set any subset" object, such as a rig's levers) is set to the
+fraction i / (k - 1) of its range, so what it learns is a level per tool that does not depend on the arguments'
+names (the Tier 1 families draw new names per world); enums and strings stay as above. A nested object whose fields
+are all optional gets each field with probability 1/2 without arm levels.
+
 It is deliberately simple and transparent: values do not depend on the state, credit reaches only the step of the
 action, and a one-off windfall keeps a tool's value high. It exists so that improvement over a frozen copy can be
 measured in kernel worlds with hundreds of tools, where the neural learner's near-uniform policy rarely repeats a
@@ -53,7 +59,8 @@ class ToolValueLearner(ArgumentMemory):
 
     def __init__(self, seed: int = 0, reward_mode: str | None = None, *, temperature: float = 0.5,
                  signal: str = "auto", signal_keys: str = MONEY_KEYS, signal_scale: float = 0.01,
-                 recency: float = 0.05, shrink: float = 1.0, credit_horizon: int = 1, credit_decay: float = 0.9):
+                 recency: float = 0.05, shrink: float = 1.0, credit_horizon: int = 1, credit_decay: float = 0.9,
+                 arg_levels: int = 0):
         """`temperature` is in signal units (default: dollars, `signal_scale` 0.01 per cent): a tool that loses
         50 cents a call more than the baseline is e times less likely than an untried one (measured in a
         civilisation: a person's fees are worth $0.7-$6 a call on average - a $5 listing, a $20 domain, a $30
@@ -63,6 +70,7 @@ class ToolValueLearner(ArgumentMemory):
         ``credit_decay ** j`` (for consequences that arrive later than the next observation); 1 credits only the
         step's own action."""
         self.seed = int(seed)
+        self.arg_levels = int(arg_levels) if int(arg_levels) >= 2 else 0
         self.credit_horizon, self.credit_decay = max(1, int(credit_horizon)), float(credit_decay)
         self.trace: list[str] = []                      # the tools of the last credit_horizon - 1 steps
         self.reward_mode = check_mode(reward_mode)
@@ -128,7 +136,16 @@ class ToolValueLearner(ArgumentMemory):
         tools = list(tools if tools is not None else obs.get("tools") or [])
         self._harvest(obs.get("last_result"))
         self._harvest_events(obs)
-        names = [WAIT] + [t.get("name", "") for t in tools]
+        names, arms = [WAIT], [(None, None)]
+        for t in tools:
+            levels = self.arg_levels if self.arg_levels and _has_bounded_number(t.get("inputSchema") or {}) else 0
+            if levels:
+                for i in range(levels):
+                    names.append(f"{t.get('name', '')}@{i}")
+                    arms.append((t, i / (levels - 1)))
+            else:
+                names.append(t.get("name", ""))
+                arms.append((t, None))
         q = np.array([self.value(n) for n in names], np.float64) / self.temperature_now()
         if explore:
             p = np.exp(q - q.max())
@@ -140,14 +157,19 @@ class ToolValueLearner(ArgumentMemory):
         self.steps += 1
         if k == 0:
             return None
-        tool = tools[k - 1]
-        return {"tool": tool["name"], "args": self._obj(tool.get("inputSchema") or {}, obs, 0)}
+        tool, level = arms[k]
+        return {"tool": tool["name"], "args": self._obj(tool.get("inputSchema") or {}, obs, 0, level)}
 
-    def _obj(self, schema: dict, obs: dict, depth: int) -> dict:
+    def _obj(self, schema: dict, obs: dict, depth: int, level: float | None = None) -> dict:
         props = schema.get("properties") or {}
+        req = sorted(schema.get("required") or [])
+        keys = req
+        if depth > 0 and props and not req:
+            # a nested "set any subset" object (e.g. levers): every field at an arm level, else each with p = 1/2
+            keys = sorted(props) if level is not None else [k for k in sorted(props) if self.rng.random() < 0.5]
         out = {}
-        for k in sorted(schema.get("required") or []):
-            v = self._value(props.get(k) or {}, k, obs, depth)
+        for k in keys:
+            v = self._value(props.get(k) or {}, k, obs, depth, level)
             if v is not _SKIP:
                 out[k] = v
         addl = schema.get("additionalProperties")
@@ -155,15 +177,18 @@ class ToolValueLearner(ArgumentMemory):
             for key in sorted(self.memory):
                 sp = self.memory[key]
                 integer = sp.get("integer", False) or addl.get("type") == "integer"
-                out[key] = self._uniform(sp["min"], sp["max"], integer)
+                out[key] = self._uniform(sp["min"], sp["max"], integer, level)
         return out
 
-    def _uniform(self, lo: float, hi: float, integer: bool):
+    def _uniform(self, lo: float, hi: float, integer: bool, level: float | None = None):
+        if level is not None:
+            v = lo + (hi - lo) * float(level) if hi > lo else lo
+            return int(round(v)) if integer else float(v)
         if integer:
             return int(self.rng.integers(int(math.ceil(lo)), int(math.floor(hi)) + 1)) if hi >= lo else int(lo)
         return float(self.rng.uniform(lo, hi)) if hi > lo else float(lo)
 
-    def _value(self, s: dict, key: str, obs: dict, depth: int):
+    def _value(self, s: dict, key: str, obs: dict, depth: int, level: float | None = None):
         t = s.get("type")
         t = t[0] if isinstance(t, list) else t
         if "enum" in s and s["enum"]:
@@ -172,7 +197,7 @@ class ToolValueLearner(ArgumentMemory):
         if t in ("number", "integer"):
             lo, hi = s.get("minimum"), s.get("maximum")
             if lo is not None and hi is not None:
-                return self._uniform(float(lo), float(hi), t == "integer")
+                return self._uniform(float(lo), float(hi), t == "integer", level)
             if "default" in s:
                 return s["default"]
             v = float(math.exp(self.rng.uniform(0.0, math.log(1000.0))))     # 1 .. 1000, log-uniform
@@ -189,7 +214,7 @@ class ToolValueLearner(ArgumentMemory):
                 return cands[int(self.rng.integers(len(cands)))]
             return s.get("default") or self.actor or "x"
         if t == "object":
-            return self._obj(s, obs, depth + 1) if depth < 4 else {}
+            return self._obj(s, obs, depth + 1, level) if depth < 4 else {}
         if t == "array":
             return []
         return _SKIP
@@ -273,6 +298,7 @@ class ToolValueLearner(ArgumentMemory):
         return {"format": VERSION, "seed": self.seed, "reward_mode": self.reward_mode, "temperature": self.temperature,
                 "recency": self.recency, "shrink": self.shrink, "recent": self.recent,
                 "credit_horizon": self.credit_horizon, "credit_decay": self.credit_decay, "trace": self.trace,
+                "arg_levels": self.arg_levels,
                 "signal": self.signal, "signal_keys": self.signal_keys, "signal_scale": self.signal_scale,
                 "values": self.values, "memory": self.memory, "ids": self.ids, "rng": self.rng.bit_generator.state,
                 "updates": self.updates, "steps": self.steps, "buf": [list(b) for b in self.buf],
@@ -296,6 +322,7 @@ class ToolValueLearner(ArgumentMemory):
         self.recency, self.shrink = float(st["recency"]), float(st["shrink"])
         self.credit_horizon, self.credit_decay = int(st["credit_horizon"]), float(st["credit_decay"])
         self.trace = [str(x) for x in st["trace"]]
+        self.arg_levels = int(st.get("arg_levels", 0))
         self.recent = [float(x) for x in st["recent"]]
         self.memory, self.ids = dict(st["memory"]), {k: list(v) for k, v in st["ids"].items()}
         self.rng.bit_generator.state = st["rng"]
@@ -305,6 +332,21 @@ class ToolValueLearner(ArgumentMemory):
 
 
 _SKIP = object()
+
+
+def _has_bounded_number(schema: dict, depth: int = 0) -> bool:
+    """True when the schema has a number or integer field with both bounds (at any depth up to 4)."""
+    if depth > 4 or not isinstance(schema, dict):
+        return False
+    for p in (schema.get("properties") or {}).values():
+        t = p.get("type")
+        t = t[0] if isinstance(t, list) else t
+        if t in ("number", "integer") and p.get("minimum") is not None and p.get("maximum") is not None \
+                and "enum" not in p:
+            return True
+        if t == "object" and _has_bounded_number(p, depth + 1):
+            return True
+    return False
 
 
 def describe_values(L: ToolValueLearner, top: int = 8) -> dict:

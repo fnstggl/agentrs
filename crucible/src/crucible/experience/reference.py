@@ -697,11 +697,21 @@ class _Decider:
     def _obj(self, schema: dict, path: str, given: dict | None, top: bool = False) -> dict:
         props = schema.get("properties") or {}
         req = set(schema.get("required") or [])
+        # a nested object whose fields are all optional ("set any subset", e.g. a rig's levers): the learner decides
+        # per field whether to set it (a learned Bernoulli per field path; scored like any other choice). Without it
+        # such an object was always sent empty, so those settings could never be changed (wave-3b repair: rapid
+        # Tier 1 levers)
+        subset = not top and bool(props) and not req
         out = {}
         for k in sorted(props):
-            if given is not None and k not in given:
+            if subset:
+                import torch
+                logit = self.mu[self._slot(f"{path}.{k}?")]
+                if not self._cat(torch.stack([torch.zeros(()), logit]), None if given is None else int(k in given)):
+                    continue
+            elif given is not None and k not in given:
                 continue                            # scoring a given action: only what it actually contains
-            if given is None and k not in req:
+            elif given is None and k not in req:
                 continue
             v = self._value(props[k], f"{path}.{k}", k, None if given is None else given.get(k))
             if v is not _SKIP:
