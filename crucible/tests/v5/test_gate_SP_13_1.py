@@ -9,7 +9,8 @@ from crucible.acceptance.v5 import evidence
 import _perf_kit as K
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(48 * 3600)]
-CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 6 --gpu-mb 14000 --ram-mb 64000 --disk-mb 12000 -- "
+CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 6 --gpu-mb 14000 --ram-mb 64000 --disk-mb 12000 "
+       "--timeout 172800 -- "
        "python -m crucible.acceptance.v5 run --requirement SP-13.1")
 
 
@@ -28,5 +29,9 @@ def test_SP_13_1_decisions_batched_in_every_learning_class():
     for c, v in tot.items():
         m[f"{c}_calls"] = v["calls"]
         m[f"{c}_decisions"] = v["decisions"]
-    evidence.record("SP-13.1", m, command=CMD)
+    svc = (K.backend_matrix().get("result") or {}).get("service") or {}
+    for case, v in svc.get("cases", {}).items():      # the shared service grouping several call sites of one model
+        m[f"service_{case}_calls_separate"] = int(v["calls_separate"])
+        m[f"service_{case}_speedup"] = float(v["speedup_wall"])
+    evidence.record("SP-13.1", m, command=CMD, notes=f"service benchmark {svc}")
     assert m["participant_classes_batched"] >= 3, tot

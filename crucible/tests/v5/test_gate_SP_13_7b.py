@@ -24,7 +24,8 @@ from crucible.scale import govprobe, slots
 import _perf_kit as K
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(3600)]
-CMD = "PYTHONPATH=src python -m crucible.scale.slots --cpu 2 --ram-mb 8000 -- python -m crucible.acceptance.v5 run --requirement SP-13.7b"
+CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 2 --gpu-mb 1500 --ram-mb 8000 --timeout 3600 -- "
+       "python -m crucible.acceptance.v5 run --requirement SP-13.7b")     # the network probe runs a population world
 CLOUD = re.compile(r"\b(import\s+(boto3|botocore|runpod|modal|replicate|vastai|lambda_cloud)|from\s+(google\.cloud|azure|"
                    r"boto3|openai|anthropic)\s+import|api\.openai\.com|api\.anthropic\.com|ec2\.amazonaws|"
                    r"compute\.googleapis)")

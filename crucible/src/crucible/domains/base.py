@@ -4,49 +4,68 @@ check it on BUILT and RUN worlds (Gate N, SP-9.0, SP-9.16). The authoring guide 
 A domain (`Domain`) is a family of worlds for one Part 9 subject. Each of its configurations is
 
 * a civilisation recipe restricted to the subsystems, mechanism variants, couplings, topology and population the
-  configuration needs (`civ_recipe`, built on `crucible.civ.recipe`; execution mode C composition) - or, where the
-  spec allows a standalone semantic world (mode B), any recipe in the same 4.0 world-family form;
+  configuration needs (`civ_recipe`, built on `crucible.civ.recipe`; D-17) - or, where the spec allows a standalone
+  semantic world, any recipe in the same 4.0 world-family form (`Domain.construction == "standalone"`). Either way
+  every configuration world is an execution-mode B world of MASTER_SPEC Part 2.1 (a subset of civilisation-wide
+  activities in one kernel world);
 * plus the participant seats a learner (or the scripted reference) occupies (`Seat`; module `seat`, created at
   genesis, several per world);
-* plus a public objective (`objective(world, principal, difficulty) -> {"text": ..., ...}`: everything in it is
-  public; the learner reads its text) and an evaluator-side outcome evaluator (`evaluate(world, principal,
-  objective) -> {"success": bool, "score": float, "details": {...}}`), never reachable by participants: in the default
-  ``observation_only`` mode (Clarification 2, D-19) the Gym reward is 0.0 and the verdict reaches only `verify()`;
-* plus a hidden feasible reference (`reference(principal, objective) -> policy`): a scripted policy that acts ONLY
-  through the learner interface (it is handed observations and tool results, never the World), never registered as
-  a tool, never named in an observation, never a required solution path (N.n1), and labelled scripted in evidence;
-* plus a null baseline (default `Idle`) that must fail, and degenerate-strategy probes (`Probe`) that must fail too
-  (SP-9.16: feasible, not guaranteed);
+* plus objectives from the independent goal generator (`GoalFamily`, MASTER_SPEC Part 7:
+  ``objective = IndependentlyGenerateGoal(world, difficulty)``): the goal's parameters are drawn for a difficulty
+  level from the goal generator's own random stream (never the world's), the outcome is a predicate over
+  `crucible.goals.metrics` (registered, evaluator-side metrics of recorded state), and the evaluator is that
+  predicate evaluated by `crucible.goals` (optionally refined by a domain `evaluate` that adds details). Only the
+  objective's public text reaches participants; in the default ``observation_only`` mode (Clarification 2, D-19) the
+  Gym reward is 0.0 and the verdict reaches only `verify()`;
+* plus a hidden feasible reference (`reference(principal, public_objective) -> policy`): a scripted policy that acts
+  ONLY through the learner interface. It runs in a separate process (`IsolatedPolicy`), is handed the objective
+  exactly as the learner sees it (its text) plus observations and its own tool results - never the World - is
+  never registered as a tool, never named in an observation, never a required solution path (N.n1), and is
+  labelled scripted in evidence;
+* plus a null baseline (default `Idle`) and degenerate-strategy probes (`Probe`) that must fail where the reference
+  succeeds (SP-9.16: feasible, not guaranteed);
 * plus the recorded-event evidence of every required mechanic of its Part 9 section (`Mechanic`) and of its
-  autonomous participants (`Actor`), counted by the framework in the event log of integrated runs.
+  autonomous participants (`Actor`): event patterns and evidence functions that return the sequence numbers of
+  recorded events, checked by the framework (bookkeeping never counts, substrate-generic events count only through a
+  payload filter, an actor's events must be decisions of a participant other than the seats, two mechanics with the
+  same evidence are one).
 
-Configurations are procedurally generated instances per seed (`spec(domain, config, seed)`); their STRUCTURE is
-measured on the built world (`fingerprint`), never taken from the declaration: module set, couplings, participant
-types, graph shapes and the domain's own measured structure, with every magnitude reduced to presence/absence
-("numbers alone do not make a configuration"). A domain needs >= 3 structurally distinct training configurations,
->= 1 compositionally unfamiliar evaluation configuration (every structural atom seen in training, the combination
-never) and >= 1 structurally unfamiliar one (at least one structural atom no training configuration has).
+Configurations are procedurally generated instances per seed (`spec(domain, config, seed)`): distinct instances are
+distinct genesis state CONTENT (`instance_digest`, the event hash chain excluded). Their STRUCTURE is measured on
+the built world (`fingerprint`), never taken from the declaration: the modules whose mechanisms are present
+(`engaged_modules`), participant types, civilisation couplings and graph shapes, and the domain's own `structure`
+hook, which sees only built state (`BuiltWorld`: no spec, no module configuration), with every magnitude reduced to
+presence/absence ("numbers alone do not make a configuration"). A domain needs >= 3 structurally distinct training
+configurations, >= 1 compositionally unfamiliar evaluation configuration (every structural atom seen in training,
+the combination never) and >= 1 structurally unfamiliar one (an atom no training configuration has); an evaluation
+configuration counts only when it runs clean and its reference succeeds there while the null baseline fails.
 
-`validate(d)` is the cheap definition check run by `register`; `check(d)` builds and runs the domain and returns
-every Gate N / SP-9.0 / SP-9.16 measurement (the gate tests in tests/v5 iterate over `part9_domains()`).
+`validate(d)` is the cheap definition check run by `register`; `check(d)` builds and runs the domain (every
+configuration) and returns every Gate N / SP-9.0 / SP-9.16 measurement (the gate tests in tests/v5 iterate over
+`part9_domains()`).
 """
 from __future__ import annotations
 
 import ast
 import copy
+import hashlib
 import inspect
 import json
+import os
 import re
+import subprocess
+import sys
 import textwrap
 import time
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable
+from types import MappingProxyType
+from typing import Any, Callable, Iterable, Mapping
 
-from ..core.canonical import digest
-from ..core.kernel import World, WorldSpec
+from ..core.canonical import canonical_bytes, digest
+from ..core.kernel import SYSTEM, World, WorldSpec
 
-API_VERSION = "domains-framework/2"
+API_VERSION = "domains-framework/3"
 
 SPLITS = {"train": "train", "eval_compositional": "v5eval_compositional", "eval_structural": "v5eval_structural"}
 DAY, HOUR = 86400, 3600
@@ -102,6 +121,16 @@ PART9: dict[str, dict] = {
 }
 N_PART9 = len(PART9)
 
+# Kernel bookkeeping: never evidence of anything (crucible.civ.chains.BOOKKEEPING plus the kernel's own types).
+BOOKKEEPING = frozenset({"cmd", "cmd.rejected", "ext", "idem", "ctr", "know", "note", "sched.add", "sched.del",
+                         "time", "proc", "proc.failed", "principal.add", "principal.update"})
+# Substrate events every world records whatever its mechanisms (money moves, identities, stored blobs, recorded
+# representations): a pattern naming one counts only with a payload filter (``bank.txn{kind=subscription}``).
+GENERIC = frozenset({"bank.txn", "bank.account", "id.person", "id.org", "id.member", "artifact.stored", "cols.grow",
+                     "space.recorded"})
+GENERIC_NAMESPACES = ("bank.", "id.", "artifact.", "sched.", "proc", "principal.", "space.", "cols.")
+GENERIC_BATCHES = ("pop.", "attention.")       # the population's own bookkeeping column batches
+
 
 # ============================================================================================ the contract
 @dataclass(frozen=True)
@@ -128,25 +157,35 @@ class Seat:
 
 @dataclass(frozen=True)
 class Mechanic:
-    """Recorded-event evidence of one required mechanic: the event types whose occurrence after genesis in an
-    integrated run exercises it. A pattern is an exact type (``sci.reading``), a prefix (``sci.*``) or a column
-    batch kind (``cols.batch:goods.session``, ``cols.batch:goods.*``). `count(world, since_seq) -> int` may add a
-    measured count from recorded state (rows written by appliers after `since_seq`); it is never a declaration."""
+    """Recorded-event evidence of one required mechanic.
+
+    `events`: patterns of the event types whose occurrence after genesis in an integrated run exercises it - an
+    exact type (``sci.reading``), a prefix (``sci.*``), a column batch kind (``cols.batch:goods.session``,
+    ``cols.batch:goods.*``), optionally with a payload filter (``bank.txn{kind=subscription}``,
+    ``pkg.executed{kind=ci}``). Kernel bookkeeping never matches; a bare pattern of a substrate-generic type
+    (`GENERIC`: money moves, identities, stored blobs) matches nothing - filter it.
+
+    `count(world, since_seq)` (alias: evidence function) returns the SEQUENCE NUMBERS of recorded events after
+    `since_seq` that exercise the mechanic (e.g. the events that wrote the rows the domain measures); the framework
+    checks each one (recorded after `since_seq`, not bookkeeping). A function that returns a number instead of
+    events is a self-report and counts nothing (it is listed as unverified)."""
     name: str
     events: tuple[str, ...] = ()
     doc: str = ""
-    count: Callable[[World, int], int] | None = None
+    count: Callable[[World, int], Iterable[int]] | None = None
 
 
 @dataclass(frozen=True)
 class Actor:
     """An autonomous participant kind of the domain (population individuals, firms, labs, tenants, ...) and the
-    recorded events its own decisions produce. Measured in a null-baseline run: the seats do nothing, so every such
-    event is autonomous activity."""
+    recorded events its own decisions produce (patterns as for `Mechanic`; `count` returns event sequence numbers).
+    Measured in null-baseline runs (the seats do nothing). An event counts only when it is a decision of a
+    participant: its actor is a principal of the world other than the seats and their organisations, or it is a
+    population column batch carrying decision provenance (D-15). Kernel bookkeeping and system events never count."""
     name: str
     events: tuple[str, ...] = ()
     doc: str = ""
-    count: Callable[[World, int], int] | None = None
+    count: Callable[[World, int], Iterable[int]] | None = None
 
 
 @dataclass(frozen=True)
@@ -158,6 +197,26 @@ class Probe:
     policy: Callable[[str, dict], Any]
 
 
+@dataclass(frozen=True)
+class GoalFamily:
+    """The independent goal generator of a domain (MASTER_SPEC Part 7, ``IndependentlyGenerateGoal(world,
+    difficulty)``; `crucible.goals`). For a world, a participant and a difficulty level the framework draws the
+    goal's parameters with `draw(rng, difficulty, world_view)` from the generator's own random stream (`goal_rng`:
+    keyed by the world's seed, the domain, the participant and the level - never one of the world's streams, never
+    the reference), states the outcome as `success(params)`, a `crucible.goals.metrics` predicate over recorded state
+    (``$self``, ``$org`` - every organisation the participant owns - and ``$orgs`` are bound at evaluation), and
+    publishes `text(params)` as the objective's public description. `progress(params)` (optional,
+    ``{"metric", "args", "target"}``) gives the evaluator's numeric score. `world_view` is a `BuiltWorld` (built
+    state only)."""
+    name: str
+    draw: Callable[..., dict]
+    text: Callable[[dict], str]
+    success: Callable[[dict], dict]
+    progress: Callable[[dict], dict] | None = None
+    window_days: Callable[[dict], float] | float | None = None
+    doc: str = ""
+
+
 @dataclass
 class Domain:
     name: str
@@ -166,9 +225,9 @@ class Domain:
     required_mechanics: tuple[str, ...]   # () = the Part 9 list of `spec_part`
     configs: tuple[DomainConfig, ...]
     build: Callable[[DomainConfig, int, dict], dict]          # (config, seed, overrides) -> recipe
-    objective: Callable[[World, str, int], dict]              # public objective {"text": ..., ...}
-    evaluate: Callable[[World, str, dict], dict]              # evaluator side {"success", "score", "details"}
-    reference: Callable[..., Any]                             # (principal, objective) -> tool-only policy
+    objective: Callable[[World, str, int], dict] | None = None  # legacy free objective (prefer `goal`)
+    evaluate: Callable[[World, str, dict], dict] | None = None  # evaluator side {"success", "score", "details"}
+    reference: Callable[..., Any] | None = None               # (principal, public objective) -> tool-only policy
     mechanics: Any = ()                                       # tuple[Mechanic] | dict[str, Mechanic|tuple]
     participant_principal: Callable[[World], str] | None = None   # default: the first seat
     doc: str = ""
@@ -176,9 +235,9 @@ class Domain:
     actors: tuple[Actor, ...] = ()
     null_baseline: Callable[[str, dict], Any] | None = None   # default: Idle
     degenerate: tuple[Probe, ...] = ()
-    structure: Callable[[World], dict] | None = None          # domain-measured discrete structure of a built world
+    structure: Callable[[Any], dict] | None = None            # domain-measured structure of a BuiltWorld
     tier3: Callable[[DomainConfig, dict], dict] | None = None  # merge this configuration into a civ recipe
-    mode: str = "C"                 # C: a restriction of the civilisation generator; B: standalone semantic world
+    mode: str = "C"                 # construction: C = restriction of the civ generator, B = standalone world
     horizon_days: float = 30.0      # evaluation window of the objective
     slowest_effect_days: float = 0.0   # slowest delayed effect of the world (the horizon must exceed it)
     dt: int = HOUR                  # simulated seconds between a policy's decision points
@@ -188,6 +247,7 @@ class Domain:
     reference_configs: tuple[str, ...] = ()   # default: the first training configuration
     sources: tuple[str, ...] = ()   # extra source files of the domain's mechanisms (dice scan, SP-9.16)
     fixture: bool = False           # a test fixture (never counted by the gates)
+    goal: GoalFamily | None = None  # the independent goal generator (crucible.goals)
 
     def __post_init__(self):
         if not self.required_mechanics and self.spec_part in PART9:
@@ -207,6 +267,12 @@ class Domain:
 
     def split(self, split: str) -> list[DomainConfig]:
         return [c for c in self.configs if c.split == split]
+
+    @property
+    def construction(self) -> str:
+        """How the configuration worlds are built: a restriction of the civilisation generator (D-17) or a
+        standalone semantic world. Both are execution-mode B worlds (Part 2.1)."""
+        return "standalone" if self.mode == "B" else "civ_restriction"
 
     # ---------------------------------------------------------------- normalised views
     def mechanic_probes(self) -> dict[str, Mechanic] | None:
@@ -228,14 +294,38 @@ class Domain:
             return self.participant_principal(world)
         return f"p:{self.seats[0].handle}" if self.seats else None
 
+    # ---------------------------------------------------------------- objectives and verdicts
+    def make_objective(self, world: World, principal: str, difficulty: int) -> dict:
+        """The objective of `principal` at `difficulty`: generated by the goal generator (`goal`) when the domain
+        has one, else the domain's own `objective` (labelled ``generator: "domain"``)."""
+        return generate_objective(self, world, principal, difficulty)
+
+    def judge(self, world: World, principal: str, objective: dict) -> dict:
+        """The evaluator-side verdict: the domain's `evaluate` when given, else the generated goal's predicate."""
+        if self.evaluate is not None:
+            return self.evaluate(world, principal, objective)
+        return goal_verdict(world, principal, objective)
+
     def reference_policy(self, principal: str, objective: dict):
-        return _call_policy_factory(self.reference, principal, objective)
+        """The reference built IN THIS PROCESS from the public objective (static inspection only; runs use
+        `IsolatedPolicy`)."""
+        return _call_policy_factory(self.reference, principal, public_objective(objective))
 
     def null_policy(self, principal: str, objective: dict):
-        return _call_policy_factory(self.null_baseline, principal, objective) if self.null_baseline else Idle()
+        return _call_policy_factory(self.null_baseline, principal, public_objective(objective)) \
+            if self.null_baseline else Idle()
 
     def is_part9(self) -> bool:
         return self.spec_part in PART9 and not self.fixture
+
+
+def public_objective(objective: dict | None) -> dict:
+    """The objective exactly as a learner sees it (the observation's `objective` is its text): nothing else of the
+    objective dict reaches a policy (the dict is computed with full World access, so any other field would be a
+    privileged channel)."""
+    o = objective or {}
+    text = o.get("text") if isinstance(o, dict) else None
+    return {"text": text if isinstance(text, str) else ""}
 
 
 def _call_policy_factory(fn, principal: str, objective: dict):
@@ -254,10 +344,160 @@ def _call_policy_factory(fn, principal: str, objective: dict):
 REGISTRY: dict[str, Domain] = {}
 
 
+# ============================================================================================ goals (crucible.goals)
+def goal_rng(world: World, domain: str, principal: str, difficulty: int, family: str):
+    """The goal generator's own random stream: keyed by the world's seed, the domain, the participant, the level and
+    the goal family - independent of every stream the world's mechanisms draw from (`World.rng_for`)."""
+    import numpy as np
+    key = int(digest(["goal", domain, family, principal, int(difficulty)])[:12], 16)
+    return np.random.default_rng([int(world.spec.seed), key])
+
+
+def generate_objective(d: Domain, world: World, principal: str, difficulty: int) -> dict:
+    """``IndependentlyGenerateGoal(world, difficulty)`` for one participant (see `GoalFamily`)."""
+    if d.goal is None:
+        if d.objective is None:
+            raise ValueError(f"domain {d.name}: neither a goal generator nor an objective")
+        o = dict(d.objective(world, principal, int(difficulty)))
+        o.setdefault("generator", "domain")
+        return o
+    from ..goals.metrics import check_predicate
+    g = d.goal
+    rng = goal_rng(world, d.name, principal, difficulty, g.name)
+    params = g.draw(rng, int(difficulty), BuiltWorld(world)) if _arity(g.draw) >= 3 else g.draw(rng, int(difficulty))
+    params = json.loads(json.dumps(params, default=_json_default))
+    pred = g.success(params)
+    problems = check_predicate(pred)
+    if problems:
+        raise ValueError(f"domain {d.name}: goal {g.name}: invalid success predicate: {problems}")
+    win = g.window_days(params) if callable(g.window_days) else g.window_days
+    out = {"text": str(g.text(params)), "generator": "crucible.goals", "goal_family": g.name, "params": params,
+           "success": pred, "difficulty": int(difficulty),
+           "window_days": float(win if win is not None else d.horizon_days)}
+    if g.progress is not None:
+        out["progress"] = g.progress(params)
+    return out
+
+
+def _arity(fn) -> int:
+    try:
+        return len([p for p in inspect.signature(fn).parameters.values()
+                    if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)])
+    except (TypeError, ValueError):
+        return 2
+
+
+def goal_verdict(world: World, principal: str, objective: dict) -> dict:
+    """The generated goal's verdict (evaluator side, a function of recorded state): the success predicate with
+    ``$self``/``$org``/``$orgs`` bound to the participant and each organisation it owns (`goals.contracts`);
+    success when it holds for one of them; score = the progress metric over its target (or the success)."""
+    from ..goals.contracts import _bind, bindings
+    from ..goals.metrics import evaluate_metric, evaluate_predicate
+    pred = objective.get("success")
+    if not isinstance(pred, dict):
+        raise ValueError("objective has no generated success predicate")
+    env = bindings(world, principal)
+    rows, best = {}, 0.0
+    ok = False
+    prog = objective.get("progress")
+    for org in env["$orgs"] or ["o:none"]:
+        e = dict(env, **{"$org": org})
+        try:
+            holds = bool(evaluate_predicate(world, _bind(pred, e)))
+        except Exception:  # noqa: BLE001 - a missing entity makes the predicate false (as goals.contracts)
+            holds = False
+        val = None
+        if isinstance(prog, dict):
+            try:
+                val = float(evaluate_metric(world, prog["metric"], _bind(prog.get("args", {}), e)))
+            except Exception:  # noqa: BLE001
+                val = 0.0
+        rows[org] = {"holds": holds, "value": val}
+        ok = ok or holds
+        if val is not None:
+            best = max(best, val)
+    if isinstance(prog, dict) and prog.get("target"):
+        score = max(0.0, min(1.0, best / float(prog["target"])))
+    else:
+        score = 1.0 if ok else 0.0
+    return {"success": bool(ok), "score": float(score),
+            "details": {"goal_family": objective.get("goal_family"), "metric": (prog or {}).get("metric"),
+                        "value": best if isinstance(prog, dict) else None,
+                        "target": (prog or {}).get("target"), "by_org": rows}}
+
+
+# ============================================================================================ evidence patterns
+_PAT = re.compile(r"^(?P<base>[^{}\s]+)(\{(?P<flt>[^{}]*)\})?$")
+
+
+@dataclass(frozen=True)
+class _Pattern:
+    raw: str
+    base: str
+    filters: tuple
+    bookkeeping: bool
+    generic: bool
+
+    @property
+    def ignored(self) -> bool:
+        return self.bookkeeping or (self.generic and not self.filters)
+
+
+def parse_pattern(p: str) -> _Pattern:
+    m = _PAT.match(str(p).strip())
+    if not m:
+        raise ValueError(f"bad event pattern {p!r}")
+    b = m.group("base")
+    flt = []
+    for part in (m.group("flt") or "").split(","):
+        if part.strip():
+            k, _, v = part.partition("=")
+            flt.append((k.strip(), v.strip()))
+    if b.startswith("cols.batch:"):
+        k = b[len("cols.batch:"):]
+        generic = k in ("", "*") or k.startswith(GENERIC_BATCHES)
+        book = False
+    else:
+        book = b in BOOKKEEPING
+        generic = b in GENERIC or b in ("*", ".*") or (b.endswith(".*") and b[:-1].startswith(GENERIC_NAMESPACES)) \
+            or b == "cols.batch"
+    return _Pattern(str(p), b, tuple(flt), book, generic)
+
+
+def _pat_match(pt: _Pattern, etype: str, kind: str | None, payload: dict) -> bool:
+    if pt.ignored or etype in BOOKKEEPING:
+        return False
+    b = pt.base
+    if b.startswith("cols.batch:"):
+        if etype != "cols.batch" or kind is None:
+            return False
+        k = b[len("cols.batch:"):]
+        if not (kind.startswith(k[:-1]) if k.endswith("*") else kind == k):
+            return False
+    elif b.endswith(".*"):
+        if not etype.startswith(b[:-1]):
+            return False
+    elif etype != b:
+        return False
+    for key, val in pt.filters:
+        if str(payload.get(key)) != val:
+            return False
+    return True
+
+
+def _match(pattern: str, etype: str, ekind: str | None) -> bool:
+    """Earlier helper (type and batch kind only; payload filters need `_pat_match`)."""
+    return _pat_match(parse_pattern(pattern), etype, ekind, {})
+
+
+def _effective_patterns(probe) -> list[_Pattern]:
+    return [pt for pt in (parse_pattern(p) for p in (probe.events or ())) if not pt.ignored]
+
+
 # ============================================================================================ static validation
 def validate(d: Domain) -> list[str]:
-    """Definition problems (empty when the domain may be registered). Cheap: nothing is built. Structure is checked
-    on built worlds by `check` (`structure_report`)."""
+    """Definition problems (empty when the domain may be registered). Cheap: nothing is built. Structure, evidence
+    and feasibility are checked on built and run worlds by `check`."""
     out = []
     if not re.fullmatch(r"[a-z][a-z0-9_]{1,30}", d.name or ""):
         out.append("name must match [a-z][a-z0-9_]{1,30}")
@@ -296,6 +536,16 @@ def validate(d: Domain) -> list[str]:
                 out.append(f"no event probe for required mechanics {missing}")
             if extra:
                 out.append(f"event probes for mechanics the spec does not list: {extra}")
+            out += _pattern_problems("mechanic", probes.values())
+            seen: dict[tuple, str] = {}
+            for name, pr in probes.items():
+                key = tuple(sorted(p.raw for p in _effective_patterns(pr)))
+                if key and pr.count is None:
+                    if key in seen:
+                        out.append(f"mechanics {seen[key]!r} and {name!r} have the same evidence {list(key)} "
+                                   f"(one mechanism, not two)")
+                    seen.setdefault(key, name)
+    out += _pattern_problems("actor", d.actors)
     if d.mode not in ("B", "C"):
         out.append("mode must be 'B' (standalone semantic world) or 'C' (restriction of the civilisation generator)")
     if d.horizon_days <= 0 or d.horizon_days < d.slowest_effect_days:
@@ -305,6 +555,12 @@ def validate(d: Domain) -> list[str]:
         out.append("seat handles repeat")
     if not callable(d.reference):
         out.append("no reference policy factory")
+    if d.goal is None and d.objective is None:
+        out.append("no objective: give a goal generator (GoalFamily) or an objective")
+    if d.goal is None and d.evaluate is None:
+        out.append("no evaluator: a domain without a goal generator needs evaluate")
+    if d.goal is not None and not isinstance(d.goal, GoalFamily):
+        out.append("goal must be a GoalFamily")
     if d.spec_part in PART9 and not d.fixture:
         if not d.seats and d.participant_principal is None:
             out.append("no participant seat")
@@ -312,6 +568,41 @@ def validate(d: Domain) -> list[str]:
             out.append("no degenerate-strategy probe (SP-9.16)")
         if not d.actors:
             out.append("no autonomous participant kind (Actor) declared")
+    return out
+
+
+def _constant_evidence(fn) -> bool:
+    """An evidence function that only returns a literal number (``lambda w, s: 1``): it cannot point at recorded
+    events (read from its bytecode, so lambdas inside expressions are seen too)."""
+    import dis
+    try:
+        ins = [i for i in dis.get_instructions(fn) if i.opname not in ("RESUME", "NOP", "CACHE")]
+    except TypeError:
+        return False
+    if len(ins) == 1 and ins[0].opname == "RETURN_CONST":
+        v = ins[0].argval
+    elif len(ins) == 2 and ins[0].opname == "LOAD_CONST" and ins[1].opname == "RETURN_VALUE":
+        v = ins[0].argval
+    else:
+        return False
+    return isinstance(v, (int, float, bool))
+
+
+def _pattern_problems(what: str, probes) -> list[str]:
+    out = []
+    for pr in probes:
+        if pr.count is not None and _constant_evidence(pr.count):
+            out.append(f"{what} {pr.name!r}: its evidence function returns a constant, not recorded events")
+        try:
+            pats = [parse_pattern(p) for p in (pr.events or ())]
+        except ValueError as e:
+            out.append(f"{what} {pr.name!r}: {e}")
+            continue
+        if pr.count is None and pats and all(p.ignored for p in pats):
+            out.append(f"{what} {pr.name!r} is evidenced only by kernel bookkeeping or substrate-generic events "
+                       f"{[p.raw for p in pats]} (name the mechanism's own event types or add a payload filter)")
+        elif pr.count is None and not pats:
+            out.append(f"{what} {pr.name!r} has no evidence (no event pattern, no evidence function)")
     return out
 
 
@@ -480,8 +771,10 @@ def spec(domain: str, config: str, seed: int = 0, overrides: dict | None = None)
     return ordered_spec(r, d.family(config), seed)
 
 
-def world(domain: str, config: str, seed: int = 0, overrides: dict | None = None, store=None) -> World:
-    return World.create(spec(domain, config, seed, overrides), world_id=f"d5-{domain}-{config}-{seed}", store=store)
+def world(domain: str, config: str, seed: int = 0, overrides: dict | None = None, store=None,
+          world_id: str | None = None) -> World:
+    return World.create(spec(domain, config, seed, overrides),
+                        world_id=world_id or f"d5-{domain}-{config}-{seed}", store=store)
 
 
 def tier3_spec(domain: str | Domain, config: str, seed: int = 0, profile: str = "balanced",
@@ -507,6 +800,166 @@ def tier3_spec(domain: str | Domain, config: str, seed: int = 0, profile: str = 
     return ordered_spec(merged, f"civ_{profile}+{d.name}_{c.name}", seed)
 
 
+# ============================================================================================ built-state view
+class DeclarationAccess(AttributeError):
+    """A structure hook or goal generator reached for a declaration (spec, module configuration)."""
+
+
+class _ModuleNames(frozenset):
+    def __getitem__(self, name):
+        raise DeclarationAccess(f"module {name!r}: a structure hook sees built state only (tables, columns, engaged "
+                                f"module names), never module objects or their configuration (D-49)")
+
+
+class _Rows(Mapping):
+    def __init__(self, rows: dict):
+        self._rows = rows
+
+    def __getitem__(self, rid):
+        return MappingProxyType(self._rows[rid])
+
+    def __iter__(self):
+        return iter(self._rows)
+
+    def __len__(self):
+        return len(self._rows)
+
+
+class _Tables(Mapping):
+    def __init__(self, tables: dict):
+        self._tables = tables
+
+    def __getitem__(self, name):
+        return _Rows(self._tables[name])
+
+    def __iter__(self):
+        return iter(self._tables)
+
+    def __len__(self):
+        return len(self._tables)
+
+
+class _ReadState:
+    """Read-only view of a world's state tables and arrays (no meta, no journal, no world)."""
+
+    def __init__(self, st):
+        self.get, self.has, self.count, self.ids = st.get, st.has, st.count, st.ids
+        self.scan, self.find_ids, self.find, self.find_one = st.scan, st.find_ids, st.find, st.find_one
+        self.tables = _Tables(st.tables)
+        self._arrays = st.arrays
+
+    def array(self, name: str):
+        a = self._arrays[name].view()
+        a.flags.writeable = False
+        return a
+
+    @property
+    def arrays(self):
+        return MappingProxyType({k: self.array(k) for k in self._arrays})
+
+
+class BuiltWorld:
+    """What a structure hook (and a goal generator's `draw`) may read: the BUILT world's recorded state - tables,
+    column tables, the names of the modules whose mechanisms are present (`engaged_modules`), the clock - and
+    nothing declared: no spec, no parameters, no module objects or configuration (D-49)."""
+
+    def __init__(self, world: World):
+        self.state = _ReadState(world.state)
+        self.modules = _ModuleNames(engaged_modules(world))
+        self.now = int(world.now)
+        self.seq = int(world.seq)
+        reg = (getattr(world, "runtime", {}) or {}).get("cols", {})
+        self._cols = {t: list(rec.get("columns") or {}) for t, rec in reg.items()}
+
+    def column_tables(self) -> list[str]:
+        return sorted(self._cols)
+
+    def column(self, table: str, name: str):
+        if name not in self._cols.get(table, ()):
+            raise KeyError(f"no column {table}.{name}")
+        return self.state.array(f"{table}.{name}")
+
+    def __getattr__(self, name):
+        raise DeclarationAccess(f"BuiltWorld has no {name!r}: structure is measured on built state only (D-49)")
+
+
+def engaged_modules(world: World, since_seq: int = 0, until_seq: int | None = None, *,
+                    scheduled: bool = False) -> list[str]:
+    """The modules whose mechanisms are present in a world: a module counts when one of its appliers recorded a
+    (non-bookkeeping) event in the window, a table it declared holds rows, or a column table it declared has rows
+    (and, with `scheduled`, when one of its processes is scheduled). A module that only adds tools nobody used,
+    tables that stay empty or a process that records nothing is not part of the measured structure (the probe of
+    inert modules, D-49); `check` adds the modules a configuration's null run engaged (`fingerprint(activity=)`)."""
+    st = world.state
+    out: set[str] = set()
+    owner: dict[str, str] = {}
+    for et, fn in world.appliers.items():
+        m = getattr(getattr(fn, "__self__", None), "name", None)
+        if isinstance(m, str) and m in world.modules:
+            owner[et] = m
+    for e in world.events_range(int(since_seq), until_seq):
+        if e.type in BOOKKEEPING:
+            continue
+        m = owner.get(e.type)
+        if m:
+            out.add(m)
+    for t, mods in getattr(st, "declared_by", {}).items():
+        if mods and mods[0] in world.modules and st.tables.get(t):
+            out.add(mods[0])
+    reg = (getattr(world, "runtime", {}) or {}).get("cols", {})
+    for t, rec in reg.items():
+        cols = list(rec.get("columns") or {})
+        if not cols:
+            continue
+        a = st.arrays.get(f"{t}.{cols[0]}")
+        if a is not None and a.shape[0] > 0:
+            for c, who in (rec.get("by") or {}).items():
+                if who in world.modules:
+                    out.add(who)
+    if scheduled:
+        for j in st.tables.get("sched", {}).values():
+            m = str(j.get("proc", "")).split(".", 1)[0]
+            if m in world.modules:
+                out.add(m)
+    return sorted(out)
+
+
+def instance_digest(world: World) -> str:
+    """Content digest of a world's state - tables and arrays, without the kernel's meta (event hash chain, sequence
+    number, clock, counters) and idempotency records. Two seeds of a configuration are distinct instances only when
+    the generated content differs (N.6); the hash chain differs for every seed and says nothing."""
+    st = world.state
+    h = hashlib.blake2b(digest_size=16)
+    for name in sorted(st.tables):
+        if name == "idem":
+            continue
+        h.update(b"T" + name.encode())
+        t = st.tables[name]
+        for rid in sorted(t):
+            h.update(str(rid).encode())
+            h.update(canonical_bytes(t[rid]))
+    import numpy as np
+    for name in sorted(st.arrays):
+        a = np.ascontiguousarray(st.arrays[name])
+        h.update(b"A" + name.encode() + str(a.dtype).encode() + str(a.shape).encode())
+        h.update(a.tobytes())
+    return h.hexdigest()
+
+
+def table_digests(world: World) -> dict[str, str]:
+    st = world.state
+    out = {}
+    for name in sorted(st.tables):
+        if name == "idem":
+            continue
+        h = hashlib.blake2b(digest_size=8)
+        for rid in sorted(st.tables[name]):
+            h.update(str(rid).encode())
+            h.update(canonical_bytes(st.tables[name][rid]))
+        out[name] = h.hexdigest()
+    return out
+
+
 # ============================================================================================ policies
 class Idle:
     """The null baseline: never acts."""
@@ -522,7 +975,8 @@ class Idle:
 
 class ScriptedReference:
     """Base of tool-only scripted references. A reference sees exactly what a learner sees: the observation
-    (`obs`, a `crucible.experience` Observation) and the results of its own actions. It never holds the World.
+    (`obs`, a `crucible.experience` Observation), the objective's public text (`self.objective["text"]`) and the
+    results of its own actions. It never holds the World (it runs in a separate process, `IsolatedPolicy`).
 
     Subclasses implement `plan(obs) -> list[action]` (an action: ``{"tool": ..., "args": {...}}``, optionally with
     ``"tag"``, which the world never sees; build one with `act_`); the actions run in order, up to `burst` per
@@ -634,30 +1088,262 @@ GENERIC_PROBES = (Probe("random_tools", "uniformly random tool calls with schema
                         lambda principal, objective: RandomTools(principal, objective)),)
 
 
+# ---------------------------------------------------------------------------------------------- isolation
+class ReferenceNotIsolated(RuntimeError):
+    """The reference factory cannot be imported by module path, so it cannot run in a separate process."""
+
+
+def _json_default(x):
+    import numpy as np
+    if isinstance(x, np.generic):
+        return x.item()
+    if isinstance(x, np.ndarray):
+        return x.tolist()
+    if isinstance(x, (set, frozenset, tuple)):
+        return list(x)
+    return str(x)
+
+
+def factory_path(fn) -> tuple[str, str]:
+    """(module, qualname) of an importable policy factory, else raises ReferenceNotIsolated."""
+    mod = getattr(fn, "__module__", None)
+    q = getattr(fn, "__qualname__", None)
+    if not mod or not q or "<" in q or mod == "__main__":
+        raise ReferenceNotIsolated(f"policy factory {fn!r} is not importable by module path (module {mod!r}, "
+                                   f"qualname {q!r}): define it at module level of an importable module")
+    obj = sys.modules.get(mod)
+    for part in q.split("."):
+        obj = getattr(obj, part, None) if obj is not None else None
+    if obj is not fn:
+        raise ReferenceNotIsolated(f"policy factory {mod}.{q} does not resolve to the same object")
+    return mod, q
+
+
+class IsolatedPolicy:
+    """A policy that runs in a SEPARATE PROCESS: the parent sends the learner's observations (JSON) and the results
+    of the policy's own calls; the child holds no World, no environment and no event log, so whatever the policy's
+    code does (introspection, garbage-collector walks, string-built attribute names), it can reach only what a
+    learner reaches. Used for every reference run (N.5, N.n1)."""
+    kind = "scripted"
+
+    def __init__(self, factory, principal: str, objective: dict, timeout_s: float = 600.0):
+        mod, q = factory_path(factory)
+        env = dict(os.environ, OMP_NUM_THREADS="1", MKL_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1",
+                   CUDA_VISIBLE_DEVICES="", PYTHONDONTWRITEBYTECODE="1")
+        path = [p for p in sys.path if p and os.path.isdir(p)]
+        env["PYTHONPATH"] = os.pathsep.join(path)
+        import tempfile
+        self._err = tempfile.TemporaryFile(mode="w+")
+        self._p = subprocess.Popen([sys.executable, "-c", "from crucible.domains.base import _serve_policy; "
+                                    "_serve_policy()"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                   stderr=self._err, env=env, text=True, bufsize=1)
+        self._tools_key = None
+        self.timeout_s = float(timeout_s)
+        r = self._call({"op": "init", "module": mod, "qualname": q, "principal": principal,
+                        "objective": public_objective(objective), "path": path})
+        self.kind = r.get("kind") or "scripted"
+        self.name = r.get("name") or q
+        self.burst = int(r.get("burst") or 1)
+        self.classes = list(r.get("classes") or [])
+        self.child_pid = r.get("pid")
+        self.calls = 0
+
+    def _call(self, msg: dict) -> dict:
+        if self._p.poll() is not None:
+            raise RuntimeError(f"isolated policy process exited ({self._p.returncode}): {self._stderr()}")
+        self._p.stdin.write(json.dumps(msg, default=_json_default) + "\n")
+        self._p.stdin.flush()
+        import select
+        ready, _, _ = select.select([self._p.stdout], [], [], self.timeout_s)
+        if not ready:
+            self._p.kill()
+            raise RuntimeError(f"isolated policy did not answer {msg.get('op')!r} within {self.timeout_s:.0f} s")
+        line = self._p.stdout.readline()
+        if not line:
+            raise RuntimeError(f"isolated policy process died: {self._stderr()}")
+        r = json.loads(line)
+        if not r.get("ok"):
+            raise RuntimeError(f"isolated policy raised {r.get('error')}\n{r.get('trace', '')}")
+        return r
+
+    def _stderr(self) -> str:
+        try:
+            self._err.seek(0)
+            return self._err.read()[-3000:]
+        except Exception:  # noqa: BLE001
+            return ""
+
+    def _tools(self, tools):
+        key = hashlib.blake2b(json.dumps(tools, sort_keys=True, default=_json_default).encode(),
+                              digest_size=12).hexdigest()
+        if key == self._tools_key:
+            return None
+        self._tools_key = key
+        return tools
+
+    @staticmethod
+    def _strip(obs):
+        return {k: v for k, v in obs.items() if k != "tools"} if isinstance(obs, dict) else obs
+
+    def act(self, obs, tools):
+        self.calls += 1
+        return self._call({"op": "act", "obs": self._strip(obs), "tools": self._tools(tools)}).get("action")
+
+    def observe(self, reward, result, next_obs, done):
+        nt = next_obs.get("tools") if isinstance(next_obs, dict) else None
+        self._call({"op": "observe", "reward": float(reward), "result": result, "next_obs": self._strip(next_obs),
+                    "tools": self._tools(nt) if nt is not None else None, "done": bool(done)})
+
+    def close(self):
+        if self._p.poll() is None:
+            try:
+                self._p.stdin.write(json.dumps({"op": "close"}) + "\n")
+                self._p.stdin.flush()
+                self._p.wait(timeout=30)
+            except Exception:  # noqa: BLE001
+                self._p.kill()
+        self._err.close()
+
+    def __del__(self):
+        try:
+            if self._p.poll() is None:
+                self._p.kill()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _no_world(*_a, **_k):
+    raise RuntimeError("a reference cannot build, replay or load a world: it runs in its own process with "
+                       "observations only (crucible.domains.base.IsolatedPolicy)")
+
+
+def _forbid_worlds() -> None:
+    """In the reference's process no World can be made: the policy cannot rebuild the episode's world from a guessed
+    spec (domain files never build a world at import, so this also enforces that)."""
+    from ..core import kernel as K
+    K.World.__init__ = _no_world
+    K.World.create = classmethod(lambda cls, *a, **k: _no_world())
+    K.World.replay = classmethod(lambda cls, *a, **k: _no_world())
+    for name in ("load", "fork", "from_blob", "regenerate"):
+        if hasattr(K.World, name):
+            setattr(K.World, name, classmethod(lambda cls, *a, **k: _no_world()))
+
+
+def _serve_policy() -> None:
+    """Child side of `IsolatedPolicy` (JSON lines on stdin/stdout; policy prints go to stderr)."""
+    import importlib
+    import traceback
+    out = os.fdopen(os.dup(1), "w", buffering=1)
+    sys.stdout = sys.stderr
+    _forbid_worlds()
+    pol, tools = None, None
+    for line in sys.stdin:
+        msg = json.loads(line)
+        op = msg.get("op")
+        try:
+            if op == "init":
+                for p in reversed(msg.get("path") or []):
+                    if p not in sys.path:
+                        sys.path.insert(0, p)
+                fn = importlib.import_module(msg["module"])
+                for part in msg["qualname"].split("."):
+                    fn = getattr(fn, part)
+                pol = _call_policy_factory(fn, msg["principal"], dict(msg.get("objective") or {}))
+                resp = {"ok": True, "kind": getattr(pol, "kind", "unknown"), "name": getattr(pol, "name", None),
+                        "burst": int(getattr(pol, "burst", 1) or 1), "pid": os.getpid(),
+                        "classes": [f"{c.__module__}.{c.__qualname__}" for c in type(pol).__mro__ if c is not object]}
+            elif op == "act":
+                if msg.get("tools") is not None:
+                    tools = msg["tools"]
+                obs = dict(msg.get("obs") or {}, tools=tools)
+                resp = {"ok": True, "action": pol.act(obs, tools)}
+            elif op == "observe":
+                if msg.get("tools") is not None:
+                    tools = msg["tools"]
+                nobs = dict(msg.get("next_obs") or {}, tools=tools)
+                if hasattr(pol, "observe"):
+                    pol.observe(msg.get("reward", 0.0), msg.get("result"), nobs, msg.get("done", False))
+                resp = {"ok": True}
+            elif op == "close":
+                out.write(json.dumps({"ok": True}) + "\n")
+                break
+            else:
+                resp = {"ok": False, "error": f"unknown op {op!r}"}
+        except Exception as e:  # noqa: BLE001 - reported to the parent, which raises
+            resp = {"ok": False, "error": f"{type(e).__name__}: {e}", "trace": traceback.format_exc()[-3000:]}
+        out.write(json.dumps(resp, default=_json_default) + "\n")
+
+
 # ============================================================================================ driving
+class ExposureTrace:
+    """Collects, from everything a participant receives (observations, minus the tool list, and tool results), the
+    ordered tool names each text mentions and every canary identifier found. A text that mentions at least half of
+    the seat's tools is a catalogue (a help listing), not a recipe: it is scanned for canaries only."""
+
+    def __init__(self, tool_names: Iterable[str], canaries: Iterable[str] = (), max_sequences: int = 4000):
+        names = sorted({str(n) for n in tool_names if n}, key=lambda s: (-len(s), s))
+        self.n_tools = len(names)
+        self._re = re.compile("|".join(re.escape(n) for n in names)) if names else None
+        self.canaries = [c for c in canaries if c]
+        self.sequences: set[tuple] = set()
+        self.canary_hits: set[str] = set()
+        self.texts = 0
+        self.max_sequences = int(max_sequences)
+
+    def feed(self, x, where: str = "") -> None:
+        s = x if isinstance(x, str) else json.dumps(x, default=_json_default, sort_keys=True)
+        self.texts += 1
+        for c in self.canaries:
+            if c in s:
+                self.canary_hits.add(f"canary {c!r} in {where or 'text'}")
+        if self._re is None:
+            return
+        seq = [m.group(0) for m in self._re.finditer(s)]
+        if len(set(seq)) >= 3 and len(set(seq)) < max(10, self.n_tools // 2) and \
+                len(self.sequences) < self.max_sequences:
+            self.sequences.add(tuple(seq[:400]))
+
+    def summary(self) -> dict:
+        return {"texts": self.texts, "sequences": [list(s) for s in sorted(self.sequences)],
+                "canary_hits": sorted(self.canary_hits)}
+
+
 def drive(env, policies: dict[str, Any], *, days: float, dt: int = HOUR, max_burst: int | None = None,
-          trace: bool = True) -> dict:
+          trace: bool = True, exposure: dict | None = None) -> dict:
     """Run policies (``act(obs, tools) -> action | None``, ``observe(reward, result, next_obs, done)``) for
     `days` simulated days through an `ExperienceEnv`. At each decision point every policy acts on its own
     observation, up to its `burst` actions (each followed by the next observation), then time passes `dt` seconds.
-    Policies see only observations and their own results. Returns per-agent counts and (when `trace`) each agent's
-    tool sequence."""
+    Policies see only observations and their own results. Every reward the environment hands out is read (after
+    each action and each time step): `nonzero_rewards` counts the nonzero ones. `exposure` ({agent:
+    ExposureTrace}) receives every observation and result of those agents. Returns per-agent counts and (when
+    `trace`) each agent's tool sequence."""
     agents = [a for a in env.agents() if a in policies]
     steps = int(round(days * DAY / int(dt)))
-    out = {a: {"actions": 0, "ok": 0, "rejected": 0, "tools": [] if trace else None, "errors": Counter()}
-           for a in agents}
+    out = {a: {"actions": 0, "ok": 0, "rejected": 0, "tools": [] if trace else None, "errors": Counter(),
+               "nonzero_rewards": 0} for a in agents}
+    exposure = exposure or {}
     t0 = time.perf_counter()
+
+    def seen(a, kind, x):
+        tr = exposure.get(a)
+        if tr is not None:
+            tr.feed({k: v for k, v in x.items() if k != "tools"} if isinstance(x, dict) and kind == "obs" else x,
+                    kind)
     for _ in range(steps):
         for a in agents:
             pol = policies[a]
             n = int(max_burst if max_burst is not None else getattr(pol, "burst", 1))
             obs = env.observe(a)
+            seen(a, "obs", obs)
             for _k in range(max(1, n)):
                 action = pol.act(obs, obs["tools"])
                 if action is None:
                     break
                 res = env.execute(a, action)
+                seen(a, "result", res)
+                r = float(env.reward(a))
                 o = out[a]
+                o["nonzero_rewards"] += int(r != 0.0)
                 o["actions"] += 1
                 o["ok" if res.get("ok") else "rejected"] += 1
                 if not res.get("ok"):
@@ -665,9 +1351,12 @@ def drive(env, policies: dict[str, Any], *, days: float, dt: int = HOUR, max_bur
                 if trace:
                     o["tools"].append(str(action.get("tool")))
                 obs = env.observe(a)
+                seen(a, "obs", obs)
                 if hasattr(pol, "observe"):
-                    pol.observe(0.0, res, obs, False)
+                    pol.observe(r, res, obs, False)
         env.advance(int(dt))
+        for a in agents:
+            out[a]["nonzero_rewards"] += int(float(env.reward(a)) != 0.0)
     for a in agents:
         out[a]["errors"] = dict(out[a]["errors"])
     return {"agents": out, "steps": steps, "wall_s": round(time.perf_counter() - t0, 3)}
@@ -686,48 +1375,109 @@ def make_env(domain: str, config: str, seed: int = 0, *, reward_mode: str | None
     return make(2, f"{domain}:{config}", int(seed), reward_mode, **kw)
 
 
+def _env_objective(env, d: Domain, agent: str, difficulty: int) -> dict:
+    o = getattr(env, "_objectives", {}).get(agent)
+    obj = getattr(o, "objective", None)
+    return dict(obj) if isinstance(obj, dict) else d.make_objective(env.world, agent, difficulty)
+
+
+def freeze_processes(world: World, procs: Iterable[str]) -> list[str]:
+    """Intervention arm: the named scheduled processes do nothing when they run (their autonomous decisions are
+    switched off). Evaluator-side only; returns the processes frozen."""
+    done = []
+    for p in sorted(set(procs)):
+        if p in world.processes:
+            world.processes[p] = _frozen
+            done.append(p)
+    return done
+
+
+def _frozen(ctx, **_args):
+    return None
+
+
 def run(domain: str, config: str, seed: int = 0, *, policy: str = "reference", days: float | None = None,
-        difficulty: int | None = None, keep_env: bool = False, overrides: dict | None = None) -> dict:
+        difficulty: int | None = None, keep_env: bool = False, overrides: dict | None = None,
+        isolate: bool | None = None, freeze: Iterable[str] = (), queries: bool = False) -> dict:
     """One evaluated run through the learner interface: the first seat is driven by the domain's reference
-    (`policy="reference"`), its null baseline (``"null"``), a degenerate probe (its name) or a generic probe
-    (``"random_tools"``); other seats idle. Returns the evaluator's outcome (evaluator side), the actions, the
-    measured mechanics and autonomous activity after genesis, and the run's labels. `overrides` (as for `spec`)
-    build an intervention arm, e.g. ``{"module_config": {"sci": {"replicators": {"n": 0}}}}``."""
+    (`policy="reference"`, in a separate process unless `isolate=False`), its null baseline (``"null"``), a
+    degenerate probe (its name) or a generic probe (``"random_tools"``); other seats idle. Returns the evaluator's
+    outcome (evaluator side), the actions, the measured mechanics and autonomous activity after genesis, the
+    rewards handed out, what the seat received (`exposure`: tool-name sequences and canaries, plus - with
+    `queries` - the results of every argument-free read-only tool at the end), and the run's labels. `overrides`
+    (as for `spec`) build an intervention arm, e.g. ``{"module_config": {"sci": {"replicators": {"n": 0}}}}``;
+    `freeze` names scheduled processes that do nothing (the autonomy ablation of `evaluator_report`)."""
     d = REGISTRY[domain]
     days = float(d.horizon_days if days is None else days)
     difficulty = int(d.reference_difficulty if difficulty is None else difficulty)
+    isolate = (policy == "reference") if isolate is None else bool(isolate)
     env = make_env(domain, config, seed, difficulty=difficulty, overrides=overrides)
-    w = env.world
-    since = int(w.seq)
-    seats = env.agents()
-    me = seats[0]
-    obj = d.objective(w, me, difficulty)
-    if policy == "reference":
-        pol = d.reference_policy(me, obj)
-    elif policy == "null":
-        pol = d.null_policy(me, obj)
-    else:
-        probes = {p.name: p for p in tuple(d.degenerate) + GENERIC_PROBES}
-        if policy not in probes:
-            raise KeyError(f"domain {domain}: no policy {policy!r}")
-        pol = _call_policy_factory(probes[policy].policy, me, obj)
-    pols = {me: pol, **{s: Idle() for s in seats[1:]}}
-    dr = drive(env, pols, days=days, dt=d.dt)
-    ver = env.verify()
-    ev = (ver.get("evaluation") or {}).get(me) or {}
-    out = {"domain": domain, "config": config, "seed": int(seed), "policy": policy, "days": days,
-           "difficulty": difficulty, "objective": obj, "outcome": ev, "success": bool(ev.get("success")),
-           "score": ev.get("score"), "drive": dr, "seats": seats, "events": int(w.seq), "since_seq": since,
-           "invariant_violations": len(ver.get("invariant_violations") or []),
-           "proc_failed": count_events(w, ("proc.failed",), since),
-           "mechanics": mechanics_exercised(w, d, since), "actors": actors_active(w, d, since),
-           "population": population_decisions(w, since), "reward_mode": env.reward_mode,
-           "overrides": copy.deepcopy(overrides) if overrides else None,
-           "labels": {"scripted": policy == "reference", "policy_kind": getattr(pol, "kind", "unknown")}}
+    pol = None
+    try:
+        w = env.world
+        frozen = freeze_processes(w, freeze) if freeze else []
+        since = int(w.seq)
+        seats = env.agents()
+        me = seats[0]
+        obj = _env_objective(env, d, me, difficulty)
+        if policy == "reference":
+            factory = d.reference
+        elif policy == "null":
+            factory = d.null_baseline or (lambda p, o: Idle())
+        else:
+            probes = {p.name: p for p in tuple(d.degenerate) + GENERIC_PROBES}
+            if policy not in probes:
+                raise KeyError(f"domain {domain}: no policy {policy!r}")
+            factory = probes[policy].policy
+        pol = IsolatedPolicy(factory, me, obj) if isolate else _call_policy_factory(factory, me, public_objective(obj))
+        tools0 = env.tools(me)
+        canaries = reference_canaries(d)
+        tr = ExposureTrace([t.get("name") for t in tools0], canaries)
+        pols = {me: pol, **{s: Idle() for s in seats[1:]}}
+        dr = drive(env, pols, days=days, dt=d.dt, exposure={me: tr})
+        ver = env.verify()
+        ev = (ver.get("evaluation") or {}).get(me) or {}
+        q = query_results(env, me) if queries else None
+        if q:
+            for name, res in q.items():
+                tr.feed(res, f"query {name}")
+        out = {"domain": domain, "config": config, "seed": int(seed), "policy": policy, "days": days,
+               "difficulty": difficulty, "objective": obj, "outcome": ev, "success": bool(ev.get("success")),
+               "score": ev.get("score"), "drive": dr, "seats": seats, "events": int(w.seq), "since_seq": since,
+               "invariant_violations": len(ver.get("invariant_violations") or []),
+               "proc_failed": count_events(w, ("proc.failed",), since),
+               "mechanics": mechanics_exercised(w, d, since), "actors": actors_active(w, d, since),
+               "population": population_decisions(w, since), "reward_mode": env.reward_mode,
+               "nonzero_rewards": int(dr["agents"][me]["nonzero_rewards"]),
+               "exposure": tr.summary(), "queried_tools": sorted(q) if q else [],
+               "engaged_modules": engaged_modules(w, since), "frozen": frozen, "isolated": bool(isolate),
+               "event_kinds": sorted(k for k in event_counts(w, since) if k not in BOOKKEEPING),
+               "overrides": copy.deepcopy(overrides) if overrides else None,
+               "labels": {"scripted": policy == "reference", "policy_kind": getattr(pol, "kind", "unknown"),
+                          "isolated_process": bool(isolate)}}
+    finally:
+        if pol is not None and hasattr(pol, "close"):
+            pol.close()
+        if not keep_env:
+            env.close()
     if keep_env:
         out["env"] = env
-    else:
-        env.close()
+    return out
+
+
+def query_results(env, agent: str) -> dict:
+    """The results of every argument-free read-only tool of `agent` (`World.query`: never recorded)."""
+    out = {}
+    w = env.world
+    for t in env.tools(agent):
+        ann = t.get("annotations") or {}
+        req = (t.get("inputSchema") or {}).get("required") or []
+        if not ann.get("readOnlyHint") or req:
+            continue
+        try:
+            out[t["name"]] = w.query(agent, t["name"], {})
+        except Exception as e:  # noqa: BLE001 - a refused query is reported, not fatal
+            out[t["name"]] = {"error": f"{type(e).__name__}"}
     return out
 
 
@@ -745,27 +1495,34 @@ def independent_revenue(world: World, principal: str, window_s: int) -> float:
                      for o in seat_orgs(world, principal)))
 
 
+def events_where(world: World, since_seq: int, types: Iterable[str], pred: Callable | None = None) -> list[int]:
+    """Sequence numbers of recorded events after `since_seq` matching `types` (patterns as for `Mechanic`) and
+    `pred(event)` - the building block of evidence functions."""
+    pats = [parse_pattern(p) for p in types]
+    out = []
+    for e in world.events_range(int(since_seq), world.seq):
+        k = e.payload.get("kind") if e.type == "cols.batch" else None
+        if any(_pat_match(p, e.type, k, e.payload) for p in pats) and (pred is None or pred(e)):
+            out.append(int(e.seq))
+    return out
+
+
 # ============================================================================================ measurements
-def _match(pattern: str, etype: str, ekind: str | None) -> bool:
-    if pattern.startswith("cols.batch:"):
-        if etype != "cols.batch" or ekind is None:
-            return False
-        k = pattern[len("cols.batch:"):]
-        return ekind.startswith(k[:-1]) if k.endswith("*") else ekind == k
-    if pattern.endswith(".*"):
-        return etype.startswith(pattern[:-1])
-    return etype == pattern
-
-
 def count_events(world: World, patterns: Iterable[str], since_seq: int = 0) -> int:
+    """Events after `since_seq` matching the patterns (bookkeeping types are matched literally here: this is a
+    plain counter, e.g. of ``proc.failed``)."""
     pats = tuple(patterns)
     if not pats:
         return 0
     n = 0
     for e in world.events_range(int(since_seq), world.seq):
         k = e.payload.get("kind") if e.type == "cols.batch" else None
-        if any(_match(p, e.type, k) for p in pats):
-            n += 1
+        for p in pats:
+            if p == e.type or (p.endswith(".*") and e.type.startswith(p[:-1])) or \
+                    (p.startswith("cols.batch:") and e.type == "cols.batch" and k is not None and
+                     (k.startswith(p[11:-1]) if p.endswith("*") else k == p[11:])):
+                n += 1
+                break
     return n
 
 
@@ -779,41 +1536,123 @@ def event_counts(world: World, since_seq: int = 0) -> Counter:
     return c
 
 
-def _probe_count(world: World, probe, since_seq: int, counts: Counter) -> int:
-    n = 0
-    for p in probe.events:
-        if p.startswith("cols.batch:"):
-            if p.endswith("*"):
-                n += sum(v for k, v in counts.items() if k.startswith(p[:-1]))
-            else:
-                n += int(counts.get(p, 0))
-        elif p.endswith(".*"):
-            n += sum(v for k, v in counts.items() if k.startswith(p[:-1]) and not k.startswith("cols.batch:"))
-        else:
-            n += int(counts.get(p, 0))
-    if probe.count is not None:
-        n += int(probe.count(world, int(since_seq)))
-    return n
+def _excluded_principals(world: World, d: Domain) -> set[str]:
+    out = set(d.seat_principals())
+    for s in list(out):
+        try:
+            out |= set(world.principals_of(s))
+        except Exception:  # noqa: BLE001
+            pass
+    try:
+        p = d.principal_of(world)
+        if p:
+            out.add(p)
+            out |= set(world.principals_of(p))
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+def _attributed(e, principals: Mapping, excluded: set[str]) -> bool:
+    if e.type == "cols.batch":
+        return bool((e.payload.get("extra") or {}).get("decision"))
+    a = e.actor
+    return isinstance(a, str) and a != SYSTEM and a in principals and a not in excluded
+
+
+def _evidence(world: World, d: Domain, probes: dict, since_seq: int, *, attributed: bool) -> dict:
+    """Evidence of each probe after `since_seq`: matching events plus the event sequence numbers its evidence
+    function returns, each checked against the recorded log (after `since_seq`, not bookkeeping and, for actors,
+    a decision of a participant other than the seats). Returns sets and the problems found."""
+    since = int(since_seq)
+    from_fn: dict[str, set[int]] = {}
+    unverified, errors = {}, {}
+    for name, pr in probes.items():
+        fn = getattr(pr, "count", None) if pr is not None else None
+        if fn is None:
+            continue
+        try:
+            got = fn(world, since)
+        except Exception as e:  # noqa: BLE001 - a crashing evidence function gives no evidence (reported)
+            errors[name] = f"{type(e).__name__}: {e}"[:200]
+            continue
+        if got is None or isinstance(got, (bool, int, float)) or type(got).__name__ in ("int64", "int32", "float64"):
+            unverified[name] = got if isinstance(got, (bool, int, float, type(None))) else float(got)
+            continue
+        try:
+            from_fn[name] = {int(x) for x in got}
+        except (TypeError, ValueError):
+            unverified[name] = str(type(got).__name__)
+    pats = {n: _effective_patterns(pr) for n, pr in probes.items() if pr is not None}
+    sets: dict[str, set[int]] = {n: set() for n in probes}
+    procs: dict[str, set[str]] = {n: set() for n in probes}
+    principals = world.state.tables.get("principals", {})
+    excluded = _excluded_principals(world, d) if attributed else set()
+    accepted = {n: 0 for n in from_fn}
+    cur = None
+    for e in world.events_range(since, world.seq):
+        if e.type == "proc":
+            cur = e.payload.get("proc")
+            continue
+        if e.type in ("cmd", "time"):
+            cur = None
+        if e.type in BOOKKEEPING:
+            continue
+        if attributed and not _attributed(e, principals, excluded):
+            continue
+        k = e.payload.get("kind") if e.type == "cols.batch" else None
+        for n, pl in pats.items():
+            if pl and any(_pat_match(p, e.type, k, e.payload) for p in pl):
+                sets[n].add(int(e.seq))
+                if cur:
+                    procs[n].add(cur)
+        for n, s in from_fn.items():
+            if e.seq in s:
+                sets[n].add(int(e.seq))
+                accepted[n] += 1
+                if cur:
+                    procs[n].add(cur)
+    rejected = {n: len(s) - accepted[n] for n, s in from_fn.items() if len(s) != accepted[n]}
+    return {"sets": sets, "unverified": unverified, "errors": errors, "rejected": rejected,
+            "procs": {n: sorted(v) for n, v in procs.items()}}
 
 
 def mechanics_exercised(world: World, d: Domain, since_seq: int = 0) -> dict:
-    """For every required mechanic: the recorded events (after `since_seq`) its probe counts. Self-reported
-    mechanics (a callable) count as not exercised."""
+    """For every required mechanic: the recorded events (after `since_seq`) that evidence it (see `Mechanic`).
+    Self-reported mechanics (a callable `mechanics`, or an evidence function returning a number) count nothing; a
+    mechanic whose evidence is exactly another one's is `indistinct` and counts nothing (one mechanism, not two)."""
     probes = d.mechanic_probes()
-    counts = event_counts(world, since_seq)
-    rows = {}
+    if probes is None:
+        rows = {m: 0 for m in d.required_mechanics}
+        return {"listed": len(rows), "exercised": 0, "missing": sorted(rows), "counts": rows, "self_reported": True,
+                "unverified": {}, "rejected": {}, "indistinct": {}, "errors": {}}
+    req = {m: probes.get(m) for m in d.required_mechanics}
+    ev = _evidence(world, d, {m: p for m, p in req.items() if p is not None}, since_seq, attributed=False)
+    rows, indistinct, first = {}, {}, {}
     for m in d.required_mechanics:
-        pr = (probes or {}).get(m)
-        rows[m] = int(_probe_count(world, pr, since_seq, counts)) if pr is not None else 0
+        s = ev["sets"].get(m) or set()
+        key = hashlib.blake2b(json.dumps(sorted(s)).encode(), digest_size=12).hexdigest() if s else None
+        if key and key in first:
+            indistinct[m] = first[key]
+            rows[m] = 0
+            continue
+        if key:
+            first[key] = m
+        rows[m] = len(s)
     ex = sorted(m for m, n in rows.items() if n > 0)
     return {"listed": len(d.required_mechanics), "exercised": len(ex), "missing": sorted(set(rows) - set(ex)),
-            "counts": rows, "self_reported": probes is None}
+            "counts": rows, "self_reported": False, "unverified": ev["unverified"], "rejected": ev["rejected"],
+            "indistinct": indistinct, "errors": ev["errors"]}
 
 
 def actors_active(world: World, d: Domain, since_seq: int = 0) -> dict:
-    counts = event_counts(world, since_seq)
-    rows = {a.name: int(_probe_count(world, a, since_seq, counts)) for a in d.actors}
-    return {"declared": len(rows), "active": sum(1 for n in rows.values() if n > 0), "counts": rows}
+    """For every declared actor: its attributed decision events after `since_seq` (see `Actor`), and the scheduled
+    processes that made them (`processes`, used by the autonomy ablation)."""
+    ev = _evidence(world, d, {a.name: a for a in d.actors}, since_seq, attributed=True)
+    rows = {a.name: len(ev["sets"].get(a.name) or ()) for a in d.actors}
+    procs = sorted({p for a in d.actors for p in ev["procs"].get(a.name, [])})
+    return {"declared": len(rows), "active": sum(1 for n in rows.values() if n > 0), "counts": rows,
+            "unverified": ev["unverified"], "rejected": ev["rejected"], "errors": ev["errors"], "processes": procs}
 
 
 POP_INTERNAL = ("pop.", "attention.")
@@ -821,10 +1660,17 @@ POP_INTERNAL = ("pop.", "attention.")
 
 def population_decisions(world: World, since_seq: int = 0) -> dict:
     """Recorded decisions of the one population after `since_seq` (column batches with decision provenance,
-    D-15): all of them, and those of activities other than the population's own bookkeeping."""
+    D-15): all of them, and those of activities other than the population's own bookkeeping; `processes` are the
+    scheduled processes that made them."""
     total, domain_kinds = 0, Counter()
-    models = set()
+    models, procs = set(), set()
+    cur = None
     for e in world.events_range(int(since_seq), world.seq):
+        if e.type == "proc":
+            cur = e.payload.get("proc")
+            continue
+        if e.type in ("cmd", "time"):
+            cur = None
         if e.type != "cols.batch":
             continue
         dec = (e.payload.get("extra") or {}).get("decision")
@@ -833,10 +1679,12 @@ def population_decisions(world: World, since_seq: int = 0) -> dict:
             continue
         total += 1
         models.add(str(dec.get("model_id")))
+        if cur:
+            procs.add(cur)
         if not kind.startswith(POP_INTERNAL):
             domain_kinds[kind] += 1
     return {"decisions": total, "activity_decisions": int(sum(domain_kinds.values())),
-            "activity_kinds": dict(domain_kinds), "models": sorted(models)}
+            "activity_kinds": dict(domain_kinds), "models": sorted(models), "processes": sorted(procs)}
 
 
 # ---------------------------------------------------------------------------------------------- structure
@@ -848,7 +1696,7 @@ def discrete(x: Any) -> Any:
         return x
     if isinstance(x, (int, float)):
         return "zero" if x == 0 else "nonzero"
-    if isinstance(x, dict):
+    if isinstance(x, (dict, Mapping)):
         return {str(k): discrete(v) for k, v in sorted(x.items(), key=lambda kv: str(kv[0]))}
     if isinstance(x, (list, tuple, set, frozenset)):
         xs = list(x)
@@ -905,11 +1753,14 @@ def participant_types(world: World) -> list[str]:
     return sorted(out)
 
 
-def fingerprint(world: World, d: Domain | None = None) -> dict:
-    """The discrete structure of a BUILT world: module set, participant types, the civilisation structure
-    (`crucible.civ.integration.fingerprint`: couplings, supply-chain and freight shapes, regimes) when civilisation
-    modules are present, and the domain's own measured `structure(world)`; every value in discrete form."""
-    fp: dict = {"modules": sorted(world.modules), "participant_types": participant_types(world)}
+def fingerprint(world: World, d: Domain | None = None, activity: Iterable[str] = ()) -> dict:
+    """The discrete structure of a BUILT world: the modules whose mechanisms are present (`engaged_modules` at
+    genesis plus `activity`, the modules a run of the configuration engaged - never the declared module list),
+    participant types, the civilisation structure (`crucible.civ.integration.fingerprint`: couplings, supply-chain
+    and freight shapes, regimes) when civilisation modules are present, and the domain's own
+    `structure(BuiltWorld)`; every value in discrete form."""
+    mods = sorted(set(engaged_modules(world)) | {m for m in activity if m in world.modules})
+    fp: dict = {"modules": mods, "participant_types": participant_types(world)}
     if any(m in world.modules for m in ("civgen", "civlinks", "industrygen")):
         from ..civ import integration as I
         c = I.fingerprint(world)
@@ -918,7 +1769,7 @@ def fingerprint(world: World, d: Domain | None = None) -> dict:
         c["freight"] = _freight_shape(world)
         fp["civ"] = c
     if d is not None and d.structure is not None:
-        fp["domain"] = d.structure(world)
+        fp["domain"] = d.structure(BuiltWorld(world))
     return discrete(fp)
 
 
@@ -1021,8 +1872,14 @@ def open_ended(tools: list[dict]) -> dict:
 
 # ---------------------------------------------------------------------------------------------- isolation (N.n1)
 FORBIDDEN_ATTRS = frozenset({"state", "spec", "world", "_w", "modules", "tables", "system_call", "rng_for",
-                             "events_range", "runtime", "hooks", "endpoints", "evaluate", "evaluator"})
-FORBIDDEN_NAMES = frozenset({"World", "WorldSpec", "REGISTRY"})
+                             "events_range", "runtime", "hooks", "endpoints", "evaluate", "evaluator", "REGISTRY",
+                             "_CACHE", "_REPORTS", "__dict__", "__globals__", "__closure__", "f_back", "f_locals",
+                             "f_globals", "gi_frame", "tb_frame", "get_objects", "get_referrers", "get_referents",
+                             "_getframe", "processes", "appliers", "make_env", "judge"})
+FORBIDDEN_NAMES = frozenset({"World", "WorldSpec", "REGISTRY", "globals", "vars", "locals", "eval", "exec",
+                             "compile", "__import__", "breakpoint", "__builtins__"})
+FORBIDDEN_IMPORTS = ("gc", "inspect", "importlib", "builtins", "ctypes", "sys", "crucible.core", "crucible.domains",
+                     "crucible.experience", "crucible.api", "crucible.civ", "..core", "..experience")
 _FRAMEWORK_POLICIES: tuple = ()
 
 
@@ -1035,61 +1892,122 @@ def _classes_of(obj) -> list[type]:
     return out
 
 
+def _ast_hits(t, name: str, src: str) -> list[str]:
+    hits = []
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and node.attr in FORBIDDEN_ATTRS:
+            hits.append(f"{name}:{node.lineno}: .{node.attr}")
+        elif isinstance(node, ast.Name) and node.id in FORBIDDEN_NAMES:
+            hits.append(f"{name}:{node.lineno}: {node.id}")
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and \
+                node.func.id in ("getattr", "setattr", "delattr", "hasattr") and len(node.args) >= 2 and \
+                not (isinstance(node.args[1], ast.Constant) and isinstance(node.args[1].value, str) and
+                     node.args[1].value not in FORBIDDEN_ATTRS):
+            hits.append(f"{name}:{node.lineno}: {node.func.id} with a computed or forbidden attribute name")
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            mod = (("." * getattr(node, "level", 0)) + (getattr(node, "module", None) or "")) \
+                if isinstance(node, ast.ImportFrom) else ""
+            names = [a.name for a in node.names]
+            full = [mod] if mod else names
+            if any(m == f or m.startswith(f + ".") or ("kernel" in m) for m in full + names
+                   for f in FORBIDDEN_IMPORTS) or "kernel" in mod or "core.state" in mod:
+                hits.append(f"{name}:{node.lineno}: imports {', '.join(full)}")
+    return hits
+
+
+def _helpers(t) -> list:
+    """Module-level functions and classes of the same module that `t`'s code refers to by name."""
+    try:
+        src = textwrap.dedent(inspect.getsource(t))
+    except (OSError, TypeError):
+        return []
+    g = getattr(sys.modules.get(getattr(t, "__module__", ""), None), "__dict__", {})
+    out = []
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, ast.Name):
+            obj = g.get(node.id)
+            if obj is not None and obj is not t and (inspect.isfunction(obj) or inspect.isclass(obj)) and \
+                    getattr(obj, "__module__", None) == t.__module__ and obj not in _FRAMEWORK_POLICIES:
+                out.append(obj)
+    return out
+
+
 def reads_world(obj_or_fn) -> list[str]:
     """Static check that a policy (its classes) or a factory reads nothing but observations: attribute accesses of
-    world internals (`FORBIDDEN_ATTRS`), kernel names (`FORBIDDEN_NAMES`) and kernel imports, by AST. A target
-    whose source cannot be read is reported (it cannot be checked)."""
+    world internals and introspection (`FORBIDDEN_ATTRS`), kernel and introspection names (`FORBIDDEN_NAMES`),
+    getattr/setattr with computed names, and imports of the kernel, the framework or introspection modules, by AST -
+    in the policy's classes AND every module-level helper function or class of the same module they refer to
+    (transitively). A target whose source cannot be read is reported. The dynamic guarantee is `IsolatedPolicy`."""
     if obj_or_fn is None:
         return []
-    targets = [obj_or_fn] if inspect.isfunction(obj_or_fn) or inspect.isclass(obj_or_fn) else _classes_of(obj_or_fn)
-    hits = []
-    for t in targets:
+    todo = [obj_or_fn] if inspect.isfunction(obj_or_fn) or inspect.isclass(obj_or_fn) else _classes_of(obj_or_fn)
+    seen, hits = set(), []
+    while todo:
+        t = todo.pop(0)
+        if id(t) in seen:
+            continue
+        seen.add(id(t))
         name = getattr(t, "__qualname__", str(t))
         try:
             src = textwrap.dedent(inspect.getsource(t))
-            tree = ast.parse(src)
+            hits += _ast_hits(t, name, src)
         except (OSError, TypeError, SyntaxError):
             if getattr(t, "__module__", "") == "builtins":
                 continue
             hits.append(f"{name}: source unavailable (cannot be checked)")
             continue
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Attribute) and node.attr in FORBIDDEN_ATTRS:
-                hits.append(f"{name}:{node.lineno}: .{node.attr}")
-            elif isinstance(node, ast.Name) and node.id in FORBIDDEN_NAMES:
-                hits.append(f"{name}:{node.lineno}: {node.id}")
-            elif isinstance(node, (ast.Import, ast.ImportFrom)):
-                mod = getattr(node, "module", None) or ""
-                names = [a.name for a in node.names]
-                if "kernel" in mod or "core.state" in mod or any("kernel" in n for n in names):
-                    hits.append(f"{name}:{node.lineno}: imports the kernel")
+        todo += [h for h in _helpers(t) if id(h) not in seen]
     return hits
 
 
-def reference_canaries(d: Domain, policy) -> list[str]:
-    """Distinctive identifiers of a domain's reference: its policy classes, their module, the factory."""
+def reference_canaries(d: Domain, policy=None) -> list[str]:
+    """Distinctive identifiers of a domain's reference: its factory and (when given) its policy classes and their
+    module paths. Plain words ("Reference") are skipped."""
     out = set()
-    for c in _classes_of(policy):
-        if len(c.__name__) >= 8 and sum(ch.isupper() for ch in c.__name__) >= 2:   # not a plain word ("Reference")
+    fac = d.reference
+    targets = []
+    if policy is not None:
+        targets += _classes_of(policy)
+    if inspect.isclass(fac):
+        targets += [c for c in fac.__mro__ if c is not object and c not in _FRAMEWORK_POLICIES]
+    for c in targets:
+        if len(c.__name__) >= 8 and sum(ch.isupper() for ch in c.__name__) >= 2:
             out.add(c.__name__)
         out.add(f"{c.__module__}.{c.__qualname__}")
-    q = getattr(d.reference, "__qualname__", "")
+    q = getattr(fac, "__qualname__", "")
     if q and "<" not in q:
         if len(q) >= 8 and (sum(ch.isupper() for ch in q) >= 2 or "_" in q.strip("_")):
             out.add(q)
-        out.add(f"{d.reference.__module__}.{q}")
+        out.add(f"{fac.__module__}.{q}")
     return sorted(out)
+
+
+def _first_distinct(trajectory: Iterable[str], n: int = 6) -> list[str]:
+    seq: list[str] = []
+    for t in trajectory:
+        if t not in seq:
+            seq.append(t)
+    return seq[:n]
+
+
+def _ordered_prefix(found_in: list[str], seq: list[str]) -> int:
+    """How many tools of `seq` (from its start) appear in order in the sequence `found_in`."""
+    pos, k = 0, 0
+    for tool in seq:
+        try:
+            pos = found_in.index(tool, pos) + 1
+        except ValueError:
+            break
+        k += 1
+    return k
 
 
 def exposure(texts: Iterable[str], canaries: Iterable[str], trajectory: list[str]) -> dict:
     """Reference exposure in participant-visible text: canary identifiers, or the reference's own ordered tool
     sequence (its first >= 3 distinct tools, in order) spelled out in one text."""
     can = [c for c in canaries if c]
-    seq: list[str] = []
-    for t in trajectory:
-        if t not in seq:
-            seq.append(t)
-    seq = seq[:6]
+    seq = _first_distinct(trajectory)
     hits = []
     for tx in texts:
         s = str(tx)
@@ -1109,10 +2027,23 @@ def exposure(texts: Iterable[str], canaries: Iterable[str], trajectory: list[str
     return {"hits": hits, "exposed": len(hits)}
 
 
+def trajectory_in_sequences(sequences: Iterable[Iterable[str]], trajectory: list[str]) -> list[str]:
+    """Hits of the reference's ordered tool sequence (>= 3 of its first distinct tools, in order) among the tool-name
+    sequences an `ExposureTrace` extracted."""
+    seq = _first_distinct(trajectory)
+    if len(seq) < 3:
+        return []
+    out = set()
+    for s in sequences:
+        k = _ordered_prefix(list(s), seq)
+        if k >= 3:
+            out.add(f"ordered reference tool sequence {seq[:k]}")
+    return sorted(out)
+
+
 def sandbox_can_import_crucible() -> bool:
     """Whether participant code in the sandbox could import the crucible package (and so a reference): the crucible
     source tree on the sandbox's readable paths or sys.path, or crucible among its approved packages."""
-    import os
     import crucible
     from ..sandbox import runner
     root = os.path.realpath(os.path.dirname(crucible.__file__))
@@ -1123,14 +2054,57 @@ def sandbox_can_import_crucible() -> bool:
     return bool(under or "crucible" in tuple(cfg.packages))
 
 
+EVALUATOR_TOOL_NAME = re.compile(r"(^|[._])(score|scores|scoring|grade|grades|grading|evaluat\w*|verdict|reward|"
+                                 r"rewards|objective|objectives|progress|success)([._]|$)", re.I)
+EVALUATOR_TOOL_DOC = re.compile(r"\byour (current )?(objective|goal)\b|\b(objective|goal) (score|progress|status)\b|"
+                                r"\bevaluator\b|\byour (current )?(score|grade|reward)\b", re.I)
+
+
+def evaluator_like_tools(tools: list[dict]) -> list[str]:
+    """Participant tools named or described like the evaluator (a score, grade, verdict, reward, objective
+    progress). The kernel keeps evaluator-only endpoints away from participants (D-19); a domain must not add one."""
+    out = []
+    for t in tools:
+        n = str(t.get("name") or "")
+        tail = n.split(".", 1)[-1]
+        doc = str(t.get("description") or t.get("doc") or "")
+        if EVALUATOR_TOOL_NAME.search(tail) or EVALUATOR_TOOL_DOC.search(doc):
+            out.append(n)
+    return sorted(out)
+
+
+def _calls_evaluator(world: World, d: Domain, principal: str) -> list[str]:
+    """Participant endpoints whose handler is, or calls by name, the domain's evaluator."""
+    out = []
+    ev = [f for f in (d.evaluate,) if f is not None]
+    names = {getattr(f, "__name__", "") for f in ev} - {"", "<lambda>"}
+    for t in world.available_tools(principal):
+        ep = world.endpoints.get(t["name"])
+        h = getattr(ep, "handler", None)
+        f = getattr(h, "__func__", h)
+        if f is None:
+            continue
+        if any(f is e for e in ev):
+            out.append(t["name"])
+            continue
+        code = getattr(f, "__code__", None)
+        if code is not None and names & set(code.co_names) and \
+                any(getattr(e, "__module__", None) == getattr(f, "__module__", None) for e in ev):
+            out.append(t["name"])
+    return sorted(out)
+
+
 # ---------------------------------------------------------------------------------------------- dice (SP-9.16)
-DICE_WORDS = re.compile(r"fail|success|succeed|error|break|crash|reject|accept|win|lose|luck|chance|outage|bug|"
-                        r"\bok\b|\bpass(es|ed)?\b", re.I)
+DICE_WORDS = re.compile(r"fail|success|succeed|error|break|broke|crash|reject|accept|win|lose|luck|chance|outage|"
+                        r"bug|defect|fault|offline|\bdown\b|\bok\b|\bpass(es|ed)?\b", re.I)
+BODY_WORDS = re.compile(r"\braise\b|\.fail\(|fail|\bdown\b|offline|\bstatus\b|broken|crash|outage|\bok\b|error|"
+                        r"reject", re.I)
 PRAGMA = re.compile(r"#\s*fidelity:\s*([A-Za-z0-9_.:\-]+)")
+DRAWS = frozenset({"random", "uniform", "rand", "random_sample", "integers", "randint", "normal", "standard_normal",
+                   "exponential", "beta", "gamma", "weibull", "lognormal", "triangular", "randrange"})
 
 
 def _fidelity_ids() -> set[str]:
-    import os
     import crucible
     p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(crucible.__file__))), "docs", "v5",
                      "FIDELITY_REGISTER.md")
@@ -1142,18 +2116,39 @@ def _fidelity_ids() -> set[str]:
 
 
 def _is_draw(node) -> bool:
-    return isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and \
-        node.func.attr in ("random", "uniform", "rand", "random_sample")
+    return isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in DRAWS
+
+
+def _contains_draw(node) -> bool:
+    return any(_is_draw(n) for n in ast.walk(node))
+
+
+def _bool_choice(node) -> bool:
+    if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "choice"):
+        return False
+    if not any(k.arg == "p" for k in node.keywords):
+        return False
+    opts = node.args[0] if node.args else None
+    if isinstance(opts, (ast.List, ast.Tuple)) and opts.elts and all(
+            isinstance(e, ast.Constant) and (isinstance(e.value, bool) or
+                                             (isinstance(e.value, str) and DICE_WORDS.search(e.value)))
+            for e in opts.elts):
+        return True
+    return False
 
 
 def dice_scan(paths: Iterable[str]) -> dict:
-    """Arbitrary failure probabilities in source files: Bernoulli draws (``rng.random() < p``, ``rng.binomial(1,
-    p)``) whose expression or assigned name speaks of failure/success (or whose branch raises or fails) and that
-    carry no ``# fidelity: <id>`` pragma (on the line or the one above) naming a FIDELITY_REGISTER record - an
-    empirically grounded hazard. Difficulty must come from complexity, scarcity and uncertainty instead."""
+    """Arbitrary failure probabilities in source files: random draws that decide a failure or success - a draw
+    compared with a threshold (``rng.random() < p``, ``rng.integers(0, 10) < 3``, ``rng.uniform() > q``), a
+    binomial draw, a weighted choice between True/False or outcome words - whose expression, assigned name or branch
+    speaks of failure/success (or whose branch raises, fails, rejects, marks something down or returns
+    ``ok: False``), and that carry no ``# fidelity: <id>`` pragma (on the line or the one above) naming a
+    FIDELITY_REGISTER record - an empirically grounded hazard. Difficulty must come from complexity, scarcity and
+    uncertainty instead."""
     ids = None
     hits, exempt, files = [], [], 0
-    for path in paths:
+    seen_sites = set()
+    for path in dict.fromkeys(paths):
         try:
             src = open(path, encoding="utf-8").read()
             tree = ast.parse(src)
@@ -1167,30 +2162,42 @@ def dice_scan(paths: Iterable[str]) -> dict:
             for ch in ast.iter_child_nodes(p):
                 parents[ch] = p
         for node in ast.walk(tree):
-            bern = None
-            if isinstance(node, ast.Compare) and (_is_draw(node.left) or any(_is_draw(c) for c in node.comparators)):
-                bern = node
+            cand, always = None, False
+            if isinstance(node, ast.Compare) and (_contains_draw(node.left) or
+                                                  any(_contains_draw(c) for c in node.comparators)):
+                cand = node
             elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and \
-                    node.func.attr == "binomial" and node.args and isinstance(node.args[0], ast.Constant) and \
-                    node.args[0].value == 1:
-                bern = node
-            if bern is None:
+                    node.func.attr in ("binomial", "bernoulli"):
+                cand = node
+            elif _bool_choice(node):
+                cand, always = node, True
+            if cand is None:
                 continue
-            seg = ast.get_source_segment(src, bern) or ""
+            seg = ast.get_source_segment(src, cand) or ""
             ctx_txt = seg
-            par = parents.get(bern)
-            while par is not None and not isinstance(par, (ast.If, ast.IfExp, ast.Assign, ast.FunctionDef,
-                                                           ast.Return)):
+            par = parents.get(cand)
+            while par is not None and not isinstance(par, (ast.If, ast.IfExp, ast.Assign, ast.AugAssign,
+                                                           ast.AnnAssign, ast.Return, ast.FunctionDef, ast.While)):
                 par = parents.get(par)
             body_fail = False
-            if isinstance(par, ast.If):
+            if isinstance(par, (ast.If, ast.While)):
                 body = "\n".join(ast.get_source_segment(src, b) or "" for b in par.body)
-                body_fail = bool(re.search(r"\braise\b|\.fail\(|fail", body))
-            elif isinstance(par, (ast.Assign, ast.IfExp, ast.Return)):
+                body_fail = bool(BODY_WORDS.search(body))
+            elif isinstance(par, ast.FunctionDef):
+                ctx_txt += " " + par.name + " " + " ".join(a.arg for a in par.args.args)
+            elif par is not None:
                 ctx_txt += " " + (ast.get_source_segment(src, par) or "")
-            if not (DICE_WORDS.search(ctx_txt) or body_fail):
+                fn = par
+                while fn is not None and not isinstance(fn, ast.FunctionDef):
+                    fn = parents.get(fn)
+                if isinstance(par, ast.Return) and fn is not None:
+                    ctx_txt += " " + fn.name + " " + " ".join(a.arg for a in fn.args.args)
+            if not (always or DICE_WORDS.search(ctx_txt) or body_fail):
                 continue
-            ln = bern.lineno
+            ln = cand.lineno
+            if (path, ln) in seen_sites:
+                continue
+            seen_sites.add((path, ln))
             m = PRAGMA.search(" ".join(lines[max(0, ln - 2):ln]))
             if m:
                 ids = _fidelity_ids() if ids is None else ids
@@ -1202,11 +2209,15 @@ def dice_scan(paths: Iterable[str]) -> dict:
 
 
 def domain_sources(d: Domain) -> list[str]:
-    """Source files of a domain: the files defining its build, objective and evaluator, plus `sources` (relative
-    paths are taken from crucible/domains/)."""
-    import os
+    """Source files of a domain: the files defining its build, objective, goal generator and evaluator, plus
+    `sources` (relative paths are taken from crucible/domains/)."""
     out = []
-    for fn in (d.build, d.evaluate, d.objective):
+    fns = [d.build, d.evaluate, d.objective]
+    if d.goal is not None:
+        fns += [d.goal.draw, d.goal.success, d.goal.text]
+    for fn in fns:
+        if fn is None:
+            continue
         try:
             f = inspect.getsourcefile(fn)
         except TypeError:
@@ -1221,6 +2232,25 @@ def domain_sources(d: Domain) -> list[str]:
     return out
 
 
+def world_sources(world: World) -> list[str]:
+    """Source files of the kernel modules of a built world (each module class and its bases, the kernel excluded):
+    where the mechanisms of a civilisation-backed domain actually live."""
+    import crucible
+    core = os.path.join(os.path.dirname(os.path.abspath(crucible.__file__)), "core")
+    out = []
+    for m in world.modules.values():
+        for c in type(m).__mro__:
+            if c is object:
+                continue
+            try:
+                f = inspect.getsourcefile(c)
+            except TypeError:
+                continue
+            if f and not os.path.abspath(f).startswith(core + os.sep) and f not in out:
+                out.append(f)
+    return sorted(out)
+
+
 # ============================================================================================ the deep check
 _CACHE: dict[tuple, Any] = {}
 
@@ -1228,33 +2258,50 @@ _CACHE: dict[tuple, Any] = {}
 def cached_run(domain: str, config: str, seed: int, policy: str, days: float | None = None) -> dict:
     key = (domain, config, int(seed), policy, days)
     if key not in _CACHE:
-        _CACHE[key] = run(domain, config, seed, policy=policy, days=days)
+        _CACHE[key] = run(domain, config, seed, policy=policy, days=days, queries=(policy == "null"))
     return _CACHE[key]
 
 
-def structure_report(d: Domain, seeds: Iterable[int] = (0, 1, 2)) -> dict:
-    """Build every configuration on `seeds` (genesis only): fingerprints, structure digests (stable across seeds?),
-    distinct instances per configuration, distinct training structures, and the unfamiliarity of each evaluation
-    configuration (N.2, N.6, N.7, SP-9.0)."""
+def structure_report(d: Domain, seeds: Iterable[int] = (0, 1, 2), activity: dict | None = None) -> dict:
+    """Build every configuration on `seeds` (genesis only, one world id per configuration so that only the seed
+    differs): fingerprints, structure digests (stable across seeds?), distinct instances per configuration
+    (distinct genesis CONTENT, `instance_digest`) and the tables that vary, distinct training structures, the
+    unfamiliarity of each evaluation configuration, and the framework-measured core digests (no domain hook) used
+    to compare configurations across domains (N.2, N.6, N.7, SP-9.0). `activity` ({config: modules}) adds the
+    modules each configuration's null run engaged (`check` passes them). A structure hook that reaches for a
+    declaration (spec, module objects) is an error of its configuration."""
+    activity = activity or {}
     seeds = [int(s) for s in seeds]
-    fps, digs, inst, stable, errors = {}, {}, {}, {}, {}
+    fps, digs, core, inst, stable, errors, vary, sources = {}, {}, {}, {}, {}, {}, {}, set()
     for c in d.configs:
-        ds, ins = [], set()
+        ds, ins, tabs = [], set(), []
         for s in seeds:
             try:
-                w = world(d.name, c.name, s)
+                w = world(d.name, c.name, s, world_id=f"d5-{d.name}-{c.name}")
             except Exception as e:  # noqa: BLE001 - reported: a configuration that cannot be built counts as failing
                 errors[f"{c.name}@{s}"] = f"{type(e).__name__}: {e}"[:300]
                 continue
-            fp = fingerprint(w, d)
-            if c.name not in fps:
-                fps[c.name] = fp
-            ds.append(structure_digest(fp))
-            ins.add(w.digest())
-            w.close()
+            try:
+                act = activity.get(c.name, ())
+                fp = fingerprint(w, d, act)
+                if c.name not in fps:
+                    fps[c.name] = fp
+                    core[c.name] = structure_digest(fingerprint(w, None, act))
+                    sources.update(world_sources(w))
+                ds.append(structure_digest(fp))
+                ins.add(instance_digest(w))
+                tabs.append(table_digests(w))
+            except Exception as e:  # noqa: BLE001 - a hook that fails or reads declarations
+                errors[f"{c.name}@{s}"] = f"structure: {type(e).__name__}: {e}"[:300]
+            finally:
+                w.close()
         digs[c.name] = ds[0] if ds else None
         stable[c.name] = len(set(ds)) == 1 and len(ds) == len(seeds)
         inst[c.name] = len(ins)
+        vary[c.name] = sorted(t for t in (tabs[0] if tabs else {}) if len({tb.get(t) for tb in tabs}) > 1)
+    hook = reads_declarations(d.structure) if d.structure is not None else []
+    if hook:
+        errors["structure_hook"] = "; ".join(hook)[:300]
     train = [c.name for c in d.split("train") if c.name in fps]
     unf = {c.name: unfamiliarity([fps[t] for t in train], fps[c.name]) for c in d.configs
            if c.split != "train" and c.name in fps}
@@ -1264,43 +2311,119 @@ def structure_report(d: Domain, seeds: Iterable[int] = (0, 1, 2)) -> dict:
         for b in names[i + 1:]:
             if digs[a] == digs[b]:
                 same_pairs.append(f"{a}={b}")
-    return {"fingerprints": fps, "digests": digs, "stable_across_seeds": stable, "instances": inst,
-            "seeds": seeds, "train_names": [c.name for c in d.split("train")], "train_structures": len({digs[c] for c in train if digs.get(c)}),
+    return {"fingerprints": fps, "digests": digs, "core_digests": core, "stable_across_seeds": stable,
+            "instances": inst, "varying_tables": vary, "seeds": seeds,
+            "train_names": [c.name for c in d.split("train")],
+            "train_structures": len({digs[c] for c in train if digs.get(c)}),
             "train_configs": len(d.split("train")), "unfamiliarity": unf, "same_structure_pairs": same_pairs,
-            "errors": errors,
+            "errors": errors, "hook_reads_declarations": hook, "world_sources": sorted(sources),
             "compositional_eval": sum(1 for c in d.split("eval_compositional")
                                       if unf.get(c.name, {}).get("compositional")),
             "structural_eval": sum(1 for c in d.split("eval_structural") if unf.get(c.name, {}).get("structural"))}
 
 
-def evaluator_report(d: Domain, config: str, seed: int, days: float | None = None) -> dict:
-    """The evaluator is an independent, evaluator-side function of recorded world state: run the reference (the
-    run is cached for `check`), rebuild the world from its event log alone (`World.replay`) and evaluate both; the
-    verdicts must be equal. The evaluator must not be a participant tool, and in the default mode evaluator data are
-    hidden from participants."""
+def hook_only_pairs(st: dict, null_runs: dict) -> list[dict]:
+    """Diagnostic (reported, not counted): configuration pairs whose framework-measured (core) structure is equal and
+    that differ only through the domain's structure hook, with whether their null runs recorded different kinds of
+    events. A hook difference without any behavioural difference may be a declaration copied into state."""
+    out = []
+    core = st.get("core_digests") or {}
+    names = sorted(c for c in core if core[c])
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            if core[a] != core[b] or st["digests"].get(a) == st["digests"].get(b):
+                continue
+            ka = set((null_runs.get(a) or {}).get("event_kinds") or [])
+            kb = set((null_runs.get(b) or {}).get("event_kinds") or [])
+            out.append({"pair": f"{a}={b}", "null_event_kinds_differ": ka != kb,
+                        "only_in": sorted(ka ^ kb)[:12]})
+    return out
+
+
+DECLARATION_ATTRS = frozenset({"spec", "config", "cfg", "params", "runtime", "_w", "world", "hooks", "processes",
+                               "endpoints", "__dict__", "__globals__", "get_objects", "_getframe", "f_back"})
+
+
+def reads_declarations(fn) -> list[str]:
+    """Static check of a structure hook: attribute accesses of declarations (spec, parameters, module
+    configuration), introspection and computed getattr. The hook also only ever receives a `BuiltWorld`."""
+    if fn is None:
+        return []
+    try:
+        src = textwrap.dedent(inspect.getsource(fn))
+        tree = ast.parse(src)
+    except (OSError, TypeError, SyntaxError):
+        return [f"{getattr(fn, '__qualname__', fn)}: source unavailable (cannot be checked)"]
+    hits = []
+    name = getattr(fn, "__qualname__", str(fn))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and node.attr in DECLARATION_ATTRS:
+            hits.append(f"{name}:{node.lineno}: .{node.attr}")
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and \
+                node.func.id in ("getattr", "vars", "globals") and \
+                not (node.func.id == "getattr" and len(node.args) >= 2 and isinstance(node.args[1], ast.Constant)
+                     and node.args[1].value not in DECLARATION_ATTRS):
+            hits.append(f"{name}:{node.lineno}: {node.func.id}")
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            mods = [getattr(node, "module", None) or ""] + [a.name for a in node.names]
+            if any(m in ("gc", "inspect", "sys") for m in mods):
+                hits.append(f"{name}:{node.lineno}: imports {mods}")
+    return hits
+
+
+def evaluator_report(d: Domain, config: str, seed: int, days: float | None = None,
+                     ablate: Iterable[str] | None = None) -> dict:
+    """The evaluator is an independent, evaluator-side function of recorded world state:
+
+    * run the reference (cached for `check`), rebuild the world from its event log alone (`World.replay`) and
+      evaluate both; the verdicts must be equal;
+    * no participant tool is named or described like the evaluator, and none calls the domain's evaluator;
+      in the default mode evaluator data are hidden from participants;
+    * its verdict needs the autonomous participants: the reference is run again with the scheduled processes that
+      made the actors' and the population's decisions in the null run frozen (`ablate`, default: measured from the
+      null run); success there means the verdict is obtainable by the seat alone (a participant-controlled fact,
+      not an independent outcome)."""
     from ..core import evaluator_only as EO
     key = (d.name, config, int(seed), "reference", days)
     r = run(d.name, config, seed, policy="reference", days=days, keep_env=True)
     env = r.pop("env")
     _CACHE.setdefault(key, r)
-    w = env.world
-    me = r["seats"][0]
-    live = d.evaluate(w, me, r["objective"])
-    events = [e.to_dict() for e in w.events_range(0, w.seq)]
-    rw = World.replay(w.spec, events, world_id="evaluator-replay", store=getattr(w, "store", None))
-    again = d.evaluate(rw, me, r["objective"])
-    canon = lambda x: json.dumps(x, sort_keys=True, default=str)  # noqa: E731
-    names = sorted(t["name"] for t in env.tools(me))
-    as_tool = [n for n in names if re.search(r"evaluat|verif|grade|score", n.split(".", 1)[-1])]
-    out = {"config": config, "seed": int(seed), "replay_equal": canon(live) == canon(again),
-           "replay_digest_equal": rw.digest() == w.digest(), "evaluator_hidden": bool(EO.hidden(w)),
-           "verdict_keys": sorted(live) if isinstance(live, dict) else [], "participant_tools_named_like_evaluator":
-           as_tool, "has_success_and_score": isinstance(live, dict) and isinstance(live.get("success"), bool)
-           and isinstance(live.get("score"), (int, float))}
-    rw.close()
-    env.close()
+    try:
+        w = env.world
+        me = r["seats"][0]
+        obj = r["objective"]
+        live = d.judge(w, me, obj)
+        events = [e.to_dict() for e in w.events_range(0, w.seq)]
+        rw = World.replay(w.spec, events, world_id="evaluator-replay", store=getattr(w, "store", None))
+        again = d.judge(rw, me, obj)
+        canon = lambda x: json.dumps(x, sort_keys=True, default=str)  # noqa: E731
+        tools = env.tools(me)
+        out = {"config": config, "seed": int(seed), "replay_equal": canon(live) == canon(again),
+               "replay_digest_equal": rw.digest() == w.digest(), "evaluator_hidden": bool(EO.hidden(w)),
+               "verdict_keys": sorted(live) if isinstance(live, dict) else [],
+               "participant_tools_named_like_evaluator": evaluator_like_tools(tools),
+               "participant_tools_calling_evaluator": _calls_evaluator(w, d, me),
+               "has_success_and_score": isinstance(live, dict) and isinstance(live.get("success"), bool)
+               and isinstance(live.get("score"), (int, float)), "reference_success": bool(r["success"])}
+        rw.close()
+    finally:
+        env.close()
+    if ablate is None:
+        null = cached_run(d.name, config, seed, "null", days)
+        ablate = sorted(set(null["actors"].get("processes") or []) | set(null["population"].get("processes") or []))
+    ablate = sorted(set(ablate))
+    out["ablated_processes"] = ablate
+    if ablate:
+        ab = run(d.name, config, seed, policy="reference", days=days, freeze=ablate)
+        out["ablation_success"] = bool(ab["success"])
+        out["ablation_score"] = ab.get("score")
+        out["needs_autonomous_participants"] = bool(r["success"]) and not ab["success"]
+    else:
+        out["ablation_success"] = None
+        out["needs_autonomous_participants"] = None
     out["ok"] = bool(out["replay_equal"] and out["replay_digest_equal"] and out["evaluator_hidden"]
-                     and out["has_success_and_score"])
+                     and out["has_success_and_score"] and not out["participant_tools_named_like_evaluator"]
+                     and not out["participant_tools_calling_evaluator"] and out["needs_autonomous_participants"])
     return out
 
 
@@ -1315,7 +2438,7 @@ def tier3_report(d: Domain, profile: str = "balanced", seed: int = 0, hours: int
         w.advance_time(w.now + int(hours) * HOUR)
         me = d.principal_of(w)
         ok_seat = me is not None and w.principal(me) is not None
-        ev = d.evaluate(w, me, d.objective(w, me, d.reference_difficulty)) if ok_seat else None
+        ev = d.judge(w, me, d.make_objective(w, me, d.reference_difficulty)) if ok_seat else None
         out = {"config": c.name, "profile": profile, "modules": len(w.modules), "seat": me, "seat_present": ok_seat,
                "proc_failed": count_events(w, ("proc.failed",), since),
                "invariant_errors": len(w.check_invariants()), "evaluator_ran": isinstance(ev, dict)}
@@ -1327,122 +2450,204 @@ def tier3_report(d: Domain, profile: str = "balanced", seed: int = 0, hours: int
     return out
 
 
+def goal_report(d: Domain, seed: int = 0) -> dict:
+    """The objective generator: crucible.goals (`GoalFamily`) or the domain's own callable; generated objectives
+    for every difficulty level on the reference configuration's genesis world - their texts must differ (a
+    difficulty knob), every success predicate must be valid, and the generator must not draw from the world's
+    streams (the framework hands it `goal_rng`)."""
+    c = (list(d.reference_configs) or [cc.name for cc in d.split("train")[:1]])[0]
+    out: dict = {"generator": "crucible.goals" if d.goal is not None else "domain",
+                 "family": d.goal.name if d.goal is not None else None}
+    try:
+        w = world(d.name, c, seed)
+        try:
+            me = d.principal_of(w) or "p:none"
+            objs = {int(k): d.make_objective(w, me, int(k)) for k in d.difficulties}
+        finally:
+            w.close()
+    except Exception as e:  # noqa: BLE001
+        out.update({"ok": False, "error": f"{type(e).__name__}: {e}"[:300]})
+        return out
+    texts = {k: o.get("text") for k, o in objs.items()}
+    out["texts"] = texts
+    out["distinct_texts"] = len(set(texts.values()))
+    out["params"] = {k: o.get("params") for k, o in objs.items()}
+    out["ok"] = bool(d.goal is not None and len(objs) >= 2 and out["distinct_texts"] == len(objs)
+                     and all(isinstance(o.get("success"), dict) for o in objs.values()))
+    return out
+
+
 def check(d: Domain | str, *, structure_seeds: Iterable[int] = (0, 1, 2), seeds: Iterable[int] | None = None,
           days: float | None = None, configs: Iterable[str] | None = None, tier3: bool = True,
-          tier3_profile: str = "balanced") -> dict:
+          tier3_profile: str = "balanced", all_configs: bool = True) -> dict:
     """Every Gate N / SP-9.0 / SP-9.16 measurement of one domain, on built and run worlds:
 
-    * `static`: `validate` problems;
-    * `structure`: `structure_report`;
-    * `runs`: reference, null baseline, every degenerate probe and the generic probes on the reference
-      configurations and seeds (through `crucible.experience.make(2, ...)`, observation_only);
-    * `feasible` (reference succeeds on >= 1 instance and on a majority), `null_fails`, `probes_fail`;
-    * `mechanics` (union over reference runs), `autonomy` (null runs: declared actors active, population decisions),
-      `open_ended` (the seat's tools), `observation_only` (default mode, evaluator hidden, reward 0.0);
-    * `isolation`: the reference reads no world internals; reference exposure in the seat's observation, tool docs
-      and objective; tools named after the reference; sandbox importability;
-    * `dice`: arbitrary failure probabilities in the domain's sources;
+    * `static`: `validate` problems; `structure`: `structure_report`;
+    * `runs`: the reference and the null baseline on EVERY configuration (the first reference seed; the reference
+      configurations on every reference seed), every degenerate probe and the generic probes on the reference
+      configurations (through `crucible.experience.make(2, ...)`, observation_only; references in a separate
+      process);
+    * `feasible` (reference succeeds on >= 1 and on a majority of the reference instances), `null_fails` (no null
+      run succeeds anywhere), `probes_fail`; `per_config`: success, null and cleanliness per configuration (an
+      evaluation configuration counts only when it runs clean, its reference succeeds and its null baseline fails);
+    * `mechanics` (union over reference runs), `autonomy` (null runs: declared actors active by attributed
+      decisions, population decisions), `open_ended` (the seat's tools), `observation_only` (default mode,
+      evaluator hidden, no nonzero reward in any run);
+    * `evaluator`: `evaluator_report` (replay, evaluator tools, autonomy ablation); `goal`: `goal_report`;
+    * `isolation`: the reference reads no world internals (static) and ran isolated; reference exposure in
+      everything the seat received (canaries in every run; its ordered tool path in the null runs' observations
+      and results, the read-only query results, the tool docs and the objectives); tools named after it; sandbox
+      importability;
+    * `dice`: arbitrary failure probabilities in the domain's sources AND the kernel module files of its worlds;
     * `tier3`: composition into a civilisation."""
     d = REGISTRY[d] if isinstance(d, str) else d
     t0 = time.perf_counter()
-    rep: dict = {"domain": d.name, "spec_part": d.spec_part, "static": validate(d)}
-    rep["structure"] = structure_report(d, structure_seeds)
-    cfgs = list(configs or d.reference_configs or [c.name for c in d.split("train")[:1]])
+    rep: dict = {"domain": d.name, "spec_part": d.spec_part, "api": API_VERSION, "static": validate(d)}
+    ref_cfgs = list(configs or d.reference_configs or [c.name for c in d.split("train")[:1]])
     seeds = [int(s) for s in (seeds if seeds is not None else d.reference_seeds)]
-    runs: dict[str, list] = {"reference": [], "null": []}
+    s0 = seeds[0]
+    every = [c.name for c in d.configs] if all_configs else ref_cfgs
     probe_names = [p.name for p in d.degenerate] + [p.name for p in GENERIC_PROBES]
-    for p in probe_names:
-        runs[p] = []
+    runs: dict[str, list] = {"reference": [], "null": [], **{p: [] for p in probe_names}}
     errors = {}
-    try:
-        rep["evaluator"] = evaluator_report(d, cfgs[0], seeds[0], days)
+
+    def go(pol, c, s):
+        try:
+            r = cached_run(d.name, c, s, pol, days)
+            runs[pol].append(r)
+            return r
+        except Exception as e:  # noqa: BLE001 - a run that crashes is a failed run, reported
+            errors[f"{pol}:{c}@{s}"] = f"{type(e).__name__}: {e}"[:400]
+            return None
+    plan = [(c, s) for c in ref_cfgs for s in seeds] + [(c, s0) for c in every if c not in ref_cfgs]
+    try:        # first: its reference and null runs are cached for the loops below
+        rep["evaluator"] = evaluator_report(d, ref_cfgs[0], s0, days)
     except Exception as e:  # noqa: BLE001 - reported: the evaluator could not be checked
         rep["evaluator"] = {"ok": False, "error": f"{type(e).__name__}: {e}"[:300]}
-    for c in cfgs:
-        for s in seeds:
-            for pol in ("reference", "null"):
-                try:
-                    runs[pol].append(cached_run(d.name, c, s, pol, days))
-                except Exception as e:  # noqa: BLE001 - a run that crashes is a failed run, reported
-                    errors[f"{pol}:{c}@{s}"] = f"{type(e).__name__}: {e}"[:300]
+    for c, s in plan:
+        go("reference", c, s)
+    for c, s in plan:
+        go("null", c, s)
+    for c in ref_cfgs:
         for p in probe_names:
-            try:
-                runs[p].append(cached_run(d.name, c, seeds[0], p, days))
-            except Exception as e:  # noqa: BLE001
-                errors[f"{p}:{c}@{seeds[0]}"] = f"{type(e).__name__}: {e}"[:300]
+            go(p, c, s0)
     rep["run_errors"] = errors
-    keys = ("config", "seed", "policy", "success", "score", "events", "proc_failed", "invariant_violations")
-    rep["runs"] = {k: [{x: r[x] for x in keys} for r in v] for k, v in runs.items()}
-    ref, null = runs["reference"], runs["null"]
-    n_ok = sum(1 for r in ref if r["success"])
-    rep["reference_successes"], rep["reference_runs"] = n_ok, len(ref)
-    rep["feasible"] = bool(ref) and n_ok >= 1 and 2 * n_ok > len(ref) and \
-        not any(k.startswith("reference") for k in errors)
+    activity = {r["config"]: r.get("engaged_modules") or [] for r in runs["null"] if r["seed"] == s0}
+    rep["structure"] = structure_report(d, structure_seeds, activity)
+    rep["structure"]["hook_only_pairs"] = hook_only_pairs(rep["structure"], {
+        r["config"]: r for r in runs["null"] if r["seed"] == s0})
+    keys = ("config", "seed", "policy", "success", "score", "events", "proc_failed", "invariant_violations",
+            "nonzero_rewards", "isolated")
+    rep["runs"] = {k: [{x: r.get(x) for x in keys} for r in v] for k, v in runs.items()}
+    ref_main = [r for r in runs["reference"] if r["config"] in ref_cfgs]
+    null = runs["null"]
+    n_ok = sum(1 for r in ref_main if r["success"])
+    rep["reference_successes"], rep["reference_runs"] = n_ok, len(ref_main)
+    rep["feasible"] = bool(ref_main) and n_ok >= 1 and 2 * n_ok > len(ref_main) and \
+        not any(k.startswith("reference:") and k.split(":", 1)[1].split("@")[0] in ref_cfgs for k in errors)
     rep["null_fails"] = bool(null) and not any(r["success"] for r in null) and \
-        not any(k.startswith("null") for k in errors)
+        not any(k.startswith("null:") for k in errors)
     rep["probes"] = {p: {"runs": len(runs[p]), "successes": sum(1 for r in runs[p] if r["success"])}
                      for p in probe_names}
     rep["degenerate_declared"] = len(d.degenerate)
     rep["probes_fail"] = bool(d.degenerate) and all(v["runs"] > 0 and v["successes"] == 0
                                                     for v in rep["probes"].values())
-    rep["process_failures"] = sum(r["proc_failed"] for v in runs.values() for r in v)
-    rep["invariant_violations"] = sum(r["invariant_violations"] for v in runs.values() for r in v)
-    # mechanics: union of the reference runs' recorded events
+    allruns = [r for v in runs.values() for r in v]
+    rep["process_failures"] = sum(r["proc_failed"] for r in allruns)
+    rep["invariant_violations"] = sum(r["invariant_violations"] for r in allruns)
+    per = {}
+    for c in d.configs:
+        rr = [r for r in runs["reference"] if r["config"] == c.name]
+        nn = [r for r in null if r["config"] == c.name]
+        mine = [r for r in allruns if r["config"] == c.name]
+        per[c.name] = {"split": c.split, "reference_success": [r["success"] for r in rr],
+                       "null_success": [r["success"] for r in nn],
+                       "proc_failed": sum(r["proc_failed"] for r in mine),
+                       "invariant_violations": sum(r["invariant_violations"] for r in mine),
+                       "errors": sorted(k for k in errors if k.split(":", 1)[1].split("@")[0] == c.name)}
+        p = per[c.name]
+        p["clean"] = bool(rr) and bool(nn) and not p["errors"] and p["proc_failed"] == 0 and \
+            p["invariant_violations"] == 0
+        p["feasible"] = p["clean"] and any(p["reference_success"]) and not any(p["null_success"])
+    rep["per_config"] = per
+    # mechanics: union of the reference runs' recorded evidence on the reference configurations
     counts: Counter = Counter()
-    for r in ref:
+    for r in ref_main:
         for m, n in r["mechanics"]["counts"].items():
             counts[m] += n
     rep["mechanics"] = {"listed": len(d.required_mechanics),
                         "exercised": sum(1 for m in d.required_mechanics if counts.get(m, 0) > 0),
                         "missing": sorted(m for m in d.required_mechanics if counts.get(m, 0) == 0),
                         "counts": dict(counts), "self_reported": d.mechanic_probes() is None,
+                        "unverified": sorted({m for r in ref_main for m in r["mechanics"].get("unverified", {})}),
+                        "rejected": sorted({m for r in ref_main for m in r["mechanics"].get("rejected", {})}),
+                        "indistinct": sorted({f"{m}={o}" for r in ref_main
+                                              for m, o in r["mechanics"].get("indistinct", {}).items()}),
                         "spec_list_matches": tuple(d.required_mechanics) == tuple(PART9[d.spec_part]["mechanics"])
                         if d.spec_part in PART9 else True}
-    # autonomy: what happens while the seats do nothing
+    # autonomy: what happens while the seats do nothing (the reference configurations' null runs)
     act: Counter = Counter()
     popd, popk = 0, Counter()
-    for r in null:
+    null_main = [r for r in null if r["config"] in ref_cfgs]
+    for r in null_main:
         for a, n in r["actors"]["counts"].items():
             act[a] += n
         popd += r["population"]["decisions"]
         popk.update(r["population"]["activity_kinds"])
     rep["autonomy"] = {"actors_declared": len(d.actors), "actors_active": sum(1 for a in d.actors if act[a.name] > 0),
                        "actor_counts": dict(act), "population_decisions": popd,
-                       "population_activity_kinds": dict(popk)}
+                       "population_activity_kinds": dict(popk),
+                       "unverified": sorted({a for r in null_main for a in r["actors"].get("unverified", {})})}
     rep["autonomous"] = bool(d.actors) and rep["autonomy"]["actors_active"] == len(d.actors) and popd > 0 \
         and sum(popk.values()) > 0
-    # open-ended action space, observation-only default, reward 0.0
+    # open-ended action space, observation-only default, no reward
     from ..core import evaluator_only as EO
     from ..experience.modes import OBSERVATION_ONLY
-    env = make_env(d.name, cfgs[0], seeds[0], difficulty=d.reference_difficulty)
-    me = env.agents()[0]
-    tools = env.tools(me)
-    rep["open_ended"] = open_ended(tools)
-    env.advance(HOUR)
-    r0 = float(env.reward(me))
-    rep["observation_only"] = {"default_mode": env.reward_mode, "evaluator_hidden": bool(EO.hidden(env.world)),
-                               "reward": r0, "ok": env.reward_mode == OBSERVATION_ONLY and bool(EO.hidden(env.world))
-                               and r0 == 0.0}
-    obs = env.observe(me)
-    obj = d.objective(env.world, me, d.reference_difficulty)
-    env.close()
+    env = make_env(d.name, ref_cfgs[0], s0, difficulty=d.reference_difficulty)
+    try:
+        me = env.agents()[0]
+        tools = env.tools(me)
+        rep["open_ended"] = open_ended(tools)
+        hidden = bool(EO.hidden(env.world))
+        mode = env.reward_mode
+        objs = [d.make_objective(env.world, me, k) for k in d.difficulties]
+    finally:
+        env.close()
+    nonzero = sum(int(r.get("nonzero_rewards") or 0) for r in allruns)
+    rep["observation_only"] = {"default_mode": mode, "evaluator_hidden": hidden, "nonzero_rewards": nonzero,
+                               "runs": len(allruns), "ok": mode == OBSERVATION_ONLY and hidden and nonzero == 0
+                               and bool(allruns)}
+    rep["goal"] = goal_report(d, s0)
     # isolation of the reference
-    pol = d.reference_policy(me, obj)
-    reads = reads_world(pol) + reads_world(d.reference)
+    try:
+        pol = d.reference_policy(me, objs[0] if objs else {})
+        reads = reads_world(pol) + reads_world(d.reference)
+    except Exception as e:  # noqa: BLE001
+        pol, reads = None, [f"reference could not be built for inspection: {type(e).__name__}: {e}"[:200]]
     canaries = reference_canaries(d, pol)
-    traj = ref[0]["drive"]["agents"][ref[0]["seats"][0]]["tools"] if ref else []
-    texts = [obs.get("objective") or "", json.dumps(obs.get("missing") or []), json.dumps(obj, default=str)]
-    texts += [json.dumps({k: t.get(k) for k in ("name", "doc", "description", "inputSchema")}) for t in tools]
-    ex = exposure(texts, canaries, traj)
+    first = next((r for r in ref_main if r["config"] == ref_cfgs[0] and r["seed"] == s0), None)
+    traj = first["drive"]["agents"][first["seats"][0]]["tools"] if first else []
+    hits = set()
+    for r in allruns:
+        hits.update(r["exposure"]["canary_hits"])
+    for r in null:
+        hits.update(trajectory_in_sequences(r["exposure"]["sequences"], traj))
+    static_texts = [json.dumps({k: t.get(k) for k in ("name", "doc", "description", "inputSchema")}) for t in tools]
+    static_texts += [o.get("text") or "" for o in objs] + [json.dumps(public_objective(o)) for o in objs]
+    hits.update(exposure(static_texts, canaries, traj)["hits"])
     names = {t.get("name") for t in tools}
     named = sorted(c for c in canaries if c in names or any(c.lower() in str(n).lower() for n in names))
     sbx = sandbox_can_import_crucible()
-    rep["isolation"] = {"reference_reads_world": reads, "canaries": canaries, "exposure_hits": ex["hits"],
+    isolated = bool(ref_main) and all(r.get("isolated") for r in runs["reference"])
+    rep["isolation"] = {"reference_reads_world": reads, "canaries": canaries, "exposure_hits": sorted(hits),
                         "tools_named_after_reference": named, "sandbox_imports_crucible": sbx,
-                        "trajectory_head": traj[:6], "texts_scanned": len(texts)}
-    rep["reference_paths_exposed"] = ex["exposed"] + len(named) + int(sbx)
-    rep["reference_tool_only"] = not reads
-    rep["dice"] = dice_scan(domain_sources(d))
+                        "reference_isolated_process": isolated, "trajectory_head": _first_distinct(traj),
+                        "texts_scanned": sum(r["exposure"]["texts"] for r in allruns) + len(static_texts),
+                        "queried_tools": sorted({q for r in null for q in r.get("queried_tools") or []})}
+    rep["reference_paths_exposed"] = len(hits) + len(named) + int(sbx)
+    rep["reference_tool_only"] = not reads and isolated
+    srcs = domain_sources(d) + list(rep["structure"].get("world_sources") or [])
+    rep["dice"] = dice_scan(srcs)
     rep["tier3"] = tier3_report(d, tier3_profile) if tier3 else None
     rep["wall_s"] = round(time.perf_counter() - t0, 2)
     return rep
@@ -1452,10 +2657,10 @@ def check(d: Domain | str, *, structure_seeds: Iterable[int] = (0, 1, 2), seeds:
 def section_metrics(domain: str | Domain, *, configs: Iterable[str] | None = None, seeds: Iterable[int] | None = None,
                     days: float | None = None) -> tuple[dict, list[dict]]:
     """The five metrics every SP-9.<n> requirement shares, measured on integrated reference runs through
-    `crucible.experience.make(2, ...)`: required_mechanics_listed / _exercised / _missing (recorded events summed
-    over the runs), observation_only_default (default mode, evaluator hidden, reward 0.0) and
+    `crucible.experience.make(2, ...)`: required_mechanics_listed / _exercised / _missing (recorded evidence summed
+    over the runs), observation_only_default (default mode, evaluator hidden, no nonzero reward in the runs) and
     reachable_through_experience (the seats are the learner's agents and have tools). Returns (metrics, runs);
-    per-mechanic event counts are included as ``events_<mechanic>``."""
+    per-mechanic evidence counts are included as ``events_<mechanic>``."""
     d = REGISTRY[domain] if isinstance(domain, str) else domain
     cfgs = list(configs or d.reference_configs or [c.name for c in d.split("train")[:1]])
     seeds = [int(s) for s in (seeds if seeds is not None else d.reference_seeds)]
@@ -1467,7 +2672,8 @@ def section_metrics(domain: str | Domain, *, configs: Iterable[str] | None = Non
     agents = env.agents()
     reach = bool(agents) and (not d.seats or agents == d.seat_principals()) and bool(env.tools(agents[0]))
     env.advance(HOUR)
-    oo = env.reward_mode == OBSERVATION_ONLY and bool(EO.hidden(env.world)) and env.reward(agents[0]) == 0.0
+    oo = env.reward_mode == OBSERVATION_ONLY and bool(EO.hidden(env.world)) and env.reward(agents[0]) == 0.0 and \
+        all(int(r.get("nonzero_rewards") or 0) == 0 for r in runs)
     env.close()
     m = {"required_mechanics_listed": len(d.required_mechanics),
          "required_mechanics_exercised": sum(1 for n in counts.values() if n > 0),
@@ -1476,7 +2682,11 @@ def section_metrics(domain: str | Domain, *, configs: Iterable[str] | None = Non
          "spec_list_matches": d.spec_part in PART9 and tuple(d.required_mechanics) ==
          tuple(PART9[d.spec_part]["mechanics"]), "reference_runs": len(runs),
          "reference_successes": sum(1 for r in runs if r["success"]),
-         "process_failures": sum(r["proc_failed"] for r in runs)}
+         "process_failures": sum(r["proc_failed"] for r in runs),
+         "unverified_evidence": ",".join(sorted({x for r in runs for x in r["mechanics"].get("unverified", {})}))
+         or "none",
+         "indistinct_mechanics": ",".join(sorted({x for r in runs for x in r["mechanics"].get("indistinct", {})}))
+         or "none"}
     for name, n in counts.items():
         m["events_" + re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")] = int(n)
     return m, runs
@@ -1504,36 +2714,58 @@ def verdicts(rep: dict) -> dict:
                     if s and st["digests"].get(c) and c in st.get("train_names", st["digests"])}
     ev = rep.get("evaluator") or {}
     t3 = rep.get("tier3") or {}
+    per = rep.get("per_config") or {}
+
+    def eval_ok(split, key):
+        return any(per.get(c, {}).get("feasible") and st["unfamiliarity"].get(c, {}).get(key)
+                   for c, p in per.items() if p.get("split") == split)
+    feasible = bool(rep["feasible"])
     v = {
         "static_ok": not rep["static"],
         "builds": not st["errors"],
         "runs_clean": not rep["run_errors"] and rep["process_failures"] == 0 and rep["invariant_violations"] == 0,
         "train_structures": len(stable_train),
         "min_instances": min(st["instances"].values()) if st["instances"] else 0,
-        "compositional_eval": st["compositional_eval"] > 0,
-        "structural_eval": st["structural_eval"] > 0,
+        "compositional_eval": eval_ok("eval_compositional", "compositional"),
+        "structural_eval": eval_ok("eval_structural", "structural"),
         "same_structure_pairs": len(st["same_structure_pairs"]) + sum(1 for s in st["stable_across_seeds"].values()
                                                                       if not s),
         "mechanics_ok": rep["mechanics"]["exercised"] == rep["mechanics"]["listed"] and
         rep["mechanics"]["spec_list_matches"] and not rep["mechanics"]["self_reported"],
         "mechanics_missing": len(rep["mechanics"]["missing"]) if rep["mechanics"]["spec_list_matches"] else
         rep["mechanics"]["listed"],
-        "evaluator_ok": bool(ev.get("ok")) and rep["feasible"] and rep["null_fails"],
-        "reference_ok": rep["feasible"] and rep["reference_tool_only"],
+        "evaluator_ok": bool(ev.get("ok")) and feasible and bool(rep["null_fails"]),
+        "reference_ok": feasible and bool(rep["reference_tool_only"]),
         "exposed": rep["reference_paths_exposed"],
         "autonomous": rep["autonomous"],
         "open_ended": rep["open_ended"]["open_ended"],
         "observation_only": rep["observation_only"]["ok"],
         "tier3": bool(t3.get("composes")),
-        "null_fails": rep["null_fails"],
-        "probes_ok": rep["probes_fail"],
+        # SP-9.16: a null baseline (or a probe) failing shows something only where the objective is feasible
+        "null_fails": feasible and bool(rep["null_fails"]),
+        "probes_ok": feasible and bool(rep["probes_fail"]),
         "dice": rep["dice"]["mechanisms"],
+        "objective_generated": bool((rep.get("goal") or {}).get("ok")),
     }
     v["implemented"] = all((v["static_ok"], v["builds"], v["runs_clean"], v["train_structures"] >= 3,
                             v["min_instances"] >= 3, v["compositional_eval"], v["structural_eval"],
                             v["mechanics_ok"], v["evaluator_ok"], v["reference_ok"], v["exposed"] == 0,
-                            v["observation_only"]))
+                            v["observation_only"], v["objective_generated"]))
     return v
+
+
+def cross_domain_same_structure(reports: dict[str, dict]) -> list[str]:
+    """Configurations of DIFFERENT domains whose built worlds have the same framework-measured structure (core
+    fingerprint: engaged modules, participant types, civilisation structure): the same world under another task
+    prompt."""
+    rows = [(n, c, dg) for n, rep in sorted(reports.items())
+            for c, dg in sorted((rep["structure"].get("core_digests") or {}).items()) if dg]
+    out = []
+    for i, (n1, c1, g1) in enumerate(rows):
+        for n2, c2, g2 in rows[i + 1:]:
+            if n1 != n2 and g1 == g2:
+                out.append(f"{n1}:{c1}={n2}:{c2}")
+    return out
 
 
 def gate_metrics(reports: dict[str, dict]) -> dict:
@@ -1546,6 +2778,7 @@ def gate_metrics(reports: dict[str, dict]) -> dict:
             by_part[rep["spec_part"]].append(verdicts(rep))
     part = lambda key: sum(1 for vs in by_part.values() if any(v[key] for v in vs))  # noqa: E731
     best = lambda key, f, miss: [f(v[key] for v in vs) if vs else miss for vs in by_part.values()]  # noqa: E731
+    cross = cross_domain_same_structure({n: r for n, r in reports.items() if r["spec_part"] in by_part})
     m = {
         "domains_registered": len(reports), "sections_with_domain": sum(1 for vs in by_part.values() if vs),
         "sections_missing": ",".join(p for p, vs in by_part.items() if not vs) or "none",
@@ -1564,20 +2797,29 @@ def gate_metrics(reports: dict[str, dict]) -> dict:
         "domains_with_autonomous_participants": part("autonomous"),
         "domains_with_open_ended_actions": part("open_ended"),
         "configurations_differing_only_in_objective_text": sum(v["same_structure_pairs"] for vs in by_part.values()
-                                                               for v in vs),
+                                                               for v in vs) + len(cross),
+        "cross_domain_same_structure": ";".join(cross) or "none",
         "domains_composable_into_tier3": part("tier3"),
         "domains_where_null_baseline_fails": part("null_fails"),
         "arbitrary_failure_probability_mechanisms": sum(v["dice"] for vs in by_part.values() for v in vs),
         "domains_with_degenerate_strategy_probe": part("probes_ok"),
         "domains_observation_only_default": part("observation_only"),
+        "domains_with_generated_objectives": part("objective_generated"),
+        "domain_load_errors": _load_errors(),
     }
     return m
+
+
+def _load_errors() -> str:
+    from . import LOAD_ERRORS
+    return ";".join(f"{k}: {v}" for k, v in sorted(LOAD_ERRORS.items()))[:3000] or "none"
 
 
 def summary() -> dict:
     return {n: {"title": d.title, "spec_part": d.spec_part, "configs": {c.name: c.split for c in d.configs},
                 "required_mechanics": list(d.required_mechanics), "seats": [s.handle for s in d.seats],
-                "mode": d.mode, "fixture": d.fixture} for n, d in sorted(REGISTRY.items())}
+                "mode": d.mode, "construction": d.construction, "fixture": d.fixture,
+                "goal": d.goal.name if d.goal is not None else None} for n, d in sorted(REGISTRY.items())}
 
 
 _FRAMEWORK_POLICIES = (ScriptedReference, Idle, RandomTools)
