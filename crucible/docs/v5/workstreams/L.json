@@ -1042,9 +1042,9 @@
    "sp_11_6c": "SP-11.6c (slow, Qwen3-1.7B + improvement over frozen copies)"
   },
   "queued_at_2026-11-27T02:50Z": {
-   "sp_11_6c": "SP-11.6c with the redesigned kernel tiers (GPU slot 7 GB; latest branch commit at admission; log gate_SP_11_6c.log)",
-   "fast": "R, S, SP-11.*, SP-2.2, OO fast parts rerun after the ReferenceLearner fixes (GPU slot; log gates_fast.log)",
-   "tier3_dev": "ToolValueLearner in the balanced civilisation with per-tool money moves (scratch s6c/civ_dev1.log)"
+   "sp_11_6c": "SP-11.6c with the redesigned kernel tiers (GPU slot 7 GB; latest branch commit at admission; log gate_SP_11_6c.log) (queue position ~38 at 03:00 UTC)",
+   "fast": "folded into the queued OO Tier 2 job (head of the slot queue): that job now runs, at the latest branch commit at admission, first the Tier 3 dev script (scratch w3b-obs/s6c/imp3.py -> s6c/civ_dev_head.log), then R, S, SP-11.1/1b/2/3/4/4b/5/6/6d, SP-2.2 and every non-slow OO test (log w3b-obs/gates_oo_t2.log)",
+   "tier3_dev": "a second copy of the Tier 3 dev script (queue position ~32; log s6c/civ_dev1.log)"
   },
   "results_read_2026-11-27": {
    "fast_b3a07b1": "32 passed, 10 deselected, 1267 s (R.1-R.7, R.n1, S.1-S.8, S.n1, SP-11.1, 1b, 2, 3, 4, 4b, 5, 6, 6d, SP-2.2, OO.2, OO.7, OO.8, OO.9, OO.12)",
