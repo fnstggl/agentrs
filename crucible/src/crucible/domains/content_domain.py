@@ -161,6 +161,17 @@ class Originality:
         return self.coverage(text) >= COPY_SHARE
 
 
+def _text_of(world, ref: str) -> str:
+    from ..substrate import artifacts
+    try:
+        info = artifacts.info(world, ref)
+        if not str(info.get("mime", "")).startswith("text/"):
+            return ""
+        return artifacts.get(world, ref).decode("utf-8", "replace")
+    except Exception:  # noqa: BLE001 - an unreadable artifact has no text to compare
+        return ""
+
+
 def original_items(world, principal: str) -> tuple[list[dict], list[dict]]:
     """(original, copied) catalogue items of the principal (and organisations it administers)."""
     st = world.state
