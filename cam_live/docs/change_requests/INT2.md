@@ -112,3 +112,13 @@ inner step to a target KL change of the policy per update, a trust region), so t
 within the experience an objective provides; the meta-gradient keeps differentiating the update actually applied.
 **Workaround.** None in INT2's files (the inner step is C's mechanism); the ablation with `optim.inner_lr = 0.3` is
 reported in `docs/INTEGRATION.md` §9.
+
+## Requests from LRN (details and diffs: `docs/change_requests/LRN.md`)
+
+* **LRN-1** `AgentSettings.selection_rule` default `"thompson_policy"` (already accepted by `from_cfg`; rule `policy`
+  with `value_weight` stays selectable as the ablation). No other wiring: the selection calibration is shared through
+  the policy head and checkpointed in `meta.state_dict()`; the trust-region policy step (INT2-7), matured replay
+  (INT2-1 consequence), unsaturated bootstrap verified term + goal term (INT2-6) and the moving bootstrap mix are
+  inside `reward/`.
+* **LRN-3** (not blocking) record `reward_signals.epistemic_after` and `learning_progress` so the bootstrap's
+  exploration / learning-progress terms have inputs in runtime runs.
