@@ -2125,8 +2125,12 @@ class CrisisCoordinator(K.ReadingReference):
                     10.0 * (hh.get(a["district"], 0.0) + (0.3 if a["kind"] in ("line", "plant", "core") else 0.0)) / \
                     max(1.0, float(a["work_h"] or 12.0)) * 12.0
                 work_list.append((-pri, a["asset"], "repair", trade_of.get(a["kind"])))
+            elif a["kind"] == "hospital" and not s["hospital"]["running"]:
+                # the hospital is out of service and nobody has seen damage: find out first (its outage map may be
+                # stale or empty)
+                work_list.append((-120.0, a["asset"], "inspect", None))
             elif a["status"] == "unknown" and a["kind"] != "line" and (a["asset"] in chain or a["kind"] == "road"):
-                work_list.append((-120.0 if a["kind"] == "hospital" else -20.0, a["asset"], "inspect", None))
+                work_list.append((-20.0, a["asset"], "inspect", None))
         for _, aid, task, trade in sorted(work_list):
             if not avail:
                 break
