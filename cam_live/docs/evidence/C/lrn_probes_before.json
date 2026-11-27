@@ -1,0 +1,40 @@
+{
+ "code": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/LRN/snap_head/cam_live/src/cam_live/__init__.py",
+ "delta_v_offset": {
+  "max_abs_delta_v_when_nothing_changed": 0.451071035861969,
+  "holds_no_action_dependent_offset": false
+ },
+ "foreign_verified": {
+  "credited": 9.0,
+  "holds_not_credited": false
+ },
+ "reward_scale": {
+  "relative_update_change_at_mix_0.5_for_R_psi_x10": 0.06528807431459427,
+  "holds_scale_invariant": false
+ },
+ "reward_shape": {
+  "update_change_by_R_psi_shape": {
+   "1.0": 0.0,
+   "0.5": 9.066150232683867e-05,
+   "0.0": 0.003848147112876177
+  },
+  "holds_shape_matters_below_mix_1_and_not_at_1": true
+ },
+ "live_step": {
+  "default_inner_lr": 0.01,
+  "step_used": 0.01,
+  "policy_kl": 1.7609563656151295e-06,
+  "policy_prob_max_abs_change": 0.0005688220262527466,
+  "holds_policy_moves": false
+ },
+ "selection": {
+  "policy": {
+   "mean_p_predicted_best": 0.0616329520422362,
+   "mean_relative_predicted_value": 0.23068921129216813,
+   "n": 5
+  },
+  "holds_rule_tracks_predictions": false
+ },
+ "snapshot": "6e83bcf (HEAD when LRN started)",
+ "command": "PYTHONPATH=<snapshot>/cam_live/src .venv/bin/python cam_live/docs/evidence/C/lrn_probes.py --out ..."
+}

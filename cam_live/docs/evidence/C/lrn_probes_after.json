@@ -1,0 +1,45 @@
+{
+ "code": "/workspace/camlive/cam_live/src/cam_live/__init__.py",
+ "delta_v_offset": {
+  "max_abs_delta_v_when_nothing_changed": 0.00022277235984802246,
+  "holds_no_action_dependent_offset": true
+ },
+ "foreign_verified": {
+  "credited": 0.0,
+  "holds_not_credited": true
+ },
+ "reward_scale": {
+  "relative_update_change_at_mix_0.5_for_R_psi_x10": 2.7534174478205387e-06,
+  "holds_scale_invariant": true
+ },
+ "reward_shape": {
+  "update_change_by_R_psi_shape": {
+   "1.0": 0.0,
+   "0.5": 0.01045205444097519,
+   "0.0": 0.01155757438391447
+  },
+  "holds_shape_matters_below_mix_1_and_not_at_1": true
+ },
+ "live_step": {
+  "default_inner_lr": 0.01,
+  "step_used": 0.4923656253526231,
+  "policy_kl": 0.04976789280772209,
+  "policy_prob_max_abs_change": 0.10060075670480728,
+  "holds_policy_moves": true
+ },
+ "selection": {
+  "policy": {
+   "mean_p_predicted_best": 0.0616329520422362,
+   "mean_relative_predicted_value": 0.23068921129216813,
+   "n": 5
+  },
+  "thompson_policy": {
+   "mean_p_predicted_best": 0.58925,
+   "mean_relative_predicted_value": 0.9256029823136103,
+   "n": 5
+  },
+  "holds_rule_tracks_predictions": true
+ },
+ "snapshot": "working tree after the LRN fixes (commit f8f3b5d)",
+ "command": ".venv/bin/python cam_live/docs/evidence/C/lrn_probes.py --out ..."
+}
