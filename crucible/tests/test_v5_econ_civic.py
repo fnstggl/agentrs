@@ -149,7 +149,7 @@ def test_decisions_are_organic_population_decisions(civic):
     _, w = civic
     from crucible.calibration import inworld
     au = inworld.audit(w)
-    mine = [b for b in au.batches if b["table"] in ("work", "jobs", "assoc", "ads_seen") and b.get("provenance")]
+    mine = [b for b in au.batches if b["table"] in ("work", "work_jobs", "assoc", "ads_seen") and b.get("provenance")]
     assert mine and all(b["class"] in ("organic", "participant") for b in mine), \
         collections.Counter((b["class"], b["kind"]) for b in mine if b["class"] not in ("organic", "participant"))
     # every kind of decision these activities make is among them (none is recorded outside a population session)
@@ -159,7 +159,7 @@ def test_decisions_are_organic_population_decisions(civic):
         assert k in kinds, (k, sorted(kinds))
     # decision kinds of these activities never appear without provenance (module bookkeeping has its own kinds)
     bare = [e.payload["kind"] for e in w.log if e.type == "cols.batch" and
-            e.payload["table"] in ("jobs", "assoc", "ads_seen") and str(e.payload["kind"]).startswith("work.") and
+            e.payload["table"] in ("work_jobs", "assoc", "ads_seen") and str(e.payload["kind"]).startswith("work.") and
             not isinstance((e.payload.get("extra") or {}).get("decision"), dict)]
     assert not bare, collections.Counter(bare)
 

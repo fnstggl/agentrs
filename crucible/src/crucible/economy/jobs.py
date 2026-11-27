@@ -18,6 +18,11 @@ employer's pay cut it accepted earlier cannot keep it).
 The reservation wage is the individual's value of time over the job's hours, discounted while it is out of work:
 `vot (cents/min) x 60 x hours_week x 4.33 x 0.6`, with `vot` from the individual's means (`economy.work`). These
 rules are a documented, uncalibrated decision model (`work.jobs`, fidelity register FR-WORK-2).
+
+One decision path per worker: an individual whose labour-market record is a *simulated* worker (`sim`, entered by
+another module whose worker model then decides its offers, work and quitting - e.g. workstream I-2's `firms`
+`job_search` activity and initial staff) is left to that model; this activity decides only for the individuals it
+registered itself (`labor.register`, decisions in the individual's own sessions).
 """
 from __future__ import annotations
 
@@ -29,7 +34,9 @@ from . import popbridge as pb
 
 DAY = 86400
 MODEL = {"model_id": "work.jobs", "model_version": "1", "fidelity_id": "FR-WORK-2"}
-TABLE = "jobs"
+# column table of this activity (not "jobs": workstream I-2's `firms` declares a population table of that name for its
+# own `job_search` activity, and two modules writing one column table is refused by the column ownership rules)
+TABLE = "work_jobs"
 DEFAULTS = {"search_days": 3, "hours_week": 20, "max_apply": 2, "reservation_factor": 0.6, "counter_band": 0.8,
             "quit_below": 0.8}
 
@@ -83,6 +90,8 @@ def session(work, ctx, idx: np.ndarray, now: int) -> np.ndarray:
     for k, i in enumerate(idx.tolist()):
         p = ids.pid(i)
         rec = st.get("labor_workers", p)
+        if rec is not None and rec.get("sim"):
+            continue                    # a worker the labour market's own worker model decides for (see module doc)
         if rec is None:
             if employed[k]:
                 continue
@@ -201,7 +210,7 @@ def due(work, ctx) -> np.ndarray:
     out = set()
     for p, r in st.scan("labor_workers"):
         i = ids.index(p)
-        if i is not None:
+        if i is not None and not r.get("sim"):
             out.add(int(i))
     rng = ctx.rng("jobs.wake")
     k = max(1, n // int(_cfg(work, "search_days")))
