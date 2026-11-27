@@ -39,6 +39,9 @@ from social_helpers import Actor, social_world, assert_met
 
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_C.py"
 DAY = 86400
+# the population fixture (2,000 members, 30 days, 8 platforms) is built inside the first test that uses it, so that
+# test's timeout covers it: tens of minutes on one CPU thread (the default 600 s of pyproject stopped it)
+pytestmark = [pytest.mark.slow, pytest.mark.timeout(3 * 3600)]
 
 
 def opens(w, principal: str | None = None) -> list[tuple[str, str, int]]:
