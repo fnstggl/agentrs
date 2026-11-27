@@ -168,16 +168,21 @@
     "src/crucible/rapid/families_v2.py",
     "src/crucible/rapid/generator.py",
     "src/crucible/rapid/refs_adapt.py",
-    "src/crucible/rapid/report.py"
+    "src/crucible/rapid/report.py",
+    "src/crucible/rapid/engines/program_exec.py",
+    "src/crucible/rapid/engines/primitive_graph.py",
+    "src/crucible/rapid/categories.py",
+    "src/crucible/rapid/references.py"
    ],
    "tests": [
     "crucible/tests/test_v5_rapid_inventory_refs.py",
     "crucible/tests/test_v5_rapid_prediction_v3.py",
     "crucible/tests/v5/test_gate_M.py",
     "tests/test_v5_rapid_families.py",
-    "tests/v5/test_gate_M.py"
+    "tests/v5/test_gate_M.py",
+    "tests/test_v5_rapid_repair.py"
    ],
-   "status_claim": "MET in probes (63 of 60), to be confirmed by the registry-wide run",
+   "status_claim": "MET in probes (62 of 60 under the repair-pass admission: hold-and-fit predictors, deterministic program billing); gate evidence pending the slot job 'H: rapid repair r1'",
    "notes": "Training families admitted on seeds 0-2 AND 10-12 (full eleven-check admission per family, single-CPU probes): 22 at the start of wave 3b, 37 after the first wave-3b agent, 54 after the first continuation (registry-wide run f1 at 7a4137d: 54 train / 21 eval), 63 after the second continuation. Fixed (references/oracles that were not competent policies of their worlds): plan_distribution (late orders), des_inventory ((s, Q) instead of an order every tick against a fixed order cost). Redesigned as prediction tasks under D-63 (version bumps): ch_tech_transition v3, eng_delayed_controller v2, dl_short_term_damage v2. New primitive_graph training families for items whose families could not be admitted: dl_delayed_adoption (8.6.3), net_congestion_routes (8.7.1), plan_spoilage (8.4.2), plan_serial_stages (8.4.3). Still not admitted (training): plan_perishable, plan_supply_chain, pe_rollout_targeting, strat_price_war, net_routing (the best simple policy is within 0.8 of the adaptive reference on two seeds of a set; for most of them even the privileged oracle is). Margins: several admitted families pass the two-of-three rule with one seed close to 0.8 (plan_distribution 0.96 on seed 1, ch_tech_transition 0.79/0.83 on seeds 10/12, des_inventory 0.79/0.82)."
   },
   "M.2": {
@@ -195,14 +200,16 @@
     "crucible/src/crucible/rapid/references.py",
     "crucible/src/crucible/rapid/refs_adapt.py",
     "src/crucible/rapid/admission.py",
-    "src/crucible/rapid/families.py"
+    "src/crucible/rapid/families.py",
+    "src/crucible/rapid/dominance.py"
    ],
    "tests": [
     "crucible/tests/test_v5_rapid_inventory_refs.py",
     "crucible/tests/test_v5_rapid_prediction_v3.py",
-    "tests/v5/test_gate_M.py"
+    "tests/v5/test_gate_M.py",
+    "tests/test_v5_rapid_repair.py"
    ],
-   "status_claim": "MET in probes (22 of 20), to be confirmed by the registry-wide run",
+   "status_claim": "MET in probes (21 of 20); gate evidence pending the slot job",
    "notes": "Evaluation families (v5-eval-1) admitted on both seed sets in probes: 8 at the start of wave 3b, 15 after the first agent, 21 after the first continuation (f1 registry run at 7a4137d: 21), 22 with net_interdependent (8.7.4, new in the second continuation). Several prediction-world references are weak on one seed of a set (ch_sign_reversal, cxc_balancing_constraint, cxc_latched_reversal): admitted under the two-of-three rule."
   },
   "M.3": {
@@ -263,7 +270,7 @@
     "tests/test_v5_rapid_families.py",
     "tests/v5/test_gate_M.py"
    ],
-   "status_claim": "MET (gate test run, worktree, 97 families)",
+   "status_claim": "MET (gate test run directly on the repair-pass tree, 97 families)",
    "notes": "test_M5 passed at 433c4356-era tree: 93+ families, 0 missing fingerprints, 0 numeric components (fingerprint rapid-fp/3)."
   },
   "M.6": {
@@ -293,12 +300,14 @@
     "crucible/src/crucible/rapid/references.py",
     "crucible/src/crucible/rapid/refs_adapt.py",
     "src/crucible/rapid/admission.py",
-    "src/crucible/rapid/oracles.py"
+    "src/crucible/rapid/oracles.py",
+    "src/crucible/rapid/engines/program_exec.py"
    ],
    "tests": [
     "crucible/tests/test_v5_rapid_inventory_refs.py",
     "crucible/tests/test_v5_rapid_prediction_v3.py",
-    "tests/v5/test_gate_M.py"
+    "tests/v5/test_gate_M.py",
+    "tests/test_v5_rapid_repair.py"
    ],
    "status_claim": "MET (f1 registry run: 91 of 92 families feasible on both seed sets; 0 infeasible admitted); to be re-measured",
    "notes": "Feasibility = consistency, conservation and achievability on every seed of both seed sets; f1 (7a4137d) failures: net_cascade achievable on seeds 10-12 only. The criterion is 80."
@@ -321,16 +330,19 @@
     "src/crucible/rapid/claims_h3.py",
     "src/crucible/rapid/claims_v2.py",
     "src/crucible/rapid/eval_program_exec.py",
-    "src/crucible/rapid/evaluator_h2.py"
+    "src/crucible/rapid/evaluator_h2.py",
+    "src/crucible/rapid/claims_w3b.py",
+    "src/crucible/rapid/engines/program_exec.py"
    ],
    "tests": [
     "crucible/tests/test_v5_rapid_inventory_refs.py",
     "crucible/tests/test_v5_rapid_prediction_v3.py",
     "tests/test_v5_rapid_families.py",
     "tests/test_v5_rapid_h1h2.py",
-    "tests/v5/test_gate_M.py"
+    "tests/v5/test_gate_M.py",
+    "tests/test_v5_rapid_repair.py"
    ],
-   "status_claim": "MET (gate test run, worktree)",
+   "status_claim": "MET (gate test run directly on the repair-pass tree: 97 families with tests, 720 claim runs, 0 failures)",
    "notes": "test_M8 passed: 92 families with intervention tests, 690 tests run on seeds 0-2 and 10-12, 0 failures; look-alike rules distinguished."
   },
   "M.n1": {
@@ -354,7 +366,7 @@
     "crucible/tests/test_v5_rapid_prediction_v3.py",
     "tests/v5/test_gate_M.py"
    ],
-   "status_claim": "MET (gate test run, worktree, 474 variants)",
+   "status_claim": "MET (gate test run directly on the repair-pass tree: 474 variants, 0 at nonzero distance)",
    "notes": "test_Mn1 passed (direct run, 2026-11-27 03:13): 458 renamed/parameter/axis variants, 0 counted, 0 at nonzero distance, 0 not buildable; min distance between real families 0.02 (net_hidden_bottleneck_swap~net_topology_shift)."
   },
   "SP-0.9": {
@@ -365,7 +377,7 @@
    "tests": [
     "tests/v5/test_gate_SP_0_9.py"
    ],
-   "status_claim": "MET (gate test run, worktree, 68 training families)",
+   "status_claim": "MET (gate test run directly on the repair-pass tree, 68 training families, 0 matching)",
    "notes": "test_gate_SP_0_9 passed: 18 4.0 held-out families fingerprinted, 64 v5 training families checked, 0 matching (min distance 0.39)."
   },
   "SP-7.0": {
@@ -376,7 +388,7 @@
    "tests": [
     "tests/v5/test_gate_SP_7_0.py"
    ],
-   "status_claim": "MET (gate test run, worktree, 97 families)",
+   "status_claim": "MET (gate test run directly on the repair-pass tree, 97 families)",
    "notes": "test_gate_SP_7_0 passed: 5 independently generated objective kinds, 0 families with world-specific objective code, 92 families checked, 295 generated worlds built, 92 objective-free worlds."
   },
   "SP-7.1": {
@@ -387,7 +399,7 @@
     "tests/v5/test_gate_SP_7_1.py",
     "tests/test_v5_rapid_primitives.py"
    ],
-   "status_claim": "MET (gate test run, worktree)",
+   "status_claim": "MET (gate test run directly on the repair-pass tree)",
    "notes": "test_gate_SP_7_1 passed: 28 primitives registered, 27 per-instance parameter checks, 0 failures."
   },
   "SP-7.2": {
@@ -398,7 +410,7 @@
    "tests": [
     "tests/v5/test_gate_SP_7_2.py"
    ],
-   "status_claim": "MET (gate test run, worktree)",
+   "status_claim": "MET (gate test run directly on the repair-pass tree: 6 look-alike pairs confirmed)",
    "notes": "test_gate_SP_7_2 passed: 11 composition dimensions, 6 look-alike pairs, 6 confirmed different by intervention (the look-alike markets keep one interface in their prediction version 2)."
   },
   "SP-7.3": {
@@ -417,9 +429,10 @@
     "src/crucible/rapid/dominance.py"
    ],
    "tests": [
-    "tests/v5/test_gate_SP_7_4.py"
+    "tests/v5/test_gate_SP_7_4.py",
+    "tests/test_v5_rapid_repair.py"
    ],
-   "status_claim": "see gate run",
+   "status_claim": "pending the slot job (adds the prediction negative control ctl_dominant_prediction; probe: rejected by no_dominant_strategy with a hold-and-fit arm best on 3 of 3 seeds)",
    "notes": "Eleven checks, each rejecting a broken control world."
   },
   "SP-7.5": {
@@ -461,14 +474,19 @@
     "crucible/src/crucible/rapid/primitives.py",
     "crucible/src/crucible/rapid/references.py",
     "crucible/src/crucible/rapid/refs_adapt.py",
-    "src/crucible/rapid/families.py"
+    "src/crucible/rapid/families.py",
+    "src/crucible/rapid/families_pg.py",
+    "src/crucible/rapid/families_h3.py",
+    "src/crucible/rapid/generator.py",
+    "src/crucible/rapid/refs_adapt.py"
    ],
    "tests": [
     "crucible/tests/test_v5_rapid_inventory_refs.py",
     "crucible/tests/test_v5_rapid_prediction_v3.py",
-    "tests/v5/test_gate_SP_8_0.py"
+    "tests/v5/test_gate_SP_8_0.py",
+    "tests/test_v5_rapid_repair.py"
    ],
-   "status_claim": "MET in probes (60 of 60 named items admitted), to be confirmed by the registry-wide run",
+   "status_claim": "MET in probes (60 of 60 named items admitted on both seed sets); gate evidence pending the slot job",
    "notes": "All 60 items have an admitted family in probes on seeds 0-2 and 10-12. Second continuation: 8.4.1 (plan_distribution, des_inventory fixed), 8.4.2 (plan_spoilage), 8.4.3 (plan_serial_stages), 8.6.3 (dl_delayed_adoption), 8.7.1 (net_congestion_routes) and 8.7.4 (net_interdependent, evaluation) are new primitive-graph families scored by held-out predictions; the original planning/graph/program families of these items (plan_perishable, des_perishable, plan_supply_chain, pe_rollout_targeting, net_routing, net_cascade) are registered but not admitted."
   },
   "SP-8.0b": {
@@ -485,14 +503,16 @@
     "crucible/src/crucible/rapid/primitives.py",
     "crucible/src/crucible/rapid/references.py",
     "crucible/src/crucible/rapid/refs_adapt.py",
-    "src/crucible/rapid/categories.py"
+    "src/crucible/rapid/categories.py",
+    "src/crucible/rapid/engines/primitive_graph.py"
    ],
    "tests": [
     "crucible/tests/test_v5_rapid_inventory_refs.py",
     "crucible/tests/test_v5_rapid_prediction_v3.py",
-    "tests/v5/test_gate_SP_8_0b.py"
+    "tests/v5/test_gate_SP_8_0b.py",
+    "tests/test_v5_rapid_repair.py"
    ],
-   "status_claim": "MET in probes (6 of 6 category checks on the probe-admitted families), to be confirmed by the gate run",
+   "status_claim": "pending the slot job; probes: the 8.10 check on the scored channel passes on all admitted 8.10 families (2+ of seeds 0-2), static prediction controls fail it",
    "notes": "Measured with crucible.rapid.categories on the probe-admitted families: 8.2 (every admitted 8.2 family scores only conditions outside the settable range: lab_drift_blanks now scores doses 4.25-5.0), 8.4 (discrete, continuous and programmatic: plan_distribution now accepts a replenishment/shipping program), 8.5, 8.8 (six training opponent policy families; strat_bargain and strat_learning_rival face held-out ones), 8.9 and 8.10 (ch_tech_transition v3 passes on all six seeds; static controls do not) all pass."
   },
   "SP-8.11": {
@@ -509,10 +529,12 @@
    "implementation_files": [
     "src/crucible/rapid/batch.py",
     "src/crucible/rapid/twin.py",
-    "src/crucible/rapid/families.py"
+    "src/crucible/rapid/families.py",
+    "src/crucible/rapid/engines/primitive_graph.py"
    ],
    "tests": [
-    "tests/v5/test_gate_SP_8_12.py"
+    "tests/v5/test_gate_SP_8_12.py",
+    "tests/test_v5_rapid_repair.py"
    ],
    "status_claim": "see gate run",
    "notes": "Nine difficulty axes; batch path aggregate-routing fix."
@@ -525,17 +547,20 @@
    "tests": [
     "tests/v5/test_gate_SP_8_12b.py"
    ],
-   "status_claim": "MET (gate test run, worktree)",
+   "status_claim": "MET (gate test run directly on the repair-pass tree: 50 batched families, throughput target met)",
    "notes": "test_gate_SP_8_12b passed: 45 batched families, throughput target met (min 73,108 learner world-steps per CPU second, speedup over single worlds 17x, targets 20,000 and 10x) under shared load."
   }
  },
  "limitations": [
-  "Gate M counts are probe counts until the registry-wide run lands: M.1 63/60 training families, M.2 22/20 evaluation families, SP-8.0 60/60 named items (last registry-wide run f1 at 7a4137d: 54/21/54).",
-  "Seventeen families became prediction tasks (D-63 and its amendment): their objective is the interventional or end-of-episode response at held-out settings, scored 1 - MSE / variance of the truth; their public references are model-fitting procedures (refs_adapt), several of them assuming a model class (a logit demand curve, a drifting bump, a rival that follows your average price, a peaked dose law, a saturating hub, a saturating output link).",
-  "Several prediction references are weak on one seed of a seed set (ch_sign_reversal, ch_demand_shift, cxc_balancing_constraint, cxc_latched_reversal); they pass the two-of-three rule, the margin is small.",
-  "Program-execution families pay compute by measured CPU time (D-20 metering); admission values of pe_* families can vary with machine load.",
-  "The planning families of 8.4.1-8.4.3 and the routing/cascade network families (8.7.1, 8.7.4) remain static-tuning or weak-reference worlds; their redesigns were reverted.",
-  "Six more families became interventional-prediction tasks or were added as such in the second continuation (ch_tech_transition v3, eng_delayed_controller v2, dl_short_term_damage v2, dl_delayed_adoption, net_congestion_routes, plan_spoilage, plan_serial_stages): 24 of the 63 admitted training families are now prediction tasks scored by 1 - MSE / variance of the truth at held-out conditions; their scripted references assume the model class of the mechanism (D-64), so a reference score of 0.9-1.0 shows feasibility, not that a generic learner can do it. The four new families are compact primitive-graph compositions (one to three stocks); their item coverage is honest but thinner than the planning/program engines' worlds they complement."
+  "Gate M counts are probe counts until the slot job 'H: rapid repair r1' lands: M.1 62/60, M.2 21/20, SP-8.0 60/60 (full eleven-check admission of every family the repair changed, on seeds 0-2 and 10-12; the other 49 families' code paths are unchanged and their f2 results are carried over in the probe count, not re-measured).",
+  "Margins are thin but deterministic: several admitted families pass the dominance check on exactly two of three seeds of a set (ch_constraint_tightens, ch_tech_transition, mk_elastic, eng_delayed_controller, game_adaptive_rival, des_inventory, pe_cascade_guard; evaluation: hc_causal_prediction, sci_instruments, sci_interaction_hypotheses, pe_deadtime_control). The same tree and seeds give the same verdicts (program billing is now quantised).",
+  "Not admitted under the strengthened check: mk_drift (train; its path-dependent flip inside a held price is not identified by the shared market reference, generic predictors reach 0.86-0.93 of it on seeds 0-2) and cxc_balancing_constraint (evaluation; reference below hold and fit on 4 of 6 seeds).",
+  "SCOPE (verifier): items 8.4.2, 8.4.3, 8.6.3, 8.7.1 and 8.7.4 are covered only by compact primitive-graph prediction worlds (plan_spoilage, plan_serial_stages, dl_delayed_adoption, net_congestion_routes, net_interdependent); in them the participant runs experiments and predicts, it never allocates, routes or targets. Their decision worlds (plan_perishable, des_perishable, plan_supply_chain, net_routing, net_cascade, pe_rollout_targeting) remain dominated: on several seeds even the private oracle is within 0.8 of the best simple policy (static-tuning worlds), and the public references are well below the oracle.",
+  "Prediction families (24 of the 62 admitted training families) are scored 1 - MSE / variance of the truth at held-out conditions; their scripted references assume the model class of the mechanism (D-64), so a reference score of 0.9-1.0 shows feasibility, not that a generic learner can do it; the hold-and-fit predictors show that a generic curve fitter cannot.",
+  "Realised revenue in prediction worlds is a Gaussian relative scatter (0.1 x observation_noise) around the expected rate; realised sales do not feed back into stocks.",
+  "Compute in program worlds is billed per call in quanta (100 units, plus 10,000 per whole 10,000 measured): a call of up to about 3.5 ms of CPU costs the same as an empty one; a call near a quantum boundary could still be billed differently under load (the references stay below a fifth of a quantum).",
+  "The 8.10 check of prediction families freezes timed regimes and exogenous stocks at the end of the first fifth; a change carried by a lever-driven stock (path dependence inside a held condition, as in mk_drift) is not counted as a change of the world.",
+  "SP-7.5 (more than five minutes) and the cache-dependent gates were not run directly in the repair pass; they run in the slot job."
  ],
  "integration_notes": [
   "program_exec compute cost consumes the parent-measured CPU of workstream O's sandbox metering; for reproducible Tier 1 admission a deterministic parent-side measure (calls x price, or quantised CPU recorded as an external event and replayed in admission) is recommended. Not changed here (O owns metering).",
@@ -546,7 +571,10 @@
   "tests/test_v5_research_unit.py and tests/test_v5_substrate_modes.py exceed the 5-minute direct-run budget and were not run here; they reference rapid families only through crucible.experience.",
   "primitive_graph.true_response can now fix discrete decisions in a condition (used by the look-alike markets' certification state); fingerprints.legacy_recreation ignores journal messages of prediction worlds (D-9 still flags ch_sign_reversal, ch_rule_change, ch_wandering_taste, all evaluation families).",
   "Second continuation (2026-11-27): new families dl_delayed_adoption, net_congestion_routes, plan_spoilage, plan_serial_stages and net_interdependent (evaluation) (registry now 97 families); versions bumped: ch_tech_transition 3, eng_delayed_controller 2, dl_short_term_damage 2; plan_distribution's action space gained a 'program' kind (fingerprint action_interface changed); lab_drift_blanks's held-out doses changed to 4.25-5.0. Any cached admission or fingerprint registries keyed by family version/source digest must be recomputed.",
-  "The slot job 'H: rapid final 2' (tools/final_job.sh f2 in the H scratch directory) snapshots the COMMITTED tree at its start (git archive HEAD) into a small git repository, runs the registry-wide admission (2 processes), assembles the cache and runs the H gate tests and unit tests there; outputs land in <scratch>/w3b-rapid/out/f2-* and the unofficial evidence copies in out/f2-evidence. The first such run (f1) failed every gate test at the evidence-record step only because its rsync snapshot was not a git checkout (fixed)."
+  "The slot job 'H: rapid final 2' (tools/final_job.sh f2 in the H scratch directory) snapshots the COMMITTED tree at its start (git archive HEAD) into a small git repository, runs the registry-wide admission (2 processes), assembles the cache and runs the H gate tests and unit tests there; outputs land in <scratch>/w3b-rapid/out/f2-* and the unofficial evidence copies in out/f2-evidence. The first such run (f1) failed every gate test at the evidence-record step only because its rsync snapshot was not a git checkout (fixed).",
+  "Repair pass: the primitive_graph engine draws one more standard normal per tick (after every other draw, none in the warm-up) in prediction worlds that book revenue (money.realisation_sd); per-tick generators are unchanged otherwise, so node trajectories are unchanged and only revenue (and anything reading revenue) differs. The scalar twin (rapid.twin) follows the same contract.",
+  "Repair pass: rapid program worlds bill compute per call in quanta (program_exec.billed_units) from the parent-side D-20 measurement; observations' compute_lines_last_tick are billed units. Nothing in crucible.sandbox was changed.",
+  "Repair pass: the look-alike markets share a new held-out list; plan_spoilage, net_congestion_routes, cx_balancing_loop and ch_tech_transition have new held-out conditions (objective text changes; other workstreams that cache objectives of these families must refresh)."
  ],
  "history": {
   "wave3a": {
