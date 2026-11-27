@@ -52,6 +52,19 @@ alone (`World.regenerate`, SP-10.0 replications), a resumed copy re-executes the
 (Gate P.3), and a fork or an interrupted run may part from its reference only through a recorded outcome
 (`first_divergence`). Free agreement is reported beside them.
 
+## Chains: what counts as a confirmed stage
+
+A chain's stages are subsystems. The root's subsystem is the root (a labelled scripted reference agent's action);
+every later stage counts only when one of the measures standing for that subsystem (`gates.CHAIN_ARMS`, fixed
+before a run) is confirmed by removing the root across seeds: sign-consistent in every seed, paired 95% interval
+excluding zero, and larger than twice the placebo reshuffling noise. Measures read the consequence where it lands:
+the metered compute the agent's own deployment served to others (`m_agent_compute`; the operator's own requests,
+`cloud.usage_rel`, are left out), payments by population individuals verified by the ledger, the grid energy per
+good unit of the machines a paper is about. Provider-wide or world-wide totals are also reported, but a small
+agent's share of them sits below the reshuffling noise (at e77fef3 the provider's whole compute moved -4,103 cu
+against 5,902 cu of noise). With several measures per subsystem the chance that one is confirmed by luck is higher
+than for one measure; the per-measure verdicts are in the evidence notes so a reader can apply a stricter rule.
+
 ## How to run
 
     PYTHONPATH=src python -m pytest -q tests/test_v5_civ_core.py
@@ -63,9 +76,11 @@ alone (`World.regenerate`, SP-10.0 replications), a resumed copy re-executes the
 
 ## Known limits (see docs/v5/workstreams/J.json for the measured state)
 
-* Until CORE-POP/ECON merge, the v5 social, commerce, innovation, labour and community modules are present but
-  receive no population activity, so Gate O's strict subsystem count and O.n1 fail honestly; `feed` is not
-  composable yet (population hook not exported).
+* Education (`learn`), employment (`labor`/`jobs`/`firms`), institutions (`inst`), marketplaces (`xchg`/`market`)
+  and technology invention (`caps`/`pkg` without an agent) are composed but receive no population activity on this
+  branch (INT.json), so Gate O's strict subsystem count (12 of 17 at 02c300f) and O.n1 fail honestly until the
+  owning workstreams make them live; `crucible.civ.integration.subsystems` counts their population events with no
+  civ change.
 * Cross-process resume of civilisations with `pop_adaptive` is exact since kernel D-21 (on_load after the store is
   attached): tests/test_v5_civ_determinism.py (DEF-A-5 fixed).
 * Gate P suites are memory-bound (~16 MB of state per simulated day; a 365-day run and its verification child need
