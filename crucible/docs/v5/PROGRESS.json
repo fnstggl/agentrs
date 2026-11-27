@@ -2746,11 +2746,11 @@
   },
   {
    "workstream": "P (qa)",
-   "interrupted": "wave-3b continuation run wf_1e11fa88-ad3: cont:qa stopped mid-work by a usage limit (2026-11-26 evening UTC); commits on the branch, uncommitted file saved as WIP f86d398",
+   "interrupted": "wave-3b continuation run wf_1e11fa88-ad3: cont:qa stopped mid-work by a usage limit (2026-11-26 ~22:00-23:00 UTC); commits on the branch through f76cd5a, uncommitted gate_A.py saved as WIP f86d398",
    "recovery_branch": "c5c/w3b-qa",
-   "reassigned_to": "wave-3b continuation run resumed (resumeFromRunId wf_1e11fa88-ad3): cont:qa again from the branch head + refreshed handoff notes -> verify -> repair",
-   "status": "reassigned",
-   "recorded_at": "2026-11-27T01:44:23+00:00",
+   "reassigned_to": "wave-3b continuation cont:qa (third agent) resumed from branch head f86d398 + feat/crucible-5-complete c9fca5c, 2026-11-27",
+   "status": "resumed",
+   "recorded_at": "2026-11-27T01:46:00+00:00",
    "history": [
     {
      "interrupted": "wave-3b implementation agent impl:qa refused at start by a usage limit (2026-11-26 ~19:05 UTC); no work done",
@@ -2763,6 +2763,12 @@
      "reassigned_to": "wave-3b continuation cont:qa (fresh start from 55433e7 + feat/crucible-5-complete 1e11451, 2026-11-26 21:38 UTC)",
      "status": "resumed",
      "until": "2026-11-27T01:44:23+00:00"
+    },
+    {
+     "interrupted": "wave-3b continuation run wf_1e11fa88-ad3: cont:qa stopped mid-work by a usage limit (2026-11-26 evening UTC); commits on the branch, uncommitted file saved as WIP f86d398",
+     "reassigned_to": "wave-3b continuation run resumed (resumeFromRunId wf_1e11fa88-ad3): cont:qa again from the branch head + refreshed handoff notes -> verify -> repair",
+     "status": "reassigned",
+     "until": "2026-11-27T01:46:00+00:00"
     }
    ]
   },
