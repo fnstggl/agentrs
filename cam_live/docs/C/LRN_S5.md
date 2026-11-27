@@ -142,3 +142,57 @@ Reading:
   expected choice quality but a policy head *worse* than uniform (0.173): the executed-action policy gradient pushed
   mass onto never-chosen candidates. The final version trades nothing measurable in choice quality (intervals
   overlap) for a policy head that learned.
+
+## 4. Real configuration: the reward meta-learning pathway (task item 4)
+
+`docs/evidence/C/real_pathway.py` — see section 4 results below (written when the run completed).
+
+## 5. Tests (regression tests fail on the code before the fix)
+
+* `tests/predict/test_selection_value.py` — rule registered; an untrained policy follows the world model's predictions
+  with exact propensities (the old default rule is uniform on the same evaluations); Thompson spreads by posterior
+  overlap; infeasible = 0 and ties not broken by position; the policy's weight grows only when its preference
+  predicts verified progress (noise -> no influence, harmful -> lambda 0, a policy that repeats the world model ->
+  no influence); recorded features and persistence; on the debug model after two LabWorld lifetimes the rule's
+  choice has 0.92 of the predicted value range vs 0.23 for rule `policy`.
+* `tests/predict/test_selection_agent.py` — the integrated agent through the runtime: every decision records the
+  rule's inputs, the close-out's signed outcomes reach the calibration, a checkpoint restores it exactly.
+* `tests/reward/test_reward_lrn.py` — delta V has no action-dependent offset; verified progress only from the
+  decision's own outcomes; the inner update is scale-invariant at every mix and follows R_psi's shape with weight
+  growing as the mix falls (exactly 0 at mix 1); a policy update moves toward the decisions with verified progress
+  (goal term) and away from candidates predicted worse (model term); pending decisions use the calibrated prediction,
+  labelled; the trust-region step reaches the target KL (the old fixed step: KL < 1e-3) and replays bit-identically;
+  the learner feeds the calibration once per final outcome and persists it.
+* Changed expectations (behaviour changes, documented in the tests): promotion holds on inconclusive evidence instead
+  of raising (`test_reward_bootstrap.py`, `test_reward_metalearner.py`); success_before is the recorded state value
+  (`test_reward_inner.py`); full saturation of R_psi is a shape change (`test_reward_metalearner.py`, cosine bound
+  for x1000 0.75 with the measured 0.85; x10 now > 0.99).
+
+## 6. Limitations
+
+* Debug scale only for the choice diagnostics (tiny random backbone, LabWorld). No learning curve over lifetimes was
+  observed in any arm; the improvement is in how choices use the predictions, not in the predictions.
+* The calibration's beta_q is small and noisy (~0.1-0.3 in units of the verified RMS per prediction spread): the
+  verified progress of one decision is very noisy, so Thompson keeps exploring among well-predicted candidates
+  (expected quality 0.96 of greedy-on-prediction). Its priors, forgetting (0.99), lambda cap (10) and the projection
+  are design choices, not tuned.
+* The calibration and the goal term use the agent's per-decision annotation `reward_signals.verified_progress_delta`
+  (INT2-1 workaround): an environment that attributes nothing gets the level change, which can still credit a
+  decision with another decision's consequences.
+* Delayed effects without attribution (LabWorld's `lab.unlock`) are credited only through the return-to-go of the
+  goal term; the selection's calibration regresses on immediate attributed progress and so cannot learn their value.
+* The learned reward is not shown to help: E vs D vs E_mix0 intervals overlap; in E_mix0 R_psi pays zero-value
+  decisions more than valued ones; promotions in E were mostly "hold" (inconclusive). The promotion margin (0.05 x
+  utility RMS), step (0.25) and 4-group minimum are set by hand.
+* Learning progress and epistemic reduction still have no inputs in runtime runs (LRN-3).
+* `tests/integration/test_agent_recovery.py::test_save_fresh_process_load_gives_identical_decisions`: decisions
+  identical after reload, probabilities drift by 1.1e-6 > the test's 1e-6 (LRN-5; larger live steps amplify float
+  drift). Two other integration tests (`test_meta_update_runs_with_a_nonzero_meta_gradient`,
+  `test_kill_9_mid_run_then_restart_without_duplicate_actions`) failed the same way on the code before LRN when run
+  from an isolated tree — not caused by LRN, not investigated further.
+
+## 7. Requests to INT2
+
+`docs/change_requests/LRN.md`: LRN-1 default `selection_rule = "thompson_policy"` (INT2 is applying it in its
+working copy at the time of writing), LRN-3 record `epistemic_after` / `learning_progress`, LRN-5 recovery-test bound.
+No other agent wiring is needed (calibration shared through the policy head and checkpointed by `meta.state_dict()`).

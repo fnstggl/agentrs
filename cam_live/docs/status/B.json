@@ -1,7 +1,7 @@
 {
  "workstream": "B",
- "commit": "cb499b440c01478d42dfd3f2d4430a4dcefc7e8e",
- "summary": "Stage 1 + stage 2. Prediction and decision-making under src/cam_live/predict, wired onto the real CamLiveModel: five heads registered on the model, five LossProviders (world model incl. fast-prior and latent-consistency terms, ALPaCA-style fast prior, evaluator on signed verified outcomes, and adapter variants), the runtime Predictor (registered multi-horizon predictions, immediate fast-belief update, resolution, decision-relevant VOI), DecisionMaker (exact probabilities for five rules, self-proposed randomised experiments), LatentPlanner, BackboneProposer (100 % schema-valid proposals from Qwen3-4B on two tool sets), and debug-scale learning evidence in LabWorld with honest failures recorded.",
+ "commit": "d55986de026c67a428996902f2b344919a563c89",
+ "summary": "Stage 1 + stage 2. Prediction and decision-making under src/cam_live/predict, wired onto the real CamLiveModel: five heads registered on the model, five LossProviders (world model incl. fast-prior and latent-consistency terms, ALPaCA-style fast prior, evaluator on signed verified outcomes, and adapter variants), the runtime Predictor (registered multi-horizon predictions, immediate fast-belief update, resolution, decision-relevant VOI), DecisionMaker (exact probabilities for five rules, self-proposed randomised experiments), LatentPlanner, BackboneProposer (100 % schema-valid proposals from Qwen3-4B on two tool sets), and debug-scale learning evidence in LabWorld with honest failures recorded. | LRN round (S-5, 2026-11-27): selection rule thompson_policy (Thompson sampling over the world model's posterior + a policy correction weighted by a calibration on verified outcomes), policy-improvement loss with a goal term and an all-candidate model term, trust-region live step, reward components standardised before mixing, promotion as a non-inferiority test, delta V / verified-delta fixes; docs/C/LRN_S5.md, docs/evidence/B/choice_summary.json, docs/evidence/C/lrn_probes_*.json; JUnit docs/evidence/test_results/LRN.xml (298 passed, 13 skipped).",
  "requirements": {
   "PI-01": {
    "state": "implemented",
@@ -239,7 +239,10 @@
    ],
    "integration_points": [
     "cam_live.predict.policy.DecisionMaker.select",
-    "cam_live.predict.policy.DecisionMaker.select_experiment"
+    "cam_live.predict.policy.DecisionMaker.select_experiment",
+    "cam_live.predict.policy.SelectionCalibration",
+    "cam_live.predict.policy.selection_calibration",
+    "cam_live.predict.policy.DecisionMaker.thompson_policy"
    ],
    "tests": [
     "tests/predict/test_policy.py::test_every_rule_returns_exact_propensities",
@@ -250,18 +253,28 @@
     "tests/predict/test_decision.py::test_every_rule_records_the_exact_distribution_it_sampled_from",
     "tests/predict/test_decision.py::test_randomised_experiment_is_registered_before_assignment",
     "tests/predict/test_decision.py::test_action_distribution_depends_on_the_belief_latent_on_the_real_model",
-    "tests/predict/test_learning_evidence.py::test_closed_loop_agent_registers_before_acting_and_learns_within_the_lifetime"
+    "tests/predict/test_learning_evidence.py::test_closed_loop_agent_registers_before_acting_and_learns_within_the_lifetime",
+    "tests/predict/test_selection_value.py::test_untrained_policy_follows_the_world_models_predictions_with_exact_propensities",
+    "tests/predict/test_selection_value.py::test_uncertain_predictions_explore_in_proportion_to_the_posterior",
+    "tests/predict/test_selection_value.py::test_policy_influence_grows_only_when_its_preferences_predict_verified_outcomes",
+    "tests/predict/test_selection_value.py::test_calibration_reads_the_recorded_decision_and_round_trips",
+    "tests/predict/test_selection_value.py::test_real_debug_model_choices_track_its_own_predictions",
+    "tests/predict/test_selection_agent.py::test_agent_selects_with_thompson_policy_and_learns_its_calibration_from_verified_outcomes"
    ],
    "commands": [
     "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured.json .venv/bin/python -m pytest cam_live/tests/predict -m \"not gpu and not slow\" -q --rootdir=cam_live -p no:cacheprovider -W error::UserWarning --junitxml=cam_live/docs/evidence/test_results/B.xml",
     "cd /workspace/camlive && CAM_LIVE_B_MEASURE=/workspace/camlive/cam_live/docs/evidence/B/measured_slow.json .venv/bin/python -m pytest cam_live/tests/predict/test_learning_evidence.py -m slow -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/B_slow.xml",
-    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.predict.diagnose (run as three processes with --only 1a / --only 1b,2,3,4,5 / --only 4 and merged; see the 'runs' field of docs/evidence/B/diagnostics.json)"
+    "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.predict.diagnose (run as three processes with --only 1a / --only 1b,2,3,4,5 / --only 4 and merged; see the 'runs' field of docs/evidence/B/diagnostics.json)",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/B/choice_diagnostic.py --condition E --seed <s> --agent '{\"selection_rule\": \"thompson_policy\"}' --out ...  (8 lifetimes x 16 decisions, seeds 0-2; before: the same script on the snapshot of 6e83bcf)",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/B/summarise_choice.py --out cam_live/docs/evidence/B/choice_summary.json before=... after_E=... after_D=... after_E_mix0=..."
    ],
    "evidence": [
     "docs/evidence/B/diagnostics.json",
-    "docs/evidence/B/measured.json"
+    "docs/evidence/B/measured.json",
+    "docs/evidence/B/choice_summary.json",
+    "docs/C/LRN_S5.md"
    ],
-   "limitations": "All five rules select with exact recorded probabilities on the real model. Compared in closed loop only greedy vs VOI-aware (no significant difference at debug scale, see scientific_failures); Thompson / UCB / policy were not compared on a task."
+   "limitations": "S-5 (LRN round): new rule thompson_policy = Thompson sampling over the world model's joint posterior samples of each candidate's goal value (standardised within the decision) + lambda x the policy's preference beyond the world model's ranking, lambda = beta_pi^+/beta_q drawn from a Bayesian calibration on verified per-decision progress. Debug-scale LabWorld F1, 3 seeds x 8 lifetimes: expected choice quality (sum p_i truth_i / max truth) 0.311 before (HEAD 6e83bcf, rule policy + INT2's value prior) -> 0.375 (uniform 0.216, greedy on the agent's own predictions 0.392); policy head alone 0.196 -> 0.308. Default rule of the agent is INT2's (LRN-1). Engineering diagnostic only: tiny random backbone, LabWorld; not a scientific result."
   },
   "PI-09": {
    "state": "implemented",
@@ -605,7 +618,8 @@
   "predict.registry.PredictionRegistry(path, clock=None).register(rec) / .resolve(prediction_id, outcome) / .pending(now=None) / .scoreable() / .score(family_of=None)",
   "predict.registry.ExperimentRegistry(path, predictions, clock=None, seed=0).register(*, question, hypothesis, predictions, arms=(), assignment='none', arm_probs=None, ...) / .assign(id, unit_id) / .add_outcome(id, outcome, arm='') / .mature(id) / .analyse(id) / .conclude(id, *, supported, test, alternative_explanations, ...)",
   "predict.candidates.parse_actions(text, tools, *, provenance='backbone', ...) -> ParseResult(actions, rejections) ; schema_candidates(tools, *, vocab=(), per_tool=8, n_sampled=0, rng=None, id_prefix='act', ...) ; merge_candidates(*sources) ; build_proposal_prompt(tools, observation_digest, *, objective='', k=8) -> ProposalPrompt",
-  "full list with shapes: docs/B/API.md"
+  "full list with shapes: docs/B/API.md",
+  "predict.policy: RULE_THOMPSON_POLICY; SelectionCalibration(prior_sd_q=0.5, prior_sd_pi=0.5, forget=0.99, max_obs=1024, noise_dof=2.0) .features/.candidate_values/.observe/.observe_decision/.posterior/.sample/.predict/.summary/.state_dict; selection_calibration(policy_head); policy_preference(logits, a_mask, z_ref=None); standardised_values(q_samples, q_mean, a_mask); policy_weight(coef_samples); thompson_policy_scores(z, coef, c); DecisionMaker.calibration, DecisionMaker.thompson_policy(scores)"
  ],
  "change_requests": 11,
  "packages_installed": [],
@@ -1109,7 +1123,15 @@
     "source": "docs/evidence/B/ablation_prior.txt",
     "command": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/B/ablation_prior.py > cam_live/docs/evidence/B/ablation_prior.txt"
    }
-  }
+  },
+  "lrn_expected_choice_quality_before": 0.3112097931194104,
+  "lrn_expected_choice_quality_after_E": 0.37535821267095554,
+  "lrn_policy_quality_before": 0.19586393288852685,
+  "lrn_policy_quality_after_E": 0.3078849260183197,
+  "lrn_greedy_pred_quality_after_E": 0.39198174655118523,
+  "lrn_uniform_quality_after_E": 0.2161259458795556,
+  "lrn_selection_probe_relative_predicted_value_policy": 0.23068921129216813,
+  "lrn_selection_probe_relative_predicted_value_thompson_policy": 0.9256029823136103
  },
  "not_done": [
   "Nothing in cam_live.agent / runtime calls cam_live.predict yet (master integrates): Predictor, DecisionMaker, BackboneProposer, LatentPlanner and default_providers are ready and documented in docs/B/API.md.",

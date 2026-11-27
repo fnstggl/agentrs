@@ -1,7 +1,7 @@
 {
  "workstream": "C",
- "commit": "8a4222589ec67da0d9eef9f6bee015dc3b221eae",
- "summary": "Stage 1 + stage 2. The learned intrinsic reward R_psi and its lifetime meta-gradient are implemented end to end on the real model at debug scale: PolicyImprovementLoss (one function used as the learner's LossProvider with R_psi detached and, functionally over the policy head + decision trunk, as the inner step of the unroll); MetaLearner (real policy updates with snapshots, support/query windows inside one lifetime, utilities only from a hash-chained ledger of signed outcomes, on-policy or importance-weighted outer step, held-out promotion of the bootstrap mix, MetaUpdateRecord also for skipped updates); signal assembly with a documented source for every signal; a budgeted goal-free mode on the fast posterior; integrity guards. The mathematics checks out (finite differences, exact zeros under the two ablations, psi bit-identical under the inner loss). The science does not: in the multi-lifetime LabWorld comparison (10 seeds x 320 lifetimes, re-run after the G-pr fixes) the learned reward used from scratch: hurt relative to bootstrap-only (-0.350 [-0.430, -0.270] in verified goal achievement; it collapsed onto a non-intervention in 3 of 10 seeds and ended low in the others), and the cold-start path: no detectable difference relative to bootstrap-only (-0.038 [-0.186, +0.111]). No learning result here comes from live or staging experience; the integrated agent (agent.py, M-int) now calls MetaLearner and GoalFreeMode but needs change requests C-10 / C-11 for the fixed admission and budget rules. G-pr fixes (docs/C/FIXES.md): return-to-go baseline no longer depends on the row's own outcome (D1, exact unbiasedness test); outer utilities derived in the ledger from the signed outcome, caller utilities / credits refused and chained (D2); only objectives with a recorded operator origin supervise (D3); goal-free budget counts pending goals (D4); reworded self-goals discounted (D6); on-policy estimator only when the live update replays bit-identically (D7); anchored ledger (D8); 'bootstrap' label until a promoted meta-update (D12); a zero / non-finite meta-gradient or unchanged psi is never recorded as applied (M-int staging run 2). The LabWorld experiment was re-run in full on the fixed, committed code.",
+ "commit": "d55986de026c67a428996902f2b344919a563c89",
+ "summary": "Stage 1 + stage 2. The learned intrinsic reward R_psi and its lifetime meta-gradient are implemented end to end on the real model at debug scale: PolicyImprovementLoss (one function used as the learner's LossProvider with R_psi detached and, functionally over the policy head + decision trunk, as the inner step of the unroll); MetaLearner (real policy updates with snapshots, support/query windows inside one lifetime, utilities only from a hash-chained ledger of signed outcomes, on-policy or importance-weighted outer step, held-out promotion of the bootstrap mix, MetaUpdateRecord also for skipped updates); signal assembly with a documented source for every signal; a budgeted goal-free mode on the fast posterior; integrity guards. The mathematics checks out (finite differences, exact zeros under the two ablations, psi bit-identical under the inner loss). The science does not: in the multi-lifetime LabWorld comparison (10 seeds x 320 lifetimes, re-run after the G-pr fixes) the learned reward used from scratch: hurt relative to bootstrap-only (-0.350 [-0.430, -0.270] in verified goal achievement; it collapsed onto a non-intervention in 3 of 10 seeds and ended low in the others), and the cold-start path: no detectable difference relative to bootstrap-only (-0.038 [-0.186, +0.111]). No learning result here comes from live or staging experience; the integrated agent (agent.py, M-int) now calls MetaLearner and GoalFreeMode but needs change requests C-10 / C-11 for the fixed admission and budget rules. G-pr fixes (docs/C/FIXES.md): return-to-go baseline no longer depends on the row's own outcome (D1, exact unbiasedness test); outer utilities derived in the ledger from the signed outcome, caller utilities / credits refused and chained (D2); only objectives with a recorded operator origin supervise (D3); goal-free budget counts pending goals (D4); reworded self-goals discounted (D6); on-policy estimator only when the live update replays bit-identically (D7); anchored ledger (D8); 'bootstrap' label until a promoted meta-update (D12); a zero / non-finite meta-gradient or unchanged psi is never recorded as applied (M-int staging run 2). The LabWorld experiment was re-run in full on the fixed, committed code. | LRN round (S-5, 2026-11-27): selection rule thompson_policy (Thompson sampling over the world model's posterior + a policy correction weighted by a calibration on verified outcomes), policy-improvement loss with a goal term and an all-candidate model term, trust-region live step, reward components standardised before mixing, promotion as a non-inferiority test, delta V / verified-delta fixes; docs/C/LRN_S5.md, docs/evidence/B/choice_summary.json, docs/evidence/C/lrn_probes_*.json; JUnit docs/evidence/test_results/LRN.xml (298 passed, 13 skipped).",
  "requirements": {
   "MR-01": {
    "state": "implemented",
@@ -104,7 +104,11 @@
     "tests/reward/test_reward_inner.py::test_provider_contract_and_same_function_as_the_unroll",
     "tests/reward/test_reward_inner.py::test_meta_gradient_matches_finite_differences_on_the_real_adaptable_subset",
     "tests/reward/test_reward_metalearner.py::test_single_lifetime_windows_and_on_policy_meta_update",
-    "tests/reward/test_reward_inner.py::test_returns_are_duration_aware_and_stop_at_lifetime_boundaries"
+    "tests/reward/test_reward_inner.py::test_returns_are_duration_aware_and_stop_at_lifetime_boundaries",
+    "tests/reward/test_reward_lrn.py::test_inner_update_is_scale_invariant_at_every_mix_and_follows_the_shape_of_the_learned_reward",
+    "tests/reward/test_reward_lrn.py::test_policy_update_moves_toward_decisions_with_verified_progress",
+    "tests/reward/test_reward_lrn.py::test_all_candidate_term_moves_policy_mass_away_from_candidates_predicted_worse",
+    "tests/reward/test_reward_lrn.py::test_live_policy_step_is_sized_by_a_trust_region_and_replays_exactly"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
@@ -112,9 +116,12 @@
    ],
    "evidence": [
     "docs/evidence/C/diagnostics.json",
-    "docs/evidence/test_results/C.xml"
+    "docs/evidence/test_results/C.xml",
+    "docs/C/LRN_S5.md",
+    "docs/evidence/C/lrn_probes_before.json",
+    "docs/evidence/C/lrn_probes_after.json"
    ],
-   "limitations": "The live policy head + decision trunk of the debug model are updated by L_inner on intrinsic rewards (policy_update, or the LossProvider under the continual learner). Which of the two paths the integrated agent uses is open (change request C-8)."
+   "limitations": "LRN (S-5): the live inner update standardises bootstrap and learned reward separately before mixing, so R_psi's shape enters with weight 1 - mix (probe: update change by R_psi's shape at mix 0.5 9.1e-05 -> 0.01); adds the labelled goal term (verified progress, else the calibrated prediction) and the all-candidate model term; the live step is a trust region (KL 1.8e-06 -> 0.05 per update). The agent calls MetaLearner.policy_update (C-8 resolved by INT2). | earlier: The live policy head + decision trunk of the debug model are updated by L_inner on intrinsic rewards (policy_update, or the LossProvider under the continual learner). Which of the two paths the integrated agent uses is open (change request C-8)."
   },
   "MR-04": {
    "state": "implemented",
@@ -327,7 +334,9 @@
     "tests/reward/test_reward_experiment.py::test_three_learners_with_equal_experience_in_labworld",
     "tests/reward/test_reward_bootstrap.py::test_promotion_before_any_meta_update_does_not_earn_the_learned_label",
     "tests/reward/test_reward_fixes.py::test_reward_is_labelled_bootstrap_until_a_meta_update_was_applied_and_promoted",
-    "tests/reward/test_reward_fixes.py::test_an_applied_meta_update_is_counted_for_the_label"
+    "tests/reward/test_reward_fixes.py::test_an_applied_meta_update_is_counted_for_the_label",
+    "tests/reward/test_reward_lrn.py::test_delta_v_has_no_action_dependent_offset",
+    "tests/reward/test_reward_lrn.py::test_verified_progress_counts_only_this_decisions_own_outcomes"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
@@ -337,9 +346,12 @@
    "evidence": [
     "docs/evidence/C/diagnostics.json",
     "docs/evidence/test_results/C.xml",
-    "docs/evidence/test_results/C_slow.xml"
+    "docs/evidence/test_results/C_slow.xml",
+    "docs/C/LRN_S5.md",
+    "docs/evidence/C/lrn_probes_before.json",
+    "docs/evidence/C/lrn_probes_after.json"
    ],
-   "limitations": "Bootstrap mode works without any pretraining and is labelled in every record; the label stays 'bootstrap' until at least one meta-update was applied and promoted on held-out evidence (G-pr D12; before, mix 0 was labelled 'learned' for a random R_psi). psi is meta-updated by shadow updates (importance weighting only, G-pr D7) while the bootstrap reward drives the policy; the mix moves only on held-out verified evidence. The promotion rule is uncalibrated (margin and step chosen ad hoc). Of the four bootstrap components only the verified-outcome one had inputs in LabWorld, and it misattributes (it pays the step during which outcomes mature)."
+   "limitations": "LRN (S-5): promotion is a non-inferiority test on held-out verified evidence (lower by 0.25 when the one-sided 95 % lower bound >= -0.05 x utility RMS, raise when the upper bound < 0, hold otherwise; 4 groups). Measured mix trajectories (debug scale, E): see docs/evidence/B/choice_summary.json (mix_end_by_run). Bootstrap delta V = V(b') - V(b); verified delta only from the decision's own outcomes. Learning progress and epistemic reduction still have no input in runtime runs (LRN-3). | earlier: Bootstrap mode works without any pretraining and is labelled in every record; the label stays 'bootstrap' until at least one meta-update was applied and promoted on held-out evidence (G-pr D12; before, mix 0 was labelled 'learned' for a random R_psi). psi is meta-updated by shadow updates (importance weighting only, G-pr D7) while the bootstrap reward drives the policy; the mix moves only on held-out verified evidence. The promotion rule is uncalibrated (margin and step chosen ad hoc). Of the four bootstrap components only the verified-outcome one had inputs in LabWorld, and it misattributes ("
   },
   "MR-09": {
    "state": "implemented",
@@ -379,7 +391,8 @@
     "tests/reward/test_reward_goalfree.py::test_goal_free_mode_is_budgeted_and_stops_when_nothing_is_left_to_learn",
     "tests/reward/test_reward_integrity.py::test_reworded_self_generated_goals_count_as_repeats",
     "tests/reward/test_reward_integrity.py::test_semantic_near_duplicates_on_the_goal_embedding_are_discounted",
-    "tests/reward/test_reward_semantic_goals.py::test_reworded_goals_are_closer_than_different_goals_in_the_real_embedding"
+    "tests/reward/test_reward_semantic_goals.py::test_reworded_goals_are_closer_than_different_goals_in_the_real_embedding",
+    "tests/reward/test_reward_lrn.py::test_inner_update_is_scale_invariant_at_every_mix_and_follows_the_shape_of_the_learned_reward"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
@@ -388,9 +401,12 @@
    "evidence": [
     "docs/evidence/C/diagnostics.json",
     "docs/evidence/test_results/C.xml",
-    "docs/evidence/C/semantic_goal_repeats.json"
+    "docs/evidence/C/semantic_goal_repeats.json",
+    "docs/C/LRN_S5.md",
+    "docs/evidence/C/lrn_probes_before.json",
+    "docs/evidence/C/lrn_probes_after.json"
    ],
-   "limitations": "The tests exist and execute on the real debug model. Repeated self-goals are discounted also when reworded (number words, endings, attainment verbs folded, G-pr D6); an optional embedding near-duplicate test exists, but on the real Qwen3-4B text embedding no cosine threshold separates rewordings from different goals (least similar rewording 0.35 < most similar different goal 0.57, docs/evidence/C/semantic_goal_repeats.json), so it is off by default and paraphrases with no shared content word are not caught. One of the things the guards are meant to rule out did happen in the experiment: see scientific_failures (noisy gauge in the learned arm). Detection of engagement without genuine participation is verifier-side and not covered here."
+   "limitations": "Scale invariance now holds at every mix (probe at mix 0.5: 0.0653 -> 2.8e-06); full saturation of R_psi (x1000) is a change of shape (cosine 0.85 of the update), not of scale. | earlier: The tests exist and execute on the real debug model. Repeated self-goals are discounted also when reworded (number words, endings, attainment verbs folded, G-pr D6); an optional embedding near-duplicate test exists, but on the real Qwen3-4B text embedding no cosine threshold separates rewordings from different goals (least similar rewording 0.35 < most similar different goal 0.57, docs/evidence/C/semantic_goal_repeats.json), so it is off by default and paraphrases with no shared content word are not caught. One of the things the guards are meant to rule out did happen in the experiment: see sc"
   },
   "MR-10": {
    "state": "implemented",
@@ -795,7 +811,15 @@
   "s2_50m_end_to_end_meta_grad_norm_K4": 0.060905820342139955,
   "s2_50m_end_to_end_applied_K4": true,
   "tests_fix_run_errors_lock_timeout": 1,
-  "tests_fix_run_note": "BC_fix.xml: 136 reward tests passed; 1 error = test_reward_semantic_goals.py (gpu) timed out at setup after 900 s waiting for the shared GPU lock held by another tenant; re-run alone afterwards: passed (docs/evidence/test_results/BC_fix_gpu_retry.xml). Predict: 157 passed."
+  "tests_fix_run_note": "BC_fix.xml: 136 reward tests passed; 1 error = test_reward_semantic_goals.py (gpu) timed out at setup after 900 s waiting for the shared GPU lock held by another tenant; re-run alone afterwards: passed (docs/evidence/test_results/BC_fix_gpu_retry.xml). Predict: 157 passed.",
+  "lrn_probe_delta_v_offset_before": 0.451071035861969,
+  "lrn_probe_delta_v_offset_after": 0.00022277235984802246,
+  "lrn_probe_foreign_verified_before": 9.0,
+  "lrn_probe_foreign_verified_after": 0.0,
+  "lrn_probe_scale_mix05_before": 0.06528807431459427,
+  "lrn_probe_scale_mix05_after": 2.7534174478205387e-06,
+  "lrn_probe_live_kl_before": 1.7609563656151295e-06,
+  "lrn_probe_live_kl_after": 0.04976789280772209
  },
  "not_done": [
   "Integration: cam_live/agent.py and the runtime do not call any of this yet. AgentAPI.internal_rewards -> MetaLearner.internal_rewards, AgentAPI.meta_learn -> MetaLearner.meta_update, verifier outcomes -> MetaLearner.admit_objective, checkpoint -> MetaLearner.state_dict, and who applies the policy-improvement step (change request C-8) are the master's to wire.",
@@ -812,7 +836,9 @@
   "Detection of engagement statistics without genuine participation is verifier-side and not covered here.",
   "Reverse-over-forward Hessian-vector products for the adjoint sweep are not implemented (double backward is used).",
   "G-pr fixes need two integration changes in agent.py (M-int): register the assigned TaskSpec with MetaLearner.register_objective (C-10; until then the agent's objective outcomes are refused for the meta ledger, fail closed) and abandon proposed goal-free goals that are not executed (C-11; until then goal-free mode stops selecting once pending goals hold the budget). Signing the objective origin by the verifier is proposed as C-12.",
-  "Semantic near-duplicate self-goals: SelfGoalDiscount(embed=...) exists, but on the real Qwen3-4B text embedding no threshold separates rewordings from different goals; only the lexical fold is on by default."
+  "Semantic near-duplicate self-goals: SelfGoalDiscount(embed=...) exists, but on the real Qwen3-4B text embedding no threshold separates rewordings from different goals; only the lexical fold is on by default.",
+  "LRN: bootstrap learning progress / epistemic reduction have no input in runtime runs (agent does not write them; LRN-3).",
+  "LRN: the promotion margin (0.05 x utility RMS), step (0.25) and 4-group minimum are set by hand, not calibrated."
  ],
  "scientific_failures": [
   "(re-run after the G-pr fixes) The learned reward used from scratch (mix 0; applied meta-updates per seed [59, 77, 67, 74, 68, 65, 79, 57, 62, 80], the others skipped, e.g. zero advantage once every lifetime has the same verified utility): HURT against bootstrap-only and HURT against verified-outcome-only policy gradient. Verified goal achievement over the last quarter of 320 LabWorld lifetimes, 10 seeds: learned 0.136 [0.074, 0.198], bootstrap-only 0.486 [0.397, 0.576], verified-outcome-only 0.422 [0.358, 0.487]; paired differences -0.350 [-0.430, -0.270] and -0.286 [-0.371, -0.202]. Per-seed last quarter (learned): 10: 0.06, 11: 0.11, 12: 0.20, 13: 0.01, 14: 0.17, 15: 0.15, 16: 0.15, 17: 0.03, 18: 0.17, 19: 0.30. The static gauge is paid above average by the learned reward and chosen in more than 25% of decisions at the end in 0 of 10 seeds []; seeds collapsed on a non-intervention: [11, 14, 17]. Estimators of the applied updates: {\"on_policy_query\": 30, \"mixed_on_policy_and_importance\": 658}. Before the fixes (stored run, superseded): learned 0.263, bootstrap-only 0.472, verified-outcome-only 0.471, gauge paid and chosen above 25 % in 3 of 10 seeds.",
