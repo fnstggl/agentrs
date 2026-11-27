@@ -1,0 +1,265 @@
+{
+ "_commands": {
+  "note": "every block except store_benchmark is the JSON a test prints (tag in upper case) during the test run above",
+  "store_benchmark": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/D/bench_store.py",
+  "tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -s"
+ },
+ "cocoa_elapsed": {
+  "tv_with_elapsed": 0.018817064853114737,
+  "tv_without_elapsed": 0.0809684713129758
+ },
+ "cocoa_ktd": {
+  "w_key_door": 1.1957322301644009,
+  "w_key_door_exact": 1.1998696918767409,
+  "w_nokey_door": -0.9965516712000315,
+  "weighted_abs_err": 0.01562347030289538
+ },
+ "cocoa_learned_bias": {
+  "key_rel_bias": 9.94335165842138e-06,
+  "key_rel_bias_w0": 1.0,
+  "rel_bias": 0.001233314792098567,
+  "rel_var": 10.479687250057456,
+  "rel_var_exact_w": 10.51678937228777
+ },
+ "exact_nkd": {
+  "all_actions": {
+   "grad_norm2": 0.1049,
+   "rel_bias": 1.342e-32,
+   "rel_var": 0.1172,
+   "snr_db": 9.309
+  },
+  "cocoa": {
+   "grad_norm2": 0.1049,
+   "rel_bias": 7.203e-32,
+   "rel_var": 10.52,
+   "snr_db": -10.22
+  },
+  "hca_return": {
+   "rel_bias": 0.06099
+  },
+  "reinforce": {
+   "grad_norm2": 0.1049,
+   "rel_bias": 1.637e-32,
+   "rel_var": 23.46,
+   "snr_db": -13.7
+  },
+  "reinforce_baseline": {
+   "grad_norm2": 0.1049,
+   "rel_bias": 1.185e-32,
+   "rel_var": 15.16,
+   "snr_db": -11.81
+  },
+  "rudder_immediate_exact": {
+   "grad_norm2": 0.1049,
+   "rel_bias": 4.779e-32,
+   "rel_var": 8.585,
+   "snr_db": -9.337
+  },
+  "rudder_return_to_go": {
+   "grad_norm2": 0.1049,
+   "rel_bias": 2.659e-32,
+   "rel_var": 25.74,
+   "snr_db": -14.11
+  }
+ },
+ "ktd_variance": {
+  "snr": {
+   "all_actions": Infinity,
+   "cocoa": 1.4507796140904121,
+   "reinforce": 0.010634589095633622,
+   "reinforce_baseline": 0.0724191018615544,
+   "rudder_immediate_exact": 0.5949621378013606,
+   "rudder_return_to_go": 0.010634589095633622
+  },
+  "var": {
+   "all_actions": 0.0,
+   "cocoa": 0.05927886632592312,
+   "reinforce": 8.086872942495749,
+   "reinforce_baseline": 1.1875398700255846,
+   "rudder_immediate_exact": 0.14454797263208838,
+   "rudder_return_to_go": 8.086872942495749
+  }
+ },
+ "long_delay_snr": {
+  "1024": {
+   "advantage": 0.0009566,
+   "cocoa": 1.0,
+   "reinforce": 2.313e-05,
+   "rudder": 1000000000.0
+  },
+  "16": {
+   "advantage": 0.06834,
+   "cocoa": 1.0,
+   "reinforce": 0.03474,
+   "rudder": 1000000000.0
+  },
+  "256": {
+   "advantage": 0.003746,
+   "cocoa": 1.0,
+   "reinforce": 0.0003371,
+   "rudder": 1000000000.0
+  },
+  "64": {
+   "advantage": 0.0156,
+   "cocoa": 1.0,
+   "reinforce": 0.004096,
+   "rudder": 1000000000.0
+  }
+ },
+ "mc_unbiased_key_to_door": {
+  "all_actions": {
+   "max_abs_z": 2.83,
+   "max_err_zero_variance_components": 1.67e-16,
+   "n_components": 28.0,
+   "rel_error": 0.00301,
+   "rms_z": 1.22
+  },
+  "cocoa": {
+   "max_abs_z": 2.37,
+   "max_err_zero_variance_components": 0.0,
+   "n_components": 38.0,
+   "rel_error": 0.0088,
+   "rms_z": 1.14
+  },
+  "reinforce": {
+   "max_abs_z": 1.72,
+   "max_err_zero_variance_components": 0.0,
+   "n_components": 38.0,
+   "rel_error": 0.0327,
+   "rms_z": 1.09
+  },
+  "reinforce_baseline": {
+   "max_abs_z": 2.08,
+   "max_err_zero_variance_components": 0.0,
+   "n_components": 38.0,
+   "rel_error": 0.0126,
+   "rms_z": 1.02
+  },
+  "rudder_immediate_exact": {
+   "max_abs_z": 2.29,
+   "max_err_zero_variance_components": 0.0,
+   "n_components": 38.0,
+   "rel_error": 0.00614,
+   "rms_z": 1.17
+  },
+  "rudder_return_to_go": {
+   "max_abs_z": 2.29,
+   "max_err_zero_variance_components": 0.0,
+   "n_components": 38.0,
+   "rel_error": 0.0254,
+   "rms_z": 1.15
+  }
+ },
+ "mc_unbiased_random_tree": {
+  "all_actions": {
+   "max_abs_z": 2.09,
+   "max_err_zero_variance_components": 1.67e-16,
+   "n_components": 40.0,
+   "rel_error": 0.00256,
+   "rms_z": 1.05
+  },
+  "cocoa": {
+   "max_abs_z": 2.19,
+   "max_err_zero_variance_components": 0.0,
+   "n_components": 42.0,
+   "rel_error": 0.00745,
+   "rms_z": 1.12
+  },
+  "reinforce": {
+   "max_abs_z": 2.19,
+   "max_err_zero_variance_components": 0.0,
+   "n_components": 42.0,
+   "rel_error": 0.00943,
+   "rms_z": 1.13
+  },
+  "reinforce_baseline": {
+   "max_abs_z": 2.24,
+   "max_err_zero_variance_components": 0.0,
+   "n_components": 42.0,
+   "rel_error": 0.00845,
+   "rms_z": 1.1
+  },
+  "rudder_immediate_exact": {
+   "max_abs_z": 2.3,
+   "max_err_zero_variance_components": 0.0,
+   "n_components": 42.0,
+   "rel_error": 0.00532,
+   "rms_z": 1.06
+  },
+  "rudder_return_to_go": {
+   "max_abs_z": 2.3,
+   "max_err_zero_variance_components": 0.0,
+   "n_components": 42.0,
+   "rel_error": 0.00925,
+   "rms_z": 1.17
+  }
+ },
+ "replay_balance": {
+  "delayed": 0.2623,
+  "failure": 0.2084,
+  "families": {
+   "famA": 0.1994,
+   "famB": 0.21,
+   "famC": 0.2066,
+   "famD": 0.3841
+  },
+  "old_distinct": 1360,
+  "recent": 0.3841,
+  "recent_success": 0.3841,
+  "success": 0.6464
+ },
+ "rudder_key": {
+  "key_abs_err": 0.03527312090221115,
+  "key_is_argmax": 1.0,
+  "offset": 0.4600759848064336,
+  "other_abs_mean": 0.006645334122909323,
+  "residual_abs": 0.041427670420489615
+ },
+ "selection": {
+  "default_ambiguous": "rudder",
+  "default_clear": "simple",
+  "max_abs_err_vs_true_effect": {
+   "cocoa": 0.2016505002975464,
+   "rudder": 0.03475672006607056
+  },
+  "scores": {
+   "cocoa": {
+    "mean_sq_z": 1.5345,
+    "n": 6,
+    "passes": true,
+    "rmse": 0.1207,
+    "sign_agreement": 1.0
+   },
+   "latest": {
+    "mean_sq_z": 631.1377,
+    "n": 6,
+    "passes": false,
+    "rmse": 1.1904,
+    "sign_agreement": 0.2
+   },
+   "rudder": {
+    "mean_sq_z": 0.1546,
+    "n": 6,
+    "passes": true,
+    "rmse": 0.0184,
+    "sign_agreement": 1.0
+   },
+   "simple": {
+    "mean_sq_z": 388.3924,
+    "n": 6,
+    "passes": false,
+    "rmse": 0.9523,
+    "sign_agreement": 1.0
+   }
+  }
+ },
+ "store_benchmark": {
+  "batched_appends_per_s": 1013.8,
+  "cached_sample_ids_ms": 1.92,
+  "db_bytes_per_record": 8674,
+  "durable_add_outcome_per_s": 233.0,
+  "durable_appends_per_s": 437.6,
+  "first_sample_ids_ms_20k_records": 124.16,
+  "sample_32_records_ms": 10.39
+ }
+}

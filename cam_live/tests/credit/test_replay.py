@@ -471,3 +471,16 @@ def test_fast_record_decoding_equals_the_contract_decoder(make_record):
     assert fast == ref and fast.to_dict() == rec.to_dict()
     assert type(fast.decision.candidates[0]) is CandidateEvaluation and type(fast.result.ops[0]) is PrimitiveOp
     assert type(fast.decision.candidates[0].action.steps[0]).__name__ == "ActionSpec"
+
+
+def test_a_query_has_one_final_answer(tmp_path, make_record):
+    st = _store(tmp_path)
+    rec = make_record(0)
+    st.append(rec)
+    assert st.add_outcome(_obs(rec, 3.0, 1200.0, dedup_key="first")).accepted
+    again = st.add_outcome(_obs(rec, 9.0, 1300.0, dedup_key="another-key"))       # a second answer under a new key
+    assert not again.accepted and again.duplicate and [o.value for o in st.get("e0").outcomes] == [3.0]
+    assert st.add_outcome(_obs(rec, 4.0, 1400.0, dedup_key="verifier", verified=True)).upgraded
+    got = st.get("e0")
+    assert [(o.value, o.verified, o.dedup_key) for o in got.outcomes] == [(4.0, True, "verifier")]
+    assert [e["dedup_key"] for e in st.outcome_events()] == ["verifier"]

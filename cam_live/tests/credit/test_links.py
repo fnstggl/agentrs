@@ -45,6 +45,11 @@ def test_declared_query_links_exactly_and_queues_retraining(st, make_record):
     assert again.duplicates == 1 and again.results == [] and len(st.links()) == 1
     assert SimpleAttribution(st).apply() and st.get("e1").credit == {"simple": 7.0}
     assert "simple" not in st.get("e2").credit        # no evidence, no credit (not zero)
+    # an observation that carries no time of its own is dated by the clock at reconciliation
+    q3 = st.get("e3").pending_queries[0]
+    (r3,) = linker.reconcile(outcomes=[OutcomeObservation(q3.query_id, OutcomeStatus.CENSORED)]).results
+    assert r3.links[0].exp_id == "e3" and r3.links[0].outcome_ts == 5000.0 and r3.links[0].amount is None
+    assert "e3" not in SimpleAttribution(st).credit()  # an occurrence without a value is not a number
 
 
 def test_attribution_key_beats_recency(st, make_record):

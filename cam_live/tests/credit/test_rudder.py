@@ -154,7 +154,7 @@ def test_pending_sequences_yield_no_credit_and_no_loss(tmp_path):
     lb, info = model.loss(x, mask, Gb, matured)
     ga = torch.autograd.grad(la, list(model.parameters()), allow_unused=True)
     gb = torch.autograd.grad(lb, list(model.parameters()), allow_unused=True)
-    assert float(la) == float(lb) and info["n_matured"] == 6.0
+    assert float(la.detach()) == float(lb.detach()) and info["n_matured"] == 6.0
     assert all(torch.equal(p, q) for p, q in zip(ga, gb) if p is not None)
     none, info = model.loss(x, mask, Gb, torch.zeros(12, dtype=torch.bool))
     assert none is None and info["n_matured"] == 0.0

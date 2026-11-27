@@ -166,11 +166,12 @@ class OutcomeLinker:
         if q is None or not owners:
             return LinkResult(key, reason="no decision registered this query")
         recs = self.store.get_many(owners)
-        ok = [r for r in recs if r.decision.ts <= obs.observed_at + 1e-9]
+        at = obs.observed_at or self.clock.now()         # an observation without a time was received now
+        ok = [r for r in recs if r.decision.ts <= at + 1e-9]
         w = 1.0 / len(ok) if ok else 0.0
         evidence = EV_QUERY if len(recs) == 1 else EV_SHARED
         return self._make(key, [(r, w if r in ok else 1.0 / len(recs), 0.0 if len(ok) == 1 else None) for r in recs],
-                          evidence, obs.observed_at, obs.value, q.metric, obs.verified, q.goal_relevant,
+                          evidence, at, obs.value, q.metric, obs.verified, q.goal_relevant,
                           {"query_id": obs.query_id, "status": obs.status, "source": obs.source,
                            "measurement_uncertainty": obs.uncertainty}, [])
 

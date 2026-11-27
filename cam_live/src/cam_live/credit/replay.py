@@ -454,18 +454,19 @@ class SqliteExperienceStore:
 
     @staticmethod
     def _dedup_outcomes(rec: ExperienceRecord) -> None:
-        """Within a record the same event (dedup key, query) is kept once; a verified copy wins."""
-        best: Dict[Tuple[str, str], OutcomeObservation] = {}
-        order: List[Tuple[str, str]] = []
-        for o in rec.outcomes:
-            k = (outcome_key(o), o.query_id)
-            if k not in best:
-                best[k] = o
-                order.append(k)
-            elif o.verified and not best[k].verified:
-                best[k] = o
+        """Within a record each query keeps one final answer (the first; a verified one wins)."""
+        best: Dict[str, OutcomeObservation] = {}
+        order: List[Any] = []
+        for i, o in enumerate(rec.outcomes):
+            if o.status not in _FINAL:
+                order.append(o)
+            elif o.query_id not in best:
+                best[o.query_id] = o
+                order.append(o.query_id)
+            elif o.verified and not best[o.query_id].verified:
+                best[o.query_id] = o
         if len(order) != len(rec.outcomes):
-            rec.outcomes = [best[k] for k in order]
+            rec.outcomes = [best[x] if isinstance(x, str) else x for x in order]
 
     def _parts(self, rec: ExperienceRecord) -> Tuple[str, str, str]:
         d = rec.to_dict()
@@ -568,9 +569,11 @@ class SqliteExperienceStore:
                 q = OutcomeQuery.from_dict(json.loads(qrow[1]))
                 if obs.observed_at and obs.observed_at + 1e-9 < q.issued_at:
                     return AddOutcomeResult(False, target, reason="observed before the query was issued", dedup_key=key)
-            old = db.execute("SELECT verified FROM outcomes WHERE dedup_key=? AND query_id=?", (key, obs.query_id)).fetchone()
+            # one final answer per query: a repeated event (same dedup key) or a second answer to an answered query
+            # is dropped, unless it is the verifier's measurement replacing an unverified one
+            old = db.execute("SELECT MAX(verified) FROM outcomes WHERE query_id=?", (obs.query_id,)).fetchone()
             upgraded = False
-            if old is not None:
+            if old is not None and old[0] is not None:
                 if not (obs.verified and not old[0]):
                     return AddOutcomeResult(False, target, duplicate=True, reason="duplicate event", dedup_key=key)
                 upgraded = True
@@ -578,8 +581,8 @@ class SqliteExperienceStore:
             if rec is None:
                 return AddOutcomeResult(False, reason=f"record {target} not found", dedup_key=key)
             if upgraded:
-                rec.outcomes = [o for o in rec.outcomes if not (outcome_key(o) == key and o.query_id == obs.query_id)]
-                db.execute("DELETE FROM outcomes WHERE dedup_key=? AND query_id=?", (key, obs.query_id))
+                rec.outcomes = [o for o in rec.outcomes if o.query_id != obs.query_id]
+                db.execute("DELETE FROM outcomes WHERE query_id=?", (obs.query_id,))
             # the query definition stays in ``pending_queries`` / ``result.expected_outcomes``: it is what makes
             # the outcome interpretable later (``learning_api.matured_outcomes``); 'pending' is derived from the
             # absence of a final outcome, not from list membership.
