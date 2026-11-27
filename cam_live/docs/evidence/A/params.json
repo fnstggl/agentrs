@@ -1,9 +1,15 @@
 {
  "command": "python -m cam_live.nn.bench ",
- "written_at_unix": 1795737784.9,
+ "written_at_unix": 1795742015.9,
  "environment": {
   "torch": "2.15.0+cu132",
   "python": "3.12.15",
+  "cpu_load_average_at_start": [
+   2.93,
+   6.25,
+   7.49
+  ],
+  "note": "the machine and the GPU are shared with other jobs; speeds are lower bounds",
   "cuda": true,
   "gpu": "NVIDIA RTX A6000",
   "transformers": "5.24.0"
@@ -43,8 +49,8 @@
     "sem_rank": 96
    },
    "master_preset_d_ff": 640,
-   "cpu_build_s": 0.06,
-   "cpu_core_forward_ms_b4_t64": 60.1
+   "cpu_build_s": 0.07,
+   "cpu_core_forward_ms_b4_t64": 25.9
   },
   "20m": {
    "experiential_params": 20087333,
@@ -71,7 +77,7 @@
    },
    "master_preset_d_ff": 1280,
    "cpu_build_s": 0.27,
-   "cpu_core_forward_ms_b4_t64": 125.2
+   "cpu_core_forward_ms_b4_t64": 73.5
   },
   "50m": {
    "experiential_params": 50953765,
@@ -97,8 +103,8 @@
     "sem_rank": 384
    },
    "master_preset_d_ff": 1792,
-   "cpu_build_s": 0.61,
-   "cpu_core_forward_ms_b4_t64": 203.6
+   "cpu_build_s": 0.65,
+   "cpu_core_forward_ms_b4_t64": 107.1
   },
   "150m": {
    "experiential_params": 151022853,
@@ -122,7 +128,7 @@
    },
    "nn_overrides": {},
    "master_preset_d_ff": 2560,
-   "cpu_build_s": 1.85
+   "cpu_build_s": 1.75
   },
   "500m": {
    "experiential_params": 502708549,
@@ -146,7 +152,7 @@
    },
    "nn_overrides": {},
    "master_preset_d_ff": 4096,
-   "cpu_build_s": 6.03
+   "cpu_build_s": 5.67
   },
   "1b": {
    "experiential_params": 1000547333,
@@ -170,7 +176,7 @@
    },
    "nn_overrides": {},
    "master_preset_d_ff": 5376,
-   "cpu_build_s": 12.2
+   "cpu_build_s": 11.37
   },
   "debug": {
    "experiential_params": 202421,
@@ -197,7 +203,7 @@
  },
  "real_configuration": {
   "status": "measured",
-  "load_s": 8.15,
+  "load_s": 6.22,
   "gpu_memory_after_load_gb": 7.804,
   "gpu_peak_during_load_gb": 7.804,
   "parameters": {
@@ -264,53 +270,67 @@
    "max_context": 256,
    "max_values": 4
   },
+  "init_diagnostics": {
+   "token_cos_plus1_minus1": 0.18,
+   "token_cos_100_103": 0.9749,
+   "token_cos_same_value_two_metrics": 0.5591,
+   "belief_cos_between_contexts": 0.1356,
+   "z_cos_under_permuted_belief": 0.7213,
+   "belief_relative_change_under_permutation": 1.3149,
+   "z_relative_change_under_permuted_belief": 0.7466,
+   "z_cos_between_two_actions": 0.8256,
+   "action_embedding_cos_between_two_actions": 0.7628,
+   "state_constant_fraction_after_one_call": 0.4006,
+   "slot_gate_mean": 0.1242,
+   "phi_norm": 0.999999
+  },
   "embedding_throughput": {
    "32_tokens": {
     "texts": 256,
     "tokens": 8192,
-    "texts_per_s": 264.2,
-    "tokens_per_s": 8454.0,
+    "texts_per_s": 325.3,
+    "tokens_per_s": 10409.0,
     "peak_extra_gb": 0.875
    },
    "128_tokens": {
     "texts": 128,
     "tokens": 16384,
-    "texts_per_s": 62.4,
-    "tokens_per_s": 7984.0,
+    "texts_per_s": 83.0,
+    "tokens_per_s": 10625.0,
     "peak_extra_gb": 1.75
    },
    "384_tokens": {
     "texts": 64,
     "tokens": 24576,
-    "texts_per_s": 22.9,
-    "tokens_per_s": 8790.0,
+    "texts_per_s": 27.8,
+    "tokens_per_s": 10657.0,
     "peak_extra_gb": 1.723
    },
-   "cached_384_tokens_texts_per_s": 41146.0
+   "cached_384_tokens_texts_per_s": 47335.0
   },
   "generation": {
    "batch1_no_bridge": {
     "new_tokens": 128,
-    "tokens_per_s": 19.0,
-    "seconds": 6.722,
+    "tokens_per_s": 24.1,
+    "seconds": 5.308,
     "peak_extra_gb": 0.031
    },
    "batch1_with_bridge": {
     "new_tokens": 128,
-    "tokens_per_s": 18.3,
-    "seconds": 6.98,
+    "tokens_per_s": 22.8,
+    "seconds": 5.609,
     "peak_extra_gb": 0.031
    },
    "batch8_no_bridge": {
     "new_tokens": 1024,
-    "tokens_per_s": 159.1,
-    "seconds": 6.436,
+    "tokens_per_s": 192.7,
+    "seconds": 5.313,
     "peak_extra_gb": 0.19
    },
    "batch8_with_bridge": {
     "new_tokens": 1024,
-    "tokens_per_s": 149.1,
-    "seconds": 6.867,
+    "tokens_per_s": 181.3,
+    "seconds": 5.648,
     "peak_extra_gb": 0.19
    }
   },
@@ -323,27 +343,31 @@
   },
   "adapter_backward": {
    "generation_logprob_gradient_checkpointing": {
-    "seconds": 0.452,
+    "seconds": 0.378,
     "peak_extra_gb": 1.057,
     "peak_total_gb": 8.927,
-    "grad_norm_adapters": 147.16808
+    "grad_norm_adapters": 1.15271,
+    "grad_norm_lora": 0.88412,
+    "grad_norm_bridge": 0.73965
    },
    "embedding_path_gradient_checkpointing": {
-    "seconds": 0.411,
-    "peak_extra_gb": 0.303,
-    "peak_total_gb": 8.173,
+    "seconds": 0.388,
+    "peak_extra_gb": 0.304,
+    "peak_total_gb": 8.174,
     "grad_norm_adapters": 0.11491
    },
    "generation_logprob_no_checkpointing": {
-    "seconds": 0.318,
+    "seconds": 0.284,
     "peak_extra_gb": 5.266,
     "peak_total_gb": 13.141,
-    "grad_norm_adapters": 146.99409
+    "grad_norm_adapters": 1.15153,
+    "grad_norm_lora": 0.88354,
+    "grad_norm_bridge": 0.7385
    },
    "embedding_path_no_checkpointing": {
-    "seconds": 0.323,
-    "peak_extra_gb": 4.402,
-    "peak_total_gb": 12.276,
+    "seconds": 0.275,
+    "peak_extra_gb": 4.408,
+    "peak_total_gb": 12.283,
     "grad_norm_adapters": 0.11491
    },
    "shape": "batch 4, 256 tokens per row (generation: 128 prompt + 128 completion tokens)",
@@ -356,17 +380,17 @@
    "note": "random-probe loss on phi at initialisation; adapters see the newest 2 of 8 items"
   },
   "experiential_core_step_b16_t256": {
-   "seconds": 0.089,
+   "seconds": 0.088,
    "peak_extra_gb": 1.556,
    "peak_total_gb": 9.531
   },
   "experiential_core_forward_b16_t256": {
-   "seconds": 0.034,
+   "seconds": 0.033,
    "peak_extra_gb": 0.369,
    "peak_total_gb": 8.345
   },
-  "gpu_peak_total_gb": 8.345,
+  "gpu_peak_total_gb": 13.141,
   "gpu_memory_after_release_gb": 0.065,
-  "gpu_lock_held_s": 46.5
+  "gpu_lock_held_s": 37.9
  }
 }

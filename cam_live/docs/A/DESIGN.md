@@ -66,3 +66,31 @@ PYTHONPATH=src ../.venv/bin/python -m cam_live.nn.fast_compare --steps 2000 --se
 
 One model instance must not run embedding / generation from several threads at once (the active bridge memory and
 the tap capture are instance state).
+
+
+## Measured: fast adaptation (`docs/evidence/A/fast_adaptation.json`, `fast_adaptation_noise_mode.json`)
+
+Mean prequential NLL over support sizes 1..31 (nats; lower is better; 2 seeds x 600 tasks per split):
+
+| Target / split | learned-prior Bayes | BLR on raw inputs | GRU | running statistics |
+|---|---:|---:|---:|---:|
+| Gaussian, held-out families | 0.8909 | 1.1149 | 1.1196 | 1.4483 |
+| Gaussian, training families | 0.2132 | 0.7996 | 0.5753 | 1.4447 |
+| Count, held-out families | 2.6201 | 3.3037 | 2.6381 | 5.7539 |
+| Count, training families | 2.275 | 3.2697 | 2.3903 | 6.2771 |
+
+Where the learned prior does **not** win:
+
+* Gaussian targets before about three observations: held-out NLL at k=0 is 1.6995 against 1.4188 (GRU) and 1.467 (running statistics); at k=1 1.5156 against 1.3854. It leads from k=3 (1.3269 vs 1.3325). The conjugate normal-inverse-gamma prior ties weight uncertainty to the unknown noise scale, so its prior predictive is heavy-tailed.
+* With a fixed learned noise variance instead (ablation) the k=0 prediction is calibrated (1.4005) but the layer becomes over-confident on held-out families: mean NLL 1.9933 against 0.8909. Inferred noise is therefore the default (`nn.fast_noise_mode = "nig"`).
+* Counts on held-out families: 2.6201 against 2.6381 for the GRU with a negative-binomial head — a margin of -0.018 nats (z = -2.31), and the GRU is ahead at k=31. Not a robust win.
+
+Consequence for the world model (Workstream B): at very small support the head's own prediction should carry the
+forecast and the fast layer should act as the correction that takes over as evidence accumulates.
+
+## Measured: real configuration (`docs/evidence/A/params.json`)
+
+Frozen 4,022,468,096 · experiential 50,953,765 ·
+adapters 16,713,856 (LoRA 11,796,480 + bridge 4,917,376) ·
+total persistent trainable 67,667,621. Load 6.22 s,
+7.804 GB after load, peak 13.141 GB over the whole benchmark.

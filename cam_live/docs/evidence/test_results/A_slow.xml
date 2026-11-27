@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="23.071" timestamp="2026-11-27T01:15:06.250448+00:00" hostname="ebecdb7e42eb"><testcase classname="tests.nn.test_bench" name="test_bench_cpu_part_runs" time="22.594" /></testsuite></testsuites>
