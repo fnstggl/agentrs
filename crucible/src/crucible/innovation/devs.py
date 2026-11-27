@@ -755,7 +755,9 @@ class Developers(Module):
         return pid
 
     def _announce(self, ctx, p, task, host, price, now, new_version: bool = False) -> None:
-        """Reply to the open requests for this task naming the service (search indexes the replies)."""
+        """Reply to the open requests for this task naming the service and saying what it does in the requester's
+        own words (the task of the request): search indexes the replies, and a reply that only names a host ranks
+        below every short off-topic reply under the same "Re:" title."""
         since = now - int(self.cfg("window_days")) * DAY
         boards = self.cfg("boards") or [b["board"] for b in (self._try(ctx, p, "forum.boards") or [])]
         n = 0
@@ -765,8 +767,8 @@ class Developers(Module):
                     self._try(ctx, p, "forum.reply", post=post["post"],
                               body=(f"New version of {host}.crucible: it now handles more inputs correctly "
                                     f"({price} cents a call)." if new_version else
-                                    f"I built a service for this: {host}.crucible ({price} cents a call). ")
-                              + " Try it on one of your own inputs.")
+                                    f"I built a service for this: {host}.crucible ({price} cents a call).")
+                              + f" It does what you asked for: {task}. Try it on one of your own inputs.")
                     n += 1
 
     def _publish_package(self, ctx, i, p, pid, task, src, examples) -> None:

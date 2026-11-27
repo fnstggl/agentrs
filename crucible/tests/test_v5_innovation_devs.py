@@ -110,6 +110,35 @@ def test_garbage_programs_are_tried_and_dropped_replay_is_exact():
         w.close()
 
 
+
+def test_a_developer_reply_says_what_the_service_does_and_ranks_above_off_topic_replies(world):
+    """Regression (civilisation run at 7bc3ddc: a workflow service nobody ever tried): the search document of a
+    reply carries the request's title ("Re: Looking for a service: <task>"), so a reply that only named a host ranked
+    below every short off-topic reply other people wrote under the same title and the individuals searching the
+    task never saw it. A developer's reply says what the service does in the words of the request."""
+    w = world.fork("t-replies")
+    try:
+        st = w.state
+        mine = [e for e in world.log if e.type == "forum.reply" and "I built a service for this" in e.payload["body"]]
+        assert mine
+        for e in mine:
+            task = st.get("forum_posts", e.payload["post"])["title"][len(D.ASK):]
+            assert f"It does what you asked for: {task}." in e.payload["body"] and e.payload["hosts"]
+        e = mine[-1]
+        post = st.get("forum_posts", e.payload["post"])
+        task, host = post["title"][len(D.ASK):], e.payload["hosts"][0]
+        dev = set(int(i) for i in columns.col(w, "devs", "dev").nonzero()[0])
+        others = [ids.pid(j) for j in range(200) if j not in dev and ids.pid(j) != post["author"]][:10]
+        for k, q in enumerate(others):
+            w.system_call("forum.reply", {"post": e.payload["post"], "body": f"Nice weather here today {k}."},
+                          as_principal=q)
+        # what an individual searching for the task types: the words of its own request
+        sp, org, _ = w.modules["search"].search(w, task, None, 8)
+        top = [r["hosts"] for r in org[:3]]
+        assert any(host in h for h in top), [(r["hosts"], r["snippet"][:40]) for r in org]
+    finally:
+        w.close()
+
 @pytest.mark.slow
 @pytest.mark.timeout(900)
 def test_a_developer_switches_a_weak_two_stage_service_to_a_workflow_of_independent_services():
