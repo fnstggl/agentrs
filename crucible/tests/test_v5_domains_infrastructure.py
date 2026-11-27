@@ -120,3 +120,56 @@ def test_the_replay_starts_with_the_recorded_day_before_it():
     good = sum(v["good"] for r in rows for v in r["exact"]["services"].values())
     off = sum(v["offered"] for r in rows for v in r["exact"]["services"].values())
     assert abs(res.result["deployed"]["attainment"] - good / off) < 0.002
+
+
+def test_tenants_decide_in_their_own_process_and_record_every_review():
+    """The tenants' reviews and releases are their own decisions (made as each tenant's lead, in the scheduled
+    process `fleet.tenants`, not inside the operator's billing process): from the first full week every service is
+    reviewed every day and the decision is recorded even when the tenant keeps its share; releases follow each
+    tenant's release train (no coin flip)."""
+    w = _world()
+    try:
+        w.advance_time(12 * 86400)
+        fl = w.modules["fleet"]
+        reg = fl.regime(w.state)
+        leads = {t["lead"] for t in reg["tenants"].values()}
+        conf = fl.conf(w.state)
+        procs = {}
+        cur = None
+        for e in w.events_range(0, w.seq):
+            if e.type == "proc":
+                cur = e.payload.get("proc")
+            elif e.type in ("cmd", "time"):
+                cur = None
+            elif e.type in ("fleet.share", "fleet.release"):
+                procs.setdefault(e.type, set()).add(cur)
+                assert e.actor in leads, (e.type, e.actor)
+        assert procs["fleet.share"] == {"fleet.tenants"} and procs["fleet.release"] == {"fleet.tenants"}, procs
+        shares = [e for e in w.events_range(0, w.seq) if e.type == "fleet.share"]
+        days = {(e.t // 86400, e.payload["service"]) for e in shares}
+        assert len(days) == len(shares) >= len(conf["services"]) * 5          # one decision per service and day
+        for svc in conf["services"]:
+            rel_days = [r["day"] for _, r in sorted(w.state.scan("fleet_releases")) if r["service"] == svc["id"]]
+            every = reg["services"][svc["id"]]["release_every"]
+            assert all(b - a == every for a, b in zip(rel_days, rel_days[1:])), (rel_days, every)
+    finally:
+        w.close()
+
+
+def test_reliability_is_compared_from_the_seats_first_change():
+    """Every recorded command (reading ones too) shifts the main-line position the population's draws are keyed by,
+    so the evaluator compares reliability only from the participant's first state-changing command on."""
+    from crucible.domains import base
+    from crucible.domains import engineering_infrastructure as E
+    env = base.make_env(E.NAME, "single_site_tou", 0)
+    try:
+        me = env.agents()[0]
+        env.advance(3 * 3600)
+        env.execute(me, {"tool": "fleet.status", "args": {}})
+        env.execute(me, {"tool": "fleet.measure", "args": {"window_h": 24}})
+        assert E.first_change_hour(env.world, me) is None
+        env.advance(4 * 3600)
+        env.execute(me, {"tool": "fleet.staff", "args": {"technicians": 1}})
+        assert E.first_change_hour(env.world, me) == env.world.now // 3600
+    finally:
+        env.close()

@@ -805,12 +805,14 @@ def recommend(request):
 class InventorReference(ScriptedReference):
     """Tool-only reference (labelled scripted in evidence): read the industry's needs and the machine catalogue,
     write an adaptive process controller (a pattern search on the adopting plant's own runs), declare it for every
-    machine model of the market's operations at a modest licence, then watch the plants' verdicts. It reads only
-    tool results."""
+    machine model of the market's operations at a modest licence, then watch the plants' verdicts; when plants
+    tried it and reverted while none adopted it, release a second version (a finer search step) as a new technology
+    (a plant tries each technology once). It reads only tool results."""
     burst = 6
     replan_s = 2 * DAY
     source = PATTERN_SEARCH
     licence = 300
+    max_versions = 2
 
     def __init__(self, principal, objective):
         super().__init__(principal, objective)
@@ -818,6 +820,7 @@ class InventorReference(ScriptedReference):
         self.repo = None
         self.models: list = []
         self.declared = None
+        self.versions = 1
 
     def plan(self, obs):
         if self.stage == "start":
@@ -835,8 +838,11 @@ class InventorReference(ScriptedReference):
                          licence_cents_per_run=self.licence, title="Adaptive operating-point control",
                          doc="Finds better operating points from your own runs.")]
         if self.stage == "watch":
-            return [act_("tech.mine", None)]
+            return [act_("tech.mine", "mine")]
         return []
+
+    def _version(self, n: int) -> str:
+        return self.source.replace("    h = 0.15\n", f"    h = {0.15 / n:.3f}\n")
 
     def on_result(self, tag, result, action):
         if result is None:
@@ -855,6 +861,16 @@ class InventorReference(ScriptedReference):
             self.stage = "declare"
         elif tag == "declared":
             self.declared = result["invention"]
+        elif tag == "mine" and self.versions < self.max_versions and isinstance(result, list) and result:
+            if not any(r["adopted"] for r in result) and any(r["reverted"] for r in result):
+                self.versions += 1
+                n = self.versions
+                self.queue += [act_("code.commit", None, repo=self.repo, files={"control.py": self._version(n)},
+                                    message=f"pattern-search process controller v{n} (finer search)"),
+                               act_("tech.declare", None, repo=self.repo, target="control.py:recommend",
+                                    models=self.models, licence_cents_per_run=self.licence,
+                                    title=f"Adaptive operating-point control v{n}",
+                                    doc="Finds better operating points from your own runs (finer search).")]
 
 
 class BrokenProgram(InventorReference):

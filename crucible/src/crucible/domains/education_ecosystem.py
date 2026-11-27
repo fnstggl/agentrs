@@ -242,9 +242,9 @@ def evaluate(world, principal, obj):
     f0 = L0.final_scores(w0, at, "education-evaluator", k=4, who=who, concepts=covered, exclude=exclude)
     diffs = [float(np.mean([f1[i][c] - f0[i][c] for c in sorted(rd[i])])) for i in who.tolist()]
     eff, p = _paired_one_sided(diffs)
-    p = (obj or {}).get("params") or {}
-    need = int(p.get("readers", TARGET[1]["readers"]))
-    delta = float(p.get("delta", TARGET[1]["delta"]))
+    prm = (obj or {}).get("params") or {}
+    need = int(prm.get("readers", TARGET[1]["readers"]))
+    delta = float(prm.get("delta", TARGET[1]["delta"]))
     ok = len(rd) >= need and eff >= delta and p <= 0.05
     score = min(1.0, len(rd) / need) * 0.5 + 0.5 * max(0.0, min(1.0, eff / delta)) * (1.0 if p <= 0.05 else 0.5)
     return {"success": bool(ok), "score": round(float(score), 4),

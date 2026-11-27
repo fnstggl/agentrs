@@ -1368,7 +1368,7 @@ class Fleet(Module):
             hid = reg["services"][svc["id"]]
             rels = st.find_ids("fleet_releases", "service", svc["id"])
             last_day = st.tables["fleet_releases"][rels[-1]]["day"] if rels else 0
-            if d - last_day >= hid["release_every"]:
+            if (d + 1) - last_day >= hid["release_every"]:        # releases record the calendar day (d + 1)
                 lead = reg["tenants"][svc["tenant"]]["lead"]
                 try:
                     ctx.call("fleet.release", {"service": svc["id"], "notes": f"release {len(rels) + 1}"},

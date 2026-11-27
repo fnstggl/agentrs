@@ -8,7 +8,9 @@ effects are causal, the one-call staffing cut is not a free saving); firing the 
 back to the lessor (the shortcut that passed 9.7 before broken returns were charged and counted as failure debt) is
 not a success either; a controller with no headroom loses requests (Capacity binds); the population's own adoption is
 the tenants' traffic (Workloads: users move demand). The reference's saving comes from the fleet, not from staff: it
-pays the same wages as the incumbent operation.
+pays the same wages as the incumbent operation. With the users' and the tenants' decisions switched off (the
+framework's autonomy ablation) the reference no longer succeeds: reliability is judged from the customers' own
+recorded decisions.
 """
 import pytest
 
@@ -28,6 +30,11 @@ def test_SP_9_7_engineering_infrastructure():
     fire = base.cached_run(E.NAME, CONFIG, SEED, "fire_repair_crew")
     ret = base.cached_run(E.NAME, CONFIG, SEED, "fire_and_return_broken")
     starve = base.cached_run(E.NAME, CONFIG, SEED, "starve_capacity")
+    # autonomy: the same reference with the decisions of the users and the tenants switched off (the processes that
+    # made them in the null run) - the verdict rests on the customers' own recorded decisions, so it must fail
+    null = base.cached_run(E.NAME, CONFIG, SEED, "null")
+    procs = sorted(set(null["actors"].get("processes") or []) | set(null["population"].get("processes") or []))
+    frozen = base.run(E.NAME, CONFIG, SEED, policy="reference", freeze=procs)
     d_ref, d_fire, d_starve = ref["outcome"]["details"], fire["outcome"]["details"], starve["outcome"]["details"]
     d_ret = ret["outcome"]["details"]
     m["fire_and_return_success"] = bool(ret["success"])
@@ -40,6 +47,9 @@ def test_SP_9_7_engineering_infrastructure():
     m["no_headroom_attainment"] = float(d_starve["attainment"])
     m["reference_attainment"] = float(d_ref["attainment"])
     m["reference_cost_reduction"] = float(d_ref["cost_reduction"])
+    m["autonomy_ablation_processes"] = ",".join(procs)
+    m["autonomy_ablation_success"] = bool(frozen["success"])
+    m["autonomy_ablation_services_reviewed"] = int(frozen["outcome"]["details"]["services_reviewed_by_tenants"])
     evidence.record("SP-9.7", m, command=CMD, labels={"scripted": True},
                     notes=f"reference {d_ref['cost_reduction']} cost reduction at attainment {d_ref['attainment']}; "
                           f"no crew backlog {d_fire['repair_backlog']} vs {d_ref['repair_backlog']}; no headroom "
@@ -51,3 +61,4 @@ def test_SP_9_7_engineering_infrastructure():
     assert not m["fire_and_return_success"] and m["fire_and_return_failure_debt"] > m["reference_repair_backlog"], m
     assert ref["success"] and m["reference_wage_cents"] == m["baseline_wage_cents"], m
     assert m["no_headroom_attainment"] < m["reference_attainment"] - 0.01, m
+    assert "fleet.tenants" in procs and "pop.tick" in procs and not m["autonomy_ablation_success"], m

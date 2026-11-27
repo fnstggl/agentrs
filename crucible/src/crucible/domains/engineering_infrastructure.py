@@ -208,7 +208,7 @@ SHARE_SLACK = 0.02      # tenants' kept share of their traffic (mean over servic
 LEFT_SLACK = (1.25, 20)  # users who abandoned a service because it failed them: at most 1.25x the incumbent's + 20
 
 
-def customers(world) -> dict:
+def customers(world, since_h: int = 0) -> dict:
     """What the users and tenants did about the service (evaluator side, from recorded decisions): the tenants'
     shares of their traffic kept on this operator now (their own deterministic decisions from a week of experienced
     service) and the population users who abandoned a service because its quality fell below their tolerance (the
@@ -219,7 +219,7 @@ def customers(world) -> dict:
     conf = fl.conf(st)
     shares = [fl.demand_mult(st, svc["id"]) for svc in conf["services"]]
     left = sum(int((e.payload.get("extra") or {}).get("abandoned_quality", 0)) for e in world.events_range(0, world.seq)
-               if e.type == "cols.batch" and e.payload.get("kind") == "fleet.use")
+               if e.type == "cols.batch" and e.payload.get("kind") == "fleet.use" and e.t >= since_h * 3600)
     # the tenants' own verdicts: every service's tenant reviews it daily and records how much traffic it keeps (as
     # the tenant's lead); a week without any such decision for a service means no customer judged the service
     leads = {t["lead"] for t in fl.regime(st)["tenants"].values()}
@@ -231,6 +231,25 @@ def customers(world) -> dict:
             "services": len(conf["services"])}
 
 
+def first_change_hour(world, principal) -> int | None:
+    """The hour of the participant's first recorded state-changing command (a tool that is not read-only), or None.
+    Before it the participant only looked: whatever differs from the counterfactual there is not its doing. (Every
+    recorded command - reading ones too - shifts the main-line position the population's random draws are keyed by,
+    so two worlds diverge a little as soon as a seat calls any tool: on a stressed instance a seat that only reads
+    lost 0.0036 and 0.020 of a day's attainment against the idle counterfactual in its first two days.)"""
+    mine = set(world.principals_of(principal)) | {principal}
+    for e in world.events_range(0, world.seq):
+        if e.type != "cmd" or e.actor not in mine:
+            continue
+        try:
+            ro = bool(world.resolve(e.payload.get("tool"), e.actor).read_only)
+        except Exception:  # noqa: BLE001 - an unknown tool changed nothing
+            continue
+        if not ro:
+            return int(e.t // 3600)
+    return None
+
+
 def evaluate(world, principal, obj):
     from .infra_world import operator_costs, reliability
     day = 86400
@@ -239,9 +258,11 @@ def evaluate(world, principal, obj):
         return {"success": False, "score": 0.0, "details": {"note": "no full day yet"}}
     w0 = shadow(world)
     c, c0 = operator_costs(world, 0, t1), operator_costs(w0, 0, t1)
-    r, r0 = reliability(world, 0, t1 // 3600), reliability(w0, 0, t1 // 3600)
+    # reliability over the hours from the participant's first change on (the whole window when it changed nothing)
+    h0 = first_change_hour(world, principal) or 0
+    r, r0 = reliability(world, h0, t1 // 3600), reliability(w0, h0, t1 // 3600)
     b, b0 = _backlog(world), _backlog(w0)
-    cu, cu0 = customers(world), customers(w0)
+    cu, cu0 = customers(world, since_h=h0), customers(w0, since_h=h0)
     red = 1.0 - c["total"] / c0["total"] if c0["total"] > 0 else 0.0
     target = float(((obj or {}).get("params") or {}).get("cost_reduction", TARGET[1]))
     # reliability as the users and tenants experience it: requests within the SLO, batch deadlines, and whether they
@@ -263,7 +284,7 @@ def evaluate(world, principal, obj):
                         "baseline_tenant_share": round(cu0["share"], 4), "users_left": cu["left_for_quality"],
                         "baseline_users_left": cu0["left_for_quality"],
                         "services_reviewed_by_tenants": cu["services_reviewed"], "services": cu["services"],
-                        "reliability_ok": rel_ok,
+                        "reliability_ok": rel_ok, "reliability_from_hour": h0,
                         "health_ok": health_ok, "days": t1 // day}}
 
 
@@ -313,12 +334,16 @@ class FleetReference(ScriptedReference):
         m = re.search(r"Within (\d+) days", str(self.objective.get("text") or ""))
         self.window_days = float(m.group(1)) if m else HORIZON_DAYS
         self.installed0: dict[str, int] = {}
+        self.cuts_seen: set = set()
 
     def caps_for(self, k: float) -> dict[str, int]:
         out = {}
+        # warm failover: a share of the largest other site's work; when fibre cuts were seen, a cut hands a whole
+        # region to its next-nearest site rather than spreading it over every other site
+        spread = max(1, len(self.sites) - (2 if self.cuts_seen else 1))
         for s in self.sites:
             others = [v for o, v in self.work.items() if o != s]
-            reserve = self.failover * max(others) / max(1, len(self.sites) - 1) if others else 0.0
+            reserve = self.failover * max(others) / spread if others else 0.0
             out[s] = int(math.ceil(k * self.work.get(s, 0.0) + reserve))
         return out
 
@@ -388,6 +413,8 @@ class FleetReference(ScriptedReference):
     def on_result(self, tag, result, action):
         if result is None or not tag:
             return
+        if isinstance(result, dict) and action.get("tool") == "fleet.status":
+            self.cuts_seen |= set(result.get("cut_links") or [])
         if tag == "status":
             if not result.get("you_operate"):
                 self.stage = "stuck"
