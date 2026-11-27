@@ -48,11 +48,8 @@ def run(n_updates: int = 20, seed: int = 0, device=None, run_dir: str = "/tmp/w7
         max_wall_s: float = None) -> dict:
     from ..config import make_preset
     from ..envs import experience as X
-    from ..envs.agent_protocol import Transition
-    from ..envs.labels import LabelStore, from_outcome_label
+    from ..envs.labels import LabelStore
     from ..experiments.stack import build_stack
-    from ..interfaces import ObservationBatch
-    from ..runtime import _max_seq, _merge
     from ..selfeval.reward_model import RewardModel
     from .grad_probe import DOM08_REQUIRED as REQ
     from .integrated import IntegratedLearner
@@ -63,7 +60,7 @@ def run(n_updates: int = 20, seed: int = 0, device=None, run_dir: str = "/tmp/w7
     guard_on = bool(over.pop("share_guard", True))
     mb = int(over["microbatch"])
     over["declared_conditions"] = (
-        "w7-e2e:interim-loop(runtime.run_lifetime pending, W1)",
+        "w7-e2e:canonical-loop(runtime.run_lifetime)",
         f"w7-e2e:microbatch={mb}" + ("(full-batch policy recompute: exact probe)" if not mb else
                                      "(probe actor/value norms estimated from microbatch 0)"),
         f"w7-e2e:tool_entropy_coef={over['tool_entropy_coef']}(dom presets leave it 0)")
@@ -86,59 +83,57 @@ def run(n_updates: int = 20, seed: int = 0, device=None, run_dir: str = "/tmp/w7
     rm = RewardModel(cfg)
     learner = IntegratedLearner(model, rm, labels, cfg, agent=agent, seed=seed, share_guard=guard_on,
                                 log_path=os.path.join(run_dir, "updates.jsonl"), probe_every=5)
-    think = cfg.think_s / 86400.0
-    B = env.B
-    ob = env.reset()
-    agent.reset(ob.env_ids)
-    agent.set_goals(env.goals())
-    seen = [_max_seq(o) for o in ob.observations]
-    cursors = list(seen)
-    updates, rounds, n_labels, episodes, n_dec = [], 0, 0, 1, 0
-    errors = []
-    max_rounds = max_rounds or (n_updates * cfg.update_every * 4)
+    # the canonical loop (runtime.run_lifetime; wave-3 merge: this driver's interim act/execute/advance loop is gone):
+    # observation-only, labels released by the operator to the learner-side LabelStore, learner updates through the
+    # LearnerHook below, which also enforces the update count and the wall budget of a shared GPU lock hold
+    from ..build import OperatorLabels
+    from ..runtime import run_lifetime
+    updates, rounds_seen, n_dec_box, errors = [], [], [0], []
     stopped = None
-    while len(updates) < n_updates and rounds < max_rounds:
-        if max_wall_s is not None and time.time() - t_start > max_wall_s:
-            stopped = f"wall budget {max_wall_s:.0f} s (shared GPU lock hold) reached after {len(updates)} updates"
-            break
-        tools = env.available_tools()
-        actions = agent.act(ob, tools)
-        results = env.execute(actions)
-        dur = [((r.duration if r is not None else 0.0) + think) if a is not None else 0.0
-               for a, r in zip(actions, results)]
-        adv = env.advance_time(dur)
-        events, cursors = env.collect_events(cursors)
-        nxt = []
-        for b in range(B):
-            ro = results[b].observations if results[b] is not None else []
-            merged, seen[b] = _merge(seen[b], ro, adv.observations[b], events[b])
-            nxt.append(merged)
-        next_ob = ObservationBatch(list(ob.env_ids), nxt, list(adv.t), list(adv.done))
-        recs = agent.observe(results, [0.0] * B, next_ob)          # observation-only: no reward exists
-        by_env = {}
-        for r in recs:
-            if r.action is not None:
-                by_env[r.env_id] = r
-        n_dec += sum(a is not None for a in actions)
-        learner.on_step(Transition([by_env.get(e) for e in ob.env_ids], next_ob, None, list(adv.done), dur))
-        for lab in op.release_labels():
-            rec = from_outcome_label(lab, evaluator="ExperienceOperator")      # None while pending
-            if rec is not None and labels.append(rec):
-                n_labels += 1
-        rounds += 1
-        if rounds % cfg.update_every == 0:
+
+    class _Stop(Exception):
+        pass
+
+    class _Hook:
+        reward_model = rm
+
+        def on_step(self, tr):
+            learner.on_step(tr)
+
+        def step(self):
+            if max_wall_s is not None and time.time() - t_start > max_wall_s:
+                raise _Stop(f"wall budget {max_wall_s:.0f} s (shared GPU lock hold) reached after {len(updates)} "
+                            "updates")
             info = learner.step()
             if info.get("updated"):
                 updates.append(info)
-        if all(next_ob.done):
-            ob = env.reset()
-            agent.reset(ob.env_ids)
-            agent.set_goals(env.goals())
-            seen = [_max_seq(o) for o in ob.observations]
-            cursors = list(seen)
-            episodes += 1
-        else:
-            ob = next_ob
+            if len(updates) >= n_updates:
+                raise _Stop(None)
+            return info
+
+        def meta_step(self):
+            return learner.meta_step() if hasattr(learner, "meta_step") else {"updated": False}
+
+        def state_dict(self):
+            return learner.state_dict()
+
+        def load_state_dict(self, d):
+            learner.load_state_dict(d)
+
+    def _count(step, tr):
+        rounds_seen.append(step)
+        n_dec_box[0] += sum(1 for r in tr.records if r is not None and r.action is not None)
+
+    max_rounds = max_rounds or (n_updates * cfg.update_every * 4)
+    episodes = None
+    try:
+        life = run_lifetime(agent, env, labels=OperatorLabels(op, evaluator="ExperienceOperator"), label_store=labels,
+                            learner=_Hook(), max_decisions=max_rounds, update_every=cfg.update_every,
+                            reset_on_done=True, collect_events=True, on_step=_count)
+        episodes = getattr(life, "episodes", None)
+    except _Stop as e:
+        stopped = e.args[0]
+    rounds, n_dec, n_labels = len(rounds_seen), n_dec_box[0], len(labels)
     rep = summarise(updates, REQ, warm=learner.probe_warmup)
     rep["clip_rate_all"] = learner.trainer.clip_rate()
     rep.update({"commit": commit, "preset": preset, "device": str(dev), "families": list(families),

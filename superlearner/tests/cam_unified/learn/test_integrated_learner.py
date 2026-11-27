@@ -362,8 +362,10 @@ def test_observation_only_refuses_environment_rewards_everywhere():
         L.on_step(SimpleNamespace(rewards=[0.0, 1.5], records=[]))
     L.on_step(SimpleNamespace(rewards=None, records=[]))           # no reward channel: fine
     L.on_step(SimpleNamespace(rewards=[0.0, 0.0], records=[]))
-    # the evaluator's verified increments reach the agent's fresh buffer -> the learner refuses the batch
-    run_steps(st.agent, st.env, 4, evaluator=st.evaluator, update_every=None)
+    # the evaluator's verified increments reach the agent's fresh buffer -> the learner refuses the batch. W1's
+    # canonical loop withholds them for an observation_only agent, so the violation is forced with a loop declared
+    # legacy (a misconfigured driver) while the learner's config stays observation_only
+    run_steps(st.agent, st.env, 4, evaluator=st.evaluator, update_every=None, reward_mode="legacy")
     assert any(bool((s.reward != 0).any()) for s in st.agent.fresh)       # the toy evaluator pays revenue
     with pytest.raises(I.RewardIntegrityError, match="observation_only"):
         L.step()                               # the replay windows (world-model targets) are checked first
