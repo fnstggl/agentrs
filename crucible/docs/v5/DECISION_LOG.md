@@ -364,6 +364,15 @@ events of jobs a call scheduled (a mail reaches its recipient through a delivery
 content is junk (a tool or service name, prompt scaffolding, the goal sentence restated) and counting a repeated call
 with the same content once (`generalists.verify`); the same counting serves H.6, and publications with junk content
 are not productive results (H.7, SP-3.2d).
+Application (2026-11-27 08:24 UTC, GPU slot, snapshot of 811c209f; measurement
+`crucible/semantic/data/insitu_measurement.json`, SHA-256 c6dd1ab4...695f3b, 24 min): tool choice on the selection
+sample (72 DEV items, next-step phrase on Qwen3-1.7B): Qwen3-0.6B 0.611 [0.496, 0.715], 0.6B#think192 0.708
+[0.595, 0.801], 0.6B#think384 0.736 [0.624, 0.824], Qwen3-1.7B 0.667 [0.552, 0.765]; confirmation sample (72 fresh
+DEV items): Qwen3-0.6B 0.597 (not confirmed), 0.6B#think192 0.667 (confirmed) -> tool choice routed to Qwen3-0.6B
+reasoning first for at most 192 tokens. Next-step phrase with that tool choice: Qwen3-0.6B 0.778 [0.669, 0.858],
+Qwen3-1.7B 0.708; confirmation 0.6B 0.819 [0.715, 0.891] -> next-step phrase routed to Qwen3-0.6B. Goal formation,
+argument choice, incentive adaptation, negotiation, programming and strategy stay on Qwen3-1.7B; communication on
+SmolLM2-360M; content understanding on Qwen3-0.6B (`crucible/semantic/data/routing.json`, SHA-256 af9fa881...).
 
 ## D-48 The Tier 2 domain contract `domains-framework/2` (2026-11-26, workstream I, wave 3b)
 Resolves the contract split of audit I_domains section 2 (DEF-I-3) on the D-17 side: `crucible.domains.base.Domain`

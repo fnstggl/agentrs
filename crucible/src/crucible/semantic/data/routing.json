@@ -1313,8 +1313,8 @@
    }
   },
   "tool_choice": {
-   "model": "Qwen/Qwen3-1.7B",
-   "reason": "smallest model effective in situ (class-4 bench, dev)",
+   "model": "Qwen/Qwen3-0.6B",
+   "reason": "smallest model effective in situ (class-4 bench, dev), confirmed on a fresh dev sample",
    "measured": {
     "HuggingFaceTB/SmolLM2-135M-Instruct": 0.1083,
     "HuggingFaceTB/SmolLM2-360M-Instruct": 0.1333,
@@ -1322,9 +1322,16 @@
     "Qwen/Qwen3-1.7B": 0.75
    },
    "in_situ": {
-    "Qwen/Qwen3-0.6B": 0.5833,
-    "Qwen/Qwen3-1.7B": 0.6806
-   }
+    "Qwen/Qwen3-0.6B": 0.6111,
+    "Qwen/Qwen3-0.6B#think192": 0.7083,
+    "Qwen/Qwen3-0.6B#think384": 0.7361,
+    "Qwen/Qwen3-1.7B": 0.6667
+   },
+   "confirmed": {
+    "Qwen/Qwen3-0.6B": 0.5972,
+    "Qwen/Qwen3-0.6B#think192": 0.6667
+   },
+   "think_tokens": 192
   },
   "communication": {
    "model": "HuggingFaceTB/SmolLM2-360M-Instruct",
@@ -1380,37 +1387,84 @@
     "Qwen/Qwen3-0.6B": 0.35,
     "Qwen/Qwen3-1.7B": 0.85
    }
+  },
+  "next_step": {
+   "model": "Qwen/Qwen3-0.6B",
+   "reason": "smallest model effective in situ (class-4 bench, dev), confirmed on a fresh dev sample",
+   "measured": {
+    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.5333,
+    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.2167,
+    "Qwen/Qwen3-0.6B": 0.2833,
+    "Qwen/Qwen3-1.7B": 0.65
+   },
+   "in_situ": {
+    "Qwen/Qwen3-0.6B": 0.7778,
+    "Qwen/Qwen3-1.7B": 0.7083
+   },
+   "confirmed": {
+    "Qwen/Qwen3-0.6B": 0.8194
+   }
   }
  },
  "rule": "per capability the smallest model effective on held-out templates (accuracy or generation pass rate >= 0.6, p <= 0.01 / Wilson lower bound >= 0.4); where none is effective, the best-measured language model",
  "in_situ": {
   "tool_choice": {
-   "Qwen/Qwen3-0.6B": 0.5833,
-   "Qwen/Qwen3-1.7B": 0.6806
+   "Qwen/Qwen3-0.6B": 0.6111,
+   "Qwen/Qwen3-0.6B#think192": 0.7083,
+   "Qwen/Qwen3-0.6B#think384": 0.7361,
+   "Qwen/Qwen3-1.7B": 0.6667
   },
   "communication": {
    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.417,
    "HuggingFaceTB/SmolLM2-360M-Instruct": 1.0,
    "Qwen/Qwen3-0.6B": 1.0
+  },
+  "next_step": {
+   "Qwen/Qwen3-0.6B": 0.7778,
+   "Qwen/Qwen3-1.7B": 0.7083
   }
  },
  "in_situ_source": {
   "tool_choice": {
-   "what": "class-4 tool selection in a civilisation (crucible.semantic.generalists.bench, DEV templates only, 6 items per template, seed 0); only the tool_choice route varies, every other route as derived from the SP-3.2b report",
-   "n_items": 72,
-   "ci95": {
-    "Qwen/Qwen3-0.6B": [
-     0.4681,
-     0.6901
-    ],
-    "Qwen/Qwen3-1.7B": [
-     0.5661,
-     0.7767
-    ]
+   "what": "class-4 decisions in a civilisation (crucible.semantic.generalists.bench, DEV templates only, 6 items per template): tool choice varied over Qwen3-0.6B (options scored), Qwen3-0.6B reasoning first in its thinking mode (at most 192 / 384 tokens), Qwen3-1.7B; next-step phrase on Qwen/Qwen3-1.7B; candidates effective on the selection sample (seed 0) confirmed in cost order on a fresh sample (seed 1)",
+   "n_items": {
+    "selection": 72,
+    "confirmation": 72
    },
-   "sha256": "23d7c8fd7f5da45463f788c52166705656936cabb195fc026d04d1fd1a4bee74",
-   "date": "2026-11-26",
-   "decision": "D-37"
+   "ci95": {
+    "selection": {
+     "Qwen/Qwen3-0.6B": [
+      0.4956,
+      0.7153
+     ],
+     "Qwen/Qwen3-0.6B#think192": [
+      0.5949,
+      0.8006
+     ],
+     "Qwen/Qwen3-0.6B#think384": [
+      0.6242,
+      0.8241
+     ],
+     "Qwen/Qwen3-1.7B": [
+      0.5518,
+      0.7647
+     ]
+    },
+    "confirmation": {
+     "Qwen/Qwen3-0.6B": [
+      0.4818,
+      0.7028
+     ],
+     "Qwen/Qwen3-0.6B#think192": [
+      0.5518,
+      0.7647
+     ]
+    }
+   },
+   "sha256": "c6dd1ab423b2fc5da21224a54abf81569a5cf1141219ab40d461903472695f3b",
+   "date": "2026-11-27",
+   "decision": "D-38 (amendment)",
+   "procedure": "python -m crucible.semantic.generalists.insitu measure"
   },
   "communication": {
    "what": "written content of a publication (the compose slot of blog.publish, as mind.slot_request builds it) for the 12 DEV situations of generalists.bench (one per template, seed 0), CPU float32, 60 tokens; value = share of texts whose 5-grams are not mostly (> 30 %) copied from the prompt (SmolLM2-135M copied the prompt in 8 of 9 written values of the second standard Gate H run)",
@@ -1418,6 +1472,44 @@
    "sha256": "522aee872829e8268e4a5948b98159a810ec7922f7b60a148019efa1e4169c26",
    "date": "2026-11-26",
    "decision": "D-37"
+  },
+  "next_step": {
+   "what": "class-4 decisions in a civilisation (crucible.semantic.generalists.bench, DEV templates only, 6 items per template): the next-step phrase (what the service directory is searched for) varied over Qwen3-0.6B, Qwen3-1.7B; tool choice as routed (Qwen/Qwen3-0.6B#think192); goal formation and argument choice are not part of this bench and stay on situation interpretation's SP-3.2b route; candidates effective on the selection sample (seed 0) confirmed in cost order on a fresh sample (seed 1)",
+   "n_items": {
+    "selection": 72,
+    "confirmation": 72
+   },
+   "ci95": {
+    "selection": {
+     "Qwen/Qwen3-0.6B": [
+      0.6691,
+      0.8583
+     ],
+     "Qwen/Qwen3-1.7B": [
+      0.5949,
+      0.8006
+     ]
+    },
+    "confirmation": {
+     "Qwen/Qwen3-0.6B": [
+      0.7152,
+      0.8913
+     ]
+    }
+   },
+   "sha256": "c6dd1ab423b2fc5da21224a54abf81569a5cf1141219ab40d461903472695f3b",
+   "date": "2026-11-27",
+   "decision": "D-38 (amendment)",
+   "procedure": "python -m crucible.semantic.generalists.insitu measure"
+  }
+ },
+ "in_situ_confirm": {
+  "tool_choice": {
+   "Qwen/Qwen3-0.6B": 0.5972,
+   "Qwen/Qwen3-0.6B#think192": 0.6667
+  },
+  "next_step": {
+   "Qwen/Qwen3-0.6B": 0.8194
   }
  }
 }

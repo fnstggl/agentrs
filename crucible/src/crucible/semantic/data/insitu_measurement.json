@@ -1,0 +1,4809 @@
+{
+ "procedure": "crucible.semantic.generalists.insitu (D-38 amendment)",
+ "date": "2026-11-27",
+ "samples": {
+  "selection": {
+   "seed": 0,
+   "n": 72
+  },
+  "confirmation": {
+   "seed": 1,
+   "n": 72
+  }
+ },
+ "routes_fixed": {
+  "content_understanding": "Qwen/Qwen3-0.6B",
+  "situation_interpretation": "Qwen/Qwen3-1.7B",
+  "communication": "HuggingFaceTB/SmolLM2-360M-Instruct",
+  "incentive_adaptation": "Qwen/Qwen3-1.7B",
+  "negotiation": "Qwen/Qwen3-1.7B",
+  "programming": "Qwen/Qwen3-1.7B",
+  "strategic_decisions": "Qwen/Qwen3-1.7B"
+ },
+ "tool_choice": {
+  "next_step_route": "Qwen/Qwen3-1.7B",
+  "selection": {
+   "Qwen/Qwen3-0.6B": {
+    "accuracy": 0.6111,
+    "ci95": [
+     0.4956,
+     0.7153
+    ],
+    "n": 72,
+    "host_recall": 0.875,
+    "by_template": {
+     "ask_forum": 1.0,
+     "ask_privately": 0.0,
+     "check_money": 1.0,
+     "find_job": 1.0,
+     "follow": 1.0,
+     "new_repo": 1.0,
+     "notes_doc": 0.0,
+     "pay_debt": 0.667,
+     "read_feed": 0.0,
+     "read_mail": 0.333,
+     "search_web": 0.333,
+     "write_article": 1.0
+    },
+    "wall_s": 27.9,
+    "items": [
+     {
+      "id": "ask_forum/0",
+      "intent": "ask forum users for home insulation advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/1",
+      "intent": "ask forum users for baking bread advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/2",
+      "intent": "ask forum users for advice on fixing a bicycle",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/3",
+      "intent": "ask forum users for advice on learning Spanish",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/4",
+      "intent": "ask people on the public forum for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/5",
+      "intent": "ask forum for cheap hosting options",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/0",
+      "intent": "ask p1041 if they can review my logo this week",
+      "service": "market",
+      "pick": "market.browse",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/1",
+      "intent": "review logo for p1041",
+      "service": "market",
+      "pick": "market.browse",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/2",
+      "intent": "review mail for p1041",
+      "service": "mail",
+      "pick": "mail.inbox",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/3",
+      "intent": "ask p1041 about photo shoot",
+      "service": "market",
+      "pick": "market.browse",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/4",
+      "intent": "ask p1041 if they can review my user guide this week",
+      "service": "market",
+      "pick": "market.browse",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/5",
+      "intent": "review data for p1041",
+      "service": "market",
+      "pick": "market.browse",
+      "correct": false
+     },
+     {
+      "id": "check_money/0",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/1",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/2",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/3",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/4",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/5",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "find_job/0",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/1",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/2",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/3",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/4",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/5",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "follow/0",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/1",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/2",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/3",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/4",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/5",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "new_repo/0",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/1",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/2",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/3",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/4",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/5",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/0",
+      "intent": "write meeting notes",
+      "service": "community",
+      "pick": "community.visit",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/1",
+      "intent": "write meeting notes",
+      "service": "community",
+      "pick": "community.visit",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/2",
+      "intent": "write meeting notes",
+      "service": "community",
+      "pick": "community.visit",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/3",
+      "intent": "write meeting notes",
+      "service": "community",
+      "pick": "community.visit",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/4",
+      "intent": "",
+      "service": "msg",
+      "pick": "msg.group",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/5",
+      "intent": "",
+      "service": "msg",
+      "pick": "msg.group",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/0",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/1",
+      "intent": "",
+      "service": "market",
+      "pick": "market.confirm",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/2",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/3",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/4",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/5",
+      "intent": "",
+      "service": "market",
+      "pick": "market.confirm",
+      "correct": false
+     },
+     {
+      "id": "read_feed/0",
+      "intent": "",
+      "service": "content",
+      "pick": "content.list",
+      "correct": false
+     },
+     {
+      "id": "read_feed/1",
+      "intent": "",
+      "service": "content",
+      "pick": "content.list",
+      "correct": false
+     },
+     {
+      "id": "read_feed/2",
+      "intent": "",
+      "service": "content",
+      "pick": "content.list",
+      "correct": false
+     },
+     {
+      "id": "read_feed/3",
+      "intent": "",
+      "service": "content",
+      "pick": "content.list",
+      "correct": false
+     },
+     {
+      "id": "read_feed/4",
+      "intent": "",
+      "service": "content",
+      "pick": "content.list",
+      "correct": false
+     },
+     {
+      "id": "read_feed/5",
+      "intent": "",
+      "service": "content",
+      "pick": "content.list",
+      "correct": false
+     },
+     {
+      "id": "read_mail/0",
+      "intent": "",
+      "service": "community",
+      "pick": "community.visit",
+      "correct": false
+     },
+     {
+      "id": "read_mail/1",
+      "intent": "",
+      "service": "content",
+      "pick": "content.read",
+      "correct": false
+     },
+     {
+      "id": "read_mail/2",
+      "intent": "",
+      "service": "market",
+      "pick": "market.browse",
+      "correct": false
+     },
+     {
+      "id": "read_mail/3",
+      "intent": "",
+      "service": "content",
+      "pick": "content.list",
+      "correct": false
+     },
+     {
+      "id": "read_mail/4",
+      "intent": "read mail_000005",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "read_mail/5",
+      "intent": "read mail_000006",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "search_web/0",
+      "intent": "query acct_000017 for route planner information",
+      "service": "search",
+      "pick": "search.query",
+      "correct": true
+     },
+     {
+      "id": "search_web/1",
+      "intent": "search for photo resizer services",
+      "service": "cloud",
+      "pick": "cloud.buy_hardware",
+      "correct": false
+     },
+     {
+      "id": "search_web/2",
+      "intent": "",
+      "service": "community",
+      "pick": "community.invite",
+      "correct": false
+     },
+     {
+      "id": "search_web/3",
+      "intent": "",
+      "service": "community",
+      "pick": "community.invite",
+      "correct": false
+     },
+     {
+      "id": "search_web/4",
+      "intent": "",
+      "service": "community",
+      "pick": "community.invite",
+      "correct": false
+     },
+     {
+      "id": "search_web/5",
+      "intent": "query acct_000017 for route planner information",
+      "service": "search",
+      "pick": "search.query",
+      "correct": true
+     },
+     {
+      "id": "write_article/0",
+      "intent": "write article about cheap hosting",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/1",
+      "intent": "write article about growing tomatoes",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/2",
+      "intent": "write article about cheap hosting",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/3",
+      "intent": "write article about baking bread",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/4",
+      "intent": "",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/5",
+      "intent": "",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     }
+    ]
+   },
+   "Qwen/Qwen3-0.6B#think192": {
+    "accuracy": 0.7083,
+    "ci95": [
+     0.5949,
+     0.8006
+    ],
+    "n": 72,
+    "host_recall": 0.875,
+    "by_template": {
+     "ask_forum": 1.0,
+     "ask_privately": 0.0,
+     "check_money": 1.0,
+     "find_job": 1.0,
+     "follow": 1.0,
+     "new_repo": 1.0,
+     "notes_doc": 0.167,
+     "pay_debt": 0.667,
+     "read_feed": 1.0,
+     "read_mail": 0.333,
+     "search_web": 0.333,
+     "write_article": 1.0
+    },
+    "wall_s": 250.5,
+    "items": [
+     {
+      "id": "ask_forum/0",
+      "intent": "ask forum users for home insulation advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/1",
+      "intent": "ask forum users for baking bread advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/2",
+      "intent": "ask forum users for advice on fixing a bicycle",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/3",
+      "intent": "ask forum users for advice on learning Spanish",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/4",
+      "intent": "ask people on the public forum for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/5",
+      "intent": "ask forum for cheap hosting options",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/0",
+      "intent": "ask p1041 if they can review my logo this week",
+      "service": "forum",
+      "pick": "forum.reply",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/1",
+      "intent": "review logo for p1041",
+      "service": "shorts",
+      "pick": "shorts.comment",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/2",
+      "intent": "review mail for p1041",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/3",
+      "intent": "ask p1041 about photo shoot",
+      "service": "pics",
+      "pick": "pics.comment",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/4",
+      "intent": "ask p1041 if they can review my user guide this week",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/5",
+      "intent": "review data for p1041",
+      "service": "community",
+      "pick": "community.reports",
+      "correct": false
+     },
+     {
+      "id": "check_money/0",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/1",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/2",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/3",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/4",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/5",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "find_job/0",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/1",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/2",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/3",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/4",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/5",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "follow/0",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/1",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/2",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/3",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/4",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/5",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "new_repo/0",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/1",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/2",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/3",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/4",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/5",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/0",
+      "intent": "write meeting notes",
+      "service": "community",
+      "pick": "community.visit",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/1",
+      "intent": "write meeting notes",
+      "service": "community",
+      "pick": "community.visit",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/2",
+      "intent": "write meeting notes",
+      "service": "community",
+      "pick": "community.event",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/3",
+      "intent": "write meeting notes",
+      "service": "community",
+      "pick": "community.visit",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/4",
+      "intent": "",
+      "service": "docs",
+      "pick": "docs.create",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/5",
+      "intent": "",
+      "service": "msg",
+      "pick": "msg.send",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/0",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/1",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/2",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.invoice",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/3",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/4",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/5",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.invoice",
+      "correct": false
+     },
+     {
+      "id": "read_feed/0",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_feed/1",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.feed",
+      "correct": true
+     },
+     {
+      "id": "read_feed/2",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.feed",
+      "correct": true
+     },
+     {
+      "id": "read_feed/3",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.feed",
+      "correct": true
+     },
+     {
+      "id": "read_feed/4",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_feed/5",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.feed",
+      "correct": true
+     },
+     {
+      "id": "read_mail/0",
+      "intent": "",
+      "service": "pics",
+      "pick": "pics.view",
+      "correct": false
+     },
+     {
+      "id": "read_mail/1",
+      "intent": "",
+      "service": "forum",
+      "pick": "forum.read",
+      "correct": false
+     },
+     {
+      "id": "read_mail/2",
+      "intent": "",
+      "service": "msg",
+      "pick": "msg.read",
+      "correct": false
+     },
+     {
+      "id": "read_mail/3",
+      "intent": "",
+      "service": "content",
+      "pick": "content.inspect",
+      "correct": false
+     },
+     {
+      "id": "read_mail/4",
+      "intent": "read mail_000005",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "read_mail/5",
+      "intent": "read mail_000006",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "search_web/0",
+      "intent": "query acct_000017 for route planner information",
+      "service": "search",
+      "pick": "search.query",
+      "correct": true
+     },
+     {
+      "id": "search_web/1",
+      "intent": "search for photo resizer services",
+      "service": "cloud",
+      "pick": "cloud.providers",
+      "correct": false
+     },
+     {
+      "id": "search_web/2",
+      "intent": "",
+      "service": "xchg",
+      "pick": "xchg.create",
+      "correct": false
+     },
+     {
+      "id": "search_web/3",
+      "intent": "",
+      "service": "xchg",
+      "pick": "xchg.exchanges",
+      "correct": false
+     },
+     {
+      "id": "search_web/4",
+      "intent": "",
+      "service": "xchg",
+      "pick": "xchg.exchanges",
+      "correct": false
+     },
+     {
+      "id": "search_web/5",
+      "intent": "query acct_000017 for route planner information",
+      "service": "search",
+      "pick": "search.query",
+      "correct": true
+     },
+     {
+      "id": "write_article/0",
+      "intent": "write article about cheap hosting",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/1",
+      "intent": "write article about growing tomatoes",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/2",
+      "intent": "write article about cheap hosting",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/3",
+      "intent": "write article about baking bread",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/4",
+      "intent": "",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/5",
+      "intent": "",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     }
+    ]
+   },
+   "Qwen/Qwen3-0.6B#think384": {
+    "accuracy": 0.7361,
+    "ci95": [
+     0.6242,
+     0.8241
+    ],
+    "n": 72,
+    "host_recall": 0.875,
+    "by_template": {
+     "ask_forum": 1.0,
+     "ask_privately": 0.0,
+     "check_money": 1.0,
+     "find_job": 1.0,
+     "follow": 1.0,
+     "new_repo": 1.0,
+     "notes_doc": 0.167,
+     "pay_debt": 1.0,
+     "read_feed": 0.833,
+     "read_mail": 0.333,
+     "search_web": 0.5,
+     "write_article": 1.0
+    },
+    "wall_s": 440.7,
+    "items": [
+     {
+      "id": "ask_forum/0",
+      "intent": "ask forum users for home insulation advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/1",
+      "intent": "ask forum users for baking bread advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/2",
+      "intent": "ask forum users for advice on fixing a bicycle",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/3",
+      "intent": "ask forum users for advice on learning Spanish",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/4",
+      "intent": "ask people on the public forum for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/5",
+      "intent": "ask forum for cheap hosting options",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/0",
+      "intent": "ask p1041 if they can review my logo this week",
+      "service": "forum",
+      "pick": "forum.reply",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/1",
+      "intent": "review logo for p1041",
+      "service": "shorts",
+      "pick": "shorts.comment",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/2",
+      "intent": "review mail for p1041",
+      "service": "mail",
+      "pick": "mail.inbox",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/3",
+      "intent": "ask p1041 about photo shoot",
+      "service": "pics",
+      "pick": "pics.comment",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/4",
+      "intent": "ask p1041 if they can review my user guide this week",
+      "service": "dev",
+      "pick": "dev.question",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/5",
+      "intent": "review data for p1041",
+      "service": "community",
+      "pick": "community.report",
+      "correct": false
+     },
+     {
+      "id": "check_money/0",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/1",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/2",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/3",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/4",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/5",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "find_job/0",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/1",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/2",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/3",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/4",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/5",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "follow/0",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/1",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/2",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/3",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/4",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/5",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "new_repo/0",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/1",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/2",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/3",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/4",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/5",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/0",
+      "intent": "write meeting notes",
+      "service": "community",
+      "pick": "community.visit",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/1",
+      "intent": "write meeting notes",
+      "service": "community",
+      "pick": "community.visit",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/2",
+      "intent": "write meeting notes",
+      "service": "community",
+      "pick": "community.event",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/3",
+      "intent": "write meeting notes",
+      "service": "community",
+      "pick": "community.visit",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/4",
+      "intent": "",
+      "service": "docs",
+      "pick": "docs.create",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/5",
+      "intent": "",
+      "service": "msg",
+      "pick": "msg.send",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/0",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/1",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/2",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/3",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/4",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/5",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "read_feed/0",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.feed",
+      "correct": true
+     },
+     {
+      "id": "read_feed/1",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_feed/2",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.feed",
+      "correct": true
+     },
+     {
+      "id": "read_feed/3",
+      "intent": "",
+      "service": "forum",
+      "pick": "forum.feed",
+      "correct": false
+     },
+     {
+      "id": "read_feed/4",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.feed",
+      "correct": true
+     },
+     {
+      "id": "read_feed/5",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_mail/0",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.view",
+      "correct": false
+     },
+     {
+      "id": "read_mail/1",
+      "intent": "",
+      "service": "forum",
+      "pick": "forum.read",
+      "correct": false
+     },
+     {
+      "id": "read_mail/2",
+      "intent": "",
+      "service": "letters",
+      "pick": "letters.list",
+      "correct": false
+     },
+     {
+      "id": "read_mail/3",
+      "intent": "",
+      "service": "content",
+      "pick": "content.inspect",
+      "correct": false
+     },
+     {
+      "id": "read_mail/4",
+      "intent": "read mail_000005",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "read_mail/5",
+      "intent": "read mail_000006",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "search_web/0",
+      "intent": "query acct_000017 for route planner information",
+      "service": "search",
+      "pick": "search.query",
+      "correct": true
+     },
+     {
+      "id": "search_web/1",
+      "intent": "search for photo resizer services",
+      "service": "market",
+      "pick": "market.browse",
+      "correct": true
+     },
+     {
+      "id": "search_web/2",
+      "intent": "",
+      "service": "community",
+      "pick": "community.post",
+      "correct": false
+     },
+     {
+      "id": "search_web/3",
+      "intent": "",
+      "service": "xchg",
+      "pick": "xchg.exchanges",
+      "correct": false
+     },
+     {
+      "id": "search_web/4",
+      "intent": "",
+      "service": "community",
+      "pick": "community.feed",
+      "correct": false
+     },
+     {
+      "id": "search_web/5",
+      "intent": "query acct_000017 for route planner information",
+      "service": "search",
+      "pick": "search.query",
+      "correct": true
+     },
+     {
+      "id": "write_article/0",
+      "intent": "write article about cheap hosting",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/1",
+      "intent": "write article about growing tomatoes",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/2",
+      "intent": "write article about cheap hosting",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/3",
+      "intent": "write article about baking bread",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/4",
+      "intent": "",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/5",
+      "intent": "",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     }
+    ]
+   },
+   "Qwen/Qwen3-1.7B": {
+    "accuracy": 0.6667,
+    "ci95": [
+     0.5518,
+     0.7647
+    ],
+    "n": 72,
+    "host_recall": 0.875,
+    "by_template": {
+     "ask_forum": 1.0,
+     "ask_privately": 0.0,
+     "check_money": 1.0,
+     "find_job": 1.0,
+     "follow": 1.0,
+     "new_repo": 1.0,
+     "notes_doc": 0.333,
+     "pay_debt": 0.0,
+     "read_feed": 1.0,
+     "read_mail": 0.333,
+     "search_web": 0.333,
+     "write_article": 1.0
+    },
+    "wall_s": 24.7,
+    "items": [
+     {
+      "id": "ask_forum/0",
+      "intent": "ask forum users for home insulation advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/1",
+      "intent": "ask forum users for baking bread advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/2",
+      "intent": "ask forum users for advice on fixing a bicycle",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/3",
+      "intent": "ask forum users for advice on learning Spanish",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/4",
+      "intent": "ask people on the public forum for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/5",
+      "intent": "ask forum for cheap hosting options",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/0",
+      "intent": "ask p1041 if they can review my logo this week",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/1",
+      "intent": "review logo for p1041",
+      "service": "content",
+      "pick": "content.get",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/2",
+      "intent": "review mail for p1041",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/3",
+      "intent": "ask p1041 about photo shoot",
+      "service": "pics",
+      "pick": "pics.comment",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/4",
+      "intent": "ask p1041 if they can review my user guide this week",
+      "service": "forum",
+      "pick": "forum.reply",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/5",
+      "intent": "review data for p1041",
+      "service": "content",
+      "pick": "content.mine",
+      "correct": false
+     },
+     {
+      "id": "check_money/0",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/1",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/2",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/3",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/4",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/5",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "find_job/0",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/1",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/2",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/3",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/4",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/5",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "follow/0",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/1",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/2",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/3",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/4",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/5",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "new_repo/0",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/1",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/2",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/3",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/4",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/5",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/0",
+      "intent": "write meeting notes",
+      "service": "mail",
+      "pick": "mail.send",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/1",
+      "intent": "write meeting notes",
+      "service": "mail",
+      "pick": "mail.send",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/2",
+      "intent": "write meeting notes",
+      "service": "mail",
+      "pick": "mail.send",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/3",
+      "intent": "write meeting notes",
+      "service": "mail",
+      "pick": "mail.send",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/4",
+      "intent": "",
+      "service": "docs",
+      "pick": "docs.create",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/5",
+      "intent": "",
+      "service": "docs",
+      "pick": "docs.create",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/0",
+      "intent": "",
+      "service": "db",
+      "pick": "db.query",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/1",
+      "intent": "",
+      "service": "deal",
+      "pick": "deal.propose",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/2",
+      "intent": "",
+      "service": "make",
+      "pick": "make.offer",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/3",
+      "intent": "",
+      "service": "db",
+      "pick": "db.query",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/4",
+      "intent": "",
+      "service": "make",
+      "pick": "make.offer",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/5",
+      "intent": "",
+      "service": "deal",
+      "pick": "deal.propose",
+      "correct": false
+     },
+     {
+      "id": "read_feed/0",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_feed/1",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_feed/2",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_feed/3",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_feed/4",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_feed/5",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_mail/0",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.view",
+      "correct": false
+     },
+     {
+      "id": "read_mail/1",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.view",
+      "correct": false
+     },
+     {
+      "id": "read_mail/2",
+      "intent": "",
+      "service": "letters",
+      "pick": "letters.subscribe",
+      "correct": false
+     },
+     {
+      "id": "read_mail/3",
+      "intent": "",
+      "service": "content",
+      "pick": "content.get",
+      "correct": false
+     },
+     {
+      "id": "read_mail/4",
+      "intent": "read mail_000005",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "read_mail/5",
+      "intent": "read mail_000006",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "search_web/0",
+      "intent": "query acct_000017 for route planner information",
+      "service": "search",
+      "pick": "search.query",
+      "correct": true
+     },
+     {
+      "id": "search_web/1",
+      "intent": "search for photo resizer services",
+      "service": "market",
+      "pick": "market.browse",
+      "correct": true
+     },
+     {
+      "id": "search_web/2",
+      "intent": "",
+      "service": "kb",
+      "pick": "kb.trending",
+      "correct": false
+     },
+     {
+      "id": "search_web/3",
+      "intent": "",
+      "service": "kb",
+      "pick": "kb.trending",
+      "correct": false
+     },
+     {
+      "id": "search_web/4",
+      "intent": "",
+      "service": "kb",
+      "pick": "kb.trending",
+      "correct": false
+     },
+     {
+      "id": "search_web/5",
+      "intent": "query acct_000017 for route planner information",
+      "service": "freight",
+      "pick": "freight.links",
+      "correct": false
+     },
+     {
+      "id": "write_article/0",
+      "intent": "write article about cheap hosting",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/1",
+      "intent": "write article about growing tomatoes",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/2",
+      "intent": "write article about cheap hosting",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/3",
+      "intent": "write article about baking bread",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/4",
+      "intent": "",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/5",
+      "intent": "",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     }
+    ]
+   }
+  },
+  "confirmation": {
+   "Qwen/Qwen3-0.6B": {
+    "accuracy": 0.5972,
+    "ci95": [
+     0.4818,
+     0.7028
+    ],
+    "n": 72,
+    "host_recall": 0.9444,
+    "by_template": {
+     "ask_forum": 1.0,
+     "ask_privately": 0.333,
+     "check_money": 1.0,
+     "find_job": 1.0,
+     "follow": 1.0,
+     "new_repo": 1.0,
+     "notes_doc": 0.0,
+     "pay_debt": 0.333,
+     "read_feed": 0.0,
+     "read_mail": 1.0,
+     "search_web": 0.0,
+     "write_article": 0.5
+    },
+    "wall_s": 22.3,
+    "items": [
+     {
+      "id": "ask_forum/0",
+      "intent": "ask people on public forum for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/1",
+      "intent": "ask people on the public forum for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/2",
+      "intent": "ask public forum for advice on running a marathon",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/3",
+      "intent": "ask public forum for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/4",
+      "intent": "ask public forum for cheap hosting options",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/5",
+      "intent": "ask people on the public forum for advice about growing tomatoes",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/0",
+      "intent": "review photo shoot",
+      "service": "market",
+      "pick": "market.browse",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/1",
+      "intent": "review data for p1041",
+      "service": "market",
+      "pick": "market.browse",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/2",
+      "intent": "review mail for p1041",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/3",
+      "intent": "review my translation",
+      "service": "msg",
+      "pick": "msg.send",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/4",
+      "intent": "review data for p1041",
+      "service": "market",
+      "pick": "market.browse",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/5",
+      "intent": "review my translation",
+      "service": "msg",
+      "pick": "msg.send",
+      "correct": true
+     },
+     {
+      "id": "check_money/0",
+      "intent": "check my account balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/1",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/2",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/3",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/4",
+      "intent": "check my account balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/5",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "find_job/0",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/1",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/2",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/3",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/4",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/5",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "follow/0",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/1",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/2",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/3",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/4",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/5",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "new_repo/0",
+      "intent": "start code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/1",
+      "intent": "start code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/2",
+      "intent": "start code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/3",
+      "intent": "start code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/4",
+      "intent": "start code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/5",
+      "intent": "start a code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/0",
+      "intent": "write meeting notes",
+      "service": "mail",
+      "pick": "mail.inbox",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/1",
+      "intent": "write meeting notes",
+      "service": "mail",
+      "pick": "mail.inbox",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/2",
+      "intent": "write meeting notes",
+      "service": "mail",
+      "pick": "mail.inbox",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/3",
+      "intent": "write meeting notes",
+      "service": "mail",
+      "pick": "mail.inbox",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/4",
+      "intent": "write meeting notes",
+      "service": "mail",
+      "pick": "mail.inbox",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/5",
+      "intent": "write meeting notes",
+      "service": "mail",
+      "pick": "mail.inbox",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/0",
+      "intent": "pay p1041 for logo",
+      "service": "bank",
+      "pick": "bank.invoice",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/1",
+      "intent": "pay p1041 for photo shoot",
+      "service": "bank",
+      "pick": "bank.pay_invoice",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/2",
+      "intent": "pay p1041 7600 cents",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/3",
+      "intent": "buy from p1041 for translation service",
+      "service": "market",
+      "pick": "market.buy",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/4",
+      "intent": "pay p1041 for photo shoot",
+      "service": "bank",
+      "pick": "bank.pay_invoice",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/5",
+      "intent": "pay p1041 for translation",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "read_feed/0",
+      "intent": "browse news",
+      "service": "posts",
+      "pick": "posts.trending",
+      "correct": false
+     },
+     {
+      "id": "read_feed/1",
+      "intent": "browse news",
+      "service": "posts",
+      "pick": "posts.trending",
+      "correct": false
+     },
+     {
+      "id": "read_feed/2",
+      "intent": "browse news",
+      "service": "posts",
+      "pick": "posts.trending",
+      "correct": false
+     },
+     {
+      "id": "read_feed/3",
+      "intent": "browse news",
+      "service": "posts",
+      "pick": "posts.trending",
+      "correct": false
+     },
+     {
+      "id": "read_feed/4",
+      "intent": "browse news",
+      "service": "posts",
+      "pick": "posts.trending",
+      "correct": false
+     },
+     {
+      "id": "read_feed/5",
+      "intent": "browse news",
+      "service": "posts",
+      "pick": "posts.trending",
+      "correct": false
+     },
+     {
+      "id": "read_mail/0",
+      "intent": "read mail_000001",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "read_mail/1",
+      "intent": "read mail",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "read_mail/2",
+      "intent": "read mail_000003",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "read_mail/3",
+      "intent": "read mail_000004",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "read_mail/4",
+      "intent": "read mail",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "read_mail/5",
+      "intent": "read mail_000006",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "search_web/0",
+      "intent": "check mail",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": false
+     },
+     {
+      "id": "search_web/1",
+      "intent": "check for photo resizer services",
+      "service": "cloud",
+      "pick": "cloud.providers",
+      "correct": false
+     },
+     {
+      "id": "search_web/2",
+      "intent": "check for backup service offers",
+      "service": "fleet",
+      "pick": "fleet.status",
+      "correct": false
+     },
+     {
+      "id": "search_web/3",
+      "intent": "check for photo resizer services",
+      "service": "cloud",
+      "pick": "cloud.providers",
+      "correct": false
+     },
+     {
+      "id": "search_web/4",
+      "intent": "check for route planner offers",
+      "service": "subs",
+      "pick": "subs.subscribe",
+      "correct": false
+     },
+     {
+      "id": "search_web/5",
+      "intent": "check mail for bike repair guide",
+      "service": "mail",
+      "pick": "mail.search",
+      "correct": false
+     },
+     {
+      "id": "write_article/0",
+      "intent": "buy hosting",
+      "service": "cloud",
+      "pick": "cloud.buy_hardware",
+      "correct": false
+     },
+     {
+      "id": "write_article/1",
+      "intent": "write article about learning Spanish",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/2",
+      "intent": "buy materials for blog",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/3",
+      "intent": "buy time",
+      "service": "blog",
+      "pick": "blog.feed",
+      "correct": false
+     },
+     {
+      "id": "write_article/4",
+      "intent": "",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/5",
+      "intent": "get mail from p1041",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": false
+     }
+    ]
+   },
+   "Qwen/Qwen3-0.6B#think192": {
+    "accuracy": 0.6667,
+    "ci95": [
+     0.5518,
+     0.7647
+    ],
+    "n": 72,
+    "host_recall": 0.9444,
+    "by_template": {
+     "ask_forum": 1.0,
+     "ask_privately": 0.0,
+     "check_money": 1.0,
+     "find_job": 1.0,
+     "follow": 1.0,
+     "new_repo": 1.0,
+     "notes_doc": 0.0,
+     "pay_debt": 0.0,
+     "read_feed": 1.0,
+     "read_mail": 1.0,
+     "search_web": 0.167,
+     "write_article": 0.833
+    },
+    "wall_s": 204.3,
+    "items": [
+     {
+      "id": "ask_forum/0",
+      "intent": "ask people on public forum for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/1",
+      "intent": "ask people on the public forum for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/2",
+      "intent": "ask public forum for advice on running a marathon",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/3",
+      "intent": "ask public forum for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/4",
+      "intent": "ask public forum for cheap hosting options",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/5",
+      "intent": "ask people on the public forum for advice about growing tomatoes",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/0",
+      "intent": "review photo shoot",
+      "service": "pics",
+      "pick": "pics.publish",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/1",
+      "intent": "review data for p1041",
+      "service": "content",
+      "pick": "content.list",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/2",
+      "intent": "review mail for p1041",
+      "service": "mail",
+      "pick": "mail.inbox",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/3",
+      "intent": "review my translation",
+      "service": "learn",
+      "pick": "learn.study",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/4",
+      "intent": "review data for p1041",
+      "service": "community",
+      "pick": "community.post",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/5",
+      "intent": "review my translation",
+      "service": "learn",
+      "pick": "learn.readers",
+      "correct": false
+     },
+     {
+      "id": "check_money/0",
+      "intent": "check my account balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/1",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/2",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/3",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/4",
+      "intent": "check my account balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/5",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "find_job/0",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/1",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/2",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/3",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/4",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/5",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "follow/0",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/1",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/2",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/3",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/4",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/5",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "new_repo/0",
+      "intent": "start code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/1",
+      "intent": "start code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/2",
+      "intent": "start code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/3",
+      "intent": "start code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/4",
+      "intent": "start code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/5",
+      "intent": "start a code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/0",
+      "intent": "write meeting notes",
+      "service": "community",
+      "pick": "community.visit",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/1",
+      "intent": "write meeting notes",
+      "service": "mail",
+      "pick": "mail.inbox",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/2",
+      "intent": "write meeting notes",
+      "service": "mail",
+      "pick": "mail.inbox",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/3",
+      "intent": "write meeting notes",
+      "service": "mail",
+      "pick": "mail.inbox",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/4",
+      "intent": "write meeting notes",
+      "service": "mail",
+      "pick": "mail.inbox",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/5",
+      "intent": "write meeting notes",
+      "service": "community",
+      "pick": "community.visit",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/0",
+      "intent": "pay p1041 for logo",
+      "service": "bank",
+      "pick": "bank.invoice",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/1",
+      "intent": "pay p1041 for photo shoot",
+      "service": "bank",
+      "pick": "bank.pay_invoice",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/2",
+      "intent": "pay p1041 7600 cents",
+      "service": "bank",
+      "pick": "bank.invoice",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/3",
+      "intent": "buy from p1041 for translation service",
+      "service": "bank",
+      "pick": "bank.authorize_debit",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/4",
+      "intent": "pay p1041 for photo shoot",
+      "service": "bank",
+      "pick": "bank.pay_invoice",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/5",
+      "intent": "pay p1041 for translation",
+      "service": "bank",
+      "pick": "bank.invoice",
+      "correct": false
+     },
+     {
+      "id": "read_feed/0",
+      "intent": "browse news",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_feed/1",
+      "intent": "browse news",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_feed/2",
+      "intent": "browse news",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_feed/3",
+      "intent": "browse news",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_feed/4",
+      "intent": "browse news",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_feed/5",
+      "intent": "browse news",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_mail/0",
+      "intent": "read mail_000001",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "read_mail/1",
+      "intent": "read mail",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "read_mail/2",
+      "intent": "read mail_000003",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "read_mail/3",
+      "intent": "read mail_000004",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "read_mail/4",
+      "intent": "read mail",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "read_mail/5",
+      "intent": "read mail_000006",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "search_web/0",
+      "intent": "check mail",
+      "service": "mail",
+      "pick": "mail.inbox",
+      "correct": false
+     },
+     {
+      "id": "search_web/1",
+      "intent": "check for photo resizer services",
+      "service": "pics",
+      "pick": "pics.feed",
+      "correct": false
+     },
+     {
+      "id": "search_web/2",
+      "intent": "check for backup service offers",
+      "service": "prod",
+      "pick": "prod.view",
+      "correct": false
+     },
+     {
+      "id": "search_web/3",
+      "intent": "check for photo resizer services",
+      "service": "cloud",
+      "pick": "cloud.providers",
+      "correct": false
+     },
+     {
+      "id": "search_web/4",
+      "intent": "check for route planner offers",
+      "service": "market",
+      "pick": "market.browse",
+      "correct": true
+     },
+     {
+      "id": "search_web/5",
+      "intent": "check mail for bike repair guide",
+      "service": "mail",
+      "pick": "mail.search",
+      "correct": false
+     },
+     {
+      "id": "write_article/0",
+      "intent": "buy hosting",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/1",
+      "intent": "write article about learning Spanish",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/2",
+      "intent": "buy materials for blog",
+      "service": "make",
+      "pick": "make.catalog",
+      "correct": false
+     },
+     {
+      "id": "write_article/3",
+      "intent": "buy time",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/4",
+      "intent": "",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/5",
+      "intent": "get mail from p1041",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     }
+    ]
+   }
+  },
+  "routed": "Qwen/Qwen3-0.6B#think192"
+ },
+ "next_step": {
+  "tool_choice_route": "Qwen/Qwen3-0.6B#think192",
+  "selection": {
+   "Qwen/Qwen3-0.6B": {
+    "accuracy": 0.7778,
+    "ci95": [
+     0.6691,
+     0.8583
+    ],
+    "n": 72,
+    "host_recall": 0.9167,
+    "by_template": {
+     "ask_forum": 1.0,
+     "ask_privately": 0.833,
+     "check_money": 1.0,
+     "find_job": 1.0,
+     "follow": 1.0,
+     "new_repo": 1.0,
+     "notes_doc": 0.667,
+     "pay_debt": 0.667,
+     "read_feed": 1.0,
+     "read_mail": 0.0,
+     "search_web": 0.5,
+     "write_article": 0.667
+    },
+    "wall_s": 186.5,
+    "items": [
+     {
+      "id": "ask_forum/0",
+      "intent": "ask for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/1",
+      "intent": "ask for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/2",
+      "intent": "ask for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/3",
+      "intent": "ask for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/4",
+      "intent": "ask for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/5",
+      "intent": "ask for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/0",
+      "intent": "ask p1041",
+      "service": "mail",
+      "pick": "mail.send",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/1",
+      "intent": "ask p1041",
+      "service": "mail",
+      "pick": "mail.send",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/2",
+      "intent": "ask p1041",
+      "service": "mail",
+      "pick": "mail.send",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/3",
+      "intent": "ask p1041",
+      "service": "mail",
+      "pick": "mail.send",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/4",
+      "intent": "ask p1041",
+      "service": "mail",
+      "pick": "mail.send",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/5",
+      "intent": "clean_data",
+      "service": "db",
+      "pick": "db.query",
+      "correct": false
+     },
+     {
+      "id": "check_money/0",
+      "intent": "find money",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/1",
+      "intent": "find money",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/2",
+      "intent": "find money",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/3",
+      "intent": "find money",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/4",
+      "intent": "find money",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/5",
+      "intent": "find money",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "find_job/0",
+      "intent": "look at job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/1",
+      "intent": "look at job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/2",
+      "intent": "look at job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/3",
+      "intent": "look at job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/4",
+      "intent": "look at job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/5",
+      "intent": "look at job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "follow/0",
+      "intent": "follow p1041",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/1",
+      "intent": "follow p1041",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/2",
+      "intent": "follow p1041",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/3",
+      "intent": "follow p1041",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/4",
+      "intent": "follow p1041",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/5",
+      "intent": "follow p1041",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "new_repo/0",
+      "intent": "backup-service",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/1",
+      "intent": "newrepo",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/2",
+      "intent": "newrepo",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/3",
+      "intent": "newrepo",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/4",
+      "intent": "newrepo",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/5",
+      "intent": "backup-service",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/0",
+      "intent": "write down",
+      "service": "posts",
+      "pick": "posts.publish",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/1",
+      "intent": "write",
+      "service": "docs",
+      "pick": "docs.create",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/2",
+      "intent": "write",
+      "service": "docs",
+      "pick": "docs.create",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/3",
+      "intent": "write",
+      "service": "docs",
+      "pick": "docs.create",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/4",
+      "intent": "",
+      "service": "docs",
+      "pick": "docs.create",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/5",
+      "intent": "",
+      "service": "msg",
+      "pick": "msg.send",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/0",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/1",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/2",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.invoice",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/3",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/4",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/5",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.invoice",
+      "correct": false
+     },
+     {
+      "id": "read_feed/0",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.feed",
+      "correct": true
+     },
+     {
+      "id": "read_feed/1",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_feed/2",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.feed",
+      "correct": true
+     },
+     {
+      "id": "read_feed/3",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_feed/4",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.feed",
+      "correct": true
+     },
+     {
+      "id": "read_feed/5",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.feed",
+      "correct": true
+     },
+     {
+      "id": "read_mail/0",
+      "intent": "",
+      "service": "community",
+      "pick": "community.visit",
+      "correct": false
+     },
+     {
+      "id": "read_mail/1",
+      "intent": "",
+      "service": "net",
+      "pick": "net.sites",
+      "correct": false
+     },
+     {
+      "id": "read_mail/2",
+      "intent": "",
+      "service": "market",
+      "pick": "market.browse",
+      "correct": false
+     },
+     {
+      "id": "read_mail/3",
+      "intent": "",
+      "service": "content",
+      "pick": "content.list",
+      "correct": false
+     },
+     {
+      "id": "read_mail/4",
+      "intent": "next_action: \"call_deal",
+      "service": "deal",
+      "pick": "deal.inbox",
+      "correct": false
+     },
+     {
+      "id": "read_mail/5",
+      "intent": "next_action: \"call_deal",
+      "service": "deal",
+      "pick": "deal.inbox",
+      "correct": false
+     },
+     {
+      "id": "search_web/0",
+      "intent": "find route planner",
+      "service": "search",
+      "pick": "search.query",
+      "correct": true
+     },
+     {
+      "id": "search_web/1",
+      "intent": "find a photo resizer",
+      "service": "cloud",
+      "pick": "cloud.buy_hardware",
+      "correct": false
+     },
+     {
+      "id": "search_web/2",
+      "intent": "",
+      "service": "community",
+      "pick": "community.event",
+      "correct": false
+     },
+     {
+      "id": "search_web/3",
+      "intent": "",
+      "service": "xchg",
+      "pick": "xchg.browse",
+      "correct": true
+     },
+     {
+      "id": "search_web/4",
+      "intent": "",
+      "service": "msg",
+      "pick": "msg.conversations",
+      "correct": false
+     },
+     {
+      "id": "search_web/5",
+      "intent": "find route planner",
+      "service": "search",
+      "pick": "search.query",
+      "correct": true
+     },
+     {
+      "id": "write_article/0",
+      "intent": "write",
+      "service": "posts",
+      "pick": "posts.publish",
+      "correct": false
+     },
+     {
+      "id": "write_article/1",
+      "intent": "write",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/2",
+      "intent": "write",
+      "service": "posts",
+      "pick": "posts.publish",
+      "correct": false
+     },
+     {
+      "id": "write_article/3",
+      "intent": "write",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/4",
+      "intent": "",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/5",
+      "intent": "",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     }
+    ]
+   },
+   "Qwen/Qwen3-1.7B": {
+    "accuracy": 0.7083,
+    "ci95": [
+     0.5949,
+     0.8006
+    ],
+    "n": 72,
+    "host_recall": 0.875,
+    "by_template": {
+     "ask_forum": 1.0,
+     "ask_privately": 0.0,
+     "check_money": 1.0,
+     "find_job": 1.0,
+     "follow": 1.0,
+     "new_repo": 1.0,
+     "notes_doc": 0.167,
+     "pay_debt": 0.667,
+     "read_feed": 1.0,
+     "read_mail": 0.333,
+     "search_web": 0.333,
+     "write_article": 1.0
+    },
+    "wall_s": 250.5,
+    "items": [
+     {
+      "id": "ask_forum/0",
+      "intent": "ask forum users for home insulation advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/1",
+      "intent": "ask forum users for baking bread advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/2",
+      "intent": "ask forum users for advice on fixing a bicycle",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/3",
+      "intent": "ask forum users for advice on learning Spanish",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/4",
+      "intent": "ask people on the public forum for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/5",
+      "intent": "ask forum for cheap hosting options",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/0",
+      "intent": "ask p1041 if they can review my logo this week",
+      "service": "forum",
+      "pick": "forum.reply",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/1",
+      "intent": "review logo for p1041",
+      "service": "shorts",
+      "pick": "shorts.comment",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/2",
+      "intent": "review mail for p1041",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/3",
+      "intent": "ask p1041 about photo shoot",
+      "service": "pics",
+      "pick": "pics.comment",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/4",
+      "intent": "ask p1041 if they can review my user guide this week",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": false
+     },
+     {
+      "id": "ask_privately/5",
+      "intent": "review data for p1041",
+      "service": "community",
+      "pick": "community.reports",
+      "correct": false
+     },
+     {
+      "id": "check_money/0",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/1",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/2",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/3",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/4",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/5",
+      "intent": "check balance",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "find_job/0",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/1",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/2",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/3",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/4",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/5",
+      "intent": "look for job openings",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "follow/0",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/1",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/2",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/3",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/4",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/5",
+      "intent": "follow p1041's posts",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "new_repo/0",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/1",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/2",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/3",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/4",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/5",
+      "intent": "create code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/0",
+      "intent": "write meeting notes",
+      "service": "community",
+      "pick": "community.visit",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/1",
+      "intent": "write meeting notes",
+      "service": "community",
+      "pick": "community.visit",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/2",
+      "intent": "write meeting notes",
+      "service": "community",
+      "pick": "community.event",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/3",
+      "intent": "write meeting notes",
+      "service": "community",
+      "pick": "community.visit",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/4",
+      "intent": "",
+      "service": "docs",
+      "pick": "docs.create",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/5",
+      "intent": "",
+      "service": "msg",
+      "pick": "msg.send",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/0",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/1",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/2",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.invoice",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/3",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/4",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/5",
+      "intent": "",
+      "service": "bank",
+      "pick": "bank.invoice",
+      "correct": false
+     },
+     {
+      "id": "read_feed/0",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_feed/1",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.feed",
+      "correct": true
+     },
+     {
+      "id": "read_feed/2",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.feed",
+      "correct": true
+     },
+     {
+      "id": "read_feed/3",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.feed",
+      "correct": true
+     },
+     {
+      "id": "read_feed/4",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.latest",
+      "correct": true
+     },
+     {
+      "id": "read_feed/5",
+      "intent": "",
+      "service": "posts",
+      "pick": "posts.feed",
+      "correct": true
+     },
+     {
+      "id": "read_mail/0",
+      "intent": "",
+      "service": "pics",
+      "pick": "pics.view",
+      "correct": false
+     },
+     {
+      "id": "read_mail/1",
+      "intent": "",
+      "service": "forum",
+      "pick": "forum.read",
+      "correct": false
+     },
+     {
+      "id": "read_mail/2",
+      "intent": "",
+      "service": "msg",
+      "pick": "msg.read",
+      "correct": false
+     },
+     {
+      "id": "read_mail/3",
+      "intent": "",
+      "service": "content",
+      "pick": "content.inspect",
+      "correct": false
+     },
+     {
+      "id": "read_mail/4",
+      "intent": "read mail_000005",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "read_mail/5",
+      "intent": "read mail_000006",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "search_web/0",
+      "intent": "query acct_000017 for route planner information",
+      "service": "search",
+      "pick": "search.query",
+      "correct": true
+     },
+     {
+      "id": "search_web/1",
+      "intent": "search for photo resizer services",
+      "service": "cloud",
+      "pick": "cloud.providers",
+      "correct": false
+     },
+     {
+      "id": "search_web/2",
+      "intent": "",
+      "service": "xchg",
+      "pick": "xchg.create",
+      "correct": false
+     },
+     {
+      "id": "search_web/3",
+      "intent": "",
+      "service": "xchg",
+      "pick": "xchg.exchanges",
+      "correct": false
+     },
+     {
+      "id": "search_web/4",
+      "intent": "",
+      "service": "xchg",
+      "pick": "xchg.exchanges",
+      "correct": false
+     },
+     {
+      "id": "search_web/5",
+      "intent": "query acct_000017 for route planner information",
+      "service": "search",
+      "pick": "search.query",
+      "correct": true
+     },
+     {
+      "id": "write_article/0",
+      "intent": "write article about cheap hosting",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/1",
+      "intent": "write article about growing tomatoes",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/2",
+      "intent": "write article about cheap hosting",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/3",
+      "intent": "write article about baking bread",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/4",
+      "intent": "",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/5",
+      "intent": "",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     }
+    ]
+   }
+  },
+  "confirmation": {
+   "Qwen/Qwen3-0.6B": {
+    "accuracy": 0.8194,
+    "ci95": [
+     0.7152,
+     0.8913
+    ],
+    "n": 72,
+    "host_recall": 1.0,
+    "by_template": {
+     "ask_forum": 0.833,
+     "ask_privately": 1.0,
+     "check_money": 1.0,
+     "find_job": 1.0,
+     "follow": 1.0,
+     "new_repo": 1.0,
+     "notes_doc": 0.833,
+     "pay_debt": 0.5,
+     "read_feed": 0.5,
+     "read_mail": 0.833,
+     "search_web": 0.333,
+     "write_article": 1.0
+    },
+    "wall_s": 196.4,
+    "items": [
+     {
+      "id": "ask_forum/0",
+      "intent": "ask for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/1",
+      "intent": "ask for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/2",
+      "intent": "ask for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/3",
+      "intent": "ask for advice",
+      "service": "forum",
+      "pick": "forum.read",
+      "correct": false
+     },
+     {
+      "id": "ask_forum/4",
+      "intent": "ask for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_forum/5",
+      "intent": "ask for advice",
+      "service": "forum",
+      "pick": "forum.post",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/0",
+      "intent": "ask p1041",
+      "service": "mail",
+      "pick": "mail.send",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/1",
+      "intent": "ask p1041",
+      "service": "mail",
+      "pick": "mail.send",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/2",
+      "intent": "ask p1041",
+      "service": "mail",
+      "pick": "mail.send",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/3",
+      "intent": "ask p1041",
+      "service": "mail",
+      "pick": "mail.send",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/4",
+      "intent": "ask p1041",
+      "service": "mail",
+      "pick": "mail.send",
+      "correct": true
+     },
+     {
+      "id": "ask_privately/5",
+      "intent": "ask p1041",
+      "service": "mail",
+      "pick": "mail.send",
+      "correct": true
+     },
+     {
+      "id": "check_money/0",
+      "intent": "find money",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/1",
+      "intent": "find money",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/2",
+      "intent": "find money",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/3",
+      "intent": "find money",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/4",
+      "intent": "find money",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "check_money/5",
+      "intent": "find money",
+      "service": "bank",
+      "pick": "bank.balance",
+      "correct": true
+     },
+     {
+      "id": "find_job/0",
+      "intent": "look for open job positions",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/1",
+      "intent": "look for open job positions",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/2",
+      "intent": "look for open job positions",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/3",
+      "intent": "look for open job positions",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/4",
+      "intent": "look for open job positions",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "find_job/5",
+      "intent": "look for open job positions",
+      "service": "jobs",
+      "pick": "jobs.openings",
+      "correct": true
+     },
+     {
+      "id": "follow/0",
+      "intent": "follow p1041",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/1",
+      "intent": "follow p1041",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/2",
+      "intent": "follow p1041",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/3",
+      "intent": "follow p1041",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/4",
+      "intent": "follow p1041",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "follow/5",
+      "intent": "follow p1041",
+      "service": "social",
+      "pick": "social.follow",
+      "correct": true
+     },
+     {
+      "id": "new_repo/0",
+      "intent": "code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/1",
+      "intent": "new-repo",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/2",
+      "intent": "code repository",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/3",
+      "intent": "new-repo",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/4",
+      "intent": "new_repo",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "new_repo/5",
+      "intent": "backup-service",
+      "service": "code",
+      "pick": "code.create_repo",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/0",
+      "intent": "write",
+      "service": "docs",
+      "pick": "docs.create",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/1",
+      "intent": "write",
+      "service": "docs",
+      "pick": "docs.create",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/2",
+      "intent": "write",
+      "service": "posts",
+      "pick": "posts.publish",
+      "correct": false
+     },
+     {
+      "id": "notes_doc/3",
+      "intent": "write",
+      "service": "docs",
+      "pick": "docs.create",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/4",
+      "intent": "write",
+      "service": "docs",
+      "pick": "docs.create",
+      "correct": true
+     },
+     {
+      "id": "notes_doc/5",
+      "intent": "write",
+      "service": "docs",
+      "pick": "docs.create",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/0",
+      "intent": "pay",
+      "service": "bank",
+      "pick": "bank.invoice",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/1",
+      "intent": "pay",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/2",
+      "intent": "pay",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "pay_debt/3",
+      "intent": "pay",
+      "service": "bank",
+      "pick": "bank.invoice",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/4",
+      "intent": "pay",
+      "service": "bank",
+      "pick": "bank.invoice",
+      "correct": false
+     },
+     {
+      "id": "pay_debt/5",
+      "intent": "pay",
+      "service": "bank",
+      "pick": "bank.transfer",
+      "correct": true
+     },
+     {
+      "id": "read_feed/0",
+      "intent": "read",
+      "service": "feed",
+      "pick": "feed.search",
+      "correct": false
+     },
+     {
+      "id": "read_feed/1",
+      "intent": "read_news",
+      "service": "posts",
+      "pick": "posts.feed",
+      "correct": true
+     },
+     {
+      "id": "read_feed/2",
+      "intent": "read_news",
+      "service": "posts",
+      "pick": "posts.feed",
+      "correct": true
+     },
+     {
+      "id": "read_feed/3",
+      "intent": "read",
+      "service": "feed",
+      "pick": "feed.open",
+      "correct": false
+     },
+     {
+      "id": "read_feed/4",
+      "intent": "read",
+      "service": "feed",
+      "pick": "feed.open",
+      "correct": false
+     },
+     {
+      "id": "read_feed/5",
+      "intent": "read_news",
+      "service": "posts",
+      "pick": "posts.feed",
+      "correct": true
+     },
+     {
+      "id": "read_mail/0",
+      "intent": "find p1041's message",
+      "service": "mail",
+      "pick": "mail.search",
+      "correct": true
+     },
+     {
+      "id": "read_mail/1",
+      "intent": "find p1041's message",
+      "service": "mail",
+      "pick": "mail.search",
+      "correct": true
+     },
+     {
+      "id": "read_mail/2",
+      "intent": "find p1041's message",
+      "service": "mail",
+      "pick": "mail.inbox",
+      "correct": true
+     },
+     {
+      "id": "read_mail/3",
+      "intent": "find p1041's message about the logo",
+      "service": "mail",
+      "pick": "mail.read",
+      "correct": true
+     },
+     {
+      "id": "read_mail/4",
+      "intent": "find p1041's message about the translation",
+      "service": "mail",
+      "pick": "mail.search",
+      "correct": true
+     },
+     {
+      "id": "read_mail/5",
+      "intent": "find p1041's message about the translation",
+      "service": "msg",
+      "pick": "msg.conversations",
+      "correct": false
+     },
+     {
+      "id": "search_web/0",
+      "intent": "find a budget sheet",
+      "service": "make",
+      "pick": "make.catalog",
+      "correct": false
+     },
+     {
+      "id": "search_web/1",
+      "intent": "find a photo resizer",
+      "service": "pics",
+      "pick": "pics.view",
+      "correct": false
+     },
+     {
+      "id": "search_web/2",
+      "intent": "find a backup service",
+      "service": "search",
+      "pick": "search.query",
+      "correct": true
+     },
+     {
+      "id": "search_web/3",
+      "intent": "find a photo resizer",
+      "service": "pics",
+      "pick": "pics.view",
+      "correct": false
+     },
+     {
+      "id": "search_web/4",
+      "intent": "find a route planner",
+      "service": "search",
+      "pick": "search.query",
+      "correct": true
+     },
+     {
+      "id": "search_web/5",
+      "intent": "find a bike repair guide",
+      "service": "prod",
+      "pick": "prod.view",
+      "correct": false
+     },
+     {
+      "id": "write_article/0",
+      "intent": "write",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/1",
+      "intent": "write",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/2",
+      "intent": "write",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/3",
+      "intent": "write",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/4",
+      "intent": "modlog community mail_000005",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     },
+     {
+      "id": "write_article/5",
+      "intent": "modlog community mail_000006",
+      "service": "blog",
+      "pick": "blog.publish",
+      "correct": true
+     }
+    ]
+   }
+  }
+ },
+ "wall_s": 1438.5
+}
