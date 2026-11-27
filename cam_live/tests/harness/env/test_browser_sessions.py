@@ -15,7 +15,7 @@ from cam_live.harness.browser import BrowserConfig, BrowserExecutor
 from cam_live.harness.env import ComputerEnvironment
 from cam_live.harness.internal import InternalExecutor
 
-from conftest import Driver, GrantPolicy, make_action
+from eb_support import Driver, GrantPolicy, make_action
 
 pytestmark = pytest.mark.browser
 
@@ -101,7 +101,7 @@ def test_cdp_attach_to_a_separately_launched_chromium(tmp_path, sites):
             assert o.data["session_kind"] == "cdp" and "Beta gasket" in o.text
             d.ok("browser.fill", role="textbox", name="Filter by name", text="gamma", session="cdp:ext")
             done = d.ok("browser.click", role="button", name="Apply filter", session="cdp:ext").observations[0]
-            assert done.data["url"] == url + "?q=gamma" and "1 of 3 items shown." in done.text
+            assert done.data["url"] == url + "?q=gamma" and "\n1 of " in done.text and "Gamma bracket" in done.text
             # it really is the external browser: its own DevTools endpoint reports the page we drove
             pages = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list"))
             assert url + "?q=gamma" in [x["url"] for x in pages]

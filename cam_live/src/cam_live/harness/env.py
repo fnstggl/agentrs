@@ -467,7 +467,7 @@ class ComputerEnvironment:
     def _stored_result(self, action_id: str) -> Optional[ActionResult]:
         with self._lock:
             if action_id in self._results:
-                return self._results[action_id]
+                return ActionResult.from_dict(self._results[action_id].to_dict())     # callers get their own copy
             e = self._journal.get(action_id)
             if not e or "offset" not in e:
                 return None

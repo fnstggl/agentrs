@@ -22,7 +22,7 @@ from cam_live.harness.rpc import RpcServer
 from cam_live.harness.service import (EXEC_METHODS, EXEC_RPC_VERSIONS, POLICY_METHODS, RemoteEnvironment, RemotePolicy,
                                       VersionMismatch, negotiate, serve)
 
-from conftest import HERE, SRC, Driver, GrantPolicy, HttpExecutor, make_action
+from eb_support import HERE, SRC, Driver, GrantPolicy, HttpExecutor, make_action
 
 TASK = TaskSpec("obj_rpc", "exercise the rpc boundary", mode="staging")
 
@@ -157,7 +157,7 @@ def test_service_process_with_authorization_socket_and_restart(short_dir, sites)
     policy = GrantPolicy()
     auth_sock = os.path.join(short_dir, "sock", "auth.sock")
     auth = RpcServer(auth_sock, policy, POLICY_METHODS, name="auth").start()
-    args = ("--auth-socket", auth_sock, "--no-browser", "--executor", "conftest:HttpExecutor")
+    args = ("--auth-socket", auth_sock, "--no-browser", "--executor", "eb_support:HttpExecutor")
     proc, ready = spawn_service(short_dir, *args)
     try:
         assert ready["ready"] is True and ready["pid"] == proc.pid and ready["versions"] == ["1.0"]

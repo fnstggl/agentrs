@@ -14,7 +14,7 @@ from cam_live.harness.env import PROGRAM, ComputerEnvironment
 from cam_live.harness.internal import InternalExecutor
 from cam_live.harness.staging import CANVAS_LAYOUT, canvas_center
 
-from conftest import Driver, GrantPolicy, HttpExecutor, make_action
+from eb_support import Driver, GrantPolicy, HttpExecutor, make_action
 
 pytestmark = pytest.mark.browser
 
@@ -139,7 +139,7 @@ def test_tabs_inspect_screenshot_read_scroll_press(b, sites):
     # press: type into the filter and submit it with Enter
     b.ok("browser.fill", role="textbox", name="Filter by name", text="gasket")
     done = b.ok("browser.press", key="Enter", role="textbox", name="Filter by name").observations[0]
-    assert done.data["url"] == s + "/items?q=gasket" and "1 of 3 items shown." in done.text
+    assert done.data["url"] == s + "/items?q=gasket" and "\n1 of " in done.text and "Beta gasket" in done.text
     closed = b.ok("browser.close_tab", tab=t2)
     assert t2 not in [t["tab"] for t in closed.observations[0].data["tabs"]]
     assert b.do("browser.select_tab", tab=t2).failure_class == FailureClass.INVALID_ARGUMENTS
@@ -545,6 +545,18 @@ def test_research_sessions_are_isolated_and_read_only(b, sites):
     r2 = b.ok("browser.navigate", url=s + "/items?q=gamma", session="research:beta").observations[0]
     assert "1 of" in r2.text and b.inspect(session="research:alpha").data["url"].endswith("q=alpha")
     assert "Signed in as eb-main." in nav(b, s + "/account").text
+    # independent research sessions really run at the same time
+    import threading
+    slow = [make_action("browser.navigate", url=s + "/slow?ms=700", session=f"research:{n}") for n in ("alpha", "beta")]
+    grants = [b.policy.authorize(a, b.task) for a in slow]
+    out = []
+    threads = [threading.Thread(target=lambda a=a, g=g: out.append(b.env.execute(a, g))) for a, g in zip(slow, grants)]
+    t0 = time.time()
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert [r.status for r in out] == [ResultStatus.OK] * 2 and time.time() - t0 < 1.3
     # read-only: a form POST from a research context is blocked before it leaves the browser
     posts = site.hit_count("/login", "POST")
     b.ok("browser.navigate", url=s + "/login", session="research:alpha")

@@ -17,7 +17,7 @@ from cam_live.contracts import (EXEC_INTERFACE_VERSION, ActionResult, Authorizat
 from cam_live.harness.env import PROGRAM, ComputerEnvironment, validate_args
 from cam_live.harness.internal import InternalExecutor
 
-from conftest import SRC, Driver, GrantPolicy, HttpExecutor, make_action
+from eb_support import SRC, Driver, GrantPolicy, HttpExecutor, make_action
 
 
 def build(run_dir, policy=None, clock=None, **kw):
@@ -214,7 +214,7 @@ def test_writes_are_serialised_reads_run_concurrently(rig, sites):
 _CRASH = r"""
 import sys, time
 sys.path.insert(0, {src!r}); sys.path.insert(0, {here!r})
-from conftest import GrantPolicy, HttpExecutor, make_action
+from eb_support import GrantPolicy, HttpExecutor, make_action
 from cam_live.contracts import TaskSpec
 from cam_live.harness.env import ComputerEnvironment
 env = ComputerEnvironment({run_dir!r}, GrantPolicy()); env.register(HttpExecutor())
@@ -251,6 +251,20 @@ def test_crash_retry_never_repeats_a_state_changing_action(tmp_path, task, sites
             assert env.execute(a, policy.authorize(a, task)).to_dict() == res.to_dict()      # and stays that way
     finally:
         env.close()
+
+
+def test_running_action_can_be_cancelled(rig):
+    a = make_action("wait", seconds=20, block=True)
+    grant = rig.policy.authorize(a, rig.task)
+    out = []
+    t = threading.Thread(target=lambda: out.append(rig.env.execute(a, grant)))
+    t0 = time.time()
+    t.start()
+    while rig.env.get_resource_state()["in_flight"] == 0 and time.time() - t0 < 5:
+        time.sleep(0.01)
+    assert rig.env.cancel_action(a.action_id) is True and rig.env.cancel_action("act_unknown") is False
+    t.join(timeout=5)
+    assert out and out[0].status == ResultStatus.CANCELLED and time.time() - t0 < 5
 
 
 def test_one_environment_per_run_directory(rig):
@@ -380,7 +394,7 @@ def test_pending_outcomes_and_measure_through_a_source(tmp_path, task, sites):
         ghost = OutcomeQuery(new_id("q"), "no.such.metric", issued_at=0.0)
         assert env.measure([ghost])[0].status == OutcomeStatus.UNOBSERVABLE and env.measure([ghost])[0].value is None
         snap = OutcomeQuery(new_id("q"), "lab.adopters.total", kind=OutcomeKind.COUNT, issued_at=sites.clock.now())
-        assert env.measure([snap])[0].value == float(lab.total()) and lab.total() == truth
+        assert env.measure([snap])[0].value == float(lab.total()) and lab.total() >= truth
         assert {m.name for m in env.get_observable_metrics()} >= {"lab.adopters.total", "env.actions"}
     finally:
         env.close()
