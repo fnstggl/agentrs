@@ -73,8 +73,34 @@ def _lines_off() -> int:
     return _LN[0]
 
 
+# What one sandboxed job may add to the world's recorded outcomes (the ``ext`` event): second repair pass (W.n1) -
+# the runner accepts protocol lines of up to 8 MiB and 50 world calls per job, and the bridge recorded the result and
+# every call's arguments whole: one code.run wrote 86 MiB into the world's memory and event store (probe
+# v5.sandbox.recorded_outcomes_are_bounded), where ordinary tools stop at a 2 MiB commit (services/code.py MAX_REPO).
+RECORD_RESULT_MAX = 1 << 20            # JSON bytes of a recorded result; larger results fail as ResultTooLarge
+RECORD_RPC_ARGS_MAX = 5 << 19          # JSON bytes of all world-call arguments one job logs (2.5 MiB: a full commit)
+_ERR_FIELDS = {"type": 200, "message": 2000, "traceback": 4000, "code": 200}
+
+
+def _json_size(x: Any) -> int:
+    import json
+    try:
+        return len(json.dumps(x, separators=(",", ":"), default=str))
+    except (TypeError, ValueError, RecursionError):
+        return 1 << 62
+
+
 def _rpc_fn(ctx: Ctx, principal: str, log: list, replies: list | None = None) -> Callable[[str, dict], tuple[bool, Any]]:
+    used = [0]
+
     def rpc(tool: str, args: dict) -> tuple[bool, Any]:
+        n = _json_size(args) + len(str(tool))
+        if used[0] + n > RECORD_RPC_ARGS_MAX:
+            # refused before it reaches the world and not logged: it has no effect, so regeneration (which re-issues
+            # the logged calls) needs nothing of it; the program sees an ordinary refusal
+            return False, {"code": "too_large", "message": f"world-call arguments of this program exceed "
+                                                            f"{RECORD_RPC_ARGS_MAX} bytes"}
+        used[0] += n
         log.append({"tool": tool, "args": args})
         try:
             ok, val = True, ctx.call(tool, args, as_principal=principal, brokered=True)
@@ -132,11 +158,28 @@ def billed_cpu_ms(res: dict) -> float:
     return cpu if cpu == cpu and cpu > 0 else 0.0
 
 
+def _bounded_error(err: Any) -> dict | None:
+    """The fields of a program's error the world records, each bounded (a forged completion line could carry any
+    dict of any size)."""
+    if err is None:
+        return None
+    if not isinstance(err, dict):
+        return {"type": "Error", "message": str(err)[:_ERR_FIELDS["message"]]}
+    return {k: (v if isinstance(v, str) else str(v))[:cap] for k, cap in _ERR_FIELDS.items()
+            if (v := err.get(k)) is not None}
+
+
 def recorded_outcome(res: dict, log: list, post: Callable[[Any], Any] | None = None) -> dict:
     result = res.get("result")
-    if post is not None and res.get("ok"):
+    ok = bool(res.get("ok"))
+    if post is not None and ok:
         result = post(result)      # e.g. score the output and record only the score
-    out = {"ok": bool(res.get("ok")), "result": result, "error": res.get("error"),
+    error = _bounded_error(res.get("error"))
+    if ok and _json_size(result) > RECORD_RESULT_MAX:
+        n = _json_size(result)
+        ok, result, error = False, None, {"type": "ResultTooLarge",
+                                          "message": f"the result ({n} bytes) exceeds {RECORD_RESULT_MAX} bytes"}
+    out = {"ok": ok, "result": result, "error": error,
            "stdout": (res.get("stdout") or "")[:4000], "cpu_ms": billed_cpu_ms(res), "rpcs": log}
     killed = (res.get("meter") or {}).get("killed")
     if killed:

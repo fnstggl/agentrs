@@ -164,6 +164,8 @@ FIXED: dict[str, str] = {
         "v5.sandbox.hosted_learners_share_no_process_state",
     "O wave 3b verifier: disk quotas read the directory listing, so files unlinked while held open were not counted "
     "(a learner held 8x its quota, a sandbox worker 2x across jobs)": "v5.sandbox.disk_quota_counts_files_held_open",
+    "O second repair pass (W.n1): the bridge recorded a program's result and every world call's arguments whole - "
+    "one code.run wrote 86 MiB into the world's event log": "v5.sandbox.recorded_outcomes_are_bounded",
 }
 
 # open findings of the ratchet closed by their owner workstreams since wave 1, re-verified by the probe on the

@@ -1220,6 +1220,67 @@ class SandboxDiskQuotaCountsFilesHeldOpen(V5Probe):
                        evd)
 
 
+BLOAT_RPC_MB = 2           # MiB of junk in each world call's arguments
+BLOAT_RPCS = 40            # world calls of one program (below the runner's 50 per job)
+BLOAT_RESULT_MB = 6        # MiB the program returns
+RECORDED_BOUND = 4 << 20   # what one code.run may add to the world's recorded outcomes (ordinary tools: a 2 MiB commit)
+BLOAT = r'''
+import crucible_sdk
+def bloat(args, caller):
+    junk = "j" * (int(args["mb"]) << 20)
+    n = 0
+    for i in range(int(args["rpcs"])):
+        try:
+            crucible_sdk.call("code.repos", padding=junk, i=i)
+        except Exception:
+            pass
+        n += 1
+    return {"calls": n, "blob": "r" * (int(args["result_mb"]) << 20)}
+'''
+
+
+class RecordedOutcomesAreBounded(V5Probe):
+    name = "v5.sandbox.recorded_outcomes_are_bounded"
+    attack_class = "unbounded_resources/recorded_outcomes"
+    gates = ("W.7",)
+    target, owner = "sandbox (bridge)", "O"
+    needs_sandbox = True
+    world = {"v5": "commerce"}
+    description = ("Second repair pass (W.n1). The outcome of a sandboxed program is recorded in the world's event "
+                   "log (the `ext` event: its result and the arguments of every world call it made, so that "
+                   "regeneration re-issues them). The runner accepts protocol lines of up to 8 MiB and 50 world calls "
+                   "per job, and the bridge recorded both whole. One `code.run` makes 40 world calls with 2 MiB of "
+                   "junk in their arguments (each call is refused by the tool's schema - after the bridge logged its "
+                   "arguments) and returns 6 MiB: about 86 MiB written into the world's memory and event store per "
+                   "tool call, which ordinary tools cap at a 2 MiB commit. Checked: what one call adds to the recorded "
+                   "outcomes stays within 4 MiB.")
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join("bloater", 2_000_000)
+
+    def attack(self, a: Attacker) -> None:
+        rid = repo(a, self.att, "bloat", {"b.py": BLOAT})
+        self.out = run(a, self.att, rid, "b.py:bloat", input={"mb": BLOAT_RPC_MB, "rpcs": BLOAT_RPCS,
+                                                              "result_mb": BLOAT_RESULT_MB}, timeout_s=30)
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        import json as _json
+        recs = [e for e in ev.events("") if e.type == "ext" or "ext" in (e.payload or {})]   # since the attack began
+        size = sum(len(_json.dumps(e.payload, default=str)) for e in recs)
+        res = self.out.get("result")
+        evd = {"recorded_bytes": size, "bound_bytes": RECORDED_BOUND, "ext_events": len(recs),
+               "ok": self.out.get("ok"), "error": str(self.out.get("error"))[:300],
+               "returned_bytes": len(_json.dumps(res, default=str)) if res is not None else 0,
+               "attempted_bytes": (BLOAT_RPC_MB * BLOAT_RPCS + BLOAT_RESULT_MB) << 20,
+               "resource_limit_escapes": int(size > RECORDED_BOUND)}
+        if size > RECORDED_BOUND:
+            return Verdict(INTEGRITY_BREAK, f"one code.run recorded {size / 2**20:.1f} MiB in the world's event log "
+                           f"(bound {RECORDED_BOUND >> 20} MiB)", evd, severity="high",
+                           fix="sandbox/bridge.py: cap the recorded result and the logged world-call arguments of a "
+                               "job; refuse (unlogged) world calls beyond the cap")
+        return Verdict(HELD, f"one code.run recorded {size / 2**20:.2f} MiB (bound {RECORDED_BOUND >> 20} MiB)", evd)
+
+
 def probes() -> list:
     return ([SandboxEscapeMatrix()] + [MeterForgery(v) for v in sorted(FORGERIES)] +
             [WorkDeliveredThenExit(), BuiltinsAreNotFree(), BackgroundThreadOutlivesRequest(),
@@ -1227,4 +1288,5 @@ def probes() -> list:
              MemoryCpuAndTimeLimits(), TenantIsolationBetweenWorlds(), HostPathsNotDisclosed(),
              MemoFirstMeasurementGame(), ProtocolAllowanceFarming(), NestedRunsMultiplyWallTime(),
              HostedLearnersCannotReachEachOther(), HostedLearnerMemoryAndDiskAreCapped(),
-             HostedLearnersShareNoProcessState(), SandboxDiskQuotaCountsFilesHeldOpen()])
+             HostedLearnersShareNoProcessState(), SandboxDiskQuotaCountsFilesHeldOpen(),
+             RecordedOutcomesAreBounded()])

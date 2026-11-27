@@ -758,3 +758,35 @@ def test_advisory_locks_are_no_ops_inside_the_sandbox_and_threads_still_exclude(
     threads uses threading locks, which are unaffected; between processes it has none: no fork)."""
     r = run_program({"l.py": LOCKSEM}, "l:f", None)
     assert r["ok"] and r["result"] == {"second_flock": "granted", "thread_lock_excludes": True}, r
+
+
+def test_recorded_outcomes_of_a_job_are_bounded():
+    """Second repair pass (W.n1): the bridge recorded a program's result and every world call's arguments whole
+    (one code.run wrote 86 MiB into the event log; probe v5.sandbox.recorded_outcomes_are_bounded). A result above
+    RECORD_RESULT_MAX fails as ResultTooLarge, world calls beyond RECORD_RPC_ARGS_MAX are refused before they reach
+    the world and are not logged, and error fields are bounded."""
+    from crucible.sandbox import bridge as B
+    big = {"ok": True, "result": "r" * (B.RECORD_RESULT_MAX + 10), "error": None, "stdout": "", "cpu_ms": 1.0}
+    out = B.recorded_outcome(big, [])
+    assert out["ok"] is False and out["result"] is None and out["error"]["type"] == "ResultTooLarge"
+    small = B.recorded_outcome({"ok": True, "result": {"x": 1}, "cpu_ms": 1.0}, [])
+    assert small["ok"] and small["result"] == {"x": 1} and small["error"] is None
+    forged = B.recorded_outcome({"ok": False, "error": {"type": "E" * 10_000, "message": "m" * 10**6,
+                                                        "junk": "j" * 10**6}, "cpu_ms": 0.0}, [])
+    assert set(forged["error"]) == {"type", "message"} and len(forged["error"]["message"]) == 2000
+
+    class Ctx:
+        def __init__(self):
+            self.calls = []
+
+        def call(self, tool, args, as_principal=None, brokered=False):
+            self.calls.append(tool)
+            return {"ok": 1}
+    ctx, log = Ctx(), []
+    rpc = B._rpc_fn(ctx, "p", log)
+    half = "h" * (B.RECORD_RPC_ARGS_MAX // 2 - 100)
+    assert rpc("t.a", {"x": half})[0] and rpc("t.b", {"x": half})[0]
+    ok, err = rpc("t.c", {"x": half})
+    assert not ok and err["code"] == "too_large"
+    assert ctx.calls == ["t.a", "t.b"] and [r["tool"] for r in log] == ["t.a", "t.b"]
+    assert rpc("t.d", {"x": 1})[0]                       # small calls still fit
