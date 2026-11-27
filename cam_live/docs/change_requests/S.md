@@ -29,3 +29,22 @@ were trained against the old normalisation.
 learned quantity of the experience (then it must be exported as part of the model) or a per-objective statistic
 (then resetting it is right) should be decided by its owner; today the transfer evaluation measures the
 experienced weights *with* a reset scaler. Recorded as a limitation in `docs/S/RESULTS.md`.
+
+## S-3 Authorization: `network: "none"` is treated as a network request (owner: EA, `harness/auth/policy.py`)
+
+**What.** In staging mode `sandbox.python` with `{"code": ..., "network": "none"}` is **denied** with "network access
+for generated code is not permitted in staging mode; network access requested without naming the hosts", while the
+same call without the `network` argument is allowed. `"none"` is the first value of the tool's own enum, so the
+schema walker (and a model that fills every field) asks for exactly this. Probe:
+`eval/openended.py` environment, `PolicyService.authorize` on `sandbox.python {"code": "print(1)", "network": "none"}`
+→ deny; without `network` → allow (measured 2026-11-27 18:20 UTC, HEAD 8e666ad).
+
+**Why.** Every substantive (open-ended) family writes and runs programs; a correct, maximally restrictive request
+is refused and costs a decision. **Fix:** only `network == "scoped"` (or any value other than "none") is a network
+request.
+
+## S-4 Authorization: `sandbox.list_files` without `path` is denied (owner: EA)
+
+`sandbox.list_files {}` → deny ("names no file destination in arguments.path / target"); the tool schema makes
+`path` optional (default: the workspace root). Either default the destination to the workspace root or make `path`
+required in the schema.
