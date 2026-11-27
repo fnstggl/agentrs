@@ -103,3 +103,30 @@ def test_a_4_0_baseline_process_counts_exactly_the_lines_crucible_4_0_counts():
     assert all(ok is not None and n is not None for _, ok, n in v4)
     assert [x[1] for x in v4] == [True] * 4 + [False, True, True] + [True] * 4 + [False, True, True]
     assert v5 == v4, (v5, v4)
+
+
+def test_the_whole_suite_runner_submits_each_resource_class_through_the_slot_scheduler(tmp_path, monkeypatch):
+    """Gate X.2/X.4's runner (`run_pytest_groups(via_slots=...)`) on a two-file mini suite, against a private slot
+    ledger (so the smoke test never waits behind the machine's queue): every group is a slot job of its own resource
+    class, the JUnit of each comes back, an isolated file runs in a process of its own, and the ledger records each
+    job with the class's CPU, GPU and RAM request."""
+    root = tmp_path / "tree"
+    (root / "tests" / "v5").mkdir(parents=True)
+    os.symlink(os.path.join(B.M.crucible_root(), "src"), root / "src")
+    (root / "tests" / "test_a.py").write_text("def test_a():\n    assert sum(range(4)) == 6\n")
+    (root / "tests" / "v5" / "test_gate_b.py").write_text("def test_b():\n    assert 'b'.upper() == 'B'\n")
+    (root / "tests" / "test_iso.py").write_text("def test_iso():\n    assert True\n")
+    ledger = tmp_path / "slots"
+    monkeypatch.setenv("CRUCIBLE_SLOTS_DIR", str(ledger))
+    monkeypatch.setenv("CRUCIBLE_GATE_X_RESOURCES", json.dumps([[r"tests/v5/", 1, 0, 2100, 600],
+                                                                 [r"", 1, 0, 2000, 600]]))
+    files = ["tests/test_a.py", "tests/v5/test_gate_b.py", "tests/test_iso.py"]
+    res = B.run_pytest_groups(str(root), files, str(tmp_path / "out"), workers=1, timeout=900,
+                              isolate=("tests/test_iso.py",), via_slots="P: smoke")
+    assert res["rcs"] == [0, 0, 0], res
+    assert sorted((c["name"], c["outcome"]) for c in res["cases"]) == [("test_a", "passed"), ("test_b", "passed"),
+                                                                       ("test_iso", "passed")]
+    jobs = [json.loads(ln) for ln in open(ledger / "usage.jsonl")]
+    assert sorted((j["label"].split(" (")[0], j["ram_mb"]) for j in jobs) == [
+        ("P: smoke: suite group 0", 2000), ("P: smoke: suite group 1", 2100), ("P: smoke: suite group 2", 2000)], jobs
+    assert all(j["cpu"] == 1 and j["gpu_mb"] == 0 and j["rc"] == 0 for j in jobs)
