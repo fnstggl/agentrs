@@ -333,26 +333,57 @@ class PolicyService:
             self.store.x("INSERT INTO session(task_id, k, v) VALUES(?,?,?) ON CONFLICT(task_id, k) DO UPDATE SET v=excluded.v",
                          (task_id, k, url))
 
+    def _reachable(self, d: D.Destination, tc: TaskCtx) -> bool:
+        """Would the policy let this task read ``d`` at all?"""
+        pol = self.policy
+        assert pol is not None
+        if D.match_any(d, pol.deny) or D.match_any(d, tc.deny):
+            return False
+        if d.kind == "url" and tc.envelope is not None and D.match_any(d, tc.envelope) is None:
+            return False
+        return D.match_any(d, tc.owned) is not None or D.match_any(d, tc.read) is not None
+
     def _circumvention(self, nodes: List[NodeEval], tc: TaskCtx) -> List[Finding]:
-        rows = self.store.q("SELECT target, effect, needles_json, operation, modality FROM denied_intents WHERE task_id=?",
+        """Is this a refused target coming back in another form?
+
+        * a typed destination the rules refuse again -> the earlier refusal is cited;
+        * a place the task was refused to *write* to, now approached with an operation that could write there
+          (form input, a raw request, ...) and that the operator does not own -> denied;
+        * an opaque payload (program text, skill arguments, raw request) that names a refused target -> denied,
+          unless every URL of that host in the payload is one the task may read and the refusal was not about
+          writing.
+        """
+        rows = self.store.q("SELECT target, effect, needles_json, operation FROM denied_intents WHERE task_id=?",
                             (tc.task_id,))
         if not rows:
             return []
         out: List[Finding] = []
         seen = set()
+        write = EFFECT_RANK["external_write"]
         for ne in nodes:
             for r in rows:
+                if r["target"] in seen:
+                    continue
                 hit: Optional[D.Destination] = None
+                how = ""
                 for d in ne.dests:
-                    if d.intent_key == r["target"] and EFFECT_RANK.get(ne.potential, 3) >= EFFECT_RANK.get(r["effect"], 0):
-                        hit = d
+                    if d.intent_key != r["target"]:
+                        continue
+                    if any(f.dest is d for f in ne.deny):
+                        hit, how = d, "targets it again"
+                    elif (r["effect"] == "external_write" and EFFECT_RANK[ne.potential] >= write
+                          and D.match_any(d, tc.owned) is None):
+                        hit, how = d, "approaches it with another operation that can write"
+                    if hit is not None:
                         break
-                via_payload = False
-                if hit is None and ne.blob:
-                    via_payload = any(n and n in ne.blob for n in uj(r["needles_json"], []))
-                if (hit is not None or via_payload) and r["target"] not in seen:
+                if hit is None and ne.blob and any(n and n in ne.blob for n in uj(r["needles_json"], [])):
+                    same_host = [u for u in D.urls_in_text(ne.blob) if u.intent_key == r["target"]]
+                    harmless = (r["effect"] != "external_write" and same_host
+                                and all(self._reachable(u, tc) for u in same_host))
+                    if not harmless:
+                        how = "names it in its payload"
+                if how:
                     seen.add(r["target"])
-                    how = "names it in its payload" if via_payload else "targets it again"
                     out.append(Finding("X-CIRCUMVENTION",
                                        f"an earlier attempt on {r['target']} ({r['effect']}, via {r['operation']}) was denied; "
                                        f"this action {how} — a denied action may not be re-issued through another "

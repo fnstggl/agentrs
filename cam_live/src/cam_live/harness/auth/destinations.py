@@ -4,7 +4,8 @@ A *destination* is whatever an operation acts on outside the learner: a URL, an 
 channel, a file. Policy patterns are strings ``[kind:]pattern``:
 
 * ``example.org`` / ``*.example.org`` / ``https://example.org/docs/*`` / ``127.0.0.1:8765`` — URL patterns
-  (optional scheme, host glob, optional port, optional path glob). A bare host matches every path and port.
+  (optional scheme, host glob, optional port, optional path glob). A bare host matches every path and port, and
+  ``www.example.org`` is the same site as ``example.org``; other subdomains need a wildcard.
 * ``file:/abs/root`` — a file root (the path itself and everything below it).
 * ``account:<platform>:<id-glob>`` and ``channel:<platform>:<id-glob>`` — logical identities.
 
@@ -63,7 +64,7 @@ class Destination:
         """Strings whose presence in an opaque payload (code, skill arguments) shows that it refers to this
         destination."""
         if self.kind == "url":
-            return [bare_host(self.host)]
+            return [bare_host(self.host) + (f":{self.port}" if self.port else "")]
         if self.kind in ("account", "channel", "skill") and len(self.ident) >= 6:
             return [self.ident.lower()]
         if self.kind == "file":
@@ -203,7 +204,10 @@ class Pattern:
         if d.kind == "url":
             if self.scheme and self.scheme != d.scheme:
                 return False
-            if not fnmatch.fnmatchcase(d.host, self.host):
+            if "*" in self.host or "?" in self.host:
+                if not fnmatch.fnmatchcase(d.host, self.host):
+                    return False
+            elif bare_host(d.host) != bare_host(self.host):       # "www." is not a different site
                 return False
             if self.port and self.port != (d.port or _DEFAULT_PORTS.get(d.scheme, 0)):
                 return False

@@ -177,7 +177,13 @@ def test_url_hosts_and_path_patterns(svc, tmp_path, clock):
         assert svc.authorize(act("browser.navigate", arguments={"url": u}), t, {}).verdict == ALLOW, u
     for u in no:
         d = svc.authorize(act("browser.navigate", arguments={"url": u}), t, {})
-        assert d.verdict == DENY and pids(d) & {"P-MODE-ENVELOPE", "P-DEST-NOT-ALLOWED", "X-CIRCUMVENTION"}, u
+        assert d.verdict == DENY and pids(d) & {"P-MODE-ENVELOPE", "P-DEST-NOT-ALLOWED"}, u
+    for u in ok:                                  # refusing /private does not put the permitted paths out of reach
+        assert svc.authorize(act("browser.navigate", arguments={"url": u}), t, {}).verdict == ALLOW, u
+    code = act("sandbox.python", arguments={"code": "fetch('https://paths.example/public/a')"})
+    assert svc.authorize(code, t, {}).verdict == ALLOW
+    code = act("sandbox.python", arguments={"code": "fetch('https://paths.example/private/a')"})
+    assert "X-CIRCUMVENTION" in pids(svc.authorize(code, t, {}))
 
 
 def test_deny_lists_override_everything(svc, tmp_path, clock):
