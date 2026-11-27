@@ -250,11 +250,15 @@ class PopWeb(Module):
             {"text": "", "title": "", "paths": [], "hosts": [], "prices": []}
         page_text = (parsed["title"] + " " + parsed["text"]).strip()
         tf = semantics.text_features(page_text)
-        vec = self._coords(ctx, [page_text])[0] if status == 200 and page_text else np.zeros(self.D, np.float32)
         arts = (parsed.get("arts") or []) if status == 200 else []
-        # the slate of article headlines a reader sees on the page, represented in the shared space (recorded once
-        # by the space; the page record keeps the headlines and their topics, readers look the vectors up)
-        av = self._coords(ctx, [a[1] for a in arts]) if arts else np.zeros((0, self.D), np.float32)
+        # the page text and the slate of article headlines a reader sees on it, represented in the shared space in
+        # ONE call (recorded once by the space; the page record keeps the headlines and their topics, readers look
+        # the vectors up)
+        own = bool(status == 200 and page_text)
+        texts = ([page_text] if own else []) + [a[1] for a in arts]
+        V = self._coords(ctx, texts) if texts else np.zeros((0, self.D), np.float32)
+        vec = V[0] if own else np.zeros(self.D, np.float32)
+        av = V[1:] if own else V
         dep_id, why = self._dep_state(st, host)
         out = {"key": key, "host": host, "path": path, "status": status, "digest": text.body_digest(body),
                "dep": dep_id, "why": why, "title": parsed["title"], "vec": [round(float(x), 3) for x in vec],

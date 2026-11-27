@@ -123,6 +123,7 @@ def run():
         provenance.append(check_provenance(w, ev))
         invariant_errors += w.check_invariants()
         s0 = w.seq
+        print(f"gate B day {d + 1}: {time.time() - t0:.0f} s wall, seq {w.seq}", flush=True)   # progress in the log
         if d + 1 == CUT_DAY:
             cut = {"blob": w.snapshot_blob(), "t": w.now, "log": _concat([lg for lg in visit_logs if len(lg["ind"])])}
     log = _concat([lg for lg in visit_logs if len(lg["ind"])])
