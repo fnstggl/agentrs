@@ -248,6 +248,12 @@ Only where they asserted the defective behaviour or enumerate the RPC surface:
   now it must fail by default and pass with `require_head=False`.
 * `test_ea_service.py`, `test_ea_privileged.py` — the RPC method tables list the three new operator-only methods.
 
+## Requests from E handled in the same round
+
+E→EA-1 (`CONNECT` tunnels are read-level checks, never external writes), E→EA-3 (approval previews keep up to 64 KiB
+of a publication and say `content_truncated`), E→EA-4 (`secret_has(name)` for the executor uid). E→EA-2 and E→EA-5
+are answered, not done (`docs/change_requests/EA.md`). Tests at the end of `test_ea_fix_policy.py`.
+
 ## Outside EA
 
 `tests/harness/skills/test_es_discord_live_check.py::test_the_policys_live_mode_with_a_signed_record_and_a_narrower_scope`

@@ -51,6 +51,7 @@ METHODS: Dict[str, tuple] = {
     "check_primitive": (EXECUTOR,),
     "record": (EXECUTOR,),
     "secret_get": (EXECUTOR,),
+    "secret_has": (EXECUTOR,),
     "scrub": (EXECUTOR, VERIFIER),
     "scrub_obj": (EXECUTOR, VERIFIER),
     "resolve_approval": (),

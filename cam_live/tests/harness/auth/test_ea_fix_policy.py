@@ -412,3 +412,35 @@ def test_the_run_policy_is_the_fixed_default_and_is_what_a_run_loads(svc):
     pol = load_policy(RUN_POLICY_PATH)
     assert pol.modes["staging"].own_process_services and not pol.modes["live"].own_process_services
     assert pol.local_services == [("127.0.0.1", 8765)] and pol.rate_write_global is not None
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# requests from E (docs/change_requests/EA.md "Requests from E")
+# ---------------------------------------------------------------------------------------------------------------
+def test_a_browser_tunnel_is_a_read_level_check_not_an_external_write(svc):
+    """E->EA-1: the browser network layer reports tunnels it was not told about as browser.request CONNECT."""
+    run = act("browser.navigate", MB, arguments={"url": LOOP + "/page"})
+    start(svc, run, task(limits=C.Limits(max_external_actions=100, max_decisions=100, duration_s=1e6)))
+    for _ in range(15):                          # more than the write window: never charged as writes
+        d = svc.check_primitive(prim("browser.request", MB, url=LOOP + "/", method="CONNECT", resource_type="tunnel",
+                                     via="network"), run)
+        assert d.verdict == ALLOW, d.reasons
+    assert svc.check_primitive(prim("browser.request", MB, url="http://127.0.0.1:11111/", method="CONNECT"),
+                               run).verdict == DENY
+
+
+def test_approval_previews_say_when_content_was_cut(svc, tmp_path, clock):
+    """E->EA-3: a long publication is shown in full (up to 64 KiB) and the preview says whether it was cut."""
+    t = live(svc, tmp_path, clock, preauthorized=[])
+    text = "Weekly notes. " + "x" * 9000
+    d = say(svc, t, text)
+    entry = [a for a in svc.approvals() if a["approval_id"] == d.approval_id][0]["preview"]["content"][0]
+    assert entry["text"] == text and entry["content_chars"] == len(text) and entry["content_truncated"] is False
+
+
+def test_secret_has_tells_presence_only(svc):
+    """E->EA-4: whether a secret exists, never its value or bindings."""
+    svc.put_secret("bot_token", "tok-ABCDEFGH12345678-xyz", ["channel:discord:*"])
+    assert svc.secret_has("bot_token") is True and svc.secret_has("nope") is False
+    svc.revoke("secret:bot_token", "operator")
+    assert svc.secret_has("bot_token") is False

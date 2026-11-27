@@ -128,6 +128,9 @@ class AuthClient:
                 raise SecretError(e.message) from None
             raise
 
+    def secret_has(self, name: str) -> bool:
+        return bool(self._rpc.call("secret_has", name))
+
     def scrub(self, text: str) -> str:
         return self._rpc.call("scrub", text)
 

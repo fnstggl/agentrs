@@ -24,6 +24,9 @@ from .schema import EFFECT_RANK, ModeRule, Policy, RateRule, ToolRule, norm_fiel
 
 _OP_RE = re.compile(r"^[A-Za-z0-9_.\-:]{1,128}$")
 _READ_METHODS = ("GET", "HEAD", "OPTIONS")
+#: a tunnel (HTTPS / WebSocket CONNECT) is judged by host and port only, as a read: what travels through it is
+#: judged per request by the layer that sees the requests (E->EA-1)
+_TUNNEL_METHODS = ("CONNECT",)
 #: findings that say "this target is not permitted" (as opposed to "this content must change" or "not now"):
 #: these are remembered so the same target cannot be reached through another modality or spelling
 INTENT_PIDS = ("P-DEST-DENIED", "P-DEST-NOT-ALLOWED", "P-MODE-ENVELOPE", "P-WRITE-NON-OWNED", "P-INTERACT-DENIED",
@@ -360,8 +363,9 @@ class Evaluator:
         base = tool.effect
         if base == "by_method":
             method = str(args.get("method") or node.operation.rsplit(".", 1)[-1]).upper()
-            ne.method = method if method in _READ_METHODS + ("POST", "PUT", "PATCH", "DELETE") else "WRITE"
-            base = "external_read" if method in _READ_METHODS else "external_write"
+            ne.method = method if method in _READ_METHODS + _TUNNEL_METHODS + ("POST", "PUT", "PATCH", "DELETE") \
+                else "WRITE"
+            base = "external_read" if method in _READ_METHODS + _TUNNEL_METHODS else "external_write"
         network = bool(tool.network_flags) and any(k in tool.network_flags and truthy(v) for k, v in walk_keys(args))
         rank = EFFECT_RANK[base if base != "interact" else "external_read"]
         pot = rank

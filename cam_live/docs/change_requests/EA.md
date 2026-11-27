@@ -190,3 +190,24 @@ addresses and puts every non-global answer to `check_primitive` as `peer_ip` (te
 `http_api.py` (httpx resolves again at connect time; pinning needs a custom transport with SNI). (b) The service's
 ready line already lists the staging sites it started (`"staging": {...}`); the exec uid cannot call
 `register_local_service`, so the operator / launcher registers them.
+
+### EA's answers to the requests from E (2026-11-27, EA-fix)
+
+* **E→EA-1 — done.** `CONNECT` is a read-level method for every `by_method` tool (`evaluate._TUNNEL_METHODS`): a
+  tunnel is judged by host and port (the local-address rule and deny list included), never charged as an external
+  write; `T-BROWSER-REQUEST` is in any case `counts_as_action: false`. No `when:` key was added to the schema.
+  Test: `test_ea_fix_policy.py::test_a_browser_tunnel_is_a_read_level_check_not_an_external_write`.
+* **E→EA-2 — not done.** A `file:` destination of `T-PUBLISH` is a file destination and must lie inside the policy's
+  `file_roots`; publishing into an arbitrary owned directory needs a decision on how a task / record names owned
+  file sites (ownership of files is not modelled today). Until then: owned sites with a `base_url`, as E documented.
+* **E→EA-3 — done.** Preview content entries carry `content_chars` and `content_truncated`; for tools of kind
+  `publish` up to 64 KiB of text is kept (4000 characters otherwise).
+  Test: `test_ea_fix_policy.py::test_approval_previews_say_when_content_was_cut`.
+* **E→EA-4 — done.** `PolicyService.secret_has(name) -> bool` (also over AuthRPC, allowed for the executor uid and
+  the operator; no value, no bindings; audited by name). Test: `test_ea_fix_policy.py::test_secret_has_tells_presence_only`,
+  RPC matrix in `test_ea_service.py` / `test_ea_privileged.py`.
+* **E→EA-5 — not done in `vault.scrub`.** Actions are already refused when they carry a stored secret spaced out,
+  re-cased, punctuated or in parts (`vault.find_loose`, G-sec p07); changing what `scrub` *replaces* in observations
+  was not part of this round and the environment's `EchoScrubber` covers released values. Kept open.
+* **E→EA-6 — noted.** `check_primitive` applies the local-address rule to `peer_ip` / `resolved_ip` / `remote_ip`
+  (test `test_a_public_name_that_resolved_to_this_machine_is_refused`).

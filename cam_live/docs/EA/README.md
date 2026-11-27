@@ -63,8 +63,9 @@ token = ctx.secrets.get("site_token", "https://api.example.org/v1/items")   # on
 obs = ctx.secrets.scrub_record(obs)                                          # before anything is returned
 ```
 
-Actions never carry credentials: a credential field holds a reference `"secret:<name>"`, which the executor
-resolves. A literal value in `password` / `token` / `authorization` … is denied as credential leakage.
+`policy.secret_has(name)` (executor uid or operator) says whether a usable secret of that name exists, without
+releasing anything. Actions never carry credentials: a credential field holds a reference `"secret:<name>"`, which
+the executor resolves. A literal value in `password` / `token` / `authorization` … is denied as credential leakage.
 
 ## What the task must say (`TaskSpec`)
 
@@ -156,7 +157,7 @@ service never looked is invisible to it.
 
 The policy's tool table (`default_policy.yaml`, `tools:`) maps operation names to side-effect classes; an
 operation that matches no entry is **denied**. It currently knows: `wait`, `inspect.*`, `internal.*`, `program`
-(each step judged on its own), `lab.*` (diagnostic), `browser.*` (`browser.request` = a cross-origin subresource,
-read or write by method), `visual.*`, `sandbox.*`, `code.*`, `job.*`, `file.*`, `net.request`, `http.*`, `api.*`,
+(each step judged on its own), `lab.*` (diagnostic), `browser.*` (`browser.request` = a cross-origin subresource
+or a network-layer tunnel: read or write by method, `CONNECT` is a read-level tunnel check), `visual.*`, `sandbox.*`, `code.*`, `job.*`, `file.*`, `net.request`, `http.*`, `api.*`,
 `publish.*`, `discord.*` (`discord.listen_events` and `discord.get_member_events` are aggregate reads), `*.dm`,
 `payment.*`, `skill.*`. New tools need a line there (data, not code).

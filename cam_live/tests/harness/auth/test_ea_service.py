@@ -17,7 +17,7 @@ SECRET = "tok_Zx81kQ0pLm4RvT7yWb2N"
 EXPECTED = {     # who, besides the operator, may call what
     LEARNER: {"authorize", "check_grant", "approvals", "stopped", "paused", "limits_state", "audit_head",
               "emergency_stop", "pause"},
-    EXECUTOR: {"check_grant", "check_primitive", "record", "secret_get", "scrub", "scrub_obj", "approvals", "stopped",
+    EXECUTOR: {"check_grant", "check_primitive", "record", "secret_get", "secret_has", "scrub", "scrub_obj", "approvals", "stopped",
                "paused", "limits_state", "audit_head", "emergency_stop", "pause"},
     VERIFIER: {"scrub", "scrub_obj", "approvals", "stopped", "paused", "limits_state", "audit_head", "emergency_stop",
                "pause"},
@@ -46,7 +46,7 @@ def _args(svc, method, ctx):
         "authorize": (act("wait"), t, {}), "check_grant": (a, d), "approvals": (), "stopped": (), "paused": (),
         "limits_state": (), "audit_head": (), "emergency_stop": ("drill", "x"), "pause": ("drill", "x"),
         "check_primitive": (C.PrimitiveOp("net.request", C.Modality.API, {"method": "GET", "url": LOOP}), a),
-        "record": (a, ok_result(a)), "secret_get": ("site_token", a, d, LOOP + "/x"), "scrub": ("text",),
+        "record": (a, ok_result(a)), "secret_get": ("site_token", a, d, LOOP + "/x"), "secret_has": ("site_token",), "scrub": ("text",),
         "scrub_obj": ({"k": "v"},), "resolve_approval": ("apr_none", True, "x", ""), "reset_stop": ("x",), "resume": ("x",),
         "revoke": ("grants", "x"), "reload_policy": ("x",), "register_task": (task(oid="other"), "x"),
         "register_live_authorization": ({"record_id": "r"}, "x"), "put_secret": ("n2", "another-secret-value", ["127.0.0.1"]),

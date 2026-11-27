@@ -626,9 +626,11 @@ class PolicyService:
             for cls, d in ne.effects:
                 effects.append({"class": cls, "destination": d.key, "operation": ne.node.operation})
             if ne.content and any(c in ("write", "input") for c, _ in ne.effects):
+                keep = 65536 if ne.tool is not None and ne.tool.kind == "publish" else 4000
                 content.append({"operation": ne.node.operation,
                                 "destinations": [d.key for c, d in ne.effects if c in ("write", "input")],
-                                "text": ne.content[:4000]})
+                                "text": ne.content[:keep], "content_chars": len(ne.content),
+                                "content_truncated": len(ne.content) > keep})
         pv = {"render": action.render()[:6000], "operation": action.operation, "modality": action.modality,
               "level": action.level, "target": action.target[:500], "steps": len(nodes) - 1, "effects": effects[:64],
               "content": content[:16], "est_cost": action.est_cost.to_dict(), "money": money,
@@ -1474,6 +1476,14 @@ class PolicyService:
 
     def secret_names(self) -> List[Dict[str, Any]]:
         return self.vault.names()
+
+    def secret_has(self, name: str) -> bool:
+        """Whether a usable (stored, not revoked) secret of this name exists -- no value, no binding information.
+        For an executor reporting which capabilities are available (E->EA-4)."""
+        with self._lock:
+            ok = any(n.get("name") == str(name) and not n.get("revoked") for n in self.vault.names())
+            self._log("secret_has", name=str(name)[:64], found=ok)
+            return ok
 
     def scrub(self, text: str) -> str:
         return self.vault.scrub(text)
