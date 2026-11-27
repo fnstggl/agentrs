@@ -1,0 +1,37 @@
+{
+ "command": "PYTHONPATH=cam_live/src .venv/bin/python cam_live/docs/evidence/C/fix_D1_baseline.py",
+ "exact_expectation": {
+  "T": 4,
+  "relative_bias_audited_rule": 0.96626376190807,
+  "relative_bias_no_baseline": 1.3543939474882984e-15,
+  "relative_bias_now": 9.577011446669928e-16,
+  "true_gradient": [
+   -0.11455927196492074,
+   0.11455927196492074
+  ]
+ },
+ "verifier_scenario": {
+  "max_abs_audited_rule": 0.6775591236185168,
+  "max_abs_now": 0.0,
+  "rows": [
+   {
+    "baseline_group": "rtg:life=1:held=0",
+    "d_baseline_d_own_outcome_audited_rule": 0.28365959883016867,
+    "d_baseline_d_own_outcome_now": 0.0,
+    "episode": 0,
+    "independent_group": "dec:dec_43edab0c9461481a",
+    "n_rows": 8,
+    "row": 2
+   },
+   {
+    "baseline_group": "rtg:life=1:held=0",
+    "d_baseline_d_own_outcome_audited_rule": 0.6775591236185168,
+    "d_baseline_d_own_outcome_now": 0.0,
+    "episode": 0,
+    "independent_group": "dec:dec_5a378cbf1c50485d",
+    "n_rows": 8,
+    "row": 5
+   }
+  ]
+ }
+}
