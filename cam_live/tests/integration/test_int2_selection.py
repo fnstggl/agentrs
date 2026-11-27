@@ -36,7 +36,7 @@ def test_value_prior_is_a_standardised_shift_of_the_logits():
 
 def test_selection_probabilities_include_the_value_prior(tmp_path):
     clock = SimClock()
-    agent = CamLiveAgent(agent_config(use_backbone=False, planner=False, value_weight=2.0), str(tmp_path / "a"),
+    agent = CamLiveAgent(agent_config(use_backbone=False, planner=False, value_weight=2.0, selection_rule="policy"), str(tmp_path / "a"),
                          clock=clock)
     try:
         lt = run_lifetime(Recorder(agent), clock, str(tmp_path), 51, max_steps=14, max_decisions=8)

@@ -113,6 +113,24 @@ within the experience an objective provides; the meta-gradient keeps differentia
 **Workaround.** None in INT2's files (the inner step is C's mechanism); the ablation with `optim.inner_lr = 0.3` is
 reported in `docs/INTEGRATION.md` §9.
 
+## INT2-8 (reward, `reward/metalearner.MetaLearner.state_dict` / `load_state_dict`, owner LRN): the support
+batches of the retained update events are not checkpointed, so a restored agent meta-learns on different data
+
+**What (measured).** `load_state_dict` restores every `UpdateEvent` with `ib=None`; `_steps_of` then rebuilds the
+support batch from the store at the next meta-update. The rebuilt batch is not the one the live update used: in a
+LabWorld run (debug core, 12 decisions, 4 events) the rebuilt batch differs from the cached one in `b`, `e_a`
+(encoder features under the since-updated weights), `signals`, `r_boot` and `norm_state` for every event except the
+newest (`docs/evidence/validation/diagnosis/inner_batch_rebuild.py`, output `inner_batch_rebuild_20261127.txt`). The continuing process differentiates
+the update it applied, the restored one a different one: after the first meta-update following a load the reward
+version differs, and `tests/integration/test_agent_recovery.py::test_save_fresh_process_load_gives_identical_decisions`
+fails whenever that difference moves a later choice (seen as a different randomized-experiment arm at the 4th
+decision after the load; the test passes in runs where it does not).
+**Proposed.** Persist the support batch tensors of the retained events (`InnerBatch`, bounded by `max_events`) in
+`state_dict`, or snapshot at event time exactly the inputs `build_batch` reads (features, signals, bootstrap reward,
+normaliser state) — the meta-gradient should differentiate the update actually applied, so rebuilding in both
+processes is not equivalent.
+**Workaround.** None in INT2's files; the test is left failing when it diverges (not marked expected-to-fail).
+
 ## Requests from LRN (details and diffs: `docs/change_requests/LRN.md`)
 
 * **LRN-1** `AgentSettings.selection_rule` default `"thompson_policy"` (already accepted by `from_cfg`; rule `policy`

@@ -103,6 +103,8 @@ def test_kill_9_mid_run_then_restart_without_duplicate_actions(host):
     executed = {a for a, st in recs if st == "ok" and a in h.real_executions}
     assert executed == set(h.real_executions)
     st = RunReader(run_dir).state()
-    assert st["counters"]["actions_executed"] == h.world._n_exec
+    # the runtime counts every action the world received and did not refuse (also one that failed there, e.g. over
+    # the world's budget); the world counts only those it ran
+    assert st["counters"]["actions_executed"] == len(h.attempted) >= h.world._n_exec == len(h.real_executions)
     assert st["status"] in ("exhausted", "completed", "failed", "running")
     assert s["decisions"] >= 8

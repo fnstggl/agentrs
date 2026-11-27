@@ -79,7 +79,9 @@ class Lifetime:
 def run_lifetime(rec: Recorder, clock: SimClock, root: str, seed: int, *, max_steps: int = 80,
                  max_decisions: int = 0, lab_kw: Optional[Dict[str, Any]] = None,
                  rt_cfg: Optional[RuntimeConfig] = None) -> Lifetime:
-    """One objective in a fresh LabWorld of the family, driven by the real runtime until it ends."""
+    """One objective in a fresh LabWorld of the family, driven by the real runtime until it ends. After the decision
+    budget the runtime keeps observing until the verdict or the deadline (S-1 ``drain_after_exhaustion``): the
+    interventions' delayed outcomes (hours later) are measured instead of being lost with the lifetime."""
     run_dir = os.path.join(root, f"lifetime_{seed}")
     world = LabWorld(lab_config(seed, **(lab_kw or {})), clock)
     task = lab_task(world, f"obj_int_{seed}")
@@ -90,7 +92,8 @@ def run_lifetime(rec: Recorder, clock: SimClock, root: str, seed: int, *, max_st
     policy = PolicyService(os.path.join(run_dir, "auth_state"), clock=clock)
     policy.register_task(task, "operator")
     rt = LiveRuntime(rec, world, policy, verifier, task, run_dir, clock,
-                     rt_cfg or RuntimeConfig(fsync=False, candidates_k=8, keep_checkpoints=2))
+                     rt_cfg or RuntimeConfig(fsync=False, candidates_k=8, keep_checkpoints=2,
+                                             drain_after_exhaustion=True))
     lt = Lifetime(task, world, verifier, policy, rt, run_dir)
     for _ in range(max_steps):
         lt.cycles.append(rt.step())
@@ -170,6 +173,7 @@ class LabHost:
         self.verifier = LabVerifier(self.world)
         self.execute_calls: Dict[str, int] = {}
         self.real_executions: Dict[str, int] = {}
+        self.attempted: set = set()
 
     def __getattr__(self, name: str) -> Any:
         if name in ("observe", "discover_tools", "validate_action", "poll_events", "get_resource_state",
@@ -184,6 +188,8 @@ class LabHost:
         res = self.world.execute(action, authorization)
         if self.world._n_exec > before:
             self.real_executions[aid] = self.real_executions.get(aid, 0) + 1
+        if getattr(res, "status", "") not in ("denied", "needs_approval"):
+            self.attempted.add(aid)      # reached the world: ran, or failed there (invalid arguments, budget)
         return res
 
     def v_verify(self, task): return self.verifier.verify(task)

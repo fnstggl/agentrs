@@ -77,7 +77,10 @@ OBS_PREFIX = "observed."                     # later reading of a metric the env
 @dataclass
 class AgentSettings:
     """Section ``agent`` of the configuration. Engineering knobs only: no strategy, no task knowledge."""
-    selection_rule: str = "policy"           # predict.policy.RULES except "randomized"
+    selection_rule: str = "thompson_policy"  # predict.policy.RULES except "randomized" (LRN-1: Thompson sampling over
+                                             # the world model's goal-value posterior + the policy preference,
+                                             # weighted by a calibration on verified outcomes; "policy" with
+                                             # value_weight is the ablation)
     goal_free_rule: str = "voi"              # rule among self-chosen learning goals
     experiment_rate: float = 0.1             # chance to run a randomised comparison when the model is unsure
     experiment_min_flip: float = 0.2         # ... of the order of two candidates (DecisionMaker.propose_experiment)
@@ -1674,8 +1677,13 @@ class CamLiveAgent:
         # the agent's own goal-relevant questions (the objective metric after the action) are measured by the
         # verifier through the runtime's pending queue: they are pending queries of the record (the store indexes
         # them, so the verifier's signed answer attaches to this decision)
+        # a question the environment's own declared measurement covers (same metric, or linked to it by the
+        # predictor) is answered under the environment's query: the runtime does not queue the agent's copy
+        # (``LiveRuntime._add_learner_queries``), so keeping it pending would leave the decision unresolved forever
+        covered = ({x.query_id for x in result.expected_outcomes} | {x.metric for x in result.expected_outcomes}
+                   | set(linked.values()))
         askedq = [q for q in own if q.goal_relevant and q not in selfq
-                  and q.query_id not in {x.query_id for x in result.expected_outcomes}]
+                  and q.query_id not in covered and q.metric not in covered]
         exp_id = existing.exp_id if existing is not None else f"exp_{decision.decision_id[4:]}"
         arm = str(decision.diagnostics.get("arm", ""))
         for q in list(result.expected_outcomes) + own:
