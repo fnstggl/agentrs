@@ -62,7 +62,7 @@
    "tests": [
     "tests/v5/test_gate_R.py"
    ],
-   "status_claim": "implemented; repair pass: the legacy side is normalised only for reviewed evaluator-only fields (leakage.REVIEWED_EVALUATOR_FIELDS, f4695894) and the gate asserts unreviewed_hidden_fields == 0; the verifier's over-hiding probe is now seen by all four legacy comparisons (regression test). Passed at b3a07b1; at 684eeb5 it passed with the pre-normalisation code; not yet rerun at HEAD (queued)",
+   "status_claim": "implemented; repair pass: the legacy side is normalised only for reviewed evaluator-only fields (leakage.REVIEWED_EVALUATOR_FIELDS, f4695894) and the gate asserts unreviewed_hidden_fields == 0; the verifier's over-hiding probe is now seen by all four legacy comparisons (regression test). Passed at b3a07b1; at 684eeb5 it passed with the pre-normalisation code; not yet rerun at HEAD (queued); repair pass, CPU at 31712ab4+ (single thread, not a slot run): R.4, R.5, R.6 gate tests 3 passed (23.6 s)",
    "notes": "; wave 3b (3): the legacy-versus-observation-only comparisons of the leakage battery normalise the legacy side with the evaluator-only registry (experience.leakage.registered_hidden): a field observation-only hides on purpose (the controller label) is not a legitimate field missing; without it the Gym, PettingZoo and kernel invariance probes reported 1 missing field (SP-11.3 failed on CPU, fixed: passes); repair pass (DEF-L-9): eacf373c stripped every registry-hidden field from the legacy side, so a legitimate field wrongly registered as evaluator-only went unseen (verifier probe p6: 1 of 4 comparisons noticed). Now only REVIEWED_EVALUATOR_FIELDS (a reviewed snapshot of the registry with the reason each is evaluator data) are normalised; tests/test_v5_experience_repair.py reproduces p6 (all four comparisons count missing fields) and checks that hiding only the reviewed controller label leaves nothing missing"
   },
   "R.5": {
@@ -74,7 +74,7 @@
    "tests": [
     "tests/v5/test_gate_R.py"
    ],
-   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log)",
+   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log); repair pass, CPU at 31712ab4+ (single thread, not a slot run): R.4, R.5, R.6 gate tests 3 passed",
    "notes": "evaluator-side verification also through remote.evaluate (the evaluator closes the participant pipe before verifying)"
   },
   "R.6": {
@@ -84,7 +84,7 @@
    "tests": [
     "tests/v5/test_gate_R.py"
    ],
-   "status_claim": "implemented; passed at b3a07b1 (GPU slot); FAILED in the 684eeb5 head job (that job's shallow clone lacked the 4.0 commit c07098b - environment; gate_job.sh now fetches it); the verifier ran R.6 and OO.8 at HEAD on CPU with the 4.0 commit: 2 passed. Rerun at HEAD queued",
+   "status_claim": "implemented; passed at b3a07b1 (GPU slot); FAILED in the 684eeb5 head job (that job's shallow clone lacked the 4.0 commit c07098b - environment; gate_job.sh now fetches it); the verifier ran R.6 and OO.8 at HEAD on CPU with the 4.0 commit: 2 passed. Rerun at HEAD queued; repair pass, CPU at 31712ab4+ (single thread, not a slot run): R.4, R.5, R.6 gate tests 3 passed (with the 4.0 commit available)",
    "notes": "; wave 3b (3): FAILED in the head slot job at 684eeb5 (GPU slot, 04:27 UTC; the failure details print at the end of that run, gates_oo_t2.log), while leakage.legacy_check() on the CPU at HEAD gave 10 of 10 identical runs three times in a row; nothing on this branch since b3a07b1 (where R.6 passed in a GPU slot) touches the compared environments (MechVecEnv, KernelMechEnv, SelfPlayEnv, KernelSelfPlayEnv, the 4.0 learners, Gym/PettingZoo/WorldEnv on 'tiny'), diagnosed: the slot job ran in a fresh --depth 1 clone, which lacks the 4.0 commit c07098b that leakage.v4_module reads with git show, so legacy_check raised before recording (the R.6 evidence file kept its 00:18 contents); an environment failure of the run, not of the code. The scratch job script now fetches c07098b into its clones. SP-11.3 and SP-11.6d read the same commit and fail the same way in that run"
   },
   "R.7": {
@@ -230,7 +230,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_3.py"
    ],
-   "status_claim": "implemented; passed at b3a07b1 (GPU slot); FAILED in the 684eeb5 head job (that job's shallow clone lacked the 4.0 commit c07098b - environment; gate_job.sh now fetches it); the verifier ran R.6 and OO.8 at HEAD on CPU with the 4.0 commit: 2 passed. Rerun at HEAD queued",
+   "status_claim": "implemented; passed at b3a07b1 (GPU slot); FAILED in the 684eeb5 head job (that job's shallow clone lacked the 4.0 commit c07098b - environment; gate_job.sh now fetches it); the verifier ran R.6 and OO.8 at HEAD on CPU with the 4.0 commit: 2 passed. Rerun at HEAD queued; repair pass, CPU at 31712ab4+ (single thread, not a slot run): gate test 1 passed (29.5 s)",
    "notes": ""
   },
   "SP-11.4": {
@@ -319,7 +319,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_6d.py"
    ],
-   "status_claim": "implemented; passed at b3a07b1 (GPU slot); FAILED in the 684eeb5 head job (that job's shallow clone lacked the 4.0 commit c07098b - environment; gate_job.sh now fetches it); the verifier ran R.6 and OO.8 at HEAD on CPU with the 4.0 commit: 2 passed. Rerun at HEAD queued",
+   "status_claim": "implemented; passed at b3a07b1 (GPU slot); FAILED in the 684eeb5 head job (that job's shallow clone lacked the 4.0 commit c07098b - environment; gate_job.sh now fetches it); the verifier ran R.6 and OO.8 at HEAD on CPU with the 4.0 commit: 2 passed. Rerun at HEAD queued; repair pass, CPU at 31712ab4+ (single thread, not a slot run): SP-11.6d, OO.7, OO.8, OO.9, OO.12 gate tests 5 passed (71.5 s)",
    "notes": ""
   },
   "SP-2.2": {
@@ -415,7 +415,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; passed in the 684eeb5 head job (GPU slot, 15 domains; 684eeb5 predates 022eff6e/eacf373c and the repair pass). Rerun at HEAD queued ('L: repair gates OO.1-OO.12 without OO.5')",
+   "status_claim": "implemented; passed in the 684eeb5 head job (GPU slot, 15 domains; 684eeb5 predates 022eff6e/eacf373c and the repair pass). Rerun at HEAD queued ('L: repair gates OO.1-OO.12 without OO.5'); repair pass, CPU at 31712ab4+ (single thread, not a slot run): SP-11.6d, OO.7, OO.8, OO.9, OO.12 gate tests 5 passed (71.5 s)",
    "notes": ""
   },
   "OO.8": {
@@ -426,7 +426,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; FAILED in the 684eeb5 head job (shallow clone without the 4.0 commit c07098b - environment, the same cause as R.6/SP-11.3/SP-11.6d; the earlier 'gate passes; rerun running' claim omitted this); passes on CPU at HEAD with the 4.0 commit (verifier: R.6 + OO.8 2 passed). Rerun queued ('L: repair gates OO.1-OO.12 without OO.5', log gates_oo_r.log)",
+   "status_claim": "implemented; FAILED in the 684eeb5 head job (shallow clone without the 4.0 commit c07098b - environment, the same cause as R.6/SP-11.3/SP-11.6d; the earlier 'gate passes; rerun running' claim omitted this); passes on CPU at HEAD with the 4.0 commit (verifier: R.6 + OO.8 2 passed). Rerun queued ('L: repair gates OO.1-OO.12 without OO.5', log gates_oo_r.log); repair pass, CPU at 31712ab4+ (single thread, not a slot run): SP-11.6d, OO.7, OO.8, OO.9, OO.12 gate tests 5 passed (71.5 s)",
    "notes": ""
   },
   "OO.9": {
@@ -440,7 +440,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; passed in the 684eeb5 head job (GPU slot, 15 domains; 684eeb5 predates 022eff6e/eacf373c and the repair pass). Rerun at HEAD queued ('L: repair gates OO.1-OO.12 without OO.5')",
+   "status_claim": "implemented; passed in the 684eeb5 head job (GPU slot, 15 domains; 684eeb5 predates 022eff6e/eacf373c and the repair pass). Rerun at HEAD queued ('L: repair gates OO.1-OO.12 without OO.5'); repair pass, CPU at 31712ab4+ (single thread, not a slot run): SP-11.6d, OO.7, OO.8, OO.9, OO.12 gate tests 5 passed (71.5 s)",
    "notes": "the evaluation entry point (remote.evaluate) and its CLI are checked too; wave 3b (3): experience.statistical.ToolValueLearner added to the checked entry points (default observation_only)"
   },
   "OO.10": {
@@ -474,7 +474,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; passed in the 684eeb5 head job (GPU slot, 15 domains; 684eeb5 predates 022eff6e/eacf373c and the repair pass). Rerun at HEAD queued ('L: repair gates OO.1-OO.12 without OO.5')",
+   "status_claim": "implemented; passed in the 684eeb5 head job (GPU slot, 15 domains; 684eeb5 predates 022eff6e/eacf373c and the repair pass). Rerun at HEAD queued ('L: repair gates OO.1-OO.12 without OO.5'); repair pass, CPU at 31712ab4+ (single thread, not a slot run): SP-11.6d, OO.7, OO.8, OO.9, OO.12 gate tests 5 passed (71.5 s)",
    "notes": ""
   },
   "OO.14": {
