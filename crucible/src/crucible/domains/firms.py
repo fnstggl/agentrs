@@ -456,6 +456,16 @@ class Firms(Module):
         held = {c["concept"] for c in st.find("learn_certs", "person", worker)}
         return {k for k, cs in EDU.items() if held & set(cs)}
 
+    def cert_seqs(self, st, worker: str, skills) -> list[int]:
+        """The recorded certification events (`learn.certified`) behind a worker's certificates for the concepts the
+        given labour-market skills draw on: the explicit causes (`refs`, crucible.civ.chains) of a decision that used
+        those certificates."""
+        if "learn_certs" not in st.tables:
+            return []
+        want = {c for k in skills for c in EDU.get(k, ())}
+        return sorted({int(c["seq"]) for c in st.find("learn_certs", "person", worker)
+                       if c["concept"] in want and "seq" in c})
+
     def _on_attrition(self, ctx, ev) -> None:
         org = ev.payload.get("org")
         f = ctx.state.get("firms", org)
@@ -691,16 +701,24 @@ class Firms(Module):
             return
         pending = sum(1 for o in offers or [] if o["status"] == "open")
         cands = []
+        held = {}
         for a in apps or []:
             if a["status"] != "applied" or a["profile"]["employer"] is not None:
                 continue
             prof = a["profile"]
             fit = est_fit(prof["declared_skills"], {k: v * 0.8 for k, v in f["skills"].items()})
             rec = [v["mean_quality"] for v in prof["verified_record"].values()]
-            cert = len(self.certified(st, a["worker"]) & set(f["skills"])) if "worker" in a else 0
-            cands.append((-(fit + (0.3 * float(np.mean(rec)) if rec else 0.0) + 0.15 * cert), a["application"]))
+            cs = self.certified(st, a["worker"]) & set(f["skills"]) if "worker" in a else set()
+            if cs:
+                held[a["application"]] = (a["worker"], sorted(cs))
+            cands.append((-(fit + (0.3 * float(np.mean(rec)) if rec else 0.0) + 0.15 * len(cs)), a["application"]))
         for _, app in sorted(cands)[:max(0, want - pending)]:
             sal = int(f["band"][0] + (f["band"][1] - f["band"][0]) * float(rng.uniform(0.45, 0.7)))
+            if app in held:
+                # the shortlist used the candidate's Board certificates: name those education events as causes
+                who, cs = held[app]
+                ctx.emit("firms.shortlist", {"org": org, "application": app, "certified": cs,
+                                             "refs": self.cert_seqs(st, who, cs)}, vis="internal")
             _call(ctx, f["manager"], "labor.offer", {"application": app, "salary_cents_month": sal})
 
     def _retain(self, ctx, org, f) -> None:
@@ -1105,10 +1123,23 @@ class Firms(Module):
         if any(sk[k] >= cur[k] + 0.02 for k in SKILLS):
             ch["skills"] = sk
         dec = list(prof["declared"])
-        if set(dec[:2]) != set(wk["declared"][:2]) or any(k not in wk["declared"] for k in prof["certified"]):
+        new_cert = [k for k in prof["certified"] if k not in wk["declared"]]
+        if set(dec[:2]) != set(wk["declared"][:2]) or new_cert:
             ch["declared"] = dec
         if not ch:
             return wk, False
+        # provenance (explicit `refs`, crucible.civ.chains): the recorded education events this update rests on - the
+        # individual's latest study session when a skill education draws on rose, the certificates it newly declares
+        st = ctx.state
+        refs = set(self.cert_seqs(st, p, new_cert)) if new_cert else set()
+        rose = [k for k in EDU if k in sk and sk[k] >= cur[k] + 0.02]
+        if rose and "learn_sessions" in st.tables:
+            ss = [int(r["seq"]) for r in st.find("learn_sessions", "i", int(i)) if "seq" in r]
+            if ss:
+                refs.add(max(ss))
+        if refs:
+            ctx.emit("firms.reprofile", {"person": p, "changed": sorted(ch), "rose": rose, "certified": new_cert,
+                                         "refs": sorted(refs)}, vis="internal")
         ctx.world.modules["labor"]._upd(ctx, p, **ch)
         return {**wk, **ch}, True
 
@@ -1153,6 +1184,14 @@ class Firms(Module):
     @applier("firms.ballot")
     def ap_ballot(self, ev):
         return None
+
+    @applier("firms.reprofile")
+    def ap_reprofile(self, ev):
+        return None          # a record of the cause of a profile update (labor.worker_update writes the profile)
+
+    @applier("firms.shortlist")
+    def ap_shortlist(self, ev):
+        return None          # a record of the certificates an offer decision used (labor.offer writes the offer)
 
     @applier("firms.failed")
     def ap_failed(self, ev):

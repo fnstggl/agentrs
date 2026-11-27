@@ -287,7 +287,7 @@ class Learning(Module):
             "taught_t": ("int64", (), -1), "posted": ("int64", (), 0), "lessons_read": ("int32", (), 0)})
         st = world.state
         st.declare_table("learn_lessons", index=("author",))
-        st.declare_table("learn_sessions", index=("doc", "author"))
+        st.declare_table("learn_sessions", index=("doc", "author", "i"))
         st.declare_table("learn_assessments", index=("kind",))
         st.declare_table("learn_certs", index=("person", "concept"))
         st.declare_table("learn_authors")
@@ -1012,7 +1012,9 @@ class Learning(Module):
         day = str(ev.t // DAY)
         for s in ev.payload["sessions"]:
             sid = st.new_id("lsess")
-            st.insert("learn_sessions", sid, {**s, "t": ev.t})
+            # `seq`: the recorded event of the session (provenance: modules that use what the learner learned, e.g.
+            # the labour market's profile update in domains.firms, name it as their cause)
+            st.insert("learn_sessions", sid, {**s, "t": ev.t, "seq": ev.seq})
             les = st.get("learn_lessons", s["doc"])
             base = dict(les) if les else {"author": s["author"], "readers": 0, "sessions": 0, "rating_sum": 0,
                                           "rating_n": 0, "concepts": [], "first_t": ev.t, "reader_set": []}
@@ -1041,7 +1043,7 @@ class Learning(Module):
     @applier("learn.certified")
     def ap_certified(self, ev):
         p = ev.payload
-        self.world.state.put("learn_certs", f"{p['person']}|{p['concept']}", dict(p))
+        self.world.state.put("learn_certs", f"{p['person']}|{p['concept']}", dict(p) | {"seq": ev.seq})
 
     @applier("learn.summary")
     def ap_summary(self, ev):

@@ -82,6 +82,23 @@ def test_education_changes_workers_skills_and_their_job_profiles():
     assert sum((e.payload.get("extra") or {}).get("education_updates", 0) for e in w.log
                if e.type == "cols.batch" and e.payload["kind"] == "firms.jobsearch") == \
         len([e for e in w.log if e.type == "labor.worker_update" and {"skills", "declared"} & set(e.payload["changes"])])
+    # provenance: each education-caused update names the recorded education events it rests on (the individual's own
+    # latest study session, the certificates it newly declares), so Tier 3 causal chains cross education -> employment
+    from crucible.civ import chains
+    byseq = {e.seq: e for e in w.log}
+    rp = [e for e in w.log if e.type == "firms.reprofile"]
+    assert len(rp) >= 5
+    for e in rp:
+        i = int(e.payload["person"][1:])
+        for r in e.payload["refs"]:
+            c = byseq[r]
+            assert r < e.seq and c.type in ("learn.sessions", "learn.certified")
+            assert (any(s["i"] == i for s in c.payload["sessions"]) if c.type == "learn.sessions"
+                    else c.payload["person"] == e.payload["person"])
+    pv = chains.build(w, 0)
+    cross = sum(1 for b, ps in pv.parents.items() for a in ps
+                if pv.subsystem.get(a) == "education" and pv.subsystem.get(b) == "employment")
+    assert cross >= len(rp)
     w0 = World.create(base.spec(LM.NAME, "wide_certified", 0, overrides={"drop_modules": ["learn"]}))
     w0.advance_time(12 * 86400)
     both = sorted(set(w.state.ids("labor_workers")) & set(w0.state.ids("labor_workers")))
