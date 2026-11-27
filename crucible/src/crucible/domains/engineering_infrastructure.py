@@ -270,6 +270,34 @@ class FireRepairCrew(ScriptedReference):
         return [act_("fleet.staff", None, technicians=0)]
 
 
+class FireAndReturnBroken(ScriptedReference):
+    """Degenerate: fire the repair crew and, every six hours, hand every failed machine back to the lessor (paying
+    its refurbishment charge), so failed machines never pile up in the repair backlog - the fleet just shrinks. No
+    controller change, no experiment (the verifier's `fire_and_retire`, which passed before returns of broken
+    machines were charged)."""
+    burst = 8
+    replan_s = 6 * 3600
+
+    def __init__(self, principal, objective):
+        super().__init__(principal, objective)
+        self.fired = False
+
+    def plan(self, obs):
+        acts = []
+        if not self.fired:
+            self.fired = True
+            acts.append(act_("fleet.staff", None, technicians=0))
+        acts.append(act_("fleet.status", "st"))
+        return acts
+
+    def on_result(self, tag, result, action):
+        if tag == "st" and result:
+            for site, c in sorted((result.get("machines") or {}).items()):
+                n = int(c.get("failed", 0))
+                if n > 0:
+                    self.queue.append(act_("fleet.retire", None, site=site, n=n, include_failed=True))
+
+
 class StarveCapacity(FleetReference):
     """Degenerate: power to the bare forecast and return every machine that is off (no headroom, no spares)."""
     params = {**TUNED, "headroom": 1.0, "min_on": 1, "forecast": "last_hour"}
@@ -347,6 +375,8 @@ DOMAIN = Domain(
     seats=(Seat(SEAT, 100_000, "Site reliability engineer", "an engineer of the incumbent operator"),),
     actors=ACTORS,
     degenerate=(Probe("fire_repair_crew", "set the technicians to zero", FireRepairCrew),
+                Probe("fire_and_return_broken", "no technicians; return every failed machine to the lessor",
+                      FireAndReturnBroken),
                 Probe("starve_capacity", "no headroom, return every idle machine", StarveCapacity)),
     structure=structure, tier3=tier3, mode="C", horizon_days=HORIZON_DAYS, slowest_effect_days=21.0, dt=6 * 3600,
     reference_seeds=(0, 1), reference_configs=("single_site_tou",), sources=("infra_world.py",), doc=__doc__)
