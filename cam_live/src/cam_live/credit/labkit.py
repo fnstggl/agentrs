@@ -418,3 +418,50 @@ def register_experiment(store: SqliteExperienceStore, experiment_id: str, arms: 
         experiment_id=experiment_id, created_at=now, question="does the first decision change the later return?",
         hypothesis="the arms differ in matured return", arms=list(arms), assignment="randomized",
         comparison=list(arms)[-1], status="running"))
+
+
+# ------------------------------------------------------------------------------------------------ delayed dependency
+def door_config(seed: int = 0, family: str = "lab/door") -> LabConfig:
+    """LabWorld with the delayed dependency: ``lab.unlock`` has no immediate effect and multiplies the later yield of
+    the last channel; adopters arrive after hours to a day and are measured two days after the intervention."""
+    return LabConfig(n_channels=3, noisy_tv=False, key_door=True, mean_delay_s=(3600.0, 86400.0), family=family, seed=seed)
+
+
+def door_candidates(world: LabWorld, rng: random.Random) -> List[ActionSpec]:
+    c = world.cfg
+    return [mk_action("lab.act", channel=c.n_channels - 1, effort=2),
+            mk_action("lab.act", channel=0, effort=rng.randint(1, c.max_effort)),
+            mk_action("lab.act", channel=1, effort=rng.randint(1, c.max_effort)),
+            mk_action("wait", Modality.INTERNAL, seconds=3600.0), mk_action("lab.unlock")]
+
+
+def door_weight(a: ActionSpec, world: LabWorld) -> float:
+    if a.operation == "lab.act":
+        return 0.5 if a.arguments["channel"] == world.cfg.n_channels - 1 else 0.15
+    return 0.1
+
+
+def door_arms(experiment_id: str) -> Arms:
+    """The randomised comparison: prepare the last channel first, or wait an hour first (50 / 50, logged)."""
+    return Arms(experiment_id, {"unlock": lambda: mk_action("lab.unlock"),
+                                "wait": lambda: mk_action("wait", Modality.INTERNAL, seconds=3600.0)},
+                {"unlock": 0.5, "wait": 0.5})
+
+
+def run_door_experiments(lab: Lab, n_experiments: int, n_per: int, n_decisions: int = 5, *, seed: int = 0,
+                         family: str = "lab/door") -> Dict[str, List[LabLifetime]]:
+    """``n_experiments`` registered randomised experiments (one hidden mechanism each), ``n_per`` lifetimes per
+    experiment, every lifetime matured and closed by the verifier. Returns experiment id -> lifetimes."""
+    out: Dict[str, List[LabLifetime]] = {}
+    for e in range(n_experiments):
+        xid = f"door-{seed}-{e}"
+        register_experiment(lab.store, xid, ["unlock", "wait"], lab.clock.now())
+        arms = door_arms(xid)
+        for i in range(n_per):
+            s = 100_000 * (seed + 1) + 1000 * e + i
+            world = LabWorld(door_config(seed=1000 * (seed + 1) + e, family=family), lab.clock)
+            world.rng = random.Random(s)                 # same mechanism, independent noise per lifetime
+            out.setdefault(xid, []).append(collect_lifetime(
+                lab.store, lab.linker, world, weighted_policy(door_weight, seed=s), n_decisions, seed=s,
+                candidates_fn=door_candidates, arms=arms, tag=f"{seed}_{e}_{i}"))
+    return out

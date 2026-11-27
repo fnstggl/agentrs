@@ -46,6 +46,17 @@ def make_record():
 
 
 # ---- stage 2: the real model (debug scale) in LabWorld --------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def _single_thread():
+    """Debug-scale tensors are tiny: one intra-op thread is fastest and immune to a busy machine (several OpenMP
+    threads spinning on a loaded host slowed these tests by an order of magnitude)."""
+    import torch
+    n = torch.get_num_threads()
+    torch.set_num_threads(1)
+    yield
+    torch.set_num_threads(n)
+
+
 def make_lab(tmp_path, *, n_worlds=10, n_decisions=6, seed=3, family="lab/base", collect=True, lab_cfg=None, **kw):
     """A debug-scale CamLiveModel with heads, a durable store, the linker and the learner, plus (optionally) a few
     LabWorld lifetimes collected through the linker."""

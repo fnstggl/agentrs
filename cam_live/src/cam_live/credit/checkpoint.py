@@ -243,6 +243,8 @@ def load_optimizer_state(optimizer: torch.optim.Optimizer, model: Union[nn.Modul
         rep["fresh"] = [names.get(id(p), "") for g in optimizer.param_groups for p in g["params"]]
         return rep
     st = saved.get("state", {})
+    known = {n for g in saved.get("groups", []) for n in g.get("params", [])}
+    rep["unstepped"] = []
     present = set()
     for g in optimizer.param_groups:
         for p in g["params"]:
@@ -250,7 +252,10 @@ def load_optimizer_state(optimizer: torch.optim.Optimizer, model: Union[nn.Modul
             present.add(n)
             s = st.get(n)
             if s is None:
-                rep["fresh"].append(n)
+                # no saved state: the parameter is new, or it had never been stepped when the checkpoint was taken.
+                # Either way it must start clean (a rollback must not keep moments accumulated afterwards).
+                optimizer.state.pop(p, None)
+                (rep["unstepped"] if n in known else rep["fresh"]).append(n)
                 continue
             if any(isinstance(v, Tensor) and v.dim() > 0 and tuple(v.shape) != tuple(p.shape) for v in s.values()):
                 rep["mismatched"].append(n)
