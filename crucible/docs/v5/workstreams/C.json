@@ -77,7 +77,8 @@
    "status_claim": "criteria met, unofficial snapshot run of this branch at 848d76a (2026-11-27, GPU slot): follow/share/subscription effects 0.335/0.083/0.458, p < 1e-15 each",
    "tests": [
     "tests/v5/test_gate_C.py::test_C_5_social_mechanisms_affect_future_interactions",
-    "tests/test_v5_social_catalogue.py::test_follows_have_one_owner_the_social_graph"
+    "tests/test_v5_social_catalogue.py::test_follows_have_one_owner_the_social_graph",
+    "tests/test_v5_social_letters.py::test_a_creator_with_followers_opens_a_newsletter_and_a_tier_from_a_short_post"
    ]
   },
   "C.6": {
@@ -356,7 +357,8 @@
    "notes": "after the fix a 2-day run of the SP-4.8 world had 0 failed ticks, 892 exposed / 293 viewers of the launch post and 63 shop decision batches",
    "status_claim": "criteria met, unofficial snapshot run of this branch at bf696ea (2026-11-27, GPU slot): 111 population social-to-purchase chains (scripted maker, labelled), 0 hard-coded bonuses",
    "tests": [
-    "tests/v5/test_gate_SP_4_8.py"
+    "tests/v5/test_gate_SP_4_8.py",
+    "tests/test_v5_social_recommend.py::test_a_member_who_just_started_using_a_service_posts_it_on_the_discovery_platform_once"
    ]
   },
   "SP-4.8b": {
@@ -467,7 +469,8 @@
   "O / D (security, traced on this branch 2026-11-27 with a stack hook on Pillow's ImageFile.load): v5.network.image_decoders_run_outside_the_world_process still reports 6 in-process decodes - all six are semantic/media.py open_image (from process_image and _image_extra, the media.* tools), none at a social decode site (social/formats.inspect and social/render.open_image decode through isolation.decode_image); v5.network.media_tools_at_participant_call_sites_are_jailed: 7 of 8 launches jailed, the unjailed ffmpeg is semantic/media.py's version query. Both KNOWN_OPEN entries should name owner D; the probes' fixed summary strings still name social/render.run_tool and social/formats.inspect (redteam/v5/network.py, owner O) and should report the traced sites instead.",
   "ORCHESTRATOR (unofficial verification, 2026-11-27, fourth agent): each job tests a snapshot of c5c/w3b-soc's committed head taken when it starts (scripts under the scratch dir w3b-soc/scripts, run_snap.sh). Finished: gate C on 848d76a (6/7, C.3 provenance), gates D + SP-4.x on bf696ea (12/14: D.3, SP-4.6b), gate I on 7f370fd (9/9), civ gates on 848d76a (SP-4.8b 0 chains), neighbours on 848d76a (W.1/3/4 and SP-16b: see W notes). Queued or running: 'C: gates SP-4.5b SP-4.7b', 'C: SP-4.8b + civ check 5d, CPU only', 'C: re-verify gate C + D.3 + SP-4.6b', 'C: social unit tests + kernel/invariants/facts, CPU only'. Logs: w3b-soc/{gateE,civchk3,gateR,units}.log; evidence JSON under /tmp/c5c-soc-tmp/crucible-v5-unofficial-evidence/.",
   "E (calibration, SP-5.5b): civilisations recorded no random-exposure row before 7f370fd (small catalogues: every drawn item was already in the feed and the draw was skipped); contentopen.insert_into now swaps the drawn item into the drawn slot, so the random arm exists in civ.generate worlds once J uses social.worlds.feed_config (CIV note above).",
-  "J / QA (C.3, D-15 provenance): letters.send recorded an impression for every population subscriber inside the sender's command (1,818 forced rows in gate C's 30-day run); issues now only go to the inboxes and the impression is recorded in the subscriber's own session (tests/test_v5_social_letters.py)."
+  "J / QA (C.3, D-15 provenance): letters.send recorded an impression for every population subscriber inside the sender's command (1,818 forced rows in gate C's 30-day run); issues now only go to the inboxes and the impression is recorded in the subscriber's own session (tests/test_v5_social_letters.py).",
+  "B (SP-4.0, platforms used by the population in a 3-day balanced civilisation): on this branch (a) creator memberships could never start - creators.create_tier refuses a creator without a bank account and population creators had none (fixed in 7a2368e: the creator opens an account first); (b) creators with an audience open newsletters / tiers from any text piece, not only articles; (c) members who just started using a launched service nobody posted put it on the product-discovery platform (14e2d2c), so `launch` carries population items from the first adoptions. Still thin in a balanced civilisation's first days: developer_communities (the population's `tech` medium is rare: 0 dev items in 4 days of balanced on 848d76a, 1-4 in other profiles) and newsletters/memberships (they need creators with 5 / 15 followers)."
  ],
  "test_results_unofficial": {
   "fourth agent (2026-11-27)": {
@@ -478,13 +481,13 @@
    "neighbours: facts, primitives, SP-2.3, civ core, W, SP-16b (snapshot 848d76a, earlier agent's queued job)": "123 passed, 5 failed (W.1, SP-16b: D's semantic/media.py; W.2: 1 open finding of another owner; W.3, W.4: ratchet entry of the now-holding sybil probe)",
    "tests/test_kernel.py tests/test_invariants.py tests/test_v5_social_leads.py tests/test_v5_social_idset.py (CPU direct, this agent)": "57 passed, 0 failed",
    "tests/test_v5_social_audience.py tests/test_v5_social_recsys.py tests/test_v5_social_popmedia.py (CPU direct, this agent)": "19 passed, 0 failed",
-   "tests/test_v5_social_recommend.py (new, CPU direct)": "1 passed",
-   "tests/test_v5_social_letters.py (new, CPU direct)": "1 passed (fails on the previous creators.py: 120 forced impressions)",
    "tests/test_v5_social_communities.py::test_members_govern_their_community (CPU direct, after the rename)": "1 passed",
    "SP-4.6b static scan (CPU direct, after a173da2)": "0 hits",
    "dev check of social leads (scratch scripts/leads_smoke.py, startup world, one post naming a host read by 40 members with that need)": "33 leads, 21 considered the named product (search), 17 adopted it; 0 invariant errors",
    "tests/v5/test_gate_SP_4_5b.py tests/v5/test_gate_SP_4_7b.py (snapshot bf696ea, GPU slot, 78 min)": "2 passed, 0 failed",
-   "tests/test_v5_social_security.py tests/test_v5_social_calibrated.py (CPU direct)": "8 passed, 0 failed"
+   "tests/test_v5_social_security.py tests/test_v5_social_calibrated.py (CPU direct)": "8 passed, 0 failed",
+   "tests/test_v5_social_recommend.py (2 tests: recommendation, hunter find; CPU direct)": "2 passed",
+   "tests/test_v5_social_letters.py (2 tests: newsletter impressions, channels from a short post; CPU direct)": "2 passed (the channel test fails before 7a2368e: no tier)"
   },
   "earlier agents of wave 3b (not re-verified)": {
    "tests/test_kernel.py tests/test_invariants.py (CPU, 1 thread, 2026-11-27, third agent)": "51 passed, 0 failed",
@@ -508,6 +511,6 @@
   "wave3b (c5c/w3b-soc, first agent, stopped by a usage limit)": "population creation on every distributed platform (image cards, narrated audio, narrated slide videos, Q&A, status posts, newsletter issues, service recommendations), messaging/newsletters/memberships used by the population, content_open@1 + random exposure on shorts, posts self-adaptation, feed probes, studio jail and image decodes in the jail, coordinated-cluster integrity rule, content_artifact migration, gate tests SP-4.1b/4.5b/4.6b/4.7b/4.8b, D-33..D-35; nothing measured except SP-4.1b and SP-4.6b (unofficial)",
   "wave3b (c5c/w3b-soc, second agent, stopped by a usage limit)": "merged feat/crucible-5-complete; relationship migration (audience side); every gate test asserts its manifest criteria; random-exposure integration test; E.3 text feed probe left to D; audience.recount reads the durable history (skeptic S2); reply notifications in communities; its snapshot gate run could not record evidence (no git HEAD in the snapshot) and the C fixture hit the 600 s default timeout",
   "wave3b (c5c/w3b-soc, third agent)": "merged feat/crucible-5-complete again; snapshot runner makes the snapshot a git repo; gate C module timeout; studio sandbox metering per lineage (A note); population governance of communities; product discovery fixed (column ownership made every population tick with a product visit fail: SP-4.8 had 0 chains); hunter launches of services that work; every population gate refuses failed ticks; gates re-queued",
-  "wave3b (c5c/w3b-soc, fourth agent)": "merged feat/crucible-5-complete (perf, domfw); read the queued snapshot gate runs: 33 of 37 gate tests passed (Gate I 9/9 at 10M identities); fixed the four failures it found - C.3 newsletter impressions without decision provenance, SP-4.6b static vocabulary hit, D.3 self-adaptation counterfactual forked before the actual change, SP-4.8b 0 chains in a balanced civilisation (recommendations by members still relying on a service); random exposure on small catalogues (civilisations recorded no random arm); DEF-C-3 and DEF-C-5 closed; re-verification queued"
+  "wave3b (c5c/w3b-soc, fourth agent)": "merged feat/crucible-5-complete (perf, domfw); read the queued snapshot gate runs: 33 of 37 gate tests passed (Gate I 9/9 at 10M identities); fixed the four failures it found - C.3 newsletter impressions without decision provenance, SP-4.6b static vocabulary hit, D.3 self-adaptation counterfactual forked before the actual change, SP-4.8b 0 chains in a balanced civilisation (recommendations by members still relying on a service); random exposure on small catalogues (civilisations recorded no random arm); hunters post services they just started using on the product-discovery platform; creators open newsletters/tiers from any text piece and open a bank account first (no population creator could ever open a tier); DEF-C-2/3/5/6 closed; re-verification queued"
  }
 }
