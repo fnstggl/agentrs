@@ -200,13 +200,21 @@ def centred_log_policy(logits: Tensor, a_mask: Tensor) -> Tensor:
 Z_CLIP, C_CLIP = 4.0, 4.0             # winsorisation of the calibration features (robust to exploding predictions)
 
 
-def policy_preference(logits: Tensor, a_mask: Tensor) -> Tensor:
+def policy_preference(logits: Tensor, a_mask: Tensor, z_ref: Optional[Tensor] = None) -> Tensor:
     """The policy's preference used by ``thompson_policy``: the centred log-probability (:func:`centred_log_policy`)
-    divided by max(1 nat, its spread over the feasible candidates). A near-uniform policy keeps its (tiny) nats, so an
-    untrained policy has no say; a very peaked one is bounded like the standardised world-model value, so a small
-    calibration weight cannot hand it the decision by sheer peakedness."""
+    — with ``z_ref`` [B, N] (the world model's standardised predicted values of the same candidates) minus its least-
+    squares projection on ``z_ref`` over the feasible candidates, i.e. only what the policy prefers *beyond* the world
+    model's ranking — divided by max(1 nat, its spread). A near-uniform policy, or one that merely repeats the world
+    model, has no say; a very peaked one is bounded like the standardised value, so a small calibration weight cannot
+    hand it the decision by sheer peakedness. (Without the projection a policy trained toward the world model's
+    choices is collinear with it and the calibration cannot tell the two apart.)"""
     c = centred_log_policy(logits, a_mask)
     m = a_mask.to(torch.float64)
+    if z_ref is not None:
+        z = torch.where(a_mask, z_ref.to(torch.float64), torch.zeros_like(c))
+        zz = (z * z * m).sum(-1, keepdim=True)
+        k = torch.where(zz > 1e-12, (c * z * m).sum(-1, keepdim=True) / zz.clamp_min(1e-12), torch.zeros_like(zz))
+        c = torch.where(a_mask, c - k * z, torch.zeros_like(c))
     n = m.sum(-1, keepdim=True).clamp_min(1.0)
     sd = torch.sqrt((c ** 2 * m).sum(-1, keepdim=True) / n)
     return c / sd.clamp_min(1.0)
@@ -269,8 +277,9 @@ class SelectionCalibration:
     by Bayesian linear regression (Gaussian prior beta ~ N((0, 1, 0), diag(1, sd_q^2, sd_pi^2)): a candidate the
     world model ranks higher is initially taken to be better and the policy is initially not trusted at all; noise
     variance by a scaled-inverse-chi^2 plug-in) with exponential forgetting, because both predictors keep changing as
-    they are trained. ``sample`` draws (beta_q, beta_pi) for Thompson sampling, so the selection explores over how far
-    each predictor can be trusted. Every quantity is relative to the decision's own candidate set, so the units of a
+    they are trained. ``sample`` draws (beta_q, beta_pi) for Thompson sampling; the rule uses their ratio
+    lambda = beta_pi^+ / beta_q (:func:`policy_weight`), so the selection explores over how far the policy may correct
+    the world model. Every quantity is relative to the decision's own candidate set, so the units of a
     prediction (and a prediction that explodes in scale) do not decide the weights; only its ranking does.
 
     No observation is invented: only decisions with a recorded prediction and a verified value enter, each once."""
@@ -308,8 +317,9 @@ class SelectionCalibration:
             return None
         mask = torch.tensor([feas])
         qt = torch.tensor([q], dtype=torch.float64)
-        z = standardised_values(qt.unsqueeze(0), qt, mask)[0, 0, i]
-        c = policy_preference(torch.tensor([lg], dtype=torch.float64), mask)[0, i]
+        zs = standardised_values(qt.unsqueeze(0), qt, mask)[0]
+        z = zs[0, i]
+        c = policy_preference(torch.tensor([lg], dtype=torch.float64), mask, zs)[0, i]
         return (max(-Z_CLIP, min(Z_CLIP, float(z))), max(-C_CLIP, min(C_CLIP, float(c))))
 
     @staticmethod
@@ -503,7 +513,7 @@ def selection_probs(rule: str, *, a_mask: Tensor, logits: Optional[Tensor] = Non
             raise ValueError("rule 'thompson_policy' needs q_samples [S, B, N], logits and coef_samples [S, 2]")
         qm = q_mean if q_mean is not None else q_samples.mean(0)
         score = thompson_policy_scores(standardised_values(q_samples, qm, a_mask), coef_samples,
-                                       policy_preference(logits, a_mask))
+                                       policy_preference(logits, a_mask, standardised_values(qm[None], qm, a_mask)[0]))
         p = _tie_share(score, a_mask)
     elif rule == RULE_RANDOMIZED:
         if arms is None:
@@ -628,7 +638,7 @@ class DecisionMaker:
         a_mask = sc["a_mask"]
         z = standardised_values(sc["samples"], sc["q"], a_mask)
         coef = self.calibration.sample(z.shape[0], self.generator)
-        lp = policy_preference(sc["policy_logits"], a_mask)
+        lp = policy_preference(sc["policy_logits"], a_mask, standardised_values(sc["q"][None], sc["q"], a_mask)[0])
         full = _tie_share(thompson_policy_scores(z, coef, lp), a_mask)
         no_pi = coef.clone()
         no_pi[:, 1] = 0.0

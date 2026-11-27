@@ -94,8 +94,8 @@ def test_policy_influence_grows_only_when_its_preferences_predict_verified_outco
     """The weight of the policy is learned from verified outcomes: a policy whose preference predicts the verified
     progress beyond the world model gains influence on the selection; one whose preference is noise or harmful does
     not (the weight is clipped at zero, never inverted)."""
-    values = [1.0, 1.2, 0.8, 1.1]
-    logits = [0.0, -2.0, 3.0, 0.0]            # the policy prefers candidate 2, which the world model ranks last
+    values = [1.0, 2.0, 1.0, 2.0]             # the world model cannot tell candidates 1 and 3 apart
+    logits = [0.0, 0.0, 3.0, 3.0]             # the policy prefers 2 and 3: orthogonal to the world model's ranking
     evs = _evals(values, logits, sd=0.05)
     shares = {}
     for name, fn in (("prior", None), ("predictive", lambda z, c, e: 2 + z + 1.5 * c + 0.3 * e),
@@ -104,14 +104,22 @@ def test_policy_influence_grows_only_when_its_preferences_predict_verified_outco
         if fn is not None:
             _feed(dm.calibration, 200, fn)
         p, sc = dm.probabilities(evs, P.RULE_THOMPSON_POLICY)
-        shares[name] = (float(p[2]), sc["selection"]["policy_share_tv"], sc["selection"]["calibration"])
+        shares[name] = (float(p[3]), sc["selection"]["policy_share_tv"], sc["selection"]["calibration"],
+                        float(p[1]))
     vu = lambda k, b: shares[k][2][b] * shares[k][2]["scale"]                 # noqa: E731  verified units
-    assert shares["prior"][2]["n"] == 0 and shares["prior"][0] < 0.5
+    assert shares["prior"][2]["n"] == 0 and shares["prior"][0] < shares["predictive"][0]
     assert abs(vu("predictive", "beta_pi") - 1.5) < 0.2 and abs(vu("predictive", "beta_q") - 1.0) < 0.2
-    assert shares["predictive"][0] > 0.85
-    assert abs(vu("noise", "beta_pi")) < 0.2 and shares["noise"][0] < 0.2
-    assert vu("harmful", "beta_pi") < -1.0 and shares["harmful"][0] < 0.05
-    assert shares["predictive"][1] > 0.5 > shares["noise"][1] and shares["harmful"][1] < 0.05
+    assert shares["predictive"][0] > 0.9 and shares["predictive"][3] < 0.05
+    assert abs(vu("noise", "beta_pi")) < 0.2 and shares["noise"][0] < shares["predictive"][0] - 0.2
+    assert vu("harmful", "beta_pi") < -1.0 and shares["harmful"][1] < 1e-12            # lambda = 0: value only
+    assert 0.3 < shares["harmful"][0] < 0.7 and 0.3 < shares["harmful"][3] < 0.7      # 1 vs 3: the posterior's tie
+    assert shares["predictive"][1] > 0.3 > shares["noise"][1]
+    # the policy's preference only counts beyond the world model's ranking: a policy that repeats it has no say
+    dm = _dm(seed=1)
+    _feed(dm.calibration, 200, lambda z, c, e: 2 + z + 1.5 * c + 0.3 * e)
+    copy = _evals(values, [0.0, 3.0, 0.0, 3.0], sd=0.05)
+    p, sc = dm.probabilities(copy, P.RULE_THOMPSON_POLICY)
+    assert sc["selection"]["policy_share_tv"] < 1e-9
     # a world model whose ranking says nothing about the verified outcome loses its weight (beta_q -> 0): ranking,
     # not the units of the prediction, is what is calibrated
     cal = P.SelectionCalibration()
@@ -126,8 +134,11 @@ def test_calibration_reads_the_recorded_decision_and_round_trips():
     z, c = P.SelectionCalibration.features(dec)
     lp = torch.log_softmax(torch.tensor([0.0, 1.0, -1.0], dtype=torch.float64), -1)
     q = torch.tensor([0.5, 2.0, 1.0], dtype=torch.float64)
-    assert abs(z - float((q[1] - q.mean()) / q.std(unbiased=False))) < 1e-12
-    assert abs(c - float(lp[1] - lp.mean())) < 1e-12
+    zs = (q - q.mean()) / q.std(unbiased=False)
+    assert abs(z - float(zs[1])) < 1e-12
+    cc = lp - lp.mean()
+    perp = cc - (cc * zs).sum() / (zs * zs).sum() * zs            # the preference beyond the world model's ranking
+    assert abs(c - float(perp[1] / max(1.0, float(perp.pow(2).mean().sqrt())))) < 1e-12
     # units drop out: the same predictions x 1000 give the same feature
     big = dataclasses.replace(dec, candidates=[dataclasses.replace(e, extras={**e.extras, "q_goal": 1000 * e.extras[
         "q_goal"]}) for e in evs])
