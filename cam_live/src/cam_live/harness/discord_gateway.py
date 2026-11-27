@@ -186,10 +186,18 @@ class GatewayWindow:
         """Open the window, collect, close. Returns the reduced summary; raises :class:`GatewayError` when no
         session could be started."""
         from websockets.exceptions import ConnectionClosed, WebSocketException
+        options: Dict[str, Any] = dict(open_timeout=self.open_timeout_s, close_timeout=2.0, ping_interval=None,
+                                       max_size=16 * 1024 * 1024, proxy=None, logger=_TRANSPORT_LOG,
+                                       user_agent_header=f"{self.library} (gateway window)")
         connect = self._connect
         if connect is None:
+            import inspect
             from websockets.sync.client import connect as ws_connect
             connect = ws_connect
+            # older releases of the library lack some of these parameters (keepalive pings, proxies) and with them
+            # the behaviour that the option switches off
+            named = inspect.signature(ws_connect).parameters
+            options = {k: v for k, v in options.items() if k in named}
         token = self._token_provider()
         if not token:
             raise GatewayError("permission", "blocked: no Discord bot token was released for the gateway destination")
@@ -202,9 +210,7 @@ class GatewayWindow:
         failure: Optional[GatewayError] = None
         ws: Any = None
         try:
-            ws = connect(gateway_connect_url(self.url), open_timeout=self.open_timeout_s, close_timeout=2.0,
-                         ping_interval=None, max_size=16 * 1024 * 1024, proxy=None, logger=_TRANSPORT_LOG,
-                         user_agent_header=f"{self.library} (gateway window)")
+            ws = connect(gateway_connect_url(self.url), **options)
         except (OSError, WebSocketException, TimeoutError) as e:
             failure = GatewayError("network", clean(f"could not connect to the gateway: {type(e).__name__}: {e}"))
         if failure is not None:

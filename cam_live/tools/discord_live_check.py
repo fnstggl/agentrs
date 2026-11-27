@@ -519,7 +519,7 @@ def run_staging(a: argparse.Namespace, mutate: Optional[Callable[[Any, Dict[str,
          f"run directory {run_dir}")
 
     def reply_hook(cid: str) -> None:              # stands in for a person answering in the test channel
-        time.sleep(1.0)
+        time.sleep(0.3)
         st.post_member_message(cid, st.humans()[0], "a reply typed by a member (staging hook)")
 
     def between_hook() -> None:                    # membership changes between the two readings

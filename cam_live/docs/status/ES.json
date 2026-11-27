@@ -367,7 +367,7 @@
  "measured": {
   "tests_passed": 141,
   "tests_failed": 1,
-  "test_wall_seconds": 32.68,
+  "test_wall_seconds": 41.48,
   "skills_vs_primitives.n_tasks": 20,
   "skills_vs_primitives.primitive_only.decisions_per_task": 3.0,
   "skills_vs_primitives.skill_based.decisions_per_task": 1.0,
@@ -383,7 +383,7 @@
   "modality.thompson_share_best_kind_context_B": 1.0,
   "discord.tests_passed": 47,
   "discord.tests_failed": 0,
-  "discord.test_wall_seconds": 23.6,
+  "discord.test_wall_seconds": 25.05,
   "discord.new_tests": 36,
   "discord.tools": 28,
   "discord.tools_added": 18,
@@ -397,7 +397,7 @@
   "discord_live_check.live.runs": 0
  },
  "measured_commands": {
-  "tests_*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live  (2026-11-27, machine load average about 23; 1 failed = test_es_publishing.py::test_publishing_to_an_owned_channel_goes_through_the_discord_adapter, the hard-coded tool count)",
+  "tests_*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live  (2026-11-27, final run, machine load average about 30; 32.7 s in an earlier run at load 23; 1 failed = test_es_publishing.py::test_publishing_to_an_owned_channel_goes_through_the_discord_adapter, the hard-coded tool count)",
   "skills_vs_primitives.*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_es_skills.py::test_measured_primitive_only_versus_skill_based_execution -q --rootdir=cam_live  (values of the final full run, as written to docs/evidence/ES/skills_vs_primitives.json; latencies vary with machine load: the skill / primitive latency ratio was about 1.7 to 2.3 in the runs made after the last change to skill persistence)",
   "modality.*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_es_modality.py::test_estimates_calibrate_on_a_simulated_mix_and_selection_shifts -q --rootdir=cam_live",
   "integration smoke": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/ES/integration_smoke.py",

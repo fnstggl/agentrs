@@ -1,6 +1,6 @@
 {
- "base_url": "http://127.0.0.1:44317/api/v10",
- "ended_at": 1795746457.1876752,
+ "base_url": "http://127.0.0.1:43337/api/v10",
+ "ended_at": 1795747057.959748,
  "environment": "staging",
  "exit_code": 0,
  "guild_id": "1000000000000000002",
@@ -57,7 +57,7 @@
    "staging-app"
   ]
  },
- "started_at": 1795746441.2916977,
+ "started_at": 1795747040.2554882,
  "steps": [
   {
    "approval_id": "",
@@ -91,7 +91,7 @@
     "staging": true,
     "warnings": []
    },
-   "duration_s": 0.094,
+   "duration_s": 0.298,
    "failure_class": "none",
    "failure_detail": "",
    "n": 1,
@@ -181,7 +181,7 @@
     "staging": true,
     "timed_out": false
    },
-   "duration_s": 0.024,
+   "duration_s": 0.175,
    "failure_class": "none",
    "failure_detail": "",
    "n": 2,
@@ -241,7 +241,7 @@
     },
     "staging": true
    },
-   "duration_s": 0.02,
+   "duration_s": 0.087,
    "failure_class": "none",
    "failure_detail": "",
    "n": 3,
@@ -295,7 +295,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.02,
+   "duration_s": 0.033,
    "failure_class": "none",
    "failure_detail": "",
    "n": 4,
@@ -354,7 +354,7 @@
     "requests": 2,
     "staging": true
    },
-   "duration_s": 0.023,
+   "duration_s": 0.094,
    "failure_class": "none",
    "failure_detail": "",
    "n": 5,
@@ -405,7 +405,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.024,
+   "duration_s": 0.075,
    "failure_class": "none",
    "failure_detail": "",
    "n": 6,
@@ -461,7 +461,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.027,
+   "duration_s": 0.034,
    "failure_class": "none",
    "failure_detail": "",
    "n": 7,
@@ -510,13 +510,13 @@
      "content_sha256": "2232696d00e4caf249891538d421908a3b90578b9da045c91dc266f3a36d3986",
      "edited_timestamp": null,
      "id": "1000000000000000013",
-     "timestamp": "2026-11-27T02:27:21.540479+00:00"
+     "timestamp": "2026-11-27T02:37:21.137820+00:00"
     },
     "message_id": "1000000000000000013",
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.026,
+   "duration_s": 0.105,
    "failure_class": "none",
    "failure_detail": "",
    "n": 8,
@@ -564,8 +564,8 @@
      "distinct_human_authors": 0,
      "human_messages": 0,
      "messages": 1,
-     "newest": "2026-11-27T02:27:21.540479+00:00",
-     "oldest": "2026-11-27T02:27:21.540479+00:00"
+     "newest": "2026-11-27T02:37:21.137820+00:00",
+     "oldest": "2026-11-27T02:37:21.137820+00:00"
     },
     "channel_id": "1000000000000000011",
     "environment": "staging",
@@ -573,7 +573,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.024,
+   "duration_s": 0.185,
    "failure_class": "none",
    "failure_detail": "",
    "n": 9,
@@ -623,8 +623,8 @@
      "distinct_human_authors": 0,
      "human_messages": 0,
      "messages": 1,
-     "newest": "2026-11-27T02:27:21.540479+00:00",
-     "oldest": "2026-11-27T02:27:21.540479+00:00"
+     "newest": "2026-11-27T02:37:21.137820+00:00",
+     "oldest": "2026-11-27T02:37:21.137820+00:00"
     },
     "channel_id": "1000000000000000011",
     "environment": "staging",
@@ -632,7 +632,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.021,
+   "duration_s": 0.095,
    "failure_class": "none",
    "failure_detail": "",
    "n": 10,
@@ -651,7 +651,7 @@
    "rate_limit": {
     "limit": 1000.0,
     "remaining": 998.0,
-    "reset_after_s": 0.979
+    "reset_after_s": 0.898
    },
    "reasons": [
     "permitted by policy default-1+discord-live-check"
@@ -682,8 +682,8 @@
      "distinct_human_authors": 1,
      "human_messages": 1,
      "messages": 2,
-     "newest": "2026-11-27T02:27:22.574692+00:00",
-     "oldest": "2026-11-27T02:27:21.540479+00:00"
+     "newest": "2026-11-27T02:37:21.645654+00:00",
+     "oldest": "2026-11-27T02:37:21.137820+00:00"
     },
     "channel_id": "1000000000000000011",
     "environment": "staging",
@@ -691,7 +691,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.042,
+   "duration_s": 0.088,
    "failure_class": "none",
    "failure_detail": "",
    "n": 11,
@@ -744,15 +744,15 @@
      "channel_id": "1000000000000000011",
      "content_length": 72,
      "content_sha256": "db716a191065986f18eaf2bda68664c99ae4cf71c483caa9ca609ccd01dd444c",
-     "edited_timestamp": "2026-11-27T02:27:26.654066+00:00",
+     "edited_timestamp": "2026-11-27T02:37:26.548863+00:00",
      "id": "1000000000000000013",
-     "timestamp": "2026-11-27T02:27:21.540479+00:00"
+     "timestamp": "2026-11-27T02:37:21.137820+00:00"
     },
     "message_id": "1000000000000000013",
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.027,
+   "duration_s": 0.035,
    "failure_class": "none",
    "failure_detail": "",
    "n": 12,
@@ -802,7 +802,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.025,
+   "duration_s": 0.076,
    "failure_class": "none",
    "failure_detail": "",
    "n": 13,
@@ -850,7 +850,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.025,
+   "duration_s": 0.023,
    "failure_class": "none",
    "failure_detail": "",
    "n": 14,
@@ -898,8 +898,8 @@
     "invite": {
      "channel_id": "1000000000000000011",
      "code": "02c62bef",
-     "created_at": "2026-11-27T02:27:26.730903+00:00",
-     "expires_at": "2026-11-27T02:37:26.730903+00:00",
+     "created_at": "2026-11-27T02:37:26.727678+00:00",
+     "expires_at": "2026-11-27T02:47:26.727678+00:00",
      "inviter_is_bot": true,
      "max_age": 600,
      "max_uses": 1,
@@ -911,7 +911,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.028,
+   "duration_s": 0.072,
    "failure_class": "none",
    "failure_detail": "",
    "n": 15,
@@ -952,8 +952,8 @@
      {
       "channel_id": "1000000000000000011",
       "code": "02c62bef",
-      "created_at": "2026-11-27T02:27:26.730903+00:00",
-      "expires_at": "2026-11-27T02:37:26.730903+00:00",
+      "created_at": "2026-11-27T02:37:26.727678+00:00",
+      "expires_at": "2026-11-27T02:47:26.727678+00:00",
       "inviter_is_bot": true,
       "max_age": 600,
       "max_uses": 1,
@@ -964,7 +964,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.025,
+   "duration_s": 0.023,
    "failure_class": "none",
    "failure_detail": "",
    "n": 16,
@@ -1014,7 +1014,7 @@
     "requests": 2,
     "staging": true
    },
-   "duration_s": 0.027,
+   "duration_s": 0.09,
    "failure_class": "none",
    "failure_detail": "",
    "n": 17,
@@ -1073,7 +1073,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.026,
+   "duration_s": 0.081,
    "failure_class": "none",
    "failure_detail": "",
    "n": 18,
@@ -1132,7 +1132,7 @@
     "role_id": "1000000000000000002",
     "staging": true
    },
-   "duration_s": 0.03,
+   "duration_s": 0.112,
    "failure_class": "none",
    "failure_detail": "",
    "n": 19,
@@ -1188,7 +1188,7 @@
     "role_id": "1000000000000000022",
     "staging": true
    },
-   "duration_s": 0.026,
+   "duration_s": 0.076,
    "failure_class": "none",
    "failure_detail": "",
    "n": 20,
@@ -1249,7 +1249,7 @@
     "role_id": "1000000000000000022",
     "staging": true
    },
-   "duration_s": 0.035,
+   "duration_s": 0.099,
    "failure_class": "none",
    "failure_detail": "",
    "n": 21,
@@ -1305,7 +1305,7 @@
     "role_id": "1000000000000000022",
     "staging": true
    },
-   "duration_s": 0.034,
+   "duration_s": 0.03,
    "failure_class": "none",
    "failure_detail": "",
    "n": 22,
@@ -1364,7 +1364,7 @@
     },
     "staging": true
    },
-   "duration_s": 0.03,
+   "duration_s": 0.09,
    "failure_class": "none",
    "failure_detail": "",
    "n": 23,
@@ -1423,7 +1423,7 @@
     },
     "staging": true
    },
-   "duration_s": 0.025,
+   "duration_s": 0.085,
    "failure_class": "none",
    "failure_detail": "",
    "n": 24,
@@ -1437,7 +1437,7 @@
    "rate_limit": {
     "limit": 1000.0,
     "remaining": 998.0,
-    "reset_after_s": 0.975
+    "reset_after_s": 0.971
    },
    "reasons": [
     "permitted by policy default-1+discord-live-check"
@@ -1475,7 +1475,7 @@
     "requests": 2,
     "staging": true
    },
-   "duration_s": 0.029,
+   "duration_s": 0.034,
    "failure_class": "none",
    "failure_detail": "",
    "n": 25,
@@ -1497,7 +1497,7 @@
    "rate_limit": {
     "limit": 1000.0,
     "remaining": 998.0,
-    "reset_after_s": 0.738
+    "reset_after_s": 0.306
    },
    "reasons": [
     "permitted by policy default-1+discord-live-check"
@@ -1529,7 +1529,7 @@
      "test_accounts": 0
     },
     "joined_at": [
-     "2026-11-27T02:27:27.031571+00:00"
+     "2026-11-27T02:37:27.458214+00:00"
     ],
     "left": {
      "bots": 0,
@@ -1551,7 +1551,7 @@
     "since_s": 1.0,
     "staging": true
    },
-   "duration_s": 0.032,
+   "duration_s": 0.1,
    "failure_class": "none",
    "failure_detail": "",
    "n": 26,
@@ -1580,7 +1580,7 @@
    "rate_limit": {
     "limit": 1000.0,
     "remaining": 997.0,
-    "reset_after_s": 0.708
+    "reset_after_s": 0.203
    },
    "reasons": [
     "permitted by policy default-1+discord-live-check"
@@ -1639,7 +1639,7 @@
        "bot": false,
        "event": "GUILD_MEMBER_ADD",
        "id_hash": "2c0e742aec9ea83fc674cf3019a83b18",
-       "joined_at": "2026-11-27T02:27:27.099761+00:00",
+       "joined_at": "2026-11-27T02:37:27.836560+00:00",
        "pending": false,
        "test_account": false
       },
@@ -1659,10 +1659,10 @@
      ],
      "guilds": 1,
      "heartbeats": {
-      "acknowledged": 0,
+      "acknowledged": 1,
       "interval_s": 45.0,
       "requested_by_gateway": 0,
-      "sent": 0
+      "sent": 1
      },
      "intents": [
       "GUILDS",
@@ -1678,7 +1678,7 @@
      "window_s": 10.001
     }
    },
-   "duration_s": 10.047,
+   "duration_s": 10.22,
    "failure_class": "none",
    "failure_detail": "",
    "n": 27,
@@ -1694,7 +1694,7 @@
     "discord.gateway.guild_create": 1.0,
     "discord.gateway.guild_member_add": 1.0,
     "discord.gateway.guild_member_remove": 1.0,
-    "discord.gateway.heartbeats_sent": 0.0,
+    "discord.gateway.heartbeats_sent": 1.0,
     "discord.gateway.message_create": 1.0,
     "discord.gateway.ready": 1.0,
     "discord.gateway.session_starts_remaining": 999.0,
@@ -1748,7 +1748,7 @@
     "requests": 1,
     "staging": true
    },
-   "duration_s": 0.029,
+   "duration_s": 0.03,
    "failure_class": "none",
    "failure_detail": "",
    "n": 28,
@@ -1814,7 +1814,7 @@
     "requests": 2,
     "staging": true
    },
-   "duration_s": 0.035,
+   "duration_s": 0.07,
    "failure_class": "none",
    "failure_detail": "",
    "n": 29,
@@ -1850,7 +1850,7 @@
   "steps": 29
  },
  "task": {
-  "content_hash": "ddf6d51e0d9f37533059a7d72ac9dad8637834a2e9815965bdb94295dc7aa1a3",
+  "content_hash": "8c795761dd866983feb5f67d4c3890bdba984108dc95e0abb6a3f011a027ffbb",
   "objective_id": "discord-live-check"
  },
  "token_free": true,
