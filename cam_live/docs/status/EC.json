@@ -1,0 +1,393 @@
+{
+ "workstream": "EC",
+ "commit": "4beca03eed2ad1a78a9403b9d7b4caad10332507",
+ "summary": "Sandboxed code execution (modality 'code'), bounded background jobs, visual computer use (modality 'visual') and a replaceable visual-grounding interface with GoClick-Base, MAI-UI-2B, Vocaela-2-500M and a non-neural baseline, plus a benchmark of all four. Both executors implement contracts.ModalityExecutor and use only ExecContext; neither is wired into harness/env.py by EC (that is the integrator's step) and the authorization layer in the tests is a recording stand-in for PolicyEngine.check_primitive, not workstream EA's service.",
+ "requirements": {
+  "IH-03": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/sandbox.py",
+    "src/cam_live/harness/jobs.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.sandbox.SandboxExecutor.execute",
+    "cam_live.harness.sandbox.SandboxExecutor.tools",
+    "cam_live.harness.sandbox.Sandbox.run"
+   ],
+   "tests": [
+    "tests/harness/compute/test_ec_sandbox.py::test_python_runs_as_unprivileged_user_in_persistent_workspace",
+    "tests/harness/compute/test_ec_sandbox.py::test_shell_runs_pipelines_and_finds_python",
+    "tests/harness/compute/test_ec_sandbox.py::test_cpu_limit_enforced",
+    "tests/harness/compute/test_ec_sandbox.py::test_memory_limit_enforced",
+    "tests/harness/compute/test_ec_sandbox.py::test_total_memory_of_the_process_tree_enforced",
+    "tests/harness/compute/test_ec_sandbox.py::test_process_limit_enforced",
+    "tests/harness/compute/test_ec_sandbox.py::test_kernel_task_ceiling_stops_a_fork_bomb_the_monitor_does_not_see",
+    "tests/harness/compute/test_ec_sandbox.py::test_file_size_limit_enforced",
+    "tests/harness/compute/test_ec_sandbox.py::test_open_file_limit_enforced",
+    "tests/harness/compute/test_ec_sandbox.py::test_wall_clock_timeout_kills_the_whole_process_group",
+    "tests/harness/compute/test_ec_sandbox.py::test_nothing_outlives_a_program_that_exits_normally",
+    "tests/harness/compute/test_ec_sandbox.py::test_a_job_cannot_leave_its_process_group",
+    "tests/harness/compute/test_ec_sandbox.py::test_output_is_truncated_and_counted",
+    "tests/harness/compute/test_ec_sandbox.py::test_cancellation_kills_the_job",
+    "tests/harness/compute/test_ec_sandbox.py::test_seccomp_blocks_sockets_and_kernel_interfaces",
+    "tests/harness/compute/test_ec_sandbox.py::test_network_is_closed_by_default_for_programs_and_shell_tools",
+    "tests/harness/compute/test_ec_sandbox.py::test_generated_code_cannot_read_or_write_outside_its_workspace",
+    "tests/harness/compute/test_ec_sandbox.py::test_file_tools_stay_inside_the_workspace",
+    "tests/harness/compute/test_ec_sandbox.py::test_environment_is_clean",
+    "tests/harness/compute/test_ec_sandbox.py::test_executor_contract_and_tools",
+    "tests/harness/compute/test_ec_sandbox.py::test_executor_runs_code_and_reports_what_happened",
+    "tests/harness/compute/test_ec_sandbox.py::test_executor_file_tools",
+    "tests/harness/compute/test_ec_sandbox.py::test_denied_by_policy_runs_nothing",
+    "tests/harness/compute/test_ec_sandbox.py::test_executor_honours_cancel_and_deadline",
+    "tests/harness/compute/test_ec_sandbox.py::test_scoped_network_sends_every_connection_through_the_policy_check",
+    "tests/harness/compute/test_ec_sandbox.py::test_scoped_network_refuses_private_destinations_unless_configured",
+    "tests/harness/compute/test_ec_sandbox.py::test_scoped_network_reaches_children_started_by_the_job",
+    "tests/harness/compute/test_ec_sandbox.py::test_capabilities_state_what_is_enforced",
+    "tests/harness/compute/test_ec_sandbox.py::test_unavailable_hosts_are_reported_not_worked_around",
+    "tests/harness/compute/test_ec_sandbox.py::test_dedicated_uid_cannot_read_files_of_other_service_uids",
+    "tests/harness/compute/test_ec_sandbox.py::test_without_root_the_weaker_mode_is_refused_by_default_and_reported_when_allowed"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EC.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EC.xml"
+   ],
+   "limitations": "Process isolation on the shared host kernel (dedicated uid + rlimits + Landlock ABI 1 + seccomp + no_new_privs), not a VM. Memory is limited per process by RLIMIT_AS; the total of a job and its task count are watched by the per-job monitor every 100 ms (no cgroup available). Disk use is bounded per file and checked against a workspace limit before each operation, not by a quota. Jobs under the same sandbox uid can signal each other. Scoped network: the kernel denies every socket; outbound TCP goes through the egress broker with one ExecContext.check per connection (host, port) made before name resolution; requests reusing a connection and anything inside TLS are not inspected; only Python processes get the transparent shim (curl, git, node have no network). Importable packages inside the sandbox: standard library, numpy, PIL, yaml. multiprocessing locks do not work (/dev/shm is not granted). Not exercised against workstream EA's real policy service or over ExecRPC."
+  },
+  "CU-10": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/sandbox.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.sandbox.SandboxExecutor (tools sandbox.python, sandbox.shell, sandbox.write_file, sandbox.read_file, sandbox.list_files)"
+   ],
+   "tests": [
+    "tests/harness/compute/test_ec_sandbox.py::test_python_runs_as_unprivileged_user_in_persistent_workspace",
+    "tests/harness/compute/test_ec_sandbox.py::test_shell_runs_pipelines_and_finds_python",
+    "tests/harness/compute/test_ec_sandbox.py::test_cpu_limit_enforced",
+    "tests/harness/compute/test_ec_sandbox.py::test_memory_limit_enforced",
+    "tests/harness/compute/test_ec_sandbox.py::test_total_memory_of_the_process_tree_enforced",
+    "tests/harness/compute/test_ec_sandbox.py::test_process_limit_enforced",
+    "tests/harness/compute/test_ec_sandbox.py::test_kernel_task_ceiling_stops_a_fork_bomb_the_monitor_does_not_see",
+    "tests/harness/compute/test_ec_sandbox.py::test_file_size_limit_enforced",
+    "tests/harness/compute/test_ec_sandbox.py::test_open_file_limit_enforced",
+    "tests/harness/compute/test_ec_sandbox.py::test_wall_clock_timeout_kills_the_whole_process_group",
+    "tests/harness/compute/test_ec_sandbox.py::test_nothing_outlives_a_program_that_exits_normally",
+    "tests/harness/compute/test_ec_sandbox.py::test_a_job_cannot_leave_its_process_group",
+    "tests/harness/compute/test_ec_sandbox.py::test_output_is_truncated_and_counted",
+    "tests/harness/compute/test_ec_sandbox.py::test_cancellation_kills_the_job",
+    "tests/harness/compute/test_ec_sandbox.py::test_executor_runs_code_and_reports_what_happened",
+    "tests/harness/compute/test_ec_sandbox.py::test_executor_file_tools",
+    "tests/harness/compute/test_ec_sandbox.py::test_generated_code_cannot_read_or_write_outside_its_workspace",
+    "tests/harness/compute/test_ec_sandbox.py::test_dedicated_uid_cannot_read_files_of_other_service_uids"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EC.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EC.xml"
+   ],
+   "limitations": "Same as IH-03. Each call is a new process; state persists only as files in the workspace. Without root the executor refuses to run (tools available=False with the reason) unless SandboxConfig.allow_same_uid=True, which is reported as weak."
+  },
+  "CU-23": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/jobs.py",
+    "src/cam_live/harness/sandbox.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.jobs.JobManager.submit",
+    "cam_live.harness.jobs.JobManager.submit_callable",
+    "cam_live.harness.jobs.JobManager.events",
+    "cam_live.harness.sandbox.SandboxExecutor.jobs",
+    "tools sandbox.job_start / job_status / job_result / job_cancel"
+   ],
+   "tests": [
+    "tests/harness/compute/test_ec_jobs.py::test_job_needs_purpose_and_deadline",
+    "tests/harness/compute/test_ec_jobs.py::test_job_runs_persists_its_record_and_is_delivered_as_an_event",
+    "tests/harness/compute/test_ec_jobs.py::test_failed_job_reports_exit_code_and_error_output",
+    "tests/harness/compute/test_ec_jobs.py::test_deadline_is_enforced_and_nothing_is_left_running",
+    "tests/harness/compute/test_ec_jobs.py::test_resource_limits_apply_to_jobs",
+    "tests/harness/compute/test_ec_jobs.py::test_status_is_observable_while_running_and_cancel_stops_the_job",
+    "tests/harness/compute/test_ec_jobs.py::test_concurrency_cap_and_bounded_queue",
+    "tests/harness/compute/test_ec_jobs.py::test_callable_jobs_have_cooperative_deadline_and_cancel",
+    "tests/harness/compute/test_ec_jobs.py::test_records_survive_and_a_new_manager_reads_them",
+    "tests/harness/compute/test_ec_jobs.py::test_restart_reports_interrupted_jobs",
+    "tests/harness/compute/test_ec_jobs.py::test_closing_the_manager_cancels_and_records_live_jobs",
+    "tests/harness/compute/test_ec_jobs.py::test_job_tools_through_the_executor"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EC.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EC.xml"
+   ],
+   "limitations": "Sandboxed computation jobs are fully bounded (kernel limits, monitor, deadline, cancel). 'callable' jobs (functions of the harness, intended for read-only research sessions of other executors) have cooperative deadline and cancellation only, and EC did not connect the browser's research sessions to the job manager: submit_callable is tested with plain functions. The environment must merge JobManager.events() / ctx.obs_sink into its event stream; EC did not edit harness/env.py."
+  },
+  "CU-06": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/visual.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.visual.VisualExecutor.execute (visual.screenshot, visual.crop)",
+    "cam_live.harness.visual.VisualExecutor.image",
+    "cam_live.harness.visual.ScreenProvider"
+   ],
+   "tests": [
+    "tests/harness/compute/test_ec_visual.py::test_click_is_validated_delivered_and_verified_on_a_software_screen",
+    "tests/harness/compute/test_ec_visual.py::test_crop_and_full_page_on_a_software_screen",
+    "tests/harness/compute/test_ec_visual.py::test_browser_scroll_full_page_and_crop"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EC.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EC.xml"
+   ],
+   "limitations": "Browser viewport, full page and crops. No desktop screen provider exists (this host has no display server); a desktop would be another ScreenProvider. Full-page capture stitches half-screen scrolls: content repeating exactly with a period under half a screen comes out too short, and a featureless overlap at the page end is padded. Screenshots are stored as PNG files and referenced from the observation; turning pixels into experience tokens is not EC's part."
+  },
+  "CU-09": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/visual.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.visual.VisualExecutor.execute (visual.click, double_click, drag, scroll, type, key, ground, click_target)"
+   ],
+   "tests": [
+    "tests/harness/compute/test_ec_visual.py::test_contract_tools_and_argument_validation",
+    "tests/harness/compute/test_ec_visual.py::test_click_is_validated_delivered_and_verified_on_a_software_screen",
+    "tests/harness/compute/test_ec_visual.py::test_stale_screenshots_are_rejected",
+    "tests/harness/compute/test_ec_visual.py::test_out_of_bounds_coordinates_are_rejected",
+    "tests/harness/compute/test_ec_visual.py::test_denied_by_policy_stays_denied",
+    "tests/harness/compute/test_ec_visual.py::test_keyboard_drag_scroll_and_double_click_on_a_software_screen",
+    "tests/harness/compute/test_ec_visual.py::test_grounder_output_is_only_a_proposal",
+    "tests/harness/compute/test_ec_visual.py::test_grounded_click_reobserves_and_recovers_only_when_nothing_happened",
+    "tests/harness/compute/test_ec_visual.py::test_cancel_and_deadline_stop_before_anything_is_sent",
+    "tests/harness/compute/test_ec_visual.py::test_browser_click_on_a_canvas_button_changes_the_page_and_is_verified",
+    "tests/harness/compute/test_ec_visual.py::test_browser_type_key_drag_and_double_click_on_canvas_controls",
+    "tests/harness/compute/test_ec_visual.py::test_browser_scroll_full_page_and_crop",
+    "tests/harness/compute/test_ec_visual.py::test_browser_grounded_click_with_the_reference_grounder_and_policy",
+    "tests/harness/compute/test_ec_visual.py::test_browser_multi_step_visual_workflow_with_verification"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EC.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EC.xml"
+   ],
+   "limitations": "Tested on EC's own Playwright-backed ScreenProvider and a software frame buffer, not on workstream EB's BrowserScreen (same method names; EB's scroll(x=, y=) is used when present). Staleness for pointer actions compares a 73x73 pixel patch around the target (a change elsewhere does not block); keyboard and wheel actions compare the whole frame with a 2 % tolerance. Verification from pixels supports element_state {color_at | changed} and url_matches when the screen has url(); other kinds return verified=None. No OCR."
+  },
+  "CU-07": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/grounding/goclick.py",
+    "src/cam_live/harness/grounding/base.py",
+    "src/cam_live/harness/grounding/worker.py",
+    "src/cam_live/harness/grounding/__init__.py",
+    "docs/EC/MODEL_REVIEW.md"
+   ],
+   "integration_points": [
+    "cam_live.harness.grounding.load_grounder('goclick-base')",
+    "cam_live.harness.grounding.GoClickGrounder",
+    "cam_live.harness.visual.VisualExecutor._propose"
+   ],
+   "tests": [
+    "tests/harness/compute/test_ec_grounding.py::test_registry_pins_revisions_and_states_licences",
+    "tests/harness/compute/test_ec_grounding.py::test_models_are_not_loaded_in_a_credential_holding_process",
+    "tests/harness/compute/test_ec_grounding.py::test_missing_or_unpinned_snapshots_are_unavailable_not_downloaded",
+    "tests/harness/compute/test_ec_grounding.py::test_goclick_checkpoint_keys_map_onto_the_native_florence2_layout",
+    "tests/harness/compute/test_ec_grounding.py::test_model_answers_are_parsed_strictly",
+    "tests/harness/compute/test_ec_grounding.py::test_goclick_base_grounds_labelled_buttons_in_an_isolated_process",
+    "tests/harness/compute/test_ec_grounding.py::test_goclick_base_in_process_is_frozen_and_releases_memory"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/EC_gpu.xml",
+    "cd /workspace/camlive/cam_live && PYTHONPATH=src ../.venv/bin/python -m cam_live.harness.grounding.bench --per-family 10"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EC.xml",
+    "docs/evidence/test_results/EC_gpu.xml",
+    "docs/evidence/EC/grounding_bench.json",
+    "docs/EC/MODEL_REVIEW.md"
+   ],
+   "limitations": "The repository's custom Florence-2 code is not executed: the checkpoint is loaded into transformers' native Florence-2 by renaming tensors (shape-checked), with weight tying switched off. There is no bit-level comparison with the original code (it needs transformers 4.45, timm, einops, none of which is here); equivalence evidence is behavioural (74 of 80 benchmark targets, identical CPU/GPU outputs). The custom code was reviewed by pattern scan and targeted reading, not line by line (about 120 kB unread; it never runs). Its confidence is ~1.0 even on wrong answers."
+  },
+  "CU-08": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/grounding/maiui.py",
+    "src/cam_live/harness/grounding/vocaela.py",
+    "docs/EC/MODEL_REVIEW.md"
+   ],
+   "integration_points": [
+    "cam_live.harness.grounding.load_grounder('mai-ui-2b')",
+    "cam_live.harness.grounding.MaiUIGrounder",
+    "cam_live.harness.grounding.VocaelaGrounder",
+    "cam_live.harness.visual.VisualConfig.grounder_order"
+   ],
+   "tests": [
+    "tests/harness/compute/test_ec_grounding.py::test_registry_pins_revisions_and_states_licences",
+    "tests/harness/compute/test_ec_grounding.py::test_model_answers_are_parsed_strictly",
+    "tests/harness/compute/test_ec_grounding.py::test_mai_ui_2b_grounds_under_the_shared_gpu_lock",
+    "tests/harness/compute/test_ec_grounding.py::test_vocaela_runs_for_evaluation_only",
+    "tests/harness/compute/test_ec_visual.py::test_grounded_click_reobserves_and_recovers_only_when_nothing_happened"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/EC_gpu.xml",
+    "cd /workspace/camlive/cam_live && PYTHONPATH=src ../.venv/bin/python -m cam_live.harness.grounding.bench --per-family 10"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EC_gpu.xml",
+    "docs/evidence/EC/grounding_bench.json",
+    "docs/EC/MODEL_REVIEW.md"
+   ],
+   "limitations": "MAI-UI-2B needs 4.3 GB of GPU memory: the visual executor takes the shared GPU lock for each call and unloads the model before releasing it (about 6 s load + 1.7 s inference per use on this host). Inputs are built by hand because transformers' packaged processor needs torchvision, which is not installed. Used for grounding only; its other output is ignored. Vocaela-2-500M is CC BY-NC-SA 4.0: evaluation only, refuses to load without accept_noncommercial=True and is never in the default order. The escalation from the lightweight to the advanced model inside VisualExecutor is tested with scripted grounders; with the real models it is measured by the benchmark's recovery phase, not by a pytest."
+  },
+  "CU-34": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/grounding/bench.py",
+    "src/cam_live/harness/grounding/bench_pages.py",
+    "src/cam_live/harness/grounding/reference.py"
+   ],
+   "integration_points": [
+    "python -m cam_live.harness.grounding.bench",
+    "cam_live.harness.grounding.bench.run"
+   ],
+   "tests": [
+    "tests/harness/compute/test_ec_visual.py::test_browser_grounded_click_with_the_reference_grounder_and_policy",
+    "tests/harness/compute/test_ec_visual.py::test_browser_multi_step_visual_workflow_with_verification",
+    "tests/harness/compute/test_ec_grounding.py::test_reference_grounder_finds_literal_labels_and_plain_colours",
+    "tests/harness/compute/test_ec_grounding.py::test_reference_grounder_fails_honestly_on_what_it_cannot_see"
+   ],
+   "commands": [
+    "cd /workspace/camlive/cam_live && PYTHONPATH=src ../.venv/bin/python -m cam_live.harness.grounding.bench --per-family 10"
+   ],
+   "evidence": [
+    "docs/evidence/EC/grounding_bench.json",
+    "docs/evidence/EC/grounding_bench_rows.json",
+    "docs/EC/MODEL_REVIEW.md"
+   ],
+   "limitations": "One run, 80 targets on 60 pages generated by EC (canvas buttons, icon-only controls, dense forms, 12-16 px targets, look-alike rows, three-step workflows), one renderer and one visual style, no confidence intervals. Not run on workstream EB's staging sites. Latencies were taken on a machine shared with other jobs (load average 8-10). Recovery is measured as one retry with a fixed fallback grounder on the reproduced failure state. bench.py itself has no pytest; its building blocks do."
+  }
+ },
+ "public_api": [
+  "cam_live.harness.sandbox.SandboxExecutor(workspace: Optional[str] = None, cfg: Optional[SandboxConfig] = None, sandbox: Optional[Sandbox] = None, jobs: Any = None)  # ModalityExecutor, modality='code'; .tools() .validate(action) .execute(action, ctx) .close() .capabilities() -> dict .jobs(ctx) -> JobManager",
+  "cam_live.harness.sandbox.SandboxConfig(base_dir='/var/tmp/cam-live-sbx', limits=SandboxLimits(), max_wall_s=600.0, uid_nproc=256, workspace_max_mb=2048, packages=('numpy','PIL','yaml'), extra_read_paths=(), allow_same_uid=False, landlock=True, seccomp=True, allow_private_destinations=False, egress_max_connections=16, egress_max_bytes=268435456, ...)",
+  "cam_live.harness.sandbox.SandboxLimits(wall_s=30.0, cpu_s=60, mem_mb=1024, mem_total_mb=2048, nproc=64, nofile=256, fsize_mb=64, out_bytes=65536)",
+  "cam_live.harness.sandbox.Sandbox(workspace: Optional[str] = None, cfg: Optional[SandboxConfig] = None): .available .unavailable_reason .capabilities() .run(argv, *, limits=None, network='none', broker=None, stdin=None, env=None, cwd='.', cancel=None, deadline_monotonic=None) -> RunResult .spawn(...) -> SandboxProcess .run_python(code, args=()) .run_shell(command) .write_file(path, data: bytes, append=False) .read_file(path, offset=0, max_bytes=None) .list_files(path='.', recursive=False, max_entries=1000) .usage() .close()",
+  "tool arguments: sandbox.python {code, args?, timeout_s?, network? ('none'|'scoped'), cwd?, stdin?, env?, limits?}; sandbox.shell {command, ...same}; sandbox.write_file {path, content, encoding? ('utf-8'|'base64'), append?}; sandbox.read_file {path, offset?, max_bytes?}; sandbox.list_files {path?, recursive?, max_entries?}; sandbox.job_start {purpose, kind ('python'|'shell'), code, deadline_s, args?, network?, cwd?, env?, limits?}; sandbox.job_status {job_id?}; sandbox.job_result {job_id, tail_bytes?}; sandbox.job_cancel {job_id}",
+  "cam_live.harness.jobs.JobManager(run_dir: str, sandbox: Optional[Sandbox] = None, clock: Optional[Clock] = None, event_sink: Optional[Callable[[Observation], None]] = None, max_concurrent: int = 4, max_queued: int = 32, max_deadline_s: float = 3600.0, tail_bytes: int = 4096): .submit(purpose, kind, code, *, deadline_s, limits=None, network='none', args=(), cwd='.', env=None, action_id='', broker_factory=None) -> JobRecord .submit_callable(purpose, fn: Callable[[threading.Event], Any], *, deadline_s, action_id='') -> JobRecord .status(job_id) -> JobRecord .list() .counts() .result(job_id, tail_bytes=None) -> dict .cancel(job_id) -> JobRecord .wait(job_id, timeout=None) -> JobRecord .events(cursor='') -> (List[Observation], next_cursor) .interrupted_on_open: List[str] .close()",
+  "cam_live.harness.jobs.JobState: QUEUED RUNNING SUCCEEDED FAILED TIMEOUT CANCELLED INTERRUPTED; JobRecord is a contracts.Record persisted at <run_dir>/jobs/<job_id>/record.json",
+  "cam_live.harness.visual.ScreenProvider (Protocol): screenshot() -> bytes; size() -> Tuple[int, int]; click(x, y); double_click(x, y); drag(x1, y1, x2, y2); scroll(dx, dy); type(text); key(combo)   [optional, used when present: url() -> str, screenshot_full_page() -> bytes, scroll(dx, dy, x=, y=)]",
+  "cam_live.harness.visual.VisualExecutor(screen: Optional[ScreenProvider] = None, *, screen_factory: Optional[Callable[[str, ActionSpec, ExecContext], ScreenProvider]] = None, grounders: Optional[Dict[str, VisualGrounder]] = None, grounder_factory: Optional[Callable[[str], VisualGrounder]] = None, cfg: Optional[VisualConfig] = None)  # ModalityExecutor, modality='visual'; .image(obs_id) -> bytes .current_observation_id(screen='default') -> str .capabilities()",
+  "tool arguments (all accept optional 'screen': str): visual.screenshot {mode? ('viewport'|'full_page')}; visual.crop {observation_id, x, y, width, height}; visual.click / visual.double_click {observation_id, x, y}; visual.drag {observation_id, x1, y1, x2, y2}; visual.scroll {observation_id, dy, dx?, x?, y?}; visual.type {observation_id, text}; visual.key {observation_id, combo}; visual.ground {target, grounder?}; visual.click_target {target, grounder?, action? ('click'|'double_click'), expect_change? (default true)}",
+  "result conventions: a stale observation -> status failed, failure_class stale_observation, and the fresh screenshot is in result.observations; policy denial -> status denied / needs_approval with failure_class missing_permission; ActionResult.verified is True/False only when ActionSpec.verify could be evaluated, else None; every executed action returns the new current image observation (use its obs_id next)",
+  "cam_live.harness.grounding.load_grounder(name: str, isolated: bool = True, **options) -> VisualGrounder   # names: 'goclick-base', 'mai-ui-2b', 'vocaela-2-500m' (needs accept_noncommercial=True), 'reference-template'",
+  "cam_live.harness.grounding.available_grounders() -> Dict[str, Dict]; REGISTRY; DEFAULT_ORDER = ('goclick-base', 'mai-ui-2b'); GroundingError, GrounderUnavailable, GrounderLoadRefused",
+  "grounder result: {'x': int, 'y': int, 'confidence': float, 'grounder': str, 'revision': str, 'raw': str, 'latency_s': float, ...}; optional attributes read by the executor: heavy: bool, close()",
+  "python -m cam_live.harness.grounding.bench [--grounders a,b] [--per-family N] [--families f1,f2] [--out FILE] [--lock-budget-s S] [--no-recovery]",
+  "primitive names sent to ExecContext.check: see docs/change_requests/EC.md (EC-CR-5); net.connect {host, port, ip, private, url, from} once per outbound connection of a scoped-network job"
+ ],
+ "change_requests": 5,
+ "measured": {
+  "tests_default_passed": 63,
+  "tests_default_skipped": 11,
+  "tests_default_seconds": 30.5,
+  "tests_cpu_browser_privileged_passed": 70,
+  "tests_cpu_browser_privileged_seconds": 55.2,
+  "tests_gpu_passed": 4,
+  "sandbox_shell_true_median_s": 0.0553,
+  "sandbox_python_pass_median_s": 0.0706,
+  "sandbox_uid_mode_on_this_host": "dedicated-uid (camsbx, uid 996)",
+  "landlock_abi": 1,
+  "bench_targets": 80,
+  "bench_pages": 60,
+  "bench_goclick-base_grounding_accuracy": 0.925,
+  "bench_goclick-base_e2e_success_rate": 0.925,
+  "bench_goclick-base_incorrect_actions": 2,
+  "bench_goclick-base_no_effect": 4,
+  "bench_goclick-base_no_proposal": 0,
+  "bench_goclick-base_compute_s_per_successful_operation": 0.2732,
+  "bench_goclick-base_gpu_mem_mb_peak": 694.6753,
+  "bench_goclick-base_params": 270803968,
+  "bench_mai-ui-2b_grounding_accuracy": 0.9375,
+  "bench_mai-ui-2b_e2e_success_rate": 0.9375,
+  "bench_mai-ui-2b_incorrect_actions": 0,
+  "bench_mai-ui-2b_no_effect": 5,
+  "bench_mai-ui-2b_no_proposal": 0,
+  "bench_mai-ui-2b_compute_s_per_successful_operation": 1.8342,
+  "bench_mai-ui-2b_gpu_mem_mb_peak": 4298.625,
+  "bench_mai-ui-2b_params": 2127532032,
+  "bench_reference-template_grounding_accuracy": 0.5,
+  "bench_reference-template_e2e_success_rate": 0.5,
+  "bench_reference-template_incorrect_actions": 10,
+  "bench_reference-template_no_effect": 20,
+  "bench_reference-template_no_proposal": 10,
+  "bench_reference-template_compute_s_per_successful_operation": 2.5189,
+  "bench_reference-template_gpu_mem_mb_peak": 0.0,
+  "bench_reference-template_params": 0,
+  "bench_vocaela-2-500m_grounding_accuracy": 0.9875,
+  "bench_vocaela-2-500m_e2e_success_rate": 0.9875,
+  "bench_vocaela-2-500m_incorrect_actions": 0,
+  "bench_vocaela-2-500m_no_effect": 1,
+  "bench_vocaela-2-500m_no_proposal": 0,
+  "bench_vocaela-2-500m_compute_s_per_successful_operation": 1.047,
+  "bench_vocaela-2-500m_gpu_mem_mb_peak": 1087.7056,
+  "bench_vocaela-2-500m_params": 498045120,
+  "bench_goclick-base_model_latency_mean_s": 0.2527,
+  "bench_mai-ui-2b_model_latency_mean_s": 1.7195,
+  "bench_reference-template_model_latency_mean_s": 1.2595,
+  "bench_vocaela-2-500m_model_latency_mean_s": 1.0339,
+  "bench_goclick-base_model_latency_median_s": 0.1151,
+  "bench_mai-ui-2b_model_latency_median_s": 1.6392,
+  "bench_reference-template_model_latency_median_s": 0.9166,
+  "bench_vocaela-2-500m_model_latency_median_s": 0.954,
+  "bench_goclick-base_recovered_of_retried": "5/6 with mai-ui-2b",
+  "bench_mai-ui-2b_recovered_of_retried": "4/5 with goclick-base",
+  "bench_reference-template_recovered_of_retried": "34/40 with goclick-base",
+  "bench_vocaela-2-500m_recovered_of_retried": "0/1 with goclick-base",
+  "bench_mai_ui_2b_shared_gpu_lock_held_s": 197.2,
+  "bench_executor_verification_agrees_with_page_state": "80/80 for each of the four grounders",
+  "bench_authorization_checks_visual_click": 362,
+  "mai_ui_x_slope_before_fix": 0.503,
+  "mai_ui_x_slope_after_mm_token_type_ids": 0.997,
+  "commands": {
+   "tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EC.xml",
+   "tests_default": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute -q --rootdir=cam_live",
+   "tests_gpu": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/EC_gpu.xml",
+   "bench": "cd /workspace/camlive/cam_live && PYTHONPATH=src ../.venv/bin/python -m cam_live.harness.grounding.bench --per-family 10",
+   "sandbox_overhead": "median of 15 Sandbox.run_shell('true') / run_python('pass') calls (inline script, workspace /var/tmp/cam-live-sbx/ws/measure)",
+   "mai_ui_slope": "14 single-button PIL screenshots, numpy.polyfit(true, predicted) (inline script, under the shared GPU lock)"
+  }
+ },
+ "packages_installed": [],
+ "host_changes": [
+  "privileged tests called cam_live.harness.ensure_service_users(): system users camlearn, cambrowser, camsbx, camauth, camverify and group camlive now exist in this container",
+  "model snapshots downloaded into /workspace/.hf_home/hub: HongxinLi/GoClick-Base@05633a49 (selected files, 1.08 GB), Tongyi-MAI/MAI-UI-2B@50305093 (4.26 GB), vocaela/Vocaela-2-500M-1024R2@b0280f2c (1.0 GB)",
+  "/var/tmp/cam-live-sbx/_support (interpreter links, network shim, approved-package links) and /var/tmp/cam-live-sbx/ws/{dev,measure} were created by manual runs; test directories were removed"
+ ],
+ "not_done": [
+  "SandboxExecutor and VisualExecutor are not registered in harness/env.py (ComputerEnvironment) and were never run through ExecRPC or the separated-process launcher: EC did not edit those files.",
+  "No test uses workstream EA's PolicyService or SecretBroker; the authorization check in every EC test is a recording callable with the check_primitive signature. The primitive names EC sends are listed in docs/change_requests/EC.md for EA.",
+  "No test drives VisualExecutor through workstream EB's BrowserScreen; EC's tests use their own Playwright page wrapper as instructed.",
+  "No desktop (non-browser) ScreenProvider: this host has no display server.",
+  "Kernel-level per-destination network filtering, cgroup memory limits and disk quotas are unavailable in this unprivileged container; the scoped-network broker and the monitor's watchdogs are the substitutes and capabilities() says so. A VM is recommended for live operation.",
+  "Scoped network works for Python processes only (socket shim over the broker descriptor); curl, git, pip-less tools and node have no network inside the sandbox. asyncio networking through the shim is untested.",
+  "GoClick-Base: no bit-level equivalence check against the publisher's code, and that code was not read line by line (it is never executed).",
+  "The lightweight-to-advanced escalation with the real models inside one visual.click_target call is not covered by a pytest (it needs both models and the shared GPU lock); the benchmark's recovery phase measures the same thing with a reproduced failure.",
+  "The grounding benchmark was run once, on EC's generated pages only (not on EB's staging sites), without repeated seeds or confidence intervals.",
+  "Grounder confidence values are not calibrated; VisualConfig.min_confidence defaults to 0 (no gating).",
+  "docs/evidence/EC/grounding_bench.json records the repository HEAD at run time (6d568fe), which predates the final EC commit; the grounding code did not change afterwards except for an internal cleanup hook (close/_release)."
+ ],
+ "scientific_failures": [
+  "The assumption that the larger model is at least as good everywhere did not hold: MAI-UI-2B reached 0.50 on dense forms (it clicked the label instead of the input field in 5 of 10 tasks) where GoClick-Base reached 0.90; overall 0.938 vs 0.925 on 80 targets is not a meaningful difference at this sample size.",
+  "GoClick-Base's token-probability confidence is about 1.0 for wrong answers as well, so it cannot be used to decide when to escalate; escalation has to rely on the re-observed effect.",
+  "The best model on this benchmark (Vocaela-2-500M, 0.988) cannot be the default because of its non-commercial licence."
+ ]
+}
