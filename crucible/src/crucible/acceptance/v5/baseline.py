@@ -26,6 +26,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 
 from . import manifest as M
@@ -147,6 +148,89 @@ def suite_resources(f: str) -> tuple[int, int, int, int]:
     return 1, 0, 6000, 4 * 3600
 
 
+GROUP_WALL_S = 3600                 # a slot job of unit-test files is packed to about an hour of measured wall time
+UNMEASURED_WALL_S = 600             # the assumed wall time of a unit-test file no slot job has measured
+
+
+def measured_usage(path: str | None = None) -> dict[str, dict]:
+    """Per test file, what slot jobs that ran it measured (the governor's usage ledger): the largest peak RSS and GPU
+    memory and wall time of any job whose command named the file (a job that ran several files, or a `-k` subset,
+    gives an upper bound for memory and a lower bound for the file's own wall time). Scheduling input only."""
+    out: dict[str, dict] = {}
+    try:
+        lines = open(path or os.path.join(os.environ.get("CRUCIBLE_SLOTS_DIR", "/tmp/crucible-slots"), "usage.jsonl"),
+                     encoding="utf-8").read().splitlines()
+    except OSError:
+        return out
+    for ln in lines:
+        try:
+            r = json.loads(ln)
+        except ValueError:
+            continue
+        cmd = [str(a) for a in r.get("cmd") or []]
+        files = {re.sub(r"^.*?(?=tests/)", "", a).split("::")[0] for a in cmd if re.search(r"(^|/)tests/.*\.py", a)}
+        subset = "-k" in cmd or any("::" in a for a in cmd)
+        for f in files:
+            d = out.setdefault(f, {"rss_mb": 0.0, "gpu_mb": 0.0, "wall_s": 0.0, "jobs": 0, "whole_file_wall_s": 0.0})
+            d["jobs"] += 1
+            d["rss_mb"] = max(d["rss_mb"], float(r.get("peak_rss_mb") or 0))
+            d["gpu_mb"] = max(d["gpu_mb"], float(r.get("peak_gpu_mb") or 0))
+            w = float(r.get("wall_s") or 0)
+            d["wall_s"] = max(d["wall_s"], w)
+            if len(files) == 1 and not subset:
+                d["whole_file_wall_s"] = max(d["whole_file_wall_s"], w)
+    return out
+
+
+def suite_plan(root: str, files: list[str], usage: dict | None = None) -> list[dict]:
+    """The slot jobs of a whole-suite run (Gate X.2/X.4, wave 3b verifier: one 6-hour job held 99 gate files, several of
+    which take 2-4.5 hours alone, so the governor killed it): every gate file (tests/v5/) is a job of its own; unit-test
+    files are packed per resource class into jobs of about GROUP_WALL_S measured wall time. A job asks for its class's
+    CPU and GPU, RAM 1.5x the largest measured peak RSS of its files (at least 2000 MB; the class's RAM when nothing
+    was measured), and a timeout of 3x its measured wall time (at least 30 minutes, at most 48 hours); a gate file no
+    job has measured gets its class's allowance, unmeasured unit-test files UNMEASURED_WALL_S each."""
+    usage = measured_usage() if usage is None else usage
+    jobs, by_class = [], {}
+
+    def est(f: str) -> float | None:
+        u = usage.get(f) or {}
+        w = max(float(u.get("whole_file_wall_s") or 0), float(u.get("wall_s") or 0))   # each a lower bound
+        return w or None
+
+    def job(fs: list[str], cls: tuple) -> dict:
+        cpu, gpu, ram, tmo = cls
+        peak = max((usage.get(f) or {}).get("rss_mb", 0.0) for f in fs)
+        walls = [est(f) for f in fs]
+        measured = all(w is not None for w in walls)
+        wall = sum(w if w is not None else UNMEASURED_WALL_S for w in walls)
+        if measured:
+            timeout = max(1800, 3 * wall)
+        elif fs[0].startswith("tests/v5/"):
+            timeout = tmo                       # a gate file nobody measured: its class's (multi-hour) allowance
+        else:
+            timeout = max(1800, min(tmo, 3 * wall))
+        return {"files": fs, "cpu": cpu, "gpu_mb": gpu, "ram_mb": int(max(2000, 1.5 * peak)) if peak else ram,
+                "timeout": int(min(48 * 3600, timeout)), "estimated_wall_s": round(wall, 1), "measured": measured}
+    for f in files:
+        cls = suite_resources(f)
+        if f.startswith("tests/v5/"):
+            jobs.append(job([f], cls))
+        else:
+            by_class.setdefault(cls, []).append(f)
+    for cls, fs in sorted(by_class.items()):
+        cur, load = [], 0.0
+        for f in sorted(fs, key=lambda x: -(est(x) or UNMEASURED_WALL_S)):
+            w = est(f) or UNMEASURED_WALL_S
+            if cur and load + w > GROUP_WALL_S:
+                jobs.append(job(cur, cls))
+                cur, load = [], 0.0
+            cur.append(f)
+            load += w
+        if cur:
+            jobs.append(job(cur, cls))
+    return jobs
+
+
 def slot_prefix(label: str, cpu: int, gpu: int, ram: int, timeout: int) -> list[str]:
     """The slot-scheduler command prefix for one suite group (crucible.scale.slots of the checkout being run)."""
     return [sys.executable, "-m", "crucible.scale.slots", "--cpu", str(cpu), "--gpu-mb", str(gpu), "--ram-mb", str(ram),
@@ -166,48 +250,56 @@ def run_pytest_groups(root: str, files: list[str], out_dir: str, workers: int = 
                MKL_NUM_THREADS="1", PYTHONDONTWRITEBYTECODE="1", **(extra_env or {}))
     plug = [x for p in plugins for x in ("-p", p)]
     if via_slots:
-        # every resource class is a group of its own, submitted as one slot job per `workers` share: the scheduler
-        # admits them as the machine's budget allows (GPU tests with a GPU, the rest without)
-        by_class: dict[tuple, list[str]] = {}
-        for f in files:
-            if f not in isolate:
-                by_class.setdefault(suite_resources(f), []).append(f)
-        batches = [(g, True, c) for c, fs in sorted(by_class.items()) for g in _groups(root, fs, workers)]
+        # one slot job per gate file, unit-test files packed per resource class (suite_plan): the scheduler admits
+        # them as the machine's budget allows; each job's timeout is enforced by the governor once it starts, so the
+        # wait here has no deadline of its own (a job may queue for hours)
+        usage = measured_usage()
+        plan = suite_plan(root, [f for f in files if f not in isolate], usage)
+        plan += [suite_plan(root, [f], usage)[0] for f in files if f in isolate]
+        batches = [(j["files"], j["files"][0] not in isolate, (j["cpu"], j["gpu_mb"], j["ram_mb"], j["timeout"]))
+                   for j in plan]
+        inflight = int(os.environ.get("CRUCIBLE_GATE_X_INFLIGHT", "8"))   # queued slot clients held at once
     else:
         batches = [(g, True, None) for g in _groups(root, [f for f in files if f not in isolate], workers)]
-    batches += [([f], False, suite_resources(f) if via_slots else None) for f in files if f in isolate]
-    procs, pending = [], list(enumerate(batches))
+        batches += [([f], False, None) for f in files if f in isolate]
+        inflight = max(1, len(batches))
     rcs, cases = [], []
 
     def start(i, g, res=None):
         junit = os.path.join(out_dir, f"group{i}.xml")
         log = open(os.path.join(out_dir, f"group{i}.log"), "w")
-        pre = slot_prefix(f"{via_slots}: suite group {i} ({len(g)} files)", *res) if res else []
+        name = g[0] if len(g) == 1 else f"{len(g)} files"
+        pre = slot_prefix(f"{via_slots}: suite job {i} ({name})", *res) if res else []
         return junit, log, subprocess.Popen(
             [*pre, sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-o", "addopts=", *plug,
-             f"--junitxml={junit}", *g], cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT)
-    for i, (g, concurrent, res) in pending:
-        if concurrent:
-            procs.append(start(i, g, res))
-    serial = [(i, g, res) for i, (g, concurrent, res) in pending if not concurrent]
+             f"--junitxml={junit}", *g], cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT), time.time()
     finished = []
-    for junit, log, p in procs:
-        try:
-            rcs.append(p.wait(timeout=timeout))
-        except subprocess.TimeoutExpired:
-            p.kill()
-            rcs.append("timeout")
-        log.close()
-        finished.append(junit)
-    for i, g, res in serial:                    # isolated files: one process each, after the groups
-        junit, log, p = start(i, g, res)
-        try:
-            rcs.append(p.wait(timeout=timeout))
-        except subprocess.TimeoutExpired:
-            p.kill()
-            rcs.append("timeout")
-        log.close()
-        finished.append(junit)
+
+    def drain(todo: list, limit: int) -> None:
+        """Run `todo` with at most `limit` processes at a time. A slot job's timeout is enforced by the governor once
+        it is admitted, so via the scheduler the wait has no deadline of its own (a job may queue for hours)."""
+        running = []
+        while todo or running:
+            while todo and len(running) < limit:
+                i, g, res = todo.pop(0)
+                running.append(start(i, g, res))
+            for item in list(running):
+                junit, log, p, t0 = item
+                rc = p.poll()
+                if rc is None and not via_slots and time.time() - t0 > timeout:
+                    p.kill()
+                    rc = "timeout"
+                    p.wait()
+                if rc is not None:
+                    rcs.append(rc)
+                    log.close()
+                    finished.append(junit)
+                    running.remove(item)
+            if running:
+                time.sleep(2)
+    pending = list(enumerate(batches))
+    drain([(i, g, res) for i, (g, conc, res) in pending if conc], inflight)
+    drain([(i, g, res) for i, (g, conc, res) in pending if not conc], 1)   # isolated files: one each, after
     for junit in finished:
         if os.path.exists(junit):
             for tc in ET.parse(junit).getroot().iter("testcase"):

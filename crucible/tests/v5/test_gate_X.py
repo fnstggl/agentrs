@@ -46,8 +46,10 @@ def _suite() -> dict:
                           *files], cwd=ROOT, env=env, capture_output=True, text=True)
     collected = {ln.strip() for ln in col.stdout.splitlines() if "::" in ln and not ln.startswith(" ")}
     out = tempfile.mkdtemp(prefix="gateX-suite-", dir=B.scratch_dir())
-    # through the slot scheduler by default (one slot job per resource class and worker share: GPU tests get a GPU,
-    # the multi-hour gates their RAM); CRUCIBLE_GATE_X_VIA_SLOTS=0 runs the groups in this process's own slot
+    # through the slot scheduler by default (baseline.suite_plan: one slot job per gate file and about an hour of
+    # unit-test files per job, each with its class's CPU/GPU and its measured RAM and wall time, at most
+    # CRUCIBLE_GATE_X_INFLIGHT jobs submitted at once); CRUCIBLE_GATE_X_VIA_SLOTS=0 runs the groups in this process's
+    # own slot
     via = None if os.environ.get("CRUCIBLE_GATE_X_VIA_SLOTS", "1") == "0" else "P: Gate X.2/X.4 suite"
     res = B.run_pytest_groups(ROOT, files, out, int(os.environ.get("CRUCIBLE_GATE_X_WORKERS", "1")),
                               timeout=30 * 3600, isolate=("tests/test_realworld_gate.py",), via_slots=via)

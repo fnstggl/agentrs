@@ -127,9 +127,32 @@ def test_the_whole_suite_runner_submits_each_resource_class_through_the_slot_sch
     assert sorted((c["name"], c["outcome"]) for c in res["cases"]) == [("test_a", "passed"), ("test_b", "passed"),
                                                                        ("test_iso", "passed")]
     jobs = [json.loads(ln) for ln in open(ledger / "usage.jsonl")]
-    assert sorted((j["label"].split(" (")[0], j["ram_mb"]) for j in jobs) == [
-        ("P: smoke: suite group 0", 2000), ("P: smoke: suite group 1", 2100), ("P: smoke: suite group 2", 2000)], jobs
+    assert sorted((j["label"], j["ram_mb"]) for j in jobs) == [
+        ("P: smoke: suite job 0 (tests/v5/test_gate_b.py)", 2100), ("P: smoke: suite job 1 (tests/test_a.py)", 2000),
+        ("P: smoke: suite job 2 (tests/test_iso.py)", 2000)], jobs
     assert all(j["cpu"] == 1 and j["gpu_mb"] == 0 and j["rc"] == 0 for j in jobs)
+
+
+def test_the_whole_suite_plan_gives_every_gate_file_its_own_job_with_measured_resources():
+    """Wave 3b verifier: one 6-hour job held 99 gate files (several take 2-4.5 hours alone; peak RSS about 9 GB) and
+    one worker ran them in one pytest process, so the governor killed the group. The plan gives every gate file a job
+    of its own, asks for 1.5x the measured peak RSS and 3x the measured wall time, keeps an unmeasured gate file's
+    multi-hour class allowance, and packs unit-test files into jobs of about an hour."""
+    usage = {"tests/v5/test_gate_B.py": {"rss_mb": 9000.0, "wall_s": 7170.0, "whole_file_wall_s": 0.0},
+             "tests/test_a.py": {"rss_mb": 500.0, "wall_s": 2000.0, "whole_file_wall_s": 2000.0},
+             "tests/test_b.py": {"rss_mb": 800.0, "wall_s": 2000.0, "whole_file_wall_s": 2000.0}}
+    files = ["tests/v5/test_gate_B.py", "tests/v5/test_gate_C.py", "tests/test_a.py", "tests/test_b.py",
+             "tests/test_c.py", "tests/test_d.py"]
+    plan = {tuple(j["files"]): j for j in B.suite_plan(B.M.crucible_root(), files, usage)}
+    b = plan[("tests/v5/test_gate_B.py",)]
+    assert b["ram_mb"] == 13500 and b["timeout"] == 3 * 7170 and b["measured"]
+    c = plan[("tests/v5/test_gate_C.py",)]
+    assert c["timeout"] == B.suite_resources("tests/v5/test_gate_C.py")[3] and not c["measured"]
+    units = [j for k, j in plan.items() if not k[0].startswith("tests/v5/")]
+    assert sorted(f for j in units for f in j["files"]) == ["tests/test_a.py", "tests/test_b.py", "tests/test_c.py",
+                                                           "tests/test_d.py"]
+    assert all(j["estimated_wall_s"] <= B.GROUP_WALL_S or len(j["files"]) == 1 for j in units)
+    assert all(j["timeout"] >= 3 * j["estimated_wall_s"] or j["timeout"] == 48 * 3600 for j in plan.values())
 
 
 def _fork_events(monkeypatch, historical: bool) -> list[str]:
