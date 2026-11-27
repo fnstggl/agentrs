@@ -236,39 +236,42 @@
   },
   "INT civic activities (Tier 3: marketplaces, employment, institutions)": {
    "implementation_files": [
-    "src/crucible/economy/work.py",
-    "src/crucible/economy/jobs.py",
-    "src/crucible/economy/assoc.py",
-    "src/crucible/economy/popbridge.py",
-    "src/crucible/commerce/marketplace.py",
-    "src/crucible/commerce/labor.py",
     "src/crucible/commerce/institutions.py",
+    "src/crucible/commerce/labor.py",
+    "src/crucible/commerce/marketplace.py",
+    "src/crucible/commerce/products.py",
     "src/crucible/commerce/rivals.py",
-    "src/crucible/commerce/products.py"
+    "src/crucible/economy/assoc.py",
+    "src/crucible/economy/jobs.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py"
    ],
    "tests": [
     "tests/test_v5_econ_civic.py",
-    "tests/test_v5_econ_civic.py::test_activity_continues_and_incumbent_days_never_fail"
+    "tests/test_v5_econ_civic.py::test_activity_continues_and_incumbent_days_never_fail",
+    "tests/test_v5_econ_jobs.py"
    ],
    "status_claim": "implemented; unit tests pass (startup world with exchanges, institutions and labour market); civilisation verification run: see test_results",
-   "notes": "Activities registered by economy.work where the subsystem module is present: exchange passes in `shop`, `jobs` (economy.jobs), `assoc` (economy.assoc); incumbents' labelled rules for staffing, passes and display campaigns (commerce.rivals). Wave 3b continuation: pass buyers also rate the seller on the venue (xchg.rate, same judgement as the product rating); a 12-week startup-world run (seed 21, n=700) keeps every activity going in each of the last four weeks (shifts, ballots, dues, pass orders) after DEF-F-7 was fixed (an incumbent's refused re-dismissal of staff on notice had rolled back its whole day, support included, from day 55: 26 rivals.failed). Further continuation changes: one employment view for the economy (economy.popbridge.employment: own employer or a labour-market contract) so association members insure labour-market jobs (a dismissed employee claims: labor -> inst chain); registered seekers employed elsewhere stop looking; incumbents leave a venue on their own refunded sales there. Startup-world 8-12-week probes (seeds 21, 5, 8; 1-3 formats; n 700-1000): 0 failed processes or rules, shifts, ballots and dues every week, pass orders in most weeks."
+   "notes": "Activities registered by economy.work where the subsystem module is present: exchange passes in `shop`, `jobs` (economy.jobs), `assoc` (economy.assoc); incumbents' labelled rules for staffing, passes and display campaigns (commerce.rivals). Wave 3b continuation: pass buyers also rate the seller on the venue (xchg.rate, same judgement as the product rating); a 12-week startup-world run (seed 21, n=700) keeps every activity going in each of the last four weeks (shifts, ballots, dues, pass orders) after DEF-F-7 was fixed (an incumbent's refused re-dismissal of staff on notice had rolled back its whole day, support included, from day 55: 26 rivals.failed). Further continuation changes: one employment view for the economy (economy.popbridge.employment: own employer or a labour-market contract) so association members insure labour-market jobs (a dismissed employee claims: labor -> inst chain); registered seekers employed elsewhere stop looking; incumbents leave a venue on their own refunded sales there. Startup-world 8-12-week probes (seeds 21, 5, 8; 1-3 formats; n 700-1000): 0 failed processes or rules, shifts, ballots and dues every week, pass orders in most weeks. Third continuation: the `jobs` activity coexists with workstream I-2's labour-market entrants (its column table is `work_jobs`, since I-2's `firms` declares a population table `jobs` and two writers of one column are refused; it decides only for the workers it registered itself, simulated workers are left to the labour market's worker model: tests/test_v5_econ_jobs.py, fails without the rule). Civilisation probe of wave-3b part 2 (4 profiles x 3-4 days, GPU slot, 61ab5d8): marketplaces and institutions connected (strict) in 3/4 and 4/4 profiles; employment active (labor.worker registrations of 177-233 individuals) but NOT connected: no posting or hire within 4 days (incumbents manage from day 3 and hire after two days of backlog), so employment stays missing from the strict subsystems in short civilisation runs unless other employers recruit (I-2's firms/plantlabor, pending J's ORDER change)."
   },
   "SP-2.3 migrations (institution, contract)": {
    "implementation_files": [
-    "src/crucible/substrate/primitives.py",
-    "src/crucible/substrate/facts.py",
-    "src/crucible/services/governance.py",
-    "src/crucible/services/contracts.py",
+    "src/crucible/commerce/contracts.py",
     "src/crucible/commerce/institutions.py",
-    "src/crucible/commerce/contracts.py"
+    "src/crucible/services/contracts.py",
+    "src/crucible/services/governance.py",
+    "src/crucible/substrate/facts.py",
+    "src/crucible/substrate/modes.py",
+    "src/crucible/substrate/primitives.py"
    ],
    "tests": [
-    "tests/test_v5_commerce_institutions.py::test_gov_writes_through_inst_charters",
     "tests/test_v5_commerce_contracts.py::test_every_commitment_is_one_contract_with_an_escrow_clause",
-    "tests/test_v5_substrate_facts.py"
+    "tests/test_v5_commerce_institutions.py::test_gov_writes_through_inst_charters",
+    "tests/test_v5_substrate_facts.py",
+    "tests/test_v5_substrate_typed.py"
    ],
    "status_claim": "implemented (D-40); the SP-2.3 gate itself (workstream A) was not run here",
-   "notes": "institution and contract leave the known-duplicate allow-list: shared_primitive_kinds should rise from 14 to 16 of 19."
+   "notes": "institution and contract leave the known-duplicate allow-list: shared_primitive_kinds should rise from 14 to 16 of 19. Continuation fix: the migration had left gov.constitution as the institution's primitive event with owner gov, failing tests/test_v5_substrate_typed.py::test_every_primitive_event_type_is_registered_with_its_owner; the primitive event is now inst.charter (owner inst) and gov.constitution is typed as a legacy writer (primitives.LEGACY_EVENTS, also read by substrate.modes)."
   },
   "display advertising (SP-5.5b input for workstream E)": {
    "implementation_files": [
@@ -302,7 +305,10 @@
   "E (calibration): in-world ad-holdout data are recorded by economy.work display campaigns (table ads_seen, kind work.ad_visit, extra.experiment {id: ad_holdout, arm: eligible|holdout}, model ad_response@2); startup_spec(..., rivals={'display_ads': True}) or any civilisation produces them; attention is the reference value (D-41).",
   "A (kernel/substrate): wave-3b edits to A's files for the D-40 migrations - substrate/primitives.py OWNERS.institution = inst.inst_charters; substrate/facts.py gov.* legacy entries (verified_by test_gov_writes_through_inst_charters), commit.commitments part of contracts.contracts, two KNOWN_DUPLICATES entries removed; tests/test_v5_substrate_facts.py kinds set without institution/contract; services/contracts.py escrow clause (instrument-only) and population persons in membership clauses; services/governance.py write-through where inst is installed (4.0 worlds unchanged). Please re-run tests/v5/test_gate_SP_2_3.py on the integration branch.",
   "P (QA): manifest implementation_files are empty for SP-6.1b, SP-6.2 and SP-6.6b; use the lists in this file.",
-  "N (research): K.n2 test needed `import os` (fixed in tests/v5/test_gate_K.py)."
+  "N (research): K.n2 test needed `import os` (fixed in tests/v5/test_gate_K.py).",
+  "ORCHESTRATOR / I-2 (dom2) overlap on the population's labour market: c5c/w3b-dom2 adds a second population job-search activity (`firms` `job_search`, decision model firms.job_search, population individuals entered as simulated labour-market workers whose offers, work and quitting the labour market's 4.0 worker model decides outside population sessions, skills copied into labor_workers) next to ECON's `jobs` (economy.jobs, decisions in the individual's own sessions, skills stay in population columns). ECON's side now coexists (column table renamed to work_jobs; it never acts for simulated workers). Requested of I-2: `act_job_search` should skip labour-market workers that are not simulated (registered by economy.jobs), otherwise it applies to postings on their behalf. Recommended: keep ONE population job-search path (D-15/D-39: in-session decisions; I-2's education-aware profile could feed economy.jobs' declared skills) - an orchestrator decision.",
+  "ORCHESTRATOR (merge): services/contracts.py membership-clause edit for population persons exists on both c5c/w3b-econ1 and c5c/w3b-dom2 with the same meaning (textual conflict; keep either regex, plus econ1's escrow clause).",
+  "I-2 (plantlabor): it emits `make.own_operators` (an event type applied by economy.industry) to count labour-market employees of factories; if SP-2.3b's checker counts that as a cross-module state write, ECON can instead make industry.operators() count active labour-market employees of the facility owner directly (then plantlabor is not needed) - ask before both exist, or operators are double counted."
  ],
  "history": {
   "wave2": {
@@ -312,10 +318,12 @@
   },
   "wave3b_part1": {
    "note": "first wave-3b agent (stopped by a usage limit 19:05 UTC): commits 33128e5..a980c73 - civic activities, display advertising, SP-2.3 migrations, gates SP-6.1b/SP-6.2/SP-6.6b, D-39..D-41, DEF-F-1..F-6; its verification runs (gate K incl. K.n1, civ core, civ probe) never ran (test_results was empty)."
-  }
+  },
+  "wave3b_part2": "second wave-3b agent (stopped 2026-11-26 ~22:00 UTC): commits de0b80c..61ab5d8 - xchg seller ratings, DEF-F-7 staffing fix + 12-week regression, one employment view, venue exit on own refunds, display holdout test.",
+  "wave3b_part3": "third agent (2026-11-27): orphan gate job read (13/14), jobs coexistence with I-2 (work_jobs, sim workers), typed labour events, primitive institution event fix, integration notes on I-2 overlaps."
  },
  "test_results": {
-  "note": "wave 3b continuation (re-run on the branch head after merging feat/crucible-5-complete; local runs are single-threaded CPU; slot runs as labelled). Unofficial: official evidence comes from clean clones.",
+  "note": "wave 3b third continuation (2026-11-27): gate runs of a snapshot clone of 61ab5d8 in a slot (1 CPU, no GPU); unit tests single-threaded CPU on the head. Unofficial: official evidence comes from clean clones.",
   "tests/test_v5_commerce_contracts.py + test_v5_commerce_institutions.py + test_v5_commerce_labor.py": "38 passed",
   "tests/test_v5_commerce_modules.py + tests/v5/test_gate_SP_6_6.py + tests/v5/test_gate_SP_6_6b.py": "24 passed",
   "tests/v5/test_gate_K.py -m 'not slow' (K.1-K.7, K.n2)": "8 passed",
@@ -328,6 +336,12 @@
   "tests/v5/test_gate_SP_6_1.py": "1 passed (business_features 20/20)",
   "tests/v5/test_gate_SP_6_2.py": "1 failed, honestly: recurring_revenue_systems_of_record 2 (social/creators.py bills memberships itself; integration note CORE-POP); revenue_features 11/11, rolling_sales_counted_as_recurring 0, product_catalogues 1",
   "in-world ad holdout (startup, seed 3, n=2000, 45 days, 1,696 draws)": "shift 1.31 vs Criteo 1.39, z -0.21, matching",
-  "pending (slot queue)": "gate K incl. K.n1, SP-6.1b, civ probe (4 profiles), tests/test_v5_civ_core.py, regression of touched packages"
+  "tests/v5/test_gate_K.py (K.1-K.7, K.n1, K.n2) + SP_6_1 + SP_6_1b + SP_6_2 + SP_6_6 + SP_6_6b (snapshot 61ab5d8, slot)": "13 passed, 1 failed (SP-6.2, honestly: recurring_revenue_systems_of_record 2 - social/creators.py:109); K.n1: reference ARR $147,039.72 (2 seeds, scripted, population demand only, >= 359 independent customers, largest customer share 0.29%), idle and input-ignoring service ARR $0; SP-6.1b: useless_product_revenue_share 0.0, value_revenue_relation_pvalue 1.0e-4 (Spearman 0.93, 15 firms, 3 worlds); SP-6.6b: 6 scenarios, collusive revenue 0; SP-6.6: 14/14 core-law attempts blocked; SP-6.1: 20/20; wall 19.6 min",
+  "tests/test_v5_econ_civic.py -k \"not continues\" (head)": "6 passed",
+  "tests/test_v5_econ_jobs.py (head)": "1 passed (fails without the one-decision-path rule)",
+  "tests/test_v5_commerce_labor.py + institutions + contracts + econ_jobs (head)": "39 passed",
+  "tests/test_open_institutions.py + gates SP_6_6/SP_6_6b + test_v5_substrate_bus.py + test_v5_substrate_typed.py (head before the primitive fix)": "22 passed, 1 failed (test_v5_substrate_typed primitive owner - pre-existing on this branch since 6263e5e, fixed in a1194db)",
+  "tests/test_v5_substrate_typed.py + facts + primitives (head)": "95 passed",
+  "typed + strict startup world (seed 21, n=700, xchg/inst/labor, 40 days)": "0 proc.failed / rivals.failed / rejected; 0 invariant errors (civilisations become typed and strict on c5c/w3b-civ)"
  }
 }

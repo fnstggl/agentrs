@@ -302,6 +302,13 @@ contracts, the economy reads "has work" through one function, `economy.popbridge
 labour-market contract, notice included): association members insure labour-market jobs too, so a dismissal by an
 incumbent reaches the association as a claim. A registered seeker who found an employer of its own stops looking.
 Incumbents leave a venue on their own refunded sales there, never on the venue's refunds of other sellers.
+Addendum 2 (wave-3b continuation, coexistence with workstream I-2): one decision path per labour-market worker.
+`economy.jobs` decides only for individuals it registered itself (non-simulated workers, decisions in their own
+sessions); an individual another module entered as a simulated worker (I-2's `firms`: initial staff and its
+`job_search` activity) is left to the labour market's worker model. The activity's column table is `work_jobs`
+(I-2's `firms` declares a population table `jobs`; the column ownership rules refuse two writers of one column).
+Which of the two population job-search paths survives the merge is an orchestrator decision (integration note in
+docs/v5/workstreams/F.json); until then they partition the workers.
 
 ## D-40 SP-2.3 migrations of the institution and contract primitives (2026-11-26, workstream F, wave 3b)
 As docs/v5/workstreams/A.json integration_notes specify: `primitives.OWNERS["institution"]` is `inst.inst_charters`
@@ -316,6 +323,9 @@ commitment (completed / breached by the payee / cancelled); `commit.commitments`
 details). Both kinds leave the known-duplicate allow-list. Approximation stated in
 `commerce.institutions.charter_from_constitution`: a 4.0 vote counted yes against the whole electorate, a charter
 procedure counts the votes cast against its quorum.
+Addendum (wave-3b continuation): the institution's typed primitive event is `inst.charter` (`primitives.PRIMITIVE_EVENTS`,
+owner `inst`); `gov.constitution` stays typed as the kind's legacy writer (`primitives.LEGACY_EVENTS`, read with the
+primitive events by `substrate.modes`), so tests/test_v5_substrate_typed.py holds again after the migration.
 
 ## D-41 Display advertising on the population with randomised eligibility (2026-11-26, workstream F, wave 3b)
 The in-world advertising mechanism is `ad_response@2` (calibration/RUNTIME.md), applied to display campaigns shown in
