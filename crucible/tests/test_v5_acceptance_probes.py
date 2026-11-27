@@ -1496,3 +1496,36 @@ def test_V9b_an_ablation_run_without_its_measured_process_falls_back_to_nothing(
     repo.commit("an ablation run from before the observer")
     _, row = rejected(repo)
     assert has(row, "does not name its measured process"), row["problems"]
+
+
+SWAPPED_MODULE = '''import sys
+import types
+
+from crucible.acceptance.v5 import evidence
+import widgets
+
+
+def _swap(mods, real):
+    mods["widgets_real"] = real
+    mods["widgets"] = types.SimpleNamespace(count=real.count, leaks=int)
+
+
+def test_z():
+    _swap(sys.modules, widgets)
+    w = sys.modules["widgets"]
+    n = w.count()
+    leaks = w.leaks()
+    evidence.record("Z.1", {"widgets": n, "leaks": leaks})
+    assert n >= 10 and leaks == 0
+'''
+
+
+def test_V13_a_module_substituted_in_sys_modules_is_rejected(tmp_path, monkeypatch):
+    """A helper keeps the real implementation module under another name (so the record lists it as imported) and
+    puts an object with a fixed `leaks` under its name. The implementation's functions are untouched, so no function
+    check sees anything. Records now list sys.modules entries that do not hold the module they name."""
+    r = Repo(str(tmp_path), monkeypatch, widgets=DEFECT, test_src=SWAPPED_MODULE)
+    assert not testscan.blocking(next(f for f in testscan.scan_source(SWAPPED_MODULE))["findings"])
+    _, row = attempt(r)
+    assert row["status"] != "VERIFIED", row["problems"]
+    assert has(row, "sys.modules['widgets']"), row["problems"]

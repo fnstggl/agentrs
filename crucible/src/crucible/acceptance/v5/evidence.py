@@ -585,6 +585,39 @@ def rebound_definitions(root: str) -> list[str]:
     return sorted(set(out))
 
 
+def substituted_modules(root: str) -> list[str]:
+    """sys.modules entries that do not name the module they hold, for the checkout's src/ packages (wave 3b repair
+    pass, second round): a module of src/ registered under another name (`sys.modules["widgets_real"] = widgets`), and
+    an entry under a src/ package's name that is not that package's own file (`sys.modules["widgets"] = fake`: an
+    object without a file, or a file elsewhere). Namespace packages (no file, every path entry under src/) and the
+    interpreter's `__main__` are what they claim."""
+    root = os.path.realpath(root)
+    src = os.path.join(root, "src")
+    try:
+        tops = {n[:-3] if n.endswith(".py") else n for n in os.listdir(src)
+                if (n.endswith(".py") or os.path.isdir(os.path.join(src, n))) and not n.startswith((".", "_"))}
+    except OSError:
+        return []
+    out = []
+    for name, mod in list(sys.modules.items()):
+        if name == "__main__" or mod is None:
+            continue
+        f = getattr(mod, "__file__", None)
+        rf = os.path.realpath(f) if isinstance(f, str) else None
+        if rf and _under(rf, [src]) and rf.endswith(".py"):
+            rel = os.path.relpath(rf, src)[:-3].split(os.sep)
+            expected = ".".join(rel[:-1] if rel[-1] == "__init__" else rel)
+            if name != expected:
+                out.append(f"sys.modules[{name!r}] <- holds {expected} ({os.path.relpath(rf, root)})")
+        elif name.split(".")[0] in tops:
+            paths = list(getattr(mod, "__path__", None) or [])
+            if rf is None and paths and all(_under(os.path.realpath(p), [src]) for p in paths):
+                continue                                # a namespace package of src/
+            out.append(f"sys.modules[{name!r}] <- not the checkout's module ({type(mod).__name__}"
+                       f"{', ' + rf if rf else ''})")
+    return sorted(set(out))
+
+
 _GENERATED: dict[tuple, bool] = {}
 
 
@@ -848,7 +881,8 @@ def record(requirement: str, metrics: dict, *, command: str | None = None, artif
            "modules": mods, "modules_outside_root": outside, "files_read": reads,
            "files_read_truncated": bool(_TRUNCATED[0]) if run else False,
            "interpreter": interpreter(), "site_hooks": site_hooks(), "foreign_modules": foreign_modules(root),
-           "patched_functions": patched_functions(root) + code_object_patches(root) + rebound_definitions(root),
+           "patched_functions": patched_functions(root) + code_object_patches(root) + rebound_definitions(root)
+           + substituted_modules(root),
            "python_env": python_env(),
            "executed_implementation": executed_implementation(root, requirement) if run else None,
            "datasets": dataset_checksums(datasets),
