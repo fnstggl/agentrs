@@ -47,7 +47,7 @@ def _true_count(lam, tau, a, h):
     return lam[a] * (1.0 - torch.exp(-h / tau[a]))
 
 
-def test_recovers_action_conditioned_count_rates_and_delayed_effects(gen):
+def test_recovers_action_conditioned_count_rates_and_delayed_effects(gen, measure):
     e_a, lam, tau, horizons, e_q = _count_world(gen)
     n = 4000
     a = torch.randint(0, len(lam), (n,), generator=gen)
@@ -75,6 +75,8 @@ def test_recovers_action_conditioned_count_rates_and_delayed_effects(gen):
     rel = float(((pred - true).abs() / (true + 0.5)).mean())
     corr = float(torch.corrcoef(torch.stack([true, pred]))[0, 1])
     assert met["nll_count"] < first - 0.5
+    measure("world_count_mean_relative_error", rel)
+    measure("world_count_pred_true_corr", corr)
     assert rel < 0.2 and corr > 0.97, (rel, corr)
     # delayed effect: the slow action (tau = 2 days) must be predicted to yield far less at 1 hour than at 3 days,
     # and the fast one (tau = 30 min) to be nearly saturated after 6 hours
@@ -126,7 +128,7 @@ def _mixed_batch(n, gen):
                 expo=expo, ncat=ncat, p_event=1.0 - torch.exp(-rate * 10.0), u=u)
 
 
-def test_all_kinds_learn_with_pending_entries(gen):
+def test_all_kinds_learn_with_pending_entries(gen, measure):
     d = _mixed_batch(3000, gen)
     n = 3000
     pending = torch.rand(n, 5, generator=gen) < 0.3                  # 30 % of the outcomes have not matured
@@ -154,6 +156,8 @@ def test_all_kinds_learn_with_pending_entries(gen):
         out = forward(full)
         _, met = world_nll(out, WorldTargets(d["y"], d["observed"], d["censored"]))
         pred = out.predictive()
+    measure("world_nll_by_kind", {k[4:]: round(v, 4) for k, v in met.items() if k.startswith("nll_")})
+    measure("world_nll_oracle_by_kind", {k: round(v, 4) for k, v in d["oracle"].items()})
     for name in ("real", "count", "binary", "categorical", "time_to_event"):
         assert met[f"nll_{name}"] < d["oracle"][name] + 0.15, (name, met[f"nll_{name}"], d["oracle"][name])
         assert met[f"nll_{name}"] < first[f"nll_{name}"]
@@ -190,7 +194,7 @@ def test_pending_targets_contribute_exactly_zero_gradient(gen):
         y = torch.where(pending, torch.full_like(d["y"], fill), d["y"])
         l, _ = world_nll(o, WorldTargets(y, d["observed"] & ~pending, d["censored"] & ~pending))
         l.backward()
-        return torch.cat([p.grad.flatten() for p in heads.parameters() if p.grad is not None]), float(l)
+        return torch.cat([p.grad.flatten() for p in heads.parameters() if p.grad is not None]), float(l.detach())
 
     g_nan, l_nan = grads(float("nan"))
     g_big, l_big = grads(1e30)
@@ -232,7 +236,7 @@ def test_candidate_selection_and_per_candidate_queries(gen):
     assert not torch.allclose(out.raw, out2.raw)
 
 
-def test_per_kind_normalisation_stops_one_kind_dominating(gen):
+def test_per_kind_normalisation_stops_one_kind_dominating(gen, measure):
     n = 64
     z = torch.randn(n, 1, DM, generator=gen)
     e_q = torch.randn(2, DM, generator=gen).expand(n, 2, DM)
@@ -255,6 +259,8 @@ def test_per_kind_normalisation_stops_one_kind_dominating(gen):
 
     raw = share(None)
     normed = share(KindNormaliser())
+    measure("world_trunk_grad_ratio_count_over_binary_raw", raw)
+    measure("world_trunk_grad_ratio_count_over_binary_normalised", normed)
     assert raw > 1e3                     # un-normalised, the count likelihood owns the shared trunk
     assert normed < 30 and normed < raw / 100
     # the metrics still report the plain per-kind NLL
@@ -296,9 +302,12 @@ def _fit_real(n, seed, members=5, steps=400):
     return epistemic(z_in), epistemic(z_off)
 
 
-def test_epistemic_uncertainty_shrinks_with_data_and_is_larger_off_distribution():
+def test_epistemic_uncertainty_shrinks_with_data_and_is_larger_off_distribution(measure):
     small = [_fit_real(24, s) for s in (0, 1)]
     large = [_fit_real(2048, s) for s in (0, 1)]
+    measure("world_epistemic_std_n24_in_dist", [s[0] for s in small])
+    measure("world_epistemic_std_n2048_in_dist", [l[0] for l in large])
+    measure("world_epistemic_std_n2048_off_dist", [l[1] for l in large])
     for (s_in, _), (l_in, l_off) in zip(small, large):
         assert l_in < 0.6 * s_in, (s_in, l_in)           # more data -> less reducible uncertainty on-distribution
         assert l_off > 2.0 * l_in, (l_in, l_off)         # away from the data the members still disagree
@@ -402,7 +411,7 @@ def _latent_dynamics(gen):
     return step
 
 
-def test_latent_transition_learns_dynamics_and_masks_missing_next(gen):
+def test_latent_transition_learns_dynamics_and_masks_missing_next(gen, measure):
     step = _latent_dynamics(gen)
     n = 3000
     b = torch.randn(n, DM, generator=gen)
@@ -424,6 +433,8 @@ def test_latent_transition_learns_dynamics_and_masks_missing_next(gen):
         _, met = transition_nll(out, b_next)
         persistence = float(((b - b_next) ** 2).mean() / b_next.var(0).mean())
     assert out.imagined is True
+    measure("transition_nmse", met["transition_nmse"])
+    measure("transition_persistence_nmse", persistence)
     assert met["transition_nll"] < first["transition_nll"] - 0.5
     assert met["transition_nmse"] < 0.05 and met["transition_nmse"] < 0.3 * persistence
     # the learned aleatoric spread is close to the true process noise (0.05)

@@ -111,9 +111,7 @@ def validate_schema(value: Any, schema: Any, path: str = "$") -> List[str]:
         errs.append(f"{path}: must equal {schema['const']!r}")
     if "enum" in schema and not any(_json_equal(value, e) for e in schema["enum"]):
         errs.append(f"{path}: {value!r} is not one of the allowed values")
-    if isinstance(value, bool):
-        pass
-    elif isinstance(value, (int, float)):
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
         if "minimum" in schema and value < schema["minimum"]:
             errs.append(f"{path}: {value} < minimum {schema['minimum']}")
         if "maximum" in schema and value > schema["maximum"]:

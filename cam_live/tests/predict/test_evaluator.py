@@ -50,7 +50,7 @@ def _overconfident(seed=0):
     return ev
 
 
-def test_overconfident_evaluator_receives_corrective_gradients_and_calibration_improves(gen):
+def test_overconfident_evaluator_receives_corrective_gradients_and_calibration_improves(gen, measure):
     direction = torch.randn(DM, generator=gen)
     direction = direction / direction.norm() * 2.0
     train = _trajectories(700, gen, direction)
@@ -98,6 +98,12 @@ def test_overconfident_evaluator_receives_corrective_gradients_and_calibration_i
         o = run(held)
     p1 = o.p_success
     after = C.binary_report(p1.reshape(-1), y_held, clusters=np.repeat(np.arange(500), T))
+    for tag, rep in (("before", before), ("after", after)):
+        measure(f"evaluator_overconfident_{tag}", {"brier": rep["brier"]["mean"], "nll": rep["nll"]["mean"],
+                                                   "ece": rep["ece"]["ece"], "mean_p": rep["mean_p"],
+                                                   "base_rate": rep["base_rate"],
+                                                   "slope": rep["calibration"]["slope"],
+                                                   "intercept": rep["calibration"]["intercept"]})
     assert after["brier"]["mean"] < before["brier"]["mean"] - 0.15
     assert after["nll"]["mean"] < before["nll"]["mean"] - 0.3
     assert after["ece"]["ece"] < 0.08 < before["ece"]["ece"] - 0.3
@@ -246,7 +252,7 @@ def test_delta_v_is_a_detached_signal(gen):
     assert bool((sig["dv_prob"].abs() <= 1).all())
 
 
-def test_action_quality_separates_a_good_decision_from_a_lucky_outcome(gen):
+def test_action_quality_separates_a_good_decision_from_a_lucky_outcome(gen, measure):
     """Bandit with four candidate actions of very different success probability. The evaluator's Q read-out is
     trained on logged (uniformly chosen) decisions and their binary outcomes; afterwards, decisions are judged."""
     p_arm = torch.tensor([0.1, 0.3, 0.6, 0.85])
@@ -286,6 +292,8 @@ def test_action_quality_separates_a_good_decision_from_a_lucky_outcome(gen):
     truly_good = p_arm[chosen] > p_arm.mean()
     by_quality = ((aq["quality"] > 0) == truly_good).float().mean()
     by_outcome = ((y2 > 0.5) == truly_good).float().mean()
+    measure("decision_judged_by_action_quality_accuracy", float(by_quality))
+    measure("decision_judged_by_raw_outcome_accuracy", float(by_outcome))
     assert float(by_quality) > 0.97 and float(by_outcome) < 0.85          # the raw outcome confuses luck with skill
     lucky = (chosen == 0) & (y2 == 1)                                     # worst action, happened to succeed
     unlucky = (chosen == 3) & (y2 == 0)                                   # best action, happened to fail

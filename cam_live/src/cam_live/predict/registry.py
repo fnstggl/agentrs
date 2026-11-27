@@ -36,7 +36,7 @@ from .imagination import refuse_imagined
 
 
 class RegistryError(ValueError):
-    pass
+    """A registry rule was violated; nothing was written."""
 
 
 class DuplicatePredictionError(RegistryError):
@@ -52,7 +52,7 @@ class ResolutionBeforePredictionError(RegistryError):
 
 
 class UnknownRecordError(RegistryError, KeyError):
-    pass
+    """No record with that id."""
 
 
 class TamperedRegistryError(RegistryError):

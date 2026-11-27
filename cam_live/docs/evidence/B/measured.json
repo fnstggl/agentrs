@@ -1,0 +1,104 @@
+{
+ "decision_judged_by_action_quality_accuracy": 1.0,
+ "decision_judged_by_raw_outcome_accuracy": 0.7630000114440918,
+ "downstream_estimator_spearman_heldout": 0.6165905460848503,
+ "downstream_reference_accurate_spearman": 0.6708881969116581,
+ "downstream_reference_misspecified_spearman": -0.3351073197425549,
+ "evaluator_overconfident_after": {
+  "base_rate": 0.324,
+  "brier": 0.18600375075545816,
+  "ece": 0.06803710239976646,
+  "intercept": -0.06915883515784227,
+  "mean_p": 0.29827901598364115,
+  "nll": 0.5526147711053521,
+  "slope": 0.6931262403607342
+ },
+ "evaluator_overconfident_before": {
+  "base_rate": 0.324,
+  "brier": 0.4465854124329758,
+  "ece": 0.47704368934631347,
+  "intercept": -6.926487783578644,
+  "mean_p": 0.8010436893463134,
+  "nll": 1.1633687836222768,
+  "slope": 4.444822184659371
+ },
+ "glm_bernoulli_realised_gain": [
+  0.03272682817717422,
+  0.010407798686037664,
+  0.0
+ ],
+ "glm_bernoulli_voi": [
+  0.03386274459279881,
+  0.006266896545272238,
+  1.1102230246251565e-16
+ ],
+ "glm_poisson_realised_gain": [
+  0.3762515080569809,
+  0.10268607635094434,
+  0.0
+ ],
+ "glm_poisson_voi": [
+  0.5501263368295335,
+  0.13714785447579358,
+  0.0
+ ],
+ "imagination_allowed_horizon": 3,
+ "imagination_open_loop_nmse_by_steps": [
+  0.0012556765965806942,
+  0.0027572627179324625,
+  0.0046016707783564925,
+  0.006779503698150317,
+  0.009284863714128733
+ ],
+ "info_gain_spearman_vs_realised_regret_reduction_mean": 0.8538810045586237,
+ "labworld_count_nll_after_learning": 1.9101063227168276,
+ "labworld_count_nll_before_learning": 2.156872868995266,
+ "labworld_count_nll_oracle": 1.8993648815636053,
+ "labworld_cover90_after_learning": 0.9666666666666667,
+ "labworld_experiment_ci": [
+  1.7060242142872257,
+  3.1064757857127745
+ ],
+ "labworld_experiment_estimated_difference": 2.40625,
+ "labworld_experiment_true_difference": 2.5397634689911106,
+ "labworld_predicted_vs_true_mean_corr": 0.9849009776753656,
+ "policy_accuracy_permuted_belief": 0.25,
+ "policy_accuracy_true_belief": 0.984375,
+ "policy_kl_under_belief_permutation_at_init": 0.0002561377455693792,
+ "policy_kl_under_belief_permutation_trained": 15.655890642998441,
+ "policy_meta_gradient_max_rel_error_vs_finite_difference": 1.5542732962484487e-08,
+ "surprise_spearman_vs_realised_regret_reduction_mean": -0.22895188958716525,
+ "transition_nmse": 0.005289477833281063,
+ "transition_persistence_nmse": 0.15103715658187866,
+ "voi_spearman_vs_realised_regret_reduction_mean": 0.9743267731439639,
+ "world_count_mean_relative_error": 0.07100296765565872,
+ "world_count_pred_true_corr": 0.9944304823875427,
+ "world_epistemic_std_n2048_in_dist": [
+  0.09737424552440643,
+  0.09500590711832047
+ ],
+ "world_epistemic_std_n2048_off_dist": [
+  0.4066387414932251,
+  0.7019236087799072
+ ],
+ "world_epistemic_std_n24_in_dist": [
+  0.16561874747276306,
+  0.23591738939285278
+ ],
+ "world_nll_by_kind": {
+  "binary": 0.5895,
+  "categorical": 0.8156,
+  "count": 1.8702,
+  "real": 0.735,
+  "time_to_event": 1.8484
+ },
+ "world_nll_oracle_by_kind": {
+  "binary": 0.6047,
+  "categorical": 0.8364,
+  "count": 1.8766,
+  "real": 0.7258,
+  "time_to_event": 1.8888
+ },
+ "world_trunk_grad_ratio_count_over_binary_normalised": 1.271062633639752,
+ "world_trunk_grad_ratio_count_over_binary_raw": 54344.30562873375
+}

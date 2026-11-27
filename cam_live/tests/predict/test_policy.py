@@ -176,7 +176,7 @@ def test_randomised_assignment_over_arms(gen):
 # ----------------------------------------------------------------------------------------------------------------
 # dependence on the latent
 # ----------------------------------------------------------------------------------------------------------------
-def test_permuting_belief_changes_the_action_distribution(gen):
+def test_permuting_belief_changes_the_action_distribution(gen, measure):
     """The candidates are identical for every decision; only the belief differs. A policy that ignored b would
     give the same distribution for every row (KL = 0)."""
     n_arm, bsz = 5, 64
@@ -210,6 +210,10 @@ def test_permuting_belief_changes_the_action_distribution(gen):
         perm = torch.roll(torch.arange(bsz), 1)
         acc_perm = float((pol(z_const, mask, b[perm]).probs.argmax(-1) == best(b)).float().mean())
     dep = latent_dependence(pol, z_const, mask, b)
+    measure("policy_kl_under_belief_permutation_at_init", at_init["kl"])
+    measure("policy_kl_under_belief_permutation_trained", dep["kl"])
+    measure("policy_accuracy_true_belief", acc)
+    measure("policy_accuracy_permuted_belief", acc_perm)
     assert acc > 0.8 and acc_perm < 0.45
     assert dep["kl"] > 0.5 and dep["tv"] > 0.4 and dep["argmax_changed"] > 0.5
     # with z recomputed from the permuted belief (the model's decision_latent) dependence is at least as visible
@@ -220,7 +224,7 @@ def test_permuting_belief_changes_the_action_distribution(gen):
 # ----------------------------------------------------------------------------------------------------------------
 # functional forward and differentiation through an update
 # ----------------------------------------------------------------------------------------------------------------
-def test_functional_forward_matches_module_and_supports_meta_gradients(gen):
+def test_functional_forward_matches_module_and_supports_meta_gradients(gen, measure):
     pol = _policy(hidden=24).double()
     z, mask, b = (t.double() if t.dtype.is_floating_point else t for t in _batch(gen, b=6, n=4))
     params = pol.named_param_dict()
@@ -262,6 +266,8 @@ def test_functional_forward_matches_module_and_supports_meta_gradients(gen):
         d[i] = h
         g_fd[i] = ((outer(psi.detach() + d) - outer(psi.detach() - d)) / (2 * h)).detach()
     assert float(g_auto.norm()) > 1e-6
+    measure("policy_meta_gradient_max_rel_error_vs_finite_difference",
+            float(((g_auto - g_fd).abs() / g_fd.abs().clamp_min(1e-12)).max()))
     np.testing.assert_allclose(g_auto, g_fd, rtol=1e-5, atol=1e-10)
     # cutting the inner signal removes the dependence entirely
     out_cut = outer(psi, detach_inner=True)

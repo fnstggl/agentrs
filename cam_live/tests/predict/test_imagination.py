@@ -84,7 +84,7 @@ def test_rollout_is_flagged_tracks_truth_and_spread_grows(gen):
         assert all(isinstance(v, (torch.Tensor, int, bool)) for v in vars(s).values())
 
 
-def test_horizon_grows_only_while_measured_error_is_small(gen):
+def test_horizon_grows_only_while_measured_error_is_small(gen, measure):
     dyn, tr = _train(gen)
     b_seq, e_a, e_g, dt = _real_sequences(dyn, gen, bsz=128, t=6)
     errs = multistep_error(tr, decision_latent, b_seq, e_a, e_g, dt, max_k=5)
@@ -96,6 +96,8 @@ def test_horizon_grows_only_while_measured_error_is_small(gen):
     assert ctl.allowed() == 1                                 # not yet demonstrated often enough
     ctl.update(errs)
     expect = int((errs <= ctl.threshold).long().cumprod(0).sum())
+    measure("imagination_open_loop_nmse_by_steps", [float(e) for e in errs])
+    measure("imagination_allowed_horizon", expect)
     assert ctl.allowed() == expect and 3 <= expect <= 5
     # an untrained model is never allowed beyond the minimum
     raw = LatentTransition(DM, hidden=96, n_members=3, seed=3)
