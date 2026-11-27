@@ -113,19 +113,10 @@ class RecordPolicyP(Protocol):
     def rebuild_state(self, history: list) -> None: ...
 
 
-def merge_by_seq(seen_seq: int, *lists) -> tuple:
-    """Concatenate observation lists, dropping environment events already delivered (seq <= seen_seq, or repeated
-    within the lists). -> (observations, new seen seq)."""
-    out, top, here = [], seen_seq, set()
-    for lst in lists:
-        for o in lst or []:
-            if o.seq is not None:
-                if o.seq <= seen_seq or o.seq in here:
-                    continue
-                here.add(o.seq)
-                top = max(top, o.seq)
-            out.append(o)
-    return out, top
+# One merge for every loop (plan §2 step 5): this module's former copy deduplicated within a list as well and so
+# dropped all but the first observation of a multi-observation event (W1 finding); `drop_delivered` removes the
+# ExecutionResult copy of a direct result that the adapter already re-delivered in the next batch (W2 finding).
+from ..runtime import drop_delivered, merge_by_seq  # noqa: E402
 
 
 @dataclass
@@ -415,7 +406,8 @@ class ActorProcess:
             t = self._phase("reward", t)
             nxt = []
             for b in range(B):
-                res_obs = results[b].observations if results[b] is not None else []
+                res_obs = drop_delivered(results[b].observations if results[b] is not None else [],
+                                         adv.observations[b], evs[b])
                 merged, seen[b] = merge_by_seq(seen[b], res_obs, adv.observations[b], evs[b])
                 nxt.append(merged if actions[b] is not None else [])
             next_batch = ObservationBatch(list(obs.env_ids), nxt, list(adv.t), list(adv.done))

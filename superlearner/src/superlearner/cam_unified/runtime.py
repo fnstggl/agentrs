@@ -210,6 +210,21 @@ def merge_by_seq(seen_seq: int, *lists) -> tuple:
 _merge = merge_by_seq                  # pre-v4 private name
 
 
+def drop_delivered(res_obs, *delivered) -> list:
+    """The direct-result observations of `ExecutionResult.observations` that the adapter has NOT already delivered in
+    the next batch (`delivered`: that row's next observations / events). W2's adapters deliver each direct result at
+    the head of the next ObservationBatch (`envs.ow_convert.delivered_copy`, same `result_key`); merging the
+    ExecutionResult copy as well gave the agent every result twice (W2 integration finding, wave 3). Keyed by content,
+    so it holds whether or not the adapter declares `delivers_results`."""
+    if not res_obs:
+        return []
+    from .envs.ow_convert import is_delivered_result, result_key
+    have = {result_key(o) for lst in delivered for o in (lst or []) if is_delivered_result(o)}
+    if not have:
+        return list(res_obs)
+    return [o for o in res_obs if result_key(o) not in have]
+
+
 def _max_seq(obs) -> int:
     return max([o.seq for o in obs if o.seq is not None] or [FROM_START])
 
@@ -410,6 +425,11 @@ class ConcatEnv:
             raise ValueError("ConcatEnv needs parts with a known batch size (attribute B or n)")
         self.B = sum(self.sizes)
         self.version = "+".join(str(getattr(p, "version", type(p).__name__)) for p in self.parts)
+
+    @property
+    def delivers_results(self) -> bool:
+        """True when any part re-delivers direct results in its next batch (W2; the loop drops the duplicate)."""
+        return any(bool(getattr(p, "delivers_results", False)) for p in self.parts)
 
     def _split(self, xs) -> list:
         out, i = [], 0
@@ -847,9 +867,10 @@ def run_lifetime(agent, env: EnvAdapter, *, evaluator: Optional[GoalEvaluator] =
                 inc = [0.0] * B
             nxt_obs = []
             for b in range(B):
-                res_obs = results[b].observations if results[b] is not None else []
-                merged, seen[b] = merge_by_seq(seen[b], res_obs, nxt.observations[b],
-                                               events[b] if events is not None else None)
+                ev_b = events[b] if events is not None else None
+                res_obs = drop_delivered(results[b].observations if results[b] is not None else [],
+                                         nxt.observations[b], ev_b)
+                merged, seen[b] = merge_by_seq(seen[b], res_obs, nxt.observations[b], ev_b)
                 nxt_obs.append(merged)
             next_batch = ObservationBatch(list(nxt.env_ids), nxt_obs, list(nxt.t), list(nxt.done))
             mv = policy_version(agent, model_version)
