@@ -106,14 +106,15 @@ def census(world) -> dict:
                                                      for m in ms),
                             "mean_contacts": round(sum(len(m["contacts"]) for m in ms) / max(1, len(ms)), 2)}
     if has("contracts"):
+        from ..services.governance import constitutions_view, proposals_view
         cs = [c["status"] for _, c in st.scan("contracts")]
         out["institutions"] = {"contracts": {k: cs.count(k) for k in sorted(set(cs))},
                                "deals": ({k: sum(1 for _, d in st.scan("deals") if d["status"] == k)
                                           for k in ("accepted", "rejected", "countered", "expired", "open")}
                                          if has("deals") else None),
-                               "constitutions": st.count("constitutions") if has("constitutions") else 0,
-                               "proposals_decided": sum(1 for _, p in st.scan("proposals") if p["status"] != "open")
-                               if has("proposals") else 0}
+                               # (workstream F, D-40: gov records are inst charters/decisions where inst is installed)
+                               "constitutions": len(constitutions_view(world)),
+                               "proposals_decided": sum(1 for p in proposals_view(world) if p["status"] != "open")}
     if has("orgs"):
         created = [o for _, o in st.scan("orgs") if o.get("created", 0) > 0]
         out["organisations"] = {"total": st.count("orgs"), "created_after_genesis": len(created),

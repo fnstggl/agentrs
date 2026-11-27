@@ -384,3 +384,31 @@ class Governance(Module):
     @applier("gov.distributed")
     def ap_distributed(self, ev):
         return None
+
+
+# ------------------------------------------------------------------ read views (D-40 write-through)
+def constitutions_view(world) -> dict:
+    """{org: constitution in the 4.0 form} of a world, wherever constitutions are kept: the 4.0 `constitutions`
+    table and, where the v5 institutions module `inst` is installed (the D-40 write-through: gov then keeps no
+    record of its own), every `inst` charter shown as `gov.constitution` shows it (`constitution_view`). Readers of
+    the 4.0 tables (civ fingerprints, census, open-internet metrics) read this instead of the table."""
+    st = world.state
+    out = {org: dict(c) for org, c in st.scan("constitutions")} if "constitutions" in st.tables else {}
+    if "inst" in world.modules and "inst_charters" in st.tables:
+        from ..commerce.institutions import constitution_view
+        for org, rec in st.scan("inst_charters"):
+            out.setdefault(org, dict(constitution_view(rec["charter"]), t=rec.get("t")))
+    return dict(sorted(out.items()))
+
+
+def proposals_view(world) -> list[dict]:
+    """The proposals of a world in the 4.0 form ({org, tool, by, status, t, decided_t}; status open, executed,
+    rejected, lapsed or failed): the 4.0 `proposals` table and, where `inst` is installed, its decisions on tools
+    (what `gov.proposals` lists there)."""
+    st = world.state
+    out = [dict(p, proposal=k) for k, p in st.scan("proposals")] if "proposals" in st.tables else []
+    if "inst" in world.modules and "inst_decisions" in st.tables:
+        out += [{"proposal": k, "org": d["org"], "tool": d["action"].get("tool"), "by": d["by"], "status": d["status"],
+                 "t": d["t"], "decided_t": d.get("decided_t")}
+                for k, d in st.scan("inst_decisions") if d["action"].get("kind") == "tool"]
+    return out

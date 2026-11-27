@@ -176,12 +176,13 @@ def m8_strategic_competition(world, t0):
 
 
 def m9_institutional_evolution(world, t0):
-    st = world.state
-    decided = sum(1 for _, p in st.scan("proposals") if p["status"] != "open" and p.get("t", 0) >= t0) \
-        if _t(st, "proposals") else 0
-    passed = sum(1 for _, p in st.scan("proposals") if p["status"] in ("passed", "approved", "enacted")
-                 and p.get("t", 0) >= t0) if _t(st, "proposals") else 0
-    consts = st.count("constitutions") if _t(st, "constitutions") else 0
+    # (workstream F, D-40: gov proposals/constitutions are inst decisions/charters where inst is installed; gov and
+    # inst both record a passed decision as "executed", which this metric did not count before)
+    from ...services.governance import constitutions_view, proposals_view
+    props = [p for p in proposals_view(world) if p.get("t", 0) >= t0]
+    decided = sum(1 for p in props if p["status"] != "open")
+    passed = sum(1 for p in props if p["status"] in ("executed", "passed", "approved", "enacted"))
+    consts = len(constitutions_view(world))
     return {"value": passed, "proposals_decided": decided, "passed": passed, "constitutions": consts}
 
 

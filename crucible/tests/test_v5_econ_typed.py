@@ -39,3 +39,4 @@ def test_econ_world_is_typed_strict_and_unchanged_by_validation():
     def body(w):
         return [(e.type, e.t, e.actor, e.payload) for e in w.log[1:]]
     assert typed.log[0].type == plain.log[0].type and body(typed) == body(plain)
+

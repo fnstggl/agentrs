@@ -205,6 +205,19 @@ def test_gov_writes_through_inst_charters():
     for t in ("constitutions", "proposals", "votes", "gov_spend"):
         assert not w.state.tables[t], t
     assert facts.legacy_split(w) == [] and w.check_invariants() == []
+    # readers of the 4.0 records see them through the governance views (wave-3b repair: civ fingerprints, the
+    # census and the open-internet M9 metric read the always-empty gov tables and showed no institutions)
+    from crucible.evaluation import open_endedness
+    from crucible.evaluation.open_internet import m9_institutional_evolution
+    from crucible.services.governance import constitutions_view, proposals_view
+    cv = constitutions_view(w)
+    assert list(cv) == [org] and cv[org]["distribution"] == w.state.tables["inst_charters"][org]["charter"][
+        "profit_sharing"] and cv[org]["distribution"]["basis"] in ("labor", "equal")
+    assert [x["proposal"] for x in proposals_view(w)] == [p] and proposals_view(w)[0]["status"] == "executed"
+    census = open_endedness.census(w)["institutions"]
+    assert census["constitutions"] == 1 and census["proposals_decided"] == 1
+    m9 = m9_institutional_evolution(w, 0)
+    assert m9["constitutions"] == 1 and m9["proposals_decided"] == 1 and m9["passed"] == m9["value"] == 1
 
 
 def test_membership_admission_rules_expulsion_and_offices_vacate_on_leaving():

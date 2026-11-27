@@ -292,8 +292,10 @@ def fingerprint(world) -> dict:
                      "regime": _bucket(float(np.median([p["cores"] for p in provs])) if provs else 0, (64, 1024),
                                        ("scarce", "normal", "abundant")),
                      "datacenter_regions": len({r["region"] for r in _rows(st, "civ_dc").values()})}
+    # (workstream F, D-40: with `inst` installed gov constitutions are inst charters - read both through the view)
+    from ..services.governance import constitutions_view
     fp["institutions"] = sorted(Counter((c.get("distribution") or {}).get("basis", "none")
-                                        for c in _rows(st, "constitutions").values()).items())
+                                        for c in constitutions_view(world).values()).items())
     fp["public_orgs"] = sum(1 for o in _rows(st, "orgs").values() if o.get("kind") == "public")
     fp["boards"] = sorted(_rows(st, "forum_boards"))
     if "goods" in columns.tables(world) and "pop" in columns.tables(world):
