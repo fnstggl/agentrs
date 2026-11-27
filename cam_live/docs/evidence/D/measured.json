@@ -1,8 +1,18 @@
 {
+ "_code": {
+  "commit": "e6f51c778a013142fbb214b322ad4d60bc56e78a",
+  "source": "git archive e6f51c778a013142fbb214b322ad4d60bc56e78a"
+ },
  "_commands": {
-  "note": "every block except store_benchmark is the JSON a test prints (tag in upper case) during the test run above",
-  "store_benchmark": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/D/bench_store.py",
-  "tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -s"
+  "note": "every block except store_benchmark is the JSON a test prints (tag in upper case) during that run",
+  "regenerate": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/D/regenerate.py",
+  "store_benchmark": ".venv/bin/python cam_live/docs/evidence/D/bench_store.py",
+  "tests": "(git archive e6f51c778a013142fbb214b322ad4d60bc56e78a) .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -s"
+ },
+ "_tests": {
+  "returncode": 0,
+  "seconds": 388.0,
+  "summary": "114 passed, 7 skipped in 381.42s (0:06:21)"
  },
  "cocoa_elapsed": {
   "tv_with_elapsed": 0.018817064853114737,
@@ -209,57 +219,58 @@
   "success": 0.6464
  },
  "rudder_key": {
-  "key_abs_err": 0.03527312090221115,
+  "key_abs_err": 0.035273090064421746,
   "key_is_argmax": 1.0,
   "offset": 0.4600759848064336,
-  "other_abs_mean": 0.006645334122909323,
-  "residual_abs": 0.041427670420489615
+  "other_abs_mean": 0.006645334106130766,
+  "residual_abs": 0.041427672333964195
  },
  "selection": {
   "default_ambiguous": "rudder",
   "default_clear": "simple",
   "max_abs_err_vs_true_effect": {
-   "cocoa": 0.2016505002975464,
-   "rudder": 0.03475672006607056
+   "cocoa": 0.20794814825057983,
+   "rudder": 0.03586643934249878
   },
   "scores": {
    "cocoa": {
-    "mean_sq_z": 1.5345,
+    "mean_sq_z": 28.2724,
     "n": 6,
-    "passes": true,
-    "rmse": 0.1207,
+    "passes": false,
+    "rmse": 0.1581,
     "sign_agreement": 1.0
    },
    "latest": {
-    "mean_sq_z": 631.1377,
+    "mean_sq_z": 627.3615,
     "n": 6,
     "passes": false,
-    "rmse": 1.1904,
+    "rmse": 1.1748,
     "sign_agreement": 0.2
    },
    "rudder": {
-    "mean_sq_z": 0.1546,
+    "mean_sq_z": 1.0032,
     "n": 6,
     "passes": true,
-    "rmse": 0.0184,
+    "rmse": 0.0441,
     "sign_agreement": 1.0
    },
    "simple": {
-    "mean_sq_z": 388.3924,
+    "mean_sq_z": 627.3615,
     "n": 6,
     "passes": false,
-    "rmse": 0.9523,
+    "rmse": 0.9399,
     "sign_agreement": 1.0
    }
-  }
+  },
+  "validation": "held-out lifetimes (seed 1), paired standard error"
  },
  "store_benchmark": {
-  "batched_appends_per_s": 1013.8,
-  "cached_sample_ids_ms": 1.92,
-  "db_bytes_per_record": 8674,
-  "durable_add_outcome_per_s": 233.0,
-  "durable_appends_per_s": 437.6,
-  "first_sample_ids_ms_20k_records": 124.16,
-  "sample_32_records_ms": 10.39
+  "batched_appends_per_s": 387.5,
+  "cached_sample_ids_ms": 4.949,
+  "db_bytes_per_record": 8677,
+  "durable_add_outcome_per_s": 57.8,
+  "durable_appends_per_s": 229.8,
+  "first_sample_ids_ms_20k_records": 316.95,
+  "sample_32_records_ms": 21.32
  }
 }

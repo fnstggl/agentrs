@@ -1,4 +1,13 @@
 {
+ "_code": {
+  "clean": true,
+  "commit": "c9ec6155e2238e97d28bb75eeb76ed3f4805e7b4",
+  "python_hash_seed": "0",
+  "source": "git archive c9ec6155e2238e97d28bb75eeb76ed3f4805e7b4",
+  "threads": 24,
+  "torch": "2.15.0+cu132",
+  "tree": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/D/regen_real/tree"
+ },
  "_command": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose --real",
  "_notes": "'frequent' is the update triggered by the matured outcomes and includes re-assigning credit for the 36 stored decisions; 'frequent_replay' is a plain replay update; seconds include group hashing and the behavioural probe before and after",
  "adapters_bridge": 4917376,
@@ -6,15 +15,15 @@
  "backbone": "Qwen/Qwen3-4B",
  "backbone_pretrained": true,
  "backbone_stats": {
-  "cache_hits": 3017.0,
-  "cache_invalidations": 1.0,
+  "cache_hits": 3091.0,
+  "cache_invalidations": 2.0,
   "cache_misses": 120.0,
-  "embed_s": 1.0182440280914307,
-  "embedded_texts": 167.0,
-  "embedded_tokens": 2404.0,
+  "embed_s": 6.918084383010864,
+  "embedded_texts": 120.0,
+  "embedded_tokens": 1683.0,
   "generate_s": 0.0,
   "generated_tokens": 0.0,
-  "load_s": 5.716731548309326,
+  "load_s": 25.832369089126587,
   "truncated_tokens": 0.0
  },
  "counters": {
@@ -31,7 +40,7 @@
  },
  "frequent": {
   "credit_changes": {
-   "cocoa": 1.4249527080469493,
+   "cocoa": 1.4249528691509856,
    "n_records_changed": 36.0,
    "rudder": 8.568090101948133,
    "rudder_contribution": 1.506040697291148,
@@ -39,8 +48,8 @@
    "simple": 2.849905065150449
   },
   "grad_norms": {
-   "experiential": 0.3438902199268341,
-   "heads": 13.684985160827637
+   "experiential": 0.34489649534225464,
+   "heads": 13.675823211669922
   },
   "hash_changed": {
    "experiential": true,
@@ -51,7 +60,7 @@
   "losses": {
    "cocoa": 2.1972246170043945,
    "rudder": 0.5816162824630737,
-   "world": 0.6359089016914368
+   "world": 0.6271113753318787
   },
   "n_experiences": 7,
   "notes": {
@@ -96,26 +105,26 @@
    "experiential",
    "heads"
   ],
-  "peak_gpu_gb": 9.073974132537842,
+  "peak_gpu_gb": 9.122743129730225,
   "prediction_change": {
-   "latent_b": 0.26883256435394287,
-   "latent_z": 0.3913797438144684,
-   "max_abs": 0.3913797438144684,
-   "policy.action_probs": 0.00025488209212198853,
-   "world.pred_mean": 0.04869192838668823
+   "latent_b": 0.26530560851097107,
+   "latent_z": 0.35764482617378235,
+   "max_abs": 0.35764482617378235,
+   "policy.action_probs": 0.0006031781085766852,
+   "world.pred_mean": 0.07112398743629456
   },
-  "seconds": 2.6624531988054514,
+  "seconds": 8.608540152665228,
   "trigger": "matured_outcomes:18_independent/18_rows",
   "weight_delta": {
-   "experiential": 0.2528763711452484,
-   "heads": 0.01861485093832016
+   "experiential": 0.25333371758461,
+   "heads": 0.018684277310967445
   }
  },
  "frequent_replay": {
   "credit_changes": {},
   "grad_norms": {
-   "experiential": 0.14921167492866516,
-   "heads": 11.25269603729248
+   "experiential": 0.16979314386844635,
+   "heads": 11.269766807556152
   },
   "hash_changed": {
    "experiential": true,
@@ -124,9 +133,9 @@
    "semantic_adapters": false
   },
   "losses": {
-   "cocoa": 2.1971943378448486,
-   "rudder": 0.4637536108493805,
-   "world": 0.3597927391529083
+   "cocoa": 2.1971840858459473,
+   "rudder": 0.4636778235435486,
+   "world": 0.36177685856819153
   },
   "n_experiences": 8,
   "notes": {
@@ -171,19 +180,19 @@
    "experiential",
    "heads"
   ],
-  "peak_gpu_gb": 9.095925331115723,
+  "peak_gpu_gb": 9.1479172706604,
   "prediction_change": {
-   "latent_b": 0.2613595724105835,
-   "latent_z": 0.3477095365524292,
-   "max_abs": 0.3477095365524292,
-   "policy.action_probs": 0.0005107049946673214,
-   "world.pred_mean": 0.032852113246917725
+   "latent_b": 0.2709445357322693,
+   "latent_z": 0.33545783162117004,
+   "max_abs": 0.33545783162117004,
+   "policy.action_probs": 0.000709977000951767,
+   "world.pred_mean": 0.04704293608665466
   },
-  "seconds": 0.7278398219496012,
+  "seconds": 2.993879702873528,
   "trigger": "replay",
   "weight_delta": {
-   "experiential": 0.3347485661506653,
-   "heads": 0.048033490777015686
+   "experiential": 0.33546513319015503,
+   "heads": 0.04888239502906799
   }
  },
  "gpu_gb_after_load": 7.820958137512207,
@@ -194,7 +203,7 @@
   "world": 238118,
   "world_norm": 0
  },
- "load_seconds": 7.478732713032514,
+ "load_seconds": 30.473724660929292,
  "parameters": {
   "backbone_frozen": 4022468096,
   "experiential": 50953765,
@@ -213,7 +222,7 @@
  "slow_adapters": {
   "credit_changes": {},
   "grad_norms": {
-   "semantic_adapters": 5.582971572875977
+   "semantic_adapters": 5.546667575836182
   },
   "hash_changed": {
    "experiential": false,
@@ -222,22 +231,22 @@
    "semantic_adapters": true
   },
   "losses": {
-   "bridge_grounding": 8.025408744812012,
-   "world": 0.36039045453071594
+   "bridge_grounding": 8.02586841583252,
+   "world": 0.36670392751693726
   },
   "n_experiences": 4,
   "notes": {
    "adapter_delta_norm": {
-    "bridge": 0.008757708594202995,
-    "lora": 0.015133644454181194
+    "bridge": 0.00875766109675169,
+    "lora": 0.01513386145234108
    },
    "adapter_grad_norm": {
-    "bridge": 3.778477907180786,
-    "lora": 4.11007022857666
+    "bridge": 3.7242047786712646,
+    "lora": 4.110452175140381
    },
    "adapter_grad_norm_by_loss": {
-    "bridge_grounding": 5.582943916320801,
-    "world": 0.0009938043076545
+    "bridge_grounding": 5.546639919281006,
+    "world": 0.0010123930405825377
    },
    "balance_scale": null,
    "behaviour_changed": true,
@@ -245,8 +254,18 @@
    "experiential_share_applied": null,
    "flag": null,
    "guard": {
-    "validation_after": 3.4846725463867188,
-    "validation_before": 3.3413895815610886
+    "accepted": true,
+    "drift_after": -7.986028989156102e-05,
+    "drift_before": 0.0,
+    "n_chunks": 6,
+    "noise_tolerance": 0.003947451250570246,
+    "paired_change": -7.986028989156102e-05,
+    "paired_se": 0.001973725625285123,
+    "reasons": [],
+    "reference": "start",
+    "tolerance": 0.003947451250570246,
+    "validation_after": 3.2735231830960227,
+    "validation_before": 3.273480460757301
    },
    "lr": {
     "semantic_adapters": 6.25e-06
@@ -264,18 +283,18 @@
   "param_groups": [
    "semantic_adapters"
   ],
-  "peak_gpu_gb": 8.846506118774414,
+  "peak_gpu_gb": 8.92519474029541,
   "prediction_change": {
-   "latent_b": 0.004724639933556318,
-   "latent_z": 0.006065973546355963,
-   "max_abs": 0.006065973546355963,
-   "policy.action_probs": 2.9096587240928784e-05,
-   "world.pred_mean": 0.000437319278717041
+   "latent_b": 0.004500453360378742,
+   "latent_z": 0.0043962434865534306,
+   "max_abs": 0.004500453360378742,
+   "policy.action_probs": 1.0780162483570166e-05,
+   "world.pred_mean": 0.0002162456512451172
   },
-  "seconds": 2.6036708331666887,
+  "seconds": 9.68776809098199,
   "trigger": "replay",
   "weight_delta": {
-   "semantic_adapters": 0.017484983429312706
+   "semantic_adapters": 0.01748514734208584
   }
  }
 }

@@ -182,7 +182,7 @@ evidence. It is not registered by anything outside `credit.labkit`; the agent sh
 **What / why.** Line 126 (`--part write`) reads `m.backbone._fingerprint()` and `m.backbone._fp`; workstream A's
 commit e00d28f ("content-checked adapter caches") replaced them by `_adapter_snapshot` / `_adapter_content()`, so the
 probe now stops with `AttributeError` after the update checks, before the export and the reload part. D ran a copy
-with only this diagnostic line changed (`scratchpad/D/probe_real_adapted.py`; result in `docs/D/FIXES.md`).
+with only this diagnostic line changed (`docs/evidence/D/probe_real_adapted.py`; result in `docs/D/FIXES.md`).
 **Proposed diff.**
 ```diff
 -                                            "fingerprint_matches": m.backbone._fingerprint() == m.backbone._fp,

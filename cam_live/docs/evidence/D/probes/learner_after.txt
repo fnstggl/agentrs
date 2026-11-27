@@ -1,0 +1,199 @@
+[PASS] poll(): a plan exists after matured outcomes, counting independent units  ({"queued_rows": 67, "matured_rows": 36, "independent_units": 36, "threshold": 4})
+[PASS] poll(): no plan without matured outcomes (time / rows alone do not trigger)
+[PASS] frequent update changed experiential and heads  (['experiential', 'heads'])
+[PASS] frequent update left semantic adapters unchanged
+[PASS] reward group unchanged and without .grad
+[PASS] per-group clipping: the experiential optimizer stepped on a gradient of norm <= clip  (pre-clip 0.09089, seen by optimizer [0.0009999889880418777])
+[PASS] behaviour probe changed after the frequent update  ({'latent_b': 0.007514127530157566, 'latent_z': 0.012698141857981682, 'world.pred_mean': 0.0008225589990615845, 'policy.action_probs': 2.0915642380714417e-05, 'max_abs': 0.012698141857981682})
+[PASS] slow adapter update runs after every adapter_every (=3) applied frequent updates  (timescales ['frequent', 'frequent', 'slow_adapters', 'frequent', 'frequent', 'frequent', 'slow_adapters'], counters {'frequent': 6, 'slow': 2, 'fast': 0, 'skipped': 0, 'slow_reverted': 0, 'triggers': 1})
+[PASS] slow update changed only semantic_adapters  (['semantic_adapters'])
+[PASS] fast update: no persistent parameter changed
+[PASS] fast update: the fast belief changed
+[PASS] guarded slow update was reverted (setup)  ({"accepted": false, "drift_after": -0.0010538306087255478, "drift_before": -0.0005052641499787569, "n_chunks": 8, "noise_tolerance": 9.765644077763893e-05, "paired_change": -0.0005485664587467909, "paired_se": 4.8828220388819466e-05, "reasons": ["held-out loss rose by -0.0005486 (> tolerance -4.776)"], "reference": "start", "reverted": true, "tolerance": -4.7760143969566204, "validation_after": 4.775470606517047, "validation_before": 4.7760191729757935})
+[PASS] revert restores the adapter weights bit-exactly
+[PASS] revert also restores the adapter optimizer state (Adam moments / step)  (0 adapter parameters carry Adam state from the rejected step)
+[PASS] first checkpoint with validation + retention is promoted  ([])
+[PASS] a checkpoint that forgot (retention -0.5) is refused  (['retention lab/A/neg_nll dropped 0.5 (> 0.02): forgetting'])
+[PASS] refusal rolls the learner back to the promoted weights
+[PASS] ... and to the promoted optimizer state
+[PASS] no retention metric -> refused  (['no retention metric supplied'])
+[PASS] internal reward alone cannot promote  (['no independent validation metric supplied'])
+       a metric named 'heldout/neg_reward_return' is ignored? []
+[PASS] kill -9 during checkpoint writes (10 kills): newest intact checkpoint >= last acknowledged, loads, verifies  (acked per run [14, 15, 11, 2, 0, 0, 0, 0, 0, 0])
+[PASS] fresh process loads the weights-only export  (OK loaded 232, missing 0 [], unexpected 0 [], mismatched 0 []
+)
+[PASS] fresh-process predictions are bit-exact (belief, decision latent, world NLL, action probs)  ({'b': 0.0, 'z': 0.0, 'nll': 0.0, 'probs': 0.0})
+[PASS] export holds parameters and configuration only  (['config.json', 'weights.safetensors'])
+[PASS] optimizer state restored exactly into a fresh learner (by parameter name)  (0 differ)
+[PASS] weights restored exactly
+{
+ "groups": [
+  "backbone_frozen",
+  "semantic_adapters",
+  "experiential",
+  "reward",
+  "heads"
+ ],
+ "trigger_state": {
+  "queued_rows": 67,
+  "matured_rows": 36,
+  "independent_units": 36,
+  "threshold": 4
+ },
+ "frequent_record": {
+  "param_groups": [
+   "experiential",
+   "heads"
+  ],
+  "grad_norms": {
+   "experiential": 0.09088767319917679,
+   "heads": 5.349035263061523
+  },
+  "weight_delta": {
+   "experiential": 0.013010143302381039,
+   "heads": 0.008528382517397404
+  },
+  "prediction_change": {
+   "latent_b": 0.007514127530157566,
+   "latent_z": 0.012698141857981682,
+   "world.pred_mean": 0.0008225589990615845,
+   "policy.action_probs": 2.0915642380714417e-05,
+   "max_abs": 0.012698141857981682
+  }
+ },
+ "schedule": [
+  "frequent",
+  "frequent",
+  "slow_adapters",
+  "frequent",
+  "frequent",
+  "frequent",
+  "slow_adapters"
+ ],
+ "guard": {
+  "accepted": false,
+  "drift_after": -0.0010538306087255478,
+  "drift_before": -0.0005052641499787569,
+  "n_chunks": 8,
+  "noise_tolerance": 9.765644077763893e-05,
+  "paired_change": -0.0005485664587467909,
+  "paired_se": 4.8828220388819466e-05,
+  "reasons": [
+   "held-out loss rose by -0.0005486 (> tolerance -4.776)"
+  ],
+  "reference": "start",
+  "reverted": true,
+  "tolerance": -4.7760143969566204,
+  "validation_after": 4.775470606517047,
+  "validation_before": 4.7760191729757935
+ },
+ "guard_optimizer_tensors_changed_after_revert": 0,
+ "promote_metric_named_reward_return": {
+  "promoted": true,
+  "ignored": []
+ },
+ "kill_checkpoint": [
+  {
+   "acked": 14,
+   "latest": "ckpt_000014_3dff9b04",
+   "last_ack": "ckpt_000014_3dff9b04",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 15,
+   "latest": "ckpt_000029_245134d0",
+   "last_ack": "ckpt_000029_245134d0",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 11,
+   "latest": "ckpt_000040_8c211b1a",
+   "last_ack": "ckpt_000040_8c211b1a",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 2,
+   "latest": "ckpt_000042_4166236f",
+   "last_ack": "ckpt_000042_4166236f",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 0,
+   "latest": "ckpt_000042_4166236f",
+   "last_ack": null,
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 0,
+   "latest": "ckpt_000042_4166236f",
+   "last_ack": null,
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 0,
+   "latest": "ckpt_000042_4166236f",
+   "last_ack": null,
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 0,
+   "latest": "ckpt_000042_4166236f",
+   "last_ack": null,
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 0,
+   "latest": "ckpt_000042_4166236f",
+   "last_ack": null,
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 0,
+   "latest": "ckpt_000042_4166236f",
+   "last_ack": null,
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  }
+ ],
+ "export_max_abs_diff": {
+  "b": 0.0,
+  "z": 0.0,
+  "nll": 0.0,
+  "probs": 0.0
+ },
+ "export_files": [
+  "config.json",
+  "weights.safetensors"
+ ],
+ "export_has_optimizer_or_store": []
+}
+exit=0

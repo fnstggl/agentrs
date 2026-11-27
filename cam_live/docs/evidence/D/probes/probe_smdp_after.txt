@@ -1,0 +1,17 @@
+[PASS] smdp_target composes to the time-discounted return  (7.442513680028344 vs 7.442513680028345)
+[PASS] discount(t2-t0) = discount(t1-t0) * discount(t2-t1)
+[PASS] same event at two levels: credited once over the hierarchy (simple)  (simple credit {'e0': 1.0})
+[PASS] trajectory return counts the event once, discounted from the intervention start  (G=0.8607079764250578, events=1)
+[PASS] all five records map to the one top-level decision  ({'e0': 0, 'e1': 0, 'e2': 0, 'e3': 0, 'e4': 0})
+[PASS] the hierarchy is one independent unit  ({'d0'})
+[PASS] ledger: counted weight of the event is 1, on the top decision  ([('e0', 1.0, True)])
+[PASS] ledger refuses a second counted assignment of the same outcome
+{
+ "links_after_both_reports": {
+  "e0": 1.0
+ },
+ "simple_credit_on_levels": {
+  "intervention": 1.0
+ }
+}
+exit=0

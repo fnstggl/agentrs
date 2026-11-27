@@ -1,0 +1,77 @@
+[PASS] poll(): a plan exists after matured outcomes, counting independent units  ({"queued_rows": 67, "matured_rows": 36, "independent_units": 36, "threshold": 4})
+[PASS] poll(): no plan without matured outcomes (time / rows alone do not trigger)
+[PASS] frequent update changed experiential and heads  (['experiential', 'heads'])
+[PASS] frequent update left semantic adapters unchanged
+[PASS] reward group unchanged and without .grad
+[PASS] per-group clipping: the experiential optimizer stepped on a gradient of norm <= clip  (pre-clip 0.09089, seen by optimizer [0.0009999889880418777])
+[PASS] behaviour probe changed after the frequent update  ({'latent_b': 0.007514127530157566, 'latent_z': 0.012698141857981682, 'world.pred_mean': 0.0008225589990615845, 'policy.action_probs': 2.0915642380714417e-05, 'max_abs': 0.012698141857981682})
+[PASS] slow adapter update runs after every adapter_every (=3) applied frequent updates  (timescales ['frequent', 'frequent', 'slow_adapters', 'frequent', 'frequent', 'frequent', 'slow_adapters'], counters {'frequent': 6, 'slow': 2, 'fast': 0, 'skipped': 0, 'slow_reverted': 0, 'triggers': 1})
+[PASS] slow update changed only semantic_adapters  (['semantic_adapters'])
+[PASS] fast update: no persistent parameter changed
+[PASS] fast update: the fast belief changed
+[PASS] guarded slow update was reverted (setup)  ({"reverted": true, "validation_after": 4.762871973216534, "validation_before": 4.763440389186144})
+[PASS] revert restores the adapter weights bit-exactly
+[FAIL] revert also restores the adapter optimizer state (Adam moments / step)  (20 adapter parameters carry Adam state from the rejected step)
+[PASS] first checkpoint with validation + retention is promoted  ([])
+[PASS] a checkpoint that forgot (retention -0.5) is refused  (['retention lab/A/neg_nll dropped 0.5 (> 0.02): forgetting', 'validation heldout/neg_rudder dropped 0.0268374 (> 0)'])
+[PASS] refusal rolls the learner back to the promoted weights
+[PASS] ... and to the promoted optimizer state
+[PASS] no retention metric -> refused  (['no retention metric supplied'])
+[PASS] internal reward alone cannot promote  (['no independent validation metric supplied'])
+       a metric named 'heldout/neg_reward_return' is ignored? []
+{
+ "groups": [
+  "backbone_frozen",
+  "semantic_adapters",
+  "experiential",
+  "reward",
+  "heads"
+ ],
+ "trigger_state": {
+  "queued_rows": 67,
+  "matured_rows": 36,
+  "independent_units": 36,
+  "threshold": 4
+ },
+ "frequent_record": {
+  "param_groups": [
+   "experiential",
+   "heads"
+  ],
+  "grad_norms": {
+   "experiential": 0.09088767319917679,
+   "heads": 5.349031448364258
+  },
+  "weight_delta": {
+   "experiential": 0.013010143302381039,
+   "heads": 0.0085279680788517
+  },
+  "prediction_change": {
+   "latent_b": 0.007514127530157566,
+   "latent_z": 0.012698141857981682,
+   "world.pred_mean": 0.0008225589990615845,
+   "policy.action_probs": 2.0915642380714417e-05,
+   "max_abs": 0.012698141857981682
+  }
+ },
+ "schedule": [
+  "frequent",
+  "frequent",
+  "slow_adapters",
+  "frequent",
+  "frequent",
+  "frequent",
+  "slow_adapters"
+ ],
+ "guard": {
+  "reverted": true,
+  "validation_after": 4.762871973216534,
+  "validation_before": 4.763440389186144
+ },
+ "guard_optimizer_tensors_changed_after_revert": 20,
+ "promote_metric_named_reward_return": {
+  "promoted": true,
+  "ignored": []
+ }
+}
+FAILED: ['revert also restores the adapter optimizer state (Adam moments / step)']

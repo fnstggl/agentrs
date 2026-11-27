@@ -1,8 +1,8 @@
 {
  "workstream": "D",
- "stage": "1 + 2 (complete workstream)",
- "commit": "cc9c1c212d027fc98be468db40786bcbe64da2f7",
- "summary": "Retrospective credit and continual learning. Stage 1 (model-independent): SqliteExperienceStore, OutcomeLinker, exact REINFORCE / all-actions / COCOA / RUDDER references, ReturnDecomposer, HindsightModel, simple attribution, EstimatorSelector, SMDP traces and credit ledger, atomic checkpoints. Stage 2 (on nn.model.CamLiveModel): ContinualLearner with one optimizer per group (never reward), per-group clipping, warm-up / cosine schedules, three timescales (fast belief update without gradient; frequent experiential + heads updates triggered by matured independent outcomes; slow adapter updates every adapter_every with a bounded adapter graph and a held-out guard), measured loss shares with a 90 % cap, stratified replay, held-out split, learning records with hashes, deltas and a behavioural probe; LossProviders for RUDDER, COCOA and a bridge-grounding adapter loss; CreditAssigner (versioned per-decision credit, withheld until the return is final, evidence-selected default, credited returns); anchors + functional regularisation + measured forgetting; complete learner checkpoints, promotion / rollback on validation and retention, weights-only export and a fresh-model loader. Evidence at debug scale in LabWorld (docs/evidence/D/diagnostics.json) and single updates on Qwen3-4B + 50m core (docs/evidence/D/real_update.json). Not yet called by agent.py or the runtime.",
+ "stage": "1 + 2 (complete workstream) + G-cl fixes",
+ "commit": "e6f51c778a013142fbb214b322ad4d60bc56e78a",
+ "summary": "Retrospective credit and continual learning. Stage 1 (model-independent): SqliteExperienceStore, OutcomeLinker, exact REINFORCE / all-actions / COCOA / RUDDER references, ReturnDecomposer, HindsightModel, simple attribution, EstimatorSelector, SMDP traces and credit ledger, atomic checkpoints. Stage 2 (on nn.model.CamLiveModel): ContinualLearner with one optimizer per group (never reward), per-group clipping, warm-up / cosine schedules, three timescales (fast belief update without gradient; frequent experiential + heads updates triggered by matured independent outcomes; slow adapter updates every adapter_every with a bounded adapter graph and a held-out guard: absolute, noise-measured tolerance, drift bound since the last promoted checkpoint, exact revert), measured loss shares with a 90 % cap, stratified replay, held-out split, learning records with hashes, deltas and a behavioural probe; LossProviders for RUDDER, COCOA and a bridge-grounding adapter loss; CreditAssigner (versioned per-decision credit, withheld until the return is final, evidence-selected default, credited returns); anchors + functional regularisation + measured forgetting; complete learner checkpoints, promotion / rollback on validation and retention, weights-only export and a fresh-model loader. Evidence at debug scale in LabWorld (docs/evidence/D/diagnostics.json) and single updates on Qwen3-4B + 50m core (docs/evidence/D/real_update.json). Not yet called by agent.py or the runtime. Fix stage after the independent verification G-cl (docs/D/FIXES.md): append-only stored history with index checks, validated attribution amounts, estimator selection only on held-out lifetimes with paired standard errors (no estimator is promoted on LabWorld), provenance-gated promotion and COCOA support, full-trajectory credit, evidence regenerated from one committed tree.",
  "requirements": {
   "RC-01": {
    "state": "implemented",
@@ -26,17 +26,20 @@
     "tests/credit/test_links.py::test_one_event_answering_two_decisions_is_shared_not_counted_twice",
     "tests/credit/test_links.py::test_experiment_arm_links",
     "tests/credit/test_links.py::test_labworld_events_are_linked_through_their_attribution_keys",
-    "tests/credit/test_providers.py::test_return_is_conserved_under_duration_aware_discounting_and_no_outcome_links_to_a_later_decision"
+    "tests/credit/test_providers.py::test_return_is_conserved_under_duration_aware_discounting_and_no_outcome_links_to_a_later_decision",
+    "tests/credit/test_links.py::test_malformed_attribution_amounts_are_ambiguous_and_never_create_credit",
+    "tests/credit/test_links.py::test_valid_amounts_are_shares_and_weights_never_exceed_one"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D_fix.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/D.xml",
-    "docs/evidence/D/measured.json"
+    "docs/evidence/test_results/D_fix.xml",
+    "docs/evidence/D/measured.json",
+    "docs/D/FIXES.md"
    ],
-   "limitations": "Evidence kinds are structural (declared query, attribution keys in event data, parent action, artifact references, experiment arm, declared attribution windows); no learned linker. Not yet called from the agent's reconcile step (stage 2 / master). Events and declared queries that measure the same consequence under different keys cannot be recognised as identical: the simple attribution therefore prefers declared answers over event links (combine='declared_first')."
+   "limitations": "Fix stage (G-cl M3): attribution amounts in by_action / by_decision maps are validated (finite, >= 0); a map with a negative / non-finite / non-numeric amount is treated as ambiguous (equal shares of the named decisions with uncertainty); link weights of one outcome are refused when negative and renormalised above a total of 1, so the credit given for an outcome never exceeds it. Evidence kinds are structural (declared query, attribution keys in event data, parent action, artifact references, experiment arm, declared attribution windows); no learned linker. Not yet called from the agent's reconcile step (stage 2 / master). Events and declared queries that measure the same consequence under different keys cannot be recognised as identical: the simple attribution therefore prefers declared answers over event links (combine='declared_first')."
   },
   "RC-02": {
    "state": "implemented",
@@ -66,21 +69,22 @@
     "tests/credit/test_estimators_exact.py::test_long_delay_key_decision_snr",
     "tests/credit/test_providers.py::test_nothing_is_credited_before_maturation_and_the_unlock_is_credited_retrospectively",
     "tests/credit/test_providers.py::test_learner_reassigns_credit_for_the_experience_that_triggered_it_and_trains_the_credit_heads",
-    "tests/credit/test_evidence.py::test_delayed_unlock_is_credited_retrospectively_and_estimators_are_compared_with_randomised_differences"
+    "tests/credit/test_evidence.py::test_delayed_unlock_is_credited_retrospectively_and_estimators_are_compared_with_randomised_differences",
+    "tests/credit/test_gcl_fixes.py::test_long_trajectories_get_credit_everywhere_cocoa_pairs_follow_eq4_and_open_ended_sets_are_refused"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_fix_slow.xml",
     "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
    ],
    "evidence": [
-    "docs/evidence/test_results/D.xml",
+    "docs/evidence/test_results/D_fix.xml",
     "docs/evidence/D/measured.json",
-    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/test_results/D_fix_slow.xml",
     "docs/evidence/D/diagnostics.json"
    ],
-   "limitations": "Now trained on the real model's decision latents (debug scale) with matured LabWorld returns; not on the real configuration beyond single updates, and not on live experience. Trajectories longer than max_len (64) are cut to their last decisions. By default the latents are detached (the regression trains the decomposer head only). The stored uncertainty of RUDDER credit is |G - F(whole trajectory)|, a proxy. 1/Gamma_t amplifies prediction error for late decisions when beta * elapsed time is large."
+   "limitations": "Fix stage (G-cl m3): credit assignment now runs over the whole trajectory (every decision gets RUDDER credit; G and Gamma referenced at the first decision); training windows of the newest max_len decisions regress the measured return-to-go at the window's first decision, referenced there; positions beyond max_len are extrapolated by the decomposer at credit time. Now trained on the real model's decision latents (debug scale) with matured LabWorld returns; not on the real configuration beyond single updates, and not on live experience. By default the latents are detached (the regression trains the decomposer head only). The stored uncertainty of RUDDER credit is |G - F(whole trajectory)|, a proxy. 1/Gamma_t amplifies prediction error for late decisions when beta * elapsed time is large."
   },
   "RC-03": {
    "state": "implemented",
@@ -101,21 +105,22 @@
     "tests/credit/test_rudder.py::test_key_decision_receives_the_credit",
     "tests/credit/test_estimators_exact.py::test_exact_expectations_on_enumerated_noisy_key_to_door",
     "tests/credit/test_providers.py::test_return_is_conserved_under_duration_aware_discounting_and_no_outcome_links_to_a_later_decision",
-    "tests/credit/test_evidence.py::test_delayed_unlock_is_credited_retrospectively_and_estimators_are_compared_with_randomised_differences"
+    "tests/credit/test_evidence.py::test_delayed_unlock_is_credited_retrospectively_and_estimators_are_compared_with_randomised_differences",
+    "tests/credit/test_gcl_fixes.py::test_long_trajectories_get_credit_everywhere_cocoa_pairs_follow_eq4_and_open_ended_sets_are_refused"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_fix_slow.xml",
     "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
    ],
    "evidence": [
-    "docs/evidence/test_results/D.xml",
+    "docs/evidence/test_results/D_fix.xml",
     "docs/evidence/D/measured.json",
-    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/test_results/D_fix_slow.xml",
     "docs/evidence/D/diagnostics.json"
    ],
-   "limitations": "Convention: G is referenced at the first decision of the trajectory and Gamma_t = exp(-beta * seconds since it); conservation is sum_t Gamma_t c_t = G (max error < 1e-9 in the tests, float64 bookkeeping)."
+   "limitations": "Fix stage (G-cl m3): credit assignment now runs over the whole trajectory (every decision gets RUDDER credit; G and Gamma referenced at the first decision); training windows of the newest max_len decisions regress the measured return-to-go at the window's first decision, referenced there; positions beyond max_len are extrapolated by the decomposer at credit time. Convention: G is referenced at the first decision of the trajectory and Gamma_t = exp(-beta * seconds since it); conservation is sum_t Gamma_t c_t = G (max error < 1e-9 in the tests, float64 bookkeeping)."
   },
   "RC-04": {
    "state": "implemented",
@@ -141,7 +146,7 @@
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
    ],
    "evidence": [
-    "docs/evidence/test_results/D.xml",
+    "docs/evidence/test_results/D_fix.xml",
     "docs/evidence/D/measured.json"
    ],
    "limitations": "Finite-action tabular reference only (by definition). Estimator code is adapted from the verified cam_unified implementation (provenance in the file header)."
@@ -169,21 +174,23 @@
     "tests/credit/test_cocoa.py::test_three_kinds_of_statement_stay_separate",
     "tests/credit/test_cocoa.py::test_effective_sample_size_per_candidate",
     "tests/credit/test_providers.py::test_cocoa_refuses_decisions_without_usable_propensities_and_claims_nothing_before_training",
-    "tests/credit/test_evidence.py::test_delayed_unlock_is_credited_retrospectively_and_estimators_are_compared_with_randomised_differences"
+    "tests/credit/test_evidence.py::test_delayed_unlock_is_credited_retrospectively_and_estimators_are_compared_with_randomised_differences",
+    "tests/credit/test_gcl_fixes.py::test_long_trajectories_get_credit_everywhere_cocoa_pairs_follow_eq4_and_open_ended_sets_are_refused"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_fix_slow.xml",
     "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
    ],
    "evidence": [
-    "docs/evidence/test_results/D.xml",
+    "docs/evidence/test_results/D_fix.xml",
     "docs/evidence/D/measured.json",
-    "docs/evidence/test_results/D_slow.xml",
-    "docs/evidence/D/diagnostics.json"
+    "docs/evidence/test_results/D_fix_slow.xml",
+    "docs/evidence/D/diagnostics.json",
+    "docs/D/FIXES.md"
    ],
-   "limitations": "Trained on the real model's beliefs and candidate embeddings at debug scale. The outcome representation is a fixed function of the outcome value (no learned outcome encoder), so outcomes of equal size are indistinguishable to the hindsight model. No sampled-alternatives estimator for candidate sets too large to enumerate. Support is judged from the logged propensities of the decision (missing / invalid / near-zero / untracked open-ended proposals); effective sample size per candidate is available in credit.cocoa but not fed by the assigner."
+   "limitations": "Fix stage (G-cl m1, m2): a candidate set is open-ended when a candidate's ActionSpec.provenance names only open-ended generators (backbone, schema_sampler, mutation, ...) or the decision says so; COCOA then refuses unless proposal probabilities were tracked (default: not tracked). Unknown generator names are treated as enumerating (not open-ended). COCOA pairs now include outcomes declared by earlier decisions and observed after t (Eq. 4). Trained on the real model's beliefs and candidate embeddings at debug scale. The outcome representation is a fixed function of the outcome value (no learned outcome encoder), so outcomes of equal size are indistinguishable to the hindsight model. No sampled-alternatives estimator for candidate sets too large to enumerate. Support is judged from the logged propensities of the decision (missing / invalid / near-zero / untracked open-ended proposals); effective sample size per candidate is available in credit.cocoa but not fed by the assigner."
   },
   "RC-06": {
    "state": "implemented",
@@ -216,14 +223,14 @@
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_fix_slow.xml",
     "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
    ],
    "evidence": [
-    "docs/evidence/test_results/D.xml",
+    "docs/evidence/test_results/D_fix.xml",
     "docs/evidence/D/measured.json",
-    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/test_results/D_fix_slow.xml",
     "docs/evidence/D/diagnostics.json"
    ],
    "limitations": "When an outcome matures the linked decisions and the earlier decisions of the objective are queued, their credit is recomputed and versioned, and the learner trains on them (a share of each triggered batch is the triggering experience). Learned credit (RUDDER, COCOA) appears only when the objective is closed and nothing goal-relevant is pending; an objective that never closes never gets it. The agent has to call store.put_objective_outcome when the verifier closes an objective (change request D-10); nothing outside credit/ does so yet."
@@ -250,21 +257,24 @@
     "tests/credit/test_replay.py::test_pending_due_times_and_outcome_deduplication",
     "tests/credit/test_rudder.py::test_predictions_are_causal",
     "tests/credit/test_providers.py::test_return_is_conserved_under_duration_aware_discounting_and_no_outcome_links_to_a_later_decision",
-    "tests/credit/test_evidence.py::test_delayed_unlock_is_credited_retrospectively_and_estimators_are_compared_with_randomised_differences"
+    "tests/credit/test_evidence.py::test_delayed_unlock_is_credited_retrospectively_and_estimators_are_compared_with_randomised_differences",
+    "tests/credit/test_replay.py::test_update_refuses_to_rewrite_history_and_keeps_the_index_consistent",
+    "tests/credit/test_replay.py::test_reads_refuse_a_record_whose_index_disagrees_with_its_content"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_fix_slow.xml",
     "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
    ],
    "evidence": [
-    "docs/evidence/test_results/D.xml",
+    "docs/evidence/test_results/D_fix.xml",
     "docs/evidence/D/measured.json",
-    "docs/evidence/test_results/D_slow.xml",
-    "docs/evidence/D/diagnostics.json"
+    "docs/evidence/test_results/D_fix_slow.xml",
+    "docs/evidence/D/diagnostics.json",
+    "docs/D/FIXES.md"
    ],
-   "limitations": "Guards at D's level: a decision after the outcome is refused as a cause; an outcome dated before its query is refused; stored context items cannot be rewritten; linking never changes context_item_refs; audit_leakage() reports any context item dated after its decision. Whether the agent builds contexts correctly in the first place is outside D (audit_leakage detects it after the fact). The reference MemoryStore still overwrites items (change request D-3)."
+   "limitations": "Guards at D's level: a decision after the outcome is refused as a cause; an outcome dated before its query is refused; stored context items cannot be rewritten; stored records cannot be rewritten either (fix G-cl M2: update() refuses changes of the decision, probabilities, context refs, provenance, results, outcomes and query definitions; every read checks the index columns against the stored content); linking never changes context_item_refs; audit_leakage() reports any context item dated after its decision. Whether the agent builds contexts correctly in the first place is outside D (audit_leakage detects it after the fact). The reference MemoryStore still overwrites items (change request D-3)."
   },
   "RC-08": {
    "state": "implemented",
@@ -293,21 +303,24 @@
     "tests/credit/test_simple_select.py::test_arm_difference_is_welch_and_covers_the_true_effect",
     "tests/credit/test_simple_select.py::test_student_t_matches_scipy",
     "tests/credit/test_providers.py::test_credited_returns_follow_the_evidence_selected_estimator_and_mask_missing_credit",
-    "tests/credit/test_evidence.py::test_delayed_unlock_is_credited_retrospectively_and_estimators_are_compared_with_randomised_differences"
+    "tests/credit/test_evidence.py::test_delayed_unlock_is_credited_retrospectively_and_estimators_are_compared_with_randomised_differences",
+    "tests/credit/test_gcl_fixes.py::test_experiment_lifetimes_are_held_out_and_the_comparison_excludes_whatever_was_trained_on",
+    "tests/credit/test_gcl_fixes.py::test_zero_standard_error_and_in_sample_evidence_cannot_promote_an_estimator"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_fix_slow.xml",
     "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
    ],
    "evidence": [
-    "docs/evidence/test_results/D.xml",
+    "docs/evidence/test_results/D_fix.xml",
     "docs/evidence/D/measured.json",
-    "docs/evidence/test_results/D_slow.xml",
-    "docs/evidence/D/diagnostics.json"
+    "docs/evidence/test_results/D_fix_slow.xml",
+    "docs/evidence/D/diagnostics.json",
+    "docs/D/FIXES.md"
    ],
-   "limitations": "RUDDER and COCOA are exercised on the real model's latents and compared with 6 randomised LabWorld experiments; in the recorded run the selector's default after the comparison is 'rudder' (cocoa not promoted: disagrees with measured differences: mean z^2 3.84 > 3.0; rudder: validated on 6 experiments; simple has no estimate to compare; promoted rudder to training default). The selected default is what CreditAssigner.credited_returns hands out, but no policy loss consumes it yet (Workstream C / agent integration). The simple attribution has no estimate for a decision without linked outcomes, so it cannot be scored on these experiments. One seed, debug scale."
+   "limitations": "Fix stage (G-cl M1): the comparison is held out by lifetime and enforced in code (experiment lifetimes are never trained on; compare_with_experiment excludes any lifetime an estimator or the learner trained on and records it); z-scores use the paired standard error of estimate - measurement on the same units; a zero / undefined standard error is refused. Re-run (diagnostics.json, estimators trained on 288 unregistered lifetimes, validated on 288 held-out experiment lifetimes of 6 experiments): NO estimator is promoted, the default stays 'simple'. RUDDER: RMSE 3.402, mean z^2 6.61, sign agreement 1.0; COCOA: RMSE 4.234, mean z^2 13.84, sign agreement 1.0 (gate mean z^2 <= 3). The earlier 'rudder promoted' was in-sample and is withdrawn. RUDDER's experiment estimate is the decomposer's prediction difference after the first decision, whose latent is the same in every lifetime of every mechanism (identical initial context): it can only estimate an average effect, while the six mechanisms' measured effects differ. The simple attribution has no estimate for a decision without linked outcomes, so it cannot be scored on these experiments. One seed, debug scale. In the synthetic selection test (held-out lifetimes, paired SE) RUDDER passes (mean z^2 about 1.0) and learned COCOA coefficients fail (about 28)."
   },
   "CL-01": {
    "state": "implemented",
@@ -338,17 +351,21 @@
     "tests/credit/test_replay.py::test_windows_versions_predictions_and_experiments",
     "tests/credit/test_replay.py::test_same_answers_as_the_contract_reference_store",
     "tests/credit/test_replay.py::test_fast_record_decoding_equals_the_contract_decoder",
-    "tests/credit/test_replay.py::test_update_deduplicates_outcomes_inside_a_record"
+    "tests/credit/test_replay.py::test_update_deduplicates_outcomes_inside_a_record",
+    "tests/credit/test_replay.py::test_update_refuses_to_rewrite_history_and_keeps_the_index_consistent",
+    "tests/credit/test_replay.py::test_a_result_queued_for_approval_may_be_replaced_once_by_the_executed_one",
+    "tests/credit/test_replay.py::test_reads_refuse_a_record_whose_index_disagrees_with_its_content"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
     "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/D/bench_store.py"
    ],
    "evidence": [
-    "docs/evidence/test_results/D.xml",
-    "docs/evidence/D/measured.json"
+    "docs/evidence/test_results/D_fix.xml",
+    "docs/evidence/D/measured.json",
+    "docs/D/FIXES.md"
    ],
-   "limitations": "Durability was tested against SIGKILL of the writer, not against power loss (synchronous=FULL is set but cannot be tested here). Unreferenced blobs are never garbage-collected. No retention/deletion policy for authorised data-retention rules (spec 10.4) yet. Success/failure labels are derived heuristically unless set explicitly (set_success). Not yet used by the learner (stage 2)."
+   "limitations": "Fix stage (G-cl M2): history is append-only: update() raises ImmutableHistoryError for any change of the decision (candidates, probabilities, time, decision-time diagnostics), context refs, goal, family, provenance, seq, an executed result, a stored final outcome or a query definition (a needs_approval placeholder result may be replaced once; outcomes, queries, annotations, credit, eligibility, labels, intrinsic rewards and windows may change); every read checks ten index columns against the decoded body (StoreIntegrityError, verify_index). The check decodes the stored record on every update: store throughput is lower (store_benchmark in measured.json; measured on a heavily loaded machine). Durability was tested against SIGKILL of the writer, not against power loss (synchronous=FULL is set but cannot be tested here). Unreferenced blobs are never garbage-collected. No retention/deletion policy for authorised data-retention rules (spec 10.4) yet. Success/failure labels are derived heuristically unless set explicitly (set_success)."
   },
   "CL-05": {
    "state": "implemented",
@@ -368,17 +385,19 @@
     "tests/credit/test_checkpoint.py::test_promotion_is_gated_by_validation_and_retention_and_rollback_restores_the_promoted_state",
     "tests/credit/test_checkpoint.py::test_weights_only_export_contains_only_parameters_and_fixed_configuration",
     "tests/credit/test_checkpoint.py::test_tolerant_loading_reports_added_removed_and_reshaped_modules",
-    "tests/credit/test_retention.py::test_promotion_needs_validation_and_retention_and_a_refusal_rolls_the_learner_back"
+    "tests/credit/test_retention.py::test_promotion_needs_validation_and_retention_and_a_refusal_rolls_the_learner_back",
+    "tests/credit/test_gcl_fixes.py::test_promotion_ignores_internal_reward_metrics_by_provenance_whatever_their_name"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D_fix.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/D.xml",
-    "docs/evidence/D/measured.json"
+    "docs/evidence/test_results/D_fix.xml",
+    "docs/evidence/D/measured.json",
+    "docs/D/FIXES.md"
    ],
-   "limitations": "Promotion and rollback are wired to the learner's held-out validation losses and to measured forgetting and tested on the real model at debug scale; nothing in the runtime calls promote_learner yet, and the 'independent validation' is the learner's own held-out split of stored experience, not a separate evaluation service. Experience is never rolled back."
+   "limitations": "Fix stage (G-cl m6): metrics count only by provenance (INDEPENDENT_PROVENANCE); internal-reward and unknown provenances are ignored whatever the name; promote_learner declares the provenance of the learner's held-out losses per provider. A plain number is the caller's declaration (validation / retention); only undeclared numbers named like the internal reward are still ignored by name. Promotion and rollback are wired to the learner's held-out validation losses and to measured forgetting and tested on the real model at debug scale; nothing in the runtime calls promote_learner yet, and the 'independent validation' is the learner's own held-out split of stored experience, not a separate evaluation service. Experience is never rolled back."
   },
   "CL-06": {
    "state": "partial",
@@ -427,18 +446,19 @@
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu   # test_checkpoint_of_a_gpu_model_is_stored_on_cpu (small model, < 1 GB, no lock needed)",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_fix_slow.xml",
     "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
    ],
    "evidence": [
-    "docs/evidence/test_results/D.xml",
+    "docs/evidence/test_results/D_fix.xml",
     "docs/evidence/D/measured.json",
-    "docs/evidence/test_results/D_gpu.xml",
-    "docs/evidence/test_results/D_slow.xml",
-    "docs/evidence/D/diagnostics.json"
+    "docs/evidence/test_results/D_fix_gpu.xml",
+    "docs/evidence/test_results/D_fix_slow.xml",
+    "docs/evidence/D/diagnostics.json",
+    "docs/D/FIXES.md"
    ],
-   "limitations": "Verified for the learner (model, optimizers, fast state, schedules, sampler, RNG, provider state) at debug scale on the CPU: kill -9 in the middle of an update and in the middle of a checkpoint write, resume in a new process, bit-identical subsequent updates. Bit-identity holds when the experience store holds what it held at the checkpoint (the store is never rolled back; experience written after the checkpoint is kept and would change later batches). NOT verified: restart of the integrated agent / runtime (AgentAPI.save / load do not call this yet), the current task and authorization configuration (carried as opaque fields), restart on the GPU with the real backbone, power loss (only SIGKILL)."
+   "limitations": "Verified for the learner (model, optimizers, fast state, schedules, sampler, RNG, provider state) at debug scale on the CPU: kill -9 in the middle of an update and in the middle of a checkpoint write, resume in a new process, bit-identical subsequent updates. Bit-identity holds when the experience store holds what it held at the checkpoint (the store is never rolled back; experience written after the checkpoint is kept and would change later batches). NOT verified: restart of the integrated agent / runtime (AgentAPI.save / load do not call this yet), the current task and authorization configuration (carried as opaque fields), learner restart on the GPU with the real backbone (a weights-only export of the real configuration reloads in a fresh CUDA process with identical group hashes and bit-identical predictions on 4 records, and the writer's predictions do not depend on its inference caches: G's probe_real with one diagnostic line adapted, CR D-13; this holds since workstream A's batch-invariant embeddings e00d28f, D's code was unchanged for it), power loss (only SIGKILL)."
   },
   "CU-20": {
    "state": "implemented",
@@ -466,10 +486,10 @@
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D_fix.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/D.xml",
+    "docs/evidence/test_results/D_fix.xml",
     "docs/evidence/D/measured.json"
    ],
    "limitations": "Primitive operations can be assigned to procedure steps only when per-step results with time intervals are supplied (PrimitiveOp has no step id: change request D-4). The credit-once guarantee covers outcomes that pass through CreditLedger; estimators that write record.credit directly (simple, rudder) are not forced through it yet. No policy is trained on these records here."
@@ -495,21 +515,21 @@
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_fix_slow.xml",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/D_gpu.xml",
     "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose",
     "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose --real"
    ],
    "evidence": [
-    "docs/evidence/test_results/D.xml",
+    "docs/evidence/test_results/D_fix.xml",
     "docs/evidence/D/measured.json",
-    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/test_results/D_fix_slow.xml",
     "docs/evidence/D/diagnostics.json",
     "docs/evidence/D/real_update.json",
-    "docs/evidence/test_results/D_gpu.xml"
+    "docs/evidence/test_results/D_fix_gpu.xml"
    ],
-   "limitations": "Shown at debug scale (tiny random backbone, 0.2 M-parameter core) on LabWorld diagnostic experience, and as single updates on Qwen3-4B + the 50m core (36 stored decisions). No learning curve exists for the real configuration and none on live experience. The prediction loss used in D's evidence is D's local wrapper of Workstream B's stage-1 world heads (credit.labkit.WorldPredictionProvider), not B's own provider. Held-out improvement is in mean NLL (2.954 -> 2.284, change -0.670 +- 0.245 SE, n=151); the median NLL did not improve (1.870 -> 2.136) and only 50% of the held-out records improved: the gain is in the over-confident tail. The learner is not yet called by agent.py."
+   "limitations": "Shown at debug scale (tiny random backbone, debug core) on LabWorld diagnostic experience, and as single updates on Qwen3-4B + the 50m core. No learning curve exists for the real configuration and none on live experience. The prediction loss used in D's evidence is D's local wrapper of Workstream B's stage-1 world heads. Held-out mean NLL 2.981 -> 2.291 (change -0.690 +- 0.259 SE, n=151); the median did not improve (1.902 -> 2.106) and 0.50 of the held-out records improved: the gain is in the over-confident tail. The learner is not yet called by agent.py."
   },
   "CL-02": {
    "state": "implemented",
@@ -528,14 +548,14 @@
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_fix_slow.xml",
     "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
    ],
    "evidence": [
-    "docs/evidence/test_results/D.xml",
+    "docs/evidence/test_results/D_fix.xml",
     "docs/evidence/D/measured.json",
-    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/test_results/D_fix_slow.xml",
     "docs/evidence/D/diagnostics.json"
    ],
    "limitations": "The behavioural probe is whatever probes the agent registers (D's evidence: belief / decision latents, D's wrapper of B's world predictions, B's stage-1 policy head). The policy head is not trained by any loss D owns, so its probabilities move only through the latents. Loss shares, strata and the behaviour flag live as JSON in LearningUpdateRecord.notes (change request D-11)."
@@ -556,23 +576,26 @@
     "tests/credit/test_learner.py::test_slow_update_that_hurts_held_out_validation_is_reverted",
     "tests/credit/test_learner.py::test_take_and_bridge_provider_on_real_latents",
     "tests/credit/test_evidence.py::test_stored_experience_changes_experiential_weights_and_improves_held_out_prediction",
-    "tests/credit/test_evidence.py::test_real_configuration_one_frequent_and_one_slow_adapter_update"
+    "tests/credit/test_evidence.py::test_real_configuration_one_frequent_and_one_slow_adapter_update",
+    "tests/credit/test_gcl_fixes.py::test_a_slow_step_that_degrades_held_out_loss_by_a_small_relative_amount_is_undone_completely",
+    "tests/credit/test_gcl_fixes.py::test_cumulative_drift_of_accepted_slow_steps_is_bounded_until_a_promotion"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_fix_slow.xml",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/D_gpu.xml",
     "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose --real"
    ],
    "evidence": [
-    "docs/evidence/test_results/D.xml",
+    "docs/evidence/test_results/D_fix.xml",
     "docs/evidence/D/measured.json",
-    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/test_results/D_fix_slow.xml",
     "docs/evidence/D/diagnostics.json",
-    "docs/evidence/D/real_update.json"
+    "docs/evidence/D/real_update.json",
+    "docs/D/FIXES.md"
    ],
-   "limitations": "Adapter updates happen and are measured (gradient and delta of LoRA and bridge separately); whether they improve semantic understanding is NOT shown: on Qwen3-4B there is one slow update on 4 records, and at debug scale the held-out grounding loss moved 12.466 -> 12.405 on a random tiny LM. On the real model the world-NLL path into LoRA is three orders of magnitude weaker than the grounding loss (gradient norms {'bridge_grounding': 5.582943916320801, 'world': 0.0009938043076545}). The adapter graph covers the newest grad_last context items plus all candidate and goal texts; encode_decisions itself cannot bound it (change request D-8)."
+   "limitations": "Fix stage (G-cl M4, m4): a slow step is kept only if the held-out loss (fixed validation sample, 8 chunks, paired before / after) rises by at most min(0.01 absolute, 5 % relative, 2 x its standard error) and the summed change of accepted steps since the last promoted checkpoint stays <= 0.02; a rejected step is undone with its AdamW state, learning rate, schedule and counters. Debug-scale learning run: 20 of 20 slow steps accepted, 0 reverted. Real model (real_update.json): held-out 3.2735 -> 3.2735 (paired change -0.00008, tolerance 0.00395), accepted=True. The old rule kept 3.341 -> 3.485 (+4.3 %) and 3.437 -> 3.579 (+4.1 %). Whether adapter updates improve semantic understanding is still NOT shown (one slow step on 4 records on Qwen3-4B; random tiny LM at debug scale). The adapter graph covers the newest grad_last context items plus all candidate and goal texts (change request D-8)."
   },
   "CL-04": {
    "state": "implemented",
@@ -594,17 +617,17 @@
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_fix_slow.xml",
     "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
    ],
    "evidence": [
-    "docs/evidence/test_results/D.xml",
+    "docs/evidence/test_results/D_fix.xml",
     "docs/evidence/D/measured.json",
-    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/test_results/D_fix_slow.xml",
     "docs/evidence/D/diagnostics.json"
    ],
-   "limitations": "One pair of LabWorld families at debug scale, one seed. 'Decision agreement' is measured on B's stage-1 policy head, which no loss in this experiment trains. The retention arm combines family-balanced replay with the functional regulariser; their separate contributions were not measured. Anchors are chosen by the caller (first records of a family), not by an importance criterion. Adapters are not covered by the functional regulariser (the slow guard and weight decay protect them)."
+   "limitations": "Regenerated (diagnostics.json): NLL increase on A naive 1.768 +- 0.426, with retention 0.357 +- 0.135; decision agreement on A 0.34 vs 0.86. One pair of LabWorld families at debug scale, one seed. 'Decision agreement' is measured on B's stage-1 policy head, which no loss in this experiment trains. The retention arm combines family-balanced replay with the functional regulariser; their separate contributions were not measured. Anchors are chosen by the caller (first records of a family), not by an importance criterion. Adapters are not covered by the functional regulariser (the slow guard and weight decay protect them)."
   },
   "CL-08": {
    "state": "implemented",
@@ -621,18 +644,20 @@
     "tests/credit/test_learner.py::test_frequent_learning_is_triggered_by_matured_independent_outcomes_not_by_time_or_rows",
     "tests/credit/test_learner.py::test_slow_adapter_update_runs_every_adapter_every_frequent_updates_and_reaches_lora_and_bridge",
     "tests/credit/test_learner.py::test_fast_timescale_updates_beliefs_without_gradient_or_parameter_change",
-    "tests/credit/test_evidence.py::test_stored_experience_changes_experiential_weights_and_improves_held_out_prediction"
+    "tests/credit/test_evidence.py::test_stored_experience_changes_experiential_weights_and_improves_held_out_prediction",
+    "tests/credit/test_gcl_fixes.py::test_a_slow_step_that_degrades_held_out_loss_by_a_small_relative_amount_is_undone_completely"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_fix_slow.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/D.xml",
+    "docs/evidence/test_results/D_fix.xml",
     "docs/evidence/D/measured.json",
-    "docs/evidence/test_results/D_slow.xml",
-    "docs/evidence/D/diagnostics.json"
+    "docs/evidence/test_results/D_fix_slow.xml",
+    "docs/evidence/D/diagnostics.json",
+    "docs/D/FIXES.md"
    ],
    "limitations": "The learner schedules fast / frequent / slow; the fourth timescale (meta-update of the reward) belongs to Workstream C and is not scheduled here. 'Informative' is decided from the stored surprise of a registered prediction (outcomes nobody predicted always count); the independence unit is the top-level decision, not a statistical test. In D's evidence only the first plan comes from poll(); the remaining updates of each experiment are explicit replay plans."
   }
@@ -665,32 +690,58 @@
   "python -m cam_live.credit.diagnose [--only learning,credit,retention,restart,export] [--out PATH] [--work DIR] | --real",
   "stage-1 API unchanged: see docs/D/API.md sections 1-8"
  ],
- "change_requests": 12,
- "change_requests_note": "docs/change_requests/D.md: D-1 ... D-6 (stage 1), D-7 ... D-12 (stage 2), plus a note for Workstream B. None blocks D.",
+ "change_requests": 14,
+ "change_requests_note": "docs/change_requests/D.md: D-1 ... D-6 (stage 1), D-7 ... D-12 (stage 2), D-13 (G's probe_real.py reads a renamed nn attribute), D-14 (behaviour changes callers must respect). None blocks D.",
  "extra_packages": [],
  "measured": {
-  "tests_passed_default": 100,
-  "tests_passed_gpu_marked": 2,
-  "suite_seconds": 122.616,
+  "_source": "docs/evidence/D/regenerate.py status (from measured.json, diagnostics.json, real_update.json, test_results/D_fix*.xml)",
+  "_commits": {
+   "measured.json": "e6f51c778a013142fbb214b322ad4d60bc56e78a",
+   "diagnostics.json": "e6f51c778a013142fbb214b322ad4d60bc56e78a",
+   "real_update.json": "c9ec6155e2238e97d28bb75eeb76ed3f4805e7b4"
+  },
+  "tests_default": {
+   "tests": 121,
+   "failures": 0,
+   "errors": 0,
+   "skipped": 7,
+   "seconds": 350.002,
+   "file": "docs/evidence/test_results/D_fix.xml"
+  },
+  "tests_slow": {
+   "tests": 5,
+   "failures": 0,
+   "errors": 0,
+   "skipped": 0,
+   "seconds": 1273.497,
+   "file": "docs/evidence/test_results/D_fix_slow.xml"
+  },
+  "tests_gpu": {
+   "tests": 2,
+   "failures": 0,
+   "errors": 0,
+   "skipped": 0,
+   "seconds": 48.844,
+   "file": "docs/evidence/test_results/D_fix_gpu.xml"
+  },
   "exact_rel_bias_max_unbiased_estimators_enumerated": 7.203e-32,
-  "exact_rel_bias_return_conditioned_hindsight": 0.06099,
   "exact_rel_var_reinforce": 23.46,
   "exact_rel_var_cocoa": 10.52,
-  "exact_rel_var_rudder_immediate": 8.585,
+  "exact_rel_var_rudder_immediate": null,
   "exact_rel_var_all_actions": 0.1172,
+  "exact_rel_bias_return_conditioned_hindsight": 0.06099,
   "mc_max_abs_z_all_estimators": 2.83,
   "mc_max_rel_error_all_estimators": 0.0327,
   "key_to_door_key_decision_var_reinforce": 8.086872942495749,
   "key_to_door_key_decision_var_cocoa": 0.05927886632592312,
   "key_to_door_key_decision_var_rudder_immediate": 0.14454797263208838,
   "long_delay_snr_reinforce_T16": 0.03474,
-  "long_delay_snr_reinforce_T1024": 2.313e-05,
   "long_delay_snr_cocoa_T16": 1.0,
+  "long_delay_snr_reinforce_T1024": 2.313e-05,
   "long_delay_snr_cocoa_T1024": 1.0,
-  "rudder_key_abs_err": 0.03527312090221115,
-  "rudder_other_steps_abs_mean": 0.006645334122909323,
+  "rudder_key_abs_err": 0.035273090064421746,
+  "rudder_other_steps_abs_mean": 0.006645334106130766,
   "rudder_key_is_argmax_fraction": 1.0,
-  "rudder_conservation_max_error_bound": 1e-09,
   "cocoa_learned_w_weighted_abs_err_key_to_door": 0.01562347030289538,
   "cocoa_learned_w_key_door": 1.1957322301644009,
   "cocoa_exact_w_key_door": 1.1998696918767409,
@@ -698,151 +749,265 @@
   "cocoa_w0_key_rel_bias": 1.0,
   "cocoa_hindsight_tv_with_elapsed": 0.018817064853114737,
   "cocoa_hindsight_tv_without_elapsed": 0.0809684713129758,
-  "selection_rmse_rudder": 0.0184,
-  "selection_rmse_cocoa": 0.1207,
-  "selection_rmse_simple_equal_split": 0.9523,
-  "selection_rmse_latest_action": 1.1904,
-  "selection_max_abs_err_vs_true_effect_rudder": 0.03475672006607056,
-  "selection_max_abs_err_vs_true_effect_cocoa": 0.2016505002975464,
+  "selection_synthetic": {
+   "validation": "held-out lifetimes (seed 1), paired standard error",
+   "default_clear": "simple",
+   "default_ambiguous": "rudder",
+   "max_abs_err_vs_true_effect": {
+    "cocoa": 0.20794814825057983,
+    "rudder": 0.03586643934249878
+   },
+   "scores": {
+    "cocoa": {
+     "mean_sq_z": 28.2724,
+     "n": 6,
+     "passes": false,
+     "rmse": 0.1581,
+     "sign_agreement": 1.0
+    },
+    "latest": {
+     "mean_sq_z": 627.3615,
+     "n": 6,
+     "passes": false,
+     "rmse": 1.1748,
+     "sign_agreement": 0.2
+    },
+    "rudder": {
+     "mean_sq_z": 1.0032,
+     "n": 6,
+     "passes": true,
+     "rmse": 0.0441,
+     "sign_agreement": 1.0
+    },
+    "simple": {
+     "mean_sq_z": 627.3615,
+     "n": 6,
+     "passes": false,
+     "rmse": 0.9399,
+     "sign_agreement": 1.0
+    }
+   }
+  },
   "replay_fraction_recent_successes_in_batches": 0.3841,
   "replay_fraction_failures": 0.2084,
   "replay_fraction_delayed": 0.2623,
   "replay_old_records_covered_of_1800": 1360,
-  "store_durable_appends_per_s": 437.6,
-  "store_batched_appends_per_s": 1013.8,
-  "store_durable_add_outcome_per_s": 233.0,
-  "store_sample_32_records_ms": 10.39,
-  "store_cached_sample_ids_ms_20k_records": 1.92,
-  "store_db_bytes_per_record": 8674,
-  "tests_skipped_default_slow_or_gpu": 7,
-  "tests_failed_default": 0,
-  "tests_passed_slow": 5,
-  "tests_failed_slow": 0,
-  "slow_suite_seconds": 321.735,
-  "tests_failed_gpu": 0,
-  "debug_heldout_nll_before": 2.9539895057678223,
-  "debug_heldout_nll_after": 2.284083604812622,
-  "debug_heldout_nll_change": -0.6699055433273315,
-  "debug_heldout_nll_change_se": 0.24469798803329468,
-  "debug_heldout_n": 151,
-  "debug_heldout_median_nll_before": 1.8703665733337402,
-  "debug_heldout_median_nll_after": 2.1359286308288574,
-  "debug_heldout_share_improved": 0.503311276435852,
-  "debug_heldout_mean_sq_z_before": 6.665335655212402,
-  "debug_heldout_mean_sq_z_after": 1.0760793685913086,
+  "store_benchmark": {
+   "batched_appends_per_s": 387.5,
+   "cached_sample_ids_ms": 4.949,
+   "db_bytes_per_record": 8677,
+   "durable_add_outcome_per_s": 57.8,
+   "durable_appends_per_s": 229.8,
+   "first_sample_ids_ms_20k_records": 316.95,
+   "sample_32_records_ms": 21.32
+  },
+  "debug_heldout_nll": {
+   "before": 2.980973720550537,
+   "after": 2.2905991077423096,
+   "change": -0.6903743743896484,
+   "se": 0.259061723947525,
+   "n": 151,
+   "median_before": 1.90200674533844,
+   "median_after": 2.105886459350586,
+   "share_improved": 0.49668875336647034
+  },
   "debug_frequent_updates": 161,
   "debug_total_weight_delta": {
-   "experiential": 0.8315804816407313,
-   "heads": 4.354372242321238,
+   "experiential": 0.9358071121136895,
+   "heads": 5.155148998752339,
    "reward": 0.0,
-   "semantic_adapters": 0.11015515853968809
+   "semantic_adapters": 0.10961570004554841
   },
-  "debug_slow_updates_applied": 20,
-  "debug_slow_reverted": 0,
-  "debug_slow_grad_norm_lora_min": 2.784388780593872,
-  "debug_slow_grad_norm_bridge_min": 1.4630342721939087,
-  "debug_slow_delta_norm_lora_min": 0.00014142077998258173,
-  "debug_slow_delta_norm_bridge_min": 0.0005656564608216286,
+  "debug_slow_updates": {
+   "attempted": 20,
+   "applied": 20,
+   "reverted_by_guard": 0
+  },
   "credit_experiments": 6,
-  "credit_max_conservation_error": 1.7763568394002505e-15,
+  "credit_holdout": {
+   "experiment_lifetimes": 288,
+   "experiment_lifetimes_trained_on": {
+    "cocoa": 0,
+    "learner": 0,
+    "rudder": 0
+   },
+   "experiment_records": 288,
+   "experiment_records_in_learner_training_split": 0,
+   "training_lifetimes": 288,
+   "training_lifetimes_trained_on_by_rudder": 248
+  },
+  "credit_max_conservation_error": 3.552713678800501e-15,
   "credit_links_to_later_decision": 0,
   "credit_context_leaks": 0,
-  "credit_rmse_rudder": 1.5248930483118348,
-  "credit_rmse_cocoa": 3.0567677411976257,
-  "credit_mean_sq_z_rudder": 1.9030695042648478,
-  "credit_mean_sq_z_cocoa": 3.8350270130774082,
   "credit_rmse_of_claiming_no_effect": 6.199205247828908,
-  "credit_selected_default": "rudder",
+  "credit_scores": {
+   "cocoa": {
+    "n": 6,
+    "rmse": 4.233886351690149,
+    "mean_sq_z": 13.841547168093904,
+    "sign_agreement": 1.0,
+    "passes": false,
+    "n_refused": 0,
+    "n_paired": 6,
+    "reasons": [
+     "disagrees with measured differences: mean z^2 13.84 > 3.0"
+    ]
+   },
+   "rudder": {
+    "n": 6,
+    "rmse": 3.401672639485271,
+    "mean_sq_z": 6.607695693684691,
+    "sign_agreement": 1.0,
+    "passes": false,
+    "n_refused": 0,
+    "n_paired": 6,
+    "reasons": [
+     "disagrees with measured differences: mean z^2 6.61 > 3.0"
+    ]
+   },
+   "simple": {
+    "n": 0,
+    "rmse": null,
+    "mean_sq_z": null,
+    "sign_agreement": null,
+    "passes": false,
+    "n_refused": 0,
+    "n_paired": 0,
+    "reasons": [
+     "no randomised experiment to compare with (held out by lifetime)"
+    ]
+   }
+  },
+  "credit_selected_default": "simple",
+  "credit_selection_reasons": [
+   "cocoa not promoted: disagrees with measured differences: mean z^2 13.84 > 3.0",
+   "rudder not promoted: disagrees with measured differences: mean z^2 6.61 > 3.0"
+  ],
   "credit_first_decision_mean_credit": {
    "unlock": {
-    "cocoa": 4.023378607201565,
-    "rudder": 4.529284775157264,
-    "rudder_contribution": 10.159076251213767,
+    "cocoa": 1.6782397901646622,
+    "rudder": 0.9055099880043824,
+    "rudder_contribution": 13.462515484582283,
     "rudder_rtg": 12.18400188519493,
     "simple": null
    },
    "wait": {
-    "cocoa": -1.7847512810946706,
-    "rudder": -0.18757015882788095,
-    "rudder_contribution": 5.813947140053445,
+    "cocoa": -0.592664184368904,
+    "rudder": -3.811344937606676,
+    "rudder_contribution": 7.186948416472309,
     "rudder_rtg": 7.467146951209784,
     "simple": null
    }
   },
-  "retention_nll_increase_on_A_naive": 2.085038423538208,
-  "retention_nll_increase_on_A_naive_se": 0.5801178216934204,
-  "retention_nll_increase_on_A_with_retention": 0.14969143271446228,
-  "retention_nll_increase_on_A_with_retention_se": 0.15304340422153473,
-  "retention_nll_change_on_B_naive": -0.3997666537761688,
-  "retention_nll_change_on_B_with_retention": -0.26525354385375977,
-  "retention_decision_agreement_A_naive": 0.32222222222222224,
-  "retention_decision_agreement_A_with_retention": 0.9,
-  "restart_kill_mid_update_identical_updates": "6/6",
-  "restart_kill_mid_checkpoint_identical_updates": "6/6",
-  "restart_final_hashes_identical": true,
-  "export_all_bit_exact": true,
-  "export_max_abs_difference": 0.0,
-  "export_bytes_debug": 2115719,
-  "real_parameters": {
-   "backbone_frozen": 4022468096,
-   "experiential": 50953765,
-   "heads": 1932714,
-   "reward": 0,
-   "semantic_adapters": 16713856
+  "retention": {
+   "decision_agreement_A_naive": 0.34444444444444444,
+   "decision_agreement_A_retention": 0.8555555555555555,
+   "forgetting_reduced_by": 1.4100349247455597,
+   "nll_change_on_B_naive": -0.8705892562866211,
+   "nll_change_on_B_retention": -0.764187753200531,
+   "nll_increase_on_A_naive": 1.7675209045410156,
+   "nll_increase_on_A_retention": 0.35748597979545593,
+   "se_naive": 0.4257211983203888,
+   "se_retention": 0.13452036678791046
   },
-  "real_load_seconds": 7.478732713032514,
-  "real_gpu_gb_after_load": 7.820958137512207,
-  "real_frequent_seconds_with_credit_assignment": 2.6624531988054514,
-  "real_frequent_seconds": 0.7278398219496012,
-  "real_frequent_peak_gpu_gb": 9.095925331115723,
-  "real_frequent_grad_norms": {
-   "experiential": 0.3438902199268341,
-   "heads": 13.684985160827637
+  "restart": {
+   "kill_during_update": {
+    "all_identical": true,
+    "updates_compared": 6,
+    "final_hashes_identical": true
+   },
+   "kill_during_checkpoint": {
+    "all_identical": true,
+    "updates_compared": 6,
+    "final_hashes_identical": true
+   }
   },
-  "real_frequent_weight_delta": {
-   "experiential": 0.2528763711452484,
-   "heads": 0.01861485093832016
+  "export": {
+   "all_bit_exact": true,
+   "max_abs_difference": {
+    "action_probs": 0.0,
+    "b": 0.0,
+    "fast_prior_mean": 0.0,
+    "fast_prior_var": 0.0,
+    "rudder_prefix_prediction": 0.0,
+    "world_mean": 0.0,
+    "world_std": 0.0,
+    "z": 0.0
+   },
+   "export_bytes": 2116495
   },
-  "real_frequent_prediction_change": {
-   "latent_b": 0.26883256435394287,
-   "latent_z": 0.3913797438144684,
-   "max_abs": 0.3913797438144684,
-   "policy.action_probs": 0.00025488209212198853,
-   "world.pred_mean": 0.04869192838668823
+  "diagnostics_seconds": {
+   "learning": 355.46402076119557,
+   "credit": 308.03353214496747,
+   "retention": 190.16895847488195,
+   "restart": 144.28364577516913,
+   "export": 28.605084845330566
   },
-  "real_slow_seconds": 2.6036708331666887,
-  "real_slow_peak_gpu_gb": 8.846506118774414,
-  "real_slow_grad_norms": {
-   "semantic_adapters": 5.582971572875977
-  },
-  "real_slow_adapter_grad_norm": {
-   "bridge": 3.778477907180786,
-   "lora": 4.11007022857666
-  },
-  "real_slow_adapter_delta_norm": {
-   "bridge": 0.008757708594202995,
-   "lora": 0.015133644454181194
-  },
-  "real_slow_guard": {
-   "validation_after": 3.4846725463867188,
-   "validation_before": 3.3413895815610886
+  "real": {
+   "parameters": {
+    "backbone_frozen": 4022468096,
+    "experiential": 50953765,
+    "heads": 1932714,
+    "reward": 0,
+    "semantic_adapters": 16713856
+   },
+   "load_seconds": 30.473724660929292,
+   "gpu_gb_after_load": 7.820958137512207,
+   "frequent_grad_norms": {
+    "experiential": 0.34489649534225464,
+    "heads": 13.675823211669922
+   },
+   "frequent_weight_delta": {
+    "experiential": 0.25333371758461,
+    "heads": 0.018684277310967445
+   },
+   "frequent_prediction_change": {
+    "latent_b": 0.26530560851097107,
+    "latent_z": 0.35764482617378235,
+    "max_abs": 0.35764482617378235,
+    "policy.action_probs": 0.0006031781085766852,
+    "world.pred_mean": 0.07112398743629456
+   },
+   "slow_grad_norms": {
+    "semantic_adapters": 5.546667575836182
+   },
+   "slow_weight_delta": {
+    "semantic_adapters": 0.01748514734208584
+   },
+   "slow_guard": {
+    "accepted": true,
+    "drift_after": -7.986028989156102e-05,
+    "drift_before": 0.0,
+    "n_chunks": 6,
+    "noise_tolerance": 0.003947451250570246,
+    "paired_change": -7.986028989156102e-05,
+    "paired_se": 0.001973725625285123,
+    "reasons": [],
+    "reference": "start",
+    "tolerance": 0.003947451250570246,
+    "validation_after": 3.2735231830960227,
+    "validation_before": 3.273480460757301
+   },
+   "slow_param_groups": [
+    "semantic_adapters"
+   ],
+   "slow_adapter_grad_norm": {
+    "bridge": 3.7242047786712646,
+    "lora": 4.110452175140381
+   },
+   "slow_adapter_delta_norm": {
+    "bridge": 0.00875766109675169,
+    "lora": 0.01513386145234108
+   }
   }
  },
  "measured_commands": {
-  "default_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
-  "slow_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
-  "gpu_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/D_gpu.xml",
-  "debug_scale_evidence (debug_*, credit_*, retention_*, restart_*, export_*)": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose   # docs/evidence/D/diagnostics.json",
-  "real_configuration (real_*)": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose --real   # docs/evidence/D/real_update.json",
-  "stage_1_numbers": {
-   "note": "every block except store_benchmark is the JSON a test prints (tag in upper case) during the test run above",
-   "store_benchmark": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/D/bench_store.py",
-   "tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -s"
-  }
+  "regenerate_all": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/D/regenerate.py",
+  "real_configuration": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/D/regenerate.py --only real,status"
  },
  "not_done": [
   "Not integrated: agent.py and the runtime do not construct the learner, the assigner or the linker yet; AgentAPI.learn / save / load / reconcile do not call them. Everything was exercised through credit.labkit only.",
-  "No learning curve on the real configuration: Qwen3-4B + 50m core saw two frequent updates and one slow update on 36 LabWorld decisions (time, memory, gradient norms, deltas). Whether the 50m core learns from stored experience, and at which rates, is untested.",
+  "No learning curve on the real configuration: Qwen3-4B + 50m core saw single frequent and slow updates on LabWorld decisions (time, memory, gradient norms, deltas). Whether the 50m core learns from stored experience, and at which rates, is untested.",
   "No live or staging experience: every record in the evidence has provenance 'diagnostic'.",
   "Adapter learning is shown as mechanics only (non-zero gradient and delta, held-out guard); no evidence that adapter updates improve prediction or generation.",
   "Restart of the integrated agent, restart on the GPU, and power-loss durability are not verified (learner restart at debug scale on CPU and SIGKILL only).",
@@ -851,20 +1016,44 @@
   "Estimator comparison: six experiments, one seed, one mechanism family, debug scale.",
   "RUDDER auxiliary losses of the original paper are not implemented; COCOA has no learned outcome encoder and no sampled-alternatives estimator; trajectories longer than 64 decisions are truncated.",
   "No garbage collection of unreferenced blobs and no data-retention / deletion policy in the store.",
-  "The learner is single-threaded and assumes it is the only writer of the store."
+  "The learner is single-threaded and assumes it is the only writer of the store.",
+  "Estimator selection on LabWorld promotes nothing once validated on held-out lifetimes; RUDDER's per-experiment estimate cannot distinguish mechanisms that share the same first-decision context."
  ],
  "scientific_failures": [
   "Return-conditioned hindsight is biased, as the literature says: relative bias 0.061 on the enumerated NoisyKeyDoor and exactly 16/81 on the two-armed bandit with rewards (1, -2). It is kept only as a counterexample.",
   "The redistributed return-to-go gives no variance reduction over REINFORCE at the key decision (key-to-door variance 8.09 for both); the reduction comes only from the contributions of a well-trained decomposer (0.14) or from COCOA (0.059).",
-  "In the one seeded run of the synthetic experiment world, a decomposer trained with a constant learning rate gave arm-difference estimates that disagreed with the randomised differences (RMSE 0.096, mean z^2 4.3) and the selector rejected it; the same 400 steps with cosine annealing gave RMSE 0.018. One seed, one task: it shows sensitivity to training quality, not a rate.",
-  "Learned COCOA coefficients are the less accurate of the two learned estimators on the synthetic experiments (max error against the true effect 0.20 versus 0.035 for RUDDER contributions; RMSE against measured differences 0.12 versus 0.018).",
-  "Debug-scale credit comparison (recorded run): the selector's default after six randomised experiments is 'rudder'. RUDDER contributions: RMSE 1.52, mean z^2 1.90, passes=True; COCOA: RMSE 3.06, mean z^2 3.84, passes=False (claiming no effect: RMSE 6.20; gate: mean z^2 <= 3). This outcome is NOT stable: the same experiment run earlier without learning-rate warm-up (same seeds; not kept as evidence) left both learned estimators just outside the gate (mean z^2 3.77 and 3.86) and the default stayed 'simple'; an exploratory run with other world seeds promoted COCOA (mean z^2 2.44) and rejected RUDDER (5.71). Six experiments at debug scale do not decide between the estimators.",
-  "Held-out prediction: the mean NLL improved (2.954 -> 2.284) but the median did not (1.870 -> 2.136); 50% of held-out records improved. With a smaller data set (60 lifetimes) held-out NLL fell and then rose again after about 75 updates (over-fitting, observed while exploring; not in the evidence file).",
-  "On the 50m core a single Adam step moves the belief latent a lot: with the 8-step warm-up (first step at lr/8) the probe belief changed by 0.27 (mean absolute); without warm-up, at lr 3e-4, by 0.78 (measured before the warm-up default was introduced).",
-  "On Qwen3-4B the world-NLL gradient that reaches LoRA through the semantic embeddings is tiny next to the grounding loss (by-loss adapter gradient norms: {'bridge_grounding': 5.582943916320801, 'world': 0.0009938043076545}): in practice the slow update is driven by the grounding loss.",
-  "On Qwen3-4B the one slow adapter update did not improve held-out loss: {'validation_after': 3.4846725463867188, 'validation_before': 3.3413895815610886} (kept, because the increase is inside the 5 % tolerance of the guard). One update on four records shows that the path works, not that it helps.",
-  "Update times on the real configuration depend strongly on what else the shared machine is doing: the same three updates took 17.0 / 6.1 / 12.0 s in a run under heavy load and the values in real_update.json under light load.",
-  "An untrained ensemble under loss *ascent* first improved the ensemble-mixture NLL on held-out data (members spread apart) before it got worse: per-member NLL (the training objective) and mixture NLL (what is scored) can move in opposite directions for a few updates."
+  "Exploratory, not part of the regenerated evidence: in one seeded run of the synthetic experiment world a decomposer trained with a constant learning rate gave arm-difference estimates that disagreed with the randomised differences (RMSE 0.096, mean z^2 4.3); with cosine annealing it agreed. It shows sensitivity to training quality, not a rate.",
+  "Learned COCOA coefficients are the less accurate of the two learned estimators on the synthetic experiments (regenerated, held-out lifetimes: max error against the true effect 0.208 versus 0.036 for RUDDER contributions; RMSE against measured differences 0.158 versus 0.044).",
+  "Debug-scale credit comparison, held out by lifetime with paired standard errors (regenerated): neither learned estimator passes: RUDDER mean z^2 6.61 (RMSE 3.40), COCOA 13.84 (RMSE 4.23); gate 3.0; default stays 'simple'. The 'rudder promoted' of the earlier recorded run came from in-sample validation (G-cl M1) and is withdrawn.",
+  "Held-out prediction (regenerated): mean NLL improved (2.981 -> 2.291) but the median did not (1.902 -> 2.106); 0.50 of held-out records improved.",
+  "On the 50m core a single Adam step moves the belief latent a lot: with the 8-step warm-up (first step at lr/8) the probe belief changed by 0.265 mean absolute (real_update.json); without warm-up, at lr 3e-4, by 0.78 (exploratory, measured before the warm-up default; not regenerated).",
+  "On Qwen3-4B the world-NLL gradient that reaches LoRA through the semantic embeddings is tiny next to the grounding loss (by-loss adapter gradient norms in real_update.json: bridge_grounding 5.547, world 0.00101): in practice the slow update is driven by the grounding loss.",
+  "Update times on the real configuration depend strongly on what else the shared machine is doing: in the regenerated real_update.json (machine under load) the frequent update took 8.6 s and the slow update 9.7 s; the earlier light-load run took 0.73 s and 2.6 s.",
+  "Exploratory observation (not regenerated): an untrained ensemble under loss *ascent* first improved the ensemble-mixture NLL on held-out data (members spread apart) before it got worse: per-member NLL (the training objective) and mixture NLL (what is scored) can move in opposite directions for a few updates.",
+  "With held-out lifetimes and the paired standard error, learned COCOA coefficients that passed the in-sample synthetic selection test (old measured.json: mean z^2 1.53) fail it (regenerated: 28.3): their bias is several standard errors. RUDDER passes (1.00).",
+  "The history check of SqliteExperienceStore.update decodes and compares the stored record: durable add_outcome throughput fell from about 90 to 58 per second in a same-load A/B run of bench_store.py (old vs new replay.py, two runs each); appends and sampling are unchanged."
  ],
- "commit_note": "commit = the code commit the evidence was produced from; the status file itself is committed afterwards."
+ "commit_note": "commit = the code commit every evidence file was regenerated from (docs/evidence/D/regenerate.py exports it with git archive; each file records it under _code); the status file is committed afterwards.",
+ "fix_stage": {
+  "verification": "docs/verification/G_cl.md (G, lens cl)",
+  "fixes": "docs/D/FIXES.md",
+  "commits": [
+   "2eafa26 (M2, M3)",
+   "c5122be (M1, M4, m1-m6)",
+   "e6f51c7 (regenerate.py parser)"
+  ],
+  "defects": {
+   "M1": "fixed: experiment lifetimes held out from all training (probe C HOLDS: 0.00 of 24 records in the training split), comparison excludes trained lifetimes, paired standard errors, zero SE refused",
+   "M2": "fixed: update() refuses history rewrites (ImmutableHistoryError), reads verify index vs content (probe immut HOLDS)",
+   "M3": "fixed: attribution amounts validated, malformed maps ambiguous, weights <= 1 (probe links HOLDS)",
+   "M4": "fixed: noise-measured absolute tolerance + drift bound + exact revert (regression tests; on the real model the re-run slow step improved held-out loss and was kept)",
+   "m1": "fixed: open-ended candidate provenance -> COCOA unsupported unless proposals tracked (probe D prints 'unsupported')",
+   "m2": "fixed: earlier-declared later-observed outcomes enter COCOA pairs (probe B HOLDS)",
+   "m3": "fixed: full-trajectory credit, window targets referenced at the window start (probe A HOLDS)",
+   "m4": "fixed: Adam state, lr, sched_step, counters restored on revert (probe learn HOLDS)",
+   "m5": "fixed: every number regenerated from one committed tree by docs/evidence/D/regenerate.py",
+   "m6": "fixed: promotion filters metrics by provenance (name rule only for undeclared metrics)",
+   "m7": "holds after workstream A's e00d28f (batch-invariant embeddings, content-checked caches): writer warm/cold caches 0.0, fresh-process CUDA reload bit-exact (adapted copy of probe_real, CR D-13); no D code change was needed"
+  }
+ }
 }
