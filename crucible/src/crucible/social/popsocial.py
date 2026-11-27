@@ -200,7 +200,7 @@ def _act_community(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
         jn = np.array([int(idx[j]) for j in joiners], np.int64)
         for i in jn:
             ids.ensure_principal(ctx, int(i))
-        cm.join_many(ctx, jn, np.array(join_comm, np.int64), "population")
+        cm.join_many(ctx, jn, np.array(join_comm, np.int64), "population", decision=COMMUNITY_MODEL)
         U[np.array(joiners)] = 0.02
     # founding: the subject is what one has been reading
     for j in founders:
@@ -300,7 +300,7 @@ def _act_community(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
                 best = max(others, key=lambda x: int(act["posts"][cm._lookup(w, np.array([x]), np.array([cn]))[0]])
                            + int(act["comments"][cm._lookup(w, np.array([x]), np.array([cn]))[0]]))
                 cm._execute(ctx, dict(st.tables["communities"][c["id"]]), "transfer", {"member": ids.pid(best)}, None)
-            cm.leave_many(ctx, np.array([int(i)]), np.array([cn]), "no longer worth it")
+            cm.leave_many(ctx, np.array([int(i)]), np.array([cn]), "no longer worth it", decision=COMMUNITY_MODEL)
     if notified:
         from .popinbox import NOTE_DELAY_S
         population.wake(ctx, np.array(sorted(notified), np.int64), ctx.now + NOTE_DELAY_S, "social.community")

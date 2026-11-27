@@ -144,3 +144,38 @@ def test_members_govern_their_community():
     assert w.state.tables["community_proposals"][pid]["status"] in ("approved", "rejected")
     assert w.check_invariants() == []
     assert not [e for e in w.log if e.type == "proc.failed"]
+
+
+def test_population_joins_and_leaves_carry_decision_provenance():
+    """A member's request to join a community and its decision to leave it are population decisions: their
+    membership rows are recorded with decision provenance (model pop-community@1), like every other population
+    decision (B's SP-4.0 platform measure and the provenance audit count only such rows). The join of the
+    experimenter's setup carries none."""
+    from crucible.population import core as PC
+    from crucible.social import communities as CM
+    from crucible.social.popsocial import COMMUNITY_MODEL
+    w = World.create(social_world("development", 10, n=120, platforms=["posts", "community"],
+                                  creators={"prior": -30.0, "inbox_prior": -30.0}), strict=True)
+    w.advance_time(3600)
+    out = {}
+
+    def setup(ctx):
+        p = ids.ensure_principal(ctx, 0)
+        out["cid"] = w.modules["community"].found(ctx, p, "tide-tables", "Tide Tables", "tides and harbours",
+                                                  "People who read tide tables.")
+        out["n"] = int(w.state.tables["communities"][out["cid"]]["n"])
+        w.modules["community"].join_many(ctx, np.arange(1, 11, dtype=np.int64), np.full(10, out["n"]), "population")
+        w.modules["community"].join_many(ctx, np.arange(11, 21, dtype=np.int64), np.full(10, out["n"]), "population",
+                                         decision=COMMUNITY_MODEL)
+        w.modules["community"].leave_many(ctx, np.arange(11, 15, dtype=np.int64), np.full(4, out["n"]), "left",
+                                          decision=COMMUNITY_MODEL)
+        w.modules["community"].join_many(ctx, np.arange(11, 13, dtype=np.int64), np.full(2, out["n"]), "population",
+                                         decision=COMMUNITY_MODEL)      # rejoin: existing rows updated
+    w._run_system("experiment.setup", setup)
+    batches = [e for e in w.log if e.type == "cols.batch" and e.payload["table"] == CM.CMEMBER.name
+               and e.payload["kind"] in ("community.join", "community.leave")]
+    prov = [(e.payload["kind"], (e.payload.get("extra") or {}).get("decision", {}).get("model_id")) for e in batches]
+    assert prov == [("community.join", None), ("community.join", "pop-community"), ("community.leave", "pop-community"),
+                    ("community.join", "pop-community")], prov
+    assert CM.members(w, out["n"]).size == 1 + 10 + 6 + 2
+    assert w.check_invariants() == []

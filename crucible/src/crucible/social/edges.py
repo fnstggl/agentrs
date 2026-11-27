@@ -68,13 +68,20 @@ class EdgeTable:
         return rows
 
     def update(self, ctx: Ctx, kind: str, rows: np.ndarray, values: dict[str, np.ndarray], *, mode: str = "set",
-               extra: dict | None = None) -> None:
+               extra: dict | None = None, decision: dict | None = None) -> None:
         rows = np.asarray(rows, dtype=np.int64)
         if not rows.size:
             return
         if int(rows.max()) >= self.used(ctx.world) or int(rows.min()) < 0:
             raise InvalidAction(f"{self.name}: row out of range")
-        columns.batch(ctx, self.name, kind, rows, values, mode=mode, extra=extra)
+        if decision is not None:
+            # a population decision changing existing relation rows carries decision provenance too
+            from ..population import record_decisions
+            record_decisions(ctx, kind, rows, values, model_id=decision["model_id"],
+                             model_version=decision["model_version"], fidelity_id=decision["fidelity_id"],
+                             table=self.name, extra=extra, mode=mode)
+        else:
+            columns.batch(ctx, self.name, kind, rows, values, mode=mode, extra=extra)
 
 
 bus.event_type("social.alloc", S.obj({"table": {"type": "string"}, "used": {"type": "integer", "minimum": 0}},

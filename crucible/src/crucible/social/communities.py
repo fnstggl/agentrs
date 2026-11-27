@@ -318,16 +318,17 @@ class Communities(Module):
 
     # ------------------------------------------------------------------ membership (internal, vectorised)
     def _upsert(self, ctx: Ctx, kind: str, node_arr: np.ndarray, comm_arr: np.ndarray, vals_new: dict,
-                vals_existing: dict, existing_rows: np.ndarray, new_mask: np.ndarray) -> None:
+                vals_existing: dict, existing_rows: np.ndarray, new_mask: np.ndarray,
+                decision: dict | None = None) -> None:
         if existing_rows.size:
-            CMEMBER.update(ctx, kind, existing_rows, vals_existing)
+            CMEMBER.update(ctx, kind, existing_rows, vals_existing, decision=decision)
         if new_mask.any():
             k = int(new_mask.sum())
             base = {"node": node_arr[new_mask], "comm": comm_arr[new_mask].astype(np.int32)}
             for c, v in vals_new.items():
                 base[c] = v[new_mask] if isinstance(v, np.ndarray) and v.shape == new_mask.shape else \
                     np.full(k, v)
-            CMEMBER.append(ctx, kind, base)
+            CMEMBER.append(ctx, kind, base, decision=decision)
 
     def _lookup(self, world, node_arr: np.ndarray, comm_arr: np.ndarray) -> np.ndarray:
         """Row of each (node, community) pair, -1 when none."""
@@ -345,9 +346,11 @@ class Communities(Module):
         out[hit] = order[pos[hit]]
         return out
 
-    def join_many(self, ctx: Ctx, node_arr: np.ndarray, comm_arr: np.ndarray, via: str, *, admit: bool = False) -> int:
+    def join_many(self, ctx: Ctx, node_arr: np.ndarray, comm_arr: np.ndarray, via: str, *, admit: bool = False,
+                  decision: dict | None = None) -> int:
         """`admit`: the community itself decided to take these people in (a merge it agreed to): its approval and
-        invitation rules do not apply; bans still do."""
+        invitation rules do not apply; bans still do. `decision`: the decision model of population members asking
+        to join (their membership rows then carry decision provenance)."""
         st = ctx.state
         if node_arr.shape != comm_arr.shape:
             raise InvalidAction("nodes and communities must be equal-length vectors")
@@ -399,11 +402,12 @@ class Communities(Module):
                 vals_ex = {"status": np.full(exr.size, PENDING, np.uint8)}
                 vals_new = {"status": PENDING, "role": 0}
             self._upsert(ctx, kind, node_arr[mask], comm_arr[mask], vals_new, vals_ex, exr,
-                         ~(rows[mask] >= 0))
+                         ~(rows[mask] >= 0), decision=decision)
         del st
         return int(ok.sum())
 
-    def leave_many(self, ctx: Ctx, node_arr: np.ndarray, comm_arr: np.ndarray, reason: str) -> int:
+    def leave_many(self, ctx: Ctx, node_arr: np.ndarray, comm_arr: np.ndarray, reason: str, *,
+                   decision: dict | None = None) -> int:
         rows = self._lookup(ctx.world, node_arr, comm_arr)
         v = CMEMBER.view(ctx.world)
         rows = rows[rows >= 0]
@@ -414,7 +418,7 @@ class Communities(Module):
         CMEMBER.update(ctx, "community.leave", rows, {"status": np.full(rows.size, LEFT, np.uint8),
                                                       "left": np.full(rows.size, ctx.now, np.int64),
                                                       "role": np.zeros(rows.size, np.uint8)},
-                       extra={"reason": str(reason)[:60]})
+                       extra={"reason": str(reason)[:60]}, decision=decision)
         return int(rows.size)
 
     def touch_many(self, ctx: Ctx, node_arr: np.ndarray, comm_arr: np.ndarray) -> int:
