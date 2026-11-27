@@ -498,7 +498,7 @@
  ],
  "test_results_unofficial": {
   "tests/test_v5_acceptance_checker.py + _probes.py + _baseline.py + _defects.py": "100 of 100 collected node ids passed in 10 single-threaded direct chunks (each < 5 min); tests added after that collection (P38b, the whole-token sealed scan; P38/P39 re-run at HEAD) passed separately",
-  "tests/test_kernel.py tests/test_invariants.py": "51 passed (HEAD)",
+  "tests/test_kernel.py tests/test_invariants.py": "51 passed (HEAD 2379e3d0)",
   "tests/test_sandbox.py tests/test_v5_security_sandbox.py": "23 passed",
   "tests/test_v5_innovation_pkg.py": "6 passed (code.fork lineage intact in 5.0 mode)",
   "tests/test_v5_experience_oo.py tests/test_v5_experience_core.py": "20 passed, 2 failed (L-owned tests of the relocated adapters, see integration notes)",
@@ -507,7 +507,9 @@
   "Gate A.1 fast feedback (CPU, < 290 s groups, predecessor code)": "1,063 of 1,076 ran, 1,057 passed, 4 failed (3 fixed since and re-checked on the 4.0 bytes), 2 skipped (GPU)",
   "Gate A.5 fast feedback (per record, fresh clone each)": "16 of 17 attempted records reproduce (A-M and P exactly, O v4-self-irreproducible with v5 == c07098b); N did not finish in 295 s; demo_lifetime (4 days) event-for-event equal to c07098b except one recorded API-catalogue hash",
   "Gate A.1 slot run at 74e9bc38 (GPU, one process, unofficial)": "1,076 ran, 1,074 passed, 2 failed (tests/test_scale.py: workers recycled; keyboard interrupt 600 s timeout - DEF-P-25), 0 skipped",
-  "Gate X local (X.1, X.5-X.9, X.n1) at 7716c425": "1 passed (X.9), 6 failed honestly: X.1 (nothing verified yet), X.5, X.6, X.7 (17 flagged tests), X.8 (H, J, K disconnected), X.n1 (17 of 59 branches unmerged)"
+  "Gate X local (X.1, X.5-X.9, X.n1) at 7716c425": "1 passed (X.9), 6 failed honestly: X.1 (nothing verified yet), X.5, X.6, X.7 (17 flagged tests), X.8 (H, J, K disconnected), X.n1 (17 of 59 branches unmerged)",
+  "P gate tests (local, unofficial) at 9ee94f00": "pass: SP-1.3, SP-1.5, SP-1.5b, SP-20b, RP.2, RP.5, RP.6, OO.13, X.9; failing honestly: SP-1.3b, SP-18, SP-20, RP.1 (L's CAM imports until c5c/w3b-obs merges; A.1's AGENTRS alias plugin), RP.3, RP.4, OO.15 (0/8 reviewed), X.1, X.5, X.6, X.7, X.8 (H, J, K), X.n1",
+  "tests/test_v5_acceptance_defects.py": "3 passed"
  },
  "slot_jobs": [
   "finished: P: Gate A.1 4.0 baseline as historical baseline (D-82) - rc 1, 1,074/1,076 passed (see A.1 notes)",
