@@ -258,6 +258,7 @@ def _plan(s: str) -> List[Tuple[str, str]]:
 
 
 def cmd_sequence(a: argparse.Namespace) -> int:
+    torch.set_num_threads(int(a.threads))            # a shared machine: never oversubscribe the CPU
     from ..storage import DiskGuard, apply_retention
     from .experiments import EVAL_HOME, code_identity, export_checkpoint
     root = os.path.abspath(a.root or os.path.join(EVAL_HOME, "oe", f"{a.condition}_s{a.seed}_{a.tag}"))
@@ -422,6 +423,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     s.add_argument("--cpu", action="store_true", help="tiny CPU backbone: plumbing check only, never substantive")
     s.add_argument("--no-skills", dest="no_skills", action="store_true",
                    help="CU: primitive-only operation (skill executor excluded) - arm of X4")
+    s.add_argument("--threads", type=int, default=8)
     s.add_argument("--from-export", dest="from_export", default="",
                    help="16.8 child: start from this weights-only export only (fresh process)")
     s.set_defaults(fn=cmd_sequence)
