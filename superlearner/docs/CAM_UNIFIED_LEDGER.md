@@ -191,3 +191,4 @@ engineering-complete — the earlier IMPLEMENTED claims had never had test resul
   and switch t4; t1 interventions and t3 contrast pass. Recorded in the orchestrator-written W6 report.
 - All six finisher reports saved to `docs/evidence/wave3/finisher_reports.json`. Integration continues as a new run
   (`docs/evidence/wave3/wave3c.js`: merge -> Gate1B -> 5 verifiers -> fix, with resume-safety and cost discipline).
+| Wave 3 integration (merge/Gate1B/verify/fix) | `wf_75c42076-5ff` | `Workflow({scriptPath: <scratchpad>/wave3c.js or docs/evidence/wave3/wave3c.js, resumeFromRunId: "wf_75c42076-5ff"})` |
