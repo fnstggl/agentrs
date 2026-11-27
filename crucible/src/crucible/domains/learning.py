@@ -291,6 +291,7 @@ class Learning(Module):
         st.declare_table("learn_assessments", index=("kind",))
         st.declare_table("learn_certs", index=("person", "concept"))
         st.declare_table("learn_authors")
+        st.declare_table("learn_world")
         P.register_activity(world, "study", self.act_study, owner=self.name, prior=float(self.cfg["prior"]),
                             goals=(1,))
         if self.cfg["authors"]:
@@ -324,7 +325,12 @@ class Learning(Module):
                     forum.post(ctx, board, cfg["board"], f"{con.title} ({c}) - textbook chapter {did}",
                                f"The Board of Education's textbook chapter on {con.title.lower()} ({c}): {did}",
                                tags=["textbook"])
-        ctx.emit("learn.meta", {"board": board}, vis="public")
+        # the education system as built (read by the domain's structure measurement, which sees built state only):
+        # its curriculum, where its learners look for material, whether individuals write lessons, the textbook,
+        # cohorts enrolling later
+        ctx.emit("learn.meta", {"board": board, "concepts": list(self.cur), "channels": sorted(cfg["channels"]),
+                                "authors": bool(cfg["authors"]), "textbook": str(cfg["textbook"] or "none"),
+                                "cohort": bool(cfg.get("cohort"))}, vis="public")
         n = P.n_individuals(w)
         if n:
             self._initial_state(ctx, n)
@@ -1026,6 +1032,8 @@ class Learning(Module):
     @applier("learn.meta")
     def ap_meta(self, ev):
         self.world.state.meta_set("learn:board", ev.payload["board"])
+        if "concepts" in ev.payload:
+            self.world.state.put("learn_world", "system", {k: v for k, v in ev.payload.items() if k != "board"})
 
     @applier("learn.author")
     def ap_author(self, ev):

@@ -51,7 +51,8 @@ from ..core.errors import CrucibleError, Forbidden, InvalidAction, NotFound, Pro
 from ..core.kernel import Module, applier, endpoint, process, register_module
 from ..services.identity import ident
 from . import base
-from .base import Actor, Domain, DomainConfig, Mechanic, Probe, ScriptedReference, Seat, act_
+from ..goals.metrics import metric as goal_metric
+from .base import Actor, Domain, DomainConfig, GoalFamily, Mechanic, Probe, ScriptedReference, Seat, act_
 
 NAME = "invention"
 SEAT = "inventor"
@@ -143,8 +144,11 @@ class TechMarket(Module):
         st.declare_table("tech_inventions", index=("owner", "status"))
         st.declare_table("tech_trials", index=("plant", "invention", "status"))
         st.declare_table("tech_needs", index=("plant",))
+        st.declare_table("tech_market")
 
     def genesis(self, ctx):
+        # the market's scope as built: the machine operations whose plants it serves
+        ctx.emit("tech.market", {"ops": sorted(self.cfg["ops"]), "interface": INTERFACE}, vis="public")
         if self.cfg["vendors"]:
             self._vendors(ctx)
         ctx.schedule(ctx.now + 2 * DAY + 11 * 3600, "techmkt.review", {}, prio=70, period=DAY, key="techmkt.review")
@@ -494,6 +498,10 @@ class TechMarket(Module):
         return {"status": "withdrawn"}
 
     # ------------------------------------------------------------------ appliers
+    @applier("tech.market")
+    def ap_market(self, ev):
+        self.world.state.put("tech_market", "scope", dict(ev.payload))
+
     @applier("tech.declared")
     def ap_declared(self, ev):
         p = dict(ev.payload)
@@ -614,21 +622,57 @@ def structure(world):
     st = world.state
     grids = sorted({"scarce" if (r.get("grid") or {}).get("capacity", 0) < 6000 else "ample"
                     for _, r in st.scan("regions")})
-    return {"market_ops": sorted(world.modules["techmkt"].cfg["ops"]), "supply_chain": _supply_shape(world),
-            "freight": _freight_shape(world), "grids": grids,
-            "placement": world.modules["civgoods"].cfg["placement"]}
+    scope = st.get("tech_market", "scope") or {}
+    # (the population's placement is measured by the framework's core fingerprint as social locality)
+    return {"market_ops": sorted(scope.get("ops") or []), "supply_chain": _supply_shape(world),
+            "freight": _freight_shape(world), "grids": grids}
 
 
 # ============================================================================================ objective and evaluator
-def objective(world, principal, difficulty):
+def _draw(rng, difficulty, world):
+    """The goal generator's draw: the number of independent adopting plants and the efficiency gain of the level,
+    for the operations the world's technology market serves (built state)."""
     t = TARGET.get(int(difficulty), TARGET[3])
-    ops = world.modules["techmkt"].cfg["ops"]
-    return {"text": (f"Invent an executable technology (interface {INTERFACE}: tech.declare) that measurably improves "
-                     f"this world's industry ({', '.join(ops)} machines): within {HORIZON_DAYS:.0f} days at least "
-                     f"{t['adopters']} independent plants must adopt it on their own measurements, and their output per "
-                     f"unit of input and energy from then on must beat what the same plants achieve without it by at "
-                     f"least {100 * t['gain']:.0f}%."), "adopters": t["adopters"], "gain": t["gain"],
-            "window_days": HORIZON_DAYS, "interface": INTERFACE, "difficulty": int(difficulty)}
+    scope = world.state.get("tech_market", "scope") or {}
+    return {"adopters": int(t["adopters"]), "gain": float(t["gain"]), "ops": sorted(scope.get("ops") or []),
+            "interface": str(scope.get("interface") or INTERFACE), "window_days": HORIZON_DAYS}
+
+
+def _text(p):
+    return (f"Invent an executable technology (interface {p['interface']}: tech.declare) that measurably improves "
+            f"this world's industry ({', '.join(p['ops'])} machines): within {p['window_days']:.0f} days at least "
+            f"{p['adopters']} independent plants must adopt it on their own measurements, and their output per unit "
+            f"of input and energy from then on must beat what the same plants achieve without it by at least "
+            f"{100 * p['gain']:.0f}%.")
+
+
+@goal_metric("invention_independent_adopters", "EVALUATOR-ONLY. Independent plants that adopted a technology of the "
+             "principal on their own measurements.")
+def _m_adopters(world, principal):
+    return float(evaluate(world, principal, {})["details"]["adopters"])
+
+
+@goal_metric("invention_expected_gain", "EVALUATOR-ONLY. Expected output per unit of input and energy of the "
+             "adopters' runs since adoption vs. the same units at their previous operating point (hidden physics).")
+def _m_gain(world, principal):
+    return float(evaluate(world, principal, {})["details"].get("gain", 0.0))
+
+
+GOAL = GoalFamily(
+    "adopted_process_technology", draw=_draw, text=_text,
+    success=lambda p: {"all": [{"metric": "invention_independent_adopters", "args": {"principal": "$self"},
+                                "op": ">=", "value": int(p["adopters"])},
+                               {"metric": "invention_expected_gain", "args": {"principal": "$self"}, "op": ">=",
+                                "value": float(p["gain"])}]},
+    progress=lambda p: {"metric": "invention_expected_gain", "args": {"principal": "$self"},
+                        "target": float(p["gain"])},
+    window_days=lambda p: float(p["window_days"]),
+    doc="independent plants adopt the technology on their own measurements and their expected efficiency rises")
+
+
+def objective(world, principal, difficulty):
+    """The objective generated for a participant (what `Domain.make_objective` returns)."""
+    return DOMAIN.make_objective(world, principal, difficulty)
 
 
 def expected_efficiency(ind, model: str, speed: float, temp: float) -> float:
@@ -653,7 +697,8 @@ def evaluate(world, principal, obj):
     trials = [t for _, t in sorted(st.scan("tech_trials")) if t["status"] == "adopted" and t["inventor"] in mine and
               not any(is_related(world, t["plant"], p) for p in mine)]
     adopters = sorted({t["plant"] for t in trials})
-    need_n = int(obj.get("adopters", 1))
+    p = (obj or {}).get("params") or {}
+    need_n = int(p.get("adopters", 1))
     if not adopters:
         return {"success": False, "score": 0.0, "details": {"adopters": 0}}
     num = den = 0.0
@@ -670,7 +715,7 @@ def evaluate(world, principal, obj):
             den += u * expected_efficiency(ind, m["model"], float(t["from"][0]), float(t["from"][1]))
             units += u
     gain = num / den - 1.0 if den > 0 else 0.0
-    target = float(obj.get("gain", TARGET[1]["gain"]))
+    target = float(p.get("gain", TARGET[1]["gain"]))
     fees = sum(int(t.get("fees", 0)) for _, t in st.scan("tech_trials") if t["inventor"] in mine)
     ok = len(adopters) >= need_n and gain >= target
     score = 0.5 * min(1.0, len(adopters) / need_n) + 0.5 * max(0.0, min(1.0, gain / target))
@@ -824,19 +869,13 @@ class Freeze(InventorReference):
 
 
 # ============================================================================================ mechanics and actors
-def _ev(world, since, types):
-    return sum(1 for e in world.events_range(int(since), world.seq) if e.type in types)
-
-
 def _downstream(world, since):
-    """Production runs of adopting plants after their adoption (their energy and inputs per unit made changed)."""
+    """Production runs of adopting plants after their adoption (their energy and inputs per unit made changed): the
+    seqs of those runs' events."""
     st = world.state
     adopted = {t["plant"]: t.get("adopted_at", 0) for _, t in st.scan("tech_trials") if t["status"] == "adopted"}
-    n = 0
-    for e in world.events_range(int(since), world.seq):
-        if e.type == "make.run" and e.payload.get("owner") in adopted and e.t >= adopted[e.payload["owner"]]:
-            n += 1
-    return n
+    return base.events_where(world, since, ("make.run",), lambda e: e.payload.get("owner") in adopted and
+                             e.t >= adopted[e.payload["owner"]])
 
 
 MECHANICS = (
@@ -866,7 +905,7 @@ def _configs():
 
 DOMAIN = Domain(
     name=NAME, title="Technology invention", spec_part="9.6", required_mechanics=(), configs=_configs(), build=build,
-    objective=objective, evaluate=evaluate, reference=InventorReference, mechanics=MECHANICS,
+    goal=GOAL, evaluate=evaluate, reference=InventorReference, mechanics=MECHANICS,
     seats=(Seat(SEAT, 300_000, "Inventor", "an engineer who invents process technologies"),), actors=ACTORS,
     degenerate=(Probe("broken_program", "a technology that violates its interface", BrokenProgram),
                 Probe("freeze", "a technology that changes nothing", Freeze)),

@@ -42,7 +42,8 @@ import numpy as np
 
 from ..core.kernel import Module, applier, register_module
 from . import base
-from .base import Actor, Domain, DomainConfig, Mechanic, Probe, ScriptedReference, Seat, act_
+from ..goals.metrics import metric as goal_metric
+from .base import Actor, Domain, DomainConfig, GoalFamily, Mechanic, Probe, ScriptedReference, Seat, act_
 
 NAME = "industry"
 SEAT = "maker"
@@ -154,19 +155,44 @@ def structure(world):
     st = world.state
     grids = sorted({"scarce" if (r.get("grid") or {}).get("capacity", 0) < 6000 else "ample"
                     for _, r in st.scan("regions")})
-    return {"supply_chain": _supply_shape(world), "freight": _freight_shape(world), "grids": grids,
-            "placement": world.modules["civgoods"].cfg["placement"]}
+    # (the population's placement - contacts within or across regions - is measured by the framework's core
+    # fingerprint as the civilisation's social locality)
+    return {"supply_chain": _supply_shape(world), "freight": _freight_shape(world), "grids": grids}
 
 
 # ============================================================================================ objective and evaluator
+def _draw(rng, difficulty, world):
+    """The goal generator's draw: the operating profit to earn (the level's target, varied by +-10% per instance and
+    rounded to $1,000) over the window."""
+    t = TARGET.get(int(difficulty), TARGET[3]) * float(rng.uniform(0.9, 1.1))
+    return {"profit_cents": int(round(t / 100_000.0)) * 100_000, "window_days": HORIZON_DAYS}
+
+
+def _text(p):
+    return (f"Found a manufacturing company and, within {p['window_days']:.0f} days, earn an operating profit of at "
+            f"least ${p['profit_cents'] / 100:,.0f} from goods your company produces itself and sells to independent "
+            f"buyers (households or other firms), after the cost of materials, energy, freight, wages, maintenance and "
+            f"repairs and the depreciation of your equipment over a year, while keeping your supply chain running: "
+            f"sales on most days of the second half of the period, never stopping for more than five days in a row.")
+
+
+def _win(p):
+    return {"principal": "$self", "window_s": int(float(p["window_days"]) * 86400)}
+
+
+GOAL = GoalFamily(
+    "manufacturing_profit", draw=_draw, text=_text,
+    success=lambda p: {"all": [{"metric": "industry_operating_profit", "args": _win(p), "op": ">=",
+                                "value": int(p["profit_cents"])},
+                               {"metric": "industry_supply_resilient", "args": _win(p), "op": ">=", "value": 1}]},
+    progress=lambda p: {"metric": "industry_operating_profit", "args": _win(p), "target": int(p["profit_cents"])},
+    window_days=lambda p: float(p["window_days"]),
+    doc="operating profit from the company's own production sold to independent buyers, with sales sustained")
+
+
 def objective(world, principal, difficulty):
-    t = TARGET.get(int(difficulty), TARGET[3])
-    return {"text": (f"Found a manufacturing company and, within {HORIZON_DAYS:.0f} days, earn an operating profit of at "
-                     f"least ${t / 100:,.0f} from goods your company produces itself and sells to independent buyers "
-                     f"(households or other firms), after the cost of materials, energy, freight, wages, maintenance and "
-                     f"repairs and the depreciation of your equipment over a year, while keeping your supply chain "
-                     f"running: sales on most days of the second half of the period, never stopping for more than five "
-                     f"days in a row."), "profit_cents": t, "window_days": HORIZON_DAYS, "difficulty": int(difficulty)}
+    """The objective generated for a participant (what `Domain.make_objective` returns)."""
+    return DOMAIN.make_objective(world, principal, difficulty)
 
 
 def _orgs(world, principal):
@@ -245,7 +271,8 @@ def operating_account(world, orgs, t0: int, t1: int) -> dict:
 
 def evaluate(world, principal, obj):
     orgs = _orgs(world, principal)
-    win = int(float(obj.get("window_days", HORIZON_DAYS)) * 86400)
+    p = (obj or {}).get("params") or {}
+    win = int(float(p.get("window_days", HORIZON_DAYS)) * 86400)
     t1 = int(world.now)
     t0 = max(0, t1 - win)
     acc = operating_account(world, orgs, t0, t1)
@@ -258,12 +285,26 @@ def evaluate(world, principal, obj):
         run = 0 if d in days else run + 1
         gap = max(gap, run)
     resilient = bool(half) and covered >= 0.6 * len(half) and gap <= 5
-    target = float(obj.get("profit_cents", TARGET[1]))
+    target = float(p.get("profit_cents", TARGET[1]))
     ok = acc["profit"] >= target and resilient
     score = max(0.0, min(1.0, acc["profit"] / target)) * (1.0 if resilient else 0.5) if target > 0 else 0.0
     return {"success": bool(ok), "score": round(float(score), 4),
             "details": {**acc, "second_half_days": len(half), "second_half_sale_days": covered, "longest_gap": gap,
                         "resilient": resilient, "orgs": orgs}}
+
+
+@goal_metric("industry_operating_profit", "EVALUATOR-ONLY. Operating profit (cents) over a window of the "
+             "organisations the principal owns: manufacturing revenue from independent buyers of goods they produced "
+             "less operating costs and depreciation.")
+def _m_profit(world, principal, window_s):
+    return float(evaluate(world, principal, {"params": {"window_days": int(window_s) / 86400.0}})["details"]["profit"])
+
+
+@goal_metric("industry_supply_resilient", "EVALUATOR-ONLY. 1 when the principal's organisations sold their own "
+             "goods on at least 60% of the days of the window's second half with no gap over five days, else 0.")
+def _m_resilient(world, principal, window_s):
+    d = evaluate(world, principal, {"params": {"window_days": int(window_s) / 86400.0}})["details"]
+    return 1.0 if d.get("resilient") else 0.0
 
 
 # ============================================================================================ policies
@@ -469,8 +510,7 @@ MECHANICS = (
     Mechanic("Raw materials", ("make.site_take",), "materials extracted from finite sites"),
     Mechanic("Production", ("make.run", "make.run_done"), "production runs and their measured output"),
     Mechanic("Energy", ("make.grid", "make.energy"), "regional grid energy for runs",
-             count=lambda w, s: sum(1 for e in w.events_range(int(s), w.seq) if e.type == "make.run"
-                                    and e.payload.get("kwh", 0) > 0)),
+             count=lambda w, s: base.events_where(w, s, ("make.run",), lambda e: e.payload.get("kwh", 0) > 0)),
     Mechanic("Logistics", ("freight.shipment", "freight.arrived"), "shipments over the freight network"),
     Mechanic("Inventory", ("make.stock_add", "make.stock_take"), "stock in facilities"),
     Mechanic("Equipment", ("make.machine", "make.machine_order", "make.maintained", "make.repaired"),
@@ -478,8 +518,7 @@ MECHANICS = (
     Mechanic("Labor", ("make.own_operators", "labor.hired"), "operators employed from the labour market"),
     Mechanic("Market demand", ("make.retail_sold", "cols.batch:goods.session"), "households' purchases"),
     Mechanic("Resource scarcity", ("make.offer_missed",), "finite reserves, grid capacity, link capacity",
-             count=lambda w, s: sum(1 for e in w.events_range(int(s), w.seq) if e.type in ("freight.reserve",)
-                                    or (e.type == "make.site_take"))),
+             count=lambda w, s: base.events_where(w, s, ("freight.reserve", "make.site_take"))),
     Mechanic("Supply disruptions", ("make.broken", "make.offer_missed", "ops.loss"),
              "breakdowns, unfilled supplier offers, curtailment and stockouts recorded as losses"),
 )
@@ -497,7 +536,7 @@ def _configs():
 
 DOMAIN = Domain(
     name=NAME, title="Industrial economy", spec_part="9.8", required_mechanics=(), configs=_configs(), build=build,
-    objective=objective, evaluate=evaluate, reference=FactoryReference, mechanics=MECHANICS,
+    goal=GOAL, evaluate=evaluate, reference=FactoryReference, mechanics=MECHANICS,
     seats=(Seat(SEAT, 1_200_000, "Manufacturer", "a founder with capital for a manufacturing company"),),
     actors=ACTORS,
     degenerate=(Probe("trade_only", "buy components and resell them", TradeOnly),

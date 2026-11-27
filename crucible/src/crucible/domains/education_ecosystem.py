@@ -47,7 +47,8 @@ from ..core.canonical import digest
 
 from . import base
 from . import concepts as C
-from .base import Actor, Domain, DomainConfig, Mechanic, Probe, ScriptedReference, Seat, act_
+from ..goals.metrics import metric as goal_metric
+from .base import Actor, Domain, DomainConfig, GoalFamily, Mechanic, Probe, ScriptedReference, Seat, act_
 
 NAME = "education"
 HORIZON_DAYS = 42.0
@@ -106,27 +107,67 @@ def tier3(config, merged):
 
 
 def structure(world):
+    """Measured on the built world (a `base.BuiltWorld`): the education system's built row (curriculum, channels,
+    population authors, textbook, cohorts - `learn.meta` at genesis), the prerequisite graph of its curriculum and the
+    Board's textbook chapters actually published."""
     from .base import graph_shape
-    L = world.modules["learn"]
-    cur = list(L.cur)
+    st = world.state
+    sysrow = st.get("learn_world", "system") or {}
+    cur = list(sysrow.get("concepts") or [])
     edges = [(p, c) for c in cur for p in C.PREREQS[c] if p in cur]
-    cfg = L.cfg
-    return {"concepts": sorted(cur), "prerequisites": graph_shape(cur, edges), "channels": sorted(cfg["channels"]),
-            "population_authors": bool(cfg["authors"]), "textbook": str(cfg["textbook"] or "none"),
-            "cohorts": bool(cfg.get("cohort"))}
+    chapters = sum(1 for _, r in st.scan("documents") if "textbook chapter" in str(r.get("title", ""))) \
+        if "documents" in st.tables else 0
+    return {"concepts": sorted(cur), "prerequisites": graph_shape(cur, edges),
+            "channels": sorted(sysrow.get("channels") or []), "population_authors": bool(sysrow.get("authors")),
+            "textbook": str(sysrow.get("textbook") or "none"), "textbook_published": chapters > 0,
+            "cohorts": bool(sysrow.get("cohort"))}
 
 
 # ============================================================================================ objective and evaluator
-def objective(world, principal, difficulty):
+def _draw(rng, difficulty, world):
+    """The goal generator's draw: how many independent readers and how large a causal effect on new problems."""
     t = TARGET.get(int(difficulty), TARGET[3])
-    return {"text": (f"Develop educational material (public documents) that measurably improves the learning of this "
-                     f"world's learners: within {HORIZON_DAYS:.0f} days at least {t['readers']} independent learners "
-                     f"must study it, and on a delayed test of new problems on the concepts they studied in it they "
-                     f"must score at least {t['delta']:.2f} higher (share of problems answered correctly) than the "
-                     f"same learners would have without your material, with statistical significance (one-sided "
-                     f"p <= 0.05)."),
-            "readers": t["readers"], "delta": t["delta"], "window_days": HORIZON_DAYS, "delay_days": DELAY_DAYS,
-            "difficulty": int(difficulty)}
+    return {"readers": int(round(t["readers"] * float(rng.uniform(0.9, 1.1)))), "delta": float(t["delta"]),
+            "window_days": HORIZON_DAYS, "delay_days": DELAY_DAYS}
+
+
+def _text(p):
+    return (f"Develop educational material (public documents) that measurably improves the learning of this world's "
+            f"learners: within {p['window_days']:.0f} days at least {p['readers']} independent learners must study it, "
+            f"and on a delayed test of new problems on the concepts they studied in it they must score at least "
+            f"{p['delta']:.2f} higher (share of problems answered correctly) than the same learners would have without "
+            f"your material, with statistical significance (one-sided p <= 0.05).")
+
+
+@goal_metric("education_independent_readers", "EVALUATOR-ONLY. Independent individuals who studied documents of the "
+             "participant (or organisations it controls).")
+def _m_readers(world, principal):
+    return float(evaluate(world, principal, {})["details"]["readers"])
+
+
+@goal_metric("education_significant_effect", "EVALUATOR-ONLY. The causal effect of the participant's material on "
+             "its readers' delayed scores on new problems (vs. the same individuals in the instance without it), "
+             "when significant at one-sided p <= 0.05; else 0.")
+def _m_effect(world, principal):
+    d = evaluate(world, principal, {})["details"]
+    return float(d.get("effect", 0.0)) if float(d.get("p_value", 1.0)) <= 0.05 else 0.0
+
+
+GOAL = GoalFamily(
+    "learning_on_new_problems", draw=_draw, text=_text,
+    success=lambda p: {"all": [{"metric": "education_independent_readers", "args": {"principal": "$self"},
+                                "op": ">=", "value": int(p["readers"])},
+                               {"metric": "education_significant_effect", "args": {"principal": "$self"},
+                                "op": ">=", "value": float(p["delta"])}]},
+    progress=lambda p: {"metric": "education_significant_effect", "args": {"principal": "$self"},
+                        "target": float(p["delta"])},
+    window_days=lambda p: float(p["window_days"]),
+    doc="independent readers and the causal effect of the material on their delayed new-problem scores")
+
+
+def objective(world, principal, difficulty):
+    """The objective generated for a participant (what `Domain.make_objective` returns)."""
+    return DOMAIN.make_objective(world, principal, difficulty)
 
 
 def _paired_one_sided(d) -> tuple[float, float]:
@@ -201,8 +242,9 @@ def evaluate(world, principal, obj):
     f0 = L0.final_scores(w0, at, "education-evaluator", k=4, who=who, concepts=covered, exclude=exclude)
     diffs = [float(np.mean([f1[i][c] - f0[i][c] for c in sorted(rd[i])])) for i in who.tolist()]
     eff, p = _paired_one_sided(diffs)
-    need = obj.get("readers", TARGET[1]["readers"])
-    delta = float(obj.get("delta", TARGET[1]["delta"]))
+    p = (obj or {}).get("params") or {}
+    need = int(p.get("readers", TARGET[1]["readers"]))
+    delta = float(p.get("delta", TARGET[1]["delta"]))
     ok = len(rd) >= need and eff >= delta and p <= 0.05
     score = min(1.0, len(rd) / need) * 0.5 + 0.5 * max(0.0, min(1.0, eff / delta)) * (1.0 if p <= 0.05 else 0.5)
     return {"success": bool(ok), "score": round(float(score), 4),
@@ -329,23 +371,23 @@ class ProseOnly(CourseReference):
 
 
 # ============================================================================================ mechanics and actors
-def _sessions_since(world, since_seq):
-    for e in world.events_range(int(since_seq), world.seq):
-        if e.type == "learn.sessions":
-            yield from e.payload["sessions"]
+def _prereq_seqs(world, since_seq):
+    """Evidence: study sessions limited by an unmastered prerequisite, and prerequisite-first study decisions (a
+    learner studying another concept than its goal concept), as event sequence numbers."""
+    L = world.modules["learn"]
 
+    def limited(e):
+        return any(s.get("prereq_limited", 0) > 0 for s in e.payload["sessions"])
 
-def _prereq_count(world, since_seq):
-    n = sum(1 for s in _sessions_since(world, since_seq) if s.get("prereq_limited", 0) > 0)
-    for e in world.events_range(int(since_seq), world.seq):     # prerequisite-first study decisions
-        if e.type == "learn.choices":
-            L = world.modules["learn"]
-            for i, kind, c in e.payload["choices"]:
-                if kind == "study" and c is not None:
-                    g = int(_goal_at(world, i))
-                    if g >= 0 and L.cur[g] != c:
-                        n += 1
-    return n
+    def prereq_first(e):
+        for i, kind, c in e.payload["choices"]:
+            if kind == "study" and c is not None:
+                g = int(_goal_at(world, i))
+                if g >= 0 and L.cur[g] != c:
+                    return True
+        return False
+    return base.events_where(world, since_seq, ("learn.sessions",), limited) + \
+        base.events_where(world, since_seq, ("learn.choices",), prereq_first)
 
 
 def _goal_at(world, i):
@@ -353,8 +395,11 @@ def _goal_at(world, i):
     return columns.col(world, "learn", "goal")[int(i)]
 
 
-def _retention_count(world, since_seq):
-    return sum(1 for s in _sessions_since(world, since_seq) if s.get("forgot", 0) > 0.005 or s.get("consolidated", 0))
+def _retention_seqs(world, since_seq):
+    """Evidence: study sessions that measured forgetting since the concept was last studied, or consolidated the
+    stable floor by spaced retrieval (event sequence numbers)."""
+    return base.events_where(world, since_seq, ("learn.sessions",), lambda e: any(
+        s.get("forgot", 0) > 0.005 or s.get("consolidated", 0) for s in e.payload["sessions"]))
 
 
 MECHANICS = (
@@ -363,20 +408,20 @@ MECHANICS = (
     Mechanic("Educational artifacts", ("learn.sessions", "learn.authored"),
              "public documents read in study sessions; lessons written by population authors"),
     Mechanic("Prerequisites", (), "study limited by unmastered prerequisites; prerequisite-first concept choices",
-             count=_prereq_count),
+             count=_prereq_seqs),
     Mechanic("Participation", ("learn.choices", "learn.rated"),
              "the population's own study decisions (what, where, whether to rate, take exams)"),
     Mechanic("Learning dynamics", ("cols.batch:learn.study",), "mastery and misconceptions changed by what was read"),
     Mechanic("Independent assessments", ("learn.assessed", "learn.summary", "learn.certified"),
              "the Board's placement, periodic and certification tests on fresh unpublished problems"),
     Mechanic("Retention of acquired knowledge", (), "forgetting measured when a concept is studied again; spaced "
-             "retrieval consolidating the stable floor", count=_retention_count),
+             "retrieval consolidating the stable floor", count=_retention_seqs),
 )
 
 ACTORS = (
     Actor("learners", ("cols.batch:learn.study", "cols.batch:learn.placed"), "population individuals studying"),
-    Actor("population_authors", ("learn.authored",), "individuals writing lessons from their own knowledge"),
-    Actor("board_of_education", ("learn.summary",), "the Board's periodic independent assessment"),
+    Actor("population_authors", ("cols.batch:learn.teach",), "individuals deciding to write lessons from their own "
+          "knowledge"),
 )
 
 
@@ -387,7 +432,7 @@ def _configs():
 
 DOMAIN = Domain(
     name=NAME, title="Education ecosystem", spec_part="9.10", required_mechanics=(), configs=_configs(),
-    build=build, objective=objective, evaluate=evaluate, reference=CourseReference, mechanics=MECHANICS,
+    build=build, goal=GOAL, evaluate=evaluate, reference=CourseReference, mechanics=MECHANICS,
     seats=(Seat("educator", 200_000, "Educator", "an author of educational material"),), actors=ACTORS,
     degenerate=(Probe("wrong_keys", "the reference's course with misconceptions as answers", WrongKeys),
                 Probe("prose_only", "encouraging prose without worked problems", ProseOnly)),
