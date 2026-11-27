@@ -2,10 +2,12 @@
 behaviour, resource demand and future technological opportunities, each confirmed by counterfactual removal in an
 integrated world. Workstream J.
 
-The invention (crucible.civ.experiments `invention`, profile balanced, 6 seeds, fork after 2 days, 8 days after
-it): a scripted reference inventor (labelled scripted; crucible.innovation.reference.ServiceCreator) writes, deploys
-and declares a service for one of the civilisation's published work formats at the best known solver tier. The
-counterfactual arm admits the same inventor, who never builds it. Everything downstream is the world's: individuals
+The invention (crucible.civ.experiments `invention`, profile balanced, the six chain seeds 21-26 - the same run is
+the technical chain of O.6 / SP-10.3 - fork after 2 days, 8 days after it): a scripted reference inventor (labelled
+scripted; crucible.civ.reference.InventorAgent, a crucible.innovation.reference.ServiceCreator) writes, deploys and
+declares a service for one of the civilisation's published work formats at the best known solver tier, announces it
+and answers the public requests for that kind of service once a day. The counterfactual arm admits the same
+inventor, who never builds it. Everything downstream is the world's: individuals
 of the population find the declaration through search, the forum and their contacts, try it on their own work,
 adopt it by their own accepted outcomes and pay per call; its compute loads its provider's datacenter, which draws
 from the regional grid; the evaluator-side relation graph (crucible.innovation.relations) labels the needs the new
