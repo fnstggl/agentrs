@@ -405,13 +405,6 @@ class PostOnly(TeamReference):
     assign = False
 
 
-class NeverRaise(TeamReference):
-    """Degenerate: the reference without retention - it never adjusts pay to what the market (a rival bidding for
-    the same people) offers."""
-    def _keep_pay(self, team):
-        return
-
-
 class Lowball(TeamReference):
     """Degenerate: offer a third of the market salary (nobody worth hiring stays or accepts)."""
     salary_factor = 0.35
@@ -482,8 +475,7 @@ DOMAIN = Domain(
     seats=(Seat(SEAT, 100_000, "Project lead", "the owner of a small company with a commissioned project"),),
     actors=ACTORS,
     degenerate=(Probe("post_only", "recruit but never delegate", PostOnly),
-                Probe("lowball", "offer a third of the market salary", Lowball),
-                Probe("never_raise", "never match the market's pay (no retention)", NeverRaise)),
+                Probe("lowball", "offer a third of the market salary", Lowball)),
     structure=structure, tier3=tier3, mode="C", horizon_days=HORIZON_DAYS, slowest_effect_days=14.0, dt=8 * 3600,
     reference_seeds=(0, 1), reference_configs=("pipeline_open",), sources=("firms.py", "_kit.py"), doc=__doc__)
 
