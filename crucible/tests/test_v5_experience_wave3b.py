@@ -148,3 +148,28 @@ def test_population_vector_components_count_only_at_their_own_component_index():
         P = PT.TierProbe("vector", 2)
         PT.probe_population_private(P, env, a, [{"arrays": {"semantic.x": arr}}], "planted vector")
         assert P.kinds["exact_value"]["leaks"] == leaks, (arr is same, P.result()["leaks"][:2])
+
+
+def test_cli_runs_the_statistical_learner_reproducibly(tmp_path):
+    """`python -m crucible.experience run --learner tool-value`: the same command gives the same digests (store,
+    learner parameters, world); the learner updates in observation-only mode with a zero reward throughout."""
+    import json
+    import os
+    import subprocess
+    import sys
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    outs = []
+    for k in range(2):                                  # fresh processes, as a user would run the command
+        d = tmp_path / f"r{k}"
+        # a Tier 2 world (the 4.0 Tier 0 'tiny' world's final digest currently differs across processes even with
+        # no participant acting: a kernel-level nondeterminism reported to its owner)
+        cmd = [sys.executable, "-m", "crucible.experience", "run", "--tier", "2", "--name", "crisis:storm_radial",
+               "--seed", "4", "--steps", "40", "--think-s", "3600", "--learner", "tool-value", "--store",
+               str(d / "store"), "--checkpoint", str(d / "tv.json"), "--out", str(d / "out.json")]
+        env = dict(os.environ, PYTHONPATH=os.path.join(root, "src"), OMP_NUM_THREADS="1")
+        subprocess.run(cmd, cwd=root, env=env, check=True, capture_output=True, timeout=600)
+        outs.append(json.load(open(d / "out.json")))
+    a, b = outs
+    for key in ("store_digest", "params_hash_after", "env_digest"):
+        assert a[key] == b[key]
+    assert a["params_hash_after"] != a["params_hash_before"] and a["nonzero_rewards"] == 0 and a["updates"] >= 1
