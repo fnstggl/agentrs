@@ -166,24 +166,13 @@ def test_X_9_accurate_final_evidence_report():
 
 
 def test_X_n1_run_after_full_integration():
-    """Every workstream branch (c5c/*, recovery/c5-*, and the branches named in docs/v5/workstreams/*.json) is merged
-    into the checked commit, and the checked commit is the head of the integration branch."""
-    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
-    refs = subprocess.run(["git", "for-each-ref", "--format=%(refname:short)", "refs/heads/c5c/", "refs/heads/recovery/"],
-                          cwd=ROOT, capture_output=True, text=True).stdout.split()
-    for f in glob.glob(os.path.join(M.docs_dir(ROOT), "workstreams", "*.json")):
-        b = re.search(r'"branch":\s*"([^"]+)"', open(f).read())
-        if b:
-            refs.append(b.group(1))
-    refs = sorted(set(refs))
-    exists = [r for r in refs if subprocess.run(["git", "rev-parse", "--verify", "-q", r], cwd=ROOT,
-                                                capture_output=True).returncode == 0]
-    unmerged = [r for r in exists if subprocess.run(["git", "merge-base", "--is-ancestor", r, head],
-                                                    cwd=ROOT).returncode != 0]
-    integ = subprocess.run(["git", "rev-parse", qa.INTEGRATION_BRANCH], cwd=ROOT, capture_output=True,
-                           text=True).stdout.strip()
-    m = {"run_after_full_integration": not unmerged and integ == head, "unmerged_workstream_branches": len(unmerged),
-         "workstream_branches_checked": len(exists)}
-    record("X.n1", m, command=CMD, notes=f"unmerged: {unmerged}; head {head[:9]}; integration branch {integ[:9]}")
+    """Every workstream branch (c5c/*, recovery/*, and the branches named in docs/v5/workstreams/*.json) is merged
+    into the checked commit, and the checked commit is the head of the integration branch (its own evidence and
+    review commits aside). In an official clone the branches are read from the repository it was cloned from."""
+    res = qa.integration_state(ROOT)
+    m = res["metrics"]
+    record("X.n1", m, command=CMD, notes=f"unmerged: {res['unmerged']}; head {res['head'][:9]}; integration branch "
+                                         f"{res['integration_tip'][:9]} ({res['record_commits_skipped']} record "
+                                         f"commits skipped; {res['repository']})")
     bad = unmet("X.n1", m)
-    assert not bad, (bad, unmerged)
+    assert not bad, (bad, res["unmerged"])

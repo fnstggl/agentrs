@@ -54,6 +54,67 @@ def _rel(root: str, p: str) -> str:
     return os.path.relpath(p, root)
 
 
+# ------------------------------------------------------------------------------------- the repository's branches
+RECORD_ONLY_DIRS = ("docs/v5/evidence/", "docs/v5/reviews/")      # paths of acceptance records (commit prefixes)
+
+
+def ref_repository(root: str) -> str:
+    """The repository whose branches and remotes a measurement of the integration state reads: the checkout's own,
+    or - in an official run's clone (the runner's marker in its git directory, origin a local path) - the repository
+    it was cloned from. A clone carries the source's branches only as origin/* and its origin is the source, not the
+    hosted remote, so measured in the clone X.n1 saw no workstream branch and no integration branch, and RP.5 compared
+    the source with itself (wave 3b repair pass)."""
+    from .evidence import MARKER
+    gd = _git(root, "rev-parse", "--absolute-git-dir").strip()
+    if gd and os.path.exists(os.path.join(gd, MARKER)):
+        url = _git(root, "remote", "get-url", "origin").strip()
+        if url and os.path.isdir(url):
+            sub = os.path.relpath(os.path.realpath(root),
+                                  os.path.realpath(_git(root, "rev-parse", "--show-toplevel").strip()))
+            alt = os.path.normpath(os.path.join(url, sub))
+            return alt if os.path.isdir(alt) else url       # the same directory of the source's work tree
+    return root
+
+
+def _only_records(repo: str, commit: str, prefix: str) -> bool:
+    """Does `commit` change only acceptance records (evidence, reviews) relative to its first parent?"""
+    names = _git(repo, "diff", "--name-only", f"{commit}^", commit).split()
+    return bool(names) and all(n.startswith(tuple(prefix + d for d in RECORD_ONLY_DIRS)) for n in names)
+
+
+def integration_state(root: str | None = None) -> dict:
+    """X.n1: every workstream branch (c5c/*, recovery/*, and the branches named in docs/v5/workstreams/*.json) of the
+    repository is merged into the checked commit, and the checked commit is the integration branch's head - after
+    skipping the head's own acceptance-record commits (evidence and reviews filed for this very commit come after
+    it on the branch; any later code or document commit means the check ran before full integration)."""
+    root = root or M.crucible_root()
+    repo = ref_repository(root)
+    top = _git(repo, "rev-parse", "--show-toplevel").strip()
+    prefix = os.path.relpath(os.path.realpath(root), os.path.realpath(_git(root, "rev-parse", "--show-toplevel").strip()))
+    prefix = "" if prefix == "." else prefix + "/"
+    head = _git(root, "rev-parse", "HEAD").strip()
+    refs = _git(repo, "for-each-ref", "--format=%(refname:short)", "refs/heads/c5c/", "refs/heads/recovery/").split()
+    for f in glob.glob(os.path.join(M.docs_dir(root), "workstreams", "*.json")):
+        b = re.search(r'"branch":\s*"([^"]+)"', open(f).read())
+        if b:
+            refs.append(b.group(1))
+    refs = sorted(set(refs))
+    exists = [r for r in refs if subprocess.run(["git", "rev-parse", "--verify", "-q", f"refs/heads/{r}"], cwd=repo,
+                                                capture_output=True).returncode == 0]
+    known = subprocess.run(["git", "cat-file", "-e", f"{head}^{{commit}}"], cwd=repo, capture_output=True).returncode == 0
+    unmerged = [r for r in exists if not known or subprocess.run(
+        ["git", "merge-base", "--is-ancestor", f"refs/heads/{r}", head], cwd=repo, capture_output=True).returncode != 0]
+    tip = _git(repo, "rev-parse", "--verify", "-q", f"refs/heads/{INTEGRATION_BRANCH}").strip()
+    content_tip, skipped = tip, 0
+    while content_tip and content_tip != head and skipped < 50 and _only_records(top, content_tip, prefix):
+        content_tip = _git(repo, "rev-parse", f"{content_tip}^").strip()
+        skipped += 1
+    return {"metrics": {"run_after_full_integration": bool(tip) and not unmerged and content_tip == head,
+                        "unmerged_workstream_branches": len(unmerged), "workstream_branches_checked": len(exists)},
+            "unmerged": unmerged, "head": head, "integration_tip": tip, "record_commits_skipped": skipped,
+            "repository": "source of the official clone" if repo != root else "checkout"}
+
+
 # ------------------------------------------------------------------------------------------------- X.7
 def _recorded_ids(src: str, ids: set[str]) -> set[str]:
     tree = ast.parse(src)
@@ -813,9 +874,10 @@ def ls_remote(root: str, ref: str) -> str | None:
 
 def remote_state(root: str | None = None, milestones: list[dict] | None = None) -> dict:
     root = root or M.crucible_root()
-    remote_head = ls_remote(root, f"refs/heads/{INTEGRATION_BRANCH}")
-    local_head = _git(root, "rev-parse", INTEGRATION_BRANCH).strip()
     head = _git(root, "rev-parse", "HEAD").strip()
+    root = ref_repository(root)                 # an official clone: the source repository's branches and remote
+    remote_head = ls_remote(root, f"refs/heads/{INTEGRATION_BRANCH}")
+    local_head = _git(root, "rev-parse", "--verify", "-q", f"refs/heads/{INTEGRATION_BRANCH}").strip()
     unpushed = []
     for ms in milestones or []:
         c = ms.get("commit")
@@ -903,7 +965,7 @@ def secrets_scan(root: str | None = None) -> dict:
 def remote_forward_only(root: str | None = None) -> dict:
     """The pushed integration branch only moved forward: the reflog of its remote-tracking ref never records a
     forced update (and the remote head descends from every recorded value)."""
-    root = root or M.crucible_root()
+    root = ref_repository(root or M.crucible_root())
     ref = f"refs/remotes/origin/{INTEGRATION_BRANCH}"
     vals = _git(root, "reflog", "show", "--format=%H %gs", ref).splitlines()
     forced = [v for v in vals if "forced-update" in v]
@@ -924,10 +986,11 @@ def artifacts(root: str | None = None) -> dict:
         return {"metrics": {"required_artifacts_listed": 0, "required_artifacts_unpreserved": 1,
                             "artifact_hash_mismatches": 0, "artifacts_without_location": 1}, "problems": ["no list"]}
     tracked = set(_git(root, "ls-files").split())
-    remote = ls_remote(root, f"refs/heads/{INTEGRATION_BRANCH}") or ""
+    repo = ref_repository(root)                 # an official clone: the source repository's remote
+    remote = ls_remote(repo, f"refs/heads/{INTEGRATION_BRANCH}") or ""
     pushed_tree = set()
-    if remote and _git(root, "cat-file", "-t", remote).strip() == "commit":
-        pushed_tree = set(_git(root, "ls-tree", "-r", "--name-only", remote).split())
+    if remote and _git(repo, "cat-file", "-t", remote).strip() == "commit":
+        pushed_tree = set(_git(repo, "ls-tree", "-r", "--name-only", remote).split())
     unpreserved, mism, noloc, problems = [], [], [], []
     for a in reg["artifacts"]:
         if not a.get("location") or a.get("durability") not in DURABILITY:
