@@ -130,3 +130,34 @@ def test_the_whole_suite_runner_submits_each_resource_class_through_the_slot_sch
     assert sorted((j["label"].split(" (")[0], j["ram_mb"]) for j in jobs) == [
         ("P: smoke: suite group 0", 2000), ("P: smoke: suite group 1", 2100), ("P: smoke: suite group 2", 2000)], jobs
     assert all(j["cpu"] == 1 and j["gpu_mb"] == 0 and j["rc"] == 0 for j in jobs)
+
+
+def _fork_events(monkeypatch, historical: bool) -> list[str]:
+    import crucible
+    from crucible.core.kernel import World
+    from crucible.worldgen import generate
+    if historical:
+        monkeypatch.setenv(modes.HISTORICAL_BASELINE_ENV, "4.0")
+    else:
+        monkeypatch.delenv(modes.HISTORICAL_BASELINE_ENV, raising=False)
+    crucible.load_all_modules()
+    w = World.create(generate({"family": "tiny", "overrides": {"n_consumers": 20}}, 3))
+    for h in ("ann", "bo"):
+        w.system_call("admin.join", {"handle": h, "endowment": 1_000_000})
+    ex = lambda who, t, **k: w.execute(f"p:{who}", {"tool": t, "args": k})  # noqa: E731
+    repo = ex("ann", "code.create_repo", name="lib", visibility="public", license="open").result["repo"]
+    assert ex("ann", "code.commit", repo=repo, files={"lib.py": "X = 1\n"}).ok
+    since = w.seq
+    assert ex("bo", "code.fork", repo=repo, name="mine").ok
+    return [e.type for e in w.log if e.seq > since]
+
+
+def test_a_4_0_baseline_process_emits_only_4_0_events_from_4_0_tools(monkeypatch):
+    """5.0 added a lineage event to 4.0's `code.fork` (`code.forked`, innovation). Every event advances the main
+    sequence that keys the command RNG, so the extra event made every later random draw of a 4.0 world differ:
+    demo_lifetime diverged on day 4 (10,683 events vs c07098b's 10,657). In a 4.0 historical-baseline process
+    4.0's tools emit 4.0's events (D-82 addendum); a 5.0 process keeps the lineage record."""
+    v5 = _fork_events(monkeypatch, historical=False)
+    v4 = _fork_events(monkeypatch, historical=True)
+    assert "code.forked" in v5 and "code.forked" not in v4
+    assert [t for t in v5 if t != "code.forked"] == v4

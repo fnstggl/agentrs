@@ -329,7 +329,9 @@ class Code(Module):
         if files:
             self.commit_files(ctx, rid, files, f"fork of {repo}@{r['head']}", ctx.actor)
         # 5.0: the host's own fork record (lineage never comes from a user-settable description)
-        ctx.emit("code.forked", {"repo": rid, "parent": repo, "commit": r["head"]}, vis="public")
+        from ..experience.modes import historical_baseline
+        if historical_baseline() != "4.0":
+            ctx.emit("code.forked", {"repo": rid, "parent": repo, "commit": r["head"]}, vis="public")
         return {"repo": rid}
 
     def fork_parent(self, state, repo: str) -> str | None:
