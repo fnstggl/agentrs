@@ -593,10 +593,18 @@ def _run_cmd(kind, profile, seed, days, store_dir, out) -> list[str]:
             str(seed), "--days", str(days), "--store-dir", store_dir, "--out", out]
 
 
-def time_grant_s(profile: str, days: float, headroom: float = 3.0) -> float | None:
+def time_grant_s(profile: str, days: float, headroom: float | None = None) -> float | None:
     """Wall-time grant of a benchmark run: `headroom` x the time the profile's throughput target allows for `days`
     (a run that cannot finish in that time has missed its target anyway; it is stopped, and reports what it
-    measured), at least one hour."""
+    measured), at least one hour. Default headroom 3, or `$CRUCIBLE_BENCH5_TIME_HEADROOM`: the 30-day large civ run
+    projects to about 2.2x its target CPU time on the trend measured 2026-11-26 (1.5-1.7 simulated days per CPU-hour
+    against 3.75) and runs about 1.2x longer in wall time than in CPU time, i.e. 20-23 h of its 24 h grant; raise the
+    headroom for an official run rather than lose a whole large run to its grant."""
+    if headroom is None:
+        try:
+            headroom = float(os.environ.get("CRUCIBLE_BENCH5_TIME_HEADROOM") or 3.0)
+        except ValueError:
+            headroom = 3.0
     try:
         tg = {t["profile"]: t["value"] for t in targets()["targets"] if t["quantity"] == "sim_days_per_cpu_hour"}
     except (OSError, ValueError, KeyError):

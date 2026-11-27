@@ -208,3 +208,15 @@ def test_resident_store_size_is_measured_without_a_second_copy(tmp_path):
     after = bench5._live_bytes(st)
     assert after < 0.4 * full and os.path.getsize(db) >= full                     # freed pages excluded, file kept
     st.close()
+
+
+def test_benchmark_time_grants_follow_the_targets_and_the_headroom(monkeypatch):
+    """A run's wall-time grant is headroom x the time its throughput target allows (targets.json): 30 large days at
+    3.75 simulated days per CPU-hour and headroom 3 are 24 h; the official run can widen the headroom."""
+    monkeypatch.delenv("CRUCIBLE_BENCH5_TIME_HEADROOM", raising=False)
+    tg = {t["profile"]: t["value"] for t in bench5.targets()["targets"] if t["quantity"] == "sim_days_per_cpu_hour"}
+    assert bench5.time_grant_s("large", 30) == 3.0 * 30 / tg["large"] * 3600
+    assert bench5.time_grant_s("development", 0.01) == 3600.0                     # at least one hour
+    monkeypatch.setenv("CRUCIBLE_BENCH5_TIME_HEADROOM", "5")
+    assert bench5.time_grant_s("large", 30) == 5.0 * 30 / tg["large"] * 3600
+    assert bench5.time_grant_s("large", 30, headroom=2.0) == 2.0 * 30 / tg["large"] * 3600
