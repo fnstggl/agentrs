@@ -262,12 +262,14 @@ class RewardModel(nn.Module):
     # ------------------------------------------------------------------------------------------------ losses
     def losses(self, label_batch) -> dict:
         """Supervised objectives of Phi and V_L on a joined verified label batch (`label_join.LabelBatch` with
-        features attached: R [N,S,D], goal TokenSet | None). Empty / feature-less batches give {}."""
+        features attached: R [N,S,D], goal TokenSet | None). Empty / feature-less batches give {}. R is used as given:
+        the learner passes gradient-carrying R for the update's own decisions (so L_pred reaches theta_core, plan §2
+        core share >= 0.1; W7 change request) and detached R for cached rows."""
         if self.stub or label_batch is None or not hasattr(label_batch, "R") or len(label_batch) == 0:
             return {}
         if label_batch.R is None:
             raise ValueError("RewardModel.losses: the label batch has no features (LabelBatch.with_features)")
-        R = label_batch.R.detach().float()
+        R = label_batch.R.float()
         dev = R.device
         out = self.evaluator(R, label_batch.goal, label_batch.horizon_days.to(dev),
                              torch.zeros(R.shape[0], dtype=torch.long, device=dev))
