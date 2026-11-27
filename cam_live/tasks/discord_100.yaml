@@ -13,7 +13,10 @@ family: community/membership
 
 objective: "Create and operate a genuinely useful Discord community that attracts 100 distinct real human members who voluntarily choose to join, within the authorized experimental constraints."
 
-# ---- independently defined success criteria (read by the verifier process, never by the learner) ------------
+# ---- independently defined success criteria -----------------------------------------------------------------
+# Delivered to the independent verifier. The learner receives only runtime.tasks.learner_view of this file: the
+# objective text, the objective metric and target, limits, interfaces, data permissions, stop conditions and the
+# resources it acts on -- never the definition, the exclusions, the evidence source or the measurement protocol.
 success:
   verifier: membership
   metric: membership.confirmed
@@ -23,7 +26,9 @@ success:
     A member counts when the platform lists the account as a current member of the authorized guild, the account
     belongs to a human who joined through their own action, and no exclusion rule below applies. Success is
     reported only when the lower confidence bound of the count of legitimate members reaches the target.
-  evidence_source: REQUIRED          # "<module>:<factory>" of the live membership source for the authorized guild
+  # the verifier's own read of the member list of the authorized guild (official bot REST API, its own credential
+  # copy); this is also the default for every task with Discord resources
+  evidence_source: cam_live.harness.discord_membership:membership_source
   exclusions:
     exclude_bots: true
     test_account_ids: REQUIRED       # list of operator-declared test accounts (may be empty: [])
@@ -99,6 +104,8 @@ measurement:
 data_permissions:
   store_message_content: false
   train_on_message_content: false
-  store_member_identifiers: false            # identifiers are hashed before they reach any log
+  store_member_identifiers: false            # run logs replace member identifiers by keyed hashes
+                                             # (runtime.logs.Redactor); the verifier logs aggregate counts and
+                                             # hashed identifiers only
   store_aggregate_metrics: true
   collect_feedback_with_consent: REQUIRED    # true or false
