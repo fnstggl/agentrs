@@ -130,6 +130,14 @@ class PrimitiveGraph(RapidEngine):
         self.price = _stack([cc.get("money", {}).get("price", 0.0) for cc in cfgs], self.B)
         self.cap = _stack([cc.get("money", {}).get("cap", 0.0) for cc in cfgs], self.B)
         self.fixed = _stack([cc.get("money", {}).get("fixed_cost", 0.0) for cc in cfgs], self.B)
+        # realised sales scatter around the mechanism's expected rate (relative sd `realisation_sd`, one normal draw
+        # per tick after every other draw): revenue books the realised quantity, so it is a noisy view of the node
+        # like its gauge, not a noise-free one (prediction worlds score the noise-free expected response)
+        self.rev_sd = _stack([cc.get("money", {}).get("realisation_sd", 0.0) for cc in cfgs], self.B)
+        self.rev_z = None
+        if self.money and float(np.max(self.rev_sd)) > 0.0:
+            self.rev_z = self.n_normal
+            self.n_normal += 1
 
     @classmethod
     def batch(cls, configs: list[dict]) -> "PrimitiveGraph":
@@ -305,11 +313,16 @@ class PrimitiveGraph(RapidEngine):
             out[:, k] = x["x"] if val is None else val
         return out
 
-    def money_flows(self, st: dict, cur: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def money_flows(self, st: dict, cur: np.ndarray, z: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
+        """(revenue, cost) per instance. With draws `z` of the tick and a realisation sd, revenue books the realised
+        quantity node * (1 + sd * draw); without `z` (evaluator-side recipes) the expected one."""
         B = cur.shape[0]
         if not self.money:
             return np.zeros(B), np.zeros(B)
-        rev = self.price * np.clip(cur[:, self.rev_node], 0.0, self.cap)
+        q = cur[:, self.rev_node]
+        if self.rev_z is not None and z is not None:
+            q = q * (1.0 + self.rev_sd * z[:, self.rev_z])
+        rev = self.price * np.clip(q, 0.0, self.cap)
         levv = np.stack([cur[:, i] for i in self.lev_nodes], axis=1) if self.lev_nodes else np.zeros((B, 0))
         cost = self.fixed + (levv * self.lev_cost).sum(axis=1)
         for j in range(len(self.dec)):
@@ -320,7 +333,7 @@ class PrimitiveGraph(RapidEngine):
     def batch_step(self, st: dict, z: np.ndarray, u: np.ndarray, t: int) -> dict:
         """Vectorised tick for a batch (state changed in place): node values, readings, revenue and cost."""
         cur, read = self.tick(st, z, u, t)
-        rev, cost = self.money_flows(st, cur)
+        rev, cost = self.money_flows(st, cur, z)
         return {"values": cur, "readings": read, "revenue": rev, "cost": cost}
 
     def set_levers(self, st: dict, values: dict[str, float], clip: bool = True) -> None:
@@ -403,7 +416,7 @@ class PrimitiveGraph(RapidEngine):
     def advance(self, state, rng, t):
         z, u = self.draw(rng)
         cur, read = self.tick(state, z, u, t)
-        rev, cost = self.money_flows(state, cur)
+        rev, cost = self.money_flows(state, cur, z)
         nums = {}
         for k, g in enumerate(self.gauges):
             if not g.get("on_demand"):
@@ -570,8 +583,31 @@ def score_predictions(eng: PrimitiveGraph, journal: list[dict]) -> dict:
             "heldout": len(conds)}
 
 
-def true_response(eng: PrimitiveGraph, conds: list[dict], gauge: str, ticks: int = 1) -> list[float]:
-    """The noise-free steady response of a node behind `gauge` with the levers set to each condition (evaluator)."""
+def exogenous_nodes(eng: PrimitiveGraph) -> list[int]:
+    """Primitive nodes no lever or decision reaches through any port (the world's own evolution: hidden cycles,
+    drifting tastes, autonomous stocks)."""
+    nodes = eng.config["nodes"]
+    reached = {i for i, nd in enumerate(nodes) if nd["type"] in ("lever", "discrete")}
+    changed = True
+    while changed:
+        changed = False
+        for i in eng.order:
+            if i in reached:
+                continue
+            if any(src in reached for ws in eng.W.get(i, {}).values() for src, _, _ in ws):
+                reached.add(i)
+                changed = True
+    return [i for i in eng.prims if i not in reached]
+
+
+def true_response(eng: PrimitiveGraph, conds: list[dict], gauge: str, ticks: int = 1,
+                  t_frozen: int | None = None, exogenous_ticks: int | None = None) -> list[float]:
+    """The noise-free steady response of a node behind `gauge` with the levers set to each condition (evaluator).
+    The clock runs from tick 10,000 (after every scheduled change: the conditions at the end of an episode). With
+    `t_frozen` and `exogenous_ticks` the response is computed for the world *as it stood at tick t_frozen*: every
+    tick is evaluated at that tick (timed regime switches frozen) and the internal state of the exogenous nodes
+    (`exogenous_nodes`: drifting tastes, autonomous stocks) is held where it was after `exogenous_ticks` ticks,
+    while everything the levers drive (stocks, delays, learning) still runs for `ticks` ticks."""
     out = []
     g = eng.gauges[eng.gauge_names.index(gauge)]
     src = eng.idx[g["src"][0]]
@@ -586,9 +622,16 @@ def true_response(eng: PrimitiveGraph, conds: list[dict], gauge: str, ticks: int
         z = np.zeros((1, eng.n_normal))
         u = np.ones((1, eng.n_uniform))           # no missing readings, no selection draws below the cut
         val = None
+        exo = [f"ps:{i}:" for i in exogenous_nodes(eng)] if exogenous_ticks is not None else []
+        held = None
         for k in range(max(ticks, eng.K + 1)):
-            cur, _ = eng.tick(st, z, u, 10_000 + k)
+            if held is not None:
+                for key, v in held.items():
+                    st[key] = v.copy()
+            cur, _ = eng.tick(st, z, u, 10_000 + k if t_frozen is None else int(t_frozen))
             val = float(cur[0, src])
+            if exo and held is None and k + 1 >= int(exogenous_ticks):
+                held = {key: st[key].copy() for key in st if any(key.startswith(p) for p in exo)}
         out.append(val)
     return out
 

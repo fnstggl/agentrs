@@ -181,7 +181,7 @@ def cx_overdose(rng, d):
                          "conditions",
         axes={"horizon": 80, "observation_noise": 0.3, "n_variables": 0}, objective="predict_heldout",
         claims=(C + "balancing_loop",), identify=C + "lever_raises_sales", lever_view=True,
-        reference="crucible.rapid.refs_adapt:arx_settled_predict", oracle="crucible.rapid.oracles:science_oracle",
+        reference="crucible.rapid.refs_adapt:held_hub_predict", oracle="crucible.rapid.oracles:science_oracle",
         version="2")
 def cx_balancing_loop(rng, d):
     c = Composed(rng, _base(d, topology="feedback", motifs=["saturation"], affordances=["levers", "message"]))
@@ -198,7 +198,7 @@ def cx_balancing_loop(rng, d):
     c.set_lever(b, default=u(rng, 6.0, 8.0))
     c.set_params(c.sold, half=u(rng, 20.0, 35.0))
     held = [{c.name_of(a): p, c.name_of(b): q} for p, q in
-            ((0.5, 12.0), (2.0, 11.0), (4.0, 13.0), (11.0, 0.5), (12.0, 6.0), (1.0, 0.0), (14.0, 12.0))]
+            ((0.5, 16.0), (2.0, 11.0), (3.0, 1.0), (22.0, 0.5), (12.0, 6.0), (1.0, 0.0), (18.0, 18.0), (6.0, 24.0))]
     text = ("Predict where output would settle if the two levers were held at these values (partly outside what "
             f"you can set): {held}. File predictions with the journal: message to 'journal' with content "
             "{\"predictions\": [{\"set\": <condition>, \"value\": <number>}, ...]}. Only the last filing counts.")
@@ -489,8 +489,8 @@ def ch_tech_transition(rng, d):
     per_unit = settled_revenue(cfg, {a: 0.0, b: 8.0}, t0=AFTER) / 8.0
     cfg["nodes"][int(b[1:])]["lever"]["cost"] = max(per_unit, 0.0) * u(rng, 0.55, 0.7)
     held = [{c.name_of(a): float(p), c.name_of(b): float(q)} for p, q in
-            ((12.0, 0.5), (2.0, 12.0), (8.0, 9.0), (0.5, 4.0), (14.0, 14.0), (5.0, 1.0), (10.0, 6.0), (0.5, 18.0),
-             (3.0, 16.0))]
+            ((12.0, 0.5), (2.0, 12.0), (8.0, 9.0), (20.0, 4.0), (5.0, 1.0), (10.0, 6.0), (18.0, 0.5), (16.0, 10.0),
+             (0.5, 16.0))]
     text = ("Predict mean output under the conditions at the end of the episode if the use of the established and "
             f"of the new process were held at these values from the start (partly outside what you can set): {held}. "
             "File predictions with the journal: message to 'journal' with content {\"predictions\": [{\"set\": "

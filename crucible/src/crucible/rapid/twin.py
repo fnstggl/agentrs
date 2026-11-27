@@ -6,7 +6,8 @@ tick: node values in evaluation order from weighted, lagged input ports; levers 
 regime); discrete decisions; each primitive's documented formula written again here in plain Python floats (no
 NumPy, no code shared with `crucible.rapid.primitives`); observation channels; revenue and cost. It consumes the
 world's documented random-number contract - per tick, standard normals and uniforms in the order: natural lever
-noise, node primitives, then gauge channels, each taking the counts its primitive documents - so given the same
+noise, node primitives, gauge channels, each taking the counts its primitive documents, then one normal for the
+realised revenue when the money has a `realisation_sd` - so given the same
 tick draws it must reproduce the vectorised batch engine tick for tick. A disagreement is a bug in one of them.
 
 Supported primitives are listed in `SUPPORTED`; `supports(config)` says whether a mechanism uses only those.
@@ -180,7 +181,11 @@ class ScalarGraph:
         m = self.c.get("money") or {}
         rev = cost = 0.0
         if m:
-            rev = m["price"] * min(max(cur[m["revenue_node"]], 0.0), m["cap"])
+            q = cur[m["revenue_node"]]
+            if m.get("realisation_sd", 0.0) > 0.0:        # realised sales: the last normal draw of the tick
+                q = q * (1.0 + m["realisation_sd"] * z[zi])
+                zi += 1
+            rev = m["price"] * min(max(q, 0.0), m["cap"])
             cost = m.get("fixed_cost", 0.0) + sum(cur[n["id"]] * n["lever"].get("cost", 0.0) for n in self.levers)
             for n in self.decisions:
                 cost += n["options"].get("cost", [0.0] * len(n["options"]["values"]))[self.choice[n["id"]]]
@@ -192,6 +197,8 @@ class ScalarGraph:
         nn = sum(1 for n in self.c["nodes"] if n["type"] == "lever" and "natural" in n)
         nn += sum(DRAWS.get(_name(n["prim"]), (0, 0))[0] for n in self.c["nodes"] if n["type"] == "prim")
         nn += sum(DRAWS.get(_name(c["prim"]), (0, 0))[0] for g in self.c.get("gauges", []) for c in g.get("chain", []))
+        m = self.c.get("money") or {}
+        nn += 1 if m and m.get("realisation_sd", 0.0) > 0.0 else 0
         return nn, 0
 
     def warm_up(self, rng) -> None:

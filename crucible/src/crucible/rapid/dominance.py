@@ -13,6 +13,12 @@ learner seat of the world:
                                   k under A), and win-stay/lose-shift on observed net income
     repeat last best              explore-then-commit: hold each of the K best constants for m ticks, then repeat
                                   the one with the best observed net income for the rest of the episode
+    generic predictors            (prediction objectives only) predictors that know no mechanism, from the public
+                                  held-out list and scored gauge: random interleaved settings with a mean or a line,
+                                  and *hold and fit* - hold the corners and middle of the settable box for equal
+                                  blocks, average the reading late in each block, fit a line, an additive quadratic or
+                                  the leave-one-out choice of the two, extrapolate (`_naive_predictors`; the hold
+                                  design was added in the wave-3b repair pass, D-63 amendment)
 
 The search runs on copies of the scored world itself (common random numbers: every candidate sees the very noise
 the reference saw), so the best constant found is the best *in hindsight* for that instance - the static-tuning
@@ -387,17 +393,76 @@ def search(env, seed: int = 0, budget: dict | None = None) -> dict:
     return dict(res, best_value=float(bv), best_kind=bl.split(":")[0], best_label=bl)
 
 
+def _file(e, held: list[dict], values) -> float:
+    """The evaluator's value of filing `values` (one per held-out condition) on a fork of `e`."""
+    f = fork(e)
+    f.step({"kind": "message", "to": "journal",
+            "content": {"predictions": [{"set": c, "value": float(v)} for c, v in zip(held, values)]}})
+    return float(f.outcome()["value"])
+
+
+def hold_settings(names: list[str], props: dict) -> list[dict]:
+    """The generic block design of the hold-and-fit predictors: corners and middle of the settable box (one lever:
+    both ends, the middle and the quarter points; two levers: the four corners, the middle and two edge midpoints;
+    more levers: all low, all high, the middle and each lever alone high)."""
+    lo = {n: float(props[n]["minimum"]) for n in names}
+    hi = {n: float(props[n]["maximum"]) for n in names}
+    mid = {n: 0.5 * (lo[n] + hi[n]) for n in names}
+    if len(names) == 1:
+        n = names[0]
+        return [{n: lo[n]}, {n: hi[n]}, dict(mid), {n: lo[n] + 0.25 * (hi[n] - lo[n])},
+                {n: lo[n] + 0.75 * (hi[n] - lo[n])}]
+    if len(names) == 2:
+        a, b = names
+        out = [{a: x, b: y} for x in (lo[a], hi[a]) for y in (lo[b], hi[b])]
+        return out + [dict(mid), {a: mid[a], b: hi[b]}, {a: hi[a], b: mid[b]}]
+    out = [dict(lo), dict(hi), dict(mid)]
+    for n in names:
+        out.append(dict(lo, **{n: hi[n]}))
+    return out
+
+
+def _basis(X: np.ndarray, kind: str) -> np.ndarray:
+    if kind == "linear":
+        return np.c_[np.ones(len(X)), X]
+    return np.c_[np.ones(len(X)), X, X ** 2]           # additive quadratic
+
+
+def _loo(X: np.ndarray, y: np.ndarray, kind: str) -> float:
+    err = []
+    for i in range(len(y)):
+        m = np.arange(len(y)) != i
+        A = _basis(X[m], kind)
+        if A.shape[0] < A.shape[1]:
+            return math.inf
+        c = np.linalg.lstsq(A, y[m], rcond=None)[0]
+        err.append(float((_basis(X[i:i + 1], kind) @ c - y[i])[0] ** 2))
+    return float(np.mean(err))
+
+
 def _naive_predictors(env, rng) -> dict:
-    """Simple answers to a prediction objective (the held-out conditions are public, in the objective): set the
-    levers uniformly at random every tick, record the reading, and at the last tick file (a) the mean reading
-    for every condition and (b) a linear regression of the reading on the settings, extrapolated."""
+    """Simple answers to a prediction objective that know no mechanism (the held-out conditions and the scored
+    gauge are public, in the objective; the references read the same two fields):
+
+    random interleaved   set the levers uniformly at random every tick, record the reading, and at the last tick
+                         file (a) the mean reading for every condition and (b) a linear regression of the reading
+                         on the settings, extrapolated
+    hold and fit         hold each setting of a generic block design (`hold_settings`: corners and middle of the
+                         settable box) for an equal block of the episode, average the reading over the last third of
+                         each block (delayed and accumulating responses have time to show), and file (c) a linear,
+                         (d) an additive quadratic and (e) the leave-one-out choice of the two fits, extrapolated
+
+    The random design alone is a strawman wherever responses are delayed or accumulate (verifier finding on the
+    wave-3b tree); the hold design is the generic experiment of a learner with no model, so a family whose reference
+    does not beat it by the H-D1 margin teaches curve fitting, not its mechanism."""
     obj = env._config["objective"]
     held, g = obj["heldout"], obj.get("gauge")
-    e = fork(env)
-    sp = e.action_space()
+    sp = env.action_space()
     if "levers" not in sp.kinds:
         return {}
     props = sp.kinds["levers"]["properties"]["values"]["properties"]
+    out = {}
+    e = fork(env)                                       # (a), (b): random interleaved settings
     names = sorted(props)
     X, y = [], []
     while e.t < e.horizon - 1:
@@ -407,17 +472,50 @@ def _naive_predictors(env, rng) -> dict:
         if v is not None:
             X.append([x[n] for n in names])
             y.append(v)
-    if not y:
-        return {}
-    X, y = np.asarray(X), np.asarray(y)
-    coef, *_ = np.linalg.lstsq(np.c_[np.ones(len(X)), X], y, rcond=None)
-    out = {}
-    for lab, fn in (("mean", lambda c: float(y.mean())),
-                    ("linear", lambda c: float(coef[0] + sum(coef[1 + i] * c.get(n, 0.0) for i, n in enumerate(names))))):
-        f = fork(e)
-        f.step({"kind": "message", "to": "journal",
-                "content": {"predictions": [{"set": c, "value": fn(c)} for c in held]}})
-        out[lab] = float(f.outcome()["value"])
+    if y:
+        Xa, ya = np.asarray(X), np.asarray(y)
+        coef, *_ = np.linalg.lstsq(np.c_[np.ones(len(Xa)), Xa], ya, rcond=None)
+        out["mean"] = _file(e, held, [float(ya.mean())] * len(held))
+        out["linear"] = _file(e, held, [float(coef[0] + sum(coef[1 + i] * c.get(n, 0.0) for i, n in enumerate(names)))
+                                        for c in held])
+    hn = sorted({k for c in held for k in c if k in props})       # (c)-(e): hold a block design, fit, extrapolate
+    if not hn or not g:
+        return out
+    e = fork(env)
+    S = hold_settings(hn, props)
+    block = max(3, (e.horizon - 2) // len(S))
+    rows = []
+    for s in S:
+        vals = []
+        for k in range(block):
+            if e.t >= e.horizon - 1:
+                break
+            r = e.step({"kind": "levers", "values": s})
+            v = r["observation"]["numbers"].get(g)
+            if v is not None and k >= block - max(2, block // 3):
+                vals.append(v)
+        if vals:
+            rows.append(([s[n] for n in hn], float(np.mean(vals))))
+    while e.t < e.horizon - 1:
+        e.step(None)
+    if len(rows) < 2:
+        return out
+    Xh = np.asarray([r[0] for r in rows], float)
+    yh = np.asarray([r[1] for r in rows], float)
+    Xq = np.asarray([[float(c.get(n, 0.0)) for n in hn] for c in held], float)
+    preds = {}
+    for kind in ("linear", "quadratic"):
+        A = _basis(Xh, kind)
+        if A.shape[0] < A.shape[1]:
+            continue
+        cf = np.linalg.lstsq(A, yh, rcond=None)[0]
+        preds[kind] = _basis(Xq, kind) @ cf
+    if not preds:
+        return out
+    cv = {k: _loo(Xh, yh, k) for k in preds}
+    preds["cv"] = preds[min(cv, key=cv.get)]
+    for kind, p in preds.items():
+        out[f"hold_{kind}"] = _file(e, held, p)
     return out
 
 

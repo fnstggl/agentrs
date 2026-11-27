@@ -1658,6 +1658,21 @@ def adoption_predict(view, env) -> None:
 
 
 # ====================================================================== congestion on routes with a shared link
+def _nonneg_tail_lstsq(F: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Least squares with a free first coefficient (intercept) and nonnegative others: active-set elimination of
+    negative coefficients (small problems only)."""
+    act = list(range(1, F.shape[1]))
+    while True:
+        cols = [0] + act
+        c = np.linalg.lstsq(F[:, cols], y, rcond=None)[0]
+        neg = [j for j, v in zip(act, c[1:]) if v < 0]
+        if not neg:
+            out = np.zeros(F.shape[1])
+            out[cols] = c
+            return out
+        act = [j for j in act if j != min(neg, key=lambda j: c[1 + act.index(j)])]
+
+
 def congestion_predict(view, env, seed: int = 0) -> None:
     """Scripted public reference for predicting a route's delay at flows above the settable range: random flows on
     both routes every tick (the system has no memory), then the delay of the first route modelled as a sum of BPR
@@ -1672,24 +1687,24 @@ def congestion_predict(view, env, seed: int = 0) -> None:
     props = view.action_space().kinds["levers"]["properties"]["values"]["properties"]
     X, y = [], []
     while view.t < view.horizon - 2 and not view.done:
-        f = {n: float(props[n]["minimum"] + rng.random() * (props[n]["maximum"] - props[n]["minimum"]))
-             for n in (n1, n2)}
+        # the curvature of a power law shows at heavy loads: two thirds of the tests in the upper half of the range
+        top = rng.random() < 2.0 / 3.0
+        f = {n: float(props[n]["minimum"] + (0.5 + 0.5 * rng.random() if top else rng.random())
+                      * (props[n]["maximum"] - props[n]["minimum"])) for n in (n1, n2)}
         x = view.step({"kind": "levers", "values": f})["observation"]["numbers"]
         if gauge in x:
             X.append((f[n1], f[n2]))
             y.append(float(x[gauge]))
     X, y = np.asarray(X), np.asarray(y)
     best = None
-    folds = np.arange(len(y)) % 5
-    for beta in (2.0, 3.0, 4.0, 5.0):
+    # the BPR class: nonnegative link coefficients; the exponent on a fine grid by the residual sum of squares of
+    # the nonnegative fit (the maximum-likelihood exponent under Gaussian reading noise)
+    for beta in np.arange(1.5, 6.01, 0.25):
         F = np.c_[np.ones(len(y)), X[:, 0] ** beta, (X[:, 0] + X[:, 1]) ** beta]
-        cv = 0.0
-        for k in range(5):
-            tr, te = folds != k, folds == k
-            coef = np.linalg.lstsq(F[tr], y[tr], rcond=None)[0]
-            cv += float(np.sum((F[te] @ coef - y[te]) ** 2))
-        if best is None or cv < best[0]:
-            best = (cv, beta, np.linalg.lstsq(F, y, rcond=None)[0])
+        coef = _nonneg_tail_lstsq(F, y)
+        sse = float(np.sum((F @ coef - y) ** 2))
+        if best is None or sse < best[0]:
+            best = (sse, float(beta), coef)
     _, beta, coef = best
     preds = [{"set": c, "value": float(coef[0] + coef[1] * c[n1] ** beta + coef[2] * (c[n1] + c[n2]) ** beta)}
              for c in held]

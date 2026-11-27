@@ -19,7 +19,11 @@
                                                   reference gains
     constants_fail_after_change(family, seed) 8.10 the constant setting that did best before the change does clearly
                                                   worse afterwards than the setting that does best afterwards (common
-                                                  random numbers, a fixed set of constant settings)
+                                                  random numbers, a fixed set of constant settings); for families
+                                                  scored by held-out predictions, on the scored channel itself: the
+                                                  predictions that were exactly right as the world stood at the end
+                                                  of the first fifth are clearly wrong at the end
+                                                  (`beliefs_fail_after_change`)
 
 Each function returns a JSON-able record with "ok". Nothing here is imported by world code.
 """
@@ -160,12 +164,47 @@ def interdependence(family: str, seed: int = 0) -> dict:
 
 
 # ====================================================================== 8.10
+def beliefs_fail_after_change(family: str, seed: int = 0) -> dict:
+    """8.10 for a family scored by predictions at held-out conditions (primitive-graph engine): the scored truth is
+    the noise-free response under the conditions at the end of the episode. The same truth computed for the world
+    as it stood at the end of the first fifth (`true_response(..., t_frozen, exogenous_ticks)`: timed regimes
+    frozen there, the world's own drifting stocks held where they were then, everything the levers drive still
+    settling) is what a learner that had learned the early world perfectly would file. Filed as
+    predictions, it must fall clearly short: its shortfall below perfect predictions is at least a quarter of the
+    gain of perfect predictions over filing nothing (the score is 1 - MSE / variance of the truth; filing nothing
+    scores 0). Measured on the channel the family is scored on, so parameters that never enter the score (lever
+    costs, revenue) cannot decide it."""
+    from .engines.primitive_graph import score_predictions, true_response
+    env = make(family, seed)
+    obj = env._config["objective"]
+    eng = env._engine
+    H = env.horizon
+    k = max(3, H // 5)
+    ticks = int(obj.get("settle_ticks", 1))
+    early = true_response(eng, obj["heldout"], obj["gauge"], ticks=ticks, t_frozen=k - 1, exogenous_ticks=k)
+    journal = [{"content": {"predictions": [{"set": c, "value": float(v)} for c, v in zip(obj["heldout"], early)]}}]
+    score = float(score_predictions(eng, journal)["prediction_score"])
+    shortfall = 1.0 - score
+    return {"ok": bool(shortfall >= 0.25), "relative_shortfall_of_early_truth": shortfall,
+            "early_truth_score": score, "frozen_at_tick": k - 1, "channel": "scored predictions"}
+
+
+def _scored_by_predictions(env) -> bool:
+    from .engines.primitive_graph import PrimitiveGraph
+    return (env._config.get("objective") or {}).get("type") == "predict_heldout" and \
+        isinstance(env._engine, PrimitiveGraph)
+
+
 def constants_fail_after_change(family: str, seed: int = 0, n_random: int = 16) -> dict:
     """The constant setting (from a fixed set: the canonical grid of the action space and 16 random settings) that
     earns most in the first fifth of the episode, held on, earns clearly less than the best constant in some later
     fifth: its shortfall there is at least a quarter of that fifth's best gain over waiting (common random
-    numbers; observed net income per tick)."""
+    numbers; observed net income per tick). Families scored by held-out predictions are measured on their scored
+    channel instead (`beliefs_fail_after_change`; verifier finding on the wave-3b tree: net income of constants
+    measured a channel those families are not scored on, decided by a lever cost that never enters the score)."""
     env = make(family, seed)
+    if _scored_by_predictions(env):
+        return beliefs_fail_after_change(family, seed)
     joint = D.Joint(env)
     rng = np.random.default_rng(np.random.SeedSequence([int(seed), 4243]))
     settings = joint.canonical() + [joint.random(rng) for _ in range(n_random)]

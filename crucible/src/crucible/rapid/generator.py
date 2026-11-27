@@ -410,8 +410,8 @@ def lookalike_market(rng: np.random.Generator, rule: str, difficulty: dict) -> d
     # prediction (D-63): units sold at held-out prices and promotion levels, with and without the certification,
     # held from a fresh market (a market whose response depends on its own history settles accordingly)
     held = [{pn: p_, qn: q_, dname: ch} for p_, q_, ch in
-            ((0.5, 3.0, c0), (2.0, 12.0, c1), (5.0, 14.0, c0), (8.0, 1.0, c1), (11.0, 6.0, c0), (12.5, 12.0, c1),
-             (3.5, 0.5, c1), (6.5, 13.0, c1), (14.0, 8.0, c1), (0.3, 14.0, c1))]
+            ((0.3, 16.0, c1), (0.5, 0.3, c0), (13.0, 16.0, c1), (14.0, 0.5, c0), (0.4, 9.0, c1), (12.0, 9.0, c0),
+             (6.0, 18.0, c1), (3.0, 15.0, c0), (11.0, 14.0, c1), (2.0, 0.2, c1))]
     text = ("Predict mean units sold per period if the price, the promotion spend and the certification were held "
             f"at these values from a fresh market (partly outside what you can set): {held}. File predictions with "
             "the journal: message to 'journal' with content {\"predictions\": [{\"set\": <condition>, \"value\": "

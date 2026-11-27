@@ -103,7 +103,23 @@ def build_config(name: str, seed: int, **difficulty) -> dict:
     d.update(difficulty)
     cfg = fam.build(family_rng(name, seed), d)
     cfg["family"] = name
+    _realised_revenue(cfg, d)
     return cfg
+
+
+REALISATION_SD_PER_NOISE = 0.1     # relative sd of realised sales per unit of the observation_noise axis
+
+
+def _realised_revenue(cfg: dict, d: dict) -> None:
+    """Prediction worlds of the primitive-graph engine score the noise-free expected response of a node; when they
+    book revenue from a node, the books show *realised* quantities that scatter around the expected rate (relative
+    sd REALISATION_SD_PER_NOISE x observation_noise, about 3% at the default 0.3), so revenue is a noisy view of the
+    mechanism like the gauges and the observation_noise axis limits both (verifier finding on the wave-3b tree:
+    revenue was price x the noise-free scored node, bit-identical at ten times the noise)."""
+    m = cfg.get("money")
+    if not m or (cfg.get("objective") or {}).get("type") != "predict_heldout" or "nodes" not in cfg:
+        return
+    m.setdefault("realisation_sd", REALISATION_SD_PER_NOISE * float(d.get("observation_noise", 0.3)))
 
 
 def make(name: str, seed: int, *, reward_mode: str | None = None, objective="assigned", **difficulty):

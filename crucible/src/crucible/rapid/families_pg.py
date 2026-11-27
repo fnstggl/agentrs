@@ -332,12 +332,13 @@ def net_congestion_routes(rng, d):
     fa = gb.lever(0.0, 10.0, 2.0, cost=0.0)
     fb = gb.lever(0.0, 10.0, 2.0, cost=0.0)
     beta = float(rng.choice([3.0, 4.0]))
+    # capacities inside the settable range: tests at heavy flows already see the steep part of each link's curve
     own_a = gb.prim("congestion", {"t0": u(rng, 4.0, 8.0), "alpha": u(rng, 0.5, 1.0), "beta": beta},
-                    bias={"cap": u(rng, 7.0, 11.0)}, load=[(fa, 0, 1.0)], cap=[])
+                    bias={"cap": u(rng, 5.5, 8.0)}, load=[(fa, 0, 1.0)], cap=[])
     own_b = gb.prim("congestion", {"t0": u(rng, 4.0, 8.0), "alpha": u(rng, 0.5, 1.0), "beta": beta},
-                    bias={"cap": u(rng, 7.0, 11.0)}, load=[(fb, 0, 1.0)], cap=[])
+                    bias={"cap": u(rng, 5.5, 8.0)}, load=[(fb, 0, 1.0)], cap=[])
     shared = gb.prim("congestion", {"t0": u(rng, 2.0, 5.0), "alpha": u(rng, 0.5, 1.0), "beta": beta},
-                     bias={"cap": u(rng, 11.0, 16.0)}, load=[(fa, 0, 1.0), (fb, 0, 1.0)], cap=[])
+                     bias={"cap": u(rng, 9.0, 13.0)}, load=[(fa, 0, 1.0), (fb, 0, 1.0)], cap=[])
     delay_a = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, role="outcome",
                       x=[(own_a, 0, 1.0), (shared, 0, 1.0)])
     delay_b = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, x=[(own_b, 0, 1.0), (shared, 0, 1.0)])
@@ -345,7 +346,7 @@ def net_congestion_routes(rng, d):
     ga = gb.gauge(delay_a, [("measurement_noise", {"sd": noise * 2})])
     gb.gauge(delay_b, [("measurement_noise", {"sd": noise * 2})])
     held = [{gb.name_of(fa): x, gb.name_of(fb): y} for x, y in
-            ((12.0, 2.0), (11.0, 8.0), (14.0, 5.0), (6.0, 13.0), (13.0, 12.0), (2.0, 15.0), (16.0, 1.0))]
+            ((13.0, 2.0), (16.0, 9.0), (21.0, 5.0), (6.0, 17.0), (15.0, 15.0), (2.0, 21.0), (24.0, 1.0))]
     text = ("Predict the delay on the first route if these flows were sent over the two routes (partly above what "
             f"you can send): {held}. File predictions with the journal: message to 'journal' with content "
             "{\"predictions\": [{\"set\": <condition>, \"value\": <number>}, ...]}. Only the last filing counts.")
@@ -387,7 +388,7 @@ def plan_spoilage(rng, d):
     noise = float(d["observation_noise"])
     gs = gb.gauge(sales, [("measurement_noise", {"sd": noise})])
     gb.gauge(waste, [("measurement_noise", {"sd": noise})])
-    held = [{gb.name_of(make): x} for x in (2.0, 5.0, 8.0, 11.0, 14.0, 18.0)]
+    held = [{gb.name_of(make): x} for x in (1.0, 3.0, 6.0, 9.0, 14.0, 20.0, 30.0, 45.0)]
     text = ("Predict where sales per tick would settle if production were held at these rates (partly above what "
             f"you can set): {held}. File predictions with the journal: message to 'journal' with content "
             "{\"predictions\": [{\"set\": <condition>, \"value\": <number>}, ...]}. Only the last filing counts.")
