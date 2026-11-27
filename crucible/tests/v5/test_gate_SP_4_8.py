@@ -253,3 +253,6 @@ def test_SP_4_8_population_discovers_buys_uses_and_reviews():
         f"subscriptions are wired by ECON (integration note). Buyers: {detail[:20]}"))
     assert_met('SP-4.8', metrics)
     assert metrics["hardcoded_social_revenue_bonuses"] == 0
+    # regression (wave 3b): the shop decision wrote the population's own purchase columns from the social package,
+    # which column ownership refuses - every population tick with a product visit failed and the population fell idle
+    assert not [e for e in w.log if e.type == "proc.failed"], "a population tick failed"

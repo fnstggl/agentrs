@@ -96,6 +96,11 @@ class PopSocial(Module):
             cols.update(popcreate.columns_spec())           # internet profile: 10M rows stay lean)
         if "msg" in names or "letters" in names:
             cols.update(popinbox.columns_spec())
+        if "products" in names:
+            # what the individual bought of products it discovered on the social internet (launch posts): this
+            # package's own columns - the population's n_purchases / spent_cents belong to crucible.population and
+            # are written by its own web shopping only (column ownership: another package may not write them)
+            cols.update({"soc_purchases": ("int32", (), 0), "soc_spent_cents": ("int64", (), 0)})
         columns.declare(world, "pop", n, cols)
         population.register_activity(world, "social.create", self.act_create, owner="pop_social",
                                      prior=float(self.cfg["prior"]), goals=(3, 5))
@@ -551,14 +556,14 @@ def _after_launch(self, ctx: Ctx, out: dict) -> np.ndarray:
             pass
     if deciders:
         rows = np.unique(np.array(deciders, np.int64))
-        nb = columns.col(w, "pop", "n_purchases")[idx[rows]].astype(np.int64)
-        sp = columns.col(w, "pop", "spent_cents")[idx[rows]].astype(np.int64)
+        nb = columns.col(w, "pop", "soc_purchases")[idx[rows]].astype(np.int64)
+        sp = columns.col(w, "pop", "soc_spent_cents")[idx[rows]].astype(np.int64)
         for a, c in zip(bought_n, spent):
             k = int(np.searchsorted(rows, a))
             nb[k] += 1
             sp[k] += c
-        population.record_decisions(ctx, "pop_social.shop", idx[rows], {"n_purchases": nb.astype(np.int32),
-                                                                        "spent_cents": sp},
+        population.record_decisions(ctx, "pop_social.shop", idx[rows], {"soc_purchases": nb.astype(np.int32),
+                                                                        "soc_spent_cents": sp},
                                     **SHOP_MODEL, extra={"visits": len(deciders), "purchases": len(bought_n),
                                                          "revenue_cents": int(sum(spent))})
     return U
