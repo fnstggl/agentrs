@@ -229,7 +229,7 @@ def productive(world, min_viewers: int = 3) -> list[dict]:
     from ...substrate import artifacts
     ps = principals(world)
     cls = columns.col(world, "pop", "class")
-    goals = {r["principal"]: [g["text"] for g in r["goals"]] for r in rows(world)}
+    goals = {r["principal"]: [(int(g["t"]), g["text"]) for g in r["goals"]] for r in rows(world)}
     out = []
     for key, rec in world.state.scan("aud_item_info"):
         if rec.get("creator") not in ps:
@@ -246,7 +246,10 @@ def productive(world, min_viewers: int = 3) -> list[dict]:
             pass
         ns = {t["name"].lower() for t in world.available_tools(rec["creator"])}
         names = ns | {n.split(".", 1)[0] for n in ns}
-        junk = any(junk_text(text, names, g, publication=True) for g in goals[rec["creator"]] or [""]) or \
+        # restating a goal: only goals the creator had set by the time it published (a later goal copied from its
+        # own article - small models form the next goal from what they remember doing - says nothing about it)
+        before = [g for t, g in goals[rec["creator"]] if t <= int(rec.get("published_at", 0))]
+        junk = any(junk_text(text, names, g, publication=True) for g in before or [""]) or \
             (bool(title) and title != text and junk_text(title, names, "", publication=True))
         out.append({"item": int(key), "creator": rec["creator"], "platform": rec.get("platform"), "ref": rec.get("ref"),
                     "unique_viewers": int(ex["unique_viewers"]), "independent_viewers": int(indep.size),

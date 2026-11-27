@@ -489,3 +489,29 @@ def test_productive_results_count_each_published_content_once():
             {"item": 4, "creator": "p2", "ref": "sha256:" + "a" * 64, "verified": True},
             {"item": 5, "creator": "p2", "ref": None, "verified": True}]
     assert verify.distinct_results(prod) == 3
+
+
+def test_a_publication_is_judged_against_the_goals_set_before_it(ablated):
+    """verify.productive: an article is junk when it restates a goal its creator had when it published, not when a
+    later goal copies the article (Gate H rerun: later goals formed from memory of the published text made every
+    publication of one participant 'junk')."""
+    from crucible.substrate import bus
+    w = ablated
+    rows = G.members(w)
+    a = M.Agent.from_row(rows[-2])
+    tool = next(t for t in w.available_tools(a.principal) if t["name"] == "blog.publish")
+    a.new_goal(w.now, "I will tell people how my rye bread turned out.")
+    body = ("My rye bread rose for eleven hours with a sourdough starter and came out dense and sour. Next time I will "
+            "add more water and bake it for ten minutes longer at a lower heat.")
+
+    def run(ctx):
+        M.execute(ctx, a, tool, {"ref": {M.COMPOSED: body}, "title": "Rye bread, second try", "kind": "article"},
+                  ctx.now, M.Config())
+        a.end_goal(ctx.now, "done")
+        a.new_goal(ctx.now + 60, body)          # a later goal copied from the article
+        bus.emit(ctx, "semp.update", M.delta(a, int(ctx.now) + 86400), vis="internal")
+    w._run_system("test.publish_then_goal", run)
+    assert a.history[-1]["ok"], a.history[-1]
+    mine = [p for p in verify.productive(w) if p["creator"] == a.principal]
+    assert mine and not mine[-1]["junk_content"]
+    assert verify.junk_text(body, set(), body, publication=True)     # judged against that later goal it would be
