@@ -314,3 +314,28 @@ Writing (capability communication) by the same rule in situ: in the second stand
 prompt into 8 of 9 written argument values ("You are calling blog.comment: ..."); on the 12 DEV situations the share
 of publication texts not mostly copied from the prompt (5-gram overlap <= 30 %) is SmolLM2-135M 0.42,
 SmolLM2-360M 1.00, Qwen3-0.6B 1.00, so writing is routed to SmolLM2-360M (SP-3.2b generation pass rate 0.72).
+
+## D-38 Reasoning-first variants in in-situ routing; H.n1 over every activation's decisions; SP-3.2d ablation measure (2026-11-27, workstream D)
+The third standard Gate H run (unofficial, c5c/w3b-sem, 2026-11-26) had 111 of 144 class-4 calls refused, almost all
+from argument filling (titles and queries that reuse the goal's words discarded as copies, publications of
+artifacts the participant does not own, references to texts a refused call had stored and undone); those are
+fixed in `generalists.mind` (component D3). Three decisions about what is measured and how routing may use it:
+(1) `routing.derive` accepts in-situ measurements of reasoning-first variants `<model>#think<N>` (the model reasons
+in its own thinking mode for at most N tokens, then names an option or the options are scored after its closed
+reasoning, as SP-3.2b scores "think"; both requests recorded) by the same rule: the smallest effective checkpoint
+(accuracy >= 0.6), at equal size the plain choice first. Pre-registered application (applied by the measurement
+script before any Gate H rerun, results appended here or in workstreams/D.json): tool choice in situ = class-4 DEV
+bench with situation interpretation on its report route, tool choice varied over Qwen3-0.6B, Qwen3-0.6B#think192,
+Qwen3-0.6B#think384, Qwen3-1.7B; if the pick is Qwen3-0.6B, situation interpretation in situ = the same bench with
+tool choice as picked and situation interpretation varied over Qwen3-0.6B and Qwen3-1.7B (goal formation is not
+part of this bench). Test templates stay held out for H.4. (2) H.n1's `semantic_model_params` is the largest model
+serving the decisions every participant makes in every activation (situation interpretation, tool choice,
+writing, content understanding), as MASTER_SPEC 3.2 asks for "the smallest model or combination of models that
+meets each capability requirement" and the assignment names "0.6B default, 1.7B routing for harder steps"; D-37
+had moved it to the largest model used because the ordinary path itself ran on Qwen3-1.7B, which this definition
+still reports as a failure. Added, stricter than the manifest: decisions served above 1.1B parameters at most 20 %
+of all class-4 decisions; the largest model used and requests per model stay in the evidence. (3) SP-3.2d asserts
+the ablation's degradation on the share of calls that are consequential (Fisher exact, p <= 0.01) and on verified
+productive results; the share of successful calls is reported, not asserted: uniform random choices spread over
+argument-free read tools (31 distinct tools ablated vs 5 with the models in the third run), which succeed whatever
+the caller understands (ablated 0.28 vs models 0.25 in that run, while consequential calls were 3 vs 16, p 3.6e-5).
