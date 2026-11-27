@@ -191,13 +191,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-C-4 (critical, open): content.update leaves the distributed representation stale (bait-and-switch, p2).
+### DEF-C-4 (critical, fixed): content.update leaves the distributed representation stale (bait-and-switch, p2).
 
 ```json
 {
  "area": "C_social",
+ "fixed_by": "c5c/w2-corepop (content.update re-indexes the distributed representation: audience.reindex_item)",
  "id": "DEF-C-4",
  "owner": "C (CORE-POP)",
+ "regression_tests": "tests/test_v5_social_meaning.py::test_update_moves_the_audience_with_the_representation",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -205,7 +207,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/C_social.json",
   "finding": 3
  },
- "status": "open",
+ "status": "fixed",
  "summary": "content.update leaves the distributed representation stale (bait-and-switch, p2)."
 }
 ```
