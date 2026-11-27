@@ -50,12 +50,18 @@ class MemberRecord:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "MemberRecord":
-        known = {"id", "is_bot", "joined_at", "pending", "invite_code", "inviter_id", "left_at",
-                 "account_created_at", "flags", "link_key"}
-        d = {k: v for k, v in d.items() if k in known}
-        d["id"] = str(d.get("id", ""))
-        d["flags"] = [str(f) for f in d.get("flags") or []]
-        return cls(**d)
+        """From one record of a snapshot file. Values of the wrong type count as *not stated* (0 / None / False),
+        never as evidence for a member."""
+        def num(v: Any) -> float:
+            return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) else 0.0
+        flags = d.get("flags") or []
+        return cls(id=str(d.get("id", "") if d.get("id") is not None else ""), is_bot=bool(d.get("is_bot")),
+                   joined_at=num(d.get("joined_at")), pending=bool(d.get("pending")),
+                   invite_code=str(d.get("invite_code") or ""), inviter_id=str(d.get("inviter_id") or ""),
+                   left_at=(num(d["left_at"]) or None) if d.get("left_at") is not None else None,
+                   account_created_at=num(d.get("account_created_at")),
+                   flags=[str(f) for f in (flags if isinstance(flags, list) else [flags])],
+                   link_key=str(d.get("link_key") or ""))
 
 
 @runtime_checkable
@@ -160,22 +166,65 @@ def _canon(obj: Any) -> bytes:
     return json.dumps(obj, sort_keys=True, default=str, separators=(",", ":")).encode()
 
 
+def _repair_torn_tail(path: str) -> int:
+    """Truncate an incomplete final line (no trailing newline) left by a crash. Returns the bytes removed."""
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        return 0
+    if size == 0:
+        return 0
+    try:
+        with open(path, "rb+") as f:
+            back = min(size, 1 << 20)
+            f.seek(size - back)
+            chunk = f.read(back)
+            if chunk.endswith(b"\n"):
+                return 0
+            keep = size - back + chunk.rfind(b"\n") + 1
+            f.truncate(keep)
+            f.flush()
+            os.fsync(f.fileno())
+            return size - keep
+    except OSError:                                       # not ours to repair (read-only view); verify as it is
+        return 0
+
+
 class HashChainLog:
     """Append-only log where every entry commits to its predecessor. The head is also kept in ``head_path`` (in
     the verifier's private directory), so replacing the whole file is detectable as well as editing it."""
     GENESIS = "0" * 64
 
     def __init__(self, path: str, head_path: str = ""):
+        """Open (or start) a log. The whole chain is verified first: a log edited, shortened or re-ordered anywhere
+        is refused with ``RuntimeError``, not continued. The one tolerated difference from the recorded head is a
+        single valid entry appended after it (a crash between writing an entry and recording the new head)."""
         self.path, self.head_path = path, head_path
         self._lock = threading.Lock()
         self.seq, self.head = -1, self.GENESIS
+        self.repaired_bytes = _repair_torn_tail(path)          # a crash mid-append leaves an incomplete last line
+        ok, n, why = self.verify_chain(path)
+        if not ok:
+            raise RuntimeError(f"verifier log {path} is not an intact hash chain ({why}); the log was altered")
+        hashes: List[str] = []
         for e in iter_jsonl(path):
-            self.seq, self.head = int(e["seq"]), e["hash"]
-        if head_path:
-            kept = read_json(head_path)
-            if kept and (kept.get("seq"), kept.get("hash")) != (self.seq, self.head):
-                raise RuntimeError(f"verifier log {path} does not match its recorded head (seq {kept.get('seq')}); "
-                                   "the log was altered or replaced")
+            hashes.append(e["hash"])
+        self.seq, self.head = n - 1, (hashes[-1] if hashes else self.GENESIS)
+        if not head_path:
+            return
+        kept = read_json(head_path)
+        if not kept:
+            if self.seq >= 0:
+                atomic_write_json(head_path, {"seq": self.seq, "hash": self.head}, 0o600)
+            return
+        ks, kh = kept.get("seq"), kept.get("hash")
+        if (ks, kh) == (self.seq, self.head):
+            return
+        if isinstance(ks, int) and ks == self.seq - 1 and ks >= 0 and hashes[ks] == kh:
+            atomic_write_json(head_path, {"seq": self.seq, "hash": self.head}, 0o600)
+            return
+        raise RuntimeError(f"verifier log {path} does not match its recorded head (seq {ks}); "
+                           "the log was altered or replaced")
 
     @staticmethod
     def entry_hash(prev: str, body: Dict[str, Any]) -> str:
@@ -329,49 +378,148 @@ def binom_quantile(p_level: float, n: int, p: float) -> int:
     return n
 
 
+def norm_id(value: Any) -> str:
+    """Canonical form of a member identifier: surrounding whitespace removed, case folded. Two listed ids that
+    differ only in this way are one account."""
+    return str(value if value is not None else "").strip().casefold()
+
+
+def _norm_list(v: Any) -> List[str]:
+    if v is None or (isinstance(v, str) and (not v.strip() or v.strip().upper().startswith("REQUIRED"))):
+        return []
+    items = v if isinstance(v, (list, tuple, set)) else [v]
+    return [norm_id(x) for x in items if norm_id(x)]
+
+
+def merge_members(members: Sequence[MemberRecord]) -> Tuple[List[Tuple[MemberRecord, List[str]]], List[MemberRecord], List[MemberRecord]]:
+    """One record per account. Records are grouped by :func:`norm_id`; what any record of an account says against
+    it is kept (bot / system, screening pending, flags, departure, link keys), the earliest join time and any known
+    creation time are kept. Returns ([(merged record, its link keys)], extra records (duplicates), records whose id
+    is empty)."""
+    groups: Dict[str, List[MemberRecord]] = {}
+    invalid: List[MemberRecord] = []
+    for m in members:
+        k = norm_id(m.id)
+        if not k:
+            invalid.append(m)
+            continue
+        groups.setdefault(k, []).append(m)
+    merged: List[Tuple[MemberRecord, List[str]]] = []
+    extra: List[MemberRecord] = []
+    for k, recs in groups.items():
+        joins = [float(r.joined_at) for r in recs if r.joined_at and r.joined_at > 0]
+        created = [float(r.account_created_at) for r in recs if r.account_created_at and r.account_created_at > 0]
+        lefts = [float(r.left_at) for r in recs if r.left_at is not None]
+        flags: List[str] = []
+        for r in recs:
+            for f in r.flags or []:
+                f = str(f).strip().casefold()
+                if f and f not in flags:
+                    flags.append(f)
+        links = list(dict.fromkeys(str(r.link_key) for r in recs if r.link_key))
+        first = recs[0]
+        merged.append((MemberRecord(id=k, is_bot=any(bool(r.is_bot) for r in recs), joined_at=min(joins, default=0.0),
+                                    pending=any(bool(r.pending) for r in recs),
+                                    invite_code=next((r.invite_code for r in recs if r.invite_code), ""),
+                                    inviter_id=next((r.inviter_id for r in recs if r.inviter_id), first.inviter_id),
+                                    left_at=max(lefts) if lefts else None,
+                                    account_created_at=min(created, default=0.0), flags=flags,
+                                    link_key=links[0] if links else ""), links))
+        extra.extend(recs[1:])
+    return merged, extra, invalid
+
+
 def classify_members(members: Sequence[MemberRecord], rules: Dict[str, Any], now: float) -> Dict[str, Any]:
-    """Apply the exclusion rules. Returns counted / excluded / uncertain member lists with reasons."""
-    tests = {str(x) for x in rules["test_account_ids"]}
-    excl_flags, unc_flags = list(rules["exclude_flags"]), list(rules["uncertain_flags"])
-    suspect_inv = {str(x) for x in rules["suspect_invite_codes"]}
-    suspect_ids = {str(x) for x in rules["suspect_member_ids"]}
+    """Apply the exclusion rules. Returns counted / excluded / uncertain member lists with reasons.
+
+    A member counts only when nothing in the evidence speaks against it:
+
+    * records are merged per account (:func:`merge_members`); every further record of an id is a duplicate;
+    * bots, declared test accounts and accounts with an exclusion flag (any letter case) are excluded, and so is
+      every account identifiably belonging to the same person (shared ``link_key``, followed transitively);
+    * of the remaining accounts of one person only the first counts (``duplicate_accounts``);
+    * accounts whose legitimacy is not established are *uncertain*: screening pending, an uncertain flag, a
+      purchase indicator, no join time stated, and — when ``min_account_age_s`` is set — an unknown or too recent
+      creation time. Uncertain accounts are never counted; they widen the reported interval.
+    """
+    tests = set(_norm_list(rules.get("test_account_ids")))
+    excl_flags = [str(f).strip().casefold() for f in rules.get("exclude_flags") or []]
+    unc_flags = [str(f).strip().casefold() for f in rules.get("uncertain_flags") or []]
+    suspect_inv = {str(x).strip() for x in rules.get("suspect_invite_codes") or [] if str(x).strip()}
+    suspect_ids = set(_norm_list(rules.get("suspect_member_ids")))
+    min_age = float(rules.get("min_account_age_s") or 0.0)
     counted: List[MemberRecord] = []
     excluded: Dict[str, List[MemberRecord]] = {}
     uncertain: Dict[str, List[MemberRecord]] = {}
-    seen_ids: set = set()
-    seen_links: set = set()
 
     def out(bucket: Dict[str, List[MemberRecord]], reason: str, m: MemberRecord) -> None:
         bucket.setdefault(reason, []).append(m)
 
-    for m in sorted(members, key=lambda x: (x.joined_at, x.id)):
-        if m.id in seen_ids:
-            out(excluded, "duplicates", m)
-            continue
-        seen_ids.add(m.id)
-        if rules["exclude_bots"] and m.is_bot:
-            out(excluded, "bots", m)
-        elif m.id in tests:
-            out(excluded, "test_accounts", m)
-        elif any(f in excl_flags for f in m.flags):
-            out(excluded, next(f for f in m.flags if f in excl_flags), m)
-        elif m.left_at is not None and m.left_at <= now and not rules["count_departed"]:
+    merged, extra, invalid = merge_members(members)
+    for m in extra:
+        out(excluded, "duplicates", m)
+    for m in invalid:
+        out(excluded, "invalid_id", m)
+
+    # persons: accounts connected through shared link keys (union-find over key -> first account holding it)
+    parent = list(range(len(merged)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    holder: Dict[str, int] = {}
+    for i, (_m, links) in enumerate(merged):
+        for key in links:
+            if key in holder:
+                a, b = find(i), find(holder[key])
+                if a != b:
+                    parent[a] = b
+            else:
+                holder[key] = i
+
+    def own_exclusion(m: MemberRecord) -> str:
+        if rules.get("exclude_bots", True) and m.is_bot:
+            return "bots"
+        if m.id in tests:
+            return "test_accounts"
+        hit = next((f for f in m.flags if f in excl_flags), "")
+        return hit
+
+    reasons = [own_exclusion(m) for m, _l in merged]
+    tainted = {find(i) for i, r in enumerate(reasons) if r}
+    claimed: set = set()
+    order = sorted(range(len(merged)), key=lambda i: (merged[i][0].joined_at <= 0, merged[i][0].joined_at, merged[i][0].id))
+    for i in order:
+        m, links = merged[i]
+        person = find(i)
+        if reasons[i]:
+            out(excluded, reasons[i], m)
+        elif m.left_at is not None and m.left_at <= now and not rules.get("count_departed", False):
             out(excluded, "departed", m)
-        elif m.link_key and m.link_key in seen_links:
+        elif links and person in tainted:
+            out(excluded, "linked_to_excluded", m)
+        elif links and person in claimed:
             out(excluded, "duplicate_accounts", m)
         else:
-            if m.link_key:
-                seen_links.add(m.link_key)
-            if m.pending and rules["pending_screening"] == "exclude":
+            if links:
+                claimed.add(person)
+            pend = rules.get("pending_screening", "uncertain")
+            if m.pending and pend == "exclude":
                 out(excluded, "pending_screening", m)
-            elif m.pending and rules["pending_screening"] == "uncertain":
+            elif m.pending and pend != "count":
                 out(uncertain, "pending_screening", m)
             elif any(f in unc_flags for f in m.flags):
                 out(uncertain, next(f for f in m.flags if f in unc_flags), m)
-            elif m.id in suspect_ids or (m.invite_code and m.invite_code in suspect_inv):
+            elif m.id in suspect_ids or (m.invite_code and m.invite_code.strip() in suspect_inv):
                 out(uncertain, "purchase_indicator", m)
-            elif (rules["min_account_age_s"] > 0 and m.account_created_at > 0
-                  and m.joined_at - m.account_created_at < rules["min_account_age_s"]):
+            elif not m.joined_at or m.joined_at <= 0:
+                out(uncertain, "join_time_unknown", m)
+            elif min_age > 0 and (not m.account_created_at or m.account_created_at <= 0):
+                out(uncertain, "account_age_unknown", m)
+            elif min_age > 0 and m.joined_at - m.account_created_at < min_age:
                 out(uncertain, "new_account", m)
             else:
                 counted.append(m)
@@ -391,9 +539,24 @@ class MembershipVerifier(SignedVerifier):
         rules = dict(DEFAULT_RULES)
         rules.update({k: v for k, v in (task.success.get("exclusions") or {}).items() if k in DEFAULT_RULES
                       and v is not None and not (isinstance(v, str) and v.upper().startswith("REQUIRED"))})
-        if isinstance(task.success.get("confidence"), (int, float)):
-            rules["confidence"] = float(task.success["confidence"])
+        conf = task.success.get("confidence")
+        if isinstance(conf, (int, float)) and not isinstance(conf, bool) and 0.0 < float(conf) < 1.0:
+            rules["confidence"] = float(conf)
         return rules
+
+    def _ref(self, kind: str, value: Any) -> str:
+        """Keyed, non-reversible reference to an identifier (stable for this verifier key)."""
+        return f"{kind}:" + hmac.new(self._key, norm_id(value).encode(), hashlib.sha256).hexdigest()[:16]
+
+    def _loggable_rules(self, rules: Dict[str, Any]) -> Dict[str, Any]:
+        """The rules as written to the verifier log: identifiers of accounts and invites only as keyed hashes."""
+        out = dict(rules)
+        for k, kind in (("test_account_ids", "member"), ("suspect_member_ids", "member"),
+                        ("suspect_invite_codes", "invite")):
+            vals = _norm_list(rules.get(k)) if kind == "member" else [str(x).strip() for x in rules.get(k) or []
+                                                                       if str(x).strip()]
+            out[k] = sorted(self._ref(kind, v) for v in vals)
+        return out
 
     def _evaluate(self, task: TaskSpec) -> Dict[str, Any]:
         now = self.clock.now()
@@ -407,8 +570,8 @@ class MembershipVerifier(SignedVerifier):
         lower = n_c + binom_quantile(alpha, n_u, p_lo)
         upper = n_c + binom_quantile(1.0 - alpha, n_u, p_hi)
         digest = hashlib.sha256()
-        for m in sorted(members, key=lambda x: x.id):
-            digest.update(hmac.new(self._key, m.id.encode(), hashlib.sha256).digest())
+        for m in sorted(members, key=lambda x: str(x.id)):
+            digest.update(hmac.new(self._key, str(m.id).encode(), hashlib.sha256).digest())
         return {"now": now, "rules": rules, "members": members, "classes": c, "confirmed": n_c, "uncertain": n_u,
                 "lower": lower, "upper": upper, "snapshot": digest.hexdigest()}
 
@@ -425,14 +588,18 @@ class MembershipVerifier(SignedVerifier):
         ids = {m.id for m in c["counted"]}
         part = getattr(self.source, "participation", None)
         if callable(part):
-            counts = {k: v for k, v in (part() or {}).items() if k in ids and v > 0}
+            counts: Dict[str, float] = {}
+            for k, v in (part() or {}).items():
+                if norm_id(k) in ids and isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0:
+                    counts[norm_id(k)] = counts.get(norm_id(k), 0) + v
             out.append(Quantity("secondary.participation.members", float(len(counts)), "members", OutcomeKind.COUNT,
                                 float(max(len(ids), 1))))
             out.append(Quantity("secondary.participation.interactions", float(sum(counts.values())), "interactions",
                                 OutcomeKind.COUNT, float(max(len(ids), 1))))
         fb = getattr(self.source, "feedback", None)
         if callable(fb):
-            n = sum(1 for f in (fb() or []) if f.get("consented") is True and str(f.get("member_id", "")) in ids)
+            n = sum(1 for f in (fb() or []) if isinstance(f, dict) and f.get("consented") is True
+                    and norm_id(f.get("member_id")) in ids)
             out.append(Quantity("secondary.feedback.consented", float(n), "responses", OutcomeKind.COUNT))
         use = getattr(self.source, "resource_usage", None)
         if callable(use):
@@ -475,7 +642,7 @@ class MembershipVerifier(SignedVerifier):
             secondary=self._secondary(task, ev))
         return self._emit(outcome, {"lower": ev["lower"], "upper": ev["upper"], "uncertain": unc,
                                     "members_listed": len(ev["members"]), "source_live": bool(self.source.live),
-                                    "rules": ev["rules"], "deadline": deadline})
+                                    "rules": self._loggable_rules(ev["rules"]), "deadline": deadline})
 
     def _values(self, task: TaskSpec) -> Dict[str, float]:
         ev = self._evaluate(task)
