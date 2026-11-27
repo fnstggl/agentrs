@@ -574,13 +574,15 @@ EXPERIMENTS: dict[str, Experiment] = {e.name: e for e in [
                {"web_revenue": m_web_revenue, "failed_requests": m_failed_requests, "dc_kwh": m_dc_kwh},
                "failed_requests", category=4),
     Experiment("social_discovery", "social discovery produces independently verified product adoption: a "
-               "labelled scripted agent's web shop is announced (or not) in a forum post; the population finds it "
-               "through the forum, search and contacts and buys with its own money (the ledger verifies every "
-               "purchase); the counterfactual arm builds the same shop and never posts",
-               "balanced", 1.0, 6.0, {"no_post": _noop},
+               "labelled scripted agent's web shop is announced (or not) in a forum post every day; the population "
+               "finds it through the forum, search and contacts and buys with its own money (the ledger verifies "
+               "every purchase); the counterfactual arm builds the same shop and never posts. Eight days and a "
+               "daily post: at e77fef3 the shop's three posts over six days brought 3-14 visitors and 0-2 buyers per "
+               "seed (a seed without a buyer cannot show the effect under the every-seed sign rule)",
+               "balanced", 1.0, 8.0, {"no_post": _noop},
                {"population_buyers": m_agent_pop_buyers, "population_revenue": m_agent_pop_revenue,
                 "agent_visitors": m_agent_visitors, "agent_compute": m_agent_compute},
-               "population_buyers", category=5, setup=_agent_setup("shop"), during=_agent_during),
+               "population_buyers", category=5, setup=_agent_setup("shop", posts=8), during=_agent_during),
     Experiment("social_adoption", "word of mouth between contacts changes what the population buys",
                "balanced", 2.0, 6.0, {"remove_goods_wom": remove("goods_wom")},
                {"goods_bought": m_goods_bought, "adopters": m_goods_adopters, "stockouts": m_stockouts},
