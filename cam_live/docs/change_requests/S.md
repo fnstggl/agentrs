@@ -94,3 +94,10 @@ do not change meaning instead of rejecting the whole action (or show `additional
 not one plan; (d) the selection rule should not dilute k backbone proposals among 20 walker candidates with a
 uniform untrained policy (see S-5). Re-measure with `python -m cam_live.eval.proposal_probe` and
 `python -m cam_live.eval.oe_runner sequence ...` (both in `cam_live/eval/`).
+
+**S-6 update (X0, 2026-11-27 18:45 UTC, snapshot 737996e = HEAD with INT2's c5b1cb5 prompt rotation).** Real E seed
+0, SW:rle, 15 decisions (lock-hold budget reached, 810 s, ~51 s per decision of which ~48 s inference):
+**0 backbone-written candidates in all 15 decisions** (0 of 9 candidates each time), every chosen action from the
+schema walker (`sandbox.list_files` x7 — all denied, S-4 —, `internal.inspect` x5, `wait` x2,
+`sandbox.job_status`); verifier pass fraction 0.0 (no solution.py). Evidence:
+`runs/cam_live/eval/v3/results/x0/E_s0.json` (copied to `docs/evidence/S/v3/` when X0 completes).
