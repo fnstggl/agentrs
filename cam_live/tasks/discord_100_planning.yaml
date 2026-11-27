@@ -13,7 +13,8 @@
 #     publication is queued for operator approval (nothing is pre-authorized in the signed record);
 #   * internal: notes (the plan, hypotheses, lessons), inspection of its own records, and internal.request_operator
 #     for accounts, channels, hosting, permissions or resources, each with its justification.
-# Every value written REQUIRED must be filled in by the operator before preflight.
+# Operator values (guild, application, credential name, destinations) filled 2026-11-27 from the operator's message;
+# the signed authorization record is the operator's act (tools/authorize_live.py).
 version: 1
 objective_id: discord-100-planning
 mode: live
@@ -34,7 +35,7 @@ success:
   evidence_source: cam_live.harness.discord_membership:membership_source
   exclusions:
     exclude_bots: true
-    test_account_ids: REQUIRED
+    test_account_ids: []      # no test accounts have joined; the server owner (operator) is excluded by the verifier
     count_departed: false
     exclude_flags: [purchased, artificial, fabricated_activity, prohibited_engagement, added_without_consent, duplicate]
     uncertain_flags: [automation_suspected, authenticity_unknown]
@@ -49,16 +50,21 @@ secondary_metrics:
   - secondary.time_elapsed_s
 
 resources:
-  discord_guild_id: REQUIRED
-  discord_bot_credential_name: REQUIRED
-  operator_authorization_record: REQUIRED
+  discord_guild_id: "1575680989060010034"        # "CAM's lab" (operator, 2026-11-27)
+  discord_bot_credential_name: discord_bot_token  # entered with harness/credentials.py; never in this file
+  operator_authorization_record: live-discord-100-planning
+  discord:
+    guild_id: "1575680989060010034"
+    application_id: "1575681780462129232"     # application "CAM Live"
+    token_secret: discord_bot_token
   authorized_tools: [browser.*, sandbox.*, discord.*, internal.*, wait]
-  authorized_destinations: REQUIRED
+  # public web: read only (input on pages the operator does not own is queued for approval); Discord: the one guild
+  authorized_destinations: ["https://*", "http://*", "account:discord:1575680989060010034", "channel:discord:*"]
   currency: USD
   publishing:
     authorized: true
     approval_required: true
-    destinations: REQUIRED
+    destinations: ["account:discord:1575680989060010034", "channel:discord:*"]   # every item needs approval
 
 interfaces: [structured_browser, code, api, internal]
 
