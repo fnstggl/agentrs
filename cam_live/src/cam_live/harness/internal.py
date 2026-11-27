@@ -1,4 +1,5 @@
-"""cam_live.harness.internal — the ``internal`` executor: wait, inspect own records, note. Workstream EB.
+"""cam_live.harness.internal — the ``internal`` executor: wait, inspect own records, note, ask the operator.
+Workstream EB (``internal.request_operator`` added by the master, see ``harness/operator_requests.py``).
 
 None of these touch the outside world. ``wait`` *schedules* a wake-up and returns at once: waiting for delayed
 consequences costs no inference and produces no public activity (spec 12A.11). The scheduled time is exposed
@@ -14,7 +15,8 @@ import threading
 from typing import Any, Dict, List, Optional
 
 from ..contracts import (ActionResult, ActionSpec, AuthVerdict, Clock, Cost, ExecContext, FailureClass, Level, Modality,
-                         Observation, PrimitiveOp, Quantity, ResultStatus, ToolDescriptor, WallClock, new_id)
+                         Observation, PrimitiveOp, Quantity, ResultStatus, ToolDescriptor, Trust, WallClock, new_id)
+from .operator_requests import KINDS as REQUEST_KINDS, OperatorRequests
 from .perception import Perception
 
 DAY = 86400.0
@@ -36,6 +38,7 @@ class InternalExecutor:
         self._wakes: List[Dict[str, Any]] = []
         self._notes_path = os.path.join(self.run_dir, "workspace", "notes.jsonl")
         os.makedirs(os.path.dirname(self._notes_path), exist_ok=True)
+        self.requests = OperatorRequests(self.run_dir, now=lambda: self.clock.now())
 
     # ---- hooks --------------------------------------------------------------------------------------------------
     def bind(self, env: Any) -> None:
@@ -60,10 +63,22 @@ class InternalExecutor:
         with self._lock:
             due = [w for w in self._wakes if w["wake_at"] <= now]
             self._wakes = [w for w in self._wakes if w["wake_at"] > now]
-        return [self.perception.event("wait.finished", f"scheduled wait finished ({w.get('reason') or 'no reason given'})",
-                                      quantities=[Quantity("wait.seconds", float(w["seconds"]), unit="s")],
-                                      data={"action_id": w["action_id"], "wake_at": w["wake_at"]}, source="internal",
-                                      parent_action_id=w["action_id"]) for w in due]
+        out = [self.perception.event("wait.finished", f"scheduled wait finished ({w.get('reason') or 'no reason given'})",
+                                     quantities=[Quantity("wait.seconds", float(w["seconds"]), unit="s")],
+                                     data={"action_id": w["action_id"], "wake_at": w["wake_at"]}, source="internal",
+                                     parent_action_id=w["action_id"]) for w in due]
+        for r in self.requests.undelivered_answers():      # the operator answered a request made earlier
+            o = self.perception.event(
+                "operator.answer", f"operator {r['status']} the request \"{r['title']}\""
+                + (f": {r.get('resolution_note')}" if r.get("resolution_note") else ""),
+                quantities=[Quantity("operator.request.granted", 1.0 if r["status"] == "granted" else 0.0,
+                                     kind="binary")],
+                data={"request_id": r["request_id"], "status": r["status"], "kind": r["kind"],
+                      "waited_s": float(r.get("resolved_at", now)) - float(r.get("ts", now))},
+                source="operator", parent_action_id=r.get("action_id", ""))
+            o.provenance.trust = Trust.OPERATOR
+            out.append(o)
+        return out
 
     # ---- ModalityExecutor -----------------------------------------------------------------------------------------
     def tools(self) -> List[ToolDescriptor]:
@@ -91,6 +106,19 @@ class InternalExecutor:
                                "tags": {"type": "array", "items": {"type": "string", "maxLength": 60}}},
                             "required": ["text"], "additionalProperties": False},
                            Level.PRIMITIVE, "", "local", Cost()),
+            ToolDescriptor("internal.request_operator", Modality.INTERNAL, "Ask the operator for something that "
+                           "cannot be obtained otherwise: a capability, permission, credential, resource, piece of "
+                           "information or decision. The request is recorded for the operator; nothing is sent "
+                           "anywhere and nothing is granted by asking. The operator's answer arrives later as an "
+                           "event.",
+                           {"type": "object", "properties": {
+                               "kind": {"type": "string", "enum": list(REQUEST_KINDS)},
+                               "title": {"type": "string", "minLength": 3, "maxLength": 200},
+                               "description": {"type": "string", "minLength": 3, "maxLength": 4000},
+                               "justification": {"type": "string", "maxLength": 4000},
+                               "blocking": {"type": "boolean"}},
+                            "required": ["kind", "title", "description"], "additionalProperties": False},
+                           Level.PRIMITIVE, "", "local", Cost()),
         ]
 
     def validate(self, action: ActionSpec) -> List[str]:
@@ -114,7 +142,7 @@ class InternalExecutor:
             return res
         a = action.arguments
         op = PrimitiveOp(op=action.operation, modality=self.modality, started=now, ended=now,
-                         arguments={k: v for k, v in a.items() if k != "text"})
+                         arguments={k: v for k, v in a.items() if k not in ("text", "description", "justification")})
         res.ops.append(op)
         dec = ctx.check(op, action)
         if dec.verdict != AuthVerdict.ALLOW:
@@ -127,6 +155,8 @@ class InternalExecutor:
             obs = self._wait(action, ctx, op, res)
         elif action.operation == "internal.note":
             obs = self._note(action, ctx)
+        elif action.operation == "internal.request_operator":
+            obs = self._request(action, res, op)
         else:
             obs = self._inspect(action)
         obs.parent_action_id = action.action_id
@@ -170,6 +200,26 @@ class InternalExecutor:
         obs = self.perception.tool_result("internal.note", {"saved": rec["note_id"], "characters": len(rec["text"])},
                                           source="internal")
         obs.refs["note"] = rec["note_id"]
+        return obs
+
+    def _request(self, action: ActionSpec, res: ActionResult, op: PrimitiveOp) -> Observation:
+        a = action.arguments
+        try:
+            rec = self.requests.request(a["kind"], a["title"], a["description"], a.get("justification", ""),
+                                        blocking=bool(a.get("blocking", False)), action_id=action.action_id)
+        except PermissionError as e:                 # too many requests are already waiting
+            res.status = op.status = ResultStatus.FAILED
+            res.failure_class = op.failure_class = FailureClass.RESOURCE_LIMIT
+            res.failure_detail = str(e)
+            return self.perception.tool_result("internal.request_operator", {"recorded": False, "reason": str(e)},
+                                               source="internal")
+        n_open = len(self.requests.open_requests())
+        obs = self.perception.tool_result(
+            "internal.request_operator",
+            {"recorded": not rec.get("duplicate", False), "request_id": rec["request_id"],
+             "already_open": bool(rec.get("duplicate", False)), "open_requests": n_open}, source="internal")
+        obs.quantities.append(Quantity("operator.requests.open", float(n_open), kind="count"))
+        obs.refs["request"] = rec["request_id"]
         return obs
 
     def notes(self, limit: int = 50) -> List[Dict[str, Any]]:
