@@ -14,9 +14,9 @@ blobs are compacted by workstream A's retention after every day (crucible.substr
 | peak VRAM | torch's peak reserved memory when the process initialised CUDA (0.0 measured otherwise) |
 | model parameter counts | counted on the loaded objects: the shared class-2 policies, class-3 policy groups, the shared-space encoders and language model, the semantic service when loaded |
 | inference token counts | tokens the shared space's language model scored, items each encoder computed, recorded inference calls by kind, generated tokens of the semantic service |
-| event storage growth | store bytes (events + blobs + snapshots) per simulated day and per individual-day, raw (before compaction) and resident (after) |
+| event storage growth | bytes per simulated day and per individual-day: raw = event rows as the store holds them (read with one SQL aggregate per day, outside the measured CPU) + array-blob bytes written (before compaction); resident = growth of the database pages in use after compaction and a WAL checkpoint (no VACUUM: it needs a second copy of the store on disk) |
 | snapshot size | bytes and seconds of `World.snapshot_blob()` at the end; a fork from it must have the same state digest |
-| world-generation cost | wall and CPU seconds, events and RSS of `World.create` |
+| world-generation cost | wall and CPU seconds, events and RSS of `World.create`, plus the first simulated day's CPU beyond a median day (deployments and warm-up the world's first processes do; the T5 check uses the sum) |
 | approximation error | from crucible.scale.approx (the estimated large-population mode against individual simulation) |
 
 Class activity is measured per participant class (rows; individuals whose session count grew; decisions recorded by
@@ -51,8 +51,15 @@ QUANTITIES = ("transitions_per_s", "decisions_per_s", "sim_days_per_wall_hour", 
               "snapshot_size", "world_generation_cost", "approximation_error")
 #: grants a run declares (per profile): RAM MB, disk MB, GPU MB. The shared space's language model and encoders run
 #: on the GPU when the job is granted one (crucible.semantic.space.lm "selective GPU"); on CPU they dominate a run.
-GRANTS = {"development": (8000, 1500, 3500), "standard": (12000, 3000, 3500), "large": (24000, 6000, 3500),
-          "internet": (32768, 5120, 3500)}
+#: RAM grants are about 1.6-2x the measured peak (2026-11-26: development 2.7 GB over 30 days, standard 3.1 GB and
+#: large 3.9 GB over their first days) so that a run reserves no more of the shared RAM budget than it can use.
+#: Disk grants (store growth, the run's cold machine cache included): measured 2026-11-26 on 30-day civ runs, standard
+#: 758 MB and large about 120 MB per simulated day (3.6 GB at 30 days), so large is granted 5 GB; with ~10 GB free on
+#: the machine, the governor's free-disk admission lets at most two large runs hold their grants at once.
+#: The internet profile (the 10M capacity run, V.2) measured 16.4 GB summed PSS and 1.4 GB of GPU memory on
+#: 2026-11-26 (596 s); its grant is 1.5x / 1.8x that, below T4's 32 GB ceiling, which is a target, not a grant.
+GRANTS = {"development": (4500, 1500, 3500), "standard": (6000, 1500, 3500), "large": (8000, 5000, 3500),
+          "internet": (25000, 5120, 2500)}
 GPU_S = 4 * 86400                     # GPU-time grant of one run: seconds of held CUDA context (the run's wall time)
 
 
@@ -88,8 +95,9 @@ def peak_vram_mb() -> tuple[float, bool]:
 class EventCounter:
     """A world listener counting what a run records (observers never change a trajectory)."""
 
-    def __init__(self):
-        self.types = Counter()
+    def __init__(self, count_bytes: bool = True):
+        self.count_bytes = bool(count_bytes)   # canonical bytes per event (costs as much as the kernel's hashing:
+        self.types = Counter()                 # benchmark runs measure event bytes from the store instead)
         self.batches = Counter()
         self.decisions = 0
         self.decisions_by = Counter()
@@ -100,12 +108,17 @@ class EventCounter:
         self.infer = Counter()
         self.actors = set()
         self.event_bytes = 0
+        self.semantic_calls = 0               # recorded semantic-service batches (infer.semantic.* outcomes)
+        self.semantic_rows = 0
+        self.model_refs: list = []            # (class, output ref) of class-2/3 recorded calls, sized after each day
+        self.batch_sizes = {"class2": Counter(), "class3": Counter()}
         from ..core.canonical import canonical_bytes
         self._cb = canonical_bytes
 
     def __call__(self, ev) -> None:
         self.types[ev.type] += 1
-        self.event_bytes += len(self._cb(ev.body()))
+        if self.count_bytes:
+            self.event_bytes += len(self._cb(ev.body()))
         if ev.vis == "public":
             self.public += 1
             self.public_kinds[ev.type] += 1
@@ -129,6 +142,37 @@ class EventCounter:
             for o in ev.payload.get("outcomes") or ():
                 if isinstance(o, dict) and str(o.get("kind", "")).startswith("infer."):
                     self.infer[o["kind"]] += 1
+                    if o["kind"].startswith("infer.semantic."):      # the shared semantic service: one reply per row
+                        out = (o.get("out") or {}).get("output")
+                        self.semantic_calls += 1
+                        self.semantic_rows += len(out) if isinstance(out, list) else 1
+                    parts = o["kind"].split(".")
+                    cls = BATCH_KINDS.get(".".join(parts[1:3])) if len(parts) >= 4 else None
+                    rec = o.get("out")
+                    ref = rec.get("output_ref") if isinstance(rec, dict) else None
+                    if cls and isinstance(ref, str):
+                        self.model_refs.append((cls, ref))
+
+    def size_batches(self, world) -> None:
+        """Rows of every class-2/3 recorded call since the last call, read from its recorded output (evaluator
+        side, outside the measured CPU): the exact in-world batch sizes behind V.4 and SP-13.1."""
+        from ..substrate import artifacts
+        refs, self.model_refs = self.model_refs, []
+        for cls, ref in refs:
+            try:
+                arrs = artifacts.npz_arrays(artifacts.get(world, ref))
+            except Exception:                  # noqa: BLE001 - an unreadable record is not counted
+                continue
+            first = arrs[sorted(arrs)[0]] if arrs else None
+            if first is not None and getattr(first, "ndim", 0) >= 1:
+                self.batch_sizes[cls][int(first.shape[0])] += 1
+
+
+#: recorded-call kinds (`infer.pop.<model>.<group>`) whose rows are class-2 / class-3 model evaluations (class 2:
+#: the resource choice and, where the population records them, the activity choice and the day review's memory step
+#: of the adaptive policies; c5c/w3b-pop records the day review as `pop.adaptive_day.<group>`)
+BATCH_KINDS = {"pop.adaptive": "class2", "pop.adaptive_act": "class2", "pop.adaptive_day": "class2",
+               "pop.strategic": "class3"}
 
 
 # ====================================================================== the world
@@ -224,11 +268,77 @@ def class_activity(world, n_sessions0, ec: EventCounter) -> dict:
             pol["3"] += n
         elif "semantic" in mid:
             pol["4"] += n
+    # class 3 acts through its own decision process (pop_strategic.decide), not through sessions: one
+    # pop_strategic.exp event per member decision
+    pol["3"] += int(ec.types.get("pop_strategic.exp", 0))
     for c, n in pol.items():
         out[c]["policy_decisions"] = int(n)
     for c in out:
         out[c]["acting"] = out[c]["active"] > 0 or out[c].get("policy_decisions", 0) > 0
     return out
+
+
+def batching(w, ec: EventCounter) -> dict:
+    """Batched decisions per learning class (SP-13.1, V.4): recorded model calls and the decisions they made.
+    The shared batching service (crucible.substrate.inference_batch) accounts per class directly; callers that
+    still record their own batches are counted from their records: class 2 from the adaptive policies' counters,
+    class 3 from its recorded `pop.strategic.*` calls and one `pop_strategic.exp` event per member decision,
+    class 4 from the shared semantic service's recorded batches (`infer.semantic.choose|generate` outcomes, rows =
+    replies; in the civilisation world only the class-4 runtime calls that service: `civ.generate` hosts no other
+    semantic participant on 2026-11-27 - J's `civ.redemo` adds a Gate H society to a civilisation, which a
+    benchmark run never does; a world that hosted one would have its calls counted here too)."""
+    from ..substrate import inference_batch as IB
+    svc = IB.report(IB.stats(w))
+    by = svc.get("by_class", {})
+    ad = dict(w.runtime.get("pop_adaptive.stats") or {})
+    strat_calls = sum(n for k, n in ec.infer.items() if k.startswith("infer.pop.strategic"))
+    strat_dec = int(ec.types.get("pop_strategic.exp", 0)) if strat_calls else 0
+    legacy = {"class2": (int(ad.get("calls", 0)), int(ad.get("decisions", 0)), int(ad.get("max_batch", 0))),
+              "class3": (int(strat_calls), strat_dec, 0),
+              "class4": (int(ec.semantic_calls), int(ec.semantic_rows), 0)}
+    out = {}
+    for c, (calls, dec, mx) in legacy.items():
+        s = by.get(c[-1], {})
+        calls += int(s.get("calls", 0))
+        dec += int(s.get("rows", 0))
+        out[c] = {"calls": calls, "decisions": dec, "max_batch": max(mx, int(s.get("max_rows", 0))),
+                  "mean_batch": round(dec / max(1, calls), 3), "via_service_calls": int(s.get("calls", 0)),
+                  "merged_calls": int(s.get("merged_calls", 0))}
+        hist = getattr(ec, "batch_sizes", {}).get(c)
+        if hist:                                # exact rows per recorded call (from the recorded outputs)
+            out[c]["sizes"] = {str(k): int(v) for k, v in sorted(hist.items())}
+    out["service"] = svc
+    return out
+
+
+def stored_event_bytes(store, world_id: str, seq_from: int, seq_to: int) -> int:
+    """Bytes of the events seq_from < seq <= seq_to as the store holds them (every column of the row; payloads above
+    the store's threshold are zlib-compressed there), read with one SQL aggregate."""
+    c = store._conn()
+    r = c.execute("SELECT COALESCE(SUM(LENGTH(type) + LENGTH(COALESCE(actor, '')) + LENGTH(COALESCE(cmd, '')) + "
+                  "LENGTH(payload) + LENGTH(COALESCE(vis, '')) + LENGTH(COALESCE(hash, '')) + "
+                  "LENGTH(COALESCE(via, '')) + 16), 0) FROM events WHERE world_id = ? AND seq > ? AND seq <= ?",
+                  (world_id, int(seq_from), int(seq_to))).fetchone()
+    return int(r[0] or 0)
+
+
+def _settle(store) -> None:
+    """Fold the write-ahead log into the database file (checkpoint, WAL truncated). No VACUUM: VACUUM writes a second
+    copy of the database (into the WAL in WAL mode), so measuring a 30-day standard store of 758 MB needed 1.85 GB of
+    disk and the run was stopped by its disk grant at the very end (2026-11-26); `_live_bytes` gives the resident
+    size without it."""
+    store._conn().execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
+
+def _live_bytes(store) -> int:
+    """Bytes of the database pages in use after a checkpoint: (page_count - freelist_count) x page_size, i.e. the
+    file without the pages that retention freed (what VACUUM would return to the file system; VACUUM can be smaller
+    still by repacking partly filled pages, so this resident size is an upper bound)."""
+    c = store._conn()
+    pages = int(c.execute("PRAGMA page_count").fetchone()[0])
+    free = int(c.execute("PRAGMA freelist_count").fetchone()[0])
+    size = int(c.execute("PRAGMA page_size").fetchone()[0])
+    return max(0, pages - free) * size
 
 
 def _store_bytes(path: str) -> int:
@@ -258,10 +368,10 @@ def run(kind: str, profile: str, seed: int, days: float, store_dir: str, *, comp
     n_ind = int(columns.rows(w, "pop"))
     rep["individuals"] = n_ind
     n_sessions0 = columns.col(w, "pop", "n_sessions").astype("int64").copy()
-    ec = EventCounter()
+    ec = EventCounter(count_bytes=False)
     w.listeners.append(ec)
-    store.compact_file()
-    bytes0 = _store_bytes(db)
+    _settle(store)
+    bytes0 = _live_bytes(store)
     unpacked0 = retention.stats(w)["blob_bytes_unpacked"]
     seq0, tx0 = w.seq, w.stats["commands"] + w.stats["procs"]
     series = []
@@ -273,11 +383,16 @@ def run(kind: str, profile: str, seed: int, days: float, store_dir: str, *, comp
     next_compact = w.now + int(compact_every * DAY)
     while w.now < end:
         until = min(end, w.now + step)
-        td, cd, sq, ss, eb = time.time(), cpu_s(), w.seq, ec.sessions, ec.event_bytes
+        td, cd, sq, ss = time.time(), cpu_s(), w.seq, ec.sessions
         w.advance_time(until)
         w.flush()
         row = {"t": int(w.now), "wall_s": round(time.time() - td, 3), "cpu_s": round(cpu_s() - cd, 3),
-               "events": int(w.seq - sq), "sessions": int(ec.sessions - ss), "event_bytes": int(ec.event_bytes - eb)}
+               "events": int(w.seq - sq), "sessions": int(ec.sessions - ss)}
+        tm = cpu_s()
+        row["event_bytes"] = stored_event_bytes(store, w.world_id, sq, w.seq)
+        ec.event_bytes += row["event_bytes"]
+        ec.size_batches(w)
+        compact_cpu += cpu_s() - tm                # measurement, not simulation
         if w.now >= next_compact or w.now >= end:
             tc, cc = time.time(), cpu_s()
             unpacked = retention.stats(w)["blob_bytes_unpacked"]
@@ -288,7 +403,7 @@ def run(kind: str, profile: str, seed: int, days: float, store_dir: str, *, comp
             compact_cpu += cpu_s() - cc
             row["compact_s"] = round(time.time() - tc, 3)
             next_compact = w.now + int(compact_every * DAY)
-        row["store_bytes"] = _store_bytes(db)
+        row["store_bytes"] = _store_bytes(db)           # the files on disk (database, WAL, shared memory)
         series.append(row)
         if partial_out:
             done = (w.now - (end - int(days * DAY))) / DAY
@@ -302,13 +417,19 @@ def run(kind: str, profile: str, seed: int, days: float, store_dir: str, *, comp
             os.replace(partial_out + ".tmp", partial_out)
     wall = time.time() - t_run
     cpu = cpu_s() - c_run - compact_cpu
+    if len(series) >= 3:
+        # what the first simulated day costs beyond an ordinary day: deployments and warm-up that World.create leaves
+        # to the world's first processes, model loading and lazy imports (counted as generation cost: stricter)
+        rest = sorted(r["cpu_s"] for r in series[1:])
+        gen["first_day_excess_cpu_s"] = round(max(0.0, series[0]["cpu_s"] - rest[len(rest) // 2]), 3)
+    gen["inclusive_cpu_s"] = round(gen["cpu_s"] + gen.get("first_day_excess_cpu_s", 0.0), 3)
     w.listeners.remove(ec)
     sim_days = (w.now - (end - int(days * DAY))) / DAY
     tc, cc = time.time(), cpu_s()
-    store.compact_file()                       # the resident size: free pages returned
+    _settle(store)                             # the resident size: WAL folded in, pages freed by retention excluded
     compact_cpu += cpu_s() - cc
     st = retention.stats(w)
-    resident = _store_bytes(db) - bytes0
+    resident = _live_bytes(store) - bytes0
     raw_written = raw_blob + ec.event_bytes
     ind_days = max(1.0, n_ind * sim_days)
     rep.update({
@@ -338,17 +459,7 @@ def run(kind: str, profile: str, seed: int, days: float, store_dir: str, *, comp
     rep["peak_vram_mb"], rep["cuda_used"] = round(vram, 1), used_cuda
     rep["model_parameter_counts"] = model_parameters(w)
     rep["inference_token_counts"] = inference_tokens(ec)
-    ad = dict(w.runtime.get("pop_adaptive.stats") or {})
-    strat_calls = sum(n for k, n in ec.infer.items() if "strategic" in k)
-    strat_dec = sum(n for k, n in ec.decisions_by.items() if "strategic" in k)
-    sem_calls = sum(n for k, n in ec.infer.items() if "semantic" in k)
-    rep["batching"] = {"class2": {"calls": int(ad.get("calls", 0)), "decisions": int(ad.get("decisions", 0)),
-                                  "max_batch": int(ad.get("max_batch", 0)),
-                                  "mean_batch": round(ad.get("decisions", 0) / max(1, ad.get("calls", 0)), 3)},
-                       "class3": {"calls": int(strat_calls), "decisions": int(strat_dec),
-                                  "mean_batch": round(strat_dec / max(1, strat_calls), 3)},
-                       "class4": {"calls": int(sem_calls),
-                                  "decisions": int(sum(n for k, n in ec.decisions_by.items() if "semantic" in k))}}
+    rep["batching"] = batching(w, ec)
     rep["principals"] = int(len(w.state.tables.get("principals", {})))
     if snapshot:
         ts = time.time()
@@ -482,10 +593,18 @@ def _run_cmd(kind, profile, seed, days, store_dir, out) -> list[str]:
             str(seed), "--days", str(days), "--store-dir", store_dir, "--out", out]
 
 
-def time_grant_s(profile: str, days: float, headroom: float = 3.0) -> float | None:
+def time_grant_s(profile: str, days: float, headroom: float | None = None) -> float | None:
     """Wall-time grant of a benchmark run: `headroom` x the time the profile's throughput target allows for `days`
     (a run that cannot finish in that time has missed its target anyway; it is stopped, and reports what it
-    measured), at least one hour."""
+    measured), at least one hour. Default headroom 3, or `$CRUCIBLE_BENCH5_TIME_HEADROOM`: the 30-day large civ run
+    projects to about 2.2x its target CPU time on the trend measured 2026-11-26 (1.5-1.7 simulated days per CPU-hour
+    against 3.75) and runs about 1.2x longer in wall time than in CPU time, i.e. 20-23 h of its 24 h grant; raise the
+    headroom for an official run rather than lose a whole large run to its grant."""
+    if headroom is None:
+        try:
+            headroom = float(os.environ.get("CRUCIBLE_BENCH5_TIME_HEADROOM") or 3.0)
+        except ValueError:
+            headroom = 3.0
     try:
         tg = {t["profile"]: t["value"] for t in targets()["targets"] if t["quantity"] == "sim_days_per_cpu_hour"}
     except (OSError, ValueError, KeyError):
@@ -496,8 +615,11 @@ def time_grant_s(profile: str, days: float, headroom: float = 3.0) -> float | No
 
 
 def governed(cmd: list[str], profile: str, label: str, store_dir: str, *, cpu: int = 1, gpu_mb: int | None = None,
-             timeout_s: float | None = None) -> dict:
-    """Run `cmd` as a governed job with declared grants in every dimension; returns the usage record."""
+             timeout_s: float | None = None, cold_cache: bool = False) -> dict:
+    """Run `cmd` as a governed job with declared grants in every dimension; returns the usage record. With
+    `cold_cache` the job gets a fresh machine cache of its own (`$CRUCIBLE_CACHE` inside `store_dir`): nothing an
+    earlier run computed on this machine (representations, metering anchors, weights hashes) is reused, so a
+    benchmark run pays the full cost of new content."""
     from . import slots
     ram, disk, gpu = GRANTS[profile]
     gpu_mb = gpu if gpu_mb is None else gpu_mb
@@ -505,6 +627,9 @@ def governed(cmd: list[str], profile: str, label: str, store_dir: str, *, cpu: i
     env = dict(os.environ)
     env["PYTHONPATH"] = src + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
     env.setdefault("OMP_NUM_THREADS", "1")
+    if cold_cache:
+        env["CRUCIBLE_CACHE"] = os.path.join(store_dir, "machine-cache")
+        os.makedirs(env["CRUCIBLE_CACHE"], exist_ok=True)
     return slots.run_job(cmd, cpu=cpu, gpu_mb=gpu_mb, label=label, timeout_s=timeout_s, ram_mb=ram, disk_mb=disk,
                          disk_dirs=[store_dir],
                          inference=2, worlds=4, gpu_s=(GPU_S if gpu_mb else None), env=env, sample_s=2.0, poll_s=2.0)
@@ -551,7 +676,7 @@ def suite(kinds=("civ",), profiles=PROFILES, seeds=(0, 1, 2), days: float = 30, 
         sd = os.path.join(work, f"store-{k}-{p}-{s}")
         f = os.path.join(work, name + ".json")
         rec = governed(_run_cmd(k, p, s, days, sd, f), p, f"M: bench5 {k} {p} seed {s} {days:g}d", sd,
-                       timeout_s=time_grant_s(p, days))
+                       timeout_s=time_grant_s(p, days), cold_cache=True)
         shutil.rmtree(sd, ignore_errors=True)
         try:
             r = json.load(open(f))
@@ -607,7 +732,8 @@ def aggregate(runs: list[dict]) -> dict:
                          lambda r: r["event_storage_growth"]["raw_bytes_per_individual_day"]),
                         ("snapshot_bytes", lambda r: r["snapshot_size"]["bytes"]),
                         ("snapshot_s", lambda r: r["snapshot_size"]["seconds"]),
-                        ("generation_cpu_s", lambda r: r["world_generation_cost"]["cpu_s"])):
+                        ("generation_cpu_s", lambda r: r["world_generation_cost"].get(
+                            "inclusive_cpu_s", r["world_generation_cost"]["cpu_s"]))):
             v = col(f)
             agg[name] = {"mean": round(stt.mean(v), 4), "min": round(min(v), 4), "max": round(max(v), 4)}
         agg["classes_acting"] = min(sum(1 for c in r["class_activity"].values() if c["acting"]) for r in rs)

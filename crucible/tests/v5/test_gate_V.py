@@ -21,7 +21,8 @@ from crucible.scale import bench5, slots
 import _perf_kit as K
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(48 * 3600)]
-CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 6 --gpu-mb 14000 --ram-mb 64000 --disk-mb 12000 -- "
+CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 6 --gpu-mb 14000 --ram-mb 64000 --disk-mb 12000 "
+       "--timeout 172800 -- "
        "python -m crucible.acceptance.v5 run --requirement V.<n>")
 QUANT_KEYS = ("transitions_per_s", "decisions_per_s", "sim_days_per_wall_hour", "cpu_utilisation", "peak_ram_mb",
               "peak_vram_mb", "model_parameter_counts", "inference_token_counts", "event_storage_growth",
@@ -98,10 +99,13 @@ def test_V_3_parameter_counts_reported():
 def test_V_4_batched_inference():
     bm = K.backend_matrix()["result"]
     s = K.suite()
-    sizes = []
+    sizes, exact = [], 0
     for r in s["runs"]:
         b = r.get("batching", {}).get("class2", {})
-        if b.get("calls"):
+        if b.get("sizes"):                     # exact rows per recorded call, read from the recorded outputs
+            sizes += [int(k) for k, v in b["sizes"].items() for _ in range(int(v))]
+            exact += 1
+        elif b.get("calls"):                   # runs measured before the histogram existed: the run's mean
             sizes += [max(1, int(round(b["mean_batch"])))] * int(b["calls"])
     from crucible.scale import backends
     sp = backends.batching_speedup(bm["adaptive"], sizes or None)
@@ -111,7 +115,9 @@ def test_V_4_batched_inference():
          "in_world_mean_batch": float(in_world.get("mean_batch", 0.0)),
          "strategic_mlp_speedup": float(bm["strategic"]["mlp"]["speedup"]),
          "strategic_gru_speedup": float(bm["strategic"]["gru"]["speedup"]),
-         "encoder_batch_speedup": float(bm["encoder"]["speedup"])}
+         "encoder_batch_speedup": float(bm["encoder"]["speedup"]), "runs_with_exact_batch_sizes": exact}
+    for case, v in (bm.get("service") or {}).get("cases", {}).items():     # the shared batching service, per class
+        m[f"service_{case}_speedup"] = float(v["speedup_wall"])
     best256 = [r for r in bm["adaptive"]["rows"] if r["B"] == 256 and r.get("backend") == "torch_cpu"]
     m["class2_batched_decisions_per_cpu_s"] = float(best256[0]["decisions_per_cpu_s"] or 0) if best256 else 0.0
     evidence.record("V.4", m, command=CMD.replace("<n>", "4"), notes=f"speedups {sp}; choice {bm['choice']}")
@@ -122,6 +128,7 @@ def test_V_4_batched_inference():
 def test_V_5_event_driven_computation():
     r = K.event_driven()["result"]
     m = {"event_driven_speedup": float(r["event_driven_speedup"]), "equal_outcomes": bool(r["equal_outcomes"]),
+         "forks_reproducible": bool(r.get("forks_reproducible", False)),
          "activation_ratio": float(r["activation_ratio"]), "activations": int(r["activations"]),
          "ticks": int(r["ticks"]), "wake_batches": int(r["wake_batches"]),
          "world_cpu_ratio": float(r["world_cpu_ratio"]), "world_cpu_per_activation_ms": float(r["world_cpu_per_activation_ms"])}

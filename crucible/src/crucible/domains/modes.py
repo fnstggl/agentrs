@@ -1,6 +1,12 @@
 """Execution mode B (standalone semantic digital worlds, SP-2.1): every configuration of every registered Tier 2
 domain is a world of this provider (`"<domain>:<config>"`). An empty registry lists no world, so mode B is then not
-operational (never faked)."""
+operational (never faked).
+
+Both domain constructions are listed (`Domain.construction`, recorded by `base.summary()`): a restriction of the
+civilisation generator (`Domain.mode == "C"`, D-17) and a standalone semantic world (`mode == "B"`). MASTER_SPEC
+Part 2.1 defines mode B as rich environments focused on a subset of civilisation-wide activities in one world, which
+both are; execution mode C is the integrated civilisation (`crucible.civ`), into which a domain configuration is
+composed by `base.tier3_spec` (SP-9.0). `Domain.mode` names how the world is built, not the execution mode."""
 from __future__ import annotations
 
 from ..substrate import modes
