@@ -95,6 +95,10 @@ def test_SP_4_7b_community_membership_churn_and_sustained_participation():
     best = max(sustained.values()) if sustained else 0
     founded_by_pop = sum(1 for c in comms.values() if ids.index(c["founder"]) is not None)
     mod_actions = len(st.tables.get("community_modlog", {}))
+    # governance by the members themselves: proposals and votes made by population principals (recorded)
+    props = [p for p in st.tables.get("community_proposals", {}).values() if ids.index(p["by"]) is not None]
+    votes = [x for x in st.tables.get("community_votes", {}).values() if ids.index(x["voter"]) is not None]
+    moderators = int(np.sum(pop_row & (v["status"] == CM.MEMBER) & (v["role"] == 1)))
     errs = w.check_invariants()
     metrics = {"communities_with_population_members": len(with_pop), "churn_events_observed": churn,
                "sustained_participation_days": int(best), "communities": len(comms),
@@ -102,10 +106,14 @@ def test_SP_4_7b_community_membership_churn_and_sustained_participation():
                "population_memberships_now": int(np.sum(pop_row & (v["status"] == CM.MEMBER))),
                "inactive_members_14d": inactive, "rejoined_spells": int(np.sum(pop_row & (v["spells"] > 1))),
                "moderation_log_entries": mod_actions, "days": DAYS, "invariant_errors": len(errs),
-               "communities_sustained_30d": sum(1 for x in sustained.values() if x >= 30)}
+               "communities_sustained_30d": sum(1 for x in sustained.values() if x >= 30),
+               "population_proposals": len(props), "population_votes": len(votes),
+               "population_moderators": moderators,
+               "proposals_decided": sum(1 for p in props if p["status"] in ("approved", "rejected"))}
     evidence.record("SP-4.7b", metrics, command=CMD, notes=(
         "40 simulated days of the integrated social internet on 2,000 population members; communities founded, "
-        "joined, used and left by the members themselves. Sustained participation: consecutive days with >= 3 "
+        "joined, used, governed (moderators appointed, rules proposed and voted on) and left by the members "
+        "themselves. Sustained participation: consecutive days with >= 3 "
         "distinct population contributors (posts or replies) in the trailing 7 days, from the recorded events. "
         f"Per community: {json.dumps(sustained)[:2000]}"))
     assert_met('SP-4.7b', metrics)
