@@ -74,3 +74,29 @@ measurements already.
 
 **What.** The contract's `SecretHandle` now documents an optional `has(name) -> bool` (whether a non-revoked
 secret of that name exists, releasing nothing). The diff is the one in `docs/change_requests/ES.md` (ES-2).
+
+## M-int-6 (runtime, `runtime/loop.py`): do not consume the grant before `env.execute`
+
+**What / why.** `LiveRuntime` calls `policy.check_grant(action, auth)` (which *consumes* the grant of
+`harness.auth.PolicyService`, EA-2) before `env.execute(action, auth)`; `harness.env.ComputerEnvironment` then checks
+the same grant again and refuses the action: measured in the staging validation, every browser / API action came back
+`denied / missing_permission: the grant does not verify for this action`. LabWorld does not check grants, which is why
+the LabWorld tests do not see it. The same holds for `_recover_inflight` and the approval path.
+
+**Proposed diff** (every runtime-side call):
+```diff
+-        if auth.verdict != AuthVerdict.ALLOW or not self.policy.check_grant(action, auth):
++        if auth.verdict != AuthVerdict.ALLOW or not _look(self.policy, action, auth):
+```
+with
+```python
+def _look(policy, action, auth) -> bool:
+    """Verify a grant without using it up: the executor consumes it immediately before execution."""
+    try:
+        return bool(policy.check_grant(action, auth, consume=False))
+    except TypeError:                       # a PolicyEngine without the keyword (single-use not implemented)
+        return bool(policy.check_grant(action, auth))
+```
+
+**Workaround.** `cam_live.validation.LookOnlyGrants` (the runtime is handed a view of the service whose
+`check_grant` only looks; the environment holds the real service).
