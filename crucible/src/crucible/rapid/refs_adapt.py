@@ -1240,6 +1240,79 @@ def drifting_bump_predict(view, env, seed: int = 0) -> None:
         view.step(None)
 
 
+# ====================================================================== technology transition: a learning curve
+def learning_transition_predict(view, env, seed: int = 0, settle: int = 60) -> None:
+    """Scripted public reference for predicting output under the conditions at the end of an episode in which an
+    old process may lose its value at some period and a new process's yield grows with experience of using it
+    (learning by doing): settings are randomised (held one to three ticks); output is modelled as y = z, or as a
+    saturating y = cap z / (z + K), with z = c0 + c1 [before tau] sat(a) + c2 [after tau] sat(a) + c3 b E(t) and E an
+    experience stock of past use of the new process that decays at a rate; tau, the rate, the saturations and the
+    link come from grids, the c's by least squares.
+    Holding (a, b) from the start, experience reaches b (1 - (1 - rate)^settle) / rate, and the law after tau is
+    filed. Public: the objective names the established process's setting first, the new one second."""
+    rng = np.random.default_rng(seed)
+    obj = env._config["objective"]
+    held = obj["heldout"]
+    gauge = obj.get("gauge")
+    an, bn = list(held[0])[:2]
+    props = view.action_space().kinds["levers"]["properties"]["values"]["properties"]
+    lo = {n: float(props[n]["minimum"]) for n in (an, bn)}
+    hi = {n: float(props[n]["maximum"]) for n in (an, bn)}
+    A, B, y = [], [], []
+    while view.t < view.horizon - 2 and not view.done:
+        a = float(lo[an] + rng.random() * (hi[an] - lo[an]))
+        b = float(lo[bn] + rng.random() * (hi[bn] - lo[bn]))
+        for _ in range(int(rng.integers(1, 4))):
+            if view.t >= view.horizon - 2 or view.done:
+                break
+            r = view.step({"kind": "levers", "values": {an: a, bn: b}})
+            A.append(a)
+            B.append(b)
+            y.append(float(r["observation"]["numbers"].get(gauge, np.nan)))
+    A, B, y = np.asarray(A), np.asarray(B), np.asarray(y)
+    n = len(y)
+    ok = np.isfinite(y)
+    if n >= 24 and not view.done:
+        best = None
+        ymax = float(np.nanmax(y))
+        links = [(None, None)] + [(ymax * m, k) for m in (1.2, 1.6, 2.2, 3.0) for k in (10.0, 25.0, 45.0, 80.0)]
+        for rate in (0.05, 0.08, 0.1, 0.12, 0.16, 0.2):
+            E = np.zeros(n)
+            e_ = 0.0
+            for t in range(n):
+                E[t] = e_
+                e_ = (1.0 - rate) * e_ + B[t]
+            for h in (1.0, 2.5, 5.0, 10.0):
+                sa = A / (A + h)
+                for tau in range(8, n - 8, 2):
+                    pre = (np.arange(n) < tau).astype(float)
+                    F_ = np.c_[np.ones(n), pre * sa, (1 - pre) * sa, B * E][ok]
+                    for cap, K in links:
+                        # output may saturate in the processes' combined contribution z: y = cap z / (z + K)
+                        if cap is None:
+                            tz = y[ok]
+                        else:
+                            yy = np.minimum(y[ok], 0.98 * cap)
+                            tz = K * yy / (cap - yy)
+                        coef, *_ = np.linalg.lstsq(F_, tz, rcond=None)
+                        zh = F_ @ coef
+                        yh = zh if cap is None else cap * np.maximum(zh, 0.0) / (np.maximum(zh, 0.0) + K)
+                        err = float(np.sum((yh - y[ok]) ** 2))
+                        if best is None or err < best[0]:
+                            best = (err, rate, h, tau, coef, cap, K)
+        _, rate, h, tau, coef, cap, K = best
+        out = []
+        for c in held:
+            a, b = float(c[an]), float(c[bn])
+            Es = b * (1.0 - (1.0 - rate) ** settle) / rate
+            z = coef[0] + coef[2] * a / (a + h) + coef[3] * b * Es
+            v = z if cap is None else cap * max(z, 0.0) / (max(z, 0.0) + K)
+            out.append({"set": c, "value": float(v)})
+        view.step({"kind": "message", "to": "journal", "content": {"predictions": out}})
+    while not view.done:
+        view.step(None)
+
+
 # ====================================================================== a dose with a peak, acting after a delay
 def held_dose_predict(view, env, hold: int = 7, use: int = 2, seed: int = 0) -> None:
     """Scripted public reference for predicting the settled output of a treatment whose dose-response rises to a

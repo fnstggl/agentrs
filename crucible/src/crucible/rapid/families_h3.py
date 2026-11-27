@@ -451,13 +451,16 @@ def ch_demand_shift(rng, d):
 
 
 @_pg("ch_tech_transition", category="8.10", item="8.10.5", split="train",
-        doc="An established technology pays at once but becomes obsolete at a hidden tick. A new technology earns "
-            "little at first; its yield per unit grows with experience of using it (learning by doing).",
+        doc="An established technology pays at once but becomes obsolete at a hidden tick. A new technology loses "
+            "money at first; its yield per unit grows with experience of using it (learning by doing). Predict "
+            "output under the conditions at the end of the episode for uses of both held from the start.",
         distinct_because="compose collider rewired into learning by doing (the new lever's yield is multiplied by a "
                          "decaying stock of its own past use) next to a saturating old path with a timed obsolescence "
                          "switch: a transition whose payoff needs investment before the switch",
-        axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
-        claims=(C + "tech_transition",), identify=C + "obsolescence_time", lever_view=True)
+        axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="predict_heldout",
+        claims=(C + "tech_transition",), identify=C + "obsolescence_time", lever_view=True,
+        reference="crucible.rapid.refs_adapt:learning_transition_predict",
+        oracle="crucible.rapid.oracles:science_oracle", version="3")
 def ch_tech_transition(rng, d):
     H = int(d["horizon"])
     c = Composed(rng, _base(d, topology="collider", motifs=["saturation", "decay", "multiplicative"]))
@@ -481,9 +484,20 @@ def ch_tech_transition(rng, d):
                    objective={"type": "maximize_net", "text": SHOP},
                    claim={"lever": a, "new": b, "outcome": c.sold, "regime": rg, "experience": exp})
     price_levers_at(cfg, {a: u(rng, 6.0, 8.0)})
-    # the new process, once learned, earns two to three times its running cost per unit
+    # the new process, once learned, earns 1.4-1.8 times its running cost per unit, so while it is being learned it
+    # loses money: the established process is the better constant until it becomes obsolete
     per_unit = settled_revenue(cfg, {a: 0.0, b: 8.0}, t0=AFTER) / 8.0
-    cfg["nodes"][int(b[1:])]["lever"]["cost"] = max(per_unit, 0.0) * u(rng, 0.35, 0.5)
+    cfg["nodes"][int(b[1:])]["lever"]["cost"] = max(per_unit, 0.0) * u(rng, 0.55, 0.7)
+    held = [{c.name_of(a): float(p), c.name_of(b): float(q)} for p, q in
+            ((12.0, 0.5), (2.0, 12.0), (8.0, 9.0), (0.5, 4.0), (14.0, 14.0), (5.0, 1.0), (10.0, 6.0))]
+    text = ("Predict mean output under the conditions at the end of the episode if the use of the established and "
+            f"of the new process were held at these values from the start (partly outside what you can set): {held}. "
+            "File predictions with the journal: message to 'journal' with content {\"predictions\": [{\"set\": "
+            "<condition>, \"value\": <number>}, ...]}. Only the last filing counts.")
+    cfg["objective"] = {"type": "predict_heldout", "heldout": held, "gauge": c.gauge_of(c.sold), "text": text,
+                        "settle_ticks": 60}
+    cfg["journal"] = True
+    cfg["affordances"] = list(cfg["affordances"]) + ["message"]
     return cfg
 
 
