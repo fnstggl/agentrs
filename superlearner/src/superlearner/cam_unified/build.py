@@ -54,6 +54,10 @@ class OperatorLabels:
         self._seen: set = set()
         self.version = getattr(operator, "version", None)
 
+    def episode_of(self, env_id: str):
+        fn = getattr(self.operator, "episode_of", None)
+        return fn(env_id) if callable(fn) else None
+
     def take_labels(self) -> list:
         from .envs.labels import from_outcome_label
         out = []
@@ -80,6 +84,14 @@ class ConcatLabels:
     def take_labels(self) -> list:
         from .runtime import take_labels
         return [r for s in self.sources for r in take_labels(s)]
+
+    def episode_of(self, env_id: str):
+        from .runtime import label_episode_of
+        for s in self.sources:
+            e = label_episode_of(s, env_id)
+            if e is not None:
+                return e
+        return None
 
 
 def make_cam_config(scale: str, overrides: Optional[dict] = None) -> CamConfig:

@@ -323,6 +323,15 @@ class ExperienceOperator:
         if self.compute_references:
             w.refs = self._references(w)
 
+    def episode_of(self, env_id: str) -> Optional[int]:
+        """The label episode number of the actor-visible env id's current episode (the `episode` its LabelRecord will
+        carry), or None for an id this operator does not own. The canonical loop stamps it on each archived decision
+        (EventRecord.extra["label_episode"]) so label_join matches labels by key, not by archive order."""
+        for w in self.worlds:
+            if w.env_id == env_id:
+                return int(w.episode)
+        return None
+
     def private_verify(self, i: int) -> dict:
         """Full evaluator record (PRIVATE: never to the learner)."""
         w = self.worlds[i]

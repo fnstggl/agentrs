@@ -65,7 +65,7 @@ from .outcome_spec import CONTINUOUS, OutcomeSpec, build_outcome_batch
 from .learn import integrated
 from .learn.integrated import (DEFAULT_OBJECTIVES, SUPPORT_SIZES, gae_semi_markov, objective_adapt,  # noqa: F401
                                objective_memory, objective_policy, objective_world)
-STAMP_KEYS = ("versions", "schema", "reward_mode")             # cam-event/4 keys copied from the loop's records
+STAMP_KEYS = ("versions", "schema", "reward_mode", "label_episode")   # cam-event/4 keys copied from the loop's records
 OBS_REF = re.compile(r"^obs:(\d+)")
 SLOT_REF = re.compile(r"^entity(?:_slot)?:(\d+)$")             # B's EntityEncoder: "entity:<slot>"
 REL_REF = re.compile(r"^relation:(-?\d+)->(-?\d+)$")           # B's EntityEncoder: "relation:<i>-><j>" (slots)

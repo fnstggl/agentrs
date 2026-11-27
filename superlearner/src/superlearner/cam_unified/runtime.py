@@ -352,6 +352,18 @@ def take_labels(source) -> list:
     return out
 
 
+def label_episode_of(source, env_id) -> Optional[int]:
+    """The label source's episode number for an env id (`episode_of`, W2 operators / evaluators), else None."""
+    fn = getattr(source, "episode_of", None) if source is not None else None
+    if not callable(fn):
+        return None
+    try:
+        e = fn(env_id)
+    except Exception:            # an operator that cannot answer leaves label_join's archive-order fallback
+        return None
+    return None if e is None else int(e)
+
+
 def _held_by(agent, objs: Sequence) -> list:
     """Names of agent attributes (one container level deep, also through a HarnessAgent's .agent) that are one of
     `objs` - the acting agent must never hold the label source, the label store or the evaluator."""
@@ -827,6 +839,9 @@ def run_lifetime(agent, env: EnvAdapter, *, evaluator: Optional[GoalEvaluator] =
             if stop_after_decisions is not None and calls_this >= stop_after_decisions:
                 interrupted = True
                 break
+            # the label episode each row's decision belongs to (taken before execution: a reset during the advance
+            # starts the next one); stamped as extra["label_episode"] for label_join (W8 / W7 change request)
+            lab_ep = [label_episode_of(labels, batch.env_ids[b]) for b in range(B)] if labels is not None else [None] * B
             tools = meter.timed("tools", env.available_tools)
             actions = list(meter.timed("act", agent.act, batch, tools, gpu=True))
             actions = [None if done[b] else actions[b] for b in range(B)]
@@ -891,7 +906,8 @@ def run_lifetime(agent, env: EnvAdapter, *, evaluator: Optional[GoalEvaluator] =
                     behavior_logp=None if a is None else a.logp, provenance=Provenance.REAL,
                     evidence=EvidenceKind.CONTROLLED,
                     extra={"dt_days": elapsed_dt[b], "dt_requested_days": dts[b], "skipped": a is None,
-                           "versions": dict(versions), "schema": EVENT_SCHEMA, "reward_mode": mode}))
+                           "versions": dict(versions), "schema": EVENT_SCHEMA, "reward_mode": mode,
+                           **({"label_episode": lab_ep[b]} if lab_ep[b] is not None else {})}))
                 if evaluator is not None and success_day[b] is None:
                     stt = getattr(evaluator, "success_t", None)
                     if stt is not None and stt[b] is not None:

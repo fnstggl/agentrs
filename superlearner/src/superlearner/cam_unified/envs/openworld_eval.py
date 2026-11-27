@@ -100,6 +100,14 @@ class OpenWorldEvaluator:
         self.success_t[b] = None
         self.labelled[b] = False
 
+    def episode_of(self, env_id: str) -> Optional[int]:
+        """The label episode number (LabelRecord.episode) of an env id of this operator's current episode, else None
+        (stamped by the canonical loop as EventRecord.extra["label_episode"])."""
+        envs = getattr(self._op, "envs", None) or []
+        if any(getattr(e, "env_id", None) == env_id for e in envs):
+            return int(getattr(self._op, "episode", 0))
+        return None
+
     def _key(self, b: int) -> str:
         return f"env{int(b)}#ep{int(getattr(self._op, 'episode', 0))}"
 
