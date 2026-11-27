@@ -36,11 +36,21 @@ developer decides from public observables and its own experience:
 * **Maintenance** (own observables): every session it reads its service's metrics (`cloud.metrics`: overloads,
   errors), its own statement (`bank.statement`: which accounts paid it this week and last week - retention -, how
   many paid once and never again, and
-  what compute cost it), and its support tickets (`support.list`, answered and resolved). Overloads -> more cores;
-  poor retention, errors or complaints -> a new version (a better approach with a probability given by its craft;
+  what compute cost it), and its support tickets (`support.list`: acknowledged once, resolved only after a change
+  shipped after the ticket was opened). Overloads -> more cores; poor retention, errors, complaints or open issues
+  on its package from two or more users -> a new version (a better approach with a probability given by its craft;
   redeployed on the same host, its package released as a new minor version); a newer release of a package it
   depends on -> `pkg.upgrade` (only if its tests pass) and a redeploy; a service that loses money with no paying
   customer for `loss_days` -> shut down (`cloud.release`).
+* **Collaboration** (public code and trackers): a dependent whose service does poorly on a package and finds no
+  newer release reads the package's code; when it can write a better approach than the one it recognises there,
+  it forks the package, commits its approach and opens a pull request (`pkg.fork`, `pkg.pr_open`) linked from an
+  issue, else it files an issue (`pkg.report`). A maintainer reads each open pull request (`pkg.prs`,
+  `pkg.pr_diff`), reviews it (an independent review: approve only when the proposed tree passes its sandboxed tests,
+  changes only the library and is a better known approach), merges, releases and moves its own service to it;
+  issues filed before its latest release are closed naming it. A proposal left unmerged for `pr_wait_days` (or
+  rejected) becomes a fork package its author moves its service to; a release that breaks a dependent's tests gets
+  an issue and a reliability advisory with the dependent's repository as reproduction (`pkg.advisory`).
 
 Experiments (evaluator-side interventions; arms of one spec and seed differ only here): `program` "garbage" makes
 every developer ship an input-ignoring program with the same interface (it answers a fixed example), `ban` lists
