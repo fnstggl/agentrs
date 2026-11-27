@@ -9,6 +9,12 @@ depended on the package - measured by the parent, by ablating the package and ob
 verified only when a later release makes the reproduction pass. The audit's forgeries (tracer counter overwrite,
 shadow copy of a dependency, an `assert False` advisory against a competitor, lineage claimed in a description)
 are run in the same world and must leave no trace in adoption, advisories or lineage.
+
+The same features are also counted, as `civ_*` metrics, in the factual arm of the civilisation in which nobody is
+scripted (`_invention_kit`: the population's autonomous developers file issues, propose pull requests from forks,
+review and merge them, release, upgrade, publish forks as packages and file advisories when a release breaks their
+tests; `innovation.devs`). The criterion metric `software_features` is the scripted scenario's (labelled scripted);
+the civilisation's count is reported next to it.
 """
 import pytest
 
@@ -50,8 +56,18 @@ def test_SP_6_5_software_ecosystem(software):
          **{f"feature[{k}]": v for k, v in sorted(f["evidence"].items())}}
     forg = _forgeries(w)
     m.update(forg)
-    evidence.record("SP-6.5", m, notes="Scripted reference developers (feasibility). Features present: "
-                                       f"{f['present']}. Adoptions: {[(a['package'], a['repo'], a['executions']) for a in ad]}")
+    from _invention_kit import A
+    cw = A()["factual"]["world"]
+    cf = M.software_features(cw)
+    m.update({"civ_software_features": cf["count"], "civ_adoptions_by_execution": len(M.adoptions_by_execution(cw)),
+              **{f"civ_feature[{k}]": v for k, v in sorted(cf["evidence"].items())}})
+    evidence.record("SP-6.5", m, notes="software_features: scripted reference developers (feasibility). Features "
+                                       f"present: {f['present']}. Adoptions: "
+                                       f"{[(a['package'], a['repo'], a['executions']) for a in ad]}. Civilisation "
+                                       f"(autonomous developers, nobody scripted): {cf['count']} features, present "
+                                       f"{cf['present']}",
+                    labels={"scripted": True, "world": "scenario software (scripted reference developers)",
+                            "civ_metrics": "civilisation factual arm, autonomous population developers"})
     assert m["software_features"] >= 15 and m["adoptions_by_execution"] >= 1
     assert m["invariants_clean"] and forg["forgeries_recorded"] == 0, forg
 

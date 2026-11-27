@@ -170,25 +170,84 @@ def test_a_workflow_budget_grows_with_its_own_profitable_use():
     stale = [dict(x, t=x["t"] - 40 * DAY) for x in busy]
     assert room(stale, "wf", ["c1", "c2"], 16000, now) == 0                         # nothing in the last 30 days
 
+@pytest.fixture(scope="module")
+def arm5():
+    from crucible.innovation import civexp as CX
+    r = CX.run_arm("creation", "factual", 5, days=24, n=300)
+    yield r
+    r["world"].close()
+
+
 @pytest.mark.slow
 @pytest.mark.timeout(900)
-def test_a_developer_switches_a_weak_two_stage_service_to_a_workflow_of_independent_services():
+def test_a_developer_switches_a_weak_two_stage_service_to_a_workflow_of_independent_services(arm5):
     """A developer whose own program for the composed task converts poorly finds, through the registry's public
     counts, services of two other providers that people keep for the two stages and rebuilds its service as a
     workflow on the same host and declaration; the registry verifies it from the service's own calls."""
-    from crucible.innovation import civexp as CX
-    r = CX.run_arm("creation", "factual", 5, days=24, n=300)
-    w = r["world"]
-    try:
+    w = arm5["world"]
+    if True:
         st = w.state
         wfs = [x for _, x in st.scan("cap_workflows")]
-        assert wfs and all(x["status"] == "verified" for x in wfs)
-        for x in wfs:
+        # a workflow is verified by the registry once its service's own calls to the components are observed; one
+        # switched near the end of the run may still be declared (not called yet)
+        assert all(x["status"] in ("verified", "declared") for x in wfs)
+        verified = [x for x in wfs if x["status"] == "verified"]
+        assert verified
+        for x in verified:
             proj = next(p for _, p in st.scan("dev_projects") if p["host"] == x["host"])
             assert proj["approach"] == -1 and proj["composes"] == [c["declaration"] for c in x["components"]]
             assert proj["decl"] == x["declaration"] and x["t"] > proj["t"]          # built first, switched later
             assert all(M.independent(w, x["composer"], c["provider"]) for c in x["components"])
             assert len({c["provider"] for c in x["components"]}) == 2
         assert not w.check_invariants()
-    finally:
-        w.close()
+
+
+@pytest.mark.slow
+@pytest.mark.timeout(900)
+def test_developers_collaborate_through_issues_pull_requests_review_and_forks(arm5):
+    """Software collaboration among the autonomous developers (SP-6.5 in a world with nobody scripted): a dependent
+    whose service does poorly on a package proposes its better approach as a pull request from a fork (and links
+    it from an issue), the maintainer reads and reviews it (an independent review), merges it when its tests pass
+    and the approach is better, and releases; dependents upgrade (compatibility recorded); issues are closed only
+    after a later release; support tickets are resolved only after a change shipped."""
+    w = arm5["world"]
+    st = w.state
+    prs = [p for _, p in st.scan("pkg_prs")]
+    assert prs, "no pull request"
+    pkgs = {p["repo"]: (n, p) for n, p in st.scan("pkg_packages")}
+    for pr in prs:
+        assert ids.index(pr["author"]) is not None                  # a population developer
+        assert pkgs[pr["repo"]][1]["owner"] != pr["author"]         # proposed to someone else's package
+    revs = [r for _, r in st.scan("pkg_reviews")]
+    assert revs and all(r["independent"] and M.independent(w, r["reviewer"], st.tables["pkg_prs"][r["pr"]]["author"])
+                        for r in revs)
+    merged = [k for k, p in st.scan("pkg_prs") if p["status"] == "merged"]
+    assert merged
+    for k in merged:
+        pr = st.tables["pkg_prs"][k]
+        name = pkgs[pr["repo"]][0]
+        assert any(r["t"] >= pr["merged_t"] for r in w.modules["pkg"].releases(st, name))   # released after merging
+    assert int(st.meta_get("pkg:forks", 0)) >= 1
+    # issues on package trackers: filed by dependents, closed only after a release that followed them
+    projects = {p["project"]: n for n, p in st.scan("pkg_packages")}
+    issues = [i for i in st.tables.get("iss_issues", {}).values() if i["project"] in projects]
+    assert issues and all(ids.index(i["creator"]) is not None for i in issues)
+    for i in issues:
+        if i["status"] == "closed":
+            rels = w.modules["pkg"].releases(st, projects[i["project"]])
+            assert any(r["t"] > i["t"] for r in rels)
+    # tickets: resolved only after a change to the service was shipped after the ticket was opened
+    changes = {}
+    for e in w.log:
+        if e.type == "devs.project_update" and e.payload.get("changed_t") is not None:
+            host = st.tables["dev_projects"][e.payload["id"]]["host"]
+            changes.setdefault(host, []).append(int(e.payload["changed_t"]))
+    tickets = [t for t in st.tables.get("sup_tickets", {}).values()
+               if any(p["host"] == t["host"] for _, p in st.scan("dev_projects"))]
+    for t in tickets:
+        if t["status"] == "resolved":
+            assert any(t["opened"] < c <= t["resolved"] for c in changes.get(t["host"], [])), t
+    f = M.software_features(w)
+    assert f["evidence"]["pull_requests"] >= 1 and f["evidence"]["independent_review"] >= 1
+    assert f["evidence"]["issue_tracker"] >= 1 and f["evidence"]["forks"] >= 1 and f["evidence"]["maintenance"] >= 1
+    assert not w.check_invariants()

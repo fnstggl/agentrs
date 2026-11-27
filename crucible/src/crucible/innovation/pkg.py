@@ -559,6 +559,7 @@ class Packages(Module):
         issues = [i for i in st.find("iss_issues", "project", p["project"])] if "iss_issues" in st.tables else []
         advs = [a for a in st.find("pkg_advisories", "package", name) if a["verified"]]
         return {"package": name, "repo": p["repo"], "owner": p["owner"], "description": p["description"],
+                "project": p["project"],
                 "import": f"deps.{import_dir(p['repo'])}.{p['module']}", "latest": latest["version"] if latest else None,
                 "releases": len(rels), "last_release_t": latest["t"] if latest else None,
                 "tests_latest": latest["tests"] if latest else None,
@@ -892,6 +893,28 @@ class Packages(Module):
                             "files": sorted(changes), "changes_digest": digest(changes),
                             "tests": {"passed": res["passed"], "failed": res["failed"]}}, vis=self._repo_vis(ctx, tgt))
         return {"pr": pid, "files": sorted(changes), "tests": {"passed": res["passed"], "failed": res["failed"]}}
+
+    @endpoint("prs", S.obj({"repo": S.s_str("a repository you can read", maxLength=81),
+                            "status": S.s_enum(["open", "merged", "all"]),
+                            "limit": S.s_int(minimum=1, maximum=50)}, ["repo"]), read_only=True)
+    def ep_prs(self, ctx, repo, status="open", limit=20):
+        """Pull requests proposed to a repository (newest first): id, author, title, changed files, the sandboxed test
+        result of the proposed tree, status and the verdicts of its reviews."""
+        st = ctx.state
+        code = ctx.world.modules["code"]
+        if not st.has("repos", repo) or not code.can_read(ctx, repo):
+            raise NotFound("no repository " + repo)
+        rows = []
+        for pid in st.find_ids("pkg_prs", "repo", repo):
+            r = st.tables["pkg_prs"][pid]
+            if status != "all" and r["status"] != status:
+                continue
+            revs = [st.tables["pkg_reviews"][x]["verdict"] for x in st.find_ids("pkg_reviews", "pr", pid)]
+            rows.append((-int(r["t"]), pid, {"pr": pid, "author": r["author"], "title": r["title"], "files": r["files"],
+                                             "tests": r["tests"], "status": r["status"], "t": r["t"],
+                                             "reviews": revs}))
+        rows.sort(key=lambda x: (x[0], x[1]))
+        return [x for _, _, x in rows[:int(limit)]]
 
     def _pr_changes(self, st, pr) -> dict:
         code = self.world.modules["code"]

@@ -76,7 +76,8 @@ DEFAULTS = {"share": 0.03, "min_devs": 8, "max_devs": 400, "period_h": [30.0, 60
             "program": "good", "ban": [], "oss_share": 0.5, "reuse_share": 0.6, "boards": None,
             "value_cents_min": [4.0, 16.0], "price_share": 0.08, "reach": 3.0, "max_cores": 16,
             "improve_after_days": 4, "retention_floor": 0.5, "loss_days": 21, "read_posts": 6,
-            "list_limit": 30, "hurdle": [0.3, 1.5], "min_trials": 8, "min_conversion": 0.1, "retry_days": 10}
+            "list_limit": 30, "hurdle": [0.3, 1.5], "min_trials": 8, "min_conversion": 0.1, "retry_days": 10,
+            "pr_wait_days": 8, "report_every_days": 7, "issue_floor": 2}
 
 
 def _tokens(text: str) -> list[str]:
@@ -228,6 +229,11 @@ def _parts(need: str):
     if cat is None or not getattr(cat, "parts", None) or len(cat.parts) != 2:
         return None
     return cat.parts[0], cat.parts[1], (cat.rule or {}).get("table_key")
+
+
+def _bump(ver: str) -> str:
+    a, b, _c = (int(x) for x in ver.split("."))
+    return f"{a}.{b + 1}.0"
 
 
 def garbage_source(src: str, example: dict) -> str:
@@ -812,12 +818,13 @@ class Developers(Module):
                 "lib.py": src, "tests/test_lib.py": LIB_SMOKE.format(examples=json.dumps(examples, sort_keys=True)),
                 "README.md": readme}):
             return
-        if not self._try(ctx, p, "pkg.register", name=name, repo=repo, description=f"{task}. Library: solve(args)."):
+        reg = self._try(ctx, p, "pkg.register", name=name, repo=repo, description=f"{task}. Library: solve(args).")
+        if not reg:
             return
         rel = self._try(ctx, p, "pkg.release", package=name, version="1.0.0", notes="first release")
         if rel:
-            ctx.emit("devs.project_update", {"id": pid, "package": name, "pkg_repo": repo, "pkg_version": "1.0.0"},
-                     vis="internal")
+            ctx.emit("devs.project_update", {"id": pid, "package": name, "pkg_repo": repo, "pkg_version": "1.0.0",
+                                             "pkg_project": reg.get("project")}, vis="internal")
 
     # ------------------------------------------------------------------ maintenance (own observables)
     def _sales(self, ctx, p, acct, host, now) -> dict:
@@ -893,10 +900,10 @@ class Developers(Module):
         # trials and adopters since the last version (the registry's public counts, minus those at the change)
         conv = {"trials": int(reg.get("trials") or 0) - int(proj.get("trials_at") or 0),
                 "adopters": int(reg.get("adopters") or 0)}
-        for t in tickets:
-            self._try(ctx, p, "support.reply", ticket=t["ticket"], body="Thanks for the report - looking into it.")
-            self._try(ctx, p, "support.resolve", ticket=t["ticket"], note="handled")
         choice = 0
+        if proj.get("package"):
+            choice = max(choice, self._triage(ctx, i, p, pid, proj, now))
+        open_issues = self._own_open_issues(ctx, p, proj) if proj.get("package") else []
         if proj.get("composes") and acct:
             lines = self._try(ctx, p, "bank.statement", account=acct, limit=500) or []
             add = self.budget_room(lines, host, proj.get("comp_hosts") or [], int(proj.get("grant_limit") or 0), now)
@@ -908,22 +915,27 @@ class Developers(Module):
         if over >= 3 and cores < int(self.cfg("max_cores")):
             if self._try(ctx, p, "cloud.resize", instance=proj["instance"], cores=min(int(self.cfg("max_cores")),
                                                                                       cores * 2)):
-                ctx.emit("devs.project_update", {"id": pid, "cores": min(int(self.cfg("max_cores")), cores * 2)},
-                         vis="internal")
+                ctx.emit("devs.project_update", {"id": pid, "cores": min(int(self.cfg("max_cores")), cores * 2),
+                                                 "changed_t": int(now), "change": "more cores"}, vis="internal")
                 choice = 1
         age = now - int(proj["t"])
         bad = (sales["retention"] is not None and len(sales["prev"]) >= 3 and
                sales["retention"] < float(self.cfg("retention_floor"))) or \
               (sales["one_shot"] is not None and sales["settled"] >= 5 and sales["one_shot"] >= 0.6) or \
               not self.converts(conv) or \
-              (ok + err >= 10 and err / (ok + err) > 0.2) or len(tickets) >= 3
+              (ok + err >= 10 and err / (ok + err) > 0.2) or len(tickets) >= 3 or \
+            len({x["creator"] for x in open_issues}) >= int(self.cfg("issue_floor"))
         since_change = now - int(proj.get("improved_t") or proj["t"])
         if bad and since_change >= int(self.cfg("improve_after_days")) * DAY:
             if self._improve(ctx, i, p, pid, proj, rng, now):
                 choice = 2
         elif proj.get("uses_package"):
-            if self._upgrade(ctx, p, pid, proj):
+            if self._upgrade(ctx, p, pid, proj, now):
                 choice = 2
+        if proj.get("pr") and not proj.get("fork_package"):
+            if self._adopt_fork(ctx, i, p, pid, proj, now):
+                choice = 2
+        self._answer_tickets(ctx, p, pid, tickets, now)
         if age >= int(self.cfg("loss_days")) * DAY and not sales["week"] and sales["revenue"] < sales["rent"]:
             self._try(ctx, p, "cloud.release", instance=proj["instance"])
             ctx.emit("devs.project_update", {"id": pid, "status": "closed", "closed_t": int(now),
@@ -934,7 +946,10 @@ class Developers(Module):
     def _improve(self, ctx, i, p, pid, proj, rng, now) -> bool:
         need = proj["need"]
         if proj.get("uses_package"):
-            return self._upgrade(ctx, p, pid, proj)
+            if self._upgrade(ctx, p, pid, proj, now):
+                return True
+            # no newer release helps: propose a better approach to the package, or report the problem on its tracker
+            return self._contribute(ctx, i, p, pid, proj, rng, now)
         if proj.get("composes"):
             # a registered workflow stays a workflow (the registry object names its components); one that keeps
             # failing loses its customers and is shut down by the loss rule
@@ -963,16 +978,16 @@ class Developers(Module):
         if not dep or dep.get("status") != "live":
             return False
         reg = self._try(ctx, p, "caps.declaration", declaration=proj["decl"]) or {}
-        ctx.emit("devs.project_update", {"id": pid, "approach": int(k), "trials_at": int(reg.get("trials") or 0)},
-                 vis="internal")
+        ctx.emit("devs.project_update", {"id": pid, "approach": int(k), "trials_at": int(reg.get("trials") or 0),
+                                         "changed_t": int(now), "change": "new version"}, vis="internal")
         self._announce(ctx, p, proj["task"], proj["host"], int(proj["price"]), now, new_version=True)
-        if proj.get("package"):
-            ver = proj.get("pkg_version") or "1.0.0"
-            a, b, _c = (int(x) for x in ver.split("."))
-            nv = f"{a}.{b + 1}.0"
+        if proj.get("package") and int(k) > int(proj.get("pkg_approach") if proj.get("pkg_approach") is not None
+                                                 else proj["approach"]):
+            # (never over a better approach merged into the package from someone else's pull request)
+            nv = _bump(proj.get("pkg_version") or "1.0.0")
             if self._try(ctx, p, "code.commit", repo=proj["pkg_repo"], files={"lib.py": src}, message="improve") and \
                     self._try(ctx, p, "pkg.release", package=proj["package"], version=nv, notes="improved results"):
-                ctx.emit("devs.project_update", {"id": pid, "pkg_version": nv}, vis="internal")
+                ctx.emit("devs.project_update", {"id": pid, "pkg_version": nv, "pkg_approach": int(k)}, vis="internal")
         return True
 
     @staticmethod
@@ -1019,27 +1034,250 @@ class Developers(Module):
         reg = self._try(ctx, p, "caps.declaration", declaration=proj["decl"]) or {}
         ctx.emit("devs.project_update", {"id": pid, "approach": -1, "composes": [a["declaration"], b["declaration"]],
                                          "comp_hosts": [a["host"], b["host"]], "grant_limit": int(limit),
-                                         "price": int(price), "trials_at": int(reg.get("trials") or 0)}, vis="internal")
+                                         "price": int(price), "trials_at": int(reg.get("trials") or 0),
+                                         "changed_t": int(now), "change": "a workflow of other providers' services"},
+                 vis="internal")
         self._announce(ctx, p, proj["task"], proj["host"], int(price), now, new_version=True)
         return True
 
-    def _upgrade(self, ctx, p, pid, proj) -> bool:
+    def _upgrade(self, ctx, p, pid, proj, now) -> bool:
         info = self._try(ctx, p, "pkg.info", package=proj["uses_package"])
         if not info:
             return False
         lock = self._try(ctx, p, "pkg.upgrade", repo=proj["repo"], package=proj["uses_package"])
         if not lock or not lock.get("upgraded"):
+            if lock and str(lock.get("reason") or "").startswith("tests fail") and \
+                    proj.get("broken_version") != lock.get("reason"):
+                # a release that breaks its dependents' tests: say so on the package's tracker (once per release)
+                self._try(ctx, p, "pkg.report", package=proj["uses_package"], labels=["bug", "compatibility"],
+                          title=f"{lock['reason'][len('tests fail with '):]} breaks my tests"[:200],
+                          body=f"My repository's tests pass with {lock.get('version')} and fail with "
+                               f"{lock['reason'][len('tests fail with '):]} ({lock.get('tests')}). I stay on "
+                               f"{lock.get('version')} for now.")
+                # and a reliability advisory whose reproduction is its own repository (its tests fail against the
+                # release; the registry verifies it once a later release makes them pass)
+                self._try(ctx, p, "pkg.advisory", package=proj["uses_package"],
+                          version=lock["reason"][len("tests fail with "):], kind="reliability", severity="medium",
+                          description=f"Release {lock['reason'][len('tests fail with '):]} fails the tests of "
+                                      f"{proj['repo']}, which pass with {lock.get('version')}.", repro_repo=proj["repo"])
+                ctx.emit("devs.project_update", {"id": pid, "broken_version": lock.get("reason")}, vis="internal")
             return False
         self._try(ctx, p, "pkg.ci", repo=proj["repo"])
         dep = self._try(ctx, p, "pkg.deploy", repo=proj["repo"], host=proj["host"], instance=proj["instance"])
-        return bool(dep and dep.get("status") == "live")
+        ok = bool(dep and dep.get("status") == "live")
+        if ok:
+            ctx.emit("devs.project_update", {"id": pid, "changed_t": int(now),
+                                             "change": f"upgraded {proj['uses_package']} to {lock.get('version')}"},
+                     vis="internal")
+        return ok
+
+    # ------------------------------------------------------------------ collaboration (issues, pull requests, forks)
+    def known_approach(self, need: str, src: str | None) -> int | None:
+        """Which of the known approaches to a task a piece of code is (a developer reading code recognises an
+        approach it could write itself, FR-DEV-1); None for code it does not recognise."""
+        if not src:
+            return None
+        parts = _parts(need)
+        n = len(_tier_list(need)) if parts is None else len(parts[0].tiers) * len(parts[1].tiers)
+        for k in range(n):
+            if self._good_source(need, k) == src:
+                return k
+        return None
+
+    def _good_source(self, need: str, k: int) -> str:
+        parts = _parts(need)
+        if parts is None:
+            return _tier_list(need)[k][1]
+        from ..usefulness.category import stage_source
+        a, b, key = parts
+        ka, kb = divmod(int(k), len(b.tiers))
+        return stage_source(a.tiers[ka][1], b.tiers[kb][1], key)
+
+    def _contribute(self, ctx, i, p, pid, proj, rng, now) -> bool:
+        """A dependent whose service does poorly on a package and finds no newer release reads the package's code;
+        if it can write a better approach than the one it recognises there, it forks the package, commits its
+        approach and proposes it as a pull request (linked from an issue); otherwise it reports the problem on the
+        package's tracker (at most every `report_every_days`)."""
+        pkgname = proj["uses_package"]
+        ctx.emit("devs.project_update", {"id": pid, "improved_t": int(now),
+                                         "attempts": int(proj.get("attempts", 0)) + 1}, vis="internal")
+        info = self._try(ctx, p, "pkg.info", package=pkgname)
+        if not info or info.get("owner") == p:
+            return False
+        module = info["import"].rsplit(".", 1)[1]
+        lib = self._try(ctx, p, "code.read", repo=info["repo"], path=f"{module}.py")
+        need = proj["need"]
+        k_pkg = self.known_approach(need, lib["content"]) if lib else None
+        ex = (proj.get("examples") or [None])[0]
+        if not proj.get("pr") and k_pkg is not None:
+            k = self.approach(i, need, rng, current=k_pkg)
+            if k > k_pkg and self._propose(ctx, i, p, pid, proj, info, module, k, ex, now):
+                return True
+        if now - int(proj.get("issue_t") if proj.get("issue_t") is not None else -10 ** 12) < \
+                int(self.cfg("report_every_days")) * DAY:
+            return False
+        r = self._try(ctx, p, "pkg.report", package=pkgname, labels=["bug"],
+                      title=f"Poor results on '{proj['task'][:120]}'",
+                      body=f"My service {proj['host']} runs {pkgname} {info.get('latest')} for this task and my users "
+                           f"keep dropping it. One of their inputs: {json.dumps(ex, sort_keys=True)[:1500]}")
+        if r:
+            ctx.emit("devs.project_update", {"id": pid, "issue_t": int(now)}, vis="internal")
+        return False
+
+    def _propose(self, ctx, i, p, pid, proj, info, module, k, ex, now) -> bool:
+        pkgname = info["package"]
+        base = re.sub(r"[^a-z0-9_-]", "", f"{pkgname[:30]}-d{i}")
+        fork = self._try(ctx, p, "pkg.fork", package=pkgname, name=self._repo_name(ctx, p, base)[:40])
+        if not fork:
+            return False
+        src = self._source(proj["need"], k, ex or {})
+        if not self._try(ctx, p, "code.commit", repo=fork["repo"], files={f"{module}.py": src},
+                         message="a better approach"):
+            return False
+        pr = self._try(ctx, p, "pkg.pr_open", repo=info["repo"], source_repo=fork["repo"],
+                       title=f"Better results for '{proj['task'][:120]}'",
+                       body=f"My service {proj['host']} uses {pkgname}; this approach does better on my users' inputs "
+                            f"(tests pass in the sandbox).")
+        if not pr:
+            return False
+        self._try(ctx, p, "pkg.report", package=pkgname, labels=["enhancement"],
+                  title=f"Proposed fix: pull request {pr['pr']}",
+                  body=f"Results on '{proj['task'][:120]}' could be better; see pull request {pr['pr']} from "
+                       f"{fork['repo']}.")
+        ctx.emit("devs.project_update", {"id": pid, "pr": pr["pr"], "fork_repo": fork["repo"], "pr_t": int(now),
+                                         "pr_approach": int(k), "issue_t": int(now)}, vis="internal")
+        return True
+
+    def _adopt_fork(self, ctx, i, p, pid, proj, now) -> bool:
+        """A proposal the maintainer neither merges nor rejects within `pr_wait_days` (or rejects): the dependent
+        publishes its fork as a package (lineage recorded by the registry) and moves its service onto it."""
+        prs = self._try(ctx, p, "pkg.prs", repo=self._pkg_repo(ctx, p, proj), status="all") or []
+        mine = next((x for x in prs if x["pr"] == proj["pr"]), None)
+        if mine is not None and mine["status"] == "merged":
+            ctx.emit("devs.project_update", {"id": pid, "pr": None, "pr_merged": proj["pr"]}, vis="internal")
+            return self._upgrade(ctx, p, pid, proj, now)
+        rejected = mine is not None and "request_changes" in (mine.get("reviews") or [])
+        if not rejected and now - int(proj.get("pr_t") or now) < int(self.cfg("pr_wait_days")) * DAY:
+            return False
+        name = self._own_name(ctx, i, re.sub(r"[^a-z0-9_-]", "", f"{proj['uses_package'][:28]}-f{i}"), "fork_package", 40)
+        reg = self._try(ctx, p, "pkg.register", name=name, repo=proj["fork_repo"],
+                        description=f"Fork of {proj['uses_package']}: {proj['task'][:150]}. Library: solve(args).")
+        if not reg or not self._try(ctx, p, "pkg.release", package=name, version="1.0.0",
+                                    notes=f"fork of {proj['uses_package']} with a better approach"):
+            ctx.emit("devs.project_update", {"id": pid, "pr": None}, vis="internal")
+            return False
+        lock = self._try(ctx, p, "pkg.depend", repo=proj["repo"], package=name, constraint="*")
+        if not lock:
+            return False
+        d, _, mod = lock["import"][len("deps."):].partition(".")
+        if not self._try(ctx, p, "code.commit", repo=proj["repo"], files={"service.py": WRAP.format(dir=d, module=mod)},
+                         message=f"use {name}"):
+            return False
+        ci = self._try(ctx, p, "pkg.ci", repo=proj["repo"])
+        dep = self._try(ctx, p, "pkg.deploy", repo=proj["repo"], host=proj["host"], instance=proj["instance"]) \
+            if ci and ci.get("ok") else None
+        ok = bool(dep and dep.get("status") == "live")
+        ctx.emit("devs.project_update", {"id": pid, "fork_package": name, "pr": None,
+                                         **({"uses_package": name, "changed_t": int(now),
+                                             "change": f"moved to its fork {name}"} if ok else {})}, vis="internal")
+        return ok
+
+    def _pkg_repo(self, ctx, p, proj) -> str:
+        info = self._try(ctx, p, "pkg.info", package=proj["uses_package"]) or {}
+        return info.get("repo") or ""
+
+    def _own_open_issues(self, ctx, p, proj) -> list[dict]:
+        if not proj.get("pkg_project"):
+            return []
+        return [x for x in (self._try(ctx, p, "issues.list", project=proj["pkg_project"], status="open", limit=20) or [])
+                if x["creator"] != p]
+
+    def _triage(self, ctx, i, p, pid, proj, now) -> int:
+        """A maintainer's round on its package: pull requests are read (pkg.pr_diff) and reviewed - approved when
+        the proposed tree passes its tests in the sandbox, changes only the library and is an approach the
+        maintainer recognises as better than its current one, else changes are requested -, approved ones merged
+        and released; open issues filed before its latest release are closed naming that release, others get one
+        acknowledgement."""
+        choice = 0
+        need = proj["need"]
+        for pr in (self._try(ctx, p, "pkg.prs", repo=proj["pkg_repo"], status="open") or [])[:3]:
+            if pr["author"] == p or pr.get("reviews"):
+                continue
+            d = self._try(ctx, p, "pkg.pr_diff", pr=pr["pr"])
+            if not d:
+                continue
+            cur = self._try(ctx, p, "code.read", repo=proj["pkg_repo"], path="lib.py")
+            k_cur = self.known_approach(need, cur["content"]) if cur else None
+            ch = d.get("changes") or {}
+            k_new = self.known_approach(need, ch.get("lib.py")) if set(ch) == {"lib.py"} else None
+            good = d["tests"]["passed"] > 0 and not d["tests"]["failed"] and k_new is not None and \
+                (k_cur is None or k_new > k_cur)
+            self._try(ctx, p, "pkg.pr_review", pr=pr["pr"], verdict="approve" if good else "request_changes",
+                      comment="Tests pass and the approach is better - thanks." if good else
+                      "I cannot take this: it does not pass the tests or is not better than the current code.")
+            if not good:
+                continue
+            m = self._try(ctx, p, "pkg.pr_merge", pr=pr["pr"])
+            if not m or not m.get("merged"):
+                continue
+            nv = _bump(proj.get("pkg_version") or "1.0.0")
+            if self._try(ctx, p, "pkg.release", package=proj["package"], version=nv, notes=f"merged {pr['pr']}"):
+                ctx.emit("devs.project_update", {"id": pid, "pkg_version": nv, "pkg_approach": int(k_new)},
+                         vis="internal")
+                choice = 2
+                # its own service runs its own program: it moves to the merged approach when that is better
+                if int(proj.get("approach", -1)) >= 0 and int(k_new) > int(proj["approach"]) and not proj.get("composes"):
+                    self._ship(ctx, p, pid, proj, ch["lib.py"], int(k_new), now, f"merged {pr['pr']}")
+        info = self._try(ctx, p, "pkg.info", package=proj["package"]) or {}
+        last = info.get("last_release_t")
+        acked = set(proj.get("acked") or [])
+        for iss in self._own_open_issues(ctx, p, proj):
+            if last is not None and int(last) > int(iss["t"]):
+                self._try(ctx, p, "issues.close", issue=iss["issue"],
+                          comment=f"Released {info.get('latest')} since this was filed; please upgrade.")
+            elif iss["issue"] not in acked and iss["comments"] == 0:
+                self._try(ctx, p, "issues.comment", issue=iss["issue"], body="Thanks - confirmed, looking into it.")
+                acked.add(iss["issue"])
+        if acked != set(proj.get("acked") or []):
+            ctx.emit("devs.project_update", {"id": pid, "acked": sorted(acked)[-50:]}, vis="internal")
+        return choice
+
+    def _ship(self, ctx, p, pid, proj, src: str, k: int, now: int, change: str) -> bool:
+        """Commit `src` as its service's program, keep it only if its tests pass, redeploy on the same host."""
+        old = self._try(ctx, p, "code.read", repo=proj["repo"], path="service.py")
+        if not old or not self._try(ctx, p, "code.commit", repo=proj["repo"], files={"service.py": src}, message=change):
+            return False
+        ci = self._try(ctx, p, "pkg.ci", repo=proj["repo"])
+        if not ci or not ci["ok"]:
+            self._try(ctx, p, "code.commit", repo=proj["repo"], files={"service.py": old["content"]}, message="revert")
+            return False
+        dep = self._try(ctx, p, "cloud.deploy", repo=proj["repo"], host=proj["host"], instance=proj["instance"])
+        if not dep or dep.get("status") != "live":
+            return False
+        ctx.emit("devs.project_update", {"id": pid, "approach": int(k), "changed_t": int(now), "change": change},
+                 vis="internal")
+        self._announce(ctx, p, proj["task"], proj["host"], int(proj["price"]), now, new_version=True)
+        return True
+
+    def _answer_tickets(self, ctx, p, pid, tickets, now) -> None:
+        """Support tickets: answered once (acknowledged); resolved only once a change was shipped after the ticket
+        was opened (a new version, more cores, an upgrade, a workflow), with a note naming the change."""
+        proj = ctx.state.tables["dev_projects"][pid]
+        changed = proj.get("changed_t")
+        for t in tickets:
+            if changed is not None and int(changed) > int(t["opened"]):
+                self._try(ctx, p, "support.resolve", ticket=t["ticket"],
+                          note=f"fixed: {proj.get('change') or 'new version'}")
+            elif t["status"] == "open":
+                self._try(ctx, p, "support.reply", ticket=t["ticket"], body="Thanks for the report - looking into it.")
 
     # ------------------------------------------------------------------ appliers
     @applier("devs.project")
     def ap_project(self, ev):
         p = dict(ev.payload)
         p.update(t=ev.t, status=p.get("status", "live"), attempts=0, improved_t=None, package=None, pkg_repo=None,
-                 pkg_version=None, trials_at=0)
+                 pkg_version=None, trials_at=0, pkg_project=None, changed_t=None, change=None, pr=None, issue_t=None,
+                 acked=[])
         self.world.state.insert("dev_projects", p.pop("id"), p)
 
     @applier("devs.project_update")

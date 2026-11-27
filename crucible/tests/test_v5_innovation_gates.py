@@ -25,7 +25,8 @@ def test_counterfactual_arms_are_summarised_and_closed(A):
     assert A["factual"]["world"] is not None and A["factual"]["world"].log_base == 0
     for arm in CX.ARMS[1:]:
         assert A[arm]["world"] is None
-        assert set(A[arm]["summary"]) == {"relying", "bonuses"} and A[arm]["summary"]["bonuses"]["bonuses"] == 0
+        assert set(A[arm]["summary"]) == {"relying", "bonuses", "rival_actions"}
+        assert A[arm]["summary"]["bonuses"]["bonuses"] == 0
     # what the summary keeps equals what the open factual world gives
     w = A["factual"]["world"]
     for need, n in A["factual"]["summary"]["relying"].items():

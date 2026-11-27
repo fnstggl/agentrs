@@ -31,7 +31,10 @@ def test_SP_6_5b_adoption_integrity_developers_and_sandbox():
     sb = G.sandbox_coverage(w)
     m = {k: v for k, v in {**fa, **so, **da, **sb}.items() if isinstance(v, (int, float, bool, str))}
     record("SP-6.5b", m, notes=f"per forgery {fa['per_forgery']}; probe errors {fa['probe_errors']}",
-           labels={"autonomous_population_creators": True, "scripted": False, "world": "civilisation"})
+           labels={"autonomous_population_creators": True, "scripted": False,
+                   "world": "civilisation (autonomous_developer_adoptions, sandbox coverage)",
+                   "scripted_probes": "forged_adoptions_counted and star_only_adoptions_counted run in lean "
+                                      "innovation worlds with scripted red-team / reference principals"})
     assert fa["forged_adoptions_counted"] == 0 and fa["honest_control_credited"] and not fa["probe_errors"]
     assert so["star_only_adoptions_counted"] == 0 and so["stars"] >= 5 and so["executed_adoptions_counted"] >= 1
     assert da["autonomous_developer_adoptions"] >= 1
