@@ -97,9 +97,10 @@ class BootstrapReward:
     def __call__(self, *, learning_progress: Optional[Tensor] = None, delta_v: Optional[Tensor] = None,
                  epistemic_before: Optional[Tensor] = None, epistemic_after: Optional[Tensor] = None,
                  verified_delta: Optional[Tensor] = None, verified_mask: Optional[Tensor] = None,
-                 context_keys: Optional[Sequence[str]] = None) -> BootstrapOutput:
+                 context_keys: Optional[Sequence[str]] = None, gate_update: bool = True) -> BootstrapOutput:
         """All inputs [B] (None = not available, contributes 0). ``context_keys`` names the context of each row
-        for the noisy-TV gate (rows without a key are not gated)."""
+        for the noisy-TV gate (rows without a key are not gated). ``gate_update=False`` reads the gate without
+        advancing it (replay of a step the gate has already seen; the gate moves once per real step)."""
         ref = next(t for t in (learning_progress, delta_v, epistemic_before, verified_delta) if t is not None)
         zeros = torch.zeros_like(ref, dtype=ref.dtype)
         comp: Dict[str, Tensor] = {}
@@ -112,7 +113,8 @@ class BootstrapReward:
             eb, ea = epistemic_before.to(ref.dtype), epistemic_after.to(ref.dtype)
             drop = ((eb - ea).clamp_min(0.0) / eb.clamp_min(1e-12)).clamp(0.0, 1.0)      # epistemic only
             if context_keys is not None:
-                g = torch.tensor([1.0 if k is None else self.gate.update(k, float(e))
+                g = torch.tensor([1.0 if k is None else (self.gate.update(k, float(e)) if gate_update
+                                                         else self.gate.gate(k))
                                   for k, e in zip(context_keys, ea.tolist())], dtype=ref.dtype, device=ref.device)
                 drop = drop * g
             comp["exploration"] = self.w.exploration * drop

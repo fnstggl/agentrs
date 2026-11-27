@@ -228,7 +228,7 @@ def policy_gradient_inner_loss(logp_fn: LogProbFn, reward_fn: Callable[[Params, 
     value_fn      V_theta(x) [n]: baseline (detached in the advantage) and regression target = intrinsic return
     loo_baseline  without a value function and without normalisation: leave-one-out mean baseline (in the graph)
     """
-    def loss(theta: Params, psi: Params, batch: Any) -> Tensor:
+    def loss(theta: Params, psi: Params, batch: Any, theta_sg: Optional[Params] = None) -> Tensor:
         lp = logp_fn(theta, batch)
         g = reward_fn(psi, batch)
         life = _lifetime_of(batch)
@@ -239,7 +239,8 @@ def policy_gradient_inner_loss(logp_fn: LogProbFn, reward_fn: Callable[[Params, 
             (lambda v: (_segment_sum(v, life, n_life) / _segment_sum(torch.ones_like(v), life, n_life)).sum())
         if value_fn is not None:
             v = value_fn(theta, batch)
-            adv = g - v.detach()
+            # the baseline is fixed for the inner derivative but is still a function of theta_k(psi)
+            adv = g - (v.detach() if theta_sg is None else value_fn(theta_sg, batch))
             out = per_life(-lp * adv) + value_coef * per_life(0.5 * (v - g) ** 2)
         else:
             adv = g
@@ -254,6 +255,7 @@ def policy_gradient_inner_loss(logp_fn: LogProbFn, reward_fn: Callable[[Params, 
         if entropy_fn is not None and entropy_coef:
             out = out - entropy_coef * per_life(entropy_fn(theta, batch))
         return out
+    loss.stopgrad_aware = value_fn is not None
     return loss
 
 
@@ -297,7 +299,11 @@ class MetaGradient:
     def __init__(self, inner_loss: InnerLoss, logp_fn: LogProbFn, *, inner_lr: float = 1e-2, K: int = 2,
                  mode: str = "unroll", weight_clip: float = 10.0, min_ess: float = 4.0,
                  min_ess_fraction: float = 0.05, min_propensity: float = 1e-6, min_independent: int = 1,
-                 self_normalise: bool = False, ema: float = 0.1):
+                 self_normalise: bool = False, ema: float = 0.1,
+                 grad_transform: Optional[Callable[[Sequence[str], Sequence[Optional[Tensor]]],
+                                                   Sequence[Optional[Tensor]]]] = None):
+        """``grad_transform(names, grads)`` is applied to the inner gradient inside the graph (e.g. a per-group
+        norm clip); it is part of the function that is differentiated."""
         if mode not in MODES:
             raise ValueError(f"mode must be one of {MODES}")
         self.inner_loss, self.logp_fn = inner_loss, logp_fn
@@ -306,18 +312,37 @@ class MetaGradient:
         self.min_propensity, self.min_independent = float(min_propensity), int(min_independent)
         self.self_normalise = self_normalise
         self.ema = ema
+        self.grad_transform = grad_transform
+        self.stopgrad_aware = bool(getattr(inner_loss, "stopgrad_aware", False))
+        self._alias: Optional[Params] = None
         self.objective_ema: Optional[float] = None       # running mean of J_hat: default score-term baseline
 
     # ---------------------------------------------------------------------------------------------- inner
     def inner_step(self, theta: Params, psi: Params, batch: Any, inner_lr: Optional[float] = None, *,
-                   create_graph: bool = True, first_order: bool = False) -> Tuple[Params, Tensor]:
-        """theta' = theta - alpha * grad_theta L_inner(theta; psi, batch). Returns (theta', loss)."""
+                   create_graph: bool = True, first_order: bool = False,
+                   theta_sg: Optional[Params] = None) -> Tuple[Params, Tensor]:
+        """theta' = theta - alpha * grad_theta L_inner(theta; psi, batch). Returns (theta', loss).
+
+        ``theta_sg``: tensors with the values of ``theta`` that are *not* the variables of the inner gradient
+        (see :func:`policy_gradient_inner_loss`). An inner loss marked ``stopgrad_aware`` receives them as
+        ``theta_sg=`` and uses them wherever it holds a quantity fixed for the inner derivative (the value
+        baseline): the update rule still depends on them, so the unroll differentiates through them. A plain
+        ``.detach()`` there would silently drop that path for K >= 2."""
         lr = self.inner_lr if inner_lr is None else float(inner_lr)
         at = {n: v.detach().requires_grad_(True) for n, v in theta.items()} if first_order else theta
         with torch.enable_grad():
-            L = self.inner_loss(at, psi, batch)
+            if self.stopgrad_aware:
+                sg = theta_sg if (theta_sg is not None and not first_order) else {n: v.detach() for n, v in at.items()}
+                L = self.inner_loss(at, psi, batch, theta_sg=sg)
+            else:
+                L = self.inner_loss(at, psi, batch)
             grads = torch.autograd.grad(L, list(at.values()), create_graph=create_graph, allow_unused=True)
+            if self.grad_transform is not None:
+                grads = self.grad_transform(list(at), grads)
         new = {n: (v if g is None else v - lr * g) for (n, v), g in zip(theta.items(), grads)}
+        # theta' once more as separate graph nodes with the same parents (the next step's ``theta_sg``)
+        self._alias = {n: (v if g is None else v - lr * g) for (n, v), g in zip(theta.items(), grads)} \
+            if (self.stopgrad_aware and create_graph and not first_order) else None
         return new, L
 
     def inner_update(self, theta: Params, psi_params: Params,
@@ -344,6 +369,7 @@ class MetaGradient:
         th = {n: v.detach().requires_grad_(True) for n, v in theta.items()}
         thetas, losses, used = [th], [], []
         score = None
+        alias: Optional[Params] = None                         # same values as th, a different graph node
         for k in range(K):
             batch = support_batches(k, {n: v.detach() for n, v in th.items()}) if callable(support_batches) \
                 else support_batches[k % len(support_batches)]
@@ -354,9 +380,11 @@ class MetaGradient:
                 s = lp.sum()[None] if life is None else _segment_sum(lp, life, n_lifetimes)
                 score = s if score is None else score + s
             th, L = self.inner_step(th, psi_params, batch, lr, create_graph=graph,
-                                    first_order=(mode == "first_order"))
+                                    first_order=(mode == "first_order"), theta_sg=alias)
+            alias = self._alias
             if not graph:
                 th = {n: v.detach().requires_grad_(True) for n, v in th.items()}
+                alias = None
             thetas.append(th)
             losses.append(float(L.detach()))
         return InnerTrace(thetas=thetas, psi=psi_params, batches=used, on_policy=flags, inner_lr=lr, mode=mode,
@@ -479,13 +507,25 @@ class MetaGradient:
             th = {n: trace.thetas[k][n].detach().requires_grad_(True) for n in names}
             ths = list(th.values())
             with torch.enable_grad():
-                L = self.inner_loss(th, trace.psi, trace.batches[k])
+                if self.stopgrad_aware:
+                    th2 = {n: trace.thetas[k][n].detach().requires_grad_(True) for n in names}
+                    ths2 = list(th2.values())
+                    L = self.inner_loss(th, trace.psi, trace.batches[k], theta_sg=th2)
+                else:
+                    ths2 = []
+                    L = self.inner_loss(th, trace.psi, trace.batches[k])
                 g = torch.autograd.grad(L, ths, create_graph=True, allow_unused=True)
+                if self.grad_transform is not None:
+                    g = self.grad_transform(names, g)
                 dot = sum((gi * li).sum() for gi, li in zip(g, lam) if gi is not None)
                 if not isinstance(dot, Tensor) or not dot.requires_grad:
                     vjp = [None] * (len(ths) + len(psi_list))
                 else:
-                    vjp = torch.autograd.grad(dot, ths + psi_list, allow_unused=True)
+                    full = torch.autograd.grad(dot, ths + ths2 + psi_list, allow_unused=True)
+                    v1, v2, vp = full[:len(ths)], full[len(ths):len(ths) + len(ths2)], full[len(ths) + len(ths2):]
+                    if ths2:                                   # both are theta_k: add the two partial derivatives
+                        v1 = [a if c is None else (c if a is None else a + c) for a, c in zip(v1, v2)]
+                    vjp = list(v1) + list(vp)
                 lam = [l if v is None else l - trace.inner_lr * v for l, v in zip(lam, vjp[:len(ths)])]
                 for i, v in enumerate(vjp[len(ths):]):
                     if v is not None:

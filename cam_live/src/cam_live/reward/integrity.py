@@ -260,6 +260,7 @@ class OutcomeLedger:
         self.path = path
         self._entries: List[LedgerEntry] = []
         self._keys: Dict[str, int] = {}
+        self._by_exp: Dict[str, List[int]] = {}
         self.rejected: List[Tuple[str, str]] = []            # (reason, key)
         if path and os.path.exists(path):
             self._load(path)
@@ -277,6 +278,8 @@ class OutcomeLedger:
         e = LedgerEntry(**{**body, "exp_ids": tuple(exp_ids)}, hash=_entry_hash(body))
         self._entries.append(e)
         self._keys[key] = e.index
+        for x in e.exp_ids:
+            self._by_exp.setdefault(x, []).append(e.index)
         if self.path:
             os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
             with open(self.path, "a") as f:
@@ -339,9 +342,19 @@ class OutcomeLedger:
                 e = LedgerEntry(**d)
                 self._entries.append(e)
                 self._keys[e.key] = e.index
+                for x in e.exp_ids:
+                    self._by_exp.setdefault(x, []).append(e.index)
         ok, bad = self.verify_chain()
         if not ok:
             raise IntegrityError(f"outcome ledger {path} fails its hash chain at entry {bad}")
+
+    def by_exp(self, exp_id: str) -> List[LedgerEntry]:
+        """Admitted entries credited to an experience record."""
+        return [self._entries[i] for i in self._by_exp.get(exp_id, ())]
+
+    def has_observation(self, o: OutcomeObservation) -> bool:
+        """Was this measurement admitted (authenticated and not a duplicate)?"""
+        return ("obs:" + _obs_key(o)) in self._keys
 
     def independent_groups(self, since_index: int = 0) -> int:
         return len({e.group for e in self._entries[since_index:]})
