@@ -66,6 +66,29 @@ def find_keys(x: Any, keys=PRIVILEGED_KEYS, path: str = "", out: list | None = N
     return out
 
 
+def registered_hidden(x: Any, depth: int = 0) -> Any:
+    """`x` (legacy-mode observations, events, results) without the fields the evaluator-only registry hides from
+    participants (`core.evaluator_only.EVENT_FIELDS` / `RESULT_FIELDS`): what observation-only mode removes on
+    purpose is not a legitimate field missing (e.g. the controller label of an admitted participant)."""
+    from ..core import evaluator_only as EO
+    if depth > 24:
+        return x
+    if isinstance(x, dict):
+        keys = ()
+        if isinstance(x.get("type"), str) and isinstance(x.get("payload"), dict):
+            keys = EO.EVENT_FIELDS.get(x["type"], ())
+            if keys:
+                x = dict(x, payload=EO._strip(x["payload"], frozenset(keys)))
+        if isinstance(x.get("tool"), str) and "result" in x:
+            keys = EO.RESULT_FIELDS.get(x["tool"], ())
+            if keys:
+                x = dict(x, result=EO._strip(x["result"], frozenset(keys)))
+        return {k: registered_hidden(v, depth + 1) for k, v in x.items()}
+    if isinstance(x, list):
+        return [registered_hidden(v, depth + 1) for v in x]
+    return x
+
+
 def dump(x: Any) -> str:
     def default(o):
         if isinstance(o, np.ndarray):
@@ -236,7 +259,7 @@ def _gym_metrics(runs: dict, multi: bool) -> dict:
     # mode's tool list carries the 4.0 evaluator tools)
     def evs(infos):
         return [(i.get("events") if not multi else {a: x.get("events") for a, x in i.items()}) for i in infos]
-    legit = sum(1 for a, b in zip(evs(leg["infos"]), evs(oo["infos"])) if dump(a) != dump(b))
+    legit = sum(1 for a, b in zip(evs(leg["infos"]), evs(oo["infos"])) if dump(registered_hidden(a)) != dump(b))
     verified = 1 if (oo["verify"] and (("progress" in oo["verify"]) if not multi else
                                        all("progress" in v for v in oo["verify"].values()))) else 0
     legacy_nonzero = sum(1 for r in leg["rewards"] if (any(x != 0 for x in r) if multi else r != 0))
@@ -472,6 +495,7 @@ def _legit_missing_kernel(leg: list, obs: list) -> int:
     n = 0
     for x, y in zip(leg, obs):
         if isinstance(x, dict) and "numbers" in x and isinstance(y, dict):
+            x = registered_hidden(x)
             for f in ("numbers", "resources", "events", "entities", "analytics"):
                 if dump(x.get(f)) != dump(y.get(f)):
                     n += 1
