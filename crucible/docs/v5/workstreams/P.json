@@ -91,8 +91,8 @@
     "tests/v5/test_gate_X.py",
     "tests/test_v5_acceptance_baseline.py"
    ],
-   "status_claim": "implemented; runnable end to end through the slot scheduler (smoke-tested on a private ledger); fails honestly until integration completes",
-   "notes": "run_pytest_groups(via_slots=...): one slot job per resource class and worker share (SUITE_RESOURCES, overridable by CRUCIBLE_GATE_X_RESOURCES); a gate X job run inside a slot schedules its groups inside its own grant (nested ledger)."
+   "status_claim": "implemented; whole-suite plan per gate file with measured resources; fails honestly until integration",
+   "notes": "Wave 3b repair pass: baseline.suite_plan gives every gate file (tests/v5/) a slot job of its own and packs unit-test files per resource class into jobs of about an hour; each job asks for its class's CPU/GPU, 1.5x the measured peak RSS of its files (governor usage ledger) and 3x their measured wall time (an unmeasured gate file keeps its class's multi-hour allowance); at most CRUCIBLE_GATE_X_INFLIGHT (8) slot clients wait at once and the parent never kills a queued job (the governor enforces each job's timeout after admission). On the real tree: 224 files -> 126 jobs. Before, SUITE_RESOURCES put 99 gate files into one 6-hour job run by one pytest process, which the governor would have killed (verifier). Not run end to end on the whole suite here (multi-day; for the final QA pass)."
   },
   "X.3": {
    "implementation_files": [
@@ -202,7 +202,7 @@
     "tests/v5/test_gate_SP_1_3.py"
    ],
    "status_claim": "fails honestly",
-   "notes": "After merge-workstreams: 212 of 354 entries without implementation files (was 262), 354 without a verified commit."
+   "notes": "After merge-workstreams on this branch: 130 of 354 entries without implementation files, 354 without a verified commit. All 130 are listed with implementation files by the workstreams JSONs of the c5c/w3b-* branches (counted 2026-11-27 from those branches' docs/v5/workstreams/*.json, which this branch does not carry): running `python -m crucible.acceptance.v5 merge-workstreams` on the integration branch after the wave-3b merges fills them (additions only, recorded in the ledger). (The earlier '212' was stale.)"
   },
   "SP-1.5": {
    "implementation_files": [
@@ -279,7 +279,7 @@
     "tests/test_v5_acceptance_baseline.py"
    ],
    "status_claim": "implemented and adversarially re-verified in wave 3b (P31-P39); measured locally (see tests)",
-   "notes": "Wave 3b: P31-P37 (D-83) and, after the second usage-limit stop, P38 (criteria computed from the implementation's text or bytecode without executing it reached VERIFIED: the ablation now blocks execution, files byte-identical) and P39 (pinned tree start-up hooks). P38b: a test reading or installing interpreter hooks (sys.monitoring, settrace/setprofile) is a blocking interpreter_probe finding."
+   "notes": "Wave 3b: P31-P37 (D-83) and, after the second usage-limit stop, P38 (criteria computed from the implementation's text or bytecode without executing it reached VERIFIED: the ablation now blocks execution, files byte-identical) and P39 (pinned tree start-up hooks). P38b: a test reading or installing interpreter hooks (sys.monitoring, settrace/setprofile) is a blocking interpreter_probe finding. Repair pass after the second independent verification (D-83 third addendum): probes V1 (honest evidence with the pinned governor hook now VERIFIED), V2b/V3 + a finally-divergence probe (ablation judged by the block log), V3b (the ablated clone's commit looks like the evidence commit), V4 (code-object patches, assigned and hidden behind setattr), V5 (re-pinned patcher hooks), V6/V6c (recording machinery listed as implementation), V8 (start-up hook outside crucible/), and the P38b evasions as parametrized static probes."
   },
   "SP-19.7": {
    "implementation_files": [
@@ -311,8 +311,8 @@
    "tests": [
     "tests/v5/test_gate_RP.py"
    ],
-   "status_claim": "implemented (relocation done, D-81); fails honestly: 6 CAM imports left, all in workstream L's leakage probes",
-   "notes": "Relocated to the AGENTRS side with history: src/agentrs/cam2/envs/crucible_adapter.py, src/agentrs/sl/crucible_world.py, scripts/cam2/crucible_ow_baseline.py, tests/cam2/test_crucible_adapter.py, tests/test_sl_crucible_world.py (6 passed, 1 skipped without GPU: the Qwen replay test). cam_scan at a88c88e: 829 files, cam_imports_in_crucible 6 (experience/probes.py:942,984,985; tests/test_v5_experience_core.py:220,221; tests/test_v5_experience_oo.py:322 - workstream L removes them), gates_depending_on_cam 0."
+   "status_claim": "implemented (relocation done, D-81); fails honestly: 6 CAM imports left (workstream L's, removed on c5c/w3b-obs by 2d25a0d5) and 10 gates whose measurement loads AGENTRS code (the scan now follows what each gate runs)",
+   "notes": "Relocated to the AGENTRS side with history: src/agentrs/cam2/envs/crucible_adapter.py, src/agentrs/sl/crucible_world.py, scripts/cam2/crucible_ow_baseline.py, tests/cam2/test_crucible_adapter.py, tests/test_sl_crucible_world.py (6 passed, 1 skipped without GPU: the Qwen replay test). cam_scan at a88c88e: 829 files, cam_imports_in_crucible 6 (experience/probes.py:942,984,985; tests/test_v5_experience_core.py:220,221; tests/test_v5_experience_oo.py:322 - workstream L removes them), gates_depending_on_cam 0. Wave 3b repair pass: qa.cam_scan's gates_depending_on_cam no longer reads only requirement texts; qa.gates_running_agentrs_code follows each requirement's producing test functions, the implementation functions and module constants they name, and every test of its other test files, and counts an `agentrs` module named as a string or imported. On this branch: A.1 (the AGENTRS alias plugin agentrs.cam2.envs.crucible_v4_names and the relocated CAM node ids run in its children) and 9 L-owned requirements (OO.2, OO.4, R.1, R.2, R.n1, S.2, S.4, S.6, SP-11.4: the CAM probes in experience/probes.py and the two L unit tests, removed on c5c/w3b-obs). A.1 vs RP.1 is a requirement conflict that needs an orchestrator decision (integration notes)."
   },
   "RP.2": {
    "implementation_files": [
@@ -410,7 +410,7 @@
   "Session identity: give the producer and the reviewer different CRUCIBLE_V5_SESSION values (sub-agents of one harness session share CLAUDE_CODE_SESSION_ID).",
   "Known failures on c5c/w3b-qa caused by RP.1 and owned by L: tests/test_v5_experience_oo.py::test_sl_adapter_pays_nothing_and_never_ends_on_the_verifier_by_default and tests/test_v5_experience_core.py::test_cam2_adapter_reward_modes import crucible.integrations.agentrs_sl/_cam2 (moved to the AGENTRS side by D-81); L's removal of the CAM probes fixes both."
  ],
- "wave": "3b (continuation after two usage-limit stops; third agent on the branch)",
+ "wave": "3b repair pass (fourth agent on the branch, after the second independent verification)",
  "history": [
   {
    "wave": "3 (independent adversarial verification of wave 1's hardened checker; c5c/w1-qa's verifier never ran)",
@@ -469,6 +469,11 @@
     "Defects for other workstreams found by Gate A: DEF-P-25 (semantic/space resolves the LM revision at import time and imports huggingface_hub in every process: a native thread breaks the 4.0 single-threaded worker test) for D/INT; DEF-P-24 (A.1 vs Clarification 2) needs an orchestrator decision.",
     "Session identity: the checker compares the hashed CRUCIBLE_V5_SESSION (else CLAUDE_CODE_SESSION_ID) of producer and reviewer; sub-agents of one harness session may share CLAUDE_CODE_SESSION_ID, so give each agent its own CRUCIBLE_V5_SESSION, or the review is refused as a self-review."
    ]
+  },
+  {
+   "wave": "3b repair pass",
+   "date": "2026-11-27",
+   "summary": "Fixed every finding of the wave-3b second verification: P39 applied at the evidence commit and pins moved into the ledger with a decision quoting the hash plus a content scan of pinned hooks (V1, V5); interpreter probes by whitelist (P38b); ablation verdict from a block log, replacement ablation commit (V2b, V3); code-object patch detection (V4); recording machinery exempt from ablation (V6, V6c); whole-repository hook/ignored/compiled scans (V8); RP.1 scan follows what gates run (A.1 found); Gate X per-file slot plan; DEF-P-27 triage corrected; SP-1.3b count corrected."
   }
  ],
  "test_results_unofficial": {
