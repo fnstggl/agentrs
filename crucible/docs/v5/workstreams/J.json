@@ -111,10 +111,11 @@
     "src/crucible/civ/subsystems.py"
    ],
    "tests": [
+    "tests/test_v5_civ_measures.py",
     "tests/v5/test_gate_O.py"
    ],
-   "status_claim": "fails at e77fef3 with three seeds (0 multi-stage chains: every chain stopped at two confirmed stages; the provider-wide compute and energy stage measures sat below the reshuffling noise of the whole provider's load). 3fefdf2 adds low-noise stage measures fixed before the run (compute the agent's deployment served to others, payments by population individuals, energy per good unit of the bound machines) and six seeds; re-measured in the lane (appended part of 'J: civ final gate lane')",
-   "notes": ""
+   "status_claim": "fails at a54f53d (six seeds, GPU lane): multi_stage_chains 0. agent-artifact chain (shop removed): 2 confirmed stages - software_development root and computing_infrastructure (compute its deployment served to others: -543 cu, CI [-776, -311], noise 216); population visitors -8.3 (CI [-12.6, -4.0]) stayed below twice the reshuffling noise (5.9 visitors) and purchases happened in one seed of six. Social chain (posts removed): 1 stage (visitors -5.7, compute -193, both below noise). Technical chain (paper withheld): 2 stages - scientific_research root and industry (adopted settings -3.3, true process quality -0.35, CI [-0.49, -0.21], noise 0.05); yield -0.22 (noise 0.36), energy per good unit and goods bought not confirmed. An agent chain was mined from provenance in every seed's reference arm (84 shop, 24 science)",
+   "notes": "At the development population (1,042 individuals) a single shop's whole audience is 3-14 visitors in six days, which a placebo pair moves by up to 11: the social and economic stages of a small agent's artifact are below the reshuffling noise at this scale. Recommended next measurement: the shop chains at the standard population (10,296; about 75 s per simulated day; ~40 min per seed single-worker) and a technical chain whose third stage is a subsystem the process settings act on with less noise."
   },
   "O.7": {
    "implementation_files": [
@@ -364,7 +365,7 @@
     "tests/test_v5_civ_measures.py",
     "tests/v5/test_gate_SP_10_3.py"
    ],
-   "status_claim": "fails at e77fef3 with three seeds (no chain class reached three confirmed stages); re-measured on six seeds with the 3fefdf2 stage measures in the lane",
+   "status_claim": "fails at a54f53d (six seeds): chains_with_agent_artifact 0, chains_with_social_activity 0, chains_with_technical_activity 0 (2, 1 and 2 confirmed stages; details under O.6)",
    "notes": ""
   },
   "SP-10.3b": {
@@ -383,9 +384,10 @@
     "src/crucible/civ/subsystems.py"
    ],
    "tests": [
+    "tests/test_v5_civ_measures.py",
     "tests/v5/test_gate_SP_10_3b.py"
    ],
-   "status_claim": "at e77fef3: scripted_chain_stages 0, unlabelled_scripted_results 0, chains_replicated_across_seeds 0 (no chain had three confirmed stages, although an agent chain was mined from provenance in every seed's reference arm); re-measured on six seeds in the lane",
+   "status_claim": "fails at a54f53d (six seeds): chains_replicated_across_seeds 0 (no chain with three confirmed stages; a mined agent chain exists in every seed), unlabelled_scripted_results 0, scripted_chain_stages 2 - one mined shop chain (seed 22) counted the content-catalogue mirror of the agent's own forum post as a later scripted stage; fixed in 98278114 (every event of the root's own transaction belongs to the root stage; unit test), not re-measured",
    "notes": ""
   },
   "SP-2.1b": {
@@ -422,8 +424,8 @@
    "tests": [
     "tests/v5/test_gate_SP_17_1.py"
    ],
-   "status_claim": "fails: 2 of 10 gates held at e77fef3 (J and L re-demonstrated in a civilisation with every requirement met); B fails on the development population (B.1 1,032 < 10,000 participants, B.2 57,547 < 100,000 sessions; B.3-B.5 met), C.2-C.4 and K.4-K.5 met, other requirements of B/C/K not measured on a civilisation; Gate D's whole battery now runs on a civilisation (crucible.civ.redemo.d_battery, re-measured in the final lane); E, G, H, Q not measured",
-   "notes": ""
+   "status_claim": "fails at 02c300f (GPU lane): world_gates_redemonstrated_in_civilization 2 of 10 (J and L: every requirement met in a civilisation). Measured on civilisations with the gates' own code: B.3-B.5 met, B.1/B.2 not met on the development population (1,032 < 10,000 participants, 58,116 < 100,000 sessions), B.6 not measured; C.2-C.4 met, C.1/C.5/C.6/C.n1 not measured; D.1, D.2, D.4, D.5 met, D.3 not met (the scheduled change shifts exposure, p 0.002, but the blog platform's self-adaptation never triggered: 0 changes, p 0.23); G.1, G.4, G.5, G.7 met, G.2 not met (191 of 256 adaptive individuals with a distinct personal state in two 5-day phases), G.3 not met (largest adaptive inference batch 16 < 64: in a civilisation the adaptive individuals' sessions are spread over the day), G.6/G.n1 not met (lowest seed's CI low -0.0065, means +0.057/+0.051/..); H.1-H.3 and H.6-H.8 met, H.4/H.5/H.n1 not measured (held-out sets staged in 4.0 worlds); K.4/K.5 met, others not measured; E and Q not measured (no civilisation-staged multimodal battery; Gate Q has no implementation on this branch)",
+   "notes": "partial_world_only_gates 8. Wall 4,058 s for the whole re-demonstration (2 CPUs, ~4.5 GB GPU)."
   },
   "SP-19.3": {
    "implementation_files": [
