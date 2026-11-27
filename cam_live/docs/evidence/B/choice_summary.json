@@ -1,0 +1,2118 @@
+{
+ "about": "choice_diagnostic.py reports aggregated by summarise_choice.py (debug scale: tiny random backbone + debug core, LabWorld F1, schema-walker candidates, 16 decisions x 8 lifetimes per seed, world seeds 10000+100*seed+i; engineering diagnostic, not a scientific result). Arms: before_E = condition E on the snapshot of 6e83bcf (HEAD when LRN started; rule policy + INT2's value prior), seeds 0-2; after_E / after_D / after_E_mix0 = the LRN code of f8f3b5d with selection_rule thompson_policy, seeds 0-2 / 0-1 / 0-1; intermediate_v1_E = an earlier version of the LRN code (rule without the policy projection and without the model term); after_E_rule_policy = that earlier version with rule policy. Raw reports: choice_runs_20261127.tar.xz. Quality = truth(chosen) / max truth(C_t); expected_quality = sum_i p_i truth_i / max truth; greedy_pred_quality = truth(argmax q_goal) / max truth; policy_quality = the policy head's own softmax, same measure; intervals: bootstrap over lifetimes.",
+ "arms": {
+  "before_E": {
+   "runs": [
+    {
+     "file": "before_E_s0.json",
+     "seed": 0,
+     "lifetimes": 8,
+     "selection_rule": "policy",
+     "summary": {
+      "n_decisions": 101,
+      "expected_quality": 0.31421405978335465,
+      "quality": 0.302783986308724,
+      "uniform_quality": 0.21070241362085068,
+      "greedy_pred_quality": 0.23713706566035284,
+      "policy_quality": 0.21445797359168392,
+      "spearman_pred_truth": 0.7563755144155099,
+      "zero_value_share": 0.06930693069306931,
+      "share_positive_stored_reward_to_zero_value": 0.32912999637710066,
+      "share_positive_inner_reward_to_zero_value": 0.00015177053159059898,
+      "spearman_inner_reward_truth": 0.25856505751411113,
+      "per_lifetime_spearman_pred_vs_expected_quality": 0.5476190476190477,
+      "expected_adopters_per_decision": 2.192524860943189,
+      "progress": 0.8013729774394387,
+      "mix_trajectory": [
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0
+      ],
+      "mix_decisions": [
+       {
+        "action": "raise",
+        "reason": "no_harm_not_established",
+        "mix_before": 1.0,
+        "mix_after": 1.0,
+        "n": 9,
+        "mean_diff": -0.00020027639058767954,
+        "lower": -0.0007817215228333296,
+        "upper": 0.00038116874165797053,
+        "margin": null
+       }
+      ],
+      "meta_applied": 0,
+      "policy_updates": 33
+     }
+    },
+    {
+     "file": "before_E_s1.json",
+     "seed": 1,
+     "lifetimes": 8,
+     "selection_rule": "policy",
+     "summary": {
+      "n_decisions": 100,
+      "expected_quality": 0.36053007820880323,
+      "quality": 0.32672001126709177,
+      "uniform_quality": 0.1527573938910647,
+      "greedy_pred_quality": 0.4785510927587689,
+      "policy_quality": 0.15133344385123482,
+      "spearman_pred_truth": 0.9071772423592119,
+      "zero_value_share": 0.12,
+      "share_positive_stored_reward_to_zero_value": 0.13070078792409962,
+      "share_positive_inner_reward_to_zero_value": 0.0018635539607367697,
+      "spearman_inner_reward_truth": 0.5081866272239816,
+      "per_lifetime_spearman_pred_vs_expected_quality": 0.21428571428571427,
+      "expected_adopters_per_decision": 2.169496927777684,
+      "progress": 0.638470174395846,
+      "mix_trajectory": [
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0
+      ],
+      "mix_decisions": [
+       {
+        "action": "raise",
+        "reason": "no_harm_not_established",
+        "mix_before": 1.0,
+        "mix_after": 1.0,
+        "n": 8,
+        "mean_diff": 0.001218974037777515,
+        "lower": -0.0005524231652122786,
+        "upper": 0.0029903712407673083,
+        "margin": null
+       }
+      ],
+      "meta_applied": 0,
+      "policy_updates": 32
+     }
+    },
+    {
+     "file": "before_E_s2.json",
+     "seed": 2,
+     "lifetimes": 8,
+     "selection_rule": "policy",
+     "summary": {
+      "n_decisions": 111,
+      "expected_quality": 0.2614296428487014,
+      "quality": 0.25600058514648794,
+      "uniform_quality": 0.2178185176195709,
+      "greedy_pred_quality": 0.2744869950024832,
+      "policy_quality": 0.22175796402210043,
+      "spearman_pred_truth": 0.6656044129077336,
+      "zero_value_share": 0.10810810810810811,
+      "share_positive_stored_reward_to_zero_value": 0.0,
+      "share_positive_inner_reward_to_zero_value": 0.0,
+      "spearman_inner_reward_truth": 0.3399199948501649,
+      "per_lifetime_spearman_pred_vs_expected_quality": 0.38095238095238093,
+      "expected_adopters_per_decision": 1.2427812707067576,
+      "progress": 0.302784158835294,
+      "mix_trajectory": [
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0
+      ],
+      "mix_decisions": [
+       {
+        "action": "raise",
+        "reason": "no_harm_not_established",
+        "mix_before": 1.0,
+        "mix_after": 1.0,
+        "n": 8,
+        "mean_diff": -0.0022752791344689068,
+        "lower": -0.006017353355593174,
+        "upper": 0.0014667950866553607,
+        "margin": null
+       }
+      ],
+      "meta_applied": 0,
+      "policy_updates": 36
+     }
+    }
+   ],
+   "n_lifetimes": 24,
+   "n_decisions": 312,
+   "expected_quality": {
+    "mean": 0.3112097931194104,
+    "ci95": [
+     0.2757576323096101,
+     0.34419871918377787
+    ]
+   },
+   "quality": {
+    "mean": 0.2986038261851212,
+    "ci95": [
+     0.2563399204288846,
+     0.34415513436429385
+    ]
+   },
+   "uniform_quality": {
+    "mean": 0.19372703925488943,
+    "ci95": [
+     0.17274591231126335,
+     0.2147012491735777
+    ]
+   },
+   "greedy_pred_quality": {
+    "mean": 0.3360690024474551,
+    "ci95": [
+     0.25339604313874237,
+     0.4281671068203649
+    ]
+   },
+   "policy_quality": {
+    "mean": 0.19586393288852685,
+    "ci95": [
+     0.17394660107358698,
+     0.21791814962898445
+    ]
+   },
+   "spearman_pred_truth": {
+    "mean": 0.7756012574239923,
+    "ci95": [
+     0.7321981997948245,
+     0.8220674365753228
+    ]
+   },
+   "spearman_policy_truth": {
+    "mean": 0.2727916889846079,
+    "ci95": [
+     0.071768359563826,
+     0.46465887516403986
+    ]
+   },
+   "policy_share_tv": {
+    "mean": null,
+    "ci95": null
+   },
+   "progress": {
+    "mean": 0.5808757702235262,
+    "ci95": [
+     0.4439779260564391,
+     0.717258955432844
+    ]
+   },
+   "zero_value_share": {
+    "mean": 0.08576753108003109,
+    "ci95": [
+     0.05451753108003108,
+     0.1187900641025641
+    ]
+   },
+   "expected_adopters_per_decision": 1.8472545666073097,
+   "corr_lifetime_greedy_pred_quality_vs_expected_quality": 0.7580819890252762,
+   "corr_lifetime_spearman_pred_vs_expected_quality": 0.6486517860422634,
+   "ratio_expected_quality_to_greedy_pred_quality": 0.9260294488720915,
+   "corr_decision_spearman_pred_vs_expected_quality": 0.4159803970173667,
+   "expected_quality_by_prediction_rank_quality": {
+    "rho<0.5": {
+     "mean": 0.17514109018809998,
+     "n": 18
+    },
+    "rho>=0.8": {
+     "mean": 0.3604714276423002,
+     "n": 157
+    },
+    "0.5<=rho<0.8": {
+     "mean": 0.2705165288465552,
+     "n": 137
+    }
+   },
+   "within_lifetime": {
+    "early": {
+     "expected_quality": 0.2690034917880631,
+     "greedy_pred_quality": 0.2316171838816869,
+     "spearman_pred_truth": 0.6964047008459394,
+     "n": 115
+    },
+    "middle": {
+     "expected_quality": 0.3275960089863139,
+     "greedy_pred_quality": 0.3786502147601834,
+     "spearman_pred_truth": 0.8262807689744052,
+     "n": 99
+    },
+    "late": {
+     "expected_quality": 0.3412235894891088,
+     "greedy_pred_quality": 0.3893026729101634,
+     "spearman_pred_truth": 0.8071980030499694,
+     "n": 98
+    }
+   },
+   "slope_over_lifetimes_expected_quality": 0.003931741825328637,
+   "slope_over_lifetimes_greedy_pred_quality": -0.0018623647469532727,
+   "slope_over_lifetimes_policy_quality": 0.002467600193539312,
+   "slope_over_lifetimes_spearman_pred_truth": 0.0055241194326902665,
+   "slope_over_lifetimes_spearman_policy_truth": 0.0071130111596578475,
+   "expected_quality_lifetimes_0_3": 0.30538131358790765,
+   "expected_quality_lifetimes_4_7": 0.31703827265091317,
+   "policy_quality_lifetimes_0_3": 0.18835752902553404,
+   "policy_quality_lifetimes_4_7": 0.20337033675151964,
+   "greedy_pred_quality_lifetimes_0_3": 0.33191728978385965,
+   "greedy_pred_quality_lifetimes_4_7": 0.3402207151110505,
+   "share_positive_stored_reward_to_zero_value": 0.15925347575966373,
+   "share_positive_inner_reward_to_zero_value": 0.0007105535166879811,
+   "mean_inner_reward_zero_value_vs_valued": {
+    "zero_value": 0.0010385109945350596,
+    "valued": 0.4406907364745331
+   },
+   "mix_end_by_run": [
+    [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ]
+   ],
+   "mix_decisions": [
+    {
+     "action": "raise",
+     "reason": "no_harm_not_established",
+     "mix_before": 1.0,
+     "mix_after": 1.0,
+     "n": 9,
+     "mean_diff": -0.00020027639058767954,
+     "lower": -0.0007817215228333296,
+     "upper": 0.00038116874165797053,
+     "margin": null
+    },
+    {
+     "action": "raise",
+     "reason": "no_harm_not_established",
+     "mix_before": 1.0,
+     "mix_after": 1.0,
+     "n": 8,
+     "mean_diff": 0.001218974037777515,
+     "lower": -0.0005524231652122786,
+     "upper": 0.0029903712407673083,
+     "margin": null
+    },
+    {
+     "action": "raise",
+     "reason": "no_harm_not_established",
+     "mix_before": 1.0,
+     "mix_after": 1.0,
+     "n": 8,
+     "mean_diff": -0.0022752791344689068,
+     "lower": -0.006017353355593174,
+     "upper": 0.0014667950866553607,
+     "margin": null
+    }
+   ]
+  },
+  "after_E": {
+   "runs": [
+    {
+     "file": "after_E_tp_s0.json",
+     "seed": 0,
+     "lifetimes": 8,
+     "selection_rule": "thompson_policy",
+     "summary": {
+      "n_decisions": 88,
+      "expected_quality": 0.38715855786620085,
+      "quality": 0.36194699191757,
+      "uniform_quality": 0.22553694144037556,
+      "greedy_pred_quality": 0.3275323666140761,
+      "policy_quality": 0.3660827194919518,
+      "spearman_pred_truth": 0.762062860070127,
+      "zero_value_share": 0.045454545454545456,
+      "share_positive_stored_reward_to_zero_value": 0.05723993422399467,
+      "share_positive_inner_reward_to_zero_value": 0.0,
+      "spearman_inner_reward_truth": 0.4290588258205496,
+      "per_lifetime_spearman_pred_vs_expected_quality": 0.09523809523809523,
+      "expected_adopters_per_decision": 2.228953242499798,
+      "progress": 0.6941997552285689,
+      "mix_trajectory": [
+       1.0,
+       0.75,
+       0.75,
+       0.75,
+       0.75,
+       0.75,
+       0.75,
+       0.75
+      ],
+      "mix_decisions": [
+       {
+        "action": "lower",
+        "reason": "held_out_evidence_shows_no_harm",
+        "mix_before": 1.0,
+        "mix_after": 0.75,
+        "n": 4,
+        "mean_diff": 0.125080469586775,
+        "lower": -1.321291365652487,
+        "upper": 1.5714523048260367,
+        "margin": 2.0566146879754275
+       },
+       {
+        "action": "hold",
+        "reason": "inconclusive_evidence",
+        "mix_before": 0.75,
+        "mix_after": 0.75,
+        "n": 6,
+        "mean_diff": 5.746592343409142,
+        "lower": -8.323566251590794,
+        "upper": 19.816750938409076,
+        "margin": 2.5139270142167813
+       }
+      ],
+      "meta_applied": 0,
+      "policy_updates": 29
+     }
+    },
+    {
+     "file": "after_E_tp_s1.json",
+     "seed": 1,
+     "lifetimes": 8,
+     "selection_rule": "thompson_policy",
+     "summary": {
+      "n_decisions": 122,
+      "expected_quality": 0.2779491814557958,
+      "quality": 0.2652324874692601,
+      "uniform_quality": 0.18416646425128644,
+      "greedy_pred_quality": 0.2848440598393471,
+      "policy_quality": 0.23206741746334375,
+      "spearman_pred_truth": 0.5404611744374574,
+      "zero_value_share": 0.1721311475409836,
+      "share_positive_stored_reward_to_zero_value": 0.024701655168948396,
+      "share_positive_inner_reward_to_zero_value": 0.0,
+      "spearman_inner_reward_truth": 0.6518349918929996,
+      "per_lifetime_spearman_pred_vs_expected_quality": 0.07142857142857142,
+      "expected_adopters_per_decision": 2.6647477773225354,
+      "progress": 0.7692786453873746,
+      "mix_trajectory": [
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0
+      ],
+      "mix_decisions": [
+       {
+        "action": "hold",
+        "reason": "inconclusive_evidence",
+        "mix_before": 1.0,
+        "mix_after": 1.0,
+        "n": 4,
+        "mean_diff": 3.32557395974589,
+        "lower": -6.327196550085938,
+        "upper": 12.978344469577719,
+        "margin": 5.546034512183403
+       },
+       {
+        "action": "hold",
+        "reason": "inconclusive_evidence",
+        "mix_before": 1.0,
+        "mix_after": 1.0,
+        "n": 6,
+        "mean_diff": 1.970790124426861,
+        "lower": -6.044240967331389,
+        "upper": 9.98582121618511,
+        "margin": 1.9901757213054023
+       },
+       {
+        "action": "hold",
+        "reason": "inconclusive_evidence",
+        "mix_before": 1.0,
+        "mix_after": 1.0,
+        "n": 4,
+        "mean_diff": -8.741982990224715,
+        "lower": -29.209629864788667,
+        "upper": 11.72566388433924,
+        "margin": 1.7728113789313236
+       }
+      ],
+      "meta_applied": 0,
+      "policy_updates": 40
+     }
+    },
+    {
+     "file": "after_E_tp_s2.json",
+     "seed": 2,
+     "lifetimes": 8,
+     "selection_rule": "thompson_policy",
+     "summary": {
+      "n_decisions": 95,
+      "expected_quality": 0.4580141150639631,
+      "quality": 0.5198697912525377,
+      "uniform_quality": 0.2429195079336726,
+      "greedy_pred_quality": 0.5587090455869926,
+      "policy_quality": 0.3312371315162902,
+      "spearman_pred_truth": 0.7715291559805317,
+      "zero_value_share": 0.031578947368421054,
+      "share_positive_stored_reward_to_zero_value": 0.0,
+      "share_positive_inner_reward_to_zero_value": 0.0,
+      "spearman_inner_reward_truth": 0.4705594440452526,
+      "per_lifetime_spearman_pred_vs_expected_quality": 0.8095238095238095,
+      "expected_adopters_per_decision": 3.1926286300292017,
+      "progress": 0.5516670717650135,
+      "mix_trajectory": [
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0
+      ],
+      "mix_decisions": [
+       {
+        "action": "hold",
+        "reason": "inconclusive_evidence",
+        "mix_before": 1.0,
+        "mix_after": 1.0,
+        "n": 4,
+        "mean_diff": 0.42711731803703634,
+        "lower": -8.424474115977404,
+        "upper": 9.278708752051475,
+        "margin": 5.76838078129103
+       }
+      ],
+      "meta_applied": 0,
+      "policy_updates": 31
+     }
+    }
+   ],
+   "n_lifetimes": 24,
+   "n_decisions": 305,
+   "expected_quality": {
+    "mean": 0.37535821267095554,
+    "ci95": [
+     0.3207665312988894,
+     0.4277854330139809
+    ]
+   },
+   "quality": {
+    "mean": 0.3839900319703436,
+    "ci95": [
+     0.3172200744593123,
+     0.449160905140441
+    ]
+   },
+   "uniform_quality": {
+    "mean": 0.2161259458795556,
+    "ci95": [
+     0.19624066502375148,
+     0.23704789038321658
+    ]
+   },
+   "greedy_pred_quality": {
+    "mean": 0.39198174655118523,
+    "ci95": [
+     0.3093421409307134,
+     0.47820357000315655
+    ]
+   },
+   "policy_quality": {
+    "mean": 0.3078849260183197,
+    "ci95": [
+     0.2633736692292183,
+     0.3564752461345255
+    ]
+   },
+   "spearman_pred_truth": {
+    "mean": 0.6960168252910814,
+    "ci95": [
+     0.6395874281954578,
+     0.7466886865325612
+    ]
+   },
+   "spearman_policy_truth": {
+    "mean": 0.6895902635819463,
+    "ci95": [
+     0.6236353202426038,
+     0.7486443308116435
+    ]
+   },
+   "policy_share_tv": {
+    "mean": 0.20559376784962724,
+    "ci95": [
+     0.1466116240530303,
+     0.2727526849597162
+    ]
+   },
+   "progress": {
+    "mean": 0.671715157460319,
+    "ci95": [
+     0.5346227253921182,
+     0.7961231888084338
+    ]
+   },
+   "zero_value_share": {
+    "mean": 0.07702546296296296,
+    "ci95": [
+     0.03501157407407408,
+     0.12760416666666666
+    ]
+   },
+   "expected_adopters_per_decision": 2.7034322427085438,
+   "corr_lifetime_greedy_pred_quality_vs_expected_quality": 0.7039840827900323,
+   "corr_lifetime_spearman_pred_vs_expected_quality": 0.6185490371234694,
+   "ratio_expected_quality_to_greedy_pred_quality": 0.9575910510464064,
+   "corr_decision_spearman_pred_vs_expected_quality": 0.42674232151775443,
+   "expected_quality_by_prediction_rank_quality": {
+    "rho<0.5": {
+     "mean": 0.22629280739115998,
+     "n": 43
+    },
+    "0.5<=rho<0.8": {
+     "mean": 0.33391458047596645,
+     "n": 167
+    },
+    "rho>=0.8": {
+     "mean": 0.4841765105642418,
+     "n": 95
+    }
+   },
+   "within_lifetime": {
+    "early": {
+     "expected_quality": 0.3522551190399911,
+     "greedy_pred_quality": 0.4072124239669462,
+     "spearman_pred_truth": 0.6566283132539821,
+     "n": 112
+    },
+    "middle": {
+     "expected_quality": 0.3895946062471044,
+     "greedy_pred_quality": 0.4091641005778152,
+     "spearman_pred_truth": 0.7187079234484186,
+     "n": 99
+    },
+    "late": {
+     "expected_quality": 0.3560495192549671,
+     "greedy_pred_quality": 0.32485261118831543,
+     "spearman_pred_truth": 0.6553043540409794,
+     "n": 94
+    }
+   },
+   "slope_over_lifetimes_expected_quality": 0.003926104083479846,
+   "slope_over_lifetimes_greedy_pred_quality": 0.0002520115681179378,
+   "slope_over_lifetimes_policy_quality": 0.005158485677935048,
+   "slope_over_lifetimes_spearman_pred_truth": 0.013656110773655646,
+   "slope_over_lifetimes_spearman_policy_truth": 0.01745936728895741,
+   "expected_quality_lifetimes_0_3": 0.3754867032608615,
+   "expected_quality_lifetimes_4_7": 0.3752297220810496,
+   "policy_quality_lifetimes_0_3": 0.30137131802257483,
+   "policy_quality_lifetimes_4_7": 0.31439853401406453,
+   "greedy_pred_quality_lifetimes_0_3": 0.3913495918462871,
+   "greedy_pred_quality_lifetimes_4_7": 0.3926139012560834,
+   "share_positive_stored_reward_to_zero_value": 0.045403537791308506,
+   "share_positive_inner_reward_to_zero_value": 0.0,
+   "mean_inner_reward_zero_value_vs_valued": {
+    "zero_value": -0.8784333488770893,
+    "valued": 0.7421883827727624
+   },
+   "mix_end_by_run": [
+    [
+     1.0,
+     0.75,
+     0.75,
+     0.75,
+     0.75,
+     0.75,
+     0.75,
+     0.75
+    ],
+    [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ]
+   ],
+   "mix_decisions": [
+    {
+     "action": "lower",
+     "reason": "held_out_evidence_shows_no_harm",
+     "mix_before": 1.0,
+     "mix_after": 0.75,
+     "n": 4,
+     "mean_diff": 0.125080469586775,
+     "lower": -1.321291365652487,
+     "upper": 1.5714523048260367,
+     "margin": 2.0566146879754275
+    },
+    {
+     "action": "hold",
+     "reason": "inconclusive_evidence",
+     "mix_before": 0.75,
+     "mix_after": 0.75,
+     "n": 6,
+     "mean_diff": 5.746592343409142,
+     "lower": -8.323566251590794,
+     "upper": 19.816750938409076,
+     "margin": 2.5139270142167813
+    },
+    {
+     "action": "hold",
+     "reason": "inconclusive_evidence",
+     "mix_before": 1.0,
+     "mix_after": 1.0,
+     "n": 4,
+     "mean_diff": 3.32557395974589,
+     "lower": -6.327196550085938,
+     "upper": 12.978344469577719,
+     "margin": 5.546034512183403
+    },
+    {
+     "action": "hold",
+     "reason": "inconclusive_evidence",
+     "mix_before": 1.0,
+     "mix_after": 1.0,
+     "n": 6,
+     "mean_diff": 1.970790124426861,
+     "lower": -6.044240967331389,
+     "upper": 9.98582121618511,
+     "margin": 1.9901757213054023
+    },
+    {
+     "action": "hold",
+     "reason": "inconclusive_evidence",
+     "mix_before": 1.0,
+     "mix_after": 1.0,
+     "n": 4,
+     "mean_diff": -8.741982990224715,
+     "lower": -29.209629864788667,
+     "upper": 11.72566388433924,
+     "margin": 1.7728113789313236
+    },
+    {
+     "action": "hold",
+     "reason": "inconclusive_evidence",
+     "mix_before": 1.0,
+     "mix_after": 1.0,
+     "n": 4,
+     "mean_diff": 0.42711731803703634,
+     "lower": -8.424474115977404,
+     "upper": 9.278708752051475,
+     "margin": 5.76838078129103
+    }
+   ]
+  },
+  "after_D": {
+   "runs": [
+    {
+     "file": "after_D_tp_s0.json",
+     "seed": 0,
+     "lifetimes": 8,
+     "selection_rule": "thompson_policy",
+     "summary": {
+      "n_decisions": 96,
+      "expected_quality": 0.39365788811778324,
+      "quality": 0.35885161702365487,
+      "uniform_quality": 0.21737273016946598,
+      "greedy_pred_quality": 0.27287048188772894,
+      "policy_quality": 0.4424046685592271,
+      "spearman_pred_truth": 0.749668186176837,
+      "zero_value_share": 0.03125,
+      "share_positive_stored_reward_to_zero_value": 0.023852965484561083,
+      "share_positive_inner_reward_to_zero_value": 0.0,
+      "spearman_inner_reward_truth": 0.3579522561430805,
+      "per_lifetime_spearman_pred_vs_expected_quality": 0.8095238095238095,
+      "expected_adopters_per_decision": 2.225336654499109,
+      "progress": 0.6177809298845672,
+      "mix_trajectory": [
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0
+      ],
+      "mix_decisions": [],
+      "meta_applied": 0,
+      "policy_updates": 31
+     }
+    },
+    {
+     "file": "after_D_tp_s1.json",
+     "seed": 1,
+     "lifetimes": 8,
+     "selection_rule": "thompson_policy",
+     "summary": {
+      "n_decisions": 123,
+      "expected_quality": 0.24698340093883425,
+      "quality": 0.18989556691507098,
+      "uniform_quality": 0.18426613093645675,
+      "greedy_pred_quality": 0.34649467295155145,
+      "policy_quality": 0.214487456756129,
+      "spearman_pred_truth": 0.608944623485875,
+      "zero_value_share": 0.21951219512195122,
+      "share_positive_stored_reward_to_zero_value": 0.21699451680469872,
+      "share_positive_inner_reward_to_zero_value": 0.0037148958987176235,
+      "spearman_inner_reward_truth": 0.6770315107819158,
+      "per_lifetime_spearman_pred_vs_expected_quality": -0.047619047619047616,
+      "expected_adopters_per_decision": 1.464011527267293,
+      "progress": 0.5417351189333609,
+      "mix_trajectory": [
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0
+      ],
+      "mix_decisions": [],
+      "meta_applied": 0,
+      "policy_updates": 38
+     }
+    }
+   ],
+   "n_lifetimes": 16,
+   "n_decisions": 219,
+   "expected_quality": {
+    "mean": 0.3323512741922483,
+    "ci95": [
+     0.2646359734242095,
+     0.4025933667118369
+    ]
+   },
+   "quality": {
+    "mean": 0.28868570791735815,
+    "ci95": [
+     0.2066213119672218,
+     0.37484419853660916
+    ]
+   },
+   "uniform_quality": {
+    "mean": 0.2030132173563849,
+    "ci95": [
+     0.1809522430260146,
+     0.22534198334155991
+    ]
+   },
+   "greedy_pred_quality": {
+    "mean": 0.3214985911065854,
+    "ci95": [
+     0.23359416735113087,
+     0.4085292822041447
+    ]
+   },
+   "policy_quality": {
+    "mean": 0.33887446730029386,
+    "ci95": [
+     0.24786645058908494,
+     0.43934675746304597
+    ]
+   },
+   "spearman_pred_truth": {
+    "mean": 0.6807252269422076,
+    "ci95": [
+     0.6179131334349777,
+     0.7300767801509108
+    ]
+   },
+   "spearman_policy_truth": {
+    "mean": 0.7228263540121076,
+    "ci95": [
+     0.6497041722551097,
+     0.7898317367732435
+    ]
+   },
+   "policy_share_tv": {
+    "mean": 0.235522883691829,
+    "ci95": [
+     0.17655034581304113,
+     0.300276410872114
+    ]
+   },
+   "progress": {
+    "mean": 0.5797580244089641,
+    "ci95": [
+     0.4362202066041673,
+     0.7153019248871936
+    ]
+   },
+   "zero_value_share": {
+    "mean": 0.125,
+    "ci95": [
+     0.06640625,
+     0.1859375
+    ]
+   },
+   "expected_adopters_per_decision": 1.797743089889459,
+   "corr_lifetime_greedy_pred_quality_vs_expected_quality": 0.5130928272231678,
+   "corr_lifetime_spearman_pred_vs_expected_quality": 0.563982204307101,
+   "ratio_expected_quality_to_greedy_pred_quality": 1.0337565494402585,
+   "corr_decision_spearman_pred_vs_expected_quality": 0.39337029753631303,
+   "expected_quality_by_prediction_rank_quality": {
+    "rho<0.5": {
+     "mean": 0.1417982472738642,
+     "n": 25
+    },
+    "rho>=0.8": {
+     "mean": 0.3926902672951436,
+     "n": 53
+    },
+    "0.5<=rho<0.8": {
+     "mean": 0.3107274838744297,
+     "n": 141
+    }
+   },
+   "within_lifetime": {
+    "early": {
+     "expected_quality": 0.2993403215007697,
+     "greedy_pred_quality": 0.28860174833363417,
+     "spearman_pred_truth": 0.622451436039179,
+     "n": 81
+    },
+    "middle": {
+     "expected_quality": 0.3230927561250858,
+     "greedy_pred_quality": 0.35263686440265435,
+     "spearman_pred_truth": 0.7237445191286034,
+     "n": 70
+    },
+    "late": {
+     "expected_quality": 0.31333906771272724,
+     "greedy_pred_quality": 0.3051924839860682,
+     "spearman_pred_truth": 0.6733478221112241,
+     "n": 68
+    }
+   },
+   "slope_over_lifetimes_expected_quality": -0.02465964605116642,
+   "slope_over_lifetimes_greedy_pred_quality": -0.039571088699121244,
+   "slope_over_lifetimes_policy_quality": -0.003821808640732454,
+   "slope_over_lifetimes_spearman_pred_truth": -0.008967224511845059,
+   "slope_over_lifetimes_spearman_policy_truth": 0.012099659011080642,
+   "expected_quality_lifetimes_0_3": 0.4023594175616147,
+   "expected_quality_lifetimes_4_7": 0.26234313082288185,
+   "policy_quality_lifetimes_0_3": 0.3712874936140803,
+   "policy_quality_lifetimes_4_7": 0.3064614409865074,
+   "greedy_pred_quality_lifetimes_0_3": 0.42147828829963024,
+   "greedy_pred_quality_lifetimes_4_7": 0.2215188939135406,
+   "share_positive_stored_reward_to_zero_value": 0.11559081236792788,
+   "share_positive_inner_reward_to_zero_value": 0.002189284096194691,
+   "mean_inner_reward_zero_value_vs_valued": {
+    "zero_value": -0.9379691352446874,
+    "valued": 0.8319445043881103
+   },
+   "mix_end_by_run": [
+    [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ]
+   ],
+   "mix_decisions": []
+  },
+  "after_E_mix0": {
+   "runs": [
+    {
+     "file": "after_E_mix0_tp_s0.json",
+     "seed": 0,
+     "lifetimes": 8,
+     "selection_rule": "thompson_policy",
+     "summary": {
+      "n_decisions": 88,
+      "expected_quality": 0.4619768254484622,
+      "quality": 0.46585814587567814,
+      "uniform_quality": 0.21842545709346428,
+      "greedy_pred_quality": 0.4925268097393738,
+      "policy_quality": 0.22659523795496284,
+      "spearman_pred_truth": 0.787382128466545,
+      "zero_value_share": 0.07954545454545454,
+      "share_positive_stored_reward_to_zero_value": 0.10108781736775908,
+      "share_positive_inner_reward_to_zero_value": 0.10834506128807313,
+      "spearman_inner_reward_truth": 0.3715165398643629,
+      "per_lifetime_spearman_pred_vs_expected_quality": 0.6666666666666666,
+      "expected_adopters_per_decision": 2.37706117718384,
+      "progress": 0.6840435698463077,
+      "mix_trajectory": [
+       0.0,
+       0.0,
+       0.0,
+       0.0,
+       0.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "mix_decisions": [
+       {
+        "action": "lower",
+        "reason": "held_out_evidence_shows_no_harm",
+        "mix_before": 0.0,
+        "mix_after": 0.0,
+        "n": 4,
+        "mean_diff": -0.30515996162124753,
+        "lower": -0.6236650323078923,
+        "upper": 0.01334510906539721,
+        "margin": 1.7774826207920775
+       },
+       {
+        "action": "lower",
+        "reason": "held_out_evidence_shows_no_harm",
+        "mix_before": 0.0,
+        "mix_after": 0.0,
+        "n": 4,
+        "mean_diff": 0.0034561417381227203,
+        "lower": -0.004730855397777484,
+        "upper": 0.011643138874022924,
+        "margin": 1.2450796946451936
+       },
+       {
+        "action": "lower",
+        "reason": "held_out_evidence_shows_no_harm",
+        "mix_before": 0.0,
+        "mix_after": 0.0,
+        "n": 5,
+        "mean_diff": 0.0018349552852654177,
+        "lower": -0.003455107949063703,
+        "upper": 0.007125018519594538,
+        "margin": 0.43428447914264035
+       }
+      ],
+      "meta_applied": 0,
+      "policy_updates": 29
+     }
+    },
+    {
+     "file": "after_E_mix0_tp_s1.json",
+     "seed": 1,
+     "lifetimes": 8,
+     "selection_rule": "thompson_policy",
+     "summary": {
+      "n_decisions": 120,
+      "expected_quality": 0.24195460258795148,
+      "quality": 0.2541392479440173,
+      "uniform_quality": 0.17911083326218172,
+      "greedy_pred_quality": 0.30459737474208304,
+      "policy_quality": 0.22948947061534536,
+      "spearman_pred_truth": 0.5678476588060177,
+      "zero_value_share": 0.225,
+      "share_positive_stored_reward_to_zero_value": 0.1993949895547473,
+      "share_positive_inner_reward_to_zero_value": 0.22247896404982787,
+      "spearman_inner_reward_truth": 0.1975569584343866,
+      "per_lifetime_spearman_pred_vs_expected_quality": 0.7142857142857143,
+      "expected_adopters_per_decision": 2.042604544995793,
+      "progress": 0.6241956985731072,
+      "mix_trajectory": [
+       0.0,
+       0.0,
+       0.0,
+       0.0,
+       0.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "mix_decisions": [
+       {
+        "action": "lower",
+        "reason": "held_out_evidence_shows_no_harm",
+        "mix_before": 0.0,
+        "mix_after": 0.0,
+        "n": 7,
+        "mean_diff": 0.4048917686026084,
+        "lower": -0.44428348972925885,
+        "upper": 1.2540670269344756,
+        "margin": 1.997520217869794
+       },
+       {
+        "action": "lower",
+        "reason": "held_out_evidence_shows_no_harm",
+        "mix_before": 0.0,
+        "mix_after": 0.0,
+        "n": 4,
+        "mean_diff": 1.1548253062593377,
+        "lower": -0.4784776722071411,
+        "upper": 2.7881282847258166,
+        "margin": 1.7853646501860259
+       },
+       {
+        "action": "hold",
+        "reason": "inconclusive_evidence",
+        "mix_before": 0.0,
+        "mix_after": 0.0,
+        "n": 5,
+        "mean_diff": 0.9785492465915759,
+        "lower": -2.6523861181064916,
+        "upper": 4.609484611289643,
+        "margin": 1.1728405945915727
+       }
+      ],
+      "meta_applied": 0,
+      "policy_updates": 39
+     }
+    }
+   ],
+   "n_lifetimes": 16,
+   "n_decisions": 208,
+   "expected_quality": {
+    "mean": 0.35760043714656126,
+    "ci95": [
+     0.2835451221186207,
+     0.43462862700921484
+    ]
+   },
+   "quality": {
+    "mean": 0.358163963622719,
+    "ci95": [
+     0.2710822919367145,
+     0.4467173420676522
+    ]
+   },
+   "uniform_quality": {
+    "mean": 0.20141755501289937,
+    "ci95": [
+     0.17939929454594583,
+     0.2237575418289442
+    ]
+   },
+   "greedy_pred_quality": {
+    "mean": 0.40374689753490844,
+    "ci95": [
+     0.2972068195557365,
+     0.5115615314102139
+    ]
+   },
+   "policy_quality": {
+    "mean": 0.2311739309041958,
+    "ci95": [
+     0.20603627669544466,
+     0.25476056348771126
+    ]
+   },
+   "spearman_pred_truth": {
+    "mean": 0.6761171718011646,
+    "ci95": [
+     0.6050747486172745,
+     0.743472297746765
+    ]
+   },
+   "spearman_policy_truth": {
+    "mean": 0.6229884100818693,
+    "ci95": [
+     0.5300159954222308,
+     0.6955694080916476
+    ]
+   },
+   "policy_share_tv": {
+    "mean": 0.15708821614583332,
+    "ci95": [
+     0.09554734002976191,
+     0.2295049758184524
+    ]
+   },
+   "progress": {
+    "mean": 0.6541196342097074,
+    "ci95": [
+     0.5067917965780631,
+     0.7870267993049106
+    ]
+   },
+   "zero_value_share": {
+    "mean": 0.14855587121212122,
+    "ci95": [
+     0.08854166666666667,
+     0.21661931818181818
+    ]
+   },
+   "expected_adopters_per_decision": 2.184105427844582,
+   "corr_lifetime_greedy_pred_quality_vs_expected_quality": 0.8701737096069243,
+   "corr_lifetime_spearman_pred_vs_expected_quality": 0.8017202745096522,
+   "ratio_expected_quality_to_greedy_pred_quality": 0.8857044830063188,
+   "corr_decision_spearman_pred_vs_expected_quality": 0.5503729721940624,
+   "expected_quality_by_prediction_rank_quality": {
+    "rho<0.5": {
+     "mean": 0.1626950865910445,
+     "n": 38
+    },
+    "0.5<=rho<0.8": {
+     "mean": 0.2867895746856034,
+     "n": 100
+    },
+    "rho>=0.8": {
+     "mean": 0.4975306027285546,
+     "n": 70
+    }
+   },
+   "within_lifetime": {
+    "early": {
+     "expected_quality": 0.31592715513402464,
+     "greedy_pred_quality": 0.28160650777339397,
+     "spearman_pred_truth": 0.6274449107890162,
+     "n": 77
+    },
+    "middle": {
+     "expected_quality": 0.3660473637869739,
+     "greedy_pred_quality": 0.5520437189586503,
+     "spearman_pred_truth": 0.7272241067544117,
+     "n": 67
+    },
+    "late": {
+     "expected_quality": 0.3255773223589328,
+     "greedy_pred_quality": 0.3316158430833429,
+     "spearman_pred_truth": 0.6311573918512227,
+     "n": 64
+    }
+   },
+   "slope_over_lifetimes_expected_quality": -0.006692067609160803,
+   "slope_over_lifetimes_greedy_pred_quality": -0.002768828851137886,
+   "slope_over_lifetimes_policy_quality": 0.0017689585522537186,
+   "slope_over_lifetimes_spearman_pred_truth": 0.01937472519660083,
+   "slope_over_lifetimes_spearman_policy_truth": 0.02876605262740805,
+   "expected_quality_lifetimes_0_3": 0.38507635794468853,
+   "expected_quality_lifetimes_4_7": 0.3301245163484339,
+   "policy_quality_lifetimes_0_3": 0.2327562249333046,
+   "policy_quality_lifetimes_4_7": 0.22959163687508702,
+   "greedy_pred_quality_lifetimes_0_3": 0.45244457863082116,
+   "greedy_pred_quality_lifetimes_4_7": 0.3550492164389958,
+   "share_positive_stored_reward_to_zero_value": 0.12415468779482103,
+   "share_positive_inner_reward_to_zero_value": 0.1669036260875104,
+   "mean_inner_reward_zero_value_vs_valued": {
+    "zero_value": 0.7040116416276706,
+    "valued": 0.5359193428216138
+   },
+   "mix_end_by_run": [
+    [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "mix_decisions": [
+    {
+     "action": "lower",
+     "reason": "held_out_evidence_shows_no_harm",
+     "mix_before": 0.0,
+     "mix_after": 0.0,
+     "n": 4,
+     "mean_diff": -0.30515996162124753,
+     "lower": -0.6236650323078923,
+     "upper": 0.01334510906539721,
+     "margin": 1.7774826207920775
+    },
+    {
+     "action": "lower",
+     "reason": "held_out_evidence_shows_no_harm",
+     "mix_before": 0.0,
+     "mix_after": 0.0,
+     "n": 4,
+     "mean_diff": 0.0034561417381227203,
+     "lower": -0.004730855397777484,
+     "upper": 0.011643138874022924,
+     "margin": 1.2450796946451936
+    },
+    {
+     "action": "lower",
+     "reason": "held_out_evidence_shows_no_harm",
+     "mix_before": 0.0,
+     "mix_after": 0.0,
+     "n": 5,
+     "mean_diff": 0.0018349552852654177,
+     "lower": -0.003455107949063703,
+     "upper": 0.007125018519594538,
+     "margin": 0.43428447914264035
+    },
+    {
+     "action": "lower",
+     "reason": "held_out_evidence_shows_no_harm",
+     "mix_before": 0.0,
+     "mix_after": 0.0,
+     "n": 7,
+     "mean_diff": 0.4048917686026084,
+     "lower": -0.44428348972925885,
+     "upper": 1.2540670269344756,
+     "margin": 1.997520217869794
+    },
+    {
+     "action": "lower",
+     "reason": "held_out_evidence_shows_no_harm",
+     "mix_before": 0.0,
+     "mix_after": 0.0,
+     "n": 4,
+     "mean_diff": 1.1548253062593377,
+     "lower": -0.4784776722071411,
+     "upper": 2.7881282847258166,
+     "margin": 1.7853646501860259
+    },
+    {
+     "action": "hold",
+     "reason": "inconclusive_evidence",
+     "mix_before": 0.0,
+     "mix_after": 0.0,
+     "n": 5,
+     "mean_diff": 0.9785492465915759,
+     "lower": -2.6523861181064916,
+     "upper": 4.609484611289643,
+     "margin": 1.1728405945915727
+    }
+   ]
+  },
+  "intermediate_v1_E": {
+   "runs": [
+    {
+     "file": "after_E_tp_s0.json",
+     "seed": 0,
+     "lifetimes": 8,
+     "selection_rule": "thompson_policy",
+     "summary": {
+      "n_decisions": 79,
+      "expected_quality": 0.49567601880307277,
+      "quality": 0.4547823069417652,
+      "uniform_quality": 0.2124730768177805,
+      "greedy_pred_quality": 0.4557592388400352,
+      "policy_quality": 0.2670081188594421,
+      "spearman_pred_truth": 0.8295291700360209,
+      "zero_value_share": 0.02531645569620253,
+      "share_positive_stored_reward_to_zero_value": 0.03505341474273985,
+      "share_positive_inner_reward_to_zero_value": 0.0026715151771212835,
+      "spearman_inner_reward_truth": 0.36586009368429795,
+      "per_lifetime_spearman_pred_vs_expected_quality": 0.3333333333333333,
+      "expected_adopters_per_decision": 2.6917073532110467,
+      "progress": 0.644319345219037,
+      "mix_trajectory": [
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       0.75
+      ],
+      "mix_decisions": [
+       {
+        "action": "hold",
+        "reason": "inconclusive_evidence",
+        "mix_before": 1.0,
+        "mix_after": 1.0,
+        "n": 4,
+        "mean_diff": -0.12042199996276068,
+        "lower": -0.3805323537881641,
+        "upper": 0.1396883538626427,
+        "margin": 0.24752154628033202
+       },
+       {
+        "action": "hold",
+        "reason": "inconclusive_evidence",
+        "mix_before": 1.0,
+        "mix_after": 1.0,
+        "n": 4,
+        "mean_diff": -0.22433761739176095,
+        "lower": -0.7976294679239779,
+        "upper": 0.34895423314045604,
+        "margin": 0.4336191579268265
+       },
+       {
+        "action": "lower",
+        "reason": "held_out_evidence_shows_no_harm",
+        "mix_before": 1.0,
+        "mix_after": 0.75,
+        "n": 6,
+        "mean_diff": 0.0008190605704051315,
+        "lower": -0.0009965284267976543,
+        "upper": 0.0026346495676079175,
+        "margin": 0.03904862875956749
+       }
+      ],
+      "meta_applied": 0,
+      "policy_updates": 26
+     }
+    },
+    {
+     "file": "after_E_tp_s1.json",
+     "seed": 1,
+     "lifetimes": 8,
+     "selection_rule": "thompson_policy",
+     "summary": {
+      "n_decisions": 113,
+      "expected_quality": 0.3045400826440578,
+      "quality": 0.3093933885084862,
+      "uniform_quality": 0.15939525999758405,
+      "greedy_pred_quality": 0.3326208644507883,
+      "policy_quality": 0.09260021381898018,
+      "spearman_pred_truth": 0.7922195875479983,
+      "zero_value_share": 0.12389380530973451,
+      "share_positive_stored_reward_to_zero_value": 0.11116275527767464,
+      "share_positive_inner_reward_to_zero_value": 0.01425933375271908,
+      "spearman_inner_reward_truth": 0.5823042350234727,
+      "per_lifetime_spearman_pred_vs_expected_quality": 0.8571428571428571,
+      "expected_adopters_per_decision": 2.0296429517538543,
+      "progress": 0.5888451987534188,
+      "mix_trajectory": [
+       1.0,
+       1.0,
+       0.75,
+       0.75,
+       0.75,
+       0.75,
+       0.75,
+       0.75
+      ],
+      "mix_decisions": [
+       {
+        "action": "lower",
+        "reason": "held_out_evidence_shows_no_harm",
+        "mix_before": 1.0,
+        "mix_after": 0.75,
+        "n": 5,
+        "mean_diff": -0.0020871384296597875,
+        "lower": -0.033473139112795244,
+        "upper": 0.029298862253475666,
+        "margin": 0.1279757159618256
+       },
+       {
+        "action": "hold",
+        "reason": "inconclusive_evidence",
+        "mix_before": 0.75,
+        "mix_after": 0.75,
+        "n": 5,
+        "mean_diff": -0.12796293398461928,
+        "lower": -0.9149030253547925,
+        "upper": 0.6589771573855541,
+        "margin": 0.10260927889921145
+       }
+      ],
+      "meta_applied": 0,
+      "policy_updates": 37
+     }
+    },
+    {
+     "file": "after_E_tp_s2.json",
+     "seed": 2,
+     "lifetimes": 8,
+     "selection_rule": "thompson_policy",
+     "summary": {
+      "n_decisions": 120,
+      "expected_quality": 0.413608375355299,
+      "quality": 0.41813739521326504,
+      "uniform_quality": 0.1867399318426199,
+      "greedy_pred_quality": 0.49538800580295705,
+      "policy_quality": 0.13732634627070764,
+      "spearman_pred_truth": 0.8940593040654718,
+      "zero_value_share": 0.2,
+      "share_positive_stored_reward_to_zero_value": 0.04843337890589764,
+      "share_positive_inner_reward_to_zero_value": 0.008043841022711069,
+      "spearman_inner_reward_truth": 0.3033616746812908,
+      "per_lifetime_spearman_pred_vs_expected_quality": 0.7857142857142857,
+      "expected_adopters_per_decision": 1.6524004295161983,
+      "progress": 0.44709956918280097,
+      "mix_trajectory": [
+       1.0,
+       1.0,
+       0.75,
+       0.75,
+       0.75,
+       0.5,
+       0.5,
+       0.25
+      ],
+      "mix_decisions": [
+       {
+        "action": "lower",
+        "reason": "held_out_evidence_shows_no_harm",
+        "mix_before": 1.0,
+        "mix_after": 0.75,
+        "n": 4,
+        "mean_diff": -0.0031697274266129878,
+        "lower": -0.033162185334969174,
+        "upper": 0.026822730481743197,
+        "margin": 0.13216555569721158
+       },
+       {
+        "action": "lower",
+        "reason": "held_out_evidence_shows_no_harm",
+        "mix_before": 0.75,
+        "mix_after": 0.5,
+        "n": 5,
+        "mean_diff": -0.001119968749053337,
+        "lower": -0.006732158272809499,
+        "upper": 0.004492220774702824,
+        "margin": 0.02366700041073914
+       },
+       {
+        "action": "lower",
+        "reason": "held_out_evidence_shows_no_harm",
+        "mix_before": 0.5,
+        "mix_after": 0.25,
+        "n": 4,
+        "mean_diff": -0.006139471091515641,
+        "lower": -0.052223695087681404,
+        "upper": 0.03994475290465012,
+        "margin": 0.28494422890533666
+       }
+      ],
+      "meta_applied": 0,
+      "policy_updates": 40
+     }
+    }
+   ],
+   "n_lifetimes": 24,
+   "n_decisions": 312,
+   "expected_quality": {
+    "mean": 0.4175835477135004,
+    "ci95": [
+     0.34610986402737604,
+     0.48715761951299874
+    ]
+   },
+   "quality": {
+    "mean": 0.41268049470547563,
+    "ci95": [
+     0.33525242508939285,
+     0.4905337728514656
+    ]
+   },
+   "uniform_quality": {
+    "mean": 0.18867914705758548,
+    "ci95": [
+     0.17130981231972467,
+     0.2075689001390012
+    ]
+   },
+   "greedy_pred_quality": {
+    "mean": 0.4233427092015722,
+    "ci95": [
+     0.3269759040046342,
+     0.5107001014468263
+    ]
+   },
+   "policy_quality": {
+    "mean": 0.17332417318083407,
+    "ci95": [
+     0.13131950966712735,
+     0.2225387958354387
+    ]
+   },
+   "spearman_pred_truth": {
+    "mean": 0.8363882018147429,
+    "ci95": [
+     0.8035472041518795,
+     0.8659975839028241
+    ]
+   },
+   "spearman_policy_truth": {
+    "mean": -0.05675732991175005,
+    "ci95": [
+     -0.26958180554165906,
+     0.16559986331337753
+    ]
+   },
+   "policy_share_tv": {
+    "mean": 0.17531371555419406,
+    "ci95": [
+     0.11853948053899226,
+     0.23373924794823234
+    ]
+   },
+   "progress": {
+    "mean": 0.5600880377184189,
+    "ci95": [
+     0.42991576034188106,
+     0.6872306009899334
+    ]
+   },
+   "zero_value_share": {
+    "mean": 0.10994439588189588,
+    "ci95": [
+     0.06976010101010101,
+     0.15236742424242425
+    ]
+   },
+   "expected_adopters_per_decision": 2.0521877756211606,
+   "corr_lifetime_greedy_pred_quality_vs_expected_quality": 0.6962657018775772,
+   "corr_lifetime_spearman_pred_vs_expected_quality": 0.42715724805897143,
+   "ratio_expected_quality_to_greedy_pred_quality": 0.9863959828222066,
+   "corr_decision_spearman_pred_vs_expected_quality": 0.3630149500110139,
+   "expected_quality_by_prediction_rank_quality": {
+    "rho<0.5": {
+     "mean": 0.09588009750312095,
+     "n": 12
+    },
+    "0.5<=rho<0.8": {
+     "mean": 0.26622640639009343,
+     "n": 62
+    },
+    "rho>=0.8": {
+     "mean": 0.44347832563291556,
+     "n": 238
+    }
+   },
+   "within_lifetime": {
+    "early": {
+     "expected_quality": 0.3469585329840585,
+     "greedy_pred_quality": 0.30628093378681337,
+     "spearman_pred_truth": 0.7372654281886604,
+     "n": 116
+    },
+    "middle": {
+     "expected_quality": 0.432071587964926,
+     "greedy_pred_quality": 0.49815032308691803,
+     "spearman_pred_truth": 0.8991282408924259,
+     "n": 100
+    },
+    "late": {
+     "expected_quality": 0.41406345046056003,
+     "greedy_pred_quality": 0.4968133085384849,
+     "spearman_pred_truth": 0.9052616724426968,
+     "n": 96
+    }
+   },
+   "slope_over_lifetimes_expected_quality": 0.010947637664973559,
+   "slope_over_lifetimes_greedy_pred_quality": 0.00423068230800892,
+   "slope_over_lifetimes_policy_quality": -0.0027199877716236626,
+   "slope_over_lifetimes_spearman_pred_truth": 0.006079016088444378,
+   "slope_over_lifetimes_spearman_policy_truth": 0.008673551206092905,
+   "expected_quality_lifetimes_0_3": 0.38270122222502434,
+   "expected_quality_lifetimes_4_7": 0.45246587320197657,
+   "policy_quality_lifetimes_0_3": 0.17797335452859678,
+   "policy_quality_lifetimes_4_7": 0.16867499183307136,
+   "greedy_pred_quality_lifetimes_0_3": 0.3683170007357417,
+   "greedy_pred_quality_lifetimes_4_7": 0.47836841766740257,
+   "share_positive_stored_reward_to_zero_value": 0.08494212202149735,
+   "share_positive_inner_reward_to_zero_value": 0.008828659804921547,
+   "mean_inner_reward_zero_value_vs_valued": {
+    "zero_value": -0.4753030465915799,
+    "valued": 0.7390297828242183
+   },
+   "mix_end_by_run": [
+    [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     0.75
+    ],
+    [
+     1.0,
+     1.0,
+     0.75,
+     0.75,
+     0.75,
+     0.75,
+     0.75,
+     0.75
+    ],
+    [
+     1.0,
+     1.0,
+     0.75,
+     0.75,
+     0.75,
+     0.5,
+     0.5,
+     0.25
+    ]
+   ],
+   "mix_decisions": [
+    {
+     "action": "hold",
+     "reason": "inconclusive_evidence",
+     "mix_before": 1.0,
+     "mix_after": 1.0,
+     "n": 4,
+     "mean_diff": -0.12042199996276068,
+     "lower": -0.3805323537881641,
+     "upper": 0.1396883538626427,
+     "margin": 0.24752154628033202
+    },
+    {
+     "action": "hold",
+     "reason": "inconclusive_evidence",
+     "mix_before": 1.0,
+     "mix_after": 1.0,
+     "n": 4,
+     "mean_diff": -0.22433761739176095,
+     "lower": -0.7976294679239779,
+     "upper": 0.34895423314045604,
+     "margin": 0.4336191579268265
+    },
+    {
+     "action": "lower",
+     "reason": "held_out_evidence_shows_no_harm",
+     "mix_before": 1.0,
+     "mix_after": 0.75,
+     "n": 6,
+     "mean_diff": 0.0008190605704051315,
+     "lower": -0.0009965284267976543,
+     "upper": 0.0026346495676079175,
+     "margin": 0.03904862875956749
+    },
+    {
+     "action": "lower",
+     "reason": "held_out_evidence_shows_no_harm",
+     "mix_before": 1.0,
+     "mix_after": 0.75,
+     "n": 5,
+     "mean_diff": -0.0020871384296597875,
+     "lower": -0.033473139112795244,
+     "upper": 0.029298862253475666,
+     "margin": 0.1279757159618256
+    },
+    {
+     "action": "hold",
+     "reason": "inconclusive_evidence",
+     "mix_before": 0.75,
+     "mix_after": 0.75,
+     "n": 5,
+     "mean_diff": -0.12796293398461928,
+     "lower": -0.9149030253547925,
+     "upper": 0.6589771573855541,
+     "margin": 0.10260927889921145
+    },
+    {
+     "action": "lower",
+     "reason": "held_out_evidence_shows_no_harm",
+     "mix_before": 1.0,
+     "mix_after": 0.75,
+     "n": 4,
+     "mean_diff": -0.0031697274266129878,
+     "lower": -0.033162185334969174,
+     "upper": 0.026822730481743197,
+     "margin": 0.13216555569721158
+    },
+    {
+     "action": "lower",
+     "reason": "held_out_evidence_shows_no_harm",
+     "mix_before": 0.75,
+     "mix_after": 0.5,
+     "n": 5,
+     "mean_diff": -0.001119968749053337,
+     "lower": -0.006732158272809499,
+     "upper": 0.004492220774702824,
+     "margin": 0.02366700041073914
+    },
+    {
+     "action": "lower",
+     "reason": "held_out_evidence_shows_no_harm",
+     "mix_before": 0.5,
+     "mix_after": 0.25,
+     "n": 4,
+     "mean_diff": -0.006139471091515641,
+     "lower": -0.052223695087681404,
+     "upper": 0.03994475290465012,
+     "margin": 0.28494422890533666
+    }
+   ]
+  },
+  "after_E_rule_policy": {
+   "runs": [
+    {
+     "file": "after_E_policy_s0.json",
+     "seed": 0,
+     "lifetimes": 8,
+     "selection_rule": "policy",
+     "summary": {
+      "n_decisions": 94,
+      "expected_quality": 0.323206075762359,
+      "quality": 0.32950001865577827,
+      "uniform_quality": 0.2127864707473644,
+      "greedy_pred_quality": 0.2671670553604187,
+      "policy_quality": 0.29966060633043035,
+      "spearman_pred_truth": 0.6702981854616128,
+      "zero_value_share": 0.031914893617021274,
+      "share_positive_stored_reward_to_zero_value": 0.03619761792949529,
+      "share_positive_inner_reward_to_zero_value": 0.0,
+      "spearman_inner_reward_truth": 0.5289320825511306,
+      "per_lifetime_spearman_pred_vs_expected_quality": 0.09523809523809523,
+      "expected_adopters_per_decision": 2.428870274000914,
+      "progress": 0.7091606295960529,
+      "mix_trajectory": [
+       0.75,
+       0.75,
+       0.75,
+       0.75,
+       0.75,
+       0.75,
+       0.75,
+       0.75
+      ],
+      "mix_decisions": [
+       {
+        "action": "lower",
+        "reason": "held_out_evidence_shows_no_harm",
+        "mix_before": 1.0,
+        "mix_after": 0.75,
+        "n": 4,
+        "mean_diff": -0.08941568205777747,
+        "lower": -0.1749708039355441,
+        "upper": -0.0038605601800108524,
+        "margin": 0.3008731784058636
+       },
+       {
+        "action": "hold",
+        "reason": "inconclusive_evidence",
+        "mix_before": 0.75,
+        "mix_after": 0.75,
+        "n": 5,
+        "mean_diff": 1.4251667262006649,
+        "lower": -0.3464728305812097,
+        "upper": 3.196806282982539,
+        "margin": 0.29166512672312866
+       },
+       {
+        "action": "hold",
+        "reason": "inconclusive_evidence",
+        "mix_before": 0.75,
+        "mix_after": 0.75,
+        "n": 4,
+        "mean_diff": -0.09034514333860923,
+        "lower": -0.35808029684306586,
+        "upper": 0.17739001016584743,
+        "margin": 0.0945855175612268
+       }
+      ],
+      "meta_applied": 0,
+      "policy_updates": 31
+     }
+    },
+    {
+     "file": "after_E_policy_s1.json",
+     "seed": 1,
+     "lifetimes": 8,
+     "selection_rule": "policy",
+     "summary": {
+      "n_decisions": 104,
+      "expected_quality": 0.32277967690454284,
+      "quality": 0.35806065411349886,
+      "uniform_quality": 0.1579645028981947,
+      "greedy_pred_quality": 0.5375437206393691,
+      "policy_quality": 0.1373105144474613,
+      "spearman_pred_truth": 0.8926546559353328,
+      "zero_value_share": 0.23076923076923078,
+      "share_positive_stored_reward_to_zero_value": 0.06710132299791854,
+      "share_positive_inner_reward_to_zero_value": 0.01363047634008634,
+      "spearman_inner_reward_truth": 0.5479934374053126,
+      "per_lifetime_spearman_pred_vs_expected_quality": -0.7619047619047619,
+      "expected_adopters_per_decision": 2.594276933234323,
+      "progress": 0.7392640297778638,
+      "mix_trajectory": [
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0
+      ],
+      "mix_decisions": [
+       {
+        "action": "hold",
+        "reason": "inconclusive_evidence",
+        "mix_before": 1.0,
+        "mix_after": 1.0,
+        "n": 6,
+        "mean_diff": -0.5633727700214112,
+        "lower": -2.0653246327775947,
+        "upper": 0.9385790927347725,
+        "margin": 0.1669116969169025
+       },
+       {
+        "action": "hold",
+        "reason": "inconclusive_evidence",
+        "mix_before": 1.0,
+        "mix_after": 1.0,
+        "n": 5,
+        "mean_diff": 0.13120650806483908,
+        "lower": -0.5428147330489776,
+        "upper": 0.8052277491786557,
+        "margin": 0.38253496796382774
+       }
+      ],
+      "meta_applied": 0,
+      "policy_updates": 34
+     }
+    }
+   ],
+   "n_lifetimes": 16,
+   "n_decisions": 198,
+   "expected_quality": {
+    "mean": 0.33849783864239136,
+    "ci95": [
+     0.29006285767994794,
+     0.38641533596483385
+    ]
+   },
+   "quality": {
+    "mean": 0.3643405046236054,
+    "ci95": [
+     0.30022346761007074,
+     0.4322425454128405
+    ]
+   },
+   "uniform_quality": {
+    "mean": 0.19088103125428077,
+    "ci95": [
+     0.1653783475757802,
+     0.21829862877060174
+    ]
+   },
+   "greedy_pred_quality": {
+    "mean": 0.39522136028387467,
+    "ci95": [
+     0.2974079880973657,
+     0.5003668717808912
+    ]
+   },
+   "policy_quality": {
+    "mean": 0.23343219417538383,
+    "ci95": [
+     0.17325374497147872,
+     0.2933146063212884
+    ]
+   },
+   "spearman_pred_truth": {
+    "mean": 0.7775404008811496,
+    "ci95": [
+     0.7173489580388016,
+     0.839863436614119
+    ]
+   },
+   "spearman_policy_truth": {
+    "mean": 0.26709555405011126,
+    "ci95": [
+     0.06140696661226332,
+     0.45809432169459824
+    ]
+   },
+   "policy_share_tv": {
+    "mean": null,
+    "ci95": null
+   },
+   "progress": {
+    "mean": 0.7242123296869583,
+    "ci95": [
+     0.5625851448811837,
+     0.8769316396018858
+    ]
+   },
+   "zero_value_share": {
+    "mean": 0.12181525072150072,
+    "ci95": [
+     0.06569151334776335,
+     0.19207589285714285
+    ]
+   },
+   "expected_adopters_per_decision": 2.5157505394568456,
+   "corr_lifetime_greedy_pred_quality_vs_expected_quality": 0.19514248685313845,
+   "corr_lifetime_spearman_pred_vs_expected_quality": -0.005173794128579184,
+   "ratio_expected_quality_to_greedy_pred_quality": 0.8564765790980006,
+   "corr_decision_spearman_pred_vs_expected_quality": 0.20150865869993378,
+   "expected_quality_by_prediction_rank_quality": {
+    "rho<0.5": {
+     "mean": 0.2685635266850939,
+     "n": 15
+    },
+    "rho>=0.8": {
+     "mean": 0.3465706985926253,
+     "n": 124
+    },
+    "0.5<=rho<0.8": {
+     "mean": 0.28724132193173313,
+     "n": 59
+    }
+   },
+   "within_lifetime": {
+    "early": {
+     "expected_quality": 0.34768977606714213,
+     "greedy_pred_quality": 0.4627452090684423,
+     "spearman_pred_truth": 0.7756134770763284,
+     "n": 72
+    },
+    "middle": {
+     "expected_quality": 0.33129647893787517,
+     "greedy_pred_quality": 0.3870953081642436,
+     "spearman_pred_truth": 0.7933205269313652,
+     "n": 65
+    },
+    "late": {
+     "expected_quality": 0.28495938544160787,
+     "greedy_pred_quality": 0.3694983617503289,
+     "spearman_pred_truth": 0.7940017877152756,
+     "n": 61
+    }
+   },
+   "slope_over_lifetimes_expected_quality": -0.012725051416455743,
+   "slope_over_lifetimes_greedy_pred_quality": -0.014175419467459685,
+   "slope_over_lifetimes_policy_quality": -0.007365017121391471,
+   "slope_over_lifetimes_spearman_pred_truth": 0.007672043673409899,
+   "slope_over_lifetimes_spearman_policy_truth": -0.003555036739910799,
+   "expected_quality_lifetimes_0_3": 0.3596214126474992,
+   "expected_quality_lifetimes_4_7": 0.3173742646372835,
+   "policy_quality_lifetimes_0_3": 0.2536999696004146,
+   "policy_quality_lifetimes_4_7": 0.2131644187503531,
+   "greedy_pred_quality_lifetimes_0_3": 0.4015123358463369,
+   "greedy_pred_quality_lifetimes_4_7": 0.38893038472141245,
+   "share_positive_stored_reward_to_zero_value": 0.04002420419901095,
+   "share_positive_inner_reward_to_zero_value": 0.007026412773557536,
+   "mean_inner_reward_zero_value_vs_valued": {
+    "zero_value": -0.6637408358079416,
+    "valued": 0.8335897862388376
+   },
+   "mix_end_by_run": [
+    [
+     0.75,
+     0.75,
+     0.75,
+     0.75,
+     0.75,
+     0.75,
+     0.75,
+     0.75
+    ],
+    [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ]
+   ],
+   "mix_decisions": [
+    {
+     "action": "lower",
+     "reason": "held_out_evidence_shows_no_harm",
+     "mix_before": 1.0,
+     "mix_after": 0.75,
+     "n": 4,
+     "mean_diff": -0.08941568205777747,
+     "lower": -0.1749708039355441,
+     "upper": -0.0038605601800108524,
+     "margin": 0.3008731784058636
+    },
+    {
+     "action": "hold",
+     "reason": "inconclusive_evidence",
+     "mix_before": 0.75,
+     "mix_after": 0.75,
+     "n": 5,
+     "mean_diff": 1.4251667262006649,
+     "lower": -0.3464728305812097,
+     "upper": 3.196806282982539,
+     "margin": 0.29166512672312866
+    },
+    {
+     "action": "hold",
+     "reason": "inconclusive_evidence",
+     "mix_before": 0.75,
+     "mix_after": 0.75,
+     "n": 4,
+     "mean_diff": -0.09034514333860923,
+     "lower": -0.35808029684306586,
+     "upper": 0.17739001016584743,
+     "margin": 0.0945855175612268
+    },
+    {
+     "action": "hold",
+     "reason": "inconclusive_evidence",
+     "mix_before": 1.0,
+     "mix_after": 1.0,
+     "n": 6,
+     "mean_diff": -0.5633727700214112,
+     "lower": -2.0653246327775947,
+     "upper": 0.9385790927347725,
+     "margin": 0.1669116969169025
+    },
+    {
+     "action": "hold",
+     "reason": "inconclusive_evidence",
+     "mix_before": 1.0,
+     "mix_after": 1.0,
+     "n": 5,
+     "mean_diff": 0.13120650806483908,
+     "lower": -0.5428147330489776,
+     "upper": 0.8052277491786557,
+     "margin": 0.38253496796382774
+    }
+   ]
+  }
+ }
+}
