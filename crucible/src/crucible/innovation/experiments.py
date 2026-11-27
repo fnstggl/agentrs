@@ -112,6 +112,15 @@ def _first(history, pred):
     return None
 
 
+def relief_t(history: list[dict], nid: str, t_adopt: int) -> int | None:
+    """The day a need is relieved: the first snapshot without it after BOTH the adoption `t_adopt` and the need's
+    own first appearance (a day before the need ever arose is not its relief); None if never."""
+    t_on = _first(history, lambda h: nid in h["needs"])
+    if t_on is None:
+        return None
+    return _first([h for h in history if h["t"] > max(int(t_adopt), int(t_on))], lambda h: nid not in h["needs"])
+
+
 def mine_chains(res: dict) -> list[dict]:
     """Chains of at least three stages across subsystems, found generically:
 
@@ -178,12 +187,13 @@ def mine_chains(res: dict) -> list[dict]:
                          and e.payload["prov"] in provs), None)
             if t_ad is not None:
                 stages.append({"name": "adoption by holders", "subsystem": "work activities", "t": t_ad})
-                t_off = _first([h for h in history if h["t"] > t_ad], lambda h: nid not in h["needs"])
+                t_off = relief_t(history, nid, t_ad)
                 if t_off is not None:
                     stages.append({"name": "need relieved", "subsystem": "work activities", "t": t_off})
-        chains.append(_chain(f"need:{nid}", stages))
+        chains.append(dict(_chain(f"need:{nid}", stages), need=need_name))
     # competition: agent provider of an incumbent-served format -> incumbents lose -> incumbents act
     inc = {o for o, r in st.scan("orgs") if (r.get("info") or {}).get("trusted_runtime")}
+    actions = rival_actions(w)
     for p in prods:
         fmt = p.get("subcategory")
         rivals = [pid for pid, x in st.scan("products") if x["owner"] in inc and x.get("need") == fmt]
@@ -192,26 +202,46 @@ def mine_chains(res: dict) -> list[dict]:
         owners = {st.tables["products"][r]["owner"] for r in rivals}
         stages = [{"name": f"agent artifact {p['id']}", "subsystem": "innovation", "t": p["created_t"],
                    "creator_kind": p["creator_kind"]}]
-        peak = {o: 0 for o in owners}
-        t_loss = None
-        for h in history:
-            if h["t"] < p["created_t"]:
-                for o in owners:
-                    peak[o] = max(peak[o], h["live_subs"].get(o, 0))
-                continue
-            if any(peak[o] >= 3 and h["live_subs"].get(o, 0) <= 0.85 * peak[o] for o in owners):
-                t_loss = h["t"]
-                break
+        t_loss, t_act = incumbent_loss_response(history, actions, owners, int(p["created_t"]))
         if t_loss is not None:
             stages.append({"name": "incumbents lose subscribers", "subsystem": "commerce", "t": t_loss})
-            t_act = next((e.t for e in log if e.type == "rivals.observed" and e.payload["org"] in owners
-                          and e.t >= t_loss and any(a[0] in ("price", "engineering_started", "shipped_tier")
-                                                    for a in e.payload["actions"])), None)
             if t_act is not None:
                 stages.append({"name": "incumbent responds (price or engineering)", "subsystem": "rivals",
                                "t": t_act})
-        chains.append(_chain(f"competition:{p['id']}", stages))
+        chains.append(dict(_chain(f"competition:{p['id']}", stages), need=fmt, owners=sorted(owners),
+                           artifact_t=int(p["created_t"])))
     return chains
+
+
+def incumbent_loss_response(history: list[dict], actions: list, owners, since_t: int, t_end: int | None = None):
+    """(t_loss, t_response) of the competition rule on one arm's record: some incumbent among `owners` with at least
+    3 live subscriptions at its peak before `since_t` falls to <= 85% of that peak at or after `since_t`, then one of
+    them changes a price or starts/ships engineering (`actions`: (t, org, action kinds) of `rivals.observed`).
+    Either is None when it does not happen (up to `t_end`)."""
+    owners = set(owners)
+    peak = {o: 0 for o in owners}
+    t_loss = None
+    for h in history:
+        if t_end is not None and h["t"] > t_end:
+            break
+        if h["t"] < since_t:
+            for o in owners:
+                peak[o] = max(peak[o], h["live_subs"].get(o, 0))
+            continue
+        if any(peak[o] >= 3 and h["live_subs"].get(o, 0) <= 0.85 * peak[o] for o in owners):
+            t_loss = h["t"]
+            break
+    if t_loss is None:
+        return None, None
+    t_act = next((t for t, org, kinds in actions if org in owners and t >= t_loss and (t_end is None or t <= t_end)
+                  and any(k in ("price", "engineering_started", "shipped_tier") for k in kinds)), None)
+    return t_loss, t_act
+
+
+def rival_actions(world) -> list[tuple[int, str, list[str]]]:
+    """(t, org, action kinds) of every `rivals.observed` event (incumbents' reactions; a public-side record)."""
+    return [(int(e.t), e.payload["org"], [a[0] for a in e.payload["actions"]]) for e in world.log
+            if e.type == "rivals.observed"]
 
 
 def _chain(name, stages) -> dict:
@@ -223,6 +253,11 @@ def _chain(name, stages) -> dict:
     seq = [s for s in ok[1:] if any(s["name"].startswith(k) for k in rank)]
     ordered = bool(ok) and all(ok[0]["t"] <= s["t"] for s in ok[1:]) and all(a["t"] <= b["t"]
                                                                             for a, b in zip(seq, seq[1:]))
+    # a need is relieved only after it arose
+    need_t = [s["t"] for s in ok if s["name"].startswith("need ") and s["name"] != "need relieved"]
+    off_t = [s["t"] for s in ok if s["name"] == "need relieved"]
+    if need_t and off_t and not min(need_t) < min(off_t):
+        ordered = False
     stages = sorted(stages, key=lambda s: (s["t"] is None, s["t"] if s["t"] is not None else 0))
     return {"chain": name, "stages": stages, "n_stages": len(ok), "ordered": ordered,
             "subsystems": sorted({s["subsystem"] for s in ok}),

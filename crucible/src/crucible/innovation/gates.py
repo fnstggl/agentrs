@@ -11,9 +11,10 @@ Gate J (per product *category* = the task a product's users rely on it for; `civ
 * J.1 agent_created_executable_products - products created during the run by in-world creators (here: the
   population's developers, `creator_kind` "population") that executed for at least one independent user;
 * J.2 published_products - live and declared (or released) at the end;
-* J.3 independent_discoverers - min over categories of the best product's individuals who considered it for their
-  own task after the interface check, or tried it (a bare search hit does not count);
-* J.4 independent_users - min over categories: individuals for whom it executed on their own input;
+* J.3 independent_discoverers - min over ALL categories in which a developer's service was used (not only the
+  categories that pass) of the best product's individuals who considered it for their own task after the
+  interface check, or tried it (a bare search hit does not count);
+* J.4 independent_users - min over all categories: individuals for whom it executed on their own input;
 * J.5 measured_behavior_adoption_pvalue - Fisher exact test, triers who kept relying on the category's products in
   the factual arm vs in the garbage arm (input-ignoring programs, everything else equal);
 * J.6 independent_transactions - min over categories: paid calls net of refunds from independent payers;
@@ -33,8 +34,10 @@ Gate L:
   chain began, which holders adopted;
 * L.4 independent_chains / min_chain_stages - mined chains (>= 3 stages, causally ordered, >= 2 subsystems) with
   distinct first changes; among the top three: an agent (developer) artifact, social activity, technical activity;
-* L.5 counterfactual_removals_confirming - chains whose later stages do not happen in the arm where the chain's
-  first change (the invention it starts from) is removed;
+* L.5 counterfactual_removals_confirming - chains whose later-stage world outcome (the need never arising, the need
+  persisting, incumbents losing and responding, hand work falling) happens in the factual arm and not in the arm
+  that removes the inventions the chain depends on (`chain_removal_arm`, `confirmed`: measured state of the
+  removal arm, never the presence of a same-named artifact);
 * L.n1 special_case_bonuses - system-account credits to creators after admission (`measure.special_case_bonuses`;
   population income deposits verified against the population's own deposit records) plus the static scan.
 """
@@ -57,7 +60,7 @@ def _arm_summary(r: dict) -> dict:
     steps = sorted({row["step_need"] for _, row in w.state.scan("work_exp") if row["step_need"]})
     creators = sorted({p["creator"] for p in M.agent_products(w)})
     return {"relying": {need: relying_on_creations(w, need) for need in steps},
-            "bonuses": M.special_case_bonuses(w, creators)}
+            "bonuses": M.special_case_bonuses(w, creators), "rival_actions": X.rival_actions(w)}
 
 
 @functools.lru_cache(maxsize=2)
@@ -125,7 +128,9 @@ def j_measure(A: dict) -> dict:
     # discoverers and users, a paid call, hand work saved, and its own measured-behaviour test (J.5 per category)
     passing = sorted(c for c, r in best.items() if r["executable"] and r["published"] and r["discoverers"] >= 10
                      and r["users"] >= 10 and r["tx"] >= 1 and r["delta_minutes"] > 0 and per[c] <= 0.05)
-    ok = [best[c] for c in passing] or list(best.values())
+    # J.3, J.4, J.6 and J.7 are minima over EVERY category in which developers' services were used (the best product
+    # of each), not over the categories that already pass (that would make them pass whenever J.n1 does)
+    ok = list(best.values())
     fc, rc = A["factual"]["outcome"]["dev_compute"], A["ban_published"]["outcome"]["dev_compute"]
     executable = [r for r in rows.values() if r["executable"] and r["users"] > 0]
     return {
@@ -137,8 +142,10 @@ def j_measure(A: dict) -> dict:
                 "services": sum(1 for r in executable if r["kind"] == "service"),
                 "packages": sum(1 for r in executable if r["kind"] == "package")},
         "J.2": {"published_products": sum(1 for r in rows.values() if r["published"])},
-        "J.3": {"independent_discoverers": min((r["discoverers"] for r in ok), default=0), "categories": len(best)},
-        "J.4": {"independent_users": min((r["users"] for r in ok), default=0)},
+        "J.3": {"independent_discoverers": min((r["discoverers"] for r in ok), default=0), "categories": len(best),
+                "max_discoverers": max((r["discoverers"] for r in ok), default=0)},
+        "J.4": {"independent_users": min((r["users"] for r in ok), default=0),
+                "max_users": max((r["users"] for r in ok), default=0)},
         "J.5": {"measured_behavior_adoption_pvalue": M.fisher_exact(a, b_, c_, d), "kept_good": a,
                 "dropped_good": b_, "kept_garbage": c_, "dropped_garbage": d,
                 **{f"pvalue_{c.replace('.', '_')}": v for c, v in per.items()}},
@@ -166,18 +173,19 @@ def good_chains(chains: list[dict]) -> list[dict]:
 
 
 def chain_removal_arm(chain: dict) -> str | None:
-    """The arm in which the chain's first change does not happen."""
+    """The arm that removes the inventions the chain depends on: for a chain that starts with an adoption for an
+    earlier step of an activity (adoption creating a need), the arm in which nobody builds for that earlier step;
+    for every other chain, the arm in which nobody builds for the chain's own task (`chain["need"]`: the need's
+    target, the format a competing artifact serves, the task of the services a package runs in). An arm is chosen
+    by the task, never by the chain's name."""
     first = chain["stages"][0]["name"] if chain["stages"] else ""
     if first.startswith("adoption of a "):
         need = first[len("adoption of a "):].split(" provider", 1)[0]
         return CX.removal_arm_for(need)
-    name = chain["chain"]
-    if name.startswith("need:"):
-        target = name.split("capability/", 1)[-1]
-        return CX.removal_arm_for(target)
-    if name.startswith("competition:") or name.startswith("package:"):
-        return "ban_published"
-    return None
+    need = chain.get("need")
+    if need is None and chain["chain"].startswith("need:"):
+        need = chain["chain"].split("capability/", 1)[-1]
+    return CX.removal_arm_for(need) if need else None
 
 
 def relying_on_creations(world, need: str) -> int:
@@ -189,28 +197,56 @@ def relying_on_creations(world, need: str) -> int:
                 and r["prov"] in provs})
 
 
+def _actions(A: dict, arm: str) -> list:
+    r = A[arm]
+    if r.get("world") is not None:
+        return X.rival_actions(r["world"])
+    return list(r["summary"].get("rival_actions") or [])
+
+
 def confirmed(A: dict, chain: dict) -> bool:
-    """The chain's later stages do not happen in the arm where its first change was removed."""
+    """A chain is confirmed when the world OUTCOME its later stages describe happens in the factual arm and does not
+    happen in its removal arm (`chain_removal_arm`). What is compared is always measured world state of the
+    removal arm (labelled needs, hand-work minutes, incumbents' subscriptions and actions), never whether an
+    artifact or chain of the same name exists there (names carry developer indices, and a removal arm lacks the
+    removed artifacts by construction):
+
+    * adoption creating a need: the need is never labelled in the arm without the earlier step's inventions;
+    * need -> ... -> relief: the factual arm relieved the need (absent at the end) after individuals came to rely on
+      creations for its target, and in the arm without inventions for the target the need is still there at the
+      end (what is removed is the chain's artifact stage; the need itself is endogenous);
+    * competition: the same incumbents do not lose subscribers and then respond in the removal arm over the same
+      period (the competition rule of `experiments.incumbent_loss_response`);
+    * package: the hand work on the step the package's service serves does not fall in the removal arm over the
+      same period (the rule of `civexp.hand_work_falls`)."""
     arm = chain_removal_arm(chain)
-    if arm is None:
+    if arm is None or arm not in A:
         return False
     out = A[arm]["outcome"]
+    fo = A["factual"]["outcome"]
     name = chain["chain"]
+    t = {s["name"]: s["t"] for s in chain["stages"] if s.get("t") is not None}
     if name.startswith("need:"):
         nid = name[5:]
         if chain["stages"][0]["name"].startswith("adoption of a "):
-            # adoption created the need: without the earlier adoption, the need never arises
             return nid not in out["needs_ever"]
-        target = name.split("capability/", 1)[-1]
-        later = [s for s in chain["stages"] if s["name"] in ("adoption by holders", "need relieved")]
-        # without the invention nobody adopts anything created for the step and the need is still there at the end
-        return bool(later) and _relying(A, "factual", target) > 0 and _relying(A, arm, target) == 0 and \
-            nid in out["needs"]
+        target = chain.get("need") or name.split("capability/", 1)[-1]
+        relieved = "need relieved" in t and nid not in fo["needs"]
+        return bool(relieved and _relying(A, "factual", target) > 0 and nid in out["needs_ever"]
+                    and nid in out["needs"])
     if name.startswith("competition:"):
-        return out["incumbent_price_changes"] < A["factual"]["outcome"]["incumbent_price_changes"] or \
-            not any(c["chain"] == name and c["n_stages"] >= 3 for c in A[arm]["chains"])
+        if not any(k.startswith("incumbent responds") for k in t):
+            return False
+        t_end = A["factual"]["history"][-1]["t"]
+        tl, ta = X.incumbent_loss_response(A[arm]["history"], _actions(A, arm), chain.get("owners") or (),
+                                           int(chain.get("artifact_t") or 0), t_end)
+        return tl is None or ta is None
     if name.startswith("package:"):
-        return not any(c["chain"] == name for c in A[arm]["chains"])
+        need = chain.get("need")
+        if not need or "hand work on the step falls" not in t or chain.get("adopted_t") is None:
+            return False
+        return CX.hand_work_falls(A[arm]["history"], need, int(chain.get("released_t") or 0),
+                                  int(chain["adopted_t"])) is None
     return False
 
 
@@ -277,14 +313,23 @@ def l_measure(A: dict) -> dict:
 
 # ====================================================================== SP-6.3b (usefulness, novel categories, workflows)
 USEFULNESS_DECISIONS = {
-    # module path (under crucible/) -> functions that decide whether something is useful to a participant
+    # module path (under crucible/) -> functions that decide whether something is useful to a participant: an
+    # individual accepting a result, adopting/keeping/dropping a provider, a principal verifying or adopting a
+    # service, a package's measured use, a developer judging its own service or others' services as components
     "economy/work.py": ("_accepted", "_adopt", "act_shop", "_after_session", "belief", "_public_prior"),
     "innovation/caps.py": ("ep_verify", "ep_adopt_service", "ep_try"),
     "innovation/pkg.py": ("_exercised", "_repro_check", "ep_upgrade"),
-    "innovation/devs.py": ("_maintain", "_compose_plan", "_competitors", "converts", "_explore"),
+    "innovation/devs.py": ("_maintain", "_compose_plan", "_competitors", "converts"),
 }
-LM_MODULES = ("semantic.space.lm", "semantic.participants", "semantic.agents", "substrate.inference", "transformers",
-              "torch", "openai", "anthropic")
+# Scanned and REPORTED, not counted: decisions that are not usefulness verdicts on an artifact (a developer's choice
+# of what to build: its interest in a task is the affinity of its own interest vector to the task text in the
+# shared space - one representation, a different judgement per developer)
+OTHER_DECISIONS = {"innovation/devs.py": ("_explore",)}
+# Anything that runs a language model or the shared semantic space (whose text path is the Qwen3 encoder,
+# `semantic/space/lm.py`): module paths relative to crucible/, and external libraries
+LM_PREFIXES = ("semantic", "social.audience", "population.semantics", "substrate.inference")
+LM_EXTERNAL = ("transformers", "torch", "openai", "anthropic", "vllm", "sentence_transformers")
+LM_MODULES = LM_PREFIXES + LM_EXTERNAL
 LM_CALLS = frozenset({"lm", "llm", "judge", "grade", "chat", "generate_text", "complete", "logprob", "perplexity"})
 
 
@@ -303,59 +348,135 @@ def ast_mod():
     return ast
 
 
-def single_judge_paths(root: str) -> list[str]:
-    """Usefulness decision functions that reach a language-model judgement: the decision functions themselves and,
-    transitively, the functions of the same module they call (static AST scan of names actually used: imports of
-    language-model modules, calls through them, calls named like a judge). A usefulness decision must come from
-    the participant's own measured outcome (world physics, own tests, own experience), never from one model
-    grading for everyone."""
-    import os
-    ast = ast_mod()
-    out = []
-    for rel, fns in sorted(USEFULNESS_DECISIONS.items()):
-        path = os.path.join(root, rel)
-        tree = ast.parse(open(path).read())
-        defs = {n.name: n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+def _is_lm_module(mod: str) -> bool:
+    return any(mod == m or mod.startswith(m + ".") for m in LM_PREFIXES) or \
+        any(mod.split(".")[0] == m for m in LM_EXTERNAL)
 
-        def lm_aliases(scope) -> set[str]:
-            al = set()
-            for n in ast.walk(scope):
-                if isinstance(n, ast.ImportFrom):
+
+class _Source:
+    """The crucible source tree as the scan sees it (`overrides`: rel path -> source text, for negative controls)."""
+
+    def __init__(self, root: str, overrides: dict | None = None):
+        import os
+        self.root, self.over, self.cache = root, dict(overrides or {}), {}
+        self.os = os
+
+    def rel_of(self, mod: str) -> str | None:
+        """File (relative to crucible/) of dotted module `mod` (relative to crucible), or None."""
+        base = mod.replace(".", "/")
+        for cand in (base + ".py", base + "/__init__.py"):
+            if cand in self.over or self.os.path.exists(self.os.path.join(self.root, cand)):
+                return cand
+        return None
+
+    def tree(self, rel: str):
+        if rel not in self.cache:
+            txt = self.over.get(rel)
+            if txt is None:
+                txt = open(self.os.path.join(self.root, rel)).read()
+            t = ast_mod().parse(txt)
+            self.cache[rel] = (t, {n.name: n for n in ast_mod().walk(t)
+                                   if isinstance(n, (ast_mod().FunctionDef, ast_mod().AsyncFunctionDef))})
+        return self.cache[rel]
+
+    @staticmethod
+    def package_of(rel: str) -> list[str]:
+        parts = rel[:-3].split("/")
+        return parts[:-1] if parts[-1] != "__init__" else parts[:-1]
+
+    def aliases(self, rel: str, scope) -> dict[str, tuple[str, str | None]]:
+        """Names bound by imports in `scope`: alias -> (dotted module relative to crucible or external, attribute)."""
+        ast = ast_mod()
+        pkg = self.package_of(rel)
+        out = {}
+        for n in ast.walk(scope):
+            if isinstance(n, ast.ImportFrom):
+                if n.level:
+                    base = pkg[:len(pkg) - (n.level - 1)] if n.level > 1 else pkg
+                    mod = ".".join(base + ([n.module] if n.module else []))
+                else:
                     mod = n.module or ""
-                    for a in n.names:
-                        if any(m in f"{mod}.{a.name}" for m in LM_MODULES):
-                            al.add(a.asname or a.name)
-                elif isinstance(n, ast.Import):
-                    for a in n.names:
-                        if any(m in a.name for m in LM_MODULES):
-                            al.add((a.asname or a.name).split(".")[0])
-            return al
-        module_aliases = lm_aliases(tree)
+                    if mod == "crucible" or mod.startswith("crucible."):
+                        mod = mod[len("crucible."):] if mod != "crucible" else ""
+                for a in n.names:
+                    sub = f"{mod}.{a.name}" if mod else a.name
+                    if self.rel_of(sub) is not None or _is_lm_module(sub):
+                        out[a.asname or a.name] = (sub, None)        # a submodule
+                    else:
+                        out[a.asname or a.name] = (mod, a.name)      # an attribute of a module
+            elif isinstance(n, ast.Import):
+                for a in n.names:
+                    mod = a.name[len("crucible."):] if a.name.startswith("crucible.") else a.name
+                    out[(a.asname or a.name).split(".")[0] if not a.asname else a.asname] = (mod, None)
+        return out
+
+
+def single_judge_paths(root: str, overrides: dict | None = None, decisions: dict | None = None,
+                       max_nodes: int = 4000) -> list[str]:
+    """Usefulness decision functions that reach a language-model judgement: the decision functions themselves and,
+    transitively, every function they call - in the same module and, through imports, in other crucible modules
+    (static AST scan of the names actually used). A path is flagged when it calls into a language-model or
+    shared-semantic-space module (`LM_PREFIXES`: the space's text path runs the Qwen3 encoder; `social.audience`
+    and `population.semantics` read through it), an external model library, or a function named like a judge
+    (`LM_CALLS`). A usefulness decision must come from the participant's own measured outcome (world physics, own
+    tests, own experience), never from one model grading for everyone. `overrides` (rel path -> source) lets a
+    negative control inject a call without touching the tree."""
+    src = _Source(root, overrides)
+    out = []
+    for rel, fns in sorted((decisions or USEFULNESS_DECISIONS).items()):
+        _tree, defs = src.tree(rel)
         for fn in fns:
             if fn not in defs:
                 out.append(f"{rel}:{fn} (missing: the scan's list is stale)")
                 continue
-            seen, todo, hit = set(), [fn], None
-            while todo and hit is None:
-                f = todo.pop()
-                if f in seen or f not in defs:
-                    continue
-                seen.add(f)
-                al = module_aliases | lm_aliases(defs[f])
-                for n in ast.walk(defs[f]):
-                    if not isinstance(n, ast.Call):
-                        continue
-                    name = _dotted(n.func)
-                    parts = name.split(".") if name else []
-                    if (parts and parts[0] in al) or (set(parts) & LM_CALLS):
-                        hit = f"{rel}:{fn} -> {f}: {name}"
-                        break
-                    last = parts[-1] if parts else None
-                    if last in defs:
-                        todo.append(last)
+            hit = _walk(src, rel, fn, max_nodes)
             if hit:
-                out.append(hit)
+                out.append(f"{rel}:{fn} -> {hit}")
     return out
+
+
+def _walk(src: "_Source", rel0: str, fn0: str, max_nodes: int) -> str | None:
+    ast = ast_mod()
+    seen, todo = set(), [(rel0, fn0)]
+    while todo and len(seen) < max_nodes:
+        rel, f = todo.pop()
+        if (rel, f) in seen:
+            continue
+        seen.add((rel, f))
+        try:
+            tree, defs = src.tree(rel)
+        except (OSError, SyntaxError):
+            continue
+        if f not in defs:
+            continue
+        al = {**src.aliases(rel, tree), **src.aliases(rel, defs[f])}
+        for n in ast.walk(defs[f]):
+            if not isinstance(n, ast.Call):
+                continue
+            name = _dotted(n.func)
+            parts = name.split(".") if name else []
+            if not parts:
+                continue
+            if set(parts) & LM_CALLS:
+                return f"{rel}:{f}: {name}"
+            head = parts[0]
+            if head in al:
+                mod, attr = al[head]
+                target_mod, target_fn = (mod, parts[1] if len(parts) > 1 else None) if attr is None else (mod, attr)
+                if attr is None and len(parts) > 2:
+                    # alias.sub.fn: a submodule of an imported module
+                    sub = f"{mod}.{parts[1]}"
+                    if src.rel_of(sub) is not None or _is_lm_module(sub):
+                        target_mod, target_fn = sub, parts[2]
+                if _is_lm_module(target_mod) or (attr is not None and _is_lm_module(f"{mod}.{attr}")):
+                    return f"{rel}:{f}: {name} ({target_mod})"
+                trel = src.rel_of(target_mod) if target_mod else None
+                if trel is not None and target_fn:
+                    todo.append((trel, target_fn))
+                continue
+            if parts[-1] in defs:
+                todo.append((rel, parts[-1]))
+    return None
 
 
 def grounded_adoptions(world) -> dict:
@@ -408,9 +529,10 @@ def sp63b_measure(A: dict, root: str) -> dict:
                     "composer_kind": M.creator_kind(w, wf["composer"])})
     good_wf = [x for x in wfs if x["status"] == "verified" and x["component_creators"] >= 2 and x["independent"]]
     paths = single_judge_paths(root)
+    other = single_judge_paths(root, decisions=OTHER_DECISIONS)
     g = grounded_adoptions(w)
     return {"novel": sorted(novel), "undocumented": undocumented, "novel_products": novel_adopt, "workflows": wfs,
-            "paths": paths, "grounded": g,
+            "paths": paths, "other_lm_paths": other, "grounded": g,
             "metrics": {"single_judge_usefulness_paths": len(paths),
                         "novel_category_adoptions": int(sum(k for _, k in novel_adopt)),
                         "composed_workflows_registered": len(good_wf),
@@ -568,16 +690,27 @@ def need_mechanisms(A: dict) -> dict:
       (compute_market: a provider's cores), reliability bottleneck (cloud: a service's rented compute under its
       users' load, scarcity rule), content communities and their tools (community: moderation backlog of the reports
       members file on what they read), coordination (orgs: operator hours lost to coordination overhead), and
-      education once its module registers a provider."""
+      education once its module registers a provider.
+
+    Strict classification (repair pass): a workflow change counts only on a multi-step activity the world's own
+    activity generator made (one configured by the invention world builder, `configured_pipelines`, is reported
+    under `configured`, not counted); a community need counts as "new forms of content lead to new communities and
+    tools" only when the community was founded after genesis AND the content its members report includes a form
+    (content kind and format) nobody had published by the end of the first day; any other moderation backlog is
+    reported under `configured` with the reason."""
     f = A["factual"]
     hist = f["history"]
     t0 = hist[0]["t"]
+    w = f["world"]
     first, rec = _first_seen(hist)
+    pipelines = set(configured_pipelines(_work_families(w)))
+    new_forms = _new_content_forms(w, t0 + DAY)
     first_rely: dict[str, int] = {}
     for e in f["world"].log:
         if e.type == "work.rely" and e.payload.get("active") and e.payload.get("need"):
             first_rely.setdefault(e.payload["need"], e.t)
     found: dict[str, list] = {k: [] for k in LISTED + EXTRA}
+    found["configured"] = []
     for nid in sorted(first):
         if first[nid] <= t0 + DAY:
             continue
@@ -592,19 +725,104 @@ def need_mechanisms(A: dict) -> dict:
                 ta = min((first_rely[s] for s in earlier if s in first_rely), default=None)
                 arm = CX.removal_arm_for(earlier[0])
                 if ta is not None and ta <= first[nid] and nid not in A[arm]["outcome"]["needs_ever"]:
-                    found["workflow_change"].append({"need": nid, "first_day": first[nid] // DAY,
-                                                     "earlier_step_adopted_day": ta // DAY, "absent_in": arm})
+                    row = {"need": nid, "first_day": first[nid] // DAY, "earlier_step_adopted_day": ta // DAY,
+                           "absent_in": arm}
+                    if act in pipelines:
+                        found["configured"].append(dict(row, mechanism="workflow_change",
+                                                        why=f"activity {act} configured by the invention world builder"))
+                    else:
+                        found["workflow_change"].append(row)
+        elif prov[0] == "community":
+            cid = n["path"][0]["src"].split("community:", 1)[-1]
+            ok, why = _community_from_new_content(w, cid, t0 + DAY, new_forms)
+            row = {"need": nid, "rule": n["rule"], "first_day": first[nid] // DAY, "holders": n["holders"]}
+            if ok:
+                found["content_communities_tools"].append(dict(row, why=why))
+            else:
+                found["configured"].append(dict(row, mechanism="content_communities_tools", why=why))
         elif prov[0] in PROVIDER_MECHANISM and (prov[0] != "cloud" or n["rule"] == "scarcity"):
             found[PROVIDER_MECHANISM[prov[0]]].append({"need": nid, "rule": n["rule"], "first_day": first[nid] // DAY,
                                                        "holders": n["holders"]})
     return found
 
 
+def _new_content_forms(world, t_new: int) -> set[tuple]:
+    """(kind, format) of content first published after `t_new` (nobody had published that form before)."""
+    st = world.state
+    if "content" not in st.tables:
+        return set()
+    first: dict[tuple, int] = {}
+    for _, c in st.scan("content"):
+        k = (c.get("kind"), c.get("format"))
+        first[k] = min(first.get(k, c["published_at"]), c["published_at"])
+    return {k for k, t in first.items() if t > t_new}
+
+
+def _community_from_new_content(world, cid: str, t_new: int, new_forms: set) -> tuple[bool, str]:
+    st = world.state
+    c = st.get("communities", cid) if "communities" in st.tables else None
+    if c is None:
+        return False, "community not found"
+    if int(c.get("created") or 0) <= t_new:
+        return False, "community existed at genesis (its backlog is not a new community around a new content form)"
+    forms = set()
+    for r in st.find("community_reports", "community", cid):
+        item = st.get("content", r["target"]) if "content" in st.tables else None
+        if item is not None:
+            forms.add((item.get("kind"), item.get("format")))
+    fresh = forms & new_forms
+    if not fresh:
+        return False, f"founded day {int(c['created']) // DAY}, but its reported content is of forms published since genesis"
+    return True, f"founded day {int(c['created']) // DAY} around new content forms {sorted(map(str, fresh))}"
+
+
+def _work_families(world) -> list[dict]:
+    for m in world.spec.modules:
+        if m["name"] == "work":
+            return list((m.get("config") or {}).get("families") or [])
+    return []
+
+
+def configured_compositions(families: list[dict]) -> list[str]:
+    """Composed work activities ("a, then b on its result") that do not come from the world's generic raw-feed rule
+    (`inventworld.rule_compositions`: every ordered producer/consumer pair of the world's generated categories): a
+    composed activity whose stages are not both the world's own activities, or a set of composed activities that
+    differs from what the rule gives (a hand-picked pair, a dropped pair), is demand configured for that
+    combination. Returns their descriptions (empty when every composed activity follows the rule)."""
+    from . import inventworld as IW
+    comp = []
+    for f in families:
+        if f.get("compose"):
+            a, b = f["compose"]
+            comp.append(((a["family"], int(a["seed"])), (b["family"], int(b["seed"]))))
+    if not comp:
+        return []
+    rule = IW.rule_compositions(families)
+    if set(comp) == rule and len(comp) == len(set(comp)):
+        return []
+    from ..usefulness import category as C
+    return [f"compose {a[0]}#{a[1]} -> {b[0]}#{b[1]} = "
+            f"{C.compose(C.instantiate(a[0], a[1]), C.instantiate(b[0], b[1])).name}" for a, b in comp]
+
+
+def configured_pipelines(families: list[dict]) -> list[str]:
+    """Two-step activities added by the invention world builder (`inventworld.PIPELINE`), not drawn by the
+    civilisation's own activity generator."""
+    from . import inventworld as IW
+    return [f"{f['need']}+{f['then']}" for f in families
+            if f.get("then") and f.get("need") == IW.PIPELINE["need"] and f.get("then") == IW.PIPELINE["then"]]
+
+
 def designer_supplied_demand(A: dict) -> dict:
     """Paths by which demand would be supplied by the designer instead of arising from world state: labelled needs
     (any arm, any day) whose path uses relations given as data (provider `data`), measured worlds whose spec
-    carries relations or relation observables as data, and world configuration that names a workflow's composer,
-    components or declaration (a demand planted for the combination)."""
+    carries relations or relation observables as data, world configuration that names a workflow's composer,
+    components or declaration, and composed work activities configured for a combination instead of following the
+    world's generic raw-feed rule (`configured_compositions`; negative control in
+    tests/test_v5_innovation_instruments.py). Two-step activities configured by the invention world builder are
+    reported (`configured_pipelines`): they do not create demand for any product or combination (each step is a
+    task people do by hand from genesis), but needs derived from them are not counted as SP-6.4b mechanism
+    examples."""
     import json as _json
     data_paths = sum(1 for r in A.values() for h in r["history"] for n in h["needs"].values()
                      if any(p.get("provider") == "data" for p in n["path"]))
@@ -614,13 +832,17 @@ def designer_supplied_demand(A: dict) -> dict:
     st = w.state
     named = 0
     for _, wf in (st.scan("cap_workflows") if "cap_workflows" in st.tables else ()):
-        names = [wf["declaration"], wf["host"]] + [c["host"] for c in wf["components"]] + \
-            [c["declaration"] for c in wf["components"]]
+        names = [wf["declaration"], wf["host"], wf["composer"]] + [c["host"] for c in wf["components"]] + \
+            [c["declaration"] for c in wf["components"]] + [c.get("provider") for c in wf["components"]]
         for x in names:
             if x and f'"{x}"' in spec_txt:
                 named += 1
-    return {"designer_supplied_demand_paths": int(data_paths + data_specs + named), "data_relation_paths": data_paths,
-            "data_relation_specs": data_specs, "configured_combination_names": named}
+    fams = _work_families(w)
+    comp = configured_compositions(fams)
+    return {"designer_supplied_demand_paths": int(data_paths + data_specs + named + len(comp)),
+            "data_relation_paths": data_paths, "data_relation_specs": data_specs, "configured_combination_names": named,
+            "configured_composed_activities": len(comp), "composed_detail": comp,
+            "configured_pipelines": configured_pipelines(fams)}
 
 
 def novel_combinations(A: dict) -> dict:
@@ -643,8 +865,12 @@ def novel_combinations(A: dict) -> dict:
         rows.append({"workflow": wid, "status": wf["status"], "components": len(comps), "independent": bool(indep),
                      "relied": len(relied), "need": need, "hand_minutes_saved_vs_removal": round(float(delta), 1),
                      "composer_kind": M.creator_kind(w, wf["composer"]), "created_day": int(wf.get("t", 0)) // DAY})
+    configured = {d.rsplit(" = ", 1)[-1] for d in configured_compositions(_work_families(w))}
+    for r in rows:
+        r["demand_configured"] = bool(r["need"] in configured)
     good = [r for r in rows if r["status"] == "verified" and r["components"] >= 2 and r["independent"]
-            and r["relied"] > 0 and r["hand_minutes_saved_vs_removal"] > 0 and r["composer_kind"] == "population"]
+            and r["relied"] > 0 and r["hand_minutes_saved_vs_removal"] > 0 and r["composer_kind"] == "population"
+            and not r["demand_configured"]]
     return {"rows": rows, "novel_combinations_changing_state": len(good)}
 
 
@@ -659,6 +885,9 @@ def sp64b_measure(A: dict) -> dict:
          "designer_supplied_demand_paths": dem["designer_supplied_demand_paths"],
          "data_relation_paths": dem["data_relation_paths"],
          "configured_combination_names": dem["configured_combination_names"],
+         "configured_composed_activities": dem["configured_composed_activities"],
+         "configured_pipelines": len(dem["configured_pipelines"]),
+         "examples_excluded_as_configured": len(found["configured"]),
          "novel_combinations_changing_state": nc["novel_combinations_changing_state"]}
     missing = {k: NOT_LIVE.get(k, "did not arise in the measured run") for k in LISTED if not found[k]}
-    return {"metrics": m, "found": found, "missing": missing, "combinations": nc["rows"]}
+    return {"metrics": m, "found": found, "missing": missing, "combinations": nc["rows"], "demand": dem}

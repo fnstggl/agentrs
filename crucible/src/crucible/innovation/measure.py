@@ -382,9 +382,11 @@ def special_case_bonuses(world: World, creators: list[str], since_t: int = 1) ->
     every credit from a system account counts, whatever its ledger kind ("endowment" included), except each
     creator's own admission endowment (the single `admin.join` endowment) and, for individuals of the population,
     the deposits of their own exogenous income (`population.core.money_deposit`: kind "income", memo "income
-    deposited", from `acct_external`; wages accrue from the individual's income rate whatever it does, and a
-    deposit is verified to be paired with the population's own `pop.deposit` batch of that individual in the same
-    transaction). Revenue may come only from other participants' accounts. Must be zero."""
+    deposited", from `acct_external`; wages accrue from the individual's income rate whatever it does). An income
+    credit is exempt only when it pairs one-to-one with the population module's own `pop.deposit` record of the
+    same individual at the same time and of EXACTLY the same amount (each record pays for at most one credit), so a
+    credit booked under the same kind and memo next to a real deposit - a disguised bonus - still counts. Revenue
+    may come only from other participants' accounts. Must be zero."""
     from ..commerce.integrity import related_set
     from ..substrate import ids as _ids
     st = world.state
@@ -404,11 +406,16 @@ def special_case_bonuses(world: World, creators: list[str], since_t: int = 1) ->
                     first = e["txn"] if first is None else min(first, e["txn"])
         if first:
             admission.add(first)
-    deposits: set[tuple[int, int]] = set()          # (t, individual) of the population's own deposit batches
+    # the population's own deposit records: (t, individual, amount) of each single-row `pop.deposit` batch written by
+    # the population module; each pays for at most ONE income credit of exactly that amount at that time
+    deposits: dict[tuple[int, int, int], int] = {}
     for ev in world.log:
-        if ev.type == "cols.batch" and ev.payload.get("kind") == "pop.deposit":
-            for i in _batch_rows(world, ev):
-                deposits.add((int(ev.t), int(i)))
+        if ev.type == "cols.batch" and ev.payload.get("kind") == "pop.deposit" and ev.payload.get("by") == "pop":
+            rows = _batch_rows(world, ev)
+            amount = (ev.payload.get("extra") or {}).get("amount")
+            if len(rows) == 1 and isinstance(amount, int) and amount > 0:
+                key = (int(ev.t), int(rows[0]), int(amount))
+                deposits[key] = deposits.get(key, 0) + 1
     bad, income = [], 0
     for tid, t in st.scan("txns"):
         if t["t"] < since_t or tid in admission:
@@ -417,10 +424,13 @@ def special_case_bonuses(world: World, creators: list[str], since_t: int = 1) ->
         dst = {a for a, d in t["postings"] if d > 0}
         if not (src & sys_accts and dst & accts):
             continue
-        if (t["kind"], t["memo"]) == POPULATION_INCOME and src == {"acct_external"}:
-            owners = {st.tables["accounts"][a]["owner"] for a in dst}
-            idx = [_ids.index(o) for o in owners]
-            if all(i is not None and (int(t["t"]), int(i)) in deposits for i in idx):
+        if (t["kind"], t["memo"]) == POPULATION_INCOME and src == {"acct_external"} and len(dst) == 1:
+            a = next(iter(dst))
+            i = _ids.index(st.tables["accounts"][a]["owner"])
+            amt = sum(int(d) for x, d in t["postings"] if x == a)
+            key = (int(t["t"]), int(i), int(amt)) if i is not None else None
+            if key is not None and deposits.get(key, 0) > 0:
+                deposits[key] -= 1
                 income += 1
                 continue
         bad.append(tid)

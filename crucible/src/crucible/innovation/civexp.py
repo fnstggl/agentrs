@@ -202,6 +202,7 @@ def package_chains(res: dict) -> list[dict]:
     st = w.state
     out = []
     for a in M.adoptions_by_execution(w):
+        need = None
         p = st.tables["pkg_packages"][a["package"]]
         rel = min((r["t"] for r in w.modules["pkg"].releases(st, a["package"])), default=None)
         stages = [{"name": f"package {a['package']} released", "subsystem": "software", "t": rel,
@@ -220,15 +221,23 @@ def package_chains(res: dict) -> list[dict]:
                 need = next((r["step_need"] for _, r in st.scan("work_exp") if r["prov"] in set(decls)
                              and r["step_need"]), None)
                 if need is not None:
-                    rate = _rate(hist, need)
-                    t_rel = rel or 0
-                    r0 = [r for t, r in rate if t <= max(t_rel, t_ad)]
-                    r0 = r0[-3:] if r0 else []
-                    if r0:
-                        ref = sum(r0) / len(r0)
-                        t_fall = next((t for t, r in rate if t > t_ad and r < 0.8 * ref), None)
-                        if t_fall is not None:
-                            stages.append({"name": "hand work on the step falls", "subsystem": "work activities",
-                                           "t": t_fall})
-        out.append(X._chain(f"package:{a['package']}->{a['repo']}", stages))
+                    t_fall = hand_work_falls(hist, need, rel or 0, t_ad)
+                    if t_fall is not None:
+                        stages.append({"name": "hand work on the step falls", "subsystem": "work activities",
+                                       "t": t_fall})
+        ch = X._chain(f"package:{a['package']}->{a['repo']}", stages)
+        ch.update(need=need, released_t=rel, adopted_t=next((s["t"] for s in stages if s["name"] ==
+                                                             "individuals adopt the service"), None))
+        out.append(ch)
     return out
+
+
+def hand_work_falls(hist: list[dict], need: str, t_rel: int, t_ad: int) -> int | None:
+    """The first day after `t_ad` on which the hand-work minutes per day of the activities with step `need` fall
+    below 80% of their mean over the (up to) three days before max(t_rel, t_ad); None if they never do."""
+    rate = _rate(hist, need)
+    r0 = [r for t, r in rate if t <= max(t_rel, t_ad)][-3:]
+    if not r0:
+        return None
+    ref = sum(r0) / len(r0)
+    return next((t for t, r in rate if t > t_ad and r < 0.8 * ref), None)

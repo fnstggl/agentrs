@@ -202,8 +202,25 @@ def solve(args, caller):
 '''
 
 
+# A task whose public description (the request quotes it) says it is two stages: "stage1" in one known format,
+# "stage2" in another without the table the first one produces (the documentation convention of composed tasks,
+# `usefulness.category.compose`); the developer reads the stage formats and the table field from that text.
+STAGES_RE = re.compile(r'"stage1": <a request in the format of ([a-z0-9_.]+)>, "stage2": <a request in the format '
+                       r'of ([a-z0-9_.]+) WITHOUT its "([A-Za-z0-9_]+)" field>')
+
+
+def stages_of(text: str) -> tuple[str, str, str] | None:
+    """(first format, second format, table field) a request's public text describes, else None. Used for every
+    task a developer reads, whatever its category: a workflow is planned from what the text says, never from the
+    category's definition."""
+    m = STAGES_RE.search(" ".join((text or "").split()))
+    return (m.group(1), m.group(2), m.group(3)) if m else None
+
+
 def _parts(need: str):
-    """(first, second, table key) of a composed task category, else None."""
+    """(first, second, table key) of a composed task category, else None. Developer-LABOUR model only (FR-DEV-1:
+    which reference approaches a developer can write for each stage of its own two-stage program); planning a
+    workflow of other providers' services never reads it (`stages_of`)."""
     if not need.startswith("gen."):
         return None
     from ..usefulness import category as C
@@ -494,7 +511,8 @@ class Developers(Module):
             margin = users * 30 * 1.5 * price - rent_m
             aff = self._affinity(ctx, i, task)
             hurdle = float(self._col("hurdle")[i]) * (1.2 - 0.6 * max(0.0, aff)) * rent_m
-            plan = self._compose_plan(ctx, p, need, info) if _parts(need) else None
+            stages = stages_of(info["text"])
+            plan = self._compose_plan(ctx, p, stages, info) if stages else None
             if plan is not None:
                 # composing existing services: no program to write, components' prices are a cost per call
                 price = int(max(price, plan["cost"] + 2))
@@ -522,12 +540,18 @@ class Developers(Module):
         return True
 
     # ------------------------------------------------------------------ workflows (composing others' services)
-    def _compose_plan(self, ctx, p, need: str, info: dict) -> dict | None:
-        """For a two-stage task ("a, then b on its result"), live services of other providers for each stage that
-        people keep after trying them (public registry counts) and whose declared inputs accept the stage's
-        part of the posted examples."""
+    def _compose_plan(self, ctx, p, stages: tuple, info: dict) -> dict | None:
+        """For a task the public text describes as two stages ("stage1" in format a, then "stage2" in format b on its
+        records, `stages_of`), live services of other providers for each stage that people keep after trying them
+        (public registry counts) and whose declared inputs accept the stage's part of the posted examples. The
+        stages are searched for by the titles of the formats the text names (tasks the developer knows by name,
+        like `understand`)."""
         from ..core import schema as S
-        a, b, key = _parts(need)
+        from ..economy.needs import NEEDS
+        na, nb, key = stages
+        if na not in NEEDS or nb not in NEEDS:
+            return None
+        a, b = NEEDS[na], NEEDS[nb]
         ex = [e for e in info["examples"] if isinstance(e.get("stage1"), dict) and isinstance(e.get("stage2"), dict)]
         if not ex:
             return None
@@ -748,7 +772,8 @@ class Developers(Module):
                                   "approach": int(k), "host": host, "repo": repo, "instance": inst, "decl": decl,
                                   "price": int(price), "cores": 1, "uses_package": uses["package"] if uses else None,
                                   "competitors": int(n_comp), "affinity": round(float(aff), 4),
-                                  "examples": examples[:2]}, vis="internal")
+                                  "examples": examples[:2], "stages": list(stages_of(info["text"]) or []) or None},
+                 vis="internal")
         self._announce(ctx, p, task, host, price, now)
         if uses is None and float(self._col("oss")[i]) > 0:
             self._publish_package(ctx, i, p, pid, task, src, examples)
@@ -914,10 +939,11 @@ class Developers(Module):
             # a registered workflow stays a workflow (the registry object names its components); one that keeps
             # failing loses its customers and is shut down by the loss rule
             return False
-        if _parts(need) and not proj.get("composes"):
-            # a two-stage task its own program does poorly: call other providers' services for the stages when
-            # people keep them (public registry counts), passing their prices on plus a margin
-            plan = self._compose_plan(ctx, p, need, {"examples": list(proj.get("examples") or [])})
+        if proj.get("stages") and not proj.get("composes"):
+            # a task its public description splits into two stages, its own program does poorly: call other
+            # providers' services for the stages when people keep them (public registry counts), passing their
+            # prices on plus a margin
+            plan = self._compose_plan(ctx, p, tuple(proj["stages"]), {"examples": list(proj.get("examples") or [])})
             if plan is not None and self._to_workflow(ctx, p, pid, proj, plan, now):
                 return True
         k = self.approach(i, need, rng, current=int(proj["approach"]))
