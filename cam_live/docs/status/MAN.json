@@ -1,0 +1,79 @@
+{
+ "workstream": "M-MAN",
+ "commit": "see git log 'cam live [MAN]'",
+ "summary": "Manifest and completion checker (part of the master workstream M). The manifest was reconciled with the specification and the operator's amendments (158 -> 198 requirements, 40 new ids, spec coverage table). The checker now requires test results and verdicts newer than the last change to a requirement's files, resolves integration points per requirement kind against an explicit entry-point set (runtime processes, console script, operator CLIs, configured factories, evaluation programs, diagnostic programs whose recorded command produced evidence, tools), checks executed evidence, sorts every requirement into one of five groups, computes the five status levels separately and writes docs/COMPLETION.md. Factual fields of the finished workstreams' status files (A, C, D, EA, EC, ES) were corrected: integration points given as free text, commands or file paths are now importable symbols, and one renamed EA test. No state was changed.",
+ "requirements": {
+  "IN-04": {
+   "state": "implemented",
+   "files": ["src/cam_live/verify_completion.py", "tools/gen_manifest.py"],
+   "integration_points": ["cam_live.verify_completion.run", "cam_live.verify_completion.main", "cam-live verify-completion"],
+   "tests": [
+    "tests/test_verify_completion.py::test_complete_needs_a_fresh_pass_and_a_verdict_issued_after_the_last_change",
+    "tests/test_verify_completion.py::test_a_commit_after_the_run_and_the_verdict_makes_both_stale",
+    "tests/test_verify_completion.py::test_a_change_to_the_test_file_after_the_run_makes_the_result_stale",
+    "tests/test_verify_completion.py::test_an_uncommitted_edit_counts_as_a_change_made_now",
+    "tests/test_verify_completion.py::test_a_newer_skipped_result_never_hides_an_earlier_pass",
+    "tests/test_verify_completion.py::test_only_skipped_results_are_not_a_pass",
+    "tests/test_verify_completion.py::test_a_fresh_failure_is_failed_and_a_failure_before_a_fix_needs_a_rerun",
+    "tests/test_verify_completion.py::test_verdict_states_fresh_partial_failed_and_stale_failed",
+    "tests/test_verify_completion.py::test_a_verdict_time_is_when_its_entry_last_changed_not_when_the_file_did",
+    "tests/test_verify_completion.py::test_a_newer_verdict_supersedes_an_older_lens_only_when_it_says_so",
+    "tests/test_verify_completion.py::test_a_verdict_naming_its_commit_is_fresh_while_the_files_are_unchanged",
+    "tests/test_verify_completion.py::test_missing_files_placeholders_and_test_directories",
+    "tests/test_verify_completion.py::test_integration_points_must_be_reachable_for_the_requirements_kind",
+    "tests/test_verify_completion.py::test_console_script_commands_programs_and_symbols_resolve_or_are_reported",
+    "tests/test_verify_completion.py::test_executed_evidence_must_exist_succeed_and_be_newer_than_the_code",
+    "tests/test_verify_completion.py::test_document_requirements_need_files_a_claim_and_a_current_verdict_only",
+    "tests/test_verify_completion.py::test_the_owners_claim_decides_and_suffixed_status_files_belong_to_their_owner",
+    "tests/test_verify_completion.py::test_status_levels_are_computed_separately",
+    "tests/test_verify_completion.py::test_completion_md_has_every_group_counts_and_the_regeneration_command",
+    "tests/test_verify_completion.py::test_an_overridden_base_method_is_not_a_placeholder_but_an_unoverridden_one_is",
+    "tests/test_verify_completion.py::test_a_no_op_override_of_a_library_hook_is_not_a_placeholder",
+    "tests/test_verify_completion.py::test_markers_count_in_comments_docstrings_and_raises_not_in_string_data",
+    "tests/test_verify_completion.py::test_the_manifest_covers_every_enumerated_mandatory_item_of_the_specification"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/test_verify_completion.py -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/MAN_fix.xml",
+    "cd /workspace/camlive/cam_live && ../.venv/bin/python tools/gen_manifest.py && PYTHONPATH=src ../.venv/bin/python -m cam_live.verify_completion --merge-status --json /tmp/completion.json --quiet"
+   ],
+   "evidence": ["docs/evidence/test_results/MAN_fix.xml", "docs/COMPLETION.md"],
+   "limitations": "Changed: freshness rules (test results and verdicts must be newer than the last commit or uncommitted edit of the requirement's files; a test result also newer than its test file), a skipped result no longer hides an earlier pass or failure, per-kind reachability with an explicit entry-point set, console-script / 'python -m' / 'tool <name>' integration points, dataclass fields, executed-evidence markers and failed runs, verdict times from the git history of each lens entry (or verified_at / commit fields), supersession of verdicts, five groups, separate and cumulative status levels, durability record, spec coverage, abstract-by-convention methods and no-op overrides of library hooks are not placeholders, to-do / fix-me markers count in comments and docstrings only (string data such as a scanner's word list does not), and the checker scans its own file too. Limits: reachability is static (imports, import_module constants, exact module-name strings and 'module:attr' factory strings in source, task and config files); a string that merely names a module counts as a reference. Placeholder detection is syntactic. The checker does not run tests itself; it reads recorded JUnit and takes the run's start time. Verdict times come from git history unless the verdict records verified_at or commit. Staleness is per file, so a change anywhere in a shared file (e.g. predict/predictor.py, agent.py) makes every requirement naming it stale. Not independently verified."
+  },
+  "IN-09": {
+   "state": "implemented",
+   "files": ["src/cam_live/verify_completion.py"],
+   "integration_points": ["cam_live.verify_completion.standalone_findings"],
+   "tests": [
+    "tests/test_verify_completion.py::test_the_cam_live_source_is_standalone",
+    "tests/test_verify_completion.py::test_the_standalone_scan_flags_imports_of_unfinished_projects"
+   ],
+   "commands": ["cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/test_verify_completion.py -q --rootdir=cam_live -k standalone"],
+   "evidence": ["docs/evidence/test_results/MAN_fix.xml"],
+   "limitations": "Static scan of import statements and import_module / __import__ constants in src/cam_live for superlearner, crucible and agentrs: 0 findings. It does not detect sys.path manipulation or subprocesses that run another project's code, and does not inspect the shared virtual environment (layered over /workspace/agentrs/.venv through a .pth). Not independently verified."
+  },
+  "OP-08": {
+   "state": "partial",
+   "files": ["src/cam_live/verify_completion.py", "tools/push_milestone.sh"],
+   "integration_points": ["cam_live.verify_completion.durability"],
+   "tests": ["tests/test_verify_completion.py::test_durability_reports_unpushed_commits_and_uncommitted_files"],
+   "commands": ["cd /workspace/camlive/cam_live && PYTHONPATH=src ../.venv/bin/python -m cam_live.verify_completion --merge-status --quiet   # section 'Durability' of docs/COMPLETION.md"],
+   "evidence": ["docs/COMPLETION.md"],
+   "limitations": "The checker records, at every run, the branch head, the local remote-tracking ref (the last push from this checkout; no network access), the commits not on it, uncommitted, untracked and git-ignored paths. Pushing is done by tools/push_milestone.sh (master, operator-authorized); MAN did not push. Run directories, checkpoints and experience stores are git-ignored and have no off-instance copy; nothing here copies them. Not independently verified."
+  }
+ },
+ "public_api": [
+  "cam_live.verify_completion.run(only=None, do_merge=False, paths=None, completion_md=None) -> report dict",
+  "cam_live.verify_completion.main(argv) -> exit code (0 only when level 1 holds)",
+  "cam_live.verify_completion.Paths(project, package)",
+  "cam_live.verify_completion.standalone_findings(paths) -> list of findings",
+  "cam_live.verify_completion.placeholder_findings(path, paths) -> list of findings",
+  "tools/gen_manifest.py (writes the manifest: requirements, kind, level, needs_executed_evidence, declared, coverage)"
+ ],
+ "change_requests": 1,
+ "measured": {"requirements_before": 158, "requirements_after": 198, "new_ids": 40, "checker_tests": 27},
+ "not_done": [
+  "The 40 new requirements are not claimed by their owners (status files of finished workstreams were not given new claims): see docs/change_requests/MAN.md.",
+  "No independent verification of the checker (IN-04) or of the standalone check (IN-09)."
+ ],
+ "scientific_failures": []
+}
