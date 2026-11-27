@@ -404,7 +404,8 @@ def phase_computer(agent: Any, clock: OffsetClock, root: str, n_decisions: int, 
                 approve = (len(resolved) + 1) % max(1, reject_every) != 0
                 policy.resolve_approval(row["approval_id"], approve, "operator", "staging validation operator")
                 resolved.append({"approval_id": row["approval_id"], "approved": approve,
-                                 "operation": (row.get("action") or {}).get("operation", row.get("preview", ""))[:80]})
+                                 "operation": str((row.get("action") or {}).get("operation", "")
+                                                  if isinstance(row.get("action"), dict) else row.get("preview", ""))[:80]})
         if rt.status == "running":
             rt._finish("stopped", "validation step budget reached")
         rt.close()
