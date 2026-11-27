@@ -77,6 +77,8 @@ def build_inproc(task: TaskSpec, cfg: CamLiveConfig, run_dir: str) -> Tuple[Any,
     policy.register_task(task, "operator")
     # the environment keeps its own state and execution log under <run_dir>/exec, apart from the runtime's records
     env = build_environment(os.path.join(run_dir, "exec"), policy, provenance=task.mode, clock=clock,
+                            secrets=policy.secrets_handle() if hasattr(policy, "secrets_handle") else None,
+                            compose="all" if not sec.get("executors") else "minimal", task=task,   # E-2
                             executors=tuple(sec.get("executors", ())), browser=bool(sec.get("browser", True)))
     source = source_from_spec(evidence_source(task), task, run_dir)
     verifier = build_verifier(task, os.path.join(run_dir, "verifier"), clock, source,

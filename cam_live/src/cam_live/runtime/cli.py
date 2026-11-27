@@ -441,7 +441,8 @@ def cmd_supervise(a: argparse.Namespace) -> int:
     extra = {k: list(v) for k, v in lc.extra_args.items()}
     extra.setdefault("exec", [])
     if "--auth-socket" not in extra["exec"]:
-        extra["exec"] += ["--auth-socket", os.path.join(sock, SOCK_AUTH), "--provenance", task.mode]
+        extra["exec"] += ["--auth-socket", os.path.join(sock, SOCK_AUTH), "--provenance", task.mode,
+                          "--task", os.path.join(run_dir, "task.yaml")]          # E-1: Discord / publishing config
     if "--run-dir" not in extra["exec"]:
         # the executor's own state (workspace, execution log) lives in <run_dir>/exec, the directory the launcher
         # creates for its uid; the run directory itself holds the runtime's records
