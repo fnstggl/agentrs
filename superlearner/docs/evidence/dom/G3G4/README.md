@@ -29,3 +29,22 @@ Core hash changed in every successful update; core gradient shares world 0.44, a
 Warm decide (B=16, K=4) 2.49 s in this run (1.11 s in g3_run5 at ba74bdd) - the difference coincides with another
 tenant's GPU jobs; decide is not a clean measurement here. Verdict: G3 NOT MET in one configuration; the memory
 budget is met with Adafactor everywhere, the time budget with an AdamW core, not both at once.
+
+## G4 - 1B end-to-end through runtime.run_lifetime (orchestrator, 2026-11-27 07:23-07:28 UTC, code c3b71b8)
+
+`stage1.dom_e2e --preset dom --rapid 16 --ow 2 --rounds 4 --update-every 2 --require-cam-eval on` with the G3
+memory configuration (Adafactor all groups, microbatch 2, 2 open-loop starts, gradient checkpointing). Evidence
+`g4_dom.json`. 1,573,522,304 trainable CAM parameters (core 1,004,124,162) + frozen Qwen3-4B.
+
+| G4 criterion | result |
+|---|---|
+| >= 64 decisions, observation-only | 72 decisions over 18 worlds; Transition.rewards None every round; record rewards 0 - PASS |
+| 2 updates, core changes | 2 updates (149.9 s, 43.3 s; peak 29.6 / 34.3 GB); core hash 9312812b -> 000a1e5e - PASS |
+| every action cam_eval stamped and authorised | 72/72 stamped, 72/72 HMAC-verified, authorisation required - PASS |
+| DOM-08 gradient table after a step | 13/14 groups nonzero after update 2 (blocks 0/mid/last, sem_proj, Mech C gate, reasoner, beliefs, world model, intent, decoder xattn, exploration, policy, V_int); predictors zero (no label resolved in 4 rounds) - PASS except predictors |
+| KL(pi || pi with I permuted) >> 1e-9 | mean 1.7e-3 (min 1.1e-4, max 1.0e-2) at initialisation - PASS |
+| integrity canary scan | 32 canaries, 90 records, 108 trace lines: clean - PASS |
+
+Not met / caveats: warm decide 8.3 s at B=18 with 2 OpenWorld worlds (string decoding dominates: generate 6.5-10 s;
+the 1.5 s G3 decide budget was for 16 numeric-tool rapid worlds); actions mostly wait/noop (untrained policy);
+predictors and psi untrained (no labels within 4 rounds; rapid episodes are 60 ticks).
