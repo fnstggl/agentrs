@@ -256,7 +256,7 @@ def poly_forms(n_vars: int, deg: int) -> list[dict]:
 
 
 def fit_joint(forms: list[dict], blocks: list[dict], names: list[str], anchors: list[tuple[dict, float]],
-              criterion: str = "bic") -> str | None:
+              criterion: str = "bic", stats: bool = False):
     """Joint weighted least squares of a response form and each apparatus' gain and offset on RAW readings, with the
     certified standards as exact anchors of the law (their certified value is the law at their conditions).
     `blocks`: one per apparatus {points, raw, sd, rel, std_raw: [(certified, reading)]}. The forms' constants and
@@ -325,7 +325,9 @@ def fit_joint(forms: list[dict], blocks: list[dict], names: list[str], anchors: 
                 for j in reversed(range(k)):
                     text = text.replace(f"p{j}", f"({lawlang.fmt(sol.x[j])})")
                 if best is None or ic < best[0]:
-                    best = (ic, text)
+                    best = (ic, text, rss / max(1, n_obs - k - 2 * len(blocks)))
+    if stats:
+        return best          # (information criterion, model text, chi-square per degree of freedom) or None
     return None if best is None else best[1]
 
 
@@ -960,8 +962,16 @@ def reference_script(target: str = "ph0", reps: int = 1):
                                        if x.get("standard") in certified],
                            "sd": float(a["stated_sd"]), "rel": float(a["stated_rel"])})
         anchors = [(s["at"], float(s["certified"])) for s in ph["standards"]]
-        forms = [f for f in TEXTBOOK] + [f for f in EXTENDED if f["n"] <= len(names)] + poly_forms(len(names), 2)
-        model = fit_joint(forms, blocks, names, anchors, criterion="bic")
+        # the handbook first; only when no handbook form explains the data within its noise (chi-square per degree
+        # of freedom above 2) does the researcher reach for shapes beyond it (and keeps whichever explains it best)
+        fit = fit_joint([f for f in TEXTBOOK] + poly_forms(len(names), 2), blocks, names, anchors, criterion="bic",
+                        stats=True)
+        if fit is None or fit[2] > 2.0:
+            ext = fit_joint([f for f in EXTENDED if f["n"] <= len(names)], blocks, names, anchors, criterion="bic",
+                            stats=True)
+            if ext is not None and (fit is None or ext[0] < fit[0]):
+                fit = ext
+        model = None if fit is None else fit[1]
         if model is not None:
             yield {"tool": "sci.publish", "args": {"phenomenon": target, "title": f"The response law of {target}",
                                                    "abstract": "Calibrated grid measurements; model chosen by BIC "
