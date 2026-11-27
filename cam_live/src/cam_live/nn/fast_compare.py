@@ -12,7 +12,8 @@ Methods
                          prior, trained ALPaCA-style through the online updates (``fast.online_nll``)
     blr_raw              exact Bayesian linear regression (Gaussian) / Laplace GLM (count) on the raw inputs [x, 1],
                          prior fitted on the training tasks (empirical Bayes)
-    gru                  a GRU that reads (x, y) pairs and predicts the next y (recurrent adaptation)
+    gru                  a GRU that reads (x, y) pairs and predicts the next y (recurrent adaptation): Gaussian
+                         mean / variance head, negative-binomial head for counts; four times the meta-train steps
     running_stats        running mean / variance (normal-inverse-gamma) for Gaussian targets, Gamma-Poisson running
                          rate for counts; prior fitted on the training tasks
 
@@ -226,8 +227,13 @@ class GRUAdapter(nn.Module):
         prev = torch.cat([h0.transpose(0, 1), hs[:, :-1]], 1)                    # state before each point
         out = self.head(torch.cat([prev, x, loge], -1)).to(F64)
         if self.kind == OutcomeKind.COUNT:
-            lograte = out[..., 0].clamp(-10.0, 10.0) + torch.log(ex)
-            return torch.exp(lograte) - y * lograte + torch.lgamma(y + 1.0), torch.exp(lograte)
+            # negative binomial (mean m, inverse dispersion r): a point-estimated Poisson rate would be penalised
+            # for having no way to express its uncertainty, which is not what this comparison is about
+            m = torch.exp(out[..., 0].clamp(-10.0, 10.0) + torch.log(ex))
+            r = torch.exp(out[..., 1].clamp(-6.0, 8.0))
+            logp = (torch.lgamma(y + r) - torch.lgamma(r) - torch.lgamma(y + 1.0)
+                    + r * torch.log(r / (r + m)) + y * torch.log(m / (r + m)))
+            return -logp, m
         mean, logvar = out[..., 0], out[..., 1].clamp(-10.0, 6.0)
         return 0.5 * (math.log(2 * math.pi) + logvar + (y - mean) ** 2 / logvar.exp()), mean
 

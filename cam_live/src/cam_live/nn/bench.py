@@ -120,6 +120,69 @@ def _passage(tok_count: int, bb: Any, seed: int) -> str:
     return bb._decode(ids)
 
 
+def init_diagnostics(model: Any) -> Dict[str, Any]:
+    """Properties of the freshly initialised real configuration that earlier systems got wrong."""
+    import torch.nn.functional as Fn
+    bb = model.backbone
+    long_text = _passage(200, bb, 7)
+    it = lambda v, name="members.count": ExperienceItem(kind=ItemKind.OUTCOME, text=long_text, ts=10.0,
+                                                        quantities=[Quantity(name, v)])
+    with torch.no_grad():
+        x = model.tokenize([[it(1.0)], [it(-1.0)], [it(100.0)], [it(103.0)], [it(5.0, "visits")],
+                            [it(5.0, "signups")]]).x[:, 0]
+        cos = lambda a, b: round(float(Fn.cosine_similarity(a, b, -1).mean()), 4)
+        out = {"token_cos_plus1_minus1": cos(x[0], x[1]), "token_cos_100_103": cos(x[2], x[3]),
+               "token_cos_same_value_two_metrics": cos(x[4], x[5])}
+        ctxs = [
+            [ExperienceItem(kind=ItemKind.OBSERVATION, text="A checkout form with three empty fields and a disabled "
+                            "submit button.", ts=1000.0, quantities=[Quantity("fields", 3.0)]),
+             ExperienceItem(kind=ItemKind.ACTION, text="browser.type into the field labelled Name", ts=1004.0)],
+            [ExperienceItem(kind=ItemKind.DOCUMENT, text="Section 2 of the manual explains how the export job is "
+                            "scheduled and where its log file is written.", ts=50000.0),
+             ExperienceItem(kind=ItemKind.OUTCOME, text="rows exported", ts=58000.0,
+                            quantities=[Quantity("rows", 18250.0)]),
+             ExperienceItem(kind=ItemKind.COST, text="cost", ts=58001.0, quantities=[Quantity("cost.seconds", 412.0)])],
+            [ExperienceItem(kind=ItemKind.FAILURE, text="timeout transient_network: the request did not complete",
+                            ts=200.0)],
+            [ExperienceItem(kind=ItemKind.SOFTWARE, text="def mean(xs):\n    return sum(xs) / len(xs)", ts=10.0),
+             ExperienceItem(kind=ItemKind.ATTEMPT, text="result ok", ts=12.5,
+                            quantities=[Quantity("result.ok", 1.0), Quantity("result.duration", 2.5)]),
+             ExperienceItem(kind=ItemKind.EVENT, text="A new message arrived in the shared channel.", ts=90000.0),
+             ExperienceItem(kind=ItemKind.OUTCOME, text="members.count (observed)", ts=260000.0,
+                            quantities=[Quantity("members.count", 7.0)])],
+            [ExperienceItem(kind=ItemKind.TOOL, text="tool sandbox.python [code/primitive] runs a Python program "
+                            "and returns its output", ts=0.0),
+             ExperienceItem(kind=ItemKind.GOAL, text="Reach the stated target within the time limit.", ts=1.0)],
+            [ExperienceItem(kind=ItemKind.PREDICTION, text="prediction of visits [poisson]", ts=300.0,
+                            quantities=[Quantity("pred.mean", 40.0), Quantity("pred.std", 9.0)]),
+             ExperienceItem(kind=ItemKind.OUTCOME, text="visits (observed)", ts=86700.0,
+                            quantities=[Quantity("visits", 12.0)])],
+        ]
+        o = model.core_forward(model.tokenize(ctxs))
+        acts = [[ActionSpec("a1", "browser.click", arguments={"ref": "e3"}),
+                 ActionSpec("a2", "sandbox.python", modality="code", arguments={"code": "print(1)"}),
+                 ActionSpec("a3", "internal.wait", arguments={"seconds": 600})]] * len(ctxs)
+        e_a, _ = model.encode_actions(acts)
+        e_g = model.encode_goals(["Reach the stated target within the time limit."] * len(ctxs))
+        e_q = model.encode_queries([[OutcomeQuery("q", "items", kind=OutcomeKind.COUNT, horizon_s=3600.0)]] * len(ctxs))[0]
+        z = model.decision_latent(o.b, e_a, e_g)
+        perm = torch.roll(torch.arange(len(ctxs), device=z.device), 1)
+        z_p = model.decision_latent(o.b[perm], e_a, e_g)
+        phi = model.features(z, e_q).reshape(-1, model.n_features).double()
+        delta = o.state.slots - model.init_state(len(ctxs)).slots
+        out.update({
+            "belief_cos_between_contexts": cos(o.b, o.b[perm]),
+            "z_cos_under_permuted_belief": cos(z, z_p),
+            "belief_relative_change_under_permutation": round(float((o.b - o.b[perm]).norm() / o.b.norm()), 4),
+            "z_relative_change_under_permuted_belief": round(float((z - z_p).norm() / z.norm()), 4),
+            "z_cos_between_two_actions": cos(z[:, 0], z[:, 1]),
+            "action_embedding_cos_between_two_actions": cos(e_a[:, 0], e_a[:, 1]),
+            "state_constant_fraction_after_one_call": round(float(delta.mean(0).pow(2).mean() / delta.pow(2).mean()), 4),
+            "slot_gate_mean": round(float(o.aux["gate_mean"]), 4),
+            "phi_norm": round(float(phi.norm(dim=-1).mean()), 6)})
+    return out
+
+
 def gpu_benchmark(cfg: CamLiveConfig, log=print) -> Dict[str, Any]:
     res: Dict[str, Any] = {}
     torch.cuda.reset_peak_memory_stats()
@@ -138,6 +201,9 @@ def gpu_benchmark(cfg: CamLiveConfig, log=print) -> Dict[str, Any]:
     res["backbone"] = bb.info()
     res["arch_signature_core"] = model.arch_signature()["core"]
     log(f"loaded {bb.name} in {res['load_s']} s; counts {res['parameters']}")
+
+    res["init_diagnostics"] = init_diagnostics(model)
+    log(f"init diagnostics: {res['init_diagnostics']}")
 
     # ---- embedding throughput (unique texts, cache cold) -----------------------------------------------------------
     emb = {}
@@ -275,6 +341,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "command": "python -m cam_live.nn.bench " + " ".join(sys.argv[1:] if argv is None else argv),
         "written_at_unix": round(time.time(), 1),
         "environment": {"torch": torch.__version__, "python": platform.python_version(),
+                        "cpu_load_average_at_start": [round(x, 2) for x in os.getloadavg()],
+                        "note": "the machine and the GPU are shared with other jobs; speeds are lower bounds",
                         "cuda": torch.cuda.is_available(),
                         "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else ""},
         "backbone": {"name": cfg.backbone.name, "revision": cfg.backbone.revision},

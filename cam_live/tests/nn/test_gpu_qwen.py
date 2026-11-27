@@ -93,6 +93,21 @@ def test_generate_returns_text(qwen):
     assert samples == qwen.generate([p], latent=lat, max_new_tokens=12, temperature=0.9, num_return_sequences=3, seed=1)
 
 
+def test_real_tokens_keep_numbers_and_the_latent_drives_decisions(qwen):
+    """The two failures that only showed with a real backbone before: text swamping numbers (cos 0.98) and a
+    decision path that ignored CAM's belief (KL 4e-9)."""
+    from cam_live.nn.bench import init_diagnostics
+    d = init_diagnostics(qwen)
+    assert d["token_cos_plus1_minus1"] < 0.35, d
+    assert d["token_cos_100_103"] < 0.9999 and d["token_cos_same_value_two_metrics"] < 0.9
+    assert d["z_relative_change_under_permuted_belief"] > 0.3, d
+    # at least 40 % of a change of the belief arrives in the decision latent (it was 0 % in the failed system)
+    assert d["z_relative_change_under_permuted_belief"] > 0.4 * d["belief_relative_change_under_permutation"], d
+    assert d["z_cos_between_two_actions"] < 0.9, d
+    assert d["state_constant_fraction_after_one_call"] < 0.6 and 0.02 < d["slot_gate_mean"] < 0.3, d
+    assert abs(d["phi_norm"] - 1.0) < 1e-4
+
+
 def test_adapters_get_gradient_through_both_paths_and_the_bridge_conditions(qwen):
     """Runs last: it takes one optimisation step on the adapters."""
     bb = qwen.backbone
