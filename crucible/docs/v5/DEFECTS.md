@@ -2510,6 +2510,14 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
    "evidence": "tests/test_v5_acceptance_baseline.py; scratch demo_lifetime comparisons (dl_run5/dl_run6)",
    "reason": "For 4.0 worlds (the defect's scope) under the D-82 historical baseline: demo_lifetime (bazaar, seed 7, 4 days) gives identical events and digests in two fresh processes, and after d6c53f6/2fc3984 the same 10,657 events, timeline and agent summaries as c07098b; the only remaining difference is the final digest, through one recorded API-catalogue hash (a `note` event of the random agent rex: 5.0 changed 4.0 tools' descriptions/schemas; the hash chain commits to it). The per-request line counts equal c07098b's (tests/test_v5_acceptance_baseline.py::test_a_4_0_baseline_process_counts_exactly_the_lines_crucible_4_0_counts). Not covered: 5.0 worlds' cross-machine reproducibility (the metering DiskMemo is machine-level: SP-13.7/K-gates, owner O/A). Owner O / orchestrator to re-validate.",
    "verdict": "likely_fixed"
+  },
+  {
+   "at": "2026-11-27T04:49:20+00:00",
+   "by": "P",
+   "commit": "8a2f3e3eae8a2e7a3cce9864291df63be5515a20",
+   "evidence": "D-82 addendum; orchestrator regression on 55433e7 (K1 resume test)",
+   "reason": "Correction of the 2026-11-27T02:40 triage (wave 3b verifier: its verdict overstated). The defect's root cause - 5.0's parent-measured CPU metering bills a computation by the first measurement of its CPU time (a per-process/machine memo), so a fresh process or another machine bills differently - is NOT fixed. What changed is only that a D-82 4.0 historical-baseline process bypasses that metering (4.0's executed-line model), so the 4.0 reproductions of A.1/A.5 no longer see it. 5.0 worlds still diverge across processes: the orchestrator's 55433e7 regression list has kcal's test_v5_substrate_resume::test_a_fresh_process_resumes_a_snapshot_of_a_world_with_neural_participants failing (K1 state digest differs across processes). Owner O (metering) / A (kernel resume) to fix: a deterministic, measurement-free work count for the deterministic cost model.",
+   "verdict": "still_open"
   }
  ],
  "requirements": [
