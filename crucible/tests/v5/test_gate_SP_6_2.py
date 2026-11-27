@@ -210,6 +210,46 @@ def _subscription_bound(w, org) -> Fraction:
     return tot
 
 
+def _ledger_bound(w, org) -> Fraction:
+    """An independent upper bound on `org`'s MRR from the money it actually received (wave-3b repair: the check
+    against `_subscription_bound` alone used the same subscription rows and normalisation as MRR, so it could only
+    fail on a payer weight above 1). For every subscription whose latest paid invoice (`subs.invoice` event) covers
+    now, the invoice's charge must be in the bank ledger - a `subscription` transaction crediting the merchant with
+    exactly the invoiced cash - and the subscription then contributes that period's cash plus applied credit (a
+    plan change in the period: the largest such amount of its invoices), normalised to a month. MRR that includes
+    rolling sales, passes, unbacked or unpaid charges exceeds this bound."""
+    from crucible.commerce.subscriptions import MONTHS
+    st = w.state
+    mine = {a for a, r in st.scan("accounts") if r["owner"] == org}
+    refunds: dict[str, list] = {}
+    for tid in st.find_ids("txns", "kind", "refund"):
+        tx = st.tables["txns"][tid]
+        if tx.get("ref"):
+            refunds.setdefault(tx["ref"], []).append((tid, tx))
+    per: dict[str, Fraction] = {}
+    for e in w.log:
+        if e.type != "subs.invoice" or e.payload["merchant"] != org or e.payload.get("status") != "paid":
+            continue
+        p = e.payload
+        if int(p.get("period_end") or 0) <= w.now and p.get("kind") != "proration":
+            continue
+        cash = int(p["amount"])
+        if cash > 0:
+            tx = st.get("txns", p["txn"]) if p.get("txn") else None
+            got = sum(d for a, d in (tx or {}).get("postings", []) if a in mine and d > 0)
+            if tx is None or tx["kind"] != "subscription" or got != cash:
+                continue                                   # not backed by the ledger: never counts
+        # money returned on the invoice (bank `refund` transactions referencing it) is not revenue
+        back = sum(-d for _, tx in refunds.get(p["id"], []) for a, d in tx["postings"] if a in mine and d < 0)
+        amt = Fraction(max(0, cash - back) + int(p.get("credit_applied") or 0), MONTHS[p["interval"]])
+        if p.get("kind") == "proration":
+            amt = Fraction(int(p["list_price"]) - int(p.get("discount") or 0), MONTHS[p["interval"]])
+            if p["subscription"] not in per:
+                continue
+        per[p["subscription"]] = max(per.get(p["subscription"], Fraction(0)), amt)
+    return sum(per.values(), Fraction(0))
+
+
 def rolling_violations() -> tuple[int, dict]:
     v, detail = 0, {}
     # (1) only rolling sales remain: renewals stopped, one-time sales and passes continue
@@ -233,6 +273,7 @@ def rolling_violations() -> tuple[int, dict]:
     detail["only_rolling"] = {"rolling_30d_cents": roll30, "mrr_cents": rep["mrr_cents"]}
     v += int(roll30 > 0 and rep["mrr_cents"] != 0.0)
     v += int(revenue.mrr_exact(w, org) > _subscription_bound(w, org))
+    v += int(revenue.mrr_exact(w, org) > _ledger_bound(w, org))
     # (2) a population startup world with exchanges: incumbents sell subscriptions AND passes to individuals
     from crucible.commerce.worlds import startup_spec
     from crucible.core.kernel import World
@@ -243,12 +284,14 @@ def rolling_violations() -> tuple[int, dict]:
     st = pw.state
     merchants = sorted({s["merchant"] for _, s in st.scan("sub_subs")})
     pass_cents = sum(o["amount"] for _, o in st.scan("xchg_orders"))
-    over = 0
+    over = ledger_over = 0
     for m in merchants:
         over += int(revenue.mrr_exact(pw, m) > _subscription_bound(pw, m))
-    v += over
+        ledger_over += int(revenue.mrr_exact(pw, m) > _ledger_bound(pw, m))
+    v += over + ledger_over
+    detail["ledger_bound_cents"] = {m: float(_ledger_bound(pw, m)) for m in merchants}
     detail["population_world"] = {"merchants": len(merchants), "pass_order_cents": int(pass_cents),
-                                  "mrr_above_subscription_bound": over,
+                                  "mrr_above_subscription_bound": over, "mrr_above_ledger_bound": ledger_over,
                                   "mrr_cents": {m: float(revenue.mrr_exact(pw, m)) for m in merchants},
                                   "invariant_errors": len(healthy(pw))}
     return v, {"detail": detail, "pass_cents": int(pass_cents), "merchants": len(merchants),
@@ -265,34 +308,54 @@ def _subscription_memo(node) -> bool:
     return False
 
 
+def _billing_calls(node) -> list[int]:
+    """Line numbers of recurring-charge calls under `node`: a bank.move / bank.debit of ledger kind "subscription",
+    or a payment (move, debit, or the population's own `pay`) whose memo names a subscription."""
+    out = []
+    for n in ast.walk(node):
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr in ("move", "debit", "pay"):
+            vals = [a.value for a in n.args if isinstance(a, ast.Constant)] + \
+                [k.value.value for k in n.keywords if k.arg == "kind" and isinstance(k.value, ast.Constant)]
+            memo = any(_subscription_memo(a) for a in n.args) or \
+                any(_subscription_memo(k.value) for k in n.keywords if k.arg == "memo")
+            if (n.func.attr != "pay" and "subscription" in vals) or memo:
+                out.append(n.lineno)
+    return out
+
+
 def recurring_billing_modules() -> dict[str, list[str]]:
-    """{module: [files]} of shipped kernel modules whose source posts a recurring charge itself (syntax-tree scan of
-    each module's defining file): a bank.move / bank.debit of ledger kind "subscription", or a payment (move, debit,
-    or the population's own `pay`) whose memo names a subscription (e.g. `pay(..., memo=f"subscription {pid}")`)."""
+    """{module: [file:line]} of shipped kernel modules whose code posts a recurring charge itself (syntax-tree scan,
+    `_billing_calls`). A module's code is every crucible class of its MRO (inherited billing counts: e.g. `caps`
+    inherits `services.capabilities.Capabilities._bill`), each scanned in its own defining file, plus the top-level
+    functions of those files (helpers the class calls). Wave-3b repair: the scan read only the registered class's
+    own body, so a module billing through a base class or a module-level helper was not counted."""
     import crucible
-    from crucible.core.kernel import MODULES
+    from crucible.core.kernel import MODULES, Module
     from crucible.substrate import facts
     crucible.load_all_modules()
+    trees: dict[str, ast.Module] = {}
+
+    def tree(path):
+        if path not in trees:
+            trees[path] = ast.parse(open(path, encoding="utf-8").read())
+        return trees[path]
     out: dict[str, list[str]] = {}
-    files: dict[str, list[str]] = {}
-    for name in facts.shipped_modules():
-        files.setdefault(inspect.getsourcefile(MODULES[name]), []).append(name)
-    for path, mods in sorted(files.items()):
-        tree = ast.parse(open(path, encoding="utf-8").read())
-        for cls in [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]:
-            owners = [m for m in mods if MODULES[m].__name__ == cls.name]
-            if not owners:
+    for name in sorted(facts.shipped_modules()):
+        hits: set[str] = set()
+        for cls in MODULES[name].__mro__:
+            if cls in (Module, object) or not cls.__module__.startswith("crucible"):
                 continue
-            for n in ast.walk(cls):
-                if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and \
-                        n.func.attr in ("move", "debit", "pay"):
-                    vals = [a.value for a in n.args if isinstance(a, ast.Constant)] + \
-                        [k.value.value for k in n.keywords if k.arg == "kind" and isinstance(k.value, ast.Constant)]
-                    memo = any(_subscription_memo(a) for a in n.args) or \
-                        any(_subscription_memo(k.value) for k in n.keywords if k.arg == "memo")
-                    if (n.func.attr != "pay" and "subscription" in vals) or memo:
-                        for m in owners:
-                            out.setdefault(m, []).append(f"{path.split('/src/')[-1]}:{n.lineno}")
+            path = inspect.getsourcefile(cls)
+            rel = path.split("/src/")[-1]
+            t = tree(path)
+            body = next((n for n in ast.walk(t) if isinstance(n, ast.ClassDef) and n.name == cls.__name__), None)
+            if body is not None:
+                hits.update(f"{rel}:{ln}" for ln in _billing_calls(body))
+            for fn in t.body:
+                if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    hits.update(f"{rel}:{ln}" for ln in _billing_calls(fn))
+        if hits:
+            out[name] = sorted(hits)
     return out
 
 

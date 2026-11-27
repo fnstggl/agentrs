@@ -19,11 +19,25 @@ majority vote with a quorum. Each individual decides from its own state:
   (1 - error tolerance) times its belief of losing its job within a month (the share of its contacts out of work,
   shrunk to a 5% prior) times the benefit exceeds the dues, and the dues are at most 3% of its monthly means;
 * **pay** - each month a member pays its dues if it can afford three months of them; otherwise it falls behind;
-* **claim** - a member that lost its job since its last session and has not claimed in this spell proposes its
-  benefit (a member in arrears may still try);
-* **vote** - on a claim: yes when the claimant paid dues at least twice in the last 90 days (the association's
-  members-only dues record) and the amount is within the published benefit, with probability 0.9 (no otherwise,
-  with probability 0.9); on a rule change: yes with probability 0.6;
+* **claim** - a member out of work that has not claimed in this spell proposes its benefit once it qualifies under
+  the published terms (below): it knows its own membership, dues and benefit record;
+* **vote** - every member reads what a decision does before voting (members' information only: the association's
+  charter, decisions and members-only dues record, the public labour-market profile, and what it knows of its own
+  contacts):
+  - a *claim* (a transfer from the association's account to the proposer, within the published benefit)
+    *qualifies* when the claimant has been a member for `qualifying_days` (30), paid dues at least twice in the last
+    90 days with at least one payment more than 25 days old (two different months), and received no benefit from
+    the association in the last `claim_gap_days` (365). A claim that does not qualify gets yes with probability
+    0.05. A qualifying claim is then judged on the evidence of the job loss the voter has: a voter that is a contact
+    of the claimant knows whether it has work; otherwise the claimant's public labour-market profile tells (a
+    current employer: still employed; an employment that ended within 30 days: a loss); evidence of work gives yes
+    with probability 0.05, evidence of a loss 0.9, and no evidence either way the benefit of the doubt, 0.6;
+  - a *rule change* (`amend`) gets yes only when it changes nothing but the quorum or the voting window of the
+    members' procedure, within bounds (quorum >= 0.1, window >= 1 day): lowering the quorum while decisions keep
+    lapsing 0.85, otherwise 0.4. Any other change - who decides on the treasury, offices, membership, dissolution,
+    new procedures or rules - gets yes with probability 0.05 (members do not hand over their treasury);
+  - any other action (a transfer that is not the proposer's claim, an office, an admission, a dissolution...)
+    gets yes with probability 0.05;
 * **adapt** - when two of the association's last three decisions lapsed without a quorum, a member proposes
   lowering the quorum of the members' procedure by 0.1 (not below 0.1): an `amend` decision under the charter's own
   rules (institutions adapt their operational rules through authorised mechanisms);
@@ -44,7 +58,8 @@ MONTH = 30 * DAY
 MODEL = {"model_id": "work.assoc", "model_version": "1", "fidelity_id": "FR-WORK-3"}
 TABLE = "assoc"
 DEFAULTS = {"found_sociability": 0.85, "benefit_months": 12, "max_members": 400, "consider_days": 30,
-            "quorum": 0.3, "window_days": 3}
+            "quorum": 0.3, "window_days": 3, "qualifying_days": 30, "claim_gap_days": 365}
+OPERATIONAL = {("procedures", "members", "quorum"), ("procedures", "members", "window_s")}
 CHARTER = lambda quorum, window: {  # noqa: E731
     "procedures": {"members": {"type": "majority", "electorate": "members", "quorum": quorum,
                                "window_s": int(window) * DAY}},
@@ -98,8 +113,8 @@ def session(work, ctx, idx: np.ndarray, now: int) -> np.ndarray:
     dec: dict[str, list] = {k: [] for k in ("found", "join", "pay", "behind", "claim", "vote", "adapt", "leave")}
     founded_today = any(o.get("created", -1) // DAY == now // DAY for _, o in st.scan("orgs")
                         if o["kind"] == "association")
-    col_emp = columns.col(w, TABLE, "was_employed")
     col_claimed = columns.col(w, TABLE, "claimed")
+    facts_cache: dict = {}
     upd_emp, upd_claim, upd_dues, upd_cons = {}, {}, {}, {}
     for k, i in enumerate(idx.tolist()):
         p = ids.pid(i)
@@ -115,7 +130,7 @@ def session(work, ctx, idx: np.ndarray, now: int) -> np.ndarray:
                 if d["status"] != "open" or st.has("inst_ballots", f"{did}|{p}") or \
                         p not in {x for x, _ in d["electorate"]}:
                     continue
-                yes = _vote(ctx, st, org, p, d, terms, rng)
+                yes = _vote(ctx, st, org, p, d, terms, rng, contacts[k], hired, facts_cache)
                 try:
                     ctx.call("inst.vote", {"decision": did, "choice": "yes" if yes else "no"}, as_principal=p)
                     dec["vote"].append(i)
@@ -144,9 +159,9 @@ def session(work, ctx, idx: np.ndarray, now: int) -> np.ndarray:
                         dec["behind"].append(i)
                 else:
                     dec["behind"].append(i)
-            # claim after losing a job
-            lost = int(col_emp[i]) == 1 and not emp[k]
-            if lost and not bool(col_claimed[i]):
+            # claim while out of work (members join employed: a member without work lost it), once it qualifies
+            if not emp[k] and not bool(col_claimed[i]) and \
+                    claim_facts(ctx, org, p, terms, as_principal=p)["qualifies"]:
                 bank = w.modules["bank"]
                 pb.fund(ctx, i)
                 try:
@@ -216,6 +231,8 @@ def session(work, ctx, idx: np.ndarray, now: int) -> np.ndarray:
                             "charter": CHARTER(float(_cfg(work, "quorum")), int(_cfg(work, "window_days"))),
                             "terms": {"dues_cents_month": dues,
                                       "benefit_cents": dues * int(_cfg(work, "benefit_months")),
+                                      "qualifying_days": int(_cfg(work, "qualifying_days")),
+                                      "claim_gap_days": int(_cfg(work, "claim_gap_days")),
                                       "purpose": "members insure each other against losing their job"}},
                             as_principal=p)
                         dec["found"].append(i)
@@ -238,18 +255,86 @@ def session(work, ctx, idx: np.ndarray, now: int) -> np.ndarray:
     return util
 
 
-def _vote(ctx, st, org, p, d, terms, rng) -> bool:
+def _term(terms, k) -> int:
+    return int(terms.get(k, DEFAULTS[k]))
+
+
+def claim_facts(ctx, org: str, claimant: str, terms: dict, *, as_principal: str) -> dict:
+    """What any member can check about a claim of `claimant` (module docstring, `vote`): membership age, the
+    members-only dues record, earlier benefits in the association's decision record, and the claimant's public
+    labour-market profile. `qualifies` = the published qualifying conditions hold."""
+    st, now = ctx.state, ctx.now
+    m = st.get("members", f"{org}|{claimant}")
+    member_days = (now - int(m["since"])) / DAY if m else -1.0
+    rec90 = (ctx.call("inst.dues", {"org": org, "days": 90}, as_principal=as_principal).get(claimant) or {})
+    rec25 = (ctx.call("inst.dues", {"org": org, "days": 25}, as_principal=as_principal).get(claimant) or {})
+    paid90, paid25 = int(rec90.get("payments", 0)), int(rec25.get("payments", 0))
+    last_benefit = None
+    for d in st.find("inst_decisions", "org", org):
+        a = d["action"]
+        if d["status"] == "executed" and a.get("kind") == "tool" and a.get("tool") == "bank.transfer" and \
+                (a.get("args") or {}).get("to") == claimant:
+            age = (now - int(d.get("decided_t") or d["t"])) / DAY
+            last_benefit = age if last_benefit is None else min(last_benefit, age)
+    market = None
+    if "labor" in ctx.world.modules and st.has("labor_workers", claimant):
+        prof = ctx.call("labor.profile", {"worker": claimant}, as_principal=as_principal)
+        ended = prof.get("days_since_last_employment_ended")
+        market = "employed" if prof["employer"] else ("lost" if ended is not None and ended <= 30 else None)
+    qualifies = member_days >= _term(terms, "qualifying_days") and paid90 >= 2 and paid90 - paid25 >= 1 and \
+        (last_benefit is None or last_benefit >= _term(terms, "claim_gap_days"))
+    return {"member_days": round(member_days, 1), "dues_90d": paid90, "dues_older_than_25d": paid90 - paid25,
+            "days_since_last_benefit": last_benefit, "labour_market": market, "qualifies": bool(qualifies)}
+
+
+def _changed(a, b, path=()) -> set:
+    """Paths (key tuples) at which two charters differ (lists and scalars compare whole)."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        out = set()
+        for k in sorted(set(a) | set(b), key=str):
+            out |= _changed(a.get(k), b.get(k), path + (k,))
+        return out
+    return set() if a == b else {path}
+
+
+def _vote(ctx, st, org, p, d, terms, rng, contacts, hired, cache) -> bool:
     a = d["action"]
+    by = d["by"]
     if a.get("kind") == "tool" and a.get("tool") == "bank.transfer":
         args = a.get("args") or {}
-        to = args.get("to")
-        if to == p:
-            return True
-        record = ctx.call("inst.dues", {"org": org, "days": 90}, as_principal=p)
-        good = int((record.get(d["by"]) or {}).get("payments", 0)) >= 2 and \
-            int(args.get("amount", 0)) <= int(terms.get("benefit_cents", 0))
-        return bool(rng.random() < (0.9 if good else 0.1))
-    return bool(rng.random() < 0.6)
+        if args.get("to") == p and by == p:
+            return True                                   # its own claim
+        bank = ctx.world.modules["bank"]
+        if args.get("to") != by or args.get("from_account") != bank.primary_account(st, org) or \
+                int(args.get("amount", 0)) > int(terms.get("benefit_cents", 0)):
+            return bool(rng.random() < 0.05)              # not a claim of the published benefit
+        key = (d["t"], by)
+        if key not in cache:
+            cache[key] = claim_facts(ctx, org, by, terms, as_principal=p)
+        facts = cache[key]
+        if not facts["qualifies"]:
+            return bool(rng.random() < 0.05)
+        ci = ids.index(by)
+        if ci is not None and int(ci) in {int(c) for c in contacts if int(c) >= 0}:
+            knows_work = bool(pb.employment(ctx.world, np.array([ci], np.int64), hired)[0])
+            return bool(rng.random() < (0.05 if knows_work else 0.9))
+        if facts["labour_market"] == "employed":
+            return bool(rng.random() < 0.05)
+        return bool(rng.random() < (0.9 if facts["labour_market"] == "lost" else 0.6))
+    if a.get("kind") == "amend":
+        rec = st.get("inst_charters", org)
+        cur, new = (rec or {}).get("charter") or {}, a.get("charter") or {}
+        changed = _changed(cur, new)
+        mem = ((new.get("procedures") or {}).get("members") or {})
+        if not changed or not changed <= OPERATIONAL or float(mem.get("quorum", 0)) < 0.1 or \
+                int(mem.get("window_s", 0)) < DAY:
+            return bool(rng.random() < 0.05)              # anything beyond the members' quorum and window
+        lower = float(mem["quorum"]) < float(cur["procedures"]["members"]["quorum"])
+        last3 = sorted((x for x in st.find("inst_decisions", "org", org) if x["status"] != "open"),
+                       key=lambda x: int(x.get("decided_t") or 0))[-3:]
+        lapsing = sum(1 for x in last3 if x["status"] == "lapsed") >= 2
+        return bool(rng.random() < (0.85 if lower and lapsing else 0.4))
+    return bool(rng.random() < 0.05)
 
 
 def due(work, ctx) -> np.ndarray:

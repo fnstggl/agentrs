@@ -201,3 +201,42 @@ def test_activity_continues_and_incumbent_days_never_fail(twelve_weeks):
     assert sum(c["inst.contribution"] for c in last4) > 0, last4  # and paying dues
     assert sum(c["xchg.order"] for c in last4) > 0, last4         # passes still sell
     assert w.check_invariants() == [] and w.modules["bank"].check_ledger_consistency(w) == []
+
+
+def test_mutual_aid_claims_qualify_and_are_paid_by_member_votes(twelve_weeks):
+    """The claim path over twelve weeks (wave-3b repair: the 38-day fixture asserted claims only if there were any):
+    members who lost their work claim the published benefit once they qualify; claims are members' majority
+    decisions; every benefit paid went to a member of at least `qualifying_days` with dues in two months, and no
+    member received two benefits within the claim gap."""
+    w = twelve_weeks
+    st = w.state
+    from crucible.economy import assoc
+    claims = [(did, d) for did, d in st.scan("inst_decisions")
+              if d["action"].get("tool") == "bank.transfer" and (d["action"].get("args") or {}).get("to") == d["by"]
+              and st.get("orgs", d["org"])["kind"] == "association"]
+    assert claims, "members claimed benefits"
+    assert all(d["procedure"]["type"] == "majority" for _, d in claims)
+    assert all(d["by"][1:].isdigit() for _, d in claims), "claimants are individuals of the population"
+    paid = [(did, d) for did, d in claims if d["status"] == "executed"]
+    assert paid, collections.Counter(d["status"] for _, d in claims)
+    kinds = collections.Counter(e.payload["kind"] for e in _decisions(w, "work.assoc_"))
+    assert kinds["work.assoc_claim"] and kinds["work.assoc_vote"], kinds          # (batches of decisions)
+    per_member = collections.defaultdict(list)
+    for did, d in paid:
+        terms = st.tables["orgs"][d["org"]]["info"]["terms"]
+        t = int(d["decided_t"])
+        dues = sorted(r["t"] for r in st.find("inst_contributions", "org", d["org"])
+                      if r["kind"] == "dues" and r["contributor"] == d["by"] and t - 90 * DAY <= r["t"] <= d["t"])
+        assert len(dues) >= 2 and d["t"] - dues[0] > 25 * DAY, (did, dues, d["t"])
+        joined = [e.t for e in w.log if e.type == "id.member" and e.payload["org"] == d["org"]
+                  and e.payload["person"] == d["by"] and e.t <= d["t"]]
+        assert joined and d["t"] - joined[-1] >= int(terms.get("qualifying_days", 30)) * DAY, (did, joined)
+        per_member[(d["org"], d["by"])].append(t)
+    for ts in per_member.values():
+        ts.sort()
+        assert all(b - a >= int(assoc.DEFAULTS["claim_gap_days"]) * DAY for a, b in zip(ts, ts[1:])), ts
+    # every benefit left the association's own account by a bank move (money only through bank)
+    bank = w.modules["bank"]
+    for did, d in paid:
+        args = d["action"]["args"]
+        assert args["from_account"] == bank.primary_account(st, d["org"]) and args["to"] == d["by"]

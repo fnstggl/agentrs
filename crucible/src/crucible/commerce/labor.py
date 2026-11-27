@@ -382,7 +382,7 @@ class Labor(Module):
         w = st.get("labor_workers", worker)
         if w is None or w["contract"] != cid:
             return
-        ch = {"employer": None, "contract": None, "salary": 0}
+        ch = {"employer": None, "contract": None, "salary": 0, "left_t": ctx.now}
         if status == "breached" and c.get("breached_by") == org:
             ch["blacklist"] = sorted(set(w["blacklist"]) | {org})
             ch["unpaid"] = w["unpaid"] + 1
@@ -756,13 +756,16 @@ class Labor(Module):
         verified = {k: {"tasks": e["tasks"], "mean_quality": round(e["quality_sum"] / e["tasks"], 3),
                         "late": e["late"]} for k, e in sorted(rec.items())}
         tenure = None if w["joined"] is None else round((world.now - w["joined"]) / DAY, 1)
+        left = w.get("left_t")
         return {"worker": worker, "declared_skills": list(w["declared"]), "verified_record": verified,
-                "employer": w["employer"], "tenure_days": tenure, "hours_week": w["hours_week"]}
+                "employer": w["employer"], "tenure_days": tenure, "hours_week": w["hours_week"],
+                "days_since_last_employment_ended": None if left is None else round((world.now - left) / DAY, 1)}
 
     @endpoint("profile", S.obj({"worker": S.s_str(maxLength=40)}, ["worker"]), read_only=True)
     def ep_profile(self, ctx, worker):
         """A worker's public profile: declared skills (names), verified work record (tasks done per skill, measured
-        quality, lateness), current employer and tenure. Skill levels themselves are private."""
+        quality, lateness), current employer and tenure, and how long ago its last employment in this labour market
+        ended (an employment record, as a reference check would confirm). Skill levels themselves are private."""
         return self.profile(ctx.world, ident(ctx.world).resolve_handle(ctx.state, worker))
 
     @endpoint("applicants", S.obj({"post": S.s_str(maxLength=40)}, ["post"]), read_only=True)

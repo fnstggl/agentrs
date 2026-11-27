@@ -1446,11 +1446,16 @@ class Institutions(Module):
                               "charter": S.s_any_obj("as in inst.adopt"),
                               "terms": S.obj({"dues_cents_month": S.s_int(minimum=0, maximum=10**8),
                                               "benefit_cents": S.s_int(minimum=0, maximum=10**9),
+                                              "qualifying_days": S.s_int("membership days before a benefit "
+                                                                         "claim qualifies", minimum=0, maximum=3650),
+                                              "claim_gap_days": S.s_int("days between two benefits of one member",
+                                                                        minimum=0, maximum=3650),
                                               "purpose": S.s_str(maxLength=300)})},
                              ["handle", "name", "charter"]), cost_s=180)
     def ep_found(self, ctx, handle, name, charter, kind="association", terms=None):
-        """Found an organisation you own and adopt its charter in one step; `terms` (dues, benefit, purpose) are
-        published with the organisation and cannot be changed afterwards."""
+        """Found an organisation you own and adopt its charter in one step; `terms` (dues, benefit, the claim
+        conditions members check - qualifying membership days, days between two benefits of a member - and purpose)
+        are published with the organisation and cannot be changed afterwards."""
         if not is_person(ctx.actor):
             raise Forbidden("persons found organisations")
         idm = ident(ctx.world)
