@@ -1,0 +1,351 @@
+{
+ "workstream": "ES",
+ "commit": "168c163",
+ "summary": "Skill library (induction from traces, validation by execution, per-step authorization, Beta reliability, staleness, repair / retire, versioned storage), adaptive modality selector, failure taxonomy with bounded retries, generic HTTP API executor, authorized publishing adapter, Discord bot-REST adapter with a local staging service. 106 CPU tests pass; Discord and all external effects were exercised on local staging services only.",
+ "requirements": {
+  "IH-04": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/publishing.py",
+    "src/cam_live/harness/discord.py",
+    "src/cam_live/harness/http_api.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.publishing.PublishingExecutor.execute",
+    "cam_live.harness.publishing.PublishingExecutor.from_resources",
+    "cam_live.harness.http_api.ApiModality"
+   ],
+   "tests": [
+    "tests/harness/skills/test_es_publishing.py::test_draft_preview_submit_publishes_exactly_what_was_written",
+    "tests/harness/skills/test_es_publishing.py::test_update_makes_a_new_revision_that_needs_preview_and_submit",
+    "tests/harness/skills/test_es_publishing.py::test_approval_required_then_approved",
+    "tests/harness/skills/test_es_publishing.py::test_approval_required_then_rejected",
+    "tests/harness/skills/test_es_publishing.py::test_denied_destination_and_invalid_requests",
+    "tests/harness/skills/test_es_publishing.py::test_publishing_to_an_owned_channel_goes_through_the_discord_adapter",
+    "tests/harness/skills/test_es_integration_shapes.py::test_publishing_to_a_channel_under_a_grant_bound_broker"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/ES/integration_smoke.py"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/ES.xml",
+    "docs/evidence/ES/integration_smoke.txt"
+   ],
+   "limitations": "Destinations: an owned static-site directory and channels of the authorized Discord server (staging service only; never run against Discord). The approval queue itself belongs to the authorization service; the adapter keeps the draft state (pending_approval / rejected) and publishes when the same publish.submit action is executed again after approval. With the current default policy publish.update is classified as an external write (change request ES-3)."
+  },
+  "IH-05": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/discord.py",
+    "src/cam_live/harness/staging_discord/server.py",
+    "src/cam_live/harness/staging_discord/__init__.py",
+    "docs/ES/DISCORD_COMPLIANCE.md"
+   ],
+   "integration_points": [
+    "cam_live.harness.discord.DiscordClient",
+    "cam_live.harness.discord.DiscordExecutor.from_task",
+    "cam_live.harness.staging_discord.StagingDiscordServer"
+   ],
+   "tests": [
+    "tests/harness/skills/test_es_discord.py::test_members_bots_and_declared_test_accounts",
+    "tests/harness/skills/test_es_discord.py::test_channels_messages_invites_events",
+    "tests/harness/skills/test_es_discord.py::test_auth_header_user_agent_and_staging_label",
+    "tests/harness/skills/test_es_discord.py::test_rate_limits_are_read_from_headers_and_waited_for",
+    "tests/harness/skills/test_es_discord.py::test_executor_tools_describe_capabilities_only",
+    "tests/harness/skills/test_es_discord.py::test_stats_messages_invites_through_the_executor",
+    "tests/harness/skills/test_es_discord.py::test_message_content_is_dropped_by_default",
+    "tests/harness/skills/test_es_discord.py::test_direct_messages_and_other_servers_are_never_touched",
+    "tests/harness/skills/test_es_discord.py::test_tools_are_unavailable_without_credentials_and_nothing_is_sent",
+    "tests/harness/skills/test_es_discord.py::test_denials_platform_rules_and_missing_permissions_are_hard_failures",
+    "tests/harness/skills/test_es_discord.py::test_rate_limited_and_unreachable_service_through_the_executor",
+    "tests/harness/skills/test_es_integration_shapes.py::test_discord_tools_name_the_server_and_use_a_probe_for_availability",
+    "tests/harness/skills/test_es_integration_shapes.py::test_retaining_message_text_is_put_to_the_policy_as_its_own_operation"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/ES/integration_smoke.py"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/ES.xml",
+    "docs/ES/DISCORD_COMPLIANCE.md",
+    "docs/evidence/ES/integration_smoke.txt"
+   ],
+   "limitations": "STAGING ONLY. No request has ever been sent to Discord; the client was exercised only against the local staging imitation of the REST subset it uses, whose fidelity to the real service is unverified beyond the published documentation. Live use is blocked until the operator supplies a bot token and the authorized guild id. REST only (no gateway): joins are observed by polling. Exact member counts need the Server Members privileged intent."
+  },
+  "IH-06": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/publishing.py",
+    "src/cam_live/harness/discord.py"
+   ],
+   "integration_points": [
+    "tool publish.get_analytics",
+    "cam_live.harness.publishing.aggregate_access_log",
+    "tool discord.get_guild_stats",
+    "tool discord.get_channel_activity",
+    "tool discord.list_invites",
+    "cam_live.harness.discord.DiscordClient.member_retention"
+   ],
+   "tests": [
+    "tests/harness/skills/test_es_publishing.py::test_analytics_from_the_access_log_of_the_owned_site",
+    "tests/harness/skills/test_es_publishing.py::test_access_log_aggregation_rules",
+    "tests/harness/skills/test_es_discord.py::test_stats_messages_invites_through_the_executor",
+    "tests/harness/skills/test_es_discord.py::test_members_bots_and_declared_test_accounts",
+    "tests/harness/skills/test_es_discord.py::test_message_content_is_dropped_by_default"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/ES.xml"
+   ],
+   "limitations": "Site analytics come from a combined-format access log of an owned site (real log written by a local web server in the test). Discord aggregates were measured on the staging service only. Automated clients are recognised only when their user agent declares it."
+  },
+  "CU-15": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/skills.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.skills.SkillInducer.induce",
+    "cam_live.harness.skills.SkillExecutor.induce_validate_register",
+    "tool skill.induce",
+    "cam_live.harness.skills.SkillExecutor.observe_execution"
+   ],
+   "tests": [
+    "tests/harness/skills/test_es_skills.py::test_two_traces_yield_a_parameterised_procedure_that_works_with_new_arguments",
+    "tests/harness/skills/test_es_skills.py::test_single_trace_induction_parameterises_the_declared_inputs",
+    "tests/harness/skills/test_es_skills.py::test_a_value_selected_from_an_earlier_listing_becomes_a_lookup",
+    "tests/harness/skills/test_es_skills.py::test_the_reusable_segment_is_found_inside_longer_differing_traces",
+    "tests/harness/skills/test_es_skills.py::test_induction_needs_a_common_successful_segment",
+    "tests/harness/skills/test_es_skills.py::test_trace_from_one_action_result_and_template_binding",
+    "tests/harness/skills/test_es_skills.py::test_skill_tools_induce_list_describe",
+    "tests/harness/skills/test_es_skills.py::test_skill_generation_cannot_touch_authorization_or_the_verifier"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/ES/integration_smoke.py"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/ES.xml",
+    "docs/evidence/ES/integration_smoke.txt"
+   ],
+   "limitations": "Induction finds one contiguous common segment; no loops, branches or gaps. Exercised on HTTP-API workflows of a local application (and once through the real environment in the smoke check); not exercised on browser or visual traces, whose per-observation element references would rely on the untested-there $lookup capture. The environment does not yet feed executions to observe_execution (change request ES-4). When induction is triggered is the agent's decision; nothing in ES triggers it automatically."
+  },
+  "CU-16": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/skills.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.skills.SkillExecutor.validate_candidate",
+    "cam_live.harness.skills.SkillLibrary.register"
+   ],
+   "tests": [
+    "tests/harness/skills/test_es_skills.py::test_validation_failure_prevents_registration",
+    "tests/harness/skills/test_es_skills.py::test_validation_fails_when_the_application_silently_ignores_a_step",
+    "tests/harness/skills/test_es_skills.py::test_single_trace_induction_parameterises_the_declared_inputs",
+    "tests/harness/skills/test_es_skills.py::test_a_skill_cannot_run_a_step_its_caller_may_not_run"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/ES.xml"
+   ],
+   "limitations": "Validation = execution with fresh arguments through the normal executor path with every step authorized and every derived postcondition holding. It has real effects in the environment it runs in (it is an authorized execution), and it is as strong as the derived postconditions: without a probe or before/after observations only the weak 'every step reported success' plus argument-in-result conditions are available."
+  },
+  "CU-17": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/skills.py"
+   ],
+   "integration_points": [
+    "tool skill.run",
+    "cam_live.harness.skills.SkillLibrary.candidate_actions",
+    "cam_live.harness.skills.bind"
+   ],
+   "tests": [
+    "tests/harness/skills/test_es_skills.py::test_two_traces_yield_a_parameterised_procedure_that_works_with_new_arguments",
+    "tests/harness/skills/test_es_skills.py::test_a_value_selected_from_an_earlier_listing_becomes_a_lookup",
+    "tests/harness/skills/test_es_skills.py::test_measured_primitive_only_versus_skill_based_execution",
+    "tests/harness/skills/test_es_skills.py::test_a_skill_cannot_run_a_step_its_caller_may_not_run",
+    "tests/harness/skills/test_es_integration_shapes.py::test_skill_steps_use_the_environment_dispatch_and_the_skill_actions_grant"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml"
+   ],
+   "evidence": [
+    "docs/evidence/ES/skills_vs_primitives.json"
+   ],
+   "limitations": "Measured on one repeated task on a local HTTP application: decisions per task fall 3 -> 1; harness latency per task does NOT fall (the skill observes the state before and after and persists its monitoring record). Transfer to unfamiliar interfaces was not measured."
+  },
+  "CU-18": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/skills.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.skills.SkillLibrary.record_run",
+    "cam_live.harness.skills.SkillExecutor.repair",
+    "cam_live.harness.skills.SkillLibrary.retire"
+   ],
+   "tests": [
+    "tests/harness/skills/test_es_skills.py::test_stale_after_interface_change_then_repaired_to_a_new_version",
+    "tests/harness/skills/test_es_skills.py::test_silent_change_is_detected_by_postconditions_and_binding",
+    "tests/harness/skills/test_es_skills.py::test_unrecoverable_skill_is_retired",
+    "tests/harness/skills/test_es_skills.py::test_low_reliability_alone_marks_a_skill_stale",
+    "tests/harness/skills/test_es_skills.py::test_reliability_is_a_beta_posterior_with_a_credible_interval"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/ES.xml"
+   ],
+   "limitations": "Repair needs new successful traces supplied by the actor; ES does not produce them. Staleness thresholds (2 consecutive interface failures; P(reliability < 0.5) >= 0.9; forgetting 0.98) are engineering defaults, not tuned on real sites."
+  },
+  "CU-19": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/harness/skills.py"
+   ],
+   "integration_points": [
+    "tool skill.run (Level.PROCEDURE)",
+    "ActionResult.observations[0].data['option']"
+   ],
+   "tests": [
+    "tests/harness/skills/test_es_skills.py::test_a_skill_run_is_one_procedure_level_action_with_its_low_level_trace",
+    "tests/harness/skills/test_es_skills.py::test_measured_primitive_only_versus_skill_based_execution"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml"
+   ],
+   "evidence": [
+    "docs/evidence/ES/skills_vs_primitives.json"
+   ],
+   "limitations": "ES delivers the PROCEDURE level only: one skill.run action carries start / end observation ids, the underlying primitive operations with their times, elapsed time, resources and termination condition. Programs of steps are executed by the environment (EB); the INTERVENTION level, the semi-Markov treatment, duration-aware discounting and not double-counting an outcome across levels are in the learner and credit workstreams and were not built or tested here."
+  },
+  "CU-31": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/modality.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.modality.ModalitySelector.choose",
+    "ModalitySelector.update_choice",
+    "ModalitySelector.quantities",
+    "ModalitySelector.annotate"
+   ],
+   "tests": [
+    "tests/harness/skills/test_es_modality.py::test_prior_reproduces_the_specification_ordering_and_is_weak",
+    "tests/harness/skills/test_es_modality.py::test_context_features_are_generic",
+    "tests/harness/skills/test_es_modality.py::test_estimates_calibrate_on_a_simulated_mix_and_selection_shifts",
+    "tests/harness/skills/test_es_modality.py::test_selection_learns_online_with_exploration_from_the_prior_alone",
+    "tests/harness/skills/test_es_modality.py::test_a_refusal_never_causes_a_modality_switch",
+    "tests/harness/skills/test_es_modality.py::test_estimates_are_exposed_as_quantities_and_persist"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml"
+   ],
+   "evidence": [
+    "docs/evidence/ES/modality_calibration.json"
+   ],
+   "limitations": "Calibration and the shift of selection were measured on a seeded SIMULATED mix of modalities, not on real browser / visual executors. The selector is not yet called by the decision loop: wiring it (choose / update / annotate) is integration work outside ES paths. Estimates are conjugate statistics per generic context with hierarchical back-off, not a learned function of the latent."
+  },
+  "CU-32": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/failures.py",
+    "src/cam_live/harness/http_api.py",
+    "src/cam_live/harness/modality.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.failures.classify",
+    "failures.RetryPolicy",
+    "failures.run_with_retries",
+    "failures.failure_observation",
+    "failures.authorization_result"
+   ],
+   "tests": [
+    "tests/harness/skills/test_es_failures.py::test_classification_from_observable_evidence",
+    "tests/harness/skills/test_es_failures.py::test_every_failure_class_is_reachable_and_categorised",
+    "tests/harness/skills/test_es_failures.py::test_denial_dominates_any_other_evidence",
+    "tests/harness/skills/test_es_failures.py::test_retry_policy_bounds_and_backoff",
+    "tests/harness/skills/test_es_failures.py::test_hard_classes_are_never_retried_and_cannot_be_configured",
+    "tests/harness/skills/test_es_failures.py::test_run_with_retries_counts_attempts_and_waits_on_the_clock",
+    "tests/harness/skills/test_es_failures.py::test_run_with_retries_does_not_repeat_non_transient_failures",
+    "tests/harness/skills/test_es_failures.py::test_authorization_result_maps_verdicts_without_retry",
+    "tests/harness/skills/test_es_failures.py::test_failure_observation_is_structured_for_the_learner",
+    "tests/harness/skills/test_es_failures.py::test_real_transient_failure_is_retried_and_a_real_refusal_is_not",
+    "tests/harness/skills/test_es_modality.py::test_a_refusal_never_causes_a_modality_switch",
+    "tests/harness/skills/test_es_http_api.py::test_denied_request_never_reaches_the_server"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/ES.xml"
+   ],
+   "limitations": "Classification is a fixed evidence-voting table; VISUAL_GROUNDING, STALE_OBSERVATION, PAGE_CHANGED and STRATEGIC are classified only from evidence fields that the browser / visual executors and the runtime must fill in, which was tested with constructed evidence, not with those executors. Only the ES executors (http, discord, publishing, skills) use it so far."
+  }
+ },
+ "public_api": [
+  "cam_live.harness.http_api.HttpApiExecutor(*, allowed_schemes=('https','http'), timeout_s=30.0, max_response_bytes=1_000_000, retry=None, transport=None, sleep=None, user_agent=...)  # ModalityExecutor 'api'; tools http.get, http.request",
+  "cam_live.harness.http_api.ApiModality(members: Sequence[ModalityExecutor])  # several api executors behind one ModalityExecutor",
+  "cam_live.harness.http_api.resolve_secret(secrets, name, *, action=None, decision=None, destination='') -> Optional[str]; granted_action(ctx, action); acting_under(ctx, action); schema_errors(schema, value, path='arguments') -> List[str]; structure_hash(data) -> str",
+  "cam_live.harness.failures.classify(FailureEvidence) -> FailureReport; RetryPolicy(rules=None, *, seed=0, max_total_wait_s=120.0).decide(failure_class, retries_done, *, retry_after_s=None, waited_s=0.0, hard_evidence=False) -> RetryDecision; run_with_retries(attempt, policy, clock, *, sleep=None, deadline=0.0, cancel=None) -> ActionResult; failed_result(action, report, clock, started, *, ops=None, observations=None, retries=0, status='') -> ActionResult; authorization_result(action, decision, clock, started, *, ops=None) -> Optional[ActionResult]; failure_observation(report, action, clock, *, retries=0, elapsed_s=0.0) -> Observation; failure_of(result) -> dict",
+  "cam_live.harness.skills.SkillLibrary(root, clock, *, min_reliability=0.5, stale_confidence=0.9, stale_after=2, max_repairs=2, min_validations=1, forgetting=0.98): get(skill_id, version=None), list(status=None), versions(skill_id), candidate_actions() -> List[ActionSpec], register(skill), record_run(skill_id, *, ok, failure_class=..., termination='', interface_changed=False, ...), mark_stale, retire",
+  "cam_live.harness.skills.SkillExecutor(library, executors=(), *, dispatch=None, inducer=None, trace_buffer=512, seed=0)  # ModalityExecutor 'skill'; tools skill.run, skill.list, skill.describe, skill.induce; methods observe_execution(action, result), bind_dispatch(dispatch, tools=()), run_skill(skill, args, ctx, *, action=None, validating=False), induce_validate_register(traces, ctx, *, validation_arguments=None, name='', description='', probe=None, environment='staging', action=None) -> (Skill|None, report), repair(skill_id, traces, ctx, *, validation_arguments=None, probe=None, environment='staging', action=None)",
+  "cam_live.harness.skills.Trace.from_pairs(pairs: Sequence[(ActionSpec, ActionResult)], inputs=None, before=None, after=None); Trace.from_result(action, result, ...); SkillInducer(clock, tools=(), *, min_steps=2, max_steps=24).induce(traces, *, name='', description='', probe=None, skill_id='') -> Skill; evaluate_condition(cond, observations, args=None, before=None, info=None) -> Optional[bool]; protected_reasons(step) -> List[str]",
+  "cam_live.harness.modality.ModalitySelector(*, priors=None, prior_strength=2.0, backoff_strength=4.0, compute_weight=1.0, op_weight=0.05, n_samples=256, seed=0, clock=None): estimate(kind, ctx=None) -> ModalityEstimate; choose(intent: str|ActionSpec, options: Sequence[Realisation], ctx=None, *, rule='thompson'|'greedy') -> ModalityChoice; update(kind, ctx, result, *, intent=None, recovery_s=0.0) -> str; update_choice(choice, ctx, result, recovery_s=0.0); blocked(intent); authorization_changed(intent); quantities(ctx=None, kinds=None) -> List[Quantity]; annotate(evaluations, observation=None); save(path) / load(path)",
+  "cam_live.harness.modality.ExecContextFeatures.of(action=None, observation=None, *, tool='', url='', element_role=''); Realisation(kind, action); default_kind(action) -> str; KINDS",
+  "cam_live.harness.discord.DiscordClient(base_url, token_provider, *, clock=None, sleep=None, transport=None, timeout_s=20.0, max_rate_limit_wait_s=30.0, max_rate_limit_retries=2, user_agent=..., id_salt=''): guild(guild_id, with_counts=True); list_members(guild_id, *, test_account_ids=(), page_size=1000) -> [{id_hash, bot, joined_at, pending, test_account}]; member_counts(members); member_retention(earlier, later); list_channels(guild_id); channel(channel_id); create_channel(guild_id, name, type=0, *, topic=None, parent_id=None); send_message(channel_id, content, *, nonce=None); edit_message(channel_id, message_id, content); channel_activity(channel_id, limit=100, *, guild_id='', keep_content=False); list_invites(guild_id); create_invite(channel_id, *, max_age=86400, max_uses=0, temporary=False, unique=False); list_scheduled_events(guild_id, with_user_count=True); create_scheduled_event(guild_id, name, scheduled_start_time, *, scheduled_end_time=None, description=None, location=None, channel_id=None)",
+  "cam_live.harness.discord.DiscordExecutor(base_url=LIVE_BASE_URL, *, guild_id='', token_secret='discord_bot_token', secrets=None, credential_probe=None, test_account_ids=(), data_permissions=None, ...); DiscordExecutor.from_task(task, *, base_url='', secrets=None, **kw); availability(secrets=None) -> (bool, reason)  # ModalityExecutor 'api'; tools discord.get_guild_stats, list_channels, create_channel, send_message, edit_message, get_channel_activity, list_invites, create_invite, list_events, create_event (each takes guild_id)",
+  "cam_live.harness.staging_discord.StagingDiscordServer(state=None, host='127.0.0.1', port=0).base_url / .state / .close(); StagingDiscord(*, token='staging-bot-token', members_intent=True, rate_limit=(50, 1.0)): add_human, add_bot, add_test_account, remove_member, add_channel, add_dm_channel, post_member_message, use_invite, mark_interested, set_permission, set_rate_limit, block_globally, test_account_ids, request_log",
+  "cam_live.harness.publishing.PublishingExecutor(state_dir, destinations: Sequence[Destination], *, discord=None); PublishingExecutor.from_resources(resources, state_dir, *, discord=None); Destination(name, kind, root='', base_url='', access_log='', channel_id='')  # ModalityExecutor 'api'; tools publish.draft, publish.preview, publish.submit, publish.update, publish.status, publish.get_analytics; aggregate_access_log(text, *, now, since_s=None, own_host='') -> dict"
+ ],
+ "change_requests": 4,
+ "extra_packages": [],
+ "measured": {
+  "tests_passed": 106,
+  "tests_failed": 0,
+  "test_wall_seconds": 9.535,
+  "skills_vs_primitives.n_tasks": 20,
+  "skills_vs_primitives.primitive_only.decisions_per_task": 3.0,
+  "skills_vs_primitives.skill_based.decisions_per_task": 1.0,
+  "skills_vs_primitives.primitive_only.primitive_ops_per_task": 3.0,
+  "skills_vs_primitives.skill_based.primitive_ops_per_task": 4.0,
+  "skills_vs_primitives.primitive_only.latency_s_mean": 0.0029026282019913195,
+  "skills_vs_primitives.skill_based.latency_s_mean": 0.004966030502691865,
+  "skills_vs_primitives.primitive_only.success": 20,
+  "skills_vs_primitives.skill_based.success": 20,
+  "modality.mean_abs_error_p_success_simulated": 0.021668550514979505,
+  "modality.max_abs_error_p_success_simulated": 0.05332807700219078,
+  "modality.thompson_share_best_kind_context_A": 0.9937888198757764,
+  "modality.thompson_share_best_kind_context_B": 1.0
+ },
+ "measured_commands": {
+  "tests_*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml",
+  "skills_vs_primitives.*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_es_skills.py::test_measured_primitive_only_versus_skill_based_execution -q --rootdir=cam_live  (values of the final full run, as written to docs/evidence/ES/skills_vs_primitives.json; latencies vary with machine load: the skill / primitive latency ratio was about 1.9 to 2.3 in the runs made after the last change to skill persistence)",
+  "modality.*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_es_modality.py::test_estimates_calibrate_on_a_simulated_mix_and_selection_shifts -q --rootdir=cam_live",
+  "integration smoke": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/ES/integration_smoke.py"
+ },
+ "not_done": [
+  "No request was ever sent to Discord: the Discord client, executor, publishing-to-channel path and every Discord number were exercised only against the local staging service. Live operation is blocked until the operator provides the bot token and the authorized guild.",
+  "Skills were induced, validated, monitored and repaired only on HTTP-API workflows of a local test application (plus one run through the real environment and authorization service in docs/evidence/ES/integration_smoke.py). Browser and visual traces were not tried.",
+  "Transfer of skills to unfamiliar interfaces, compute cost per task and task success on real sites (spec 12A.17 comparison) were not measured; only decisions, primitive operations, harness latency and success on one local repeated task.",
+  "The modality selector is not wired into the agent's decision loop, and its calibration was measured on a simulated mix only.",
+  "CU-19 beyond the procedure-level record (interventions, semi-Markov credit, duration-aware discounting) is not in ES.",
+  "The ES test-suite uses a small local policy engine and secret broker of the same shape as the authorization service's; the real environment + authorization service were exercised only by the manual smoke script, not by automated ES tests.",
+  "Change requests ES-1..ES-4 are open: until ES-3 is applied a top-level publish.update needs its destination argument and is treated by the default policy as a publication; until ES-4 is applied the caller of env.execute must call SkillExecutor.observe_execution itself.",
+  "Gateway (websocket) events, webhooks, threads, roles and moderation endpoints of Discord are not implemented."
+ ],
+ "scientific_failures": [
+  "Skill-based execution did not reduce harness latency on the measured task: mean 0.0050 s per task with the skill against 0.0029 s primitive-only in the final run (ratio 1.71; the skill makes 4 requests instead of 3 and persists its monitoring record). The measured gain is in decisions per task (3 -> 1) only."
+ ],
+ "notes": [
+  "One early `git add` by ES covered the whole harness directory and staged four files of other workstreams in the shared index (browser.py, staging/sites.py, grounding/base.py, grounding/goclick.py); they were not committed by ES (every ES commit used an explicit path list)."
+ ]
+}

@@ -6,14 +6,14 @@
  "primitive_only": {
   "decisions": 60,
   "decisions_per_task": 3.0,
-  "latency_s_mean": 0.0030170449521392585,
-  "latency_s_total": 0.06047771777957678,
+  "latency_s_mean": 0.0029026282019913195,
+  "latency_s_total": 0.0581842097453773,
   "primitive_ops": 60,
   "primitive_ops_per_task": 3.0,
   "success": 20
  },
  "skill_acquisition": {
-  "induce_and_validate_s": 0.011581007856875658,
+  "induce_and_validate_s": 0.011317487806081772,
   "skill_reliability": {
    "hi": 0.9971990572787257,
    "level": 0.9,
@@ -27,8 +27,8 @@
  "skill_based": {
   "decisions": 20,
   "decisions_per_task": 1.0,
-  "latency_s_mean": 0.005736828641965985,
-  "latency_s_total": 0.11491660214960575,
+  "latency_s_mean": 0.004966030502691865,
+  "latency_s_total": 0.09947478584945202,
   "primitive_ops": 80,
   "primitive_ops_per_task": 4.0,
   "success": 20
