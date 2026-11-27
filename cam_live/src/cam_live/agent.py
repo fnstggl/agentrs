@@ -113,6 +113,8 @@ class AgentSettings:
                                              # are drawn uniformly from the pool (recorded inclusion probabilities)
     grounded_share: float = 0.5              # share of the free slots for operations on the observed interface
     backbone_slots: int = 2                  # slots reserved for the backbone's proposals (if valid) ...
+    value_weight: float = 1.0                # S-5: weight of the predicted goal value (standardised) added to the
+                                             # policy's logits under rule "policy" (0: the policy alone)
     backbone_share: float = 0.5              # ... at least this share of C_t (S-6: the learned policy, not dilution
                                              # among walker candidates, decides about what the backbone wrote)
     skill_slots: int = 2                     # slots reserved for skill-library candidates (12A.7 initial preference)
@@ -1465,8 +1467,12 @@ class CamLiveAgent:
                                     exposure=float(ex), categories=list(t["categories"])))
         horizon = max(float(a.est_cost.seconds), 1.0)
         goal = self._goal_metric()
-        if goal and self.settings.goal_metric_query and not any(t["metric"] == goal for t in
-                                                                 self.templates.get(a.operation, [])):
+        attributing = self.task is not None and self.task.objective_id in self.attributing
+        # in an objective whose environment attributes outcomes to the decisions that caused them, those attributed
+        # questions are the goal-relevant ones: the level of the objective metric after an action would mix every
+        # earlier decision's consequences into the candidate's predicted value
+        if goal and self.settings.goal_metric_query and not attributing and not any(
+                t["metric"] == goal for t in self.templates.get(a.operation, [])):
             kind = self.metric_kinds.get(goal, OutcomeKind.COUNT)
             out.append(OutcomeQuery(query_id="", metric=goal, kind=kind if kind in (OutcomeKind.REAL, OutcomeKind.COUNT)
                                     else OutcomeKind.REAL, horizon_s=horizon, issued_at=now, goal_relevant=True,
@@ -1544,8 +1550,15 @@ class CamLiveAgent:
             if prop is not None and prop.get("expected_flip_probability", 0.0) >= self.settings.experiment_min_flip:
                 decision, rec = self._experiment(evals, prop, objective_id, did, now, fields)
         if decision is None:
+            vw = float(self.settings.value_weight)
+            if rule == "policy" and vw > 0 and any("q_goal" in e.extras for e in evals):
+                evals = self._with_value_prior(evals, vw)
             decision = self.decider.select(evals, mode=rule, objective_id=objective_id, decision_id=did, ts=now,
                                            generator=self.gen, **fields)
+            if rule == "policy" and vw > 0 and any("policy_logit_only" in e.extras for e in evals):
+                decision.diagnostics["selection"] = {"rule": "policy+value", "value_weight": vw,
+                                                     "note": "softmax(policy logit + w * standardised predicted "
+                                                             "goal value net of cost)"}
         decision.diagnostics["context_item_refs"] = list(refs)
         decision.diagnostics["lifetime"] = self.lifetime
         inc = self.offer.get("inclusion") or {}
@@ -1560,6 +1573,30 @@ class CamLiveAgent:
         self.n_decisions += 1
         self.pending_eval = {}
         return decision
+
+    @staticmethod
+    def _with_value_prior(evals: List[CandidateEvaluation], w: float) -> List[CandidateEvaluation]:
+        """S-5: the trainable policy's logits plus ``w`` times the world model's predicted goal value of each candidate
+        net of its weighted cost (``extras["q_goal"] - extras["net_cost"]``, the number the value rules use),
+        standardised over the candidate set. The selection probabilities stay exact (softmax of the sum, with the
+        exploration floor); the policy still decides, but it is no longer blind to what the agent itself predicts
+        its actions achieve. Candidates without a goal prediction count as the set's mean."""
+        q = [e.extras.get("q_goal") - e.extras.get("net_cost", 0.0) if "q_goal" in e.extras else None for e in evals]
+        known = [x for x in q if x is not None]
+        if len(known) < 2:
+            return evals
+        mu = sum(known) / len(known)
+        sd = math.sqrt(sum((x - mu) ** 2 for x in known) / len(known))
+        if sd <= 1e-12:
+            return evals
+        out = []
+        for e, x in zip(evals, q):
+            z = 0.0 if x is None else (x - mu) / sd
+            e2 = dataclasses.replace(e, value=float(e.value or 0.0) + w * z,
+                                     extras={**e.extras, "policy_logit_only": float(e.value or 0.0),
+                                             "value_prior": w * z})
+            out.append(e2)
+        return out
 
     def _experiment(self, evals, prop, objective_id, did, now, fields):
         names = set(prop["arms"])

@@ -86,3 +86,29 @@ directories have no `__init__.py`, so collecting the whole default suite in one 
 **Workaround.** The whole-suite JUnit (`docs/evidence/test_results/INT2_full.xml`) is produced by two pytest runs —
 the suite with `--deselect`-free `--ignore=cam_live/tests/predict/test_providers.py`, then that file alone — merged
 into one file (`docs/evidence/test_results/merge_junit.py` is not needed: the merge is a `<testsuites>` wrapper).
+
+## INT2-6 (reward, `reward/bootstrap.py` / `reward/integrity.bound_reward`, owner C): the verified term saturates
+
+**What / why (measured, `docs/evidence/validation/diagnosis/`, LabWorld F1, debug scale).** With the verified
+progress of each decision now available (INT2-1 workaround: the decision's own attributed, signed outcomes), the
+bootstrap reward of a decision that brought 1 adopter and of one that brought 42 is the same, 1.0:
+`verified = 2.0 * log1p(v)` is 1.39 for v = 1 and `bound_reward(..., 1.0)` clips the sum to [-1, 1]. Returns are then
+standardised within the batch, so the inner policy update cannot tell a good intervention from a poor one — only
+"some adopters" from "none".
+
+**Proposed diff.** Scale before bounding, e.g. `verified = w * tanh(log1p(v) / s)` with `s` the running scale of
+`log1p(v)` over the lifetime (like `scale_normalise`), or bound with `bound * tanh(total / bound)` and a larger
+`bound` for the verified component.
+
+## INT2-7 (reward, `reward/metalearner.MetaLearner.policy_update` / `MetaConfig.inner_lr`, owner C): the live
+policy update moves the policy too little to change behaviour
+
+**What / why (measured).** `policy_update` applies K=2 SGD steps with `inner_lr = 1e-2` (the meta-gradient's inner
+step) to the policy head + trunk. Over a 16-decision lifetime (5 updates) the heads' weight delta is 0.004–0.011 per
+update and the selection probabilities stay within 0.062–0.073 for every candidate of a 16-candidate set (uniform:
+0.0625): the policy that selects is, to two decimals, uniform after 128 decisions, whatever the reward says.
+**Proposed.** Separate the step size of the *live* policy update from the differentiated inner step (or scale the
+inner step to a target KL change of the policy per update, a trust region), so the live policy can become decisive
+within the experience an objective provides; the meta-gradient keeps differentiating the update actually applied.
+**Workaround.** None in INT2's files (the inner step is C's mechanism); the ablation with `optim.inner_lr = 0.3` is
+reported in `docs/INTEGRATION.md` §9.
