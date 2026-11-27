@@ -489,7 +489,8 @@ def ch_tech_transition(rng, d):
     per_unit = settled_revenue(cfg, {a: 0.0, b: 8.0}, t0=AFTER) / 8.0
     cfg["nodes"][int(b[1:])]["lever"]["cost"] = max(per_unit, 0.0) * u(rng, 0.55, 0.7)
     held = [{c.name_of(a): float(p), c.name_of(b): float(q)} for p, q in
-            ((12.0, 0.5), (2.0, 12.0), (8.0, 9.0), (0.5, 4.0), (14.0, 14.0), (5.0, 1.0), (10.0, 6.0))]
+            ((12.0, 0.5), (2.0, 12.0), (8.0, 9.0), (0.5, 4.0), (14.0, 14.0), (5.0, 1.0), (10.0, 6.0), (0.5, 18.0),
+             (3.0, 16.0))]
     text = ("Predict mean output under the conditions at the end of the episode if the use of the established and "
             f"of the new process were held at these values from the start (partly outside what you can set): {held}. "
             "File predictions with the journal: message to 'journal' with content {\"predictions\": [{\"set\": "
