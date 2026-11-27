@@ -1052,7 +1052,7 @@ def test_V8_a_startup_hook_outside_the_crucible_tree_is_rejected(tmp_path, monke
                for p in res["global_problems"]), res["global_problems"]
 
 
-ALIAS_DETECTOR = HOOK_DETECTOR_ALIAS = '''import sys as _interp
+ALIAS_DETECTOR = '''import sys as _interp
 
 from crucible.acceptance.v5 import evidence
 import widgets
