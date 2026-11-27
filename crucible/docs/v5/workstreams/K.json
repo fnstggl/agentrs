@@ -197,8 +197,8 @@
    "tests": [
     "tests/v5/test_gate_SP_12_1b.py"
    ],
-   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation (commit 9ea4901, tests/v5/test_gate_SP_12_1b.py 1 passed in 194 s); re-verification at the branch head (own-things memory, BC lr 1e-2, 96 h) is queued in the K slot lane (scratch lane 2) and had not started when this file was written",
-   "notes": "3 algorithms updated in the civilisation (a2c, ppo, reinforce); 2 identities with unrelated drives (gamma reach, delta adoption) plus a semantic text goal; 4 independently updated groups; alpha (3 identities) and beta (2) are shared training systems; all 4 groups updated in both halves of the run."
+   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation at commit 76b2a93 (scratch lane 2, GPU slot, Qwen3-0.6B text path, civ balanced seed 7, development population): tests/v5/test_gate_SP_12_1b.py 1 passed in 213 s (short campaign, 24 h); earlier also at 9ea4901",
+   "notes": "76b2a93: distinct_learning_algorithms 3 (a2c, ppo, reinforce), participants_with_unrelated_objectives 2 (gamma0 reach, delta0 adoption; plus a semantic text goal), independently_updated_participants 4 groups; shared training systems alpha (3 identities) and beta (2); all 4 groups adapted (updated) through the run. 3 algorithms updated in the civilisation (a2c, ppo, reinforce); 2 identities with unrelated drives (gamma reach, delta adoption) plus a semantic text goal; 4 independently updated groups; alpha (3 identities) and beta (2) are shared training systems; all 4 groups updated in both halves of the run."
   },
   "SP-12.2": {
    "implementation_files": [
@@ -215,8 +215,8 @@
    "tests": [
     "tests/v5/test_gate_SP_12_2.py"
    ],
-   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation (commit 9ea4901/2981d88, tests/v5/test_gate_SP_12_2.py 1 passed in 211 s); re-verification at the branch head (own-things memory, BC lr 1e-2, 96 h) is queued in the K slot lane (scratch lane 2) and had not started when this file was written",
-   "notes": "9 record kinds (versions, model hashes, identities, provenance, experience, actions, outcomes, updates, composition); 3 cross-play matches in civilisations, the first replayed from its MatchSpec with 0 mismatches and an equal world digest; Elo league over them; 408 experience records, 75 versions."
+   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation at commit 093a05d (scratch lane 2, GPU slot, Qwen3-0.6B text path, civ balanced seed 7, development population): tests/v5/test_gate_SP_12_2.py 1 passed in 276 s; earlier also at 9ea4901/2981d88",
+   "notes": "093a05d: recorded_field_kinds 9 (versions, model hashes, identities, provenance, experience, actions, outcomes, updates, composition), 3 cross-play matches in civilisations, the first replayed from its MatchSpec with 0 mismatches and an equal world digest; league_evaluations 1 (Elo: alpha@18 1011.6, alpha_initial@6 1000.0, beta@18 988.4); 408 experience records, 85 versions. 9 record kinds (versions, model hashes, identities, provenance, experience, actions, outcomes, updates, composition); 3 cross-play matches in civilisations, the first replayed from its MatchSpec with 0 mismatches and an equal world digest; Elo league over them; 408 experience records, 75 versions."
   },
   "SP-12.3": {
    "implementation_files": [
@@ -233,8 +233,8 @@
    "tests": [
     "tests/v5/test_gate_SP_12_3.py"
    ],
-   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation (commit 9ea4901, tests/v5/test_gate_SP_12_3.py 1 passed in 144 s); re-verification at the branch head (own-things memory, BC lr 1e-2, 96 h) is queued in the K slot lane (scratch lane 2) and had not started when this file was written",
-   "notes": "controlled_identity_transfers_counted 0; positive control: 10200 cents moved between same-controller identities (10000 planted, 200 by the learners themselves during the run), none counted as independent; the planted business's independent revenue is exactly the other controller's 5000; 0 hidden-shared-state violations over 14 owners."
+   "status_claim": "criterion met (controlled_identity_transfers_counted 0) in every civilisation run; at 093a05d (scratch lane 2, GPU slot, Qwen3-0.6B text path, civ balanced seed 7, development population) the test FAILED on its own positive control (the planted business's independent revenue 0, expected 5000: beta0's purchase was netted by commerce.integrity as reciprocal flow after the learning parties had traded with each other); the positive control is now a buyer of an unrelated controller with no history (642acd4, dry run passed); re-run on the civilisation in the lane's second pass",
+   "notes": "093a05d: controlled_identity_transfers_counted 0, naive same-controller cents 10500 (positive control), 0 hidden-shared-state violations; planted org: 15000 excluded (alpha1, alpha2 related party; beta0 reciprocal). controlled_identity_transfers_counted 0; positive control: 10200 cents moved between same-controller identities (10000 planted, 200 by the learners themselves during the run), none counted as independent; the planted business's independent revenue is exactly the other controller's 5000; 0 hidden-shared-state violations over 14 owners."
   },
   "SP-12.3b": {
    "implementation_files": [
@@ -337,7 +337,10 @@
   "SP-12.0 (c212a6f, 96 h)": "passed: 10 of 10 capability kinds, 1517 s",
   "SP-12.1 (c212a6f)": "passed, 382 s",
   "SP-12.3b (c212a6f)": "passed, 364 s",
-  "Q (eb6f1d7, 96 h)": "9/9 passed, 1214 s"
+  "Q (eb6f1d7, 96 h)": "9/9 passed, 1214 s",
+  "SP-12.1b (76b2a93)": "passed, 213 s",
+  "SP-12.2 (093a05d)": "passed, 276 s",
+  "SP-12.3 (093a05d)": "failed on the test's positive control (beta0 netted as reciprocal flow); criterion metric 0 as required; test fixed in 642acd4"
  },
  "cpu_proxy_results_eb6f1d7": {
   "world": "kernel:open_digital (not a civilisation; development proxy only), 36 h, demonstrations seed 21 (36 h), 12 BC epochs",
