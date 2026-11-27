@@ -64,3 +64,34 @@ def test_a_newsletter_issue_is_an_impression_only_when_a_subscriber_is_shown_it(
     prov = population.check_provenance(w)
     assert prov["forced_rows"] == 0, prov
     assert w.check_invariants() == []
+
+
+def test_a_creator_with_followers_opens_a_newsletter_and_a_tier_from_a_short_post(monkeypatch):
+    """A creator whose audience reached the thresholds (newsletter 5, paid tier 15 followers) may open its channels
+    whatever it writes now - most pieces are short posts - not only when it writes an article (before, a creator
+    who never wrote articles never opened one, and young civilisations had no newsletter or membership at all).
+    Setup (labelled): 16 members are assigned to follow one member (experimenter); the opening probabilities are set
+    to 1 for the test; the world has posts and newsletters but no blog (no article medium)."""
+    from crucible.social import graph as G, nodes, popinbox as PI
+    w = World.create(social_world("development", 13, n=120, platforms=["posts", "letters"]), strict=True)
+    w.advance_time(1800)
+    author = 5
+    fans = np.array([i for i in range(120) if i != author][:16], np.int64)
+
+    def follow(ctx):
+        p = ids.ensure_principal(ctx, author)
+        G.follow_batch(ctx, fans, np.full(fans.size, nodes.node_of(w, p)), via="other")
+    w._run_system("test.follow", follow)
+    monkeypatch.setattr(PI, "NEWSLETTER_P", 1.0)
+    monkeypatch.setattr(PI, "TIER_P", 1.0)
+    pop_social = w.modules["pop_social"]
+    p = ids.pid(author)
+    before = len(w.state.tables.get("content", {}))
+    w._run_system("test.create", lambda ctx: pop_social.act_create(ctx, np.array([author], np.int64), ctx.now))
+    made = [c for c in w.state.tables["content"].values() if c["creator"] == p]
+    assert made and all(c["platform"] == "posts" for c in made) and len(w.state.tables["content"]) > before
+    assert w.state.find_ids("newsletters", "owner", p)                 # opened from a short post
+    assert "creators" in w.modules
+    assert w.state.find_ids("creator_tiers", "creator", p)              # 16 followers >= 15: a paid tier
+    assert not [e for e in w.log if e.type == "proc.failed"]
+    assert w.check_invariants() == []

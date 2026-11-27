@@ -404,7 +404,10 @@ def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
                 topic = int(tech_topics[j] if m == "tech" else topics[j])
                 title, body = writing.compose(rng, topic, n_sent, skill)
                 ref, _, _ = _render(ctx, m, p, i, title, body)
-                letter = self.creator_channels(ctx, i, p, rng, title) if m == "article" else None
+                # a creator with an audience may open a newsletter or a paid tier whatever it writes now (most
+                # pieces are short posts); only an article goes out as an issue
+                letter = self.creator_channels(ctx, i, p, rng, title) if m in TEXT_MEDIA else None
+                letter = letter if m == "article" else None
                 if letter is not None:
                     # the article goes out as an issue of the creator's newsletter (published on `letters` and
                     # delivered to its subscribers) instead of the blog

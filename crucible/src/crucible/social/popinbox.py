@@ -37,6 +37,8 @@ INBOX_MODEL = {"model_id": "pop-inbox", "model_version": "1", "fidelity_id": "po
 FOLLOWUP_MODEL = {"model_id": "pop-followup", "model_version": "1", "fidelity_id": "population-subscription-model"}
 NOTE_DELAY_S = 1800         # a message notification brings the recipient back to its messages after ~30 min
 MEMBERSHIP_WTP_CENTS = 800  # monthly support a member with wtp_scale 1 would pay a creator it values
+NEWSLETTER_P = 0.3          # a creator with enough followers opens a newsletter this often per text piece it writes
+TIER_P = 0.15               # ... and a paid membership tier
 
 
 def columns_spec() -> dict:
@@ -401,6 +403,8 @@ def creator_channels(self, ctx: Ctx, i: int, p: str, rng, title: str) -> str | N
     own principal); returns the newsletter id it may send this piece to (None: publish it as a blog article)."""
     w = ctx.world
     st = ctx.state
+    if "letters" not in w.modules and "creators" not in w.modules:
+        return None
     from . import graph
     node = nodes.node_of(w, p)
     followers = int(graph.follower_counts(w, np.array([node]))[0]) if node is not None else 0
@@ -409,7 +413,7 @@ def creator_channels(self, ctx: Ctx, i: int, p: str, rng, title: str) -> str | N
         mine = st.find_ids("newsletters", "owner", p)
         if mine:
             nl = mine[0]
-        elif followers >= int(self.cfg["newsletter_followers"]) and rng.random() < 0.3:
+        elif followers >= int(self.cfg["newsletter_followers"]) and rng.random() < NEWSLETTER_P:
             name = " ".join(title.split()[:3]) or "Notes"
             try:
                 nl = ctx.call("letters.create", {"name": f"{name} - a letter", "description":
@@ -417,11 +421,13 @@ def creator_channels(self, ctx: Ctx, i: int, p: str, rng, title: str) -> str | N
             except CrucibleError:
                 nl = None
     if "creators" in w.modules and "creator_tiers" in st.tables and \
-            followers >= int(self.cfg["tier_followers"]) and rng.random() < 0.15:
+            followers >= int(self.cfg["tier_followers"]) and rng.random() < TIER_P:
         have = [t for t in st.find_ids("creator_tiers", "creator", p)] \
             if ("creator_tiers", "creator") in st.indexes else []
-        if not have:
+        if not have and "bank" in w.modules:
             price = int(300 + 100 * np.log2(1 + followers)) // 50 * 50
+            # to be paid, the creator opens a bank account first (the platform refuses a tier without one)
+            ids.ensure_principal(ctx, i, account=True)
             try:
                 ctx.call("creators.create_tier", {"name": "Supporters", "price_cents": price,
                                                   "perks": "support my writing"}, as_principal=p)
