@@ -30,13 +30,21 @@ TOPICS = ["cooking", "cycling", "gardening", "coding", "music", "fitness", "trav
 BEHAVIOURS = ["rich", "rich", "rich", "rich", "rich", "broken", "broken", "thin", "thin", "spam"]
 
 
-def _site_specs(seed: int):
+CONDITIONS = ("sites", "category")
+
+
+def _site_specs(seed: int, condition: str = "sites"):
+    """The 10 sites of an adaptation world. "sites": categories drawn per site (shops where products are sold);
+    "category": every rich site is a guide and every poor one (broken, thin, spam) a blog, so the category a reader
+    perceives from a site's title carries the phase-1 regularity that the category condition reverses."""
     rng = np.random.default_rng(100 + seed)
     names = [f"s{k}{t[:5]}" for k, t in enumerate(TOPICS)]
     specs = []
     for k, (t, b, nm) in enumerate(zip(TOPICS, BEHAVIOURS, names)):
         links = [names[(k + j) % 10] for j in (1, 2, 3)]
-        specs.append(SITES.make_spec(rng, nm, t, b, n_articles=8, n_products=3 if k % 3 == 0 else 0, links=links))
+        cat = None if condition == "sites" else ("guide" if b == "rich" else "blog")
+        specs.append(SITES.make_spec(rng, nm, t, b, category=cat, n_articles=8, n_products=3 if k % 3 == 0 else 0,
+                                     links=links))
     return names, specs
 
 
@@ -73,15 +81,17 @@ def _paired_boot(d: np.ndarray, strata: np.ndarray | None = None, n: int = 2000,
             "units": int(d.size)}
 
 
-def _member_phase(log: dict, members: np.ndarray, t_switch: int, bad: set) -> dict[int, tuple[float, float, int]]:
-    """Per class-2 member: (mean realised utility, share of visits to failing sites, visits) of its phase-2 web
-    visits."""
+def _member_phase(log: dict, members: np.ndarray, t_switch: int, bad: set, good: set = frozenset()
+                  ) -> dict[int, tuple[float, float, int, float]]:
+    """Per class-2 member: (mean realised utility, share of visits to failing sites, visits, share of visits to the
+    sites the switch made rich) of its phase-2 web visits."""
     m = (log["cls"] == 2) & (log["activity"] == "web") & (log["t"] >= t_switch) & np.isin(log["ind"], members)
     ind, u, res = log["ind"][m].astype(np.int64), log["util"][m].astype(np.float64), log["res"][m]
     out = {}
     for i in np.unique(ind):
         k = ind == i
-        out[int(i)] = (float(u[k].mean()), float(np.isin(res[k], list(bad)).mean()), int(k.sum()))
+        out[int(i)] = (float(u[k].mean()), float(np.isin(res[k], list(bad)).mean()), int(k.sum()),
+                       float(np.isin(res[k], list(good)).mean()))
     return out
 
 
@@ -106,8 +116,18 @@ def session_utilities(world, groups: dict, t_switch: int) -> dict:
 
 
 def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_light: int = 150,
-               min_examples: int = 32, window_s: int = 14400, counterfactual: bool = False) -> dict:
+               min_examples: int = 32, window_s: int = 14400, counterfactual: bool = False,
+               condition: str = "sites") -> dict:
     """See the module docstring. `arms` maps an arm name to a group config ({id, share, learning, memory, seed}).
+
+    `condition` is the controlled new condition at the switch. "sites": the two most visited rich sites are
+    redeployed broken and the two broken ones rich (per-site changes: a reader's own satisfaction with a site, an
+    average over its visits, follows them for every policy, learning or not). "category": the sites are guides (the
+    5 rich ones) and blogs (the 5 poor ones: 2 broken, 2 thin, 1 spam); at the switch the two most visited guides are
+    redeployed broken and EVERY blog is rewritten and redeployed rich by its operator (new articles from the real
+    corpus on the blog's own topic): the phase-1 regularity a policy can learn from the category it perceives in a
+    site's title (blogs are poor) is reversed, so behaving well after the change needs revising what was learned
+    before it, not only a reader's per-site experience.
 
     `counterfactual`: at the switch the world is forked and, in the fork only, the first learning arm stops learning
     (`pop_adaptive.set_learning`; the main world records the same system call with learning on, so both worlds
@@ -120,7 +140,9 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
     torch.set_num_threads(1)
     arms = arms or {"learning": {"id": 0, "share": 0.5, "seed": 5},
                     "frozen": {"id": 1, "share": 0.5, "seed": 5, "learning": False}}
-    names, specs = _site_specs(seed)
+    if condition not in CONDITIONS:
+        raise ValueError(f"unknown condition {condition!r} (one of {CONDITIONS})")
+    names, specs = _site_specs(seed, condition)
     spec = population_world("development", seed, n=n_light, site_specs=specs, tick_s=1800,
                             classes={"adaptive": 256, "strategic": 0, "semantic": 0}, strategic=False,
                             adaptive={"groups": list(arms.values()), "min_examples": min_examples},
@@ -140,13 +162,22 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
     row = {h: r for r, h in enumerate(hosts)}
     vis = {h: int((log1["res"] == row[h]).sum()) if h in row else 0 for h in names}
     rich = sorted([h for h, b in zip(names, BEHAVIOURS) if b == "rich"], key=lambda h: (-vis[h], h))
-    to_broken, to_rich = rich[:2], [h for h, b in zip(names, BEHAVIOURS) if b == "broken"]
+    to_broken = rich[:2]
+    to_rich = [h for h, b in zip(names, BEHAVIOURS) if (b == "broken" if condition == "sites" else b != "rich")]
+    new_specs = {}
+    if condition == "category":
+        rng2 = np.random.default_rng(200 + seed)
+        for h in to_rich:
+            k = names.index(h)
+            if BEHAVIOURS[k] in ("thin", "spam"):        # the operator rewrites the site's content
+                new_specs[h] = SITES.make_spec(rng2, h, TOPICS[k], "rich", category="blog", n_articles=8,
+                                               n_products=3 if k % 3 == 0 else 0, links=specs[k]["links"])
 
     def switch(ctx):
         for h in to_broken:
             redeploy(ctx, h, specs[names.index(h)], "broken")
         for h in to_rich:
-            redeploy(ctx, h, specs[names.index(h)], "rich")
+            redeploy(ctx, h, new_specs.get(h) or specs[names.index(h)], "rich")
     w._run_system("experiment.switch", switch)
     t_switch = w.now
     cf, la = None, None
@@ -157,7 +188,7 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
         cf.system_call("pop_adaptive.set_learning", {"group": gid[la], "learning": False})
     w.advance_time(w.now + phase_days * DAY)
     out["hash_end"] = hashes()
-    out["switch"] = {"to_broken": to_broken, "to_rich": to_rich}
+    out["switch"] = {"to_broken": to_broken, "to_rich": to_rich, "condition": condition}
     ups = [e.payload for e in w.log if e.type == "pop.policy_update"]
     for a, g in gid.items():
         s = [u for u in ups if u["group"] == f"adaptive:{g}"]
@@ -170,7 +201,7 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
     m2 = (log["cls"] == 2) & (log["activity"] == "web")
     grp = pg[log["ind"].astype(int)]
     bad_after = {row[h] for h in to_broken if h in row} | \
-        {row[h] for h, b in zip(names, BEHAVIOURS) if b in ("thin", "spam") and h in row}
+        {row[h] for h, b in zip(names, BEHAVIOURS) if b in ("thin", "spam") and h in row and h not in to_rich}
     util = {}
     for a, g in gid.items():
         r = {}
@@ -194,8 +225,12 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
         try:
             cf.advance_time(cf.now + phase_days * DAY)
             members = np.flatnonzero(pg == gid[la])
-            a_main = _member_phase(log, members, t_switch, bad_after)
-            a_cf = _member_phase(A.visit_log(cf), members, t_switch, bad_after)
+            hosts_cf = A.res_hosts(cf)
+            good_main = {r for r, h in enumerate(A.res_hosts(w)) if h in to_rich}
+            good_cf = {r for r, h in enumerate(hosts_cf) if h in to_rich}
+            bad_cf = {r for r, h in enumerate(hosts_cf) if h in {hosts[q] for q in bad_after}}
+            a_main = _member_phase(log, members, t_switch, bad_after, good_main)
+            a_cf = _member_phase(A.visit_log(cf), members, t_switch, bad_cf, good_cf)
             both = sorted(set(a_main) & set(a_cf))
             d = np.array([a_main[i][0] - a_cf[i][0] for i in both])
             g = f"adaptive:{gid[la]}"
@@ -206,6 +241,9 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
                 "member_utility_diffs": d.tolist(),
                 "share_failing_learning": float(np.mean([a_main[i][1] for i in both])) if both else 0.0,
                 "share_failing_frozen_at_switch": float(np.mean([a_cf[i][1] for i in both])) if both else 0.0,
+                "share_switched_to_rich_learning": float(np.mean([a_main[i][3] for i in both])) if both else 0.0,
+                "share_switched_to_rich_frozen_at_switch": float(np.mean([a_cf[i][3] for i in both]))
+                if both else 0.0,
                 "visits_learning": int(sum(a_main[i][2] for i in both)),
                 "visits_frozen_at_switch": int(sum(a_cf[i][2] for i in both)),
                 "policy_updates_after_switch": int(after(w.log)),
