@@ -372,7 +372,7 @@ Addendum (2026-11-27, workstream L, third wave-3b agent; the reserved ids D-66..
 the entry on restricted Tier 2 worlds): SP-11.6c's "a reference learner improves over a frozen copy of itself in at
 least one world per tier" is measured in the kernel tiers with the statistical reference learner
 `experience.statistical.ToolValueLearner`, in Tier 2 in `crisis:storm_radial` (training seeds 1-4) and in Tier 3 in
-the `balanced` civilisation (training seeds 1-2, 2000 decisions each, a simulated minute apart; 1000 evaluation
+the `balanced` civilisation (training seeds 1-2, 4000 decisions each, a simulated minute apart; 3000 evaluation
 decisions); Tier 1 keeps the neural
 `ReferenceLearner` in `mech:scm_additive`. The improvement rule (mean and at least 3 of 4 held-out seeds 11-14, both
 copies stochastic with one sampling seed, evaluator outcome, do-nothing reported) and the manifest criterion are
