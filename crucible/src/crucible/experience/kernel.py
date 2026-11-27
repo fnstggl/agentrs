@@ -66,7 +66,11 @@ class KernelExperienceEnv(BaseExperienceEnv):
                  extra_modules: Iterable[str] = (), experiments: bool = True, store=None, strict: bool = False,
                  max_events: int = 500, max_text: int = 200, max_artifacts: int = 200, join_kind: str = "agent",
                  evaluator: Callable[[Any, str], dict] | None = None, world_id: str | None = None,
-                 semantic: bool | str = "auto", max_semantic: int = 8):
+                 semantic: bool | str = "auto", max_semantic: int = 8, controllers: dict | str | None = None):
+        """`controllers` declares who controls the admitted participants (K_selfplay 3.4): one label for all of them
+        (a learner driving several seats), or ``{handle: label}`` per participant; participants with one label are
+        one controller for the evaluator's relatedness analysis (`commerce.integrity`), so revenue between them is
+        never independent. Unlabelled participants are independent of each other (the 4.0 behaviour)."""
         from ..core.kernel import World
         import crucible
         crucible.load_all_modules()
@@ -116,7 +120,8 @@ class KernelExperienceEnv(BaseExperienceEnv):
         self._tools_cache: dict[str, tuple[int, list[dict]]] = {}
         names = [f"agent{i}" for i in range(int(agents))] if isinstance(agents, int) else list(agents)
         for h in names:
-            self.add_agent(h, endowment=endowment, kind=join_kind)
+            ctl = controllers.get(h, "") if isinstance(controllers, dict) else (controllers or "")
+            self.add_agent(h, endowment=endowment, kind=join_kind, controller=str(ctl))
         objs = objectives if isinstance(objectives, dict) else ({a: objectives for a in self._agents}
                                                                  if objectives is not None else {})
         for a, o in objs.items():
@@ -136,13 +141,17 @@ class KernelExperienceEnv(BaseExperienceEnv):
         from ..worldgen import generate
         return generate(world if isinstance(world, (dict, str)) else str(world), int(seed))
 
-    def add_agent(self, handle: str, *, endowment: int = 1_000_000, kind: str = "agent") -> str:
-        """Admit a participant (recorded `admin.join`) or adopt an existing principal (``"p:..."``)."""
+    def add_agent(self, handle: str, *, endowment: int = 1_000_000, kind: str = "agent", controller: str = "") -> str:
+        """Admit a participant (recorded `admin.join`, with its `controller` label when one is given) or adopt an
+        existing principal (``"p:..."``)."""
         w = self.world
         if handle.startswith(("p:", "svc:")) and w.principal(handle) is not None:
             p = handle
         else:
-            p = w.system_call("admin.join", {"handle": handle, "endowment": int(endowment), "kind": kind})["principal"]
+            args = {"handle": handle, "endowment": int(endowment), "kind": kind}
+            if controller:
+                args["controller"] = str(controller)
+            p = w.system_call("admin.join", args)["principal"]
         if p in self._vis:
             return p
         self._agents.append(p)

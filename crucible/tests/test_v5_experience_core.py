@@ -320,3 +320,20 @@ def test_tool_value_learner_values_tools_by_their_observed_effect_on_its_money(t
     from crucible.experience import run_learner
     s = run_learner(env, T, 40, update_every=20, think_s=3600)
     assert s["schema_failures"] == 0 and s["ok"] >= 10 and T.updates == 2 and s["nonzero_rewards"] == 0
+
+
+def test_kernel_env_admits_participants_with_their_controller_label():
+    """K_selfplay 3.4: a learner driving several seats declares one controller for them; the evaluator's relatedness
+    analysis then treats the seats as one party (revenue between them is never independent). Unlabelled seats stay
+    unrelated to each other (the 4.0 behaviour); a per-handle mapping labels some of them."""
+    from crucible.commerce.integrity import related_set
+    shared = make(0, "tiny", 2, agents=["s1", "s2", "s3"], controllers="learner-A")
+    a, b, c = shared.agents()
+    assert shared.world.state.get("persons", a)["info"]["controller"] == "learner-A"
+    assert b in related_set(shared.world, a) and c in related_set(shared.world, b)
+    mixed = make(0, "tiny", 2, agents=["s1", "s2", "s3"], controllers={"s1": "L1", "s2": "L1"})
+    a, b, c = mixed.agents()
+    assert b in related_set(mixed.world, a) and c not in related_set(mixed.world, a)
+    plain = make(0, "tiny", 2, agents=["s1", "s2"])
+    a, b = plain.agents()
+    assert b not in related_set(plain.world, a)
