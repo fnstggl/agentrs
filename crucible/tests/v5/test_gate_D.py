@@ -192,7 +192,8 @@ def test_D3_distribution_changes_during_persistent_run(base):
     p_src = _chi2(sb, sa)
     # the blog platform's own change (measured feedback, not a schedule): its exposure sources in the day after the
     # first change it made vs the counterfactual fork of the state just before that change, in which it does not
-    # adapt (later reweightings converge: once the ranking of its mechanisms holds, the floored weights stop moving)
+    # adapt (on bf696ea it changed its mixture once in four days: a later reweighting needs at least min_impressions
+    # placed by each of two mechanisms in the last day, and a down-weighted mechanism may no longer reach that)
     selfc = X.self_changes(w)
     t_self = sorted(int(e["t"]) for e in map(_ev, w.events_range(0)) if e["type"] == "feed.mixture_set"
                     and e["payload"].get("by") == "platform" and e["payload"].get("platform") == "blog")
