@@ -50,7 +50,7 @@ class NNConfig:
     bridge_heads: int = 4
     # backbone runtime
     max_prompt_tokens: int = 2048
-    embed_batch_tokens: int = 1024   # tokens per fixed-shape embedding forward: rows = clamp(this // bucket, 1, 16)
+    embed_batch_tokens: int = 1024   # tokens per fixed-shape embedding forward: rows = clamp(this // bucket, 1, 32)
     embed_grad_batch_tokens: int = 16384   # tokens per forward of the gradient path of embed(with_grad=True)
     gen_batch: int = 16
     # fast state

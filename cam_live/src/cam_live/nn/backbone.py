@@ -533,7 +533,7 @@ class _Backbone(nn.Module):
 
     def embed_rows(self, bucket: int) -> int:
         """Rows of every embedding forward for texts of one bucket length (fixed, whatever the call contains)."""
-        return max(1, min(16, int(self.nn_cfg.embed_batch_tokens) // int(bucket)))
+        return max(1, min(32, int(self.nn_cfg.embed_batch_tokens) // int(bucket)))
 
     def _pooled(self, rows: Sequence[Sequence[int]], captures: Optional[List[Any]] = None) -> Tensor:
         """Raw (unstandardised) float32 [n, d_sem]: masked mean of the tapped layers' states, taps concatenated.
@@ -648,7 +648,7 @@ class _Backbone(nn.Module):
                 self._cache.popitem(last=False)
             self.stats["embedded_texts"] += len(todo)
         out = torch.stack([fresh[k] if k in fresh else self._cache[k] for k in keys], 0)
-        return out.to(self.device, torch.float32)
+        return out.to(self.device).to(torch.float32)     # convert on the device (a CPU fp16 -> fp32 cast is slow)
 
     def _pooled_dynamic(self, rows: Sequence[Sequence[int]]) -> Tensor:
         """Like :meth:`_pooled` but batched by length with padding to each group's longest text and no filler rows
