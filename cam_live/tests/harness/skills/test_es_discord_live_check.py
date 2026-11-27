@@ -239,7 +239,8 @@ def test_the_documented_live_preparation_yields_grants_and_releases_the_token_on
         "version: 1\nobjective_id: discord-live-check\nmode: live\n"
         'objective: "Integration check of the Discord adapter in the authorized server."\n'
         f'resources:\n  discord:\n    guild_id: "{guild}"\ninterfaces: [api]\n'
-        "limits:\n  duration_s: 3600\n  money: 0\n  compute_s: 0\n  max_external_actions: 200\n  max_decisions: 200\n")
+        "limits:\n  duration_s: 3600\n  money: 0\n  compute_s: 0\n  max_external_actions: 200\n  max_decisions: 200\n"
+        "data_permissions: {aggregate_metrics: true, member_list: true}\n")      # as in docs/ES/INTEGRATION.md
     task = lc.load_task(task_file)
     assert task.mode == "live" and task.resources["discord"]["guild_id"] == guild
     # 3. operator key, 4. record: template -> sign -> register

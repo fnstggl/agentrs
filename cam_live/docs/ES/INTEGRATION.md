@@ -126,6 +126,7 @@ resources:
     guild_id: "<server id>"
 interfaces: [api]
 limits: {duration_s: 3600, money: 0, compute_s: 0, max_external_actions: 200, max_decisions: 200}
+data_permissions: {aggregate_metrics: true, member_list: true}   # member events process the member list
 YAML
 # 3. operator key (once; the private key stays with the operator) and its public half where the service looks
 .venv/bin/python -m cam_live.harness.auth.opctl init-operator-key --private <operator.key> --public $R/auth/keys/operator.pub
