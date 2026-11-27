@@ -213,4 +213,4 @@ class ReferenceGrounder:
                 "note": "baseline for comparison only; finds literal labels and plain colours, nothing else"}
 
     def close(self) -> None:
-        pass
+        self._fonts = None                               # nothing else is held: no model, no process

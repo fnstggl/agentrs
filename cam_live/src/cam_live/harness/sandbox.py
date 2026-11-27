@@ -1062,7 +1062,7 @@ class SandboxProcess:
         with self._lock:
             if self._result is not None:
                 return self._result
-            asked = False
+            asked = by_deadline = False
             hard_at = self._t0 + self._wall_s + 20.0
             while self._final() is None and not any(e.get("event") == "eof" for e in self._events):
                 self._pump(0.05)
@@ -1070,6 +1070,7 @@ class SandboxProcess:
                 if not asked and ((cancel is not None and cancel.is_set())
                                   or (deadline_monotonic is not None and now >= deadline_monotonic)):
                     asked = True
+                    by_deadline = not (cancel is not None and cancel.is_set())
                     self.cancel()
                     hard_at = min(hard_at, now + 15.0)
                 if now >= hard_at:
@@ -1105,6 +1106,8 @@ class SandboxProcess:
                     res.setup_error = str(ready.get("error", "sandbox setup failed"))
             if asked and not res.cancelled and res.exit_code is None and not res.timed_out:
                 res.cancelled = True
+            if by_deadline and res.cancelled:              # stopped because the caller's deadline passed
+                res.cancelled, res.timed_out, res.killed_for = False, True, "timeout"
             self._result = res
             return res
 

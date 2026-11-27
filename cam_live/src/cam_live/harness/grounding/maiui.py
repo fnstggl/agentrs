@@ -78,8 +78,7 @@ class MaiUIGrounder(NeuralGrounder):
         return Qwen3VLForConditionalGeneration.from_pretrained(
             snapshot, local_files_only=True, trust_remote_code=False, dtype=torch.bfloat16).to(device)
 
-    def _drop(self) -> None:
-        self._ip = self._tok = None
+    _helpers = ("_ip", "_tok")
 
     def _inputs(self, image: Any, instruction: str) -> Dict[str, Any]:
         import torch

@@ -95,8 +95,7 @@ class VocaelaGrounder(NeuralGrounder):
         return AutoModelForImageTextToText.from_pretrained(snapshot, local_files_only=True, trust_remote_code=False,
                                                            dtype=self._dtype).to(device)
 
-    def _drop(self) -> None:
-        self._ip = self._tok = None
+    _helpers = ("_ip", "_tok")
 
     def _inputs(self, image: Any, text: str) -> Dict[str, Any]:
         from transformers.models.smolvlm.processing_smolvlm import get_image_prompt_string

@@ -1,0 +1,455 @@
+{
+ "authorization_checks": {
+  "visual.click": 362
+ },
+ "command": "python -m cam_live.harness.grounding.bench --per-family 10",
+ "commit": "6d568fec8c928e9f548486b4eabe4277278f3a87",
+ "families": [
+  "canvas_buttons",
+  "dense_form",
+  "icon_only",
+  "lookalike",
+  "small_targets",
+  "workflow"
+ ],
+ "finished_unix": 1795739679.695831,
+ "grounders": {
+  "goclick-base": {
+   "baseline": false,
+   "by_family": {
+    "canvas_buttons": {
+     "e2e_success": 10,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 10,
+     "incorrect_actions": 0,
+     "targets": 10
+    },
+    "dense_form": {
+     "e2e_success": 9,
+     "e2e_success_rate": 0.9,
+     "grounding_accuracy": 0.9,
+     "grounding_correct": 9,
+     "incorrect_actions": 1,
+     "targets": 10
+    },
+    "icon_only": {
+     "e2e_success": 9,
+     "e2e_success_rate": 0.9,
+     "grounding_accuracy": 0.9,
+     "grounding_correct": 9,
+     "incorrect_actions": 1,
+     "targets": 10
+    },
+    "lookalike": {
+     "e2e_success": 10,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 10,
+     "incorrect_actions": 0,
+     "targets": 10
+    },
+    "small_targets": {
+     "e2e_success": 6,
+     "e2e_success_rate": 0.6,
+     "grounding_accuracy": 0.6,
+     "grounding_correct": 6,
+     "incorrect_actions": 0,
+     "targets": 10
+    },
+    "workflow": {
+     "e2e_success": 30,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 30,
+     "incorrect_actions": 0,
+     "targets": 30
+    }
+   },
+   "compute_s_per_successful_operation": 0.2732225875621913,
+   "compute_s_total": 20.218471479602158,
+   "device": "cuda",
+   "e2e_success": 74,
+   "e2e_success_rate": 0.925,
+   "executor_verification_agrees": 80,
+   "gpu_mem_mb_after_load": 528.27685546875,
+   "gpu_mem_mb_peak": 694.67529296875,
+   "grounding_accuracy": 0.925,
+   "held_shared_gpu_lock": false,
+   "incorrect_actions": 2,
+   "isolated_process": true,
+   "latency_s": {
+    "action_mean": 0.8924968363135122,
+    "model_mean": 0.252730893495027,
+    "model_median": 0.11508170003071427,
+    "model_p90": 0.11692128796130419
+   },
+   "license": "MIT",
+   "load_s": 7.7753097508102655,
+   "lock_held_s": 0.0,
+   "no_effect": 4,
+   "no_proposal": 0,
+   "params": 270803968,
+   "partial": "",
+   "recovery": {
+    "by_failure_kind": {
+     "incorrect_action": {
+      "recovered": 1,
+      "retried": 2
+     },
+     "no_effect": {
+      "recovered": 4,
+      "retried": 4
+     }
+    },
+    "compute_s": 17.751021242700517,
+    "failures": 6,
+    "fallback": "mai-ui-2b",
+    "new_incorrect_actions": 0,
+    "recovered": 5,
+    "recovery_rate": 0.8333333333333334,
+    "retried": 6,
+    "success_rate_after_one_recovery": 0.9875
+   },
+   "repo": "HongxinLi/GoClick-Base",
+   "revision": "05633a495f9d2ce823372d0c7fd9b0b4bb67c6fa",
+   "role": "lightweight",
+   "targets": 80,
+   "workflows": 10,
+   "workflows_completed_without_help": 10
+  },
+  "mai-ui-2b": {
+   "baseline": false,
+   "by_family": {
+    "canvas_buttons": {
+     "e2e_success": 10,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 10,
+     "incorrect_actions": 0,
+     "targets": 10
+    },
+    "dense_form": {
+     "e2e_success": 5,
+     "e2e_success_rate": 0.5,
+     "grounding_accuracy": 0.5,
+     "grounding_correct": 5,
+     "incorrect_actions": 0,
+     "targets": 10
+    },
+    "icon_only": {
+     "e2e_success": 10,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 10,
+     "incorrect_actions": 0,
+     "targets": 10
+    },
+    "lookalike": {
+     "e2e_success": 10,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 10,
+     "incorrect_actions": 0,
+     "targets": 10
+    },
+    "small_targets": {
+     "e2e_success": 10,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 10,
+     "incorrect_actions": 0,
+     "targets": 10
+    },
+    "workflow": {
+     "e2e_success": 30,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 30,
+     "incorrect_actions": 0,
+     "targets": 30
+    }
+   },
+   "compute_s_per_successful_operation": 1.8341520277348657,
+   "compute_s_total": 137.56140208011493,
+   "device": "cuda",
+   "e2e_success": 75,
+   "e2e_success_rate": 0.9375,
+   "executor_verification_agrees": 80,
+   "gpu_mem_mb_after_load": 4058.9609375,
+   "gpu_mem_mb_peak": 4298.625,
+   "grounding_accuracy": 0.9375,
+   "held_shared_gpu_lock": true,
+   "incorrect_actions": 0,
+   "isolated_process": true,
+   "latency_s": {
+    "action_mean": 2.363226432277588,
+    "model_mean": 1.7195175260014366,
+    "model_median": 1.6391889122314751,
+    "model_p90": 1.7588896271772683
+   },
+   "license": "Apache-2.0",
+   "load_s": 5.77325826138258,
+   "lock_held_s": 197.1847608871758,
+   "no_effect": 5,
+   "no_proposal": 0,
+   "params": 2127532032,
+   "partial": "",
+   "recovery": {
+    "by_failure_kind": {
+     "no_effect": {
+      "recovered": 4,
+      "retried": 5
+     }
+    },
+    "compute_s": 0.576199705246836,
+    "failures": 5,
+    "fallback": "goclick-base",
+    "new_incorrect_actions": 1,
+    "recovered": 4,
+    "recovery_rate": 0.8,
+    "retried": 5,
+    "success_rate_after_one_recovery": 0.9875
+   },
+   "repo": "Tongyi-MAI/MAI-UI-2B",
+   "revision": "503050934809558c8dfd2ddedaf9621fa74ac2de",
+   "role": "advanced",
+   "targets": 80,
+   "workflows": 10,
+   "workflows_completed_without_help": 10
+  },
+  "reference-template": {
+   "baseline": true,
+   "by_family": {
+    "canvas_buttons": {
+     "e2e_success": 10,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 10,
+     "incorrect_actions": 0,
+     "targets": 10
+    },
+    "dense_form": {
+     "e2e_success": 0,
+     "e2e_success_rate": 0.0,
+     "grounding_accuracy": 0.0,
+     "grounding_correct": 0,
+     "incorrect_actions": 0,
+     "targets": 10
+    },
+    "icon_only": {
+     "e2e_success": 0,
+     "e2e_success_rate": 0.0,
+     "grounding_accuracy": 0.0,
+     "grounding_correct": 0,
+     "incorrect_actions": 0,
+     "targets": 10
+    },
+    "lookalike": {
+     "e2e_success": 0,
+     "e2e_success_rate": 0.0,
+     "grounding_accuracy": 0.0,
+     "grounding_correct": 0,
+     "incorrect_actions": 10,
+     "targets": 10
+    },
+    "small_targets": {
+     "e2e_success": 0,
+     "e2e_success_rate": 0.0,
+     "grounding_accuracy": 0.0,
+     "grounding_correct": 0,
+     "incorrect_actions": 0,
+     "targets": 10
+    },
+    "workflow": {
+     "e2e_success": 30,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 30,
+     "incorrect_actions": 0,
+     "targets": 30
+    }
+   },
+   "compute_s_per_successful_operation": 2.5189069586107506,
+   "compute_s_total": 100.75627834443003,
+   "device": "cpu",
+   "e2e_success": 40,
+   "e2e_success_rate": 0.5,
+   "executor_verification_agrees": 80,
+   "gpu_mem_mb_after_load": 0.0,
+   "gpu_mem_mb_peak": 0.0,
+   "grounding_accuracy": 0.5,
+   "held_shared_gpu_lock": false,
+   "incorrect_actions": 10,
+   "isolated_process": false,
+   "latency_s": {
+    "action_mean": 1.8232462891435717,
+    "model_mean": 1.2594534793053753,
+    "model_median": 0.9166257651522756,
+    "model_p90": 2.9946767417714
+   },
+   "license": "part of cam_live",
+   "load_s": 0.0,
+   "lock_held_s": 0.0,
+   "no_effect": 20,
+   "no_proposal": 10,
+   "params": 0,
+   "partial": "",
+   "recovery": {
+    "by_failure_kind": {
+     "incorrect_action": {
+      "recovered": 10,
+      "retried": 10
+     },
+     "no_effect": {
+      "recovered": 15,
+      "retried": 20
+     },
+     "no_proposal": {
+      "recovered": 9,
+      "retried": 10
+     }
+    },
+    "compute_s": 15.263876491226256,
+    "failures": 40,
+    "fallback": "goclick-base",
+    "new_incorrect_actions": 2,
+    "recovered": 34,
+    "recovery_rate": 0.85,
+    "retried": 40,
+    "success_rate_after_one_recovery": 0.925
+   },
+   "repo": "",
+   "revision": "builtin-1",
+   "role": "baseline for comparison only",
+   "targets": 80,
+   "workflows": 10,
+   "workflows_completed_without_help": 10
+  },
+  "vocaela-2-500m": {
+   "baseline": false,
+   "by_family": {
+    "canvas_buttons": {
+     "e2e_success": 10,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 10,
+     "incorrect_actions": 0,
+     "targets": 10
+    },
+    "dense_form": {
+     "e2e_success": 10,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 10,
+     "incorrect_actions": 0,
+     "targets": 10
+    },
+    "icon_only": {
+     "e2e_success": 10,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 10,
+     "incorrect_actions": 0,
+     "targets": 10
+    },
+    "lookalike": {
+     "e2e_success": 10,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 10,
+     "incorrect_actions": 0,
+     "targets": 10
+    },
+    "small_targets": {
+     "e2e_success": 9,
+     "e2e_success_rate": 0.9,
+     "grounding_accuracy": 0.9,
+     "grounding_correct": 9,
+     "incorrect_actions": 0,
+     "targets": 10
+    },
+    "workflow": {
+     "e2e_success": 30,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 30,
+     "incorrect_actions": 0,
+     "targets": 30
+    }
+   },
+   "compute_s_per_successful_operation": 1.0469514879433415,
+   "compute_s_total": 82.70916754752398,
+   "device": "cuda",
+   "e2e_success": 79,
+   "e2e_success_rate": 0.9875,
+   "executor_verification_agrees": 80,
+   "gpu_mem_mb_after_load": 970.97802734375,
+   "gpu_mem_mb_peak": 1087.70556640625,
+   "grounding_accuracy": 0.9875,
+   "held_shared_gpu_lock": false,
+   "incorrect_actions": 0,
+   "isolated_process": true,
+   "latency_s": {
+    "action_mean": 1.6737748995481525,
+    "model_mean": 1.0338645943440496,
+    "model_median": 0.9539618920534849,
+    "model_p90": 0.9672817136161029
+   },
+   "license": "CC BY-NC-SA 4.0",
+   "load_s": 4.14798660390079,
+   "lock_held_s": 0.0,
+   "no_effect": 1,
+   "no_proposal": 0,
+   "params": 498045120,
+   "partial": "",
+   "recovery": {
+    "by_failure_kind": {
+     "no_effect": {
+      "recovered": 0,
+      "retried": 1
+     }
+    },
+    "compute_s": 0.11557346303015947,
+    "failures": 1,
+    "fallback": "goclick-base",
+    "new_incorrect_actions": 0,
+    "recovered": 0,
+    "recovery_rate": 0.0,
+    "retried": 1,
+    "success_rate_after_one_recovery": 0.9875
+   },
+   "repo": "vocaela/Vocaela-2-500M-1024R2",
+   "revision": "b0280f2ce8e2f126a1c3c446c70e63ee7bbeaed2",
+   "role": "evaluation only (non-commercial licence)",
+   "targets": 80,
+   "workflows": 10,
+   "workflows_completed_without_help": 10
+  }
+ },
+ "host": {
+  "gpu": "NVIDIA RTX A6000",
+  "load_average": [
+   9.38916015625,
+   9.51220703125,
+   10.07861328125
+  ],
+  "load_average_end": [
+   7.96044921875,
+   8.6240234375,
+   9.39111328125
+  ],
+  "note": "the GPU and CPUs are shared with other jobs; latencies include that contention",
+  "torch": "2.15.0+cu132"
+ },
+ "not_run": {},
+ "per_family": 10,
+ "started_unix": 1795739027.4906352,
+ "targets": 80,
+ "tasks": 60,
+ "viewport": [
+  1280,
+  800
+ ],
+ "what": "visual grounders on controlled canvas tasks, operated through cam_live.harness.visual.VisualExecutor"
+}

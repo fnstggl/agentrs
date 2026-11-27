@@ -67,6 +67,7 @@ class VisualConfig:
     min_confidence: float = 0.0          # grounder proposals below this are rejected
     grounder_order: Tuple[str, ...] = ("goclick-base", "mai-ui-2b")
     max_ground_attempts: int = 2
+    manage_gpu_lock: bool = True         # take the shared GPU lock around grounders that need more than 4 GB
     gpu_lock_timeout_s: float = 120.0    # wait for the shared GPU lock before a grounder that needs it
     release_heavy_after_use: bool = True
     full_page_max_screens: int = 12
@@ -691,7 +692,7 @@ class VisualExecutor:
 
         m = time.monotonic()
         g = self._grounder(gname)
-        heavy = bool(getattr(g, "heavy", False))
+        heavy = bool(getattr(g, "heavy", False)) and self.cfg.manage_gpu_lock
         try:
             if heavy:
                 with _shared_gpu_lock(self.cfg.gpu_lock_timeout_s) as got:

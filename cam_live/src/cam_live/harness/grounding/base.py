@@ -197,16 +197,19 @@ class NeuralGrounder:
                 "mean_latency_s": self.total_latency_s / self.calls if self.calls else None}
 
     def close(self) -> None:
-        """Drop the model and give its GPU memory back."""
+        """Drop the model (and whatever the subclass keeps next to it) and give its GPU memory back."""
         if self._model is None:
             return
         self._model = None
-        self._drop()
+        self._release()
         import gc
         import torch
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-    def _drop(self) -> None:
-        pass
+    def _release(self) -> None:
+        """Forget per-model helpers (tokenizer, image processor); subclasses name theirs in ``_helpers``."""
+        for attr in getattr(self, "_helpers", ()):
+            setattr(self, attr, None)
+        self.device = ""

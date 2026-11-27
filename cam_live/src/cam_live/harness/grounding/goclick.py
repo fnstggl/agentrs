@@ -147,8 +147,7 @@ class GoClickGrounder(NeuralGrounder):
                      config.text_config.eos_token_id)
         return model
 
-    def _drop(self) -> None:
-        self._tok = self._bias = None
+    _helpers = ("_tok", "_bias")
 
     # ------------------------------------------------------------------------------------------ inference
     def _pixels(self, image: Any) -> Any:

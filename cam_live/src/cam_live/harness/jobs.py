@@ -343,9 +343,8 @@ class JobManager:
                 if broker is not None:
                     broker.close()
                 raise
-            for _ in range(200):                           # the monitor reports the process group at once
-                if proc.pgid or not proc.running():
-                    break
+            waited = time.monotonic() + 15.0               # the monitor reports the process group at once
+            while not proc.pgid and proc.running() and time.monotonic() < waited:
                 time.sleep(0.01)
             with self._lock:
                 rec.pgid = int(proc.pgid or 0)

@@ -151,7 +151,7 @@ def test_concurrency_cap_and_bounded_queue(manager):
     while time.monotonic() < end and not all(m.status(r.job_id).done for r in recs):
         seen_running = max(seen_running, m.counts().get(J.JobState.RUNNING, 0))
         time.sleep(0.02)
-    final = [m.status(r.job_id) for r in recs]
+    final = [m.wait(r.job_id, 10) for r in recs]                 # returns once the job's event has been delivered
     assert [r.state for r in final] == ["succeeded"] * 4 + ["cancelled"]
     assert seen_running == 2 and m.peak_running == 2
     assert final[4].started == 0 and final[4].exit_code is None                   # it never ran
@@ -196,7 +196,7 @@ m = J.JobManager(sys.argv[2], sandbox=sb, max_concurrent=1)
 a = m.submit("long computation", "shell", "echo started; exec -a '%s' sleep 300" % os.environ["CAM_TEST_MARKER"],
              deadline_s=600)
 b = m.submit("waiting behind it", "shell", "echo never", deadline_s=600)
-while "started" not in m.status(a.job_id).stdout_tail:
+while "started" not in m.status(a.job_id).stdout_tail or not m.status(a.job_id).pgid:
     time.sleep(0.02)
 print(a.job_id, b.job_id, m.status(a.job_id).pgid, flush=True)
 time.sleep(600)
