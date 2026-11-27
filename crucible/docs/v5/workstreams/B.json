@@ -345,7 +345,7 @@
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "criteria met in an unofficial run at 4184cce (3 language-model rows: SmolLM2-135M rho 0.32, SmolLM2-360M 0.43, Qwen3-0.6B 0.24 vs compact learned 0.78 / frozen 0.10, 237,506 parameters); rerun queued; not reached in the 9d3f98b0 run (stopped for RAM during G.7); rerun queued (CPU, 10 GB)",
+   "status_claim": "criteria met in the unofficial gate run at 5cfe1482 (governed CPU slot): compact_vs_language_comparison_rows 3 on 200 held-out class-2 resource decisions - Spearman with the realised utility: compact learned 0.659 (237,506 parameters, 0.007 ms per decision), its frozen twin 0.068, SmolLM2-135M zero-shot 0.200 (200 ms), SmolLM2-360M 0.259 (614 ms), Qwen3-0.6B 0.194 (951 ms); language models evaluated evaluator-side through crucible.semantic's inference service (workstream D's participant runtime not merged here)",
    "notes": ""
   },
   "SP-3.1": {
@@ -611,7 +611,7 @@
   "tests/test_v5_population_core.py tests/test_v5_population_api.py tests/test_v5_perf_batching.py (d8c75ce3, CPU)": "34 passed, 1 failed: test_same_seed_same_hashes_replay_regeneration_and_resume (first assertion, two same-seed worlds in one process; sandbox billing beyond the D-20 memo tolerance; fails identically without this session's changes; see the kcal integration note)",
   "regression of 24 population-dependent test files (snapshot of e05f5266, governed slot, pinned CPU)": "354 passed, 6 failed in 1674 s: test_v5_substrate_retention::test_periodic_compaction_reads_only_what_was_written_since_the_last_one (kcal, on the orchestrator's 55433e7 list), test_v5_calibration_inworld x4 (assume pre-D-30 population behaviour; patch in integration_notes), test_v5_econ_work::test_demand_comes_from_population_individuals_paying_their_own_money (econ; patch in integration_notes). test_v5_population_core (incl. the same-seed hash test), _api, kernel, invariants, substrate history/resume/streams/columns, social and civ files passed.",
   "gates SP-3.1 SP-4.1 SP-3.2c SP-3.4 (snapshot snapR_head of e05f5266, governed slot)": "3 passed (SP-3.1, SP-3.2c, SP-3.4), 1 failed (SP-4.1: 12 of 13 behaviours, purchase_services 3; repaired at 351ded23, rerun queued)",
-  "tests/v5/test_gate_G.py (snapshot snapG of 5cfe1482, category condition, governed CPU slot)": "G.1, G.2, G.3, G.5, G.n1, G.4 passed; G.6 failed (-0.0018, CI [-0.020, +0.016]); G.7 running at the time of writing",
+  "tests/v5/test_gate_G.py (snapshot snapG of 5cfe1482, category condition, governed CPU slot)": "7 passed, 1 failed in 5190 s: G.1, G.2, G.3, G.5, G.n1, G.4, G.7 passed; G.6 failed (-0.0018, CI [-0.020, +0.016])",
   "gates SP-4.4, SP-3.3 (snapshot snapQ of a50d20da, governed CPU slots)": "2 passed (1594 s, 372 s)",
   "trial pop 62f0d442 + sem 04ea1d37 + soc a173da24: tests/v5/test_gate_SP_4_0.py (governed CPU slot)": "1 passed (Gate B/G mechanisms in the civ world), 1 failed (SP-4.0: 9 of 15 platforms); SP-3.2 with class 4 on the GPU queued (the CPU attempt was stopped for RAM at 16.3 GB)"
  },
