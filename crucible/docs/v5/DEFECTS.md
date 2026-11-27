@@ -151,13 +151,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-C-2 (critical, open): Three disjoint populations; the C2 engine cannot run with B's pop (C.3 fails at feed install, service.py:184);
+### DEF-C-2 (critical, fixed): Three disjoint populations; the C2 engine cannot run with B's pop (C.3 fails at feed install, service.py:184);
 
 ```json
 {
  "area": "C_social",
+ "fixed_by": "c5c/w2-corepop (the C2 distribution and consumption engine runs as activities of the one population, D-15; the crowd stand-in is not used by v5 Tier 2/3 worlds) + c5c/w3b-soc (the population creates on every distributed platform and uses communities, messaging, newsletters, memberships, launches, Q&A and search-led shopping: social.popcreate, social.popinbox, social.popsocial). Verified in unofficial snapshot runs of this branch (2026-11-27): C.3 manifest criteria met on 848d76a (101,334 consumption events of the one population, 0 analytics mismatches; its extra provenance assertion found newsletter impressions recorded in the sender's command, fixed in 7b6872c with tests/test_v5_social_letters.py, gate re-run queued), C.2 (11 discovery channels incl. search), SP-4.7b (33 population-founded communities over 40 days) and SP-4.8 (111 population launch purchases) passed.",
  "id": "DEF-C-2",
  "owner": "C (CORE-POP)",
+ "regression_tests": "tests/v5/test_gate_C.py::test_C_3_consumption_produces_analytics, tests/v5/test_gate_C.py::test_C_2_discovery_channels, tests/v5/test_gate_SP_4_7b.py, tests/v5/test_gate_SP_4_8.py::test_SP_4_8_population_discovers_buys_uses_and_reviews, tests/test_v5_social_letters.py",
  "requirements": [
   "C.3"
  ],
@@ -167,7 +169,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/C_social.json",
   "finding": 1
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Three disjoint populations; the C2 engine cannot run with B's pop (C.3 fails at feed install, service.py:184); autonomous population never uses communities, messaging, newsletters, launches, Q&A or search."
 }
 ```
@@ -235,13 +237,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-C-6 (critical, open): Community, sharing/following and social-to-purchase evidence comes from scripted drivers; social internet is n
+### DEF-C-6 (critical, fixed): Community, sharing/following and social-to-purchase evidence comes from scripted drivers; social internet is n
 
 ```json
 {
  "area": "C_social",
+ "fixed_by": "c5c/w2-corepop + c5c/w3-intfix (communities, sharing and following on the one population; the social internet composed into every civilisation by crucible.civ.generate) + c5c/w3b-soc (population governance, churn and sustained participation; population social-to-economy chains through economy.work). Verified in unofficial snapshot runs of this branch (2026-11-27): SP-4.7b on bf696ea (40 days: 33 communities founded by the population, 64 churn events, 34 days of sustained participation, 43 proposals and 242 votes of members), C.4 and C.5 on 848d76a (randomised follow/share/subscription assignments, outcomes decided by the population), SP-4.8 on bf696ea (111 population purchases through launch posts; the maker is scripted and labelled). Civilisations: population items on 9-11 of the 12 distributed platforms in 4 profiles x 4 days (civ check on 848d76a); the civilisation-level chain gate SP-4.8b measured 0 chains on 848d76a and its fix (fc36689) was being re-measured. Tier 2 content/community domains are built by the domain workstreams on crucible.social.worlds.social_world.",
  "id": "DEF-C-6",
  "owner": "C (CORE-POP)",
+ "regression_tests": "tests/v5/test_gate_SP_4_7b.py, tests/v5/test_gate_C.py::test_C_4_communities_form_and_persist, tests/v5/test_gate_C.py::test_C_5_social_mechanisms_affect_future_interactions, tests/v5/test_gate_SP_4_8.py::test_SP_4_8_population_discovers_buys_uses_and_reviews, tests/v5/test_gate_SP_4_8b.py",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -249,7 +253,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/C_social.json",
   "finding": 5
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Community, sharing/following and social-to-purchase evidence comes from scripted drivers; social internet is not wired into any Tier 2 domain or civilization."
 }
 ```
