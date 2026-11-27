@@ -201,7 +201,8 @@
  "wave3b": [
   "Verified the repair pass's claims against the verifier's open items: ad-holdout comparison per attended display (unit tests at attention 1, 0.5, 0.19 pass), heterogeneity by session intensity, E5 identification label randomized_encouragement_iv with disclosure, registry index pins all 17 models (index_problems clean); conversion-ratio assumption stated in ad_response@2's limits (runtime_ext, predecessor commit ac46584).",
   "New: informative matches - an in-world randomised experiment matches only when the world's own estimate detects an effect (ad holdout: 95% interval excludes 0; random exposure: |LOR| > 1.96 se); random_exposure_estimate factored out and unit-tested (a 300-insertion experiment that a z test alone accepts in >= 20 of 40 draws is refused).",
-  "Defects: DEF-E-3, DEF-E-4, DEF-E-6 fixed (fixes and regression tests named, tests re-run); DEF-E-5 not a defect (a positive finding). DEF-E-1/E-2 (no population decision uses a fitted model in the world) stay open until c5c/w3b-pop merges and SP-5.0 measures it on the integration branch."
+  "Defects: DEF-E-3, DEF-E-4, DEF-E-6 fixed (fixes and regression tests named, tests re-run); DEF-E-5 not a defect (a positive finding). DEF-E-1/E-2 (no population decision uses a fitted model in the world) stay open until c5c/w3b-pop merges and SP-5.0 measures it on the integration branch.",
+  "Merge checks on the scratch merge: the four `default:` in-world claims that c5c/w3b-pop adds to FIDELITY_REGISTER (return_daily@1, session_rate@1 in pop; news_click_semantic@1, customer_return@1 in popweb) had no probe in fidelity.INWORLD_PROBES, so SP-5.4 failed there (4 unverified claims). E now registers its own probe: a DEFAULT population world (development profile at 300 individuals, every other parameter the population's default, 3 days) evaluated against an isolated runtime usage ledger (runtime.isolated_usage). The population's own probe module (population/fidelity_probes.py) raises the shop share to 0.8 and drops the adaptive and strategic classes, so it is not what a 'default' claim means and is not registered. The probe needs the GPU path to finish in reasonable time (more than 5 minutes on one CPU); it runs with the SP-5.4 gate on the merge (queued)."
  ],
  "limitations": [
   "SP-5.0 and SP-5.5b cannot pass on this branch alone; they need c5c/w3b-pop, c5c/w3b-soc, c5c/w3b-econ1 and the civ feed_config fix (integration_notes).",
@@ -211,7 +212,8 @@
  "integration_notes": [
   "acceptance manifest: SP-5.0, SP-5.5b -> src/crucible/calibration/inworld.py (+ runtime.py); SP-5.1, SP-5.3 -> src/crucible/calibration/audit_sp5.py (manifest not edited here).",
   "SP-5.5b needs, in civilisations: the population's activation decisions (c5c/w3b-pop), the shorts platform's random insertion with content_open@1 (c5c/w3b-soc; reaches a civilisation only once civ.generator uses social.worlds.feed_config), and display campaigns with randomised eligibility through ad_response@2 (c5c/w3b-econ1). Each experiment must record enough rows to be informative (match rule above).",
-  "MIND: D-28 (owner's authorisation); BLOCKERS.md has no open blocker; keep derived artifacts marked non-commercial research only."
+  "MIND: D-28 (owner's authorisation); BLOCKERS.md has no open blocker; keep derived artifacts marked non-commercial research only.",
+  "FIDELITY_REGISTER.md merges: the scratch merge's union of conflicting rows produced duplicate ids (module:pop, module:pop_adaptive, ...): resolve register conflicts row by row, one record per id (SP-5.4 counts duplicate ids as row problems)."
  ],
  "tests_run": {
   "tests/test_v5_calibration_inworld.py": "28 passed (68 s)",

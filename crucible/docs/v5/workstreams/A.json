@@ -55,7 +55,7 @@
     "tests/test_v5_substrate_columns.py",
     "tests/test_v5_substrate_integrity.py"
    ],
-   "status_claim": "partial: shared_primitive_kinds = 14 of 19 on this branch (content_artifact, relationship, community, institution, contract have known copies); 17 of 19 on a scratch merge with c5c/w3b-soc and c5c/w3b-econ1 (content_artifact, institution and contract migrated there; facts.audit on the merge: 327 items, 107 modules, 0 problems); relationship and community need the C+A / B+C migrations (integration_notes)",
+   "status_claim": "partial: shared_primitive_kinds = 16 of 19 measured on the scratch merge at 2026-11-27 01:50 UTC: c5c/w3b-kcal + pop + soc + econ1 + civ + dom1 + dom2 + dom3 + econ2 + sem + perf (conflicts: services/contracts.py econ1 side, test_v5_substrate_facts.py kcal side, docs both sides) + the civ feed_config probe patch (social.worlds.feed_config in civ.generator.social_config) (measure_primitives of the gate, one CPU, 26 s: 387 fact items over 115 modules, 0 problems, 74 4.0 families without duplicate facts, owners world 21 modules 0 problems); product, relationship and community keep known copies: product regressed with c5c/w3b-dom3 (rcomm.rc_products, allow-listed for I-3), relationship (forum.forum_follows is the owner while the v5 graph social.cols:follow, aud follower sets and pop.contacts copy it) and community (community.communities, pop.communities) need the C/B/I-3 migrations (integration_notes); 14 of 19 on this branch alone",
    "notes": "Kernel side of the migrations: econ1 already set OWNERS.institution = inst.inst_charters with gov tables as verified legacy entries and made commit.commitments a part of contracts; soc reclassified aud.aud_item_info. cross_module_rollback_failures and inference_replay_without_rerun: gate re-run queued (slot scheduler); last measured 0 / true in wave 3."
   },
   "SP-2.3b": {
@@ -140,7 +140,11 @@
   "Column interfaces (wave 3b): `columns.batch(..., _iface=X)` is accepted only from the Python module that called `columns.register_interface(X, ...)` (attention: crucible.substrate.attention; pop_wake: crucible.population.core). A new interface must be registered in, and written from, its implementing module.",
   "Gates SP-2.1, SP-2.3, SP-2.3b, the 365-day store-growth run and the civ kernel probe were submitted to the slot scheduler at 19:45-19:58 UTC (positions 28-38 of 47 at 20:56) and had not started when this report was written; their scripts are in the kcal scratch directory (job_gates.sh, job_365.sh, job_mirror.sh, job_civprobe.sh).",
   "DEF-P-26 (owner O / A; the orchestrator assigned the regression to qa/obs) reproduced on c5c/w3b-kcal: tests/test_ow_worlds.py::test_end_to_end_only_working_software_earns_a_living fails after tests/test_learners.py in one process (junk service long_term_adoption 1.0), and ALSO alone when the machine-level memo holds anchors from earlier runs; it passes alone with a fresh memo file or CRUCIBLE_METER_MEMO=off; clearing metering.MEMO between the two files does not fix the pair, and the pre-D-80 sandbox code fails alike. So the memo mechanism is not the cause: the 4.0 world's outcome depends on how much CPU the junk service measures (a warm process or an anchor from a warm process bills it differently) - D-20's measured billing near a threshold of that world, not a kernel bug.",
-  "F + A (institution, after c5c/w3b-econ1 merges): the typed primitive event of `institution` is still gov.constitution (a 4.0 legacy event, accepted by the typed test as such); register inst's charter event in primitives.PRIMITIVE_EVENTS with owner inst so v5 charters are typed and validated like the other primitives."
+  "F + A (institution, after c5c/w3b-econ1 merges): the typed primitive event of `institution` is still gov.constitution (a 4.0 legacy event, accepted by the typed test as such); register inst's charter event in primitives.PRIMITIVE_EVENTS with owner inst so v5 charters are typed and validated like the other primitives.",
+  "Merge conflict to expect: tests/test_v5_substrate_facts.py::test_the_known_duplicates_are_exactly_the_reviewed_allow_list - c5c/w3b-econ1 removed institution/contract from the kinds assertion, c5c/w3b-kcal rewrote it as 'on record or migrated' (also covers content_artifact, migrated by c5c/w3b-soc): take kcal's hunk. Checked on the scratch merge: 2 passed.",
+  "I-3 (c5c/w3b-dom3) for SP-2.3 product: rcomm.rc_products (and rcomm.rc_subs) keep products and subscriptions outside their owners (allow-listed, D-79); with them shared_primitive_kinds is 16 on the scratch merge instead of 17. A commercialised technology should be launched with prod.create/launch (products.products) and sold through subs; then remove the two allow-list entries from substrate/facts.py KNOWN_DUPLICATES and reclassify the rcomm tables as parts.",
+  "I-3 (c5c/w3b-dom3) state growth: orgeco.org_use gains one row per customer session and is never pruned, and the domain's evaluator scans every row for its 14-day window (O(history) per evaluation, unbounded snapshot growth over a 365-day run); prune it to the evaluation window as ap_hours does for org_hours.",
+  "Kernel side of relationship/community (A, with C/B): when forum delegates (forum.follow/unfollow write social graph edges where `social` is installed, popweb reads the graph) set OWNERS.relationship = social cols:follow and OWNERS.community = community.communities in substrate/primitives.py, reclassify forum.forum_follows / forum.forum_boards as legacy entries with their verified_by tests, and the aud follower sets as legacy with C's regression test (c5c/w3b-soc 5c6903c); until forum delegates, switching OWNERS only moves the duplicate."
  ],
  "test_runs": {
   "how": "wave 3b on c5c/w3b-kcal (HEAD at the time), one CPU with CUDA hidden, file by file outside the slot scheduler only where a file finished within 5 minutes (the slot queue was 40+ jobs deep)",
@@ -166,6 +170,27 @@
   "tests/test_sandbox.py, tests/test_v5_security_sandbox.py, tests/test_hardening.py (sandbox code touched by D-80)": "6 + 17 + 25 passed",
   "gates tests/v5/test_gate_SP_2_1.py, SP_2_3.py, SP_2_3b.py": "queued in the slot scheduler (job 'A: kcal gates ...', and on the scratch merge 'E: kcal SP-5.0/5.5b + SP-2.1/2.3b/2.3'); not run in this session as of the report",
   "total run here": "292 passed, 0 failed (243 kernel/substrate + 48 sandbox + 1 modes), plus the K1 stages"
+ },
+ "session3": {
+  "who": "third kcal agent (wave 3b continuation after the second usage-limit stop), 2026-11-27 from 01:45 UTC",
+  "merged": "feat/crucible-5-complete c9fca5c (progress ledger only)",
+  "findings_and_repairs": [
+   "facts: the mandatory scan on the scratch merge found dom3's orgeco.org_use unreviewed and the orgeco.org_props allow-list entry stale (dom3 now runs the backbone council through an inst charter); org_use classified as domain physics (per-session usage telemetry read by the domain's evaluator), org_props/org_votes entries removed (commit b78ad51); facts.audit on the merge: 387 items, 115 modules, 0 problems; on this branch alone 312 items, 102 modules, 0 problems, 3 entries reviewed ahead of sibling merges",
+   "orchestrator regression list (kcal): the three kernel tests pass on this branch on one CPU without the GPU - test_v5_substrate_streams::test_an_emitting_observer_leaves_every_main_line_event_unchanged (74 s), test_v5_substrate_retention::test_periodic_compaction_reads_only_what_was_written_since_the_last_one (58 s), test_v5_substrate_resume::test_a_fresh_process_resumes_a_snapshot_of_a_world_with_neural_participants (226 s)",
+   "a civilisation on one CPU without the GPU: built in 13 s (728 events) but 2 simulated hours did not finish in 277 s even with the shared 3.7 GB embedding cache - civ-world gates need a GPU slot"
+  ],
+  "measurements": {
+   "sp23_primitives_on_scratch_merge": {
+    "shared_primitive_kinds": 16,
+    "spec_primitives_with_known_duplicates": "product,relationship,community",
+    "fact_scan_items": 387,
+    "fact_scan_modules": 115,
+    "unexplained_duplicate_facts": 0,
+    "families_checked_for_duplicates": 74,
+    "families_with_duplicate_facts": 0,
+    "typed_event_types": 109
+   }
+  }
  },
  "kernel_pieces_for_other_requirements": {
   "P.3 snapshot/resume (J)": "World.load/replay attach the store before on_load: a fresh process resumes a world with neural participants; tests/test_v5_substrate_resume.py and tests/v5_resume_child.py (modes ref/part/resume/replay/regen) are reusable templates.",
