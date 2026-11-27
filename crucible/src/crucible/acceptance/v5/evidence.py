@@ -38,7 +38,7 @@ import types
 
 from .manifest import crucible_root, docs_dir
 
-SCHEMA = "crucible.v5.evidence/4"                  # /4: caller, phase, files_read_truncated (D-83)
+SCHEMA = "crucible.v5.evidence/4"                  # /4: caller, phase, files_read_truncated (D-83); executed_implementation (D-83 4th addendum)
 RUN_SCHEMA = "crucible.v5.run/2"
 REVIEW_SCHEMA = "crucible.v5.review/3"
 MARKER = "crucible_v5_run.json"                     # inside the clone's git dir: <clone>/.git/crucible_v5_run.json
@@ -81,6 +81,79 @@ def _open_hook(event: str, args: tuple) -> None:
 if os.environ.get("CRUCIBLE_V5_RUN_ID"):            # only inside official runs: no cost anywhere else
     _HOOK_ROOT[0] = os.path.abspath(crucible_root()) + os.sep
     sys.addaudithook(_open_hook)
+
+
+# ------------------------------------------------------------------------------------------- execution observer
+# Wave 3b repair pass (D-83 fourth addendum, probe V9 "detect and sacrifice"): the block ablation proves that the
+# ablated run ran into the implementation, not that the measured run did. A test that never calls its implementation
+# in a normal run - recording values from elsewhere - but runs into it on purpose when it detects the ablation (the
+# ablated tree's text is readable) left no record and looked sensitive. In official runs this module therefore
+# observes, in the process that records, which functions of the checkout's src/ returned (or yielded) normally while
+# no module was being imported and outside the recording machinery; `record()` writes the count for the
+# requirement's implementation files into the record (`executed_implementation`), and the ablation verdict accepts
+# "no record, implementation blocked in the recording process" only when the reproduction executed its implementation
+# in-process. A sys.monitoring tool of its own (never in an ablated run, whose hook holds the optimizer id); each code
+# object is seen once and its events are then disabled, so the cost is one callback per function.
+_EXEC: dict[str, set] = {}                          # realpath of a src file -> qualnames that returned normally
+_EXEC_STATE = {"tool": None, "src": ""}
+OBSERVER_TOOL_NAME = "crucible-v5-observer"
+
+
+def _observer_install(src_dir: str) -> None:
+    mon = getattr(sys, "monitoring", None)
+    if mon is None or any(mon.get_tool(t) == "crucible-v5-ablation" for t in range(6)):
+        return
+    tool = next((t for t in (5, 2) if mon.get_tool(t) is None), None)
+    if tool is None:
+        return
+    src = os.path.realpath(src_dir) + os.sep
+    machinery = os.sep + os.path.join("crucible", "acceptance", "v5", "evidence.py")
+    seen: dict[int, object] = {}
+
+    def done(code, offset, value):
+        f = code.co_filename
+        if not (code.co_flags & 1) or not f.startswith(src):
+            return mon.DISABLE
+        if id(code) in seen:
+            return mon.DISABLE
+        fr = sys._getframe(1)
+        while fr is not None:
+            c = fr.f_code
+            if c.co_filename.startswith("<frozen importlib._bootstrap"):
+                return None                          # import time: not the test executing its implementation
+            if c.co_qualname in ("record", "_open_hook") and c.co_filename.endswith(machinery):
+                return None
+            fr = fr.f_back
+        seen[id(code)] = code
+        _EXEC.setdefault(f, set()).add(code.co_qualname)
+        return mon.DISABLE
+    mon.use_tool_id(tool, OBSERVER_TOOL_NAME)
+    mon.register_callback(tool, mon.events.PY_RETURN, done)
+    mon.register_callback(tool, mon.events.PY_YIELD, done)
+    mon.set_events(tool, mon.events.PY_RETURN | mon.events.PY_YIELD)
+    _EXEC_STATE.update(tool=tool, src=src)
+
+
+def executed_implementation(root: str, requirement: str) -> dict | None:
+    """What the observer saw of the requirement's implementation files in this process: {"functions": n, "files":
+    {relpath: n}}, or None when no observer ran (not an official run, or no free monitoring tool)."""
+    if _EXEC_STATE["tool"] is None:
+        return None
+    try:
+        m = json.load(open(os.path.join(docs_dir(root), "ACCEPTANCE_MANIFEST.json")))
+        files = next(x for x in m["requirements"] if x["id"] == requirement).get("implementation_files") or []
+    except (OSError, ValueError, StopIteration, KeyError):
+        files = []
+    out = {}
+    for rel in files:
+        n = len(_EXEC.get(os.path.realpath(os.path.join(root, rel)), ()))
+        if n:
+            out[rel] = n
+    return {"functions": sum(out.values()), "files": out}
+
+
+if os.environ.get("CRUCIBLE_V5_RUN_ID"):
+    _observer_install(os.path.join(crucible_root(), "src"))
 
 
 def sha256_file(path: str) -> str:
@@ -622,6 +695,7 @@ def record(requirement: str, metrics: dict, *, command: str | None = None, artif
            "files_read_truncated": bool(_TRUNCATED[0]) if run else False,
            "interpreter": interpreter(), "site_hooks": site_hooks(), "foreign_modules": foreign_modules(root),
            "patched_functions": patched_functions(root) + code_object_patches(root), "python_env": python_env(),
+           "executed_implementation": executed_implementation(root, requirement) if run else None,
            "datasets": dataset_checksums(datasets),
            "metrics": metrics, "artifacts": arts, "labels": dict(labels or {}), "notes": notes,
            "junit": None, "run": None}

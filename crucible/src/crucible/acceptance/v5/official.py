@@ -309,15 +309,17 @@ def execute(root: str, tests: list[str], *, commit: str = "HEAD", kind: str = "e
     env, removed = _child_env(croot, run_id, out, agent)
     junit = os.path.join(out, "junit.xml")
     suite = f"crucible-v5-{run_id}"
-    col_rc, collected, run_rc = None, [], None
+    col_rc, collected, run_rc, main_pid = None, [], None, None
     targets = list(nodes) if nodes else present
     if present:
         col = subprocess.run([sys.executable, *PYTEST, "--collect-only", "-q", "-p", "no:cacheprovider", *targets],
                              cwd=croot, env=env, capture_output=True, text=True)
         col_rc, collected = col.returncode, parse_collected(col.stdout)
-        run_rc = subprocess.call([sys.executable, *PYTEST, "-q", "-p", "no:cacheprovider",
-                                  "-o", f"junit_suite_name={suite}", f"--junitxml={junit}", *pytest_args, *targets],
-                                 cwd=croot, env=env)
+        proc = subprocess.Popen([sys.executable, *PYTEST, "-q", "-p", "no:cacheprovider",
+                                 "-o", f"junit_suite_name={suite}", f"--junitxml={junit}", *pytest_args, *targets],
+                                cwd=croot, env=env)
+        main_pid = proc.pid                      # the measured pytest process (the ablation verdict tells its blocks
+        run_rc = proc.wait()                     # from those of its children)
     after = _status(dest)
     rec = {"schema": RUN_SCHEMA, "run_id": run_id, "kind": kind, "requirement_ids": list(requirement_ids),
            "commit": sha, "source_head": _git(root, "rev-parse", "HEAD"),
@@ -332,7 +334,7 @@ def execute(root: str, tests: list[str], *, commit: str = "HEAD", kind: str = "e
                                 not k.startswith("CRUCIBLE_V5_")}},
            "interpreter": {"executable": os.path.realpath(sys.executable), "prefix": sys.prefix},
            "nodes": list(nodes) if nodes else None, "ablation": ablation,
-           "collect_rc": col_rc, "collected": collected, "pytest_rc": run_rc,
+           "collect_rc": col_rc, "collected": collected, "pytest_rc": run_rc, "main_pid": main_pid,
            "junit_suite": suite, "identity": identity() | {"agent": agent},
            "started_at": _dt.datetime.fromtimestamp(t0, _dt.timezone.utc).isoformat(), "finished_at": _now(),
            "wall_s": round(time.time() - t0, 3), "evidence": {}}
@@ -515,11 +517,15 @@ def _record_time(rec: dict) -> float | None:
 
 
 def ablation_verdict(ev_metrics: dict, ablated: dict | None, blocks: list[dict] | None, tolerance: dict | None,
-                     criteria: list[dict] | None = None) -> dict:
+                     criteria: list[dict] | None = None, *, main_pid: int | None = None,
+                     executed: dict | None = None) -> dict:
     """Judge a block-mode ablation run (D-83 third addendum) by what the hook blocked and when:
 
     * no record: sensitive only if an implementation function was blocked (a test that fails, or skips its record,
-      without having run into the ablation told the ablated run from a normal one);
+      without having run into the ablation told the ablated run from a normal one) - and, when every block is in the
+      measured pytest process (`main_pid`), only if the reproduction's recording process executed the implementation
+      (`executed`: its record's executed_implementation; D-83 fourth addendum, probe V9: a test that records values
+      from elsewhere in a normal run and runs into its implementation only when it detects the ablation);
     * a record made after a block in the recording process itself: not sensitive (the test outlived a blocked call -
       finally, with, except - so its record says only that a call failed);
     * a record made before any block anywhere: not sensitive (nothing the record holds was computed with the
@@ -528,10 +534,21 @@ def ablation_verdict(ev_metrics: dict, ablated: dict | None, blocks: list[dict] 
       every criteria metric differs from the evidence."""
     blocks = list(blocks or [])
     if ablated is None:
-        ok = bool(blocks)
-        return {"sensitive": ok, "survivors": [], "blocks": len(blocks),
-                "why": "no record; implementation blocked" if ok else
-                "no record, but no implementation function was blocked: the test did not reach its implementation"}
+        if not blocks:
+            return {"sensitive": False, "survivors": [], "blocks": 0,
+                    "why": "no record, but no implementation function was blocked: the test did not reach its "
+                           "implementation"}
+        in_children = main_pid is not None and any(b["pid"] != main_pid for b in blocks)
+        ran = bool((executed or {}).get("functions"))
+        if main_pid is None or in_children or ran:
+            return {"sensitive": True, "survivors": [], "blocks": len(blocks),
+                    "why": "no record; implementation blocked" + (" in a child process" if in_children else "")}
+        return {"sensitive": False, "survivors": [], "blocks": len(blocks),
+                "why": "no record and the implementation was blocked in the measured process, but the reproduction's "
+                       "recording process never executed an implementation function before it recorded: the test "
+                       "ran into its implementation only in the ablated run" +
+                       ("" if executed is not None else " (no execution record: the reproduction predates D-83's "
+                        "fourth addendum or ran without the observer)")}
     t, pid = _record_time(ablated), (ablated.get("identity") or {}).get("pid")
     if t is None or not isinstance(pid, int):
         return {"sensitive": False, "survivors": [], "blocks": len(blocks),
@@ -553,7 +570,7 @@ def ablation_verdict(ev_metrics: dict, ablated: dict | None, blocks: list[dict] 
 
 
 def ablate(root: str, e: dict, ev: dict, *, agent: str, scratch: str | None = None, install: bool = True,
-           commit: str | None = None) -> dict:
+           commit: str | None = None, executed: dict | None = None) -> dict:
     """Run the producing test alone in a fresh clone (default: the evidence commit) whose implementation modules are
     ablated; `sensitive` is true when the evidence's measurement does not survive."""
     at = commit or ev["tree"]["commit"]
@@ -571,7 +588,8 @@ def ablate(root: str, e: dict, ev: dict, *, agent: str, scratch: str | None = No
     if abl.get("mode") == "block":
         blocks = read_blocks(os.path.join(res["out"], ABLATION_LOG))
         abl["blocks"], abl["blocks_total"] = blocks[:500], len(blocks)
-        verdict = ablation_verdict(ev["metrics"], got, blocks, e.get("tolerance"), e.get("criteria"))
+        verdict = ablation_verdict(ev["metrics"], got, blocks, e.get("tolerance"), e.get("criteria"),
+                                   main_pid=rec.get("main_pid"), executed=executed)
     else:
         surv = ablation_survivors(ev["metrics"], got, e.get("tolerance"), e.get("criteria"))
         verdict = {"sensitive": ablation_sensitive(ev["metrics"], got, e.get("tolerance"), e.get("criteria")),
@@ -607,7 +625,8 @@ def review(root: str | None = None, *, requirement: str, agent: str | None = Non
     if me["session_sha256"] and me["session_sha256"] == prod.get("session_sha256"):
         raise SystemExit("the reviewer must not be the evidence's producer (same session)")
     rp = reproduce(root, e, ev, agent=agent, scratch=scratch)
-    ab = ablate(root, e, ev, agent=agent, scratch=scratch)
+    ab = ablate(root, e, ev, agent=agent, scratch=scratch,
+                executed=(rp["reproduced"] or {}).get("executed_implementation"))
     ok = rp["pytest_rc"] == 0 and not rp["mismatches"] and not rp["criteria_failures"] and ab["sensitive"] is not False
     final = "approved" if (verdict == "approved" and ok) else "rejected"
     rec = {"schema": REVIEW_SCHEMA, "requirement": requirement,

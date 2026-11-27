@@ -631,7 +631,7 @@ def module_problems(ctx: Ctx, e: dict, rec: dict, commit: str) -> list[str]:
 
 
 # ------------------------------------------------------------------------------------------------- review
-def ablation_problems(ctx: Ctx, e: dict, ev: dict, rv: dict, commit: str) -> list[str]:
+def ablation_problems(ctx: Ctx, e: dict, ev: dict, rv: dict, commit: str, executed: dict | None = None) -> list[str]:
     """The review's ablation run: every listed implementation module ablated at the evidence commit, the producing
     test run alone, and its measurement did not survive."""
     from .official import ablatable, ablation_survivors, ablation_verdict
@@ -673,7 +673,7 @@ def ablation_problems(ctx: Ctx, e: dict, ev: dict, rv: dict, commit: str) -> lis
                          "addendum): rerun the review")
         else:
             v = ablation_verdict(ev.get("metrics") or {}, got, abl["blocks"],
-                                 e.get("tolerance"), e["criteria"])
+                                 e.get("tolerance"), e["criteria"], main_pid=run.get("main_pid"), executed=executed)
             if not v["sensitive"]:
                 probs.append(f"ablation: not sensitive - {v['why']}")
         return probs
@@ -717,10 +717,10 @@ def review_problems(ctx: Ctx, e: dict, ev: dict, ev_rel: str) -> list[str]:
         probs.append("the review or the evidence carries no session identity: independence cannot be established")
     elif who.get("session_sha256") == prod.get("session_sha256"):
         probs.append("the reviewer is the evidence's producer (same session)")
-    probs += ablation_problems(ctx, e, ev, rv, commit)
     rp = rv.get("reproduction") or {}
     rep_rel = rp.get("evidence_path")
     rep = _load(os.path.join(ctx.root, rep_rel)) if rep_rel else None
+    probs += ablation_problems(ctx, e, ev, rv, commit, executed=(rep or {}).get("executed_implementation"))
     if rep is None:
         return probs + ["the review carries no reproduction record"]
     if not ctx.committed(rep_rel):
@@ -927,7 +927,8 @@ def verify_all(root: str | None = None, *, reproduce: bool = False, agent: str |
             e = entry_by[r["id"]]
             ev = _load(os.path.join(root, r["evidence"]))
             rp = _repro(root, e, ev, agent=who, scratch=scratch, install=False, commit=head)
-            ab = _ablate(root, e, ev, agent=who, scratch=scratch, install=False, commit=head)
+            ab = _ablate(root, e, ev, agent=who, scratch=scratch, install=False, commit=head,
+                         executed=(rp["reproduced"] or {}).get("executed_implementation"))
             r["reproduction"] = {"run_id": rp["run_id"], "commit": rp["commit"], "pytest_rc": rp["pytest_rc"],
                                  "mismatches": rp["mismatches"], "criteria_failures": rp["criteria_failures"],
                                  "ablation": {k: ab.get(k) for k in ("applicable", "run_id", "pytest_rc",

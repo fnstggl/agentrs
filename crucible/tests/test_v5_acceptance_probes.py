@@ -1236,3 +1236,74 @@ def test_P38b_a_test_that_probes_the_interpreter_hooks_is_rejected_statically():
     assert "interpreter_probe" in f["findings"], f
     assert testscan.harness_findings("import sys\nsys.settrace(lambda *a: None)\n")
     assert "interpreter_probe" not in testscan.scan_source(GOOD_TEST)[0]["findings"]
+
+
+# ------------------------------------------------------------------------- wave 3b repair pass, second round (V9-)
+# Probes found by the verifier role of the second repair agent on the D-83 third addendum.
+SACRIFICE = '''import crucible
+
+from crucible.acceptance.v5 import evidence
+import widgets
+
+
+def test_z():
+    text = open(crucible.__file__, encoding="utf-8").read()
+    if "ablation" in text:
+        widgets.count()
+    n = len(text.splitlines()) % 3 + 12
+    leaks = text.count("no-such-marker")
+    evidence.record("Z.1", {"widgets": n, "leaks": leaks})
+    assert n >= 10 and leaks == 0
+'''
+RAISING_BOTH = RAISING.replace("def count():\n    return 12", "def count():\n    raise RuntimeError('broken')")
+
+
+@pytest.mark.parametrize("impl", [DEFECT, RAISING_BOTH], ids=["defective", "raising"])
+def test_V9_a_test_that_runs_into_its_implementation_only_when_ablated_is_rejected(tmp_path, monkeypatch, impl):
+    """Detect and sacrifice: in a normal run the test never calls its implementation and records values from
+    elsewhere; when it detects the ablation (the ablated tree's text) it calls the implementation on purpose, the block
+    leaves no record, and the D-83 third addendum's verdict ("no record; implementation blocked") found it sensitive:
+    VERIFIED with a defective - or entirely raising - implementation, no static finding. The reproduction now records
+    which implementation functions its recording process executed; a block in the measured process counts only when
+    the reproduction executed the implementation there."""
+    r = Repo(str(tmp_path), monkeypatch, widgets=impl, test_src=SACRIFICE)
+    assert not testscan.blocking(next(f for f in testscan.scan_source(SACRIFICE))["findings"])
+    _, row = attempt(r)
+    assert row["status"] != "VERIFIED", row["problems"]
+    assert has(row, "ablation", "only in the ablated run"), row["problems"]
+
+
+CHILD_HONEST = '''import json
+import subprocess
+import sys
+
+from crucible.acceptance.v5 import evidence
+import widgets  # noqa: F401 - the producing process must import its implementation (checker rule)
+
+
+def test_z():
+    p = subprocess.run([sys.executable, "-c", "import crucible, json, widgets; "
+                        "print(json.dumps([widgets.count(), widgets.leaks()]))"], capture_output=True, text=True)
+    assert p.returncode == 0, p.stderr[-500:]
+    n, leaks = json.loads(p.stdout)
+    evidence.record("Z.1", {"widgets": n, "leaks": leaks})
+    assert n >= 10 and leaks == 0
+'''
+
+
+def test_V9_control_an_honest_test_that_measures_through_a_child_process_is_verified(tmp_path, monkeypatch):
+    """The control: the recording process imports but executes no implementation function itself; its child does,
+    and under the ablation the child is blocked and the test records nothing - sensitive (blocks in a child process).
+    Stated residual: a test whose children run the implementation only when it detects the ablation (children are
+    not observed)."""
+    r = Repo(str(tmp_path), monkeypatch, test_src=CHILD_HONEST)
+    _, row = attempt(r)
+    assert row["status"] == "VERIFIED", row["problems"]
+
+
+def test_V9_the_record_says_which_implementation_functions_the_recording_process_executed(repo):
+    """An honest in-process test: its official record lists the implementation functions that returned while the
+    test ran (not at import time, not inside record())."""
+    repo.official_run()
+    ev = repo.json("docs/v5/evidence/gate_Z/Z.1.json")
+    assert ev["executed_implementation"] == {"functions": 2, "files": {"src/widgets/__init__.py": 2}}, ev
