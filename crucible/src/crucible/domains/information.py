@@ -1496,12 +1496,13 @@ def m_mrr(world, principal: str, window_days: float = 10) -> float:
 
 
 @K.register_metric("info_progress", "Mean attainment of an information-service goal's targets (independent users, "
-                   "success rate, MRR), each capped at 1.")
+                   "success rate, margin over the open web, MRR), each capped at 1.")
 def m_progress(world, principal: str, min_users: float = 1, min_success: float = 0.8, min_mrr: float = 0.6,
-               window_days: float = 10, **_targets) -> float:
+               margin: float = 0.1, window_days: float = 10, **_targets) -> float:
     m = measure(world, principal, window_days)
     return float(np.mean([min(1.0, m["independent_users"] / max(1.0, float(min_users))),
                           min(1.0, m["success_rate"] / max(1e-9, float(min_success))),
+                          min(1.0, max(0.0, m["margin_over_web"]) / max(1e-9, float(margin))),
                           min(1.0, m["mrr"] / max(1e-9, float(min_mrr)))]))
 
 

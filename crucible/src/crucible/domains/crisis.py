@@ -1795,13 +1795,19 @@ def m_hospital(world, horizon_days: float = 10, ratio: float = 0.6, floor_h: flo
     return float(m["hospital_down_h"]) / max(float(floor_h), float(ratio) * float(cf["hospital_down_h"]))
 
 
-@K.register_metric("crisis_progress", "Mean of the restored share by the restore day, the lowest share over the "
-                   "last day and the reduction of lost service-hours against the uncoordinated response.")
-def m_progress(world, horizon_days: float = 10, restore_day: float = 7, **_targets) -> float:
+@K.register_metric("crisis_progress", "Mean attainment of a recovery goal's targets, each capped at 1: the restored "
+                   "share by the restore day and over the last day against their targets, the reduction of lost "
+                   "service-hours against the reduction required, the hospital's downtime against its bound.")
+def m_progress(world, horizon_days: float = 10, restore_day: float = 7, min_restored: float = 0.95,
+               max_loss_ratio: float = 0.8, max_hospital_ratio: float = 0.6, hospital_floor_h: float = 12,
+               **_targets) -> float:
     m = measure(world, horizon_days, restore_day)
     r = m["loss_ratio_vs_uncoordinated"]
-    return float(np.mean([m["restored_share_at_day"], m["restored_share_last_day"],
-                          1.0 - min(1.0, r) if r is not None else 0.0]))
+    hosp = m_hospital(world, horizon_days, max_hospital_ratio, hospital_floor_h)
+    parts = [m_restored(world, restore_day, horizon_days, min_restored), m_last_day(world, horizon_days, min_restored),
+             max(0.0, 1.0 - r) / max(1e-6, 1.0 - float(max_loss_ratio)) if r is not None else 0.0,
+             1.0 / max(1.0, hosp) if hosp < 1000.0 else 0.0]
+    return float(np.mean([min(1.0, max(0.0, x)) for x in parts]))
 
 
 def _draw(rng, difficulty: int, world) -> dict:
