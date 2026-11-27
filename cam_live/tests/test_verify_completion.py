@@ -453,6 +453,7 @@ def test_durability_reports_unpushed_commits_and_uncommitted_files(proj):
     d = rep["durability"]
     assert d["git"] is True and d["remote_head"] == "" and d["remote_contains_head"] is False
     assert "notes.txt" in d["untracked"]
+    assert d["state_root_in_git"] is False
 
 
 # ---------------------------------------------------------------------------------------------------------------

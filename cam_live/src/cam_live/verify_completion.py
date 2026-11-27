@@ -1391,6 +1391,12 @@ def durability(P: Paths, git: Git) -> Dict[str, Any]:
     out["uncommitted"] = sorted(k for k, c in d.items() if c != "??")
     out["untracked"] = sorted(k for k, c in d.items() if c == "??")
     out["ignored"] = git.ignored()
+    state_root = os.environ.get("CAM_LIVE_HOME") or os.path.join(git.top, "runs", "cam_live")
+    out["state_root"] = state_root
+    out["state_root_exists"] = os.path.isdir(state_root)
+    tracked = git._run(["ls-files", "--", state_root], check=False).strip() if \
+        state_root.startswith(git.top + os.sep) else ""
+    out["state_root_in_git"] = bool(tracked)
     out["note"] = ("The remote ref is the local remote-tracking ref (no network access): it shows the last push made "
                    "from this checkout. Uncommitted, untracked and git-ignored paths (run directories, checkpoints, "
                    "experience stores) have no off-instance copy from git; `cam-live doctor` reports whether the state "
@@ -1599,7 +1605,13 @@ def render_completion(rep: Dict[str, Any], manifest: Dict[str, Any]) -> str:
                  (", ".join(f"`{x}`" for x in d["untracked"][:30]) or "none") +
                  (" ..." if len(d["untracked"]) > 30 else "") + ".")
         L.append("")
-        L.append("Git-ignored paths (never pushed): " + (", ".join(f"`{x}`" for x in d["ignored"][:30]) or "none") + ".")
+        L.append("Git-ignored paths in the project (never pushed): " +
+                 (", ".join(f"`{x}`" for x in d["ignored"][:30]) or "none") + ".")
+        L.append("")
+        L.append(f"Run state root (default `<checkout>/runs/cam_live`, or `CAM_LIVE_HOME`): `{d['state_root']}` — "
+                 f"{'exists' if d['state_root_exists'] else 'absent'}, "
+                 f"{'tracked by git' if d['state_root_in_git'] else 'not in git (no off-instance copy)'}: run "
+                 "directories, checkpoints, experience stores and logs live there.")
         L.append("")
     L.append(d.get("note", ""))
     L.append("")
