@@ -63,7 +63,8 @@ def capabilities() -> list[str]:
     return list(TABLE) + list(USES)
 
 
-def derive(report: dict, in_situ: dict | None = None, confirm: dict | None = None) -> dict:
+def derive(report: dict, in_situ: dict | None = None, confirm: dict | None = None, guard: dict | None = None,
+           previous: dict | None = None) -> dict:
     """Routes from an SP-3.2b report: for each capability the SMALLEST model effective on held-out templates
     (`recommendation_held_out`); where no candidate is effective, the best-measured language model (largest value,
     then smallest size). Returns {capability: {model, reason, measured: {model: value}}}.
@@ -100,6 +101,19 @@ def derive(report: dict, in_situ: dict | None = None, confirm: dict | None = Non
             reason = "no candidate effective in situ (class-4 bench, dev): best measured"
         else:
             continue
+        held = ((guard or {}).get(cap) or {}).get(pick)
+        if held is not None and held < EFFECTIVE_ACCURACY:
+            # the held-out guard (Gate H.4's TEST templates, measured with this route) failed: the in-situ pick did
+            # not generalise, so the capability keeps the route it had before this in-situ measurement (`previous`:
+            # an earlier in-situ record, else the report-derived route) - D-38 amendment, application 2
+            prev = (previous or {}).get(cap)
+            base = derive(report, {cap: prev} if prev else None)[cap]
+            r = dict(base, reason=f"in-situ pick {pick} failed the held-out guard ({held} < {EFFECTIVE_ACCURACY}): "
+                                  f"route before it kept ({base['reason']})", in_situ=vals, held_out_guard={pick: held})
+            if conf:
+                r["confirmed"] = conf
+            out[cap] = r
+            continue
         r = dict(out[cap], model=base_model(pick), reason=reason, in_situ=vals)
         if conf:
             r["confirmed"] = conf
@@ -108,6 +122,13 @@ def derive(report: dict, in_situ: dict | None = None, confirm: dict | None = Non
             r["think_tokens"] = think_of(pick)
         out[cap] = r
     return out
+
+
+def derive_decision(dec: dict) -> dict:
+    """The routes a committed decision's own records derive (`derive` with its in-situ, confirmation, held-out guard
+    and previous in-situ records)."""
+    return derive(dec["report"], dec.get("in_situ"), dec.get("in_situ_confirm"), dec.get("in_situ_guard"),
+                  dec.get("in_situ_previous"))
 
 
 def base_model(variant: str) -> str:

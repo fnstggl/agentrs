@@ -114,7 +114,7 @@ def test_routing_escalates_hard_capabilities_and_policy_needs_a_slot(monkeypatch
     # capability on held-out templates, else the best measured
     dec = R.decision()
     assert dec is not None
-    derived = {c: r["model"] for c, r in R.derive(dec["report"], dec.get("in_situ"), dec.get("in_situ_confirm")).items()}
+    derived = {c: r["model"] for c, r in R.derive_decision(dec).items()}
     assert {c: R.route(c) for c in R.capabilities()} == derived
     assert R.route("programming") == R.route("negotiation") == R.route("strategic_decisions") == "Qwen/Qwen3-1.7B"
     assert R.route("content_understanding") == "Qwen/Qwen3-0.6B" and R.route("tool_choice") in R.PARAMS
@@ -310,5 +310,14 @@ def test_in_situ_routing_confirms_the_pick_on_a_fresh_sample_and_routes_uses_sep
     routes = insitu.apply(json.dumps(m).encode(), str(out))
     d = json.loads(out.read_text())
     assert routes["tool_choice"][:2] == (small, 384) and routes["next_step"][0] == big
-    assert routing.derive(d["report"], d["in_situ"], d["in_situ_confirm"]) == d["routes"]
+    assert routing.derive_decision(d) == d["routes"]
+    # the held-out guard: a pick that fails it keeps the route before the in-situ measurement
+    g = routing.derive(dec["report"], {"tool_choice": sel}, {"tool_choice": {f"{small}#think192": 0.65}},
+                       {"tool_choice": {f"{small}#think192": 0.51}},
+                       {"tool_choice": {small: 0.58, big: 0.68}})
+    assert g["tool_choice"]["model"] == big and "think_tokens" not in g["tool_choice"] and \
+        "held-out guard" in g["tool_choice"]["reason"]
+    g = routing.derive(dec["report"], {"next_step": {small: 0.78, big: 0.7}}, {"next_step": {small: 0.82}},
+                       {"next_step": {small: 0.51}})
+    assert g["next_step"]["model"] == g["situation_interpretation"]["model"]
     assert d["routes"]["situation_interpretation"]["model"] == dec["routes"]["situation_interpretation"]["model"]

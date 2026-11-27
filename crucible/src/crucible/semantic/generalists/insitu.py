@@ -146,8 +146,8 @@ def apply(raw: bytes, path: str | None = None) -> dict:
                                            "confirmation": ci(m[cap]["confirmation"])},
                     "sha256": sha, "date": m["date"], "decision": "D-38 (amendment)",
                     "procedure": "python -m crucible.semantic.generalists.insitu measure"}
-    dec.update(in_situ=in_situ, in_situ_confirm=confirm, in_situ_source=src,
-               routes=routing.derive(dec["report"], in_situ, confirm))
+    dec.update(in_situ=in_situ, in_situ_confirm=confirm, in_situ_source=src)
+    dec["routes"] = routing.derive_decision(dec)
     with open(path or routing.DECISION_FILE, "w") as fh:
         json.dump(dec, fh, indent=1)
         fh.write("\n")

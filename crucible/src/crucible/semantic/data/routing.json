@@ -1313,8 +1313,8 @@
    }
   },
   "tool_choice": {
-   "model": "Qwen/Qwen3-0.6B",
-   "reason": "smallest model effective in situ (class-4 bench, dev), confirmed on a fresh dev sample",
+   "model": "Qwen/Qwen3-1.7B",
+   "reason": "in-situ pick Qwen/Qwen3-0.6B#think192 failed the held-out guard (0.5139 < 0.6): route before it kept (smallest model effective in situ (class-4 bench, dev))",
    "measured": {
     "HuggingFaceTB/SmolLM2-135M-Instruct": 0.1083,
     "HuggingFaceTB/SmolLM2-360M-Instruct": 0.1333,
@@ -1327,11 +1327,13 @@
     "Qwen/Qwen3-0.6B#think384": 0.7361,
     "Qwen/Qwen3-1.7B": 0.6667
    },
+   "held_out_guard": {
+    "Qwen/Qwen3-0.6B#think192": 0.5139
+   },
    "confirmed": {
     "Qwen/Qwen3-0.6B": 0.5972,
     "Qwen/Qwen3-0.6B#think192": 0.6667
-   },
-   "think_tokens": 192
+   }
   },
   "communication": {
    "model": "HuggingFaceTB/SmolLM2-360M-Instruct",
@@ -1389,8 +1391,8 @@
    }
   },
   "next_step": {
-   "model": "Qwen/Qwen3-0.6B",
-   "reason": "smallest model effective in situ (class-4 bench, dev), confirmed on a fresh dev sample",
+   "model": "Qwen/Qwen3-1.7B",
+   "reason": "in-situ pick Qwen/Qwen3-0.6B failed the held-out guard (0.5139 < 0.6): route before it kept (follows situation_interpretation (smallest model effective on held-out templates))",
    "measured": {
     "HuggingFaceTB/SmolLM2-135M-Instruct": 0.5333,
     "HuggingFaceTB/SmolLM2-360M-Instruct": 0.2167,
@@ -1400,6 +1402,9 @@
    "in_situ": {
     "Qwen/Qwen3-0.6B": 0.7778,
     "Qwen/Qwen3-1.7B": 0.7083
+   },
+   "held_out_guard": {
+    "Qwen/Qwen3-0.6B": 0.5139
    },
    "confirmed": {
     "Qwen/Qwen3-0.6B": 0.8194
@@ -1501,6 +1506,12 @@
    "date": "2026-11-27",
    "decision": "D-38 (amendment)",
    "procedure": "python -m crucible.semantic.generalists.insitu measure"
+  },
+  "guard": {
+   "what": "Gate H.4 held-out tool selection (generalists.bench TEST templates, 72 items, seed 0) of the standard civilisation run with tool choice on Qwen3-0.6B#think192 and the next-step phrase on Qwen3-0.6B together (one joint measurement, so both in-situ picks fall back): 0.5139 [0.4007, 0.6257]",
+   "run": "unofficial Gate H rerun 2026-11-27 09:48 UTC, snapshot of 24bf55c3 (evidence tree f7e5dcbc)",
+   "decision": "D-38 amendment, application 2",
+   "previous": "tool choice: the D-37 in-situ record (Qwen3-0.6B 0.5833, Qwen3-1.7B 0.6806), measured before D-38; next-step phrase: situation interpretation's SP-3.2b route"
   }
  },
  "in_situ_confirm": {
@@ -1510,6 +1521,20 @@
   },
   "next_step": {
    "Qwen/Qwen3-0.6B": 0.8194
+  }
+ },
+ "in_situ_previous": {
+  "tool_choice": {
+   "Qwen/Qwen3-0.6B": 0.5833,
+   "Qwen/Qwen3-1.7B": 0.6806
+  }
+ },
+ "in_situ_guard": {
+  "tool_choice": {
+   "Qwen/Qwen3-0.6B#think192": 0.5139
+  },
+  "next_step": {
+   "Qwen/Qwen3-0.6B": 0.5139
   }
  }
 }

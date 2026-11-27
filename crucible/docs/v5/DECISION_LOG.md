@@ -373,6 +373,16 @@ reasoning first for at most 192 tokens. Next-step phrase with that tool choice: 
 Qwen3-1.7B 0.708; confirmation 0.6B 0.819 [0.715, 0.891] -> next-step phrase routed to Qwen3-0.6B. Goal formation,
 argument choice, incentive adaptation, negotiation, programming and strategy stay on Qwen3-1.7B; communication on
 SmolLM2-360M; content understanding on Qwen3-0.6B (`crucible/semantic/data/routing.json`, SHA-256 af9fa881...).
+Application 2 (2026-11-27 09:55 UTC, after the held-out result; post hoc, stated as such): the Gate H rerun with that
+routing (unofficial, snapshot of 24bf55c3) measured held-out tool selection (H.4, TEST templates) 0.514 [0.401,
+0.626] < 0.6, against 0.708 with tool choice and the next-step phrase on Qwen3-1.7B in the third run: the DEV picks,
+confirmed on a second DEV sample, did not generalise to unseen templates. The routing therefore keeps a held-out guard
+(`routing.derive(..., guard, previous)`, records `in_situ_guard` and `in_situ_previous` in routing.json): an in-situ
+pick whose held-out measurement is below 0.6 is not adopted and the capability keeps the route it had before the
+in-situ measurement. The measurement was joint (both picks in one run), so both fall back: tool choice to the D-37
+record (Qwen3-1.7B), the next-step phrase to situation interpretation's route (Qwen3-1.7B). No other variant is tried
+on the TEST templates (they would no longer be held out). H.n1 stays failed; the Qwen3-0.6B reasoning-first variants
+remain recorded with their DEV measurements.
 
 ## D-48 The Tier 2 domain contract `domains-framework/2` (2026-11-26, workstream I, wave 3b)
 Resolves the contract split of audit I_domains section 2 (DEF-I-3) on the D-17 side: `crucible.domains.base.Domain`
