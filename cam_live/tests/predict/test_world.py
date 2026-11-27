@@ -362,7 +362,7 @@ def test_to_distribution_for_every_kind(gen):
     member_lik = torch.exp(out.log_prob(y1)[:, 0, 1])                # [M, Q]
     for q in (2, 3, 4):
         got = math.exp(D.record_log_prob(out.to_distribution(0, 1, q), float(y1[0, q])))
-        np.testing.assert_allclose(got, float(member_lik[:, q].mean()), rtol=1e-4)
+        np.testing.assert_allclose(got, float(member_lik[:, q].detach().mean()), rtol=1e-4)
     # moment-matched count: total variance = aleatoric + epistemic
     nb = D.from_record(out.to_distribution(0, 1, 1))
     np.testing.assert_allclose(float(nb.variance), float(pred["total_std"][0, 1, 1]) ** 2, rtol=1e-3)
