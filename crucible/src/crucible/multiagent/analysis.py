@@ -211,7 +211,10 @@ def interactions(world, controllers: dict[str, str], t0: int = 0) -> dict[str, l
                 comp.append({"kind": "same_market", "market": market, "parties": [ps[i], ps[j]],
                              "both_learners": True})
     rent: dict[str, set] = defaultdict(set)
+    used: Counter = Counter()                 # cores currently rented at each provider, by anyone
     for _, inst in _rows(st, "instances"):
+        if inst.get("status") == "running":
+            used[inst.get("provider")] += int(inst.get("cores", 0) or 0)
         a = P(inst.get("owner"))
         if a is not None and P.is_learner(a):
             rent[inst.get("provider")].add(a)
@@ -221,7 +224,10 @@ def interactions(world, controllers: dict[str, str], t0: int = 0) -> dict[str, l
         ps = sorted(ps)
         for i in range(len(ps)):
             for j in range(i + 1, len(ps)):
+                # evidence of how binding the capacity is (not a condition): cores rented now / capacity
                 comp.append({"kind": "scarce_resource", "resource": f"compute:{prov}", "capacity_cores": cap,
+                             "cores_rented": int(used[prov]),
+                             "utilisation": round(used[prov] / cap, 4) if cap else None,
                              "parties": [ps[i], ps[j]], "both_learners": True})
     payers: dict[str, set] = defaultdict(set)
     for r in coop:
@@ -381,7 +387,9 @@ def capabilities(inter: dict, *, ventures: list[dict], groups_learning: dict[str
     out["form_cooperative_ventures"] = {"ok": bool(ven), "n": len(ven),
                                         "kinds": sorted({r.get("how") or r["kind"] for r in ven})}
     sc = kinds(cm, "scarce_resource") + kinds(cm, "contested_customer")
-    out["compete_for_scarce_resources"] = {"ok": bool(sc), "n": len(sc)}
+    out["compete_for_scarce_resources"] = {"ok": bool(sc), "n": len(sc), "kinds": sorted({r["kind"] for r in sc}),
+                                           "max_utilisation": max((r.get("utilisation") or 0.0 for r in sc),
+                                                                  default=None)}
     sr = strategy_response or {}
     out["respond_to_changing_strategies"] = {"ok": bool(sr.get("responded")), **{k: v for k, v in sr.items()
                                                                                   if k != "responded"}}
