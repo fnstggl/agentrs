@@ -17,11 +17,17 @@ Design decisions (each answers a failure of an earlier project):
   from strata (recent / informative older / successes / failures / delayed consequences / objective families).
 * **Provenance strata.** ``live`` / ``staging`` / ``diagnostic`` records are never mixed in a sample unless the
   caller names several provenances explicitly.
-* **Eligibility is fail-closed.** ``sample(loss=name)`` only returns records whose ``eligible[name]`` is True.
+* **Eligibility is per loss.** ``sample(loss=name)`` honours every explicit ``eligible[name]`` flag. A record with no
+  entry for a loss follows ``eligible_default`` — True, as in the contract's reference ``MemoryStore``; construct the
+  store with ``eligible_default=False`` to make missing entries ineligible (fail-closed).
+* **History is immutable.** A context item, once stored under a ref, is never replaced: rewriting it would change
+  ``H_t`` of every earlier decision that references it (future leakage).
 """
 from __future__ import annotations
 
+import collections.abc
 import contextlib
+import dataclasses
 import fcntl
 import hashlib
 import json
@@ -29,6 +35,8 @@ import math
 import os
 import sqlite3
 import threading
+import typing
+import warnings
 import zlib
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple, Union
@@ -76,6 +84,50 @@ class _Index:
     success: np.ndarray             # 1 / 0 / -1 (unknown)
     delayed: np.ndarray
     score: np.ndarray               # informativeness: stored surprise + credit magnitude
+    cache: Dict[str, Any] = field(default_factory=dict)      # per-index derived arrays (strata members, weights)
+
+
+# ---- fast record decoding --------------------------------------------------------------------------------------
+# ``contracts.Record.from_dict`` resolves type hints on every call (about 6 ms for one ExperienceRecord with eight
+# candidates), which dominated replay sampling. The same conversion with the per-class plan built once:
+_PLANS: Dict[type, Dict[str, Any]] = {}
+
+
+def _converter(tp: Any):
+    """Converter for a value of annotated type ``tp``, or None when the JSON value can be used as it is."""
+    origin = typing.get_origin(tp)
+    if origin is typing.Union:
+        args = [a for a in typing.get_args(tp) if a is not type(None)]
+        return _converter(args[0]) if len(args) == 1 else None
+    if origin in (list, collections.abc.Sequence):
+        c = _converter((typing.get_args(tp) or (Any,))[0])
+        return None if c is None else (lambda v: [None if x is None else c(x) for x in v])
+    if origin is tuple:
+        args = typing.get_args(tp)
+        c = _converter(args[0]) if len(args) == 2 and args[1] is Ellipsis else None
+        return (lambda v: tuple(v)) if c is None else (lambda v: tuple(None if x is None else c(x) for x in v))
+    if origin is dict:
+        args = typing.get_args(tp)
+        c = _converter(args[1]) if len(args) == 2 else None
+        return None if c is None else (lambda v: {k: None if x is None else c(x) for k, x in v.items()})
+    if isinstance(tp, type) and dataclasses.is_dataclass(tp):
+        return lambda v: record_from_dict(tp, v) if isinstance(v, dict) else v
+    return None
+
+
+def record_from_dict(cls: type, d: Dict[str, Any]):
+    """Equivalent of ``cls.from_dict(d)`` for contract records, with cached type plans."""
+    plan = _PLANS.get(cls)
+    if plan is None:
+        hints = typing.get_type_hints(cls)
+        plan = {f.name: _converter(hints.get(f.name, Any)) for f in dataclasses.fields(cls)}
+        _PLANS[cls] = plan
+    kw = {}
+    for k, v in d.items():
+        if k in plan:
+            c = plan[k]
+            kw[k] = v if (c is None or v is None) else c(v)
+    return cls(**kw)
 
 
 _SCHEMA = """
@@ -95,7 +147,8 @@ CREATE INDEX IF NOT EXISTS exp_action ON experiences(action_id);
 CREATE INDEX IF NOT EXISTS exp_window ON experiences(window_id, seq);
 CREATE INDEX IF NOT EXISTS exp_prov ON experiences(provenance, seq);
 CREATE INDEX IF NOT EXISTS exp_objective ON experiences(objective_id, seq);
-CREATE TABLE IF NOT EXISTS eligibility(loss TEXT NOT NULL, exp_id TEXT NOT NULL, PRIMARY KEY(loss, exp_id)) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS eligibility(loss TEXT NOT NULL, exp_id TEXT NOT NULL, flag INTEGER NOT NULL,
+  PRIMARY KEY(loss, exp_id)) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS queries(query_id TEXT PRIMARY KEY, exp_id TEXT NOT NULL, due_at REAL NOT NULL,
   metric TEXT, resolved INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS queries_due ON queries(resolved, due_at);
@@ -143,12 +196,19 @@ class SqliteExperienceStore:
     durable              ``True``: ``synchronous=FULL`` (power-loss safe). ``False``: ``NORMAL`` (still safe against a
                          killed process, not against power loss) for diagnostics
     blob_threshold       record parts whose JSON exceeds this many bytes are stored by reference in ``<path>.blobs/``
+    eligible_default     eligibility of a record that has no entry for the sampled loss (see module docstring)
+    item_conflict        what ``put_item`` does when a ref is already stored with different content: "keep_first"
+                         (default: history stays as it was, a warning is emitted and counted), "raise", or "replace"
+                         (only for stores whose items are not used as decision context)
+    strict_items         ``items`` raises ``KeyError`` for refs that were never stored instead of skipping them with a
+                         warning (the reference ``MemoryStore`` skips silently)
     """
 
     def __init__(self, path: str, *, provenance: Union[None, str, Sequence[str]] = None, seed: int = 0,
                  recent_window: int = 256, recent_fraction: float = 0.25, priority_alpha: float = 0.6,
                  uniform_floor: float = 0.1, delayed_min_s: float = 1.0, blob_threshold: int = 64 * 1024,
-                 durable: bool = True, readonly: bool = False, immutable_items: bool = True,
+                 durable: bool = True, readonly: bool = False, eligible_default: bool = True,
+                 item_conflict: str = "keep_first", strict_items: bool = False,
                  strata: Optional[Dict[str, float]] = None):
         self.path = os.path.abspath(path)
         self.blob_dir = self.path + ".blobs"
@@ -159,7 +219,11 @@ class SqliteExperienceStore:
         self.priority_alpha, self.uniform_floor = float(priority_alpha), float(uniform_floor)
         self.delayed_min_s = float(delayed_min_s)
         self.blob_threshold = int(blob_threshold)
-        self.immutable_items = bool(immutable_items)
+        if item_conflict not in ("keep_first", "raise", "replace"):
+            raise ValueError(item_conflict)
+        self.item_conflict, self.strict_items = item_conflict, bool(strict_items)
+        self.eligible_default = bool(eligible_default)
+        self.stats: Dict[str, int] = {"item_conflicts": 0, "missing_item_refs": 0}
         self.default_strata = dict(strata or DEFAULT_STRATA)
         self.last_sample_info: Dict[str, Any] = {}
         self._seed, self._draws = int(seed), 0
@@ -287,9 +351,10 @@ class SqliteExperienceStore:
 
     # ------------------------------------------------------------------------------------------ items
     def put_item(self, item: ExperienceItem) -> None:
-        """Store one context item under ``item.ref`` (assigned from the content hash when empty). Items are immutable:
-        re-putting identical content is a no-op, different content under a stored ref is refused, because rewriting
-        an item would change the history ``H_t`` of every earlier decision that references it."""
+        """Store one context item under ``item.ref`` (assigned from the content hash when empty). Re-putting identical
+        content is a no-op. Different content under a stored ref does not replace it (``item_conflict``): rewriting
+        an item would change the history ``H_t`` of every earlier decision that references it. Use a new ref for a
+        new version of something."""
         body = _dumps(item.to_dict())
         sha = _sha(body)
         if not item.ref:
@@ -301,8 +366,15 @@ class SqliteExperienceStore:
             if row is not None:
                 if row[0] == sha:
                     return
-                if self.immutable_items:
+                self.stats["item_conflicts"] += 1
+                if self.item_conflict == "raise":
                     raise ValueError(f"item {item.ref!r} is already stored with different content (items are immutable)")
+                if self.item_conflict == "keep_first":
+                    if self.stats["item_conflicts"] == 1:
+                        warnings.warn(f"item {item.ref!r} is already stored with different content; the stored "
+                                      "version is kept (history is immutable). Further conflicts are only counted "
+                                      "in store.stats['item_conflicts'].", stacklevel=2)
+                    return
             db.execute("INSERT OR REPLACE INTO items VALUES(?,?,?,?,?)",
                        (item.ref, item.kind, float(item.ts), sha, self._pack(body)))
 
@@ -311,9 +383,10 @@ class SqliteExperienceStore:
             for it in items:
                 self.put_item(it)
 
-    def items(self, refs: Sequence[str], *, missing_ok: bool = False) -> List[ExperienceItem]:
-        """Items in the order of ``refs``. A missing ref raises ``KeyError`` (a silently shortened context would
-        change what the model is trained on) unless ``missing_ok``."""
+    def items(self, refs: Sequence[str], *, missing_ok: Optional[bool] = None) -> List[ExperienceItem]:
+        """Items in the order of ``refs``. Refs that were never stored are skipped, counted in
+        ``stats['missing_item_refs']`` and warned about once (a shortened context changes what the model is trained
+        on); with ``strict_items`` / ``missing_ok=False`` they raise ``KeyError`` instead."""
         refs = list(refs)
         found: Dict[str, str] = {}
         for i in range(0, len(refs), 500):
@@ -321,8 +394,15 @@ class SqliteExperienceStore:
             for ref, body in self._q(f"SELECT ref, body FROM items WHERE ref IN ({','.join('?' * len(chunk))})", chunk):
                 found[ref] = body
         missing = [r for r in refs if r not in found]
-        if missing and not missing_ok:
-            raise KeyError(f"{len(missing)} item refs are not in the store, first: {missing[:3]}")
+        if missing:
+            if missing_ok is False or (missing_ok is None and self.strict_items):
+                raise KeyError(f"{len(missing)} item refs are not in the store, first: {missing[:3]}")
+            if missing_ok is None:
+                if self.stats["missing_item_refs"] == 0:
+                    warnings.warn(f"{len(missing)} context item refs are not in the store (first: {missing[:3]}); "
+                                  "they are skipped. Further misses are only counted in "
+                                  "store.stats['missing_item_refs'].", stacklevel=2)
+                self.stats["missing_item_refs"] += len(missing)
         return [ExperienceItem.from_dict(json.loads(self._unpack(found[r]))) for r in refs if r in found]
 
     def item_times(self, refs: Sequence[str]) -> Dict[str, float]:
@@ -401,7 +481,7 @@ class SqliteExperienceStore:
             old = db.execute("SELECT seq, static_sha, result_sha, dyn_sha, success, success_explicit, surprise, "
                              "surprise_explicit FROM experiences WHERE exp_id=?", (rec.exp_id,)).fetchone()
             if new and old is not None:
-                raise ValueError(f"experience {rec.exp_id} already exists (use update)")
+                raise KeyError(f"duplicate experience {rec.exp_id} (use update)")
             if not new and old is None:
                 raise KeyError(f"experience {rec.exp_id} is not in the store (use append)")
             if new:
@@ -446,10 +526,10 @@ class SqliteExperienceStore:
             for kind, v in (("model", d.model_version), ("reward", rec.reward_version or d.reward_version)):
                 if v:
                     db.execute("INSERT OR IGNORE INTO versions VALUES(?,?,?,?,?)", (kind, v, rec.seq, float(d.ts), "{}"))
-            # eligibility: only True flags are stored
+            # eligibility: every explicit flag is indexed
             db.execute("DELETE FROM eligibility WHERE exp_id=?", (rec.exp_id,))
-            db.executemany("INSERT INTO eligibility VALUES(?,?)",
-                           [(loss, rec.exp_id) for loss, ok in rec.eligible.items() if ok])
+            db.executemany("INSERT INTO eligibility VALUES(?,?,?)",
+                           [(loss, rec.exp_id, int(bool(ok))) for loss, ok in rec.eligible.items()])
             for q in queries.values():
                 db.execute("INSERT INTO queries(query_id, exp_id, due_at, metric, resolved, body) VALUES(?,?,?,?,?,?) "
                            "ON CONFLICT(query_id) DO UPDATE SET resolved=MAX(resolved, excluded.resolved)",
@@ -513,7 +593,7 @@ class SqliteExperienceStore:
         d = json.loads(self._unpack(static))
         d.update(json.loads(self._unpack(result)))
         d.update(json.loads(self._unpack(dyn)))
-        return ExperienceRecord.from_dict(d)
+        return record_from_dict(ExperienceRecord, d)
 
     def get(self, exp_id: str) -> Optional[ExperienceRecord]:
         rows = self._q("SELECT static_body, result_body, dyn_body FROM experiences WHERE exp_id=?", (exp_id,))
@@ -544,8 +624,10 @@ class SqliteExperienceStore:
         sql, args = "SELECT COUNT(*) FROM experiences e", []
         where = []
         if loss and loss != ANY_LOSS:
-            sql += " JOIN eligibility g ON g.exp_id=e.exp_id AND g.loss=?"
+            sql += " LEFT JOIN eligibility g ON g.exp_id=e.exp_id AND g.loss=?"
             args.append(loss)
+            where.append("COALESCE(g.flag, ?)=1")
+            args.append(int(self.eligible_default))
         if provenance:
             prov = (provenance,) if isinstance(provenance, str) else tuple(provenance)
             where.append(f"e.provenance IN ({','.join('?' * len(prov))})")
@@ -553,6 +635,10 @@ class SqliteExperienceStore:
         if where:
             sql += " WHERE " + " AND ".join(where)
         return int(self._q(sql, args)[0][0])
+
+    def all(self) -> List[ExperienceRecord]:
+        """Every record in lifetime order (same as the reference ``MemoryStore.all``)."""
+        return self.iter_records()
 
     def head_seq(self) -> int:
         return int(self._q("SELECT COALESCE(MAX(seq), 0) FROM experiences")[0][0])
@@ -876,8 +962,9 @@ class SqliteExperienceStore:
                            f"provenance IN ({ph}) ORDER BY seq", prov)
         else:
             rows = self._q("SELECT e.exp_id, e.seq, e.family, e.success, e.delayed, e.surprise, e.credit_mag FROM "
-                           "experiences e JOIN eligibility g ON g.exp_id=e.exp_id AND g.loss=? WHERE "
-                           f"e.provenance IN ({ph}) ORDER BY e.seq", (loss,) + prov)
+                           "experiences e LEFT JOIN eligibility g ON g.exp_id=e.exp_id AND g.loss=? WHERE "
+                           f"COALESCE(g.flag, ?)=1 AND e.provenance IN ({ph}) ORDER BY e.seq",
+                           (loss, int(self.eligible_default)) + prov)
         ix = _Index(exp_id=np.array([r[0] for r in rows], dtype=object),
                     seq=np.array([r[1] for r in rows], dtype=np.int64),
                     family=np.array([r[2] or "" for r in rows], dtype=object),
@@ -921,13 +1008,24 @@ class SqliteExperienceStore:
             if N == 0 or n <= 0:
                 return []
             n = min(int(n), N)
-            k_recent = max(1, min(self.recent_window, int(math.ceil(N * self.recent_fraction))))
-            is_recent = np.zeros(N, dtype=bool)
-            is_recent[N - k_recent:] = True
-            older = np.flatnonzero(~is_recent)
-            members = {"recent": np.flatnonzero(is_recent), "informative": older if len(older) else np.arange(N),
-                       "success": np.flatnonzero(ix.success == 1), "failure": np.flatnonzero(ix.success == 0),
-                       "delayed": np.flatnonzero(ix.delayed == 1), "family": np.arange(N)}
+            ckey = (self.recent_window, self.recent_fraction, self.priority_alpha, self.uniform_floor)
+            if ix.cache.get("key") != ckey:
+                k_recent = max(1, min(self.recent_window, int(math.ceil(N * self.recent_fraction))))
+                is_recent = np.zeros(N, dtype=bool)
+                is_recent[N - k_recent:] = True
+                older = np.flatnonzero(~is_recent)
+                inf = older if len(older) else np.arange(N)
+                sc = ix.score[inf]
+                s0 = float(sc.mean()) or 1.0          # smoothing: unscored records keep a real share
+                sp = (sc + s0) ** self.priority_alpha
+                _, inv, cnt = np.unique(ix.family.astype(str), return_inverse=True, return_counts=True)
+                ix.cache = {"key": ckey, "members": {
+                    "recent": np.flatnonzero(is_recent), "informative": inf,
+                    "success": np.flatnonzero(ix.success == 1), "failure": np.flatnonzero(ix.success == 0),
+                    "delayed": np.flatnonzero(ix.delayed == 1), "family": np.arange(N)},
+                    "p": {"informative": self.uniform_floor / len(inf) + (1 - self.uniform_floor) * sp / sp.sum(),
+                          "family": 1.0 / (len(cnt) * cnt[inv])}}
+            members, probs = ix.cache["members"], ix.cache["p"]
             weights = {k: w for k, w in weights.items() if len(members[k])}
             if not weights:
                 weights = {"family": 1.0}
@@ -954,16 +1052,7 @@ class SqliteExperienceStore:
                 k = quotas.get(name, 0)
                 if k <= 0:
                     continue
-                cand, p = members[name], None
-                if name == "informative":
-                    sc = ix.score[cand]
-                    s0 = float(sc.mean()) or 1.0          # smoothing: unscored records keep a real share
-                    s = (sc + s0) ** self.priority_alpha
-                    p = self.uniform_floor / len(cand) + (1 - self.uniform_floor) * s / s.sum()
-                elif name == "family":
-                    fam, inv, cnt = np.unique(ix.family[cand].astype(str), return_inverse=True, return_counts=True)
-                    p = 1.0 / (len(fam) * cnt[inv])
-                got = draw(cand, k, p)
+                got = draw(members[name], k, probs.get(name))
                 taken[got] = True
                 picked += got.tolist()
                 origin[name] = len(got)

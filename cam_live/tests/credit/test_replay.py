@@ -39,7 +39,7 @@ def test_implements_the_contract_and_round_trips(tmp_path, make_record):
     assert st.get("e0").to_dict() == rec.to_dict()
     assert st.by_decision("d0").exp_id == "e0" and st.by_action("a0_0").exp_id == "e0"
     assert st.get("nope") is None and st.by_decision("nope") is None
-    with pytest.raises(ValueError):
+    with pytest.raises(KeyError):
         st.append(rec)
     with pytest.raises(KeyError):
         st.update(make_record(99))
@@ -63,14 +63,26 @@ def test_items_are_ordered_immutable_and_never_silently_missing(tmp_path):
     st.put_item(items[2])                                      # identical content: no-op
     assert [x.ref for x in st.items(["o3", "o0", "o3"])] == ["o3", "o0", "o3"]
     assert st.items(["o1"])[0].to_dict() == items[1].to_dict()
-    with pytest.raises(ValueError):                            # rewriting history is refused
+    # rewriting history is not possible: the stored version stays, and the attempt is reported and counted
+    with pytest.warns(UserWarning, match="history is immutable"):
         st.put_item(ExperienceItem(kind=ItemKind.OBSERVATION, text="changed", ts=9.0, ref="o1"))
+    st.put_item(ExperienceItem(kind=ItemKind.OBSERVATION, text="changed again", ts=9.0, ref="o1"))
+    assert st.items(["o1"])[0].text == "t1" and st.stats["item_conflicts"] == 2
+    # refs that were never stored are skipped with a warning and counted, or raise in strict mode
+    with pytest.warns(UserWarning, match="not in the store"):
+        assert [x.ref for x in st.items(["o1", "ghost"])] == ["o1"]
+    assert st.stats["missing_item_refs"] == 1 and len(st.items(["o1", "ghost"], missing_ok=True)) == 1
     with pytest.raises(KeyError):
-        st.items(["o1", "ghost"])
-    assert len(st.items(["o1", "ghost"], missing_ok=True)) == 1
+        st.items(["o1", "ghost"], missing_ok=False)
     anon = ExperienceItem(kind=ItemKind.GOAL, text="g")
     st.put_item(anon)
     assert anon.ref.startswith("item_") and st.items([anon.ref])[0].text == "g"
+    st.close()
+    strict = _store(tmp_path, item_conflict="raise", strict_items=True)
+    with pytest.raises(ValueError):
+        strict.put_item(ExperienceItem(kind=ItemKind.OBSERVATION, text="changed", ts=9.0, ref="o1"))
+    with pytest.raises(KeyError):
+        strict.items(["ghost"])
 
 
 def test_pending_due_times_and_outcome_deduplication(tmp_path, make_record):
@@ -140,20 +152,31 @@ def test_provenance_strata_are_never_mixed_unless_asked(tmp_path, make_record):
     assert {r.provenance for r in live_only.sample(40, loss="world", seed=2)} == {"live"}
 
 
-def test_eligibility_is_per_loss_and_fail_closed(tmp_path, make_record):
+def test_eligibility_is_per_loss(tmp_path, make_record):
     st = _store(tmp_path)
     with st.batch():
         for i in range(30):
-            st.append(make_record(i, eligible=("world",) if i % 2 else ("world", "policy")))
-    assert len(st.sample(100, loss="world", seed=0)) == 30
+            rec = make_record(i, eligible=("world",) if i % 2 else ("world", "policy"))
+            if i % 2:
+                rec.eligible["policy"] = False               # explicitly not eligible for the policy loss
+            if i >= 20:
+                rec.eligible["world"] = False
+            st.append(rec)
+    assert len(st.sample(100, loss="world", seed=0)) == 20
     pol = st.sample(100, loss="policy", seed=0)
     assert len(pol) == 15 and all(r.eligible.get("policy") for r in pol)
-    assert st.sample(10, loss="never_set", seed=0) == []
     assert len(st.sample(100, loss="*", seed=0)) == 30
+    # no entry for a loss: eligible by default (the contract's reference store behaves the same) ...
+    assert len(st.sample(100, loss="never_set", seed=0)) == 30 and st.count(loss="never_set") == 30
     assert st.set_eligible(["e1", "e3"], "policy", True) == 2 and st.count(loss="policy") == 17
     rep = st.refresh_eligibility("rudder", lambda r: r.seq <= 10)
     assert rep == {"checked": 30, "eligible": 10, "changed": 30} and st.count(loss="rudder") == 10
     assert st.set_eligible(["e1"], "policy", False) == 1 and st.count(loss="policy") == 16
+    st.close()
+    # ... or fail-closed when the store is opened that way
+    closed = _store(tmp_path, eligible_default=False)
+    assert closed.sample(10, loss="never_set", seed=0) == [] and closed.count(loss="policy") == 16
+    assert len(closed.sample(100, loss="rudder", seed=0)) == 10
 
 
 def _lifetime(st, make_record, n_old=1800, n_recent=200):
@@ -389,3 +412,62 @@ def test_retrain_queue(tmp_path, make_record):
     qu = st.retrain_queue()
     assert [d["exp_id"] for d in qu] == ["e0", "e1", "e2"] and qu[1]["reasons"] == ["outcome_matured", "credit_revised"]
     assert st.retrain_count() == 3 and st.pop_retrain(["e0", "e1"]) == 3 and st.retrain_count() == 1
+
+
+def test_same_answers_as_the_contract_reference_store(tmp_path, make_record):
+    """The durable store and the in-memory reference store of the contract agree on the shared interface."""
+    from cam_live.diagnostics.memstore import MemoryStore
+    answers = []
+    for st in (MemoryStore(), _store(tmp_path, recent_window=4)):
+        recs = [make_record(i, eligible=("world",) if i % 3 else ()) for i in range(12)]
+        for i, r in enumerate(recs):
+            r.window_id = "w1" if i < 5 else ""
+            r.eligible["policy"] = i % 2 == 0
+            st.append(r)
+            st.put_item(ExperienceItem(kind=ItemKind.OBSERVATION, text=f"o{i}", ts=float(i), ref=f"it{i}"))
+        recs[3].intrinsic_reward = 0.5
+        st.update(recs[3])
+        with pytest.raises(KeyError):
+            st.append(recs[0])
+        with pytest.raises(KeyError):
+            st.update(make_record(77))
+        got = st.get("e3").to_dict()
+        got.pop("seq")                          # the durable store assigns the lifetime position on append
+        answers.append({
+            "count": st.count(), "get": got, "by_decision": st.by_decision("d7").exp_id,
+            "none": (st.get("zz"), st.by_decision("zz")), "window": [r.exp_id for r in st.window("w1")],
+            "items": [x.text for x in st.items(["it4", "it1"])],
+            "pending_early": sorted(q.query_id for _, q in st.pending(recs[2].pending_queries[0].due_at)),
+            "pending_none": st.pending(0.0),
+            # (the reference store repeats records when asked for more than the pool; the durable one does not)
+            "policy_pool": sorted({r.exp_id for r in st.sample(12, loss="policy", seed=1)}),
+            "world_pool": sorted({r.exp_id for r in st.sample(12, loss="world", seed=1)}),   # no entry = eligible
+            "n_small": len(st.sample(4, loss="world", seed=1)), "all": [r.exp_id for r in st.all()]})
+        st.flush()
+    assert answers[0] == answers[1]
+    assert answers[0]["pending_early"] == ["q0", "q1", "q2"] and len(answers[0]["policy_pool"]) == 6
+
+
+def test_fast_record_decoding_equals_the_contract_decoder(make_record):
+    from cam_live.contracts import (CandidateEvaluation, Cost, ExperienceRecord, Observation, PrimitiveOp, Quantity,
+                                    VerificationCondition)
+    from cam_live.credit.replay import record_from_dict
+    rec = make_record(3, n_cand=4)
+    q = rec.pending_queries[0]
+    for ev in rec.decision.candidates:
+        ev.predictions.append(PredictionRecord("p" + ev.action.action_id, q, Distribution("normal", {"mu": 1.0, "xs": [1, 2]},
+                                                                                     mean=1.0, std=None), made_at=1.0))
+        ev.extras, ev.p_success, ev.cost = {"a": 1.5}, 0.25, Cost(seconds=2.0, tokens=7)
+        ev.action.steps = [make_record(9).decision.chosen]
+        ev.action.verify = VerificationCondition("d", "text_present", {"text": "x"})
+    rec.result.observations = [Observation("o1", 1.0, "page", "t", [Quantity("m", 2.0, kind=OutcomeKind.COUNT)],
+                                           refs={"a": "b"}, data={"nested": {"k": [1, 2, {"z": None}]}})]
+    rec.result.ops = [PrimitiveOp("browser.click", "structured_browser", {"ref": "e1"}, 1.0, 2.0)]
+    rec.result.expected_outcomes = [q]
+    rec.outcomes = [OutcomeObservation(q.query_id, OutcomeStatus.CENSORED, None, observed_at=5.0, evidence_refs=["x"])]
+    rec.credit, rec.eligible, rec.bootstrap_reward = {"simple": 1.0}, {"world": True, "policy": False}, None
+    d = json.loads(rec.to_json())
+    fast, ref = record_from_dict(ExperienceRecord, json.loads(json.dumps(d))), ExperienceRecord.from_dict(d)
+    assert fast == ref and fast.to_dict() == rec.to_dict()
+    assert type(fast.decision.candidates[0]) is CandidateEvaluation and type(fast.result.ops[0]) is PrimitiveOp
+    assert type(fast.decision.candidates[0].action.steps[0]).__name__ == "ActionSpec"
