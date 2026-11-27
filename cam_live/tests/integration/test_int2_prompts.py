@@ -111,3 +111,15 @@ def test_normalisation_is_meaning_preserving_and_logged():
     assert notes["program_form_lifted"] == 1 and notes["moved_into_arguments"] == 1
     parsed = parse_actions(json.dumps(p2), list(tools.values()))
     assert parsed.actions and parsed.actions[0].operation == "program" and parsed.actions[0].steps[0].arguments["url"]
+
+
+def test_literal_numbers_are_coerced_not_invented():
+    from cam_live.agent import normalise_proposal
+    from cam_live.diagnostics.world import LabWorld
+    tools = {t.name: t for t in LabWorld().discover_tools()}
+    notes = {}
+    assert normalise_proposal({"operation": "lab.act", "arguments": {"channel": "2", "effort": "3"}}, tools, notes) == \
+        {"operation": "lab.act", "arguments": {"channel": 2, "effort": 3}}
+    assert notes == {"coerced:lab.act.channel": 1, "coerced:lab.act.effort": 1}
+    out = normalise_proposal({"operation": "lab.act", "arguments": {"channel": "channel-2", "effort": 9}}, tools, {})
+    assert out["arguments"] == {"channel": "channel-2", "effort": 9}       # not a number / out of range: left as is

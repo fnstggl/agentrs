@@ -34,6 +34,7 @@ import json
 import math
 import os
 import random
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Deque, Dict, List, Optional, Sequence, Tuple
@@ -434,6 +435,21 @@ def normalise_proposal(obj: Any, tools: Dict[str, ToolDescriptor], notes: Dict[s
         for k in [k for k in args if k not in props]:
             notes[f"stripped:{op}.{k}"] = notes.get(f"stripped:{op}.{k}", 0) + 1
             del args[k]
+    if tool is not None and isinstance(args, dict):
+        for k, v in list(args.items()):              # a number or boolean written as its literal text
+            t = (props.get(k) or {}).get("type") if isinstance(props.get(k), dict) else None
+            if isinstance(v, str) and t in ("integer", "number", "boolean"):
+                txt = v.strip()
+                new: Any = v
+                if t == "integer" and re.fullmatch(r"[-+]?\d+", txt):
+                    new = int(txt)
+                elif t == "number" and re.fullmatch(r"[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?", txt):
+                    new = float(txt)
+                elif t == "boolean" and txt.lower() in ("true", "false"):
+                    new = txt.lower() == "true"
+                if new is not v:
+                    args[k] = new
+                    notes[f"coerced:{op}.{k}"] = notes.get(f"coerced:{op}.{k}", 0) + 1
     if args is not None and ("arguments" in out or args):
         out["arguments"] = args
     return out
@@ -506,7 +522,9 @@ class AgentProposer(BackboneProposer):
         reasons: Dict[str, int] = {}
         for r in rejections:
             reasons[r.reason] = reasons.get(r.reason, 0) + 1
-        stats = {"n_texts": len(texts), "n_lines": n_lines, "n_items": n_items, "n_backbone_valid": len(actions),
+        stats = {"rejections_sample": [{"reason": r.reason, "detail": str(r.detail)[:160],
+                                        "text": str(getattr(r, "fragment", ""))[:200]} for r in rejections[:4]],
+                 "n_texts": len(texts), "n_lines": n_lines, "n_items": n_items, "n_backbone_valid": len(actions),
                  "fraction_valid_of_items": (len(actions) / n_items) if n_items else 0.0,
                  "rejection_reasons": reasons, "normalised": notes, "prompt_chars": len(prompt),
                  "latent_conditioned": latent is not None, "by_operation": dict(collections.Counter(
@@ -1572,6 +1590,7 @@ class CamLiveAgent:
             decision.diagnostics["generation"] = {
                 "n_items": ps.get("n_items"), "n_backbone_valid": ps.get("n_backbone_valid"),
                 "rejection_reasons": ps.get("rejection_reasons"), "normalised": ps.get("normalised"),
+                "rejections": ps.get("rejections_sample"),
                 "prompt_chars": ps.get("prompt_chars"), "prompt_tools": ps.get("prompt_tools")}
         decision.diagnostics["planner_horizon"] = self.pending_eval.get("planner_horizon", 0)
         if rec is not None:
