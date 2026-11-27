@@ -65,3 +65,15 @@ level query once the environment is known to attribute outcomes; before that (th
 objective) the mismatch remains. The calibration standardises within each decision and learns from verified
 outcomes, which limits but does not remove the effect. A query flag for "level vs increment" in the contract would
 remove it (owner M, not requested now).
+
+## LRN-5 (integration test, `tests/integration/test_agent_recovery.py`, owner INT2): reload drift vs the 1e-6 bound
+
+**Measured** (isolated tree of commit 9d5ba8e — LRN's code with INT2's committed agent — so that the test's child
+processes import that tree; machine loaded): `test_save_fresh_process_load_gives_identical_decisions` makes the same
+choices with the same rule after the reload, but the probability vectors drift by `[0.0, 5.7e-08, 1.08e-06]` over
+the 3 decisions, just above the test's 1e-6 bound. The test's own docstring records that the probabilities agree
+"to ~1e-7 rather than bitwise" (summation order); the live policy step is now ~50x larger (trust region, INT2-7),
+which amplifies that pre-existing float drift through the next policy updates. The same test on the snapshot of
+6e83bcf (before LRN), run the same isolated way, failed differently (a different randomised arm), so it is also
+load-sensitive. **Proposed:** bound the gap at 1e-5 (or find the batch-dependent summation, e.g. cached vs recomputed
+item embeddings) — the decisions themselves are identical.
