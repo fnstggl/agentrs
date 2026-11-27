@@ -130,3 +130,37 @@ def test_failed_requests_counts_web_pages_refused_during_a_provider_outage():
     assert len(hits) == 3
     assert X.m_failed_requests(w, 0, w.now, ctx) == 3.0
     assert X.m_curtailed_hours(w, 0, w.now, ctx) == 0.0       # an operator outage is not a grid curtailment
+
+
+def test_reference_inventor_answers_public_requests_for_its_format_once():
+    """SP-2.1b: the reference inventor (labelled scripted) builds and declares its service, then replies once to each
+    public "Looking for a service" post naming its format's title on the help board - through tools only - and never
+    to other posts."""
+    from crucible.civ.reference import InventorAgent
+    from crucible.economy.needs import NEEDS
+    from crucible.innovation.worlds import innovation_spec
+    spec = innovation_spec(1, with_adopters=False)
+    next(m for m in spec.modules if m["name"] == "forum")["config"]["boards"].append("help")
+    w = World.create(spec)
+    w.system_call("admin.join", {"handle": "asker", "endowment": 500_000, "password": "pw"})
+    ask = _ex(w, "p:asker")
+    board = "help"
+    t = NEEDS["pack.knapsack"].title
+    a = ask("forum.post", board=board, title=f"Looking for a service: {t} knapsack packing", body="by hand: 30 min")
+    b = ask("forum.post", board=board, title=f"Looking for a service: {NEEDS['sort.records'].title}", body="x")
+    c = ask("forum.post", board=board, title=f"{t}: how do you do it?", body="just curious")
+    assert a.ok and b.ok and c.ok, (a.error, b.error, c.error)
+    ag = InventorAgent("inv", "pack.knapsack", "inv-svc", tier=len(NEEDS["pack.knapsack"].tiers) - 1, price=3,
+                       at=w.now, cores=1, announce=True, board=board)
+    w.advance_time((w.now // 86400) * 86400 + 11 * 3600)
+    ag.act(w)
+    assert ag.declaration is not None, ag.log
+    assert ag.answered == {a.result["post"]}
+    reps = [r for _, r in w.state.scan("forum_replies") if r["author"] == "p:inv"]
+    assert len(reps) == 1 and "inv-svc" in reps[0]["hosts"]
+    person = w.state.get("persons", "p:inv")
+    assert str((person.get("info") or {}).get("controller", "")).startswith("scripted:")
+    ag.act(w)                                     # the same day: nothing more
+    w.advance_time(w.now + 86400)
+    ag.act(w)                                     # the next day: the post was already answered
+    assert len([r for _, r in w.state.scan("forum_replies") if r["author"] == "p:inv"]) == 1

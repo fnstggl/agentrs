@@ -220,3 +220,60 @@ class ResearcherAgent:
         _, a, x0, z0, c = best
         n0, n1 = self.names
         return f"{a:.4f} * exp(-(({n0} - {x0:.4f}) ** 2 + ({n1} - {z0:.4f}) ** 2) / {c:.4f})"
+
+
+def _inventor_base():
+    from ..innovation.reference import ServiceCreator
+    return ServiceCreator
+
+
+class InventorAgent(_inventor_base()):
+    """The reference inventor of the invention experiment (SP-2.1b): crucible.innovation.reference.ServiceCreator
+    (admitted as `scripted:<handle>`: it writes, deploys and declares a service for one published work format at the
+    best known solver tier and announces it on the forum), plus what an inventor with a product does next: it answers
+    the public requests for its kind of service. Once a day it lists the newest posts of the board where people ask
+    for services (`help` by default: crucible.economy.work's `ask_board`) and replies once to each post whose title
+    names its format's public title, saying which host serves it and at what price.
+
+    Why: at 02c300f the inventor of seed 54 (pack.knapsack) got no adopter. The individuals who look for a knapsack
+    service search with the format's description, and their own help threads ("Looking for a service: ...") and the
+    replies naming the incumbents' hosts filled every result of that query (10 of 10), so its declaration and its
+    announcement were never among the results anybody read (work.considered: 0 rows for it in three days, 165 for
+    the incumbents). A reply in those threads is the same channel the incumbents were found through. Everything after
+    it is the population's: whether a searcher clicks the result, tries the service on its own input and keeps it."""
+    name = "crucible.civ.reference.InventorAgent"
+
+    def __init__(self, *a, board: str = "help", replies_per_day: int = 20, **kw):
+        super().__init__(*a, **kw)
+        self.board, self.replies_per_day = board, int(replies_per_day)
+        self.answered: set[str] = set()
+        self._last_answer_day = None
+
+    def act(self, world):
+        super().act(world)
+        if self.declaration is None or "forum" not in world.modules or world.now % 86400 < 10 * 3600:
+            return
+        day = world.now // 86400
+        if self._last_answer_day == day:
+            return
+        self._last_answer_day = day
+        from ..innovation.formats import lookup
+        fmt = lookup(self.need)
+        title = fmt.title.lower()
+        r = self.ex(world, "forum.list", board=self.board, sort="new", limit=30)
+        if not r.ok:
+            return
+        n = 0
+        for p in r.result:
+            if n >= self.replies_per_day:
+                break
+            if p["post"] in self.answered or p["author"] == self.actor:
+                continue
+            if not p["title"].lower().startswith("looking for a service") or title not in p["title"].lower():
+                continue
+            body = (f"{self.host}.crucible does exactly this ({fmt.title}) for {self.price} cents per call: it is "
+                    f"declared as capability {self.need} (endpoint solve), so you can check that its interface takes "
+                    f"your input before you try it.")
+            if self.ex(world, "forum.reply", post=p["post"], body=body).ok:
+                self.answered.add(p["post"])
+                n += 1

@@ -437,14 +437,14 @@ INVENTOR = {"handle": "inventor", "host": "inventor-svc", "price": 3}
 
 
 def _invention_setup(w, ctx):
-    """A scripted reference inventor (labelled `scripted`, crucible.innovation.reference.ServiceCreator) is admitted
-    in every arm; in the factual arm it writes, deploys and declares a service for one of the civilisation's
-    published work formats at the best known solver tier (better than every incumbent) and announces it on the
-    forum. In `no_invention` it does nothing. Everything after that is the world's: individuals of the population
+    """A scripted reference inventor (labelled `scripted`, crucible.civ.reference.InventorAgent) is admitted in every
+    arm; in the factual arm it writes, deploys and declares a service for one of the civilisation's published work
+    formats at the best known solver tier (better than every incumbent), announces it on the forum and answers the
+    public requests for that kind of service on the help board once a day. In `no_invention` it does nothing. Everything after that is the world's: individuals of the population
     search, try the declared capability on their own work, adopt it by their own accepted outcomes, pay per call."""
     from ..economy.needs import NEEDS
-    from ..innovation.reference import ServiceCreator
     from ..innovation.worlds import FORMAT_SCHEMAS
+    from .reference import InventorAgent
     fams = (w.modules["work"].config.get("families") or []) if "work" in w.modules else []
     # the first of the world's published work formats whose interface an operator can declare (a public schema)
     cands = sorted(f["need"] for f in fams if f.get("need") in FORMAT_SCHEMAS)
@@ -452,8 +452,9 @@ def _invention_setup(w, ctx):
         raise ValueError(f"no work format of this civilisation has a public interface schema: {fams}")
     need = cands[0]
     tier = len(NEEDS[need].tiers) - 1
-    ag = ServiceCreator(INVENTOR["handle"], need, INVENTOR["host"], tier=tier, price=INVENTOR["price"], at=w.now,
-                        cores=1, announce=True)
+    board = w.modules["work"].cfg("ask_board") if "work" in w.modules else "help"
+    ag = InventorAgent(INVENTOR["handle"], need, INVENTOR["host"], tier=tier, price=INVENTOR["price"], at=w.now,
+                       cores=1, announce=True, board=board)
     ag.ensure(w)
     provs = w.query(ag.actor, "cloud.providers")
     ctx["provider"] = sorted(provs, key=lambda p: (-p["cores_free"], p["provider"]))[0]["provider"] if provs else None
