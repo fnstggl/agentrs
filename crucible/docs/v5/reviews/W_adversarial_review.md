@@ -38,10 +38,37 @@ the review asked what else two tenants share on one kernel. Each row: found with
 | DEF-O-18 (high) | memory files, learner directory | a program writes memfd files (pages not mapped: not counted by RLIMIT_AS); a jailed learner fills its private directory with files (RLIMIT_FSIZE bounds one file) | sandbox: 640 MiB under a 256 MiB cap; learner: 512 MiB held under 512 MiB, 256 MiB written with no directory quota | memfd refused (sandbox, tool-mode jail); learner directory quota enforced by a watchdog: stopped at 40 MiB for a 32 MiB quota | `v5.sandbox.hosted_learner_memory_and_disk_are_capped`, escape matrix `memfd_beyond_the_memory_cap` |
 
 Checked and not a channel here: access times of standard-library files (overlay lower layer: reads do not update
-atime); /dev/shm and /tmp (Landlock); sockets (seccomp); signals and scheduling of other processes (seccomp self-only
-rules). Residual, stated: covert *timing* channels of a shared kernel (CPU load, page-cache residency of shared
+atime); /dev/shm and /tmp (Landlock); sockets (seccomp); signals to other processes (seccomp self-only rules).
+**Correction (repair pass):** this paragraph also said "scheduling of other processes" was not a channel. That was
+false: the self-only rules covered only *setting* attributes; a process could set its own and read anyone's (the
+wave-3b verifier passed a 16-bit secret between worlds in 12 s) - see section 1c. Residual, stated: covert *timing* channels of a shared kernel (CPU load, page-cache residency of shared
 read-only files observable through read latency, pid allocation, free disk space) cannot be removed by process-level
 isolation; they need a VM or dedicated hardware per tenant.
+
+## 1c. Repair pass after the wave-3b verifier (2026-11-27)
+
+An independent verifier re-ran this review's claims and found that several fixes above were incomplete. Each row:
+a probe in the catalogue, run on the unfixed head 31ae226 (finding) and on the repaired branch (held); fixed in
+`sandbox/` (D-77 amendment 7-13) or `realworld/` (D-76 amendment).
+
+| id | channel / hole | before (31ae226) | after | probe |
+|---|---|---|---|---|
+| DEF-O-21 (high) | scheduling attributes: a service sets its own SCHED_IDLE, nice 13 and I/O priority level (3 bits per request); another world's program reads them on any pid | **leak**: the 16-bit secret 0xb38b received exactly; getpriority's ESRCH a pid oracle | read side self-only too; 0 other pids readable, no oracle | `v5.crossworld.scheduling_attributes_do_not_cross_worlds` (MUST_HOLD) |
+| DEF-O-23 (high) | directory notifications (F_NOTIFY / dnotify) on standard-library package directories | **leak**: 4 of 4 set bits (0xb2) | F_NOTIFY refused in every mode | `v5.crossworld.directory_notifications_do_not_cross_worlds` (MUST_HOLD) |
+| DEF-O-25 (high, new in the repair pass) | a shared futex on a word of libc's code (keyed by the file): world A's worker waits, world B's worker wakes | **leak**: 5 of 5 set bits; every wake counted the other tenant's waiter | non-private wakes/requeues refused; waits allowed (pthread_join) | `v5.crossworld.shared_futexes_do_not_cross_worlds` (MUST_HOLD) |
+| DEF-O-26 (high, new in the repair pass) | another process's CPU clock (clock_gettime on MAKE_PROCESS_CPUCLOCK(pid)) | **leak**: world B read world A's worker CPU time (365 ms) | refused with EINVAL; own process/thread clocks work | `v5.crossworld.cpu_clocks_do_not_cross_worlds` (MUST_HOLD) |
+| DEF-O-22 (high) | two jailed learner processes: scheduling attributes, dnotify, shared futex, CPU clock, pid oracle; a learner with a colliding uid against another | **integrity break**: all channels open; the same-uid attacker set the victim's RLIMIT_CPU to 1 s and the victim died | tool-mode jail has the full self-only table and the futex/clock rules; uids claimed machine-wide | `v5.sandbox.hosted_learners_share_no_process_state` (MUST_HOLD) |
+| DEF-O-24 (high) | disk quotas read the listing: files unlinked while held open (and deleted files kept by a mapping alone) | **integrity break**: sandbox worker kept 8 x 15 MiB (and 6 x 15 MiB mapping-only) against 64 MiB; learner 6 x 16 MiB and 2 x 48 MiB against 32 MiB | the parent counts deleted files held open (/proc under the process's fs identity; workers dumpable again); mapping-only deleted files stop the process | `v5.sandbox.disk_quota_counts_files_held_open`, `v5.sandbox.hosted_learner_memory_and_disk_are_capped` |
+| DEF-O-27 (high) | the bridge's denylist (and the circular SP-16b measurement) | 10 of 10 third-party hosts on no list reached (impostors on loopback behind public addresses) | ownership file at /.well-known required for every non-loopback host; 10 of 10 refused; an owned public host accepted | SP-16b `realworld_abuse_paths`, `tests/test_realworld_gate.py::test_public_hosts_need_the_operators_ownership_file` |
+| DEF-O-28 (medium) | measurement power: stash adversaries depended on N's learner; timing control could not detect a channel; vacuous Tier 2 rows counted for W.2; W.n1 counted this document | stash in-process gain 0.037 (CI -0.04..0.12) on the merge; timing 24 episodes, 6 settings; 17 of 30 Tier 2 rows vacuous | stash adversary learns on its own (0.584, CI 0.27..0.90); timing passes only on evidence of absence (CI inside +-0.35, power 0.98); vacuous rows reported as `evaluator_isolation_vacuous`; W.n1 counts only the audit | SP-15.8 controls; Gate W.2, W.n1 |
+
+Also: the in-process meter memo is bounded process-wide again (the largest lineage evicts; 50 lineages had held 50x
+the bound). Advisory locks stay no-ops (D-77 (5)); the semantic change is pinned by a test (two descriptors of one
+program do not exclude each other; threading locks do).
+
+Residual, stated (unchanged by the repair): machine-global counters every process can read - pid allocation (a new
+thread's id), sysinfo's process count and load, free memory and disk - are noisy, low-rate channels of any shared
+kernel; so is CPU and cache contention. Closing them needs a VM or dedicated hardware per tenant.
 
 ## 1b. Evaluated learners of the experience package (W.2, owner L)
 
@@ -55,13 +82,13 @@ isolation; they need a VM or dedicated hardware per tenant.
 
 | control | attack | result |
 |---|---|---|
-| process_memory_stash | learns like `weights` but keeps the network in the `json` module's dict; checkpoint constant; claims arch `weights` | held: in-process gain 0.527 (crossed CI 0.14-0.92) hidden, weights-only gain 0.000, labelled persistent state, not weight learning |
+| process_memory_stash | learns like `weights` but keeps the network in the `json` module's dict; checkpoint constant; claims arch `weights` | held on this branch: in-process gain 0.527 (crossed CI 0.14-0.92) hidden, weights-only gain 0.000; **inconclusive on the merge** (N's learner gained 0.037). Repair pass: the adversary learns on its own (nearest-neighbour offsets from the defaults): gain 0.584 (CI 0.27-0.90) hidden, weights-only 0.000, persistent state labelled |
 | files_outside_checkpoint | the same network written to ~/.cache, /tmp, /var/tmp, /dev/shm, memory.json and arch.json cfg | held: the fresh child receives only arch.json + params.npz and runs allow-listed code; gain not credited |
 | checkpoint_tampering | extra array, pickled array, widened layers (12 -> 64 hidden units, rehashed), arch.json edited, params swapped after hashing | **FAILED (DEF-O-12, owner N)**: the widened network is accepted and scored (shapes are not checked); the other four are refused |
 | evaluator_internals | the adversary driven by `evaluator.run_remote_episode` (in the harness process) | **FAILED (DEF-O-10, owner N)**: it found the Evaluator through gc, read its own verified score mid-episode and its partition, the evaluation-family list, `/proc/<evaluator>/environ` (sealed dir), the sealed salt and the evaluator's memory |
 | evaluator_internals_hosted | the same adversary in `crucible.sandbox.learnerhost.LearnerHost` (jailed process, own uid, Landlock without /proc, seccomp, only the participant socket) | held: nothing reachable; the episode verified by the evaluator |
 | interaction_budget | granted 1 informative interaction, the learner executes lever settings itself through its participant environment | **FAILED (DEF-O-11, owner N)**: 60 counted, result unmarked (budgets are enforced by the learner-side driver only) |
-| timing_channel | latency of the participant round trip in interleaved validation and sealed episodes | held: partition p 0.31 (relative difference 11%, not significant), latency vs verified score rho 0.39 (p 0.06) |
+| timing_channel | latency of the participant round trip in interleaved validation and sealed episodes | first version: "held" with 24 episodes and six learner settings (rho 0.39, p 0.06) - underpowered and confounded (verifier). Repair pass: one setting, 160 episodes; held on evidence of absence: rho 0.02, 95% CI -0.14..0.17 inside +-0.35 (power 0.98), partition latency ratio CI 0.963..1.034 |
 | partition_awareness | everything a participant receives at the start of validation, evaluation and sealed episodes | held: no seed, alias, ticket, family name or partition word; validation and sealed episodes of one family have the same structure |
 | hosted_state_outlives_the_process | a jailed learner process leaves its state in shared and parent directories, SysV IPC and POSIX queues; a FRESH learner process looks for it | held (after DEF-O-14/15): nothing recovered |
 | evaluator_survives_a_stalled_participant | a jailed learner sends part of a request (no newline) on its participant socket and goes quiet | **FAILED (DEF-O-19, owner N)**: the evaluator serves both sockets in one loop with whole-line reads; the harness got no answer for 20 s |

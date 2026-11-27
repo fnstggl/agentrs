@@ -2500,7 +2500,7 @@ B_population verdict) and P's own findings.
 ```json
 {
  "area": "O_security",
- "fixed_by": "c5c/w3b-sec: sandbox/jail.py seccomp refuses F_SETOWN/F_SETSIG/F_SETOWN_EX and FIOSETOWN/SIOCSPGRP in every mode, SysV IPC and POSIX mq in every mode, inotify in tool mode, and makes lock-taking a no-op in tool mode; sandbox/learnerhost.py gives every learner process its own uid (UID_BASE+0x10000 range)",
+ "fixed_by": "c5c/w3b-sec: sandbox/jail.py seccomp refuses F_SETOWN/F_SETSIG/F_SETOWN_EX and FIOSETOWN/SIOCSPGRP in every mode, SysV IPC and POSIX mq in every mode, inotify in tool mode, and makes lock-taking a no-op in tool mode; sandbox/learnerhost.py gives every learner process its own uid (UID_BASE+0x10000 range) (incomplete: completed by DEF-O-22, repair pass)",
  "id": "DEF-O-15",
  "owner": "O",
  "regression_tests": "tests/v5/test_gate_W.py::test_W5_cross_world and ::test_W7_resource_limits (v5.sandbox.hosted_learners_cannot_reach_each_other), tests/test_v5_security_sandbox.py::test_jailed_learner_processes_have_own_uids_and_cannot_signal_each_other_or_share_ipc",
@@ -2550,7 +2550,7 @@ B_population verdict) and P's own findings.
 ```json
 {
  "area": "O_security",
- "fixed_by": "c5c/w3b-sec: sandbox/boot.py seccomp refuses inotify_init/inotify_init1/inotify_add_watch/inotify_rm_watch and fanotify_*; the tool-mode jail likewise",
+ "fixed_by": "c5c/w3b-sec: sandbox/boot.py seccomp refuses inotify_init/inotify_init1/inotify_add_watch/inotify_rm_watch and fanotify_*; the tool-mode jail likewise (incomplete: completed by DEF-O-23, repair pass)",
  "id": "DEF-O-17",
  "owner": "O",
  "regression_tests": "tests/v5/test_gate_W.py::test_W5_cross_world (v5.crossworld.file_watches_do_not_cross_worlds), tests/v5/test_gate_W.py::test_W1_sandbox (escape matrix inotify_watch_stdlib), tests/test_v5_security_sandbox.py::test_file_watches_on_shared_files_are_refused",
@@ -2574,7 +2574,7 @@ B_population verdict) and P's own findings.
 ```json
 {
  "area": "O_security",
- "fixed_by": "c5c/w3b-sec: sandbox/boot.py and the tool-mode jail refuse memfd_create/memfd_secret; sandbox/learnerhost.py measures the learner's private directory with a watchdog (every 0.25 s, also between operations) and stops the learner beyond disk_quota_mb (default 2 GiB) or max_entries; checkpoints copied out are removed from the directory",
+ "fixed_by": "c5c/w3b-sec: sandbox/boot.py and the tool-mode jail refuse memfd_create/memfd_secret; sandbox/learnerhost.py measures the learner's private directory with a watchdog (every 0.25 s, also between operations) and stops the learner beyond disk_quota_mb (default 2 GiB) or max_entries; checkpoints copied out are removed from the directory (incomplete: completed by DEF-O-24, repair pass)",
  "id": "DEF-O-18",
  "owner": "O",
  "regression_tests": "tests/v5/test_gate_W.py::test_W7_resource_limits (v5.sandbox.hosted_learner_memory_and_disk_are_capped), tests/v5/test_gate_W.py::test_W1_sandbox (escape matrix memfd_beyond_the_memory_cap), tests/test_v5_security_sandbox.py::test_memory_files_are_refused_and_learner_directories_have_a_quota",
@@ -2639,5 +2639,208 @@ B_population verdict) and P's own findings.
  },
  "status": "open",
  "summary": "crucible.experience.remote serves the participant pipe and the evaluator pipe in one loop and recv_bytes waits for a whole frame: a learner holding only the participant pipe that writes a frame header announcing 1,000 bytes and sends 24 freezes the hosted world; the evaluator side (verify/digest) gets no answer (15 s in the probe; indefinitely in practice). Also on the check merge with c5c/w3b-obs."
+}
+```
+
+### DEF-O-21 (high, fixed): Scheduling attributes were a channel between worlds and a pid oracle: a process may set its own nice value, policy and I/O priorit
+
+```json
+{
+ "area": "O_security",
+ "fix": "sandbox/boot.py SELF_ONLY covers the read side too (getpriority, ioprio_get, sched_getscheduler/getparam/getattr/getaffinity/rr_get_interval, getpgid, getsid, setpgid, get_robust_list: the calling process only; PRIO_PROCESS / IOPRIO_WHO_PROCESS only), capget refused",
+ "fixed_by": "c5c/w3b-sec repair pass: sandbox/boot.py seccomp",
+ "id": "DEF-O-21",
+ "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W5_cross_world (v5.crossworld.scheduling_attributes_do_not_cross_worlds, MUST_HOLD; leak on 31ae226), tests/test_v5_security_sandbox.py::test_other_processes_attributes_clocks_notifications_and_shared_futexes_are_refused",
+ "requirements": [
+  "W.5",
+  "SP-16b",
+  "W.n1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "wave-3b verifier of c5c/w3b-sec (independent check of workstream O's report), repair pass",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Scheduling attributes were a channel between worlds and a pid oracle: a process may set its own nice value, policy and I/O priority (who=0 passed the sandbox's SELF_ONLY rules), and getpriority / sched_getscheduler / ioprio_get read them on any pid. A service in one world wrote 3 bits per request into its I/O priority level and a program in another world (another tenant uid) received the 16-bit secret exactly in 12 s; getpriority's ESRCH told which pids exist. The review's statement that 'signals and scheduling of other processes are not a channel here' was false (DEF-O-15 covered signals only)."
+}
+```
+
+### DEF-O-22 (high, fixed): Jailed learner processes (sandbox.learnerhost) with distinct uids passed a 16-bit secret through the same scheduling attributes (2
+
+```json
+{
+ "area": "O_security",
+ "fix": "sandbox/jail.py tool mode: the sandbox's full SELF_ONLY table (read and write, prlimit64, setpriority, sched_set*, ioprio_set), F_NOTIFY refused, shared futex wakes and other processes' CPU clocks refused; learnerhost._instance_uid claims a uid machine-wide (O_EXCL claim file with harness pid and start time, released by close, stale claims reclaimed, a uid any live process runs as is skipped)",
+ "fixed_by": "c5c/w3b-sec repair pass: sandbox/jail.py, sandbox/learnerhost.py",
+ "id": "DEF-O-22",
+ "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W5_cross_world and test_W7_resource_limits (v5.sandbox.hosted_learners_share_no_process_state, MUST_HOLD; integrity_break on 31ae226), tests/test_v5_security_sandbox.py::test_jailed_learner_processes_see_no_other_process_and_never_share_a_uid",
+ "requirements": [
+  "W.5",
+  "W.7",
+  "SP-16b",
+  "SP-15.8",
+  "W.n1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "wave-3b verifier of c5c/w3b-sec (independent check of workstream O's report), repair pass",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Jailed learner processes (sandbox.learnerhost) with distinct uids passed a 16-bit secret through the same scheduling attributes (27093 sent = 27093 received) and 7 of 8 bits through directory notifications; getpriority was a pid-existence oracle from the jail; learner uids were a 16-bit hash (collision probability ~n^2/2^17) and the docstring's claim that the jail's seccomp filter keeps colliding learners apart was wrong (only kill/tkill/tgkill/sigqueueinfo were restricted): with a forced shared uid one learner set the other's RLIMIT_CPU to (1, 1) and reniced it to 19, and the victim died with SIGKILL. The fix of DEF-O-15 was incomplete."
+}
+```
+
+### DEF-O-23 (high, fixed): Directory notifications (fcntl F_NOTIFY, 'dnotify') were a channel between worlds: refusing inotify (DEF-O-17) left the older inte
+
+```json
+{
+ "area": "O_security",
+ "fix": "fcntl F_NOTIFY (1026) refused in the sandbox (boot.py FCNTL_DENY) and in every jail mode (jail.py FCNTL_DENY)",
+ "fixed_by": "c5c/w3b-sec repair pass: sandbox/boot.py, sandbox/jail.py",
+ "id": "DEF-O-23",
+ "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W5_cross_world (v5.crossworld.directory_notifications_do_not_cross_worlds, MUST_HOLD; leak on 31ae226), tests/test_v5_security_sandbox.py::test_other_processes_attributes_clocks_notifications_and_shared_futexes_are_refused",
+ "requirements": [
+  "W.5",
+  "SP-16b",
+  "W.n1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "wave-3b verifier of c5c/w3b-sec (independent check of workstream O's report), repair pass",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Directory notifications (fcntl F_NOTIFY, 'dnotify') were a channel between worlds: refusing inotify (DEF-O-17) left the older interface, which needs only read access to a directory and signals the watcher (SIGIO) when any process reads a file in it. A service in one world armed one standard-library package directory per round and another world's program read a file there iff the bit was 1: 8 of 8 bits crossed."
+}
+```
+
+### DEF-O-24 (high, fixed): Disk quotas read the directory listing, so files unlinked while still open were invisible: a learner process held 133,955,584 byte
+
+```json
+{
+ "area": "O_security",
+ "fix": "metering.held_bytes: the parent reads /proc/<pid>/task/*/fd and /proc/<pid>/maps under the process's own filesystem identity (setfsuid/setfsgid on the calling thread; root has no CAP_SYS_PTRACE in this container) and adds every deleted regular file the process holds open and owns; a deleted file of the directory kept alive by a mapping alone (its size is not readable without CAP_SYS_ADMIN) stops the process. sandbox/boot.py makes the worker dumpable again after the uid change (else its /proc entries belong to root). runner.Worker and LearnerHost watchdogs use it; the learner's stderr log counts against its quota",
+ "fixed_by": "c5c/w3b-sec repair pass: sandbox/metering.py, sandbox/runner.py, sandbox/learnerhost.py, sandbox/boot.py",
+ "id": "DEF-O-24",
+ "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W7_resource_limits (v5.sandbox.disk_quota_counts_files_held_open and v5.sandbox.hosted_learner_memory_and_disk_are_capped; integrity_break on 31ae226), tests/test_v5_security_sandbox.py::test_disk_quotas_count_deleted_files_held_open",
+ "requirements": [
+  "W.7",
+  "W.1",
+  "SP-16b",
+  "W.n1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "wave-3b verifier of c5c/w3b-sec (independent check of workstream O's report), repair pass",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Disk quotas read the directory listing, so files unlinked while still open were invisible: a learner process held 133,955,584 bytes (8x its 16 MiB quota) with an empty listing and kept running (bound NOFILE 256 x FSIZE 256 MiB = 64 GiB); a long-lived sandbox worker held 127.5 MB against its 64 MiB working-directory quota across two jobs (the DEF-O-18 fix and the earlier sandbox disk quota were incomplete). A deleted file kept alive by a memory mapping alone was unbounded by descriptors too (vm.max_map_count mappings x FSIZE). The learner's stderr log (outside its directory) was not counted either."
+}
+```
+
+### DEF-O-25 (high, fixed): Shared futexes were a channel between any two processes on the machine: a futex without FUTEX_PRIVATE_FLAG on a page of a file map
+
+```json
+{
+ "area": "O_security",
+ "fix": "seccomp (sandbox and tool-mode jail): futex wake/requeue operations (WAKE, REQUEUE, CMP_REQUEUE, WAKE_OP, UNLOCK_PI, WAKE_BITSET, CMP_REQUEUE_PI) refused without the private flag, futex2 wake refused without FUTEX2_PRIVATE, futex2 requeue refused; waiting stays allowed (pthread_join waits on a shared futex that only the kernel wakes)",
+ "fixed_by": "c5c/w3b-sec repair pass: sandbox/boot.py, sandbox/jail.py",
+ "id": "DEF-O-25",
+ "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W5_cross_world (v5.crossworld.shared_futexes_do_not_cross_worlds, MUST_HOLD; leak on 31ae226), tests/test_v5_security_sandbox.py::test_other_processes_attributes_clocks_notifications_and_shared_futexes_are_refused",
+ "requirements": [
+  "W.5",
+  "SP-16b",
+  "W.n1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream O repair pass (c5c/w3b-sec): independent adversarial review W.n1",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Shared futexes were a channel between any two processes on the machine: a futex without FUTEX_PRIVATE_FLAG on a page of a file mapping is keyed by the file (inode and offset), and every process maps the same libc. A sandbox worker of one world waited on a word of libc's code and a worker of another world woke it (and counted its waiter): 5 of 5 secret bits crossed."
+}
+```
+
+### DEF-O-26 (high, fixed): Other processes' CPU clocks were readable without any permission (clock_gettime on MAKE_PROCESS_CPUCLOCK(pid)): a program in one w
+
+```json
+{
+ "area": "O_security",
+ "fix": "seccomp (sandbox and tool-mode jail): clock_gettime/getres/nanosleep, timer_create, clock_settime/adjtime refuse per-process clock ids of other processes ((id & 0x80000004) == 0x80000000) with EINVAL; CLOCK_PROCESS_CPUTIME_ID and the process's own thread clocks stay",
+ "fixed_by": "c5c/w3b-sec repair pass: sandbox/boot.py, sandbox/jail.py",
+ "id": "DEF-O-26",
+ "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W5_cross_world (v5.crossworld.cpu_clocks_do_not_cross_worlds, MUST_HOLD; leak on 31ae226), tests/test_v5_security_sandbox.py::test_other_processes_attributes_clocks_notifications_and_shared_futexes_are_refused",
+ "requirements": [
+  "W.5",
+  "SP-16b",
+  "W.n1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream O repair pass (c5c/w3b-sec): independent adversarial review W.n1",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Other processes' CPU clocks were readable without any permission (clock_gettime on MAKE_PROCESS_CPUCLOCK(pid)): a program in one world read the CPU time of another world's sandbox worker (365 ms) - a channel (the writer burns CPU or idles per time slot) and a pid-existence oracle."
+}
+```
+
+### DEF-O-27 (high, fixed): The real-world bridge's abuse prevention was a denylist and the SP-16b measurement was circular (realworld_abuse.PLATFORM_URLS is 
+
+```json
+{
+ "area": "O_security",
+ "fix": "realworld/bridge.py step 8: before the first request to each scheme/host/port the host must serve /.well-known/crucible-realworld-bridge.txt (status 200, no redirect, at most 4 KiB) with the line 'crucible-realworld-authorization: <sha256 of the authorisation document>' (an ACME-like proof that the operator controls the host); loopback needs none; the denylist stays as defence in depth. realworld_abuse.check tries 10 hosts on no list (impostors on loopback behind public addresses, in its own interpreter) plus a positive control on an owned public host",
+ "fixed_by": "c5c/w3b-sec repair pass: realworld/bridge.py, redteam/v5/realworld_abuse.py",
+ "id": "DEF-O-27",
+ "owner": "O",
+ "regression_tests": "tests/v5/test_gate_SP_16b.py (realworld_abuse_paths, unlisted_third_party_hosts_refused 10 of 10, realworld_owned_public_host_control_failed False), tests/test_realworld_gate.py::test_public_hosts_need_the_operators_ownership_file",
+ "requirements": [
+  "SP-16b",
+  "SP-16",
+  "W.n1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "wave-3b verifier of c5c/w3b-sec (independent check of workstream O's report), repair pass",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "The real-world bridge's abuse prevention was a denylist and the SP-16b measurement was circular (realworld_abuse.PLATFORM_URLS is a subset of THIRD_PARTY_PLATFORMS): authorisation documents naming mastodon.xyz, lemmy.world, Amazon SES, the Hacker News API, bit.ly, ntfy.sh, Mailjet and the IP literal 140.82.112.3 (github.com) were accepted, and a request of the experiment reached each of them (impostors on loopback in the repair-pass measurement)."
+}
+```
+
+### DEF-O-28 (medium, fixed): Instrument-integrity controls could not demonstrate what they claimed: the stash adversaries (ProcessStash, FileStash) were N's We
+
+```json
+{
+ "area": "O_security",
+ "fix": "redteam/v5/adversaries._TableStash: learning of its own (nearest-neighbour offsets from the public defaults that its search committed to; in-process gain 0.584, CI 0.27..0.90 on the branch); instrument.control_timing_channel: one setting, 160 interleaved episodes, passes only when the 95% interval of the latency-score correlation is inside +-0.35 (power 0.98) and the partition latency ratio inside 1+-0.10; civ.Tier2OfflineAndIsolated + suite.gate_metrics: vacuous rows reported as evaluator_isolation_vacuous and not counted as W.2 runs; base.sweep_read_only breadth-first with a capped flag; test_gate_W counts only reviews by others; metering.Memo bounded process-wide (largest lineage evicts)",
+ "fixed_by": "c5c/w3b-sec repair pass: redteam/v5/adversaries.py, redteam/v5/instrument.py, redteam/v5/civ.py, redteam/v5/base.py, redteam/v5/suite.py, sandbox/metering.py, tests/v5/test_gate_W.py",
+ "id": "DEF-O-28",
+ "owner": "O",
+ "regression_tests": "tests/v5/test_gate_SP_15_8.py (process_memory_stash, files_outside_checkpoint, timing_channel), tests/v5/test_gate_W.py::test_W2_evaluator_isolation, test_Wn1_independent_adversarial_review, tests/test_v5_security_sandbox.py::test_in_process_memo_is_bounded_process_wide_and_the_largest_lineage_pays",
+ "requirements": [
+  "SP-15.8",
+  "W.2",
+  "W.n1"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "wave-3b verifier of c5c/w3b-sec (independent check of workstream O's report), repair pass",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Instrument-integrity controls could not demonstrate what they claimed: the stash adversaries (ProcessStash, FileStash) were N's WeightLearner with redirected weights, so the stash controls had power only when N's learner learned (on the check merge: in-process gain 0.037, CI -0.043..0.118 - both inconclusive); the timing-channel control used 24 episodes and a 'p < 0.01 and |rho| > 0.5' rule (it could not detect a channel) with six learner settings confounding latency and score; the Tier 2 isolation probe counted vacuous rows (no canary) as held W.2 probes (17 of 30 on the merge) and its 1,200-call sweep cap left later read-only tools uncalled in 15 of 30; Gate W.n1 counted workstream O's own review as independent; the in-process meter memo lost its process-wide bound."
 }
 ```

@@ -301,6 +301,14 @@ User-Agent itself as an automation disclosure naming the experiment, and refuses
 From, Forwarded/X-Forwarded-For/X-Real-IP/Via, Referer, Origin, ...). Limits, stated: a suffix list is not a complete
 census of platforms; an operator who owns a service can still misuse it - the bridge prevents posing as a person and
 acting on platforms one does not own, not every misuse.
+Amendment (repair pass, 2026-11-27, same workstream): the suffix list is no longer the boundary. (3) Before the first
+request to a scheme/host/port the host must serve `/.well-known/crucible-realworld-bridge.txt` (status 200, no
+redirect, <= 4 KiB) containing `crucible-realworld-authorization: <sha256 of the authorisation document>` - proof
+that the operator controls the host's root, as in an ACME HTTP-01 challenge; the check is a logged GET counted
+against the budgets; a loopback address (this machine, listed explicitly) needs none. The verifier had other
+Mastodon/Lemmy instances, Amazon SES, the Hacker News API, URL shorteners and an IP literal of a listed platform
+accepted (DEFECTS DEF-O-27). The list stays as defence in depth. Limit, stated: an operator who controls a host can
+still misuse it; a host that lets users write its root (rare) would let a user authorise it.
 
 ## D-77 Sandbox time and protocol accounting after the wave-3b review (2026-11-26, workstream O; amends D-20)
 (1) Nested sandbox jobs (a program's world call that runs another sandboxed program, at any depth) share the enclosing
@@ -321,3 +329,22 @@ are private to it, so a lock could only ever exclude another tenant (a channel);
 working. Rules out refusing locks outright (sqlite3 WAL fails with "disk I/O error" when F_GETLK is refused). (6) Every
 jailed learner process runs under its own uid (16-bit range above the per-kind jail uids), so thread budgets and
 same-uid kernel checks are per learner.
+Amendment (repair pass after the wave-3b verifier, 2026-11-27, same workstream): (7) syscalls that name a target
+process are allowed on the calling process only for READING as well as writing (getpriority/ioprio_get with
+PRIO_PROCESS/IOPRIO_WHO_PROCESS and 0, sched_get*, getpgid, getsid, setpgid, get_robust_list; capget refused), in the
+sandbox and in tool-mode jails (whose table now also covers prlimit64, setpriority, sched_set* and ioprio_set): a
+process could set its own scheduling attributes and anyone could read them (16 bits between worlds in 12 s; a pid
+oracle; DEF-O-21/22). (8) fcntl F_NOTIFY is refused everywhere (DEF-O-23). (9) Futex wake/requeue operations without
+the private flag are refused in the sandbox and tool-mode jails (a futex on a file mapping is keyed by the file, and
+every process maps libc: DEF-O-25); waiting stays (pthread_join). (10) Other processes' CPU clocks are refused with
+EINVAL (readable without permission: DEF-O-26); a program's own process and thread clocks stay - a pid-named clock of
+the program itself (clock_getcpuclockid(0)) is refused too. (11) Disk quotas count deleted files a process holds
+open (the parent reads /proc/<pid>/fd and maps under the process's filesystem identity; sandbox workers are made
+dumpable again after the uid change so that this works; nothing sandboxed can read /proc or ptrace), and a deleted
+file of the directory kept alive by a mapping alone stops the process (DEF-O-24). (12) Learner uids are claimed
+machine-wide (O_EXCL claim files) instead of hashed (a forced collision let one learner kill another). (13) Advisory
+locks stay no-ops (5): pinned by a test - two descriptors of one program do not exclude each other; threading locks
+are unaffected. Ruled out: refusing non-private futex WAIT (pthread_join uses it); refusing file removal in working
+directories (programs that delete their own files would break; measuring held files is enough). Residual, stated:
+machine-global counters (pid allocation, sysinfo process count, load, free memory) remain noisy low-rate channels of
+any shared kernel; a VM per tenant would remove them.
