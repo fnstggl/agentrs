@@ -81,3 +81,36 @@ def test_congestion_routes_share_a_link_and_are_convex():
         assert CW.identify_tighter_route(F.make("net_congestion_routes", seed))["ok"]
     t = _truth(F.make("net_congestion_routes", 1))
     assert max(t) > 1.5 * min(t)                     # the held-out flows reach the steep part of the delay curves
+
+
+@pytest.mark.parametrize("family", ["plan_spoilage", "plan_serial_stages", "dl_delayed_adoption"])
+def test_stock_outflows_are_always_served(family):
+    # no phantom units: every stock's requested outflow (the saturating sales/processing node) is what it gives up
+    for seed in (0, 11):
+        e = F.make(family, seed)
+        c, eng = e._config, e._engine
+        name = list(c["objective"]["heldout"][0])[0]
+        stocks = [nd for nd in c["nodes"] if nd.get("prim", "").startswith("stock")]
+        rng = np.random.default_rng(seed)
+        for _ in range(50):
+            e.step({"kind": "levers", "values": {name: float(rng.choice([0.0, 3.0, 10.0]))}})
+            for nd in stocks:
+                i = eng.idx[nd["id"]]
+                want = sum(w * e._state["h"][0, -1, eng.idx[src]] for src, lag, w in nd["ports"].get("outflow", [])
+                           if lag == 0)
+                assert want - float(e._state[f"ps:{i}:taken"][0]) < 1e-9
+
+
+def test_spoilage_and_serial_chain_claims_and_identification():
+    for seed in (0, 10):
+        assert CW.claim_spoilage(F.make("plan_spoilage", seed))["ok"]
+        assert CW.identify_spoilage_rate(F.make("plan_spoilage", seed))["ok"]
+        r = CW.claim_serial_bottleneck(F.make("plan_serial_stages", seed))
+        assert r["ok"] and r["pulse_reaches_stage_two_after"] == 1 + r["transit_lag"], r
+        assert CW.identify_bottleneck_stage(F.make("plan_serial_stages", seed))["ok"]
+
+
+def test_new_pair_protocols_verify_the_nearest_differences():
+    from crucible.rapid import distinct as D
+    assert D.verify("plan_serial_stages", "plan_spoilage")["ok"]
+    assert D.verify("dl_delayed_adoption", "plan_spoilage")["ok"]
