@@ -15,7 +15,7 @@ def _env(config="two_categories", seed=0):
 def test_definition_valid_reference_tool_only_and_measured_structure():
     assert base.validate(M.DOMAIN) == []
     assert base.reads_world(M.DOMAIN.reference_policy("p:agent", {})) == []
-    fp = M.structure(base.world("marketplace", "two_incumbents", 0))
+    fp = M.structure(base.BuiltWorld(base.world("marketplace", "two_incumbents", 0)))
     assert fp["incumbents"] == "several" and fp["incumbent_rules"] == ["lenient", "strict"]
 
 
@@ -59,11 +59,13 @@ def test_reference_exchange_succeeds_where_idle_and_a_free_exchange_fail():
     for name, pol in (("ref", M.ExchangeOperator), ("idle", lambda a, o: K.IdlePolicy()), ("free", M.FreeExchange)):
         env = _env(seed=1)
         a = env.agents()[0]
-        K.run_env(env, a, pol(a, M.objective(env.world, a, 1)), days=45, dt=6 * 3600)
+        K.run_env(env, a, pol(a, M.DOMAIN.make_objective(env.world, a, 1)), days=45, dt=6 * 3600)
         out[name] = env.verify()["evaluation"][a]
     assert out["ref"]["success"], out["ref"]
     assert not out["idle"]["success"] and not out["free"]["success"]
     assert out["free"]["details"]["operating_result_15d_cents"] <= 0
+    # the score agrees with the success check: no positive operating result, no sustainability credit
+    assert out["free"]["score"] <= 0.75
 
 
 def test_same_seed_same_log():
@@ -81,5 +83,8 @@ def test_evaluator_gives_the_same_verdict_on_a_world_rebuilt_from_its_log():
     """The evaluator reads recorded world state only: on a world rebuilt from the event log alone (World.replay,
     no in-memory history) it gives the same verdict (framework evaluator_report)."""
     rep = base.evaluator_report(M.DOMAIN, "two_categories", 0, 6)
-    assert rep["ok"] and rep["replay_equal"] and rep["replay_digest_equal"], rep
+    # (the autonomy ablation needs the whole horizon: base.check and the SP-9.<n> gate measure it)
+    assert rep["replay_equal"] and rep["replay_digest_equal"] and rep["evaluator_hidden"], rep
+    assert rep["has_success_and_score"] and not rep["participant_tools_named_like_evaluator"], rep
+    assert not rep["participant_tools_calling_evaluator"], rep
 

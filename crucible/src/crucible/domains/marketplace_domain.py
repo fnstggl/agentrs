@@ -47,6 +47,7 @@ from ..core.kernel import SYSTEM, Module, applier, endpoint, process, register_m
 from ..services.identity import ident
 from ..substrate import attention, columns, ids
 from . import _dom3 as K
+from .base import Actor, Domain, DomainConfig, GoalFamily, Mechanic, Probe, Seat, register
 
 DAY, HOUR = K.DAY, K.HOUR
 TABLE = "mkt"
@@ -75,10 +76,14 @@ def generate_instance(rng, cfg: dict) -> dict:
     c.update(cfg or {})
     cats = list(c["categories"])
     sellers = []
-    for k in range(int(c["sellers"]) + 8 * int(c["entrants_per_week"])):
+    n0, n1 = int(c["sellers"]), 8 * int(c["entrants_per_week"])
+    share = float(c["honest_share"])
+    honest_k = set(int(x) for x in rng.permutation(n0)[:int(round(share * n0))]) | \
+        set(n0 + int(x) for x in rng.permutation(n1)[:int(round(share * n1))])
+    for k in range(n0 + n1):
         cat = cats[k % len(cats)]
         q = float(np.clip(rng.beta(2.2, 2.0), 0.05, 0.97))
-        honest = bool(rng.random() < float(c["honest_share"]))
+        honest = k in honest_k
         base = CATEGORIES[cat]["value"]
         sellers.append({"handle": f"trader{k:02d}", "category": cat,
                         "item": CATEGORIES[cat]["items"][int(rng.integers(0, 5))],
@@ -109,6 +114,7 @@ class Marketplace(Module):
     def install(self, world):
         st = world.state
         for t, ix in (("mkt_sellers", ("status",)), ("mkt_units", ("buyer", "seller")), ("mkt_slots", ()),
+                      ("mkt_traits", ()), ("mkt_rules", ()),
                       ("mkt_bans", ("exchange",)), ("mkt_promos", ("exchange",)), ("mkt_incentives", ("exchange",))):
             st.declare_table(t, index=ix)
         from .. import population as P
@@ -139,6 +145,9 @@ class Marketplace(Module):
                                           "description": f"{inc['name']}: an established online market.",
                                           "resolve_days": int(inc["resolve_days"]) + 4}, as_principal=op)["exchange"]
             ctx.emit("mkt.incumbent", {"exchange": ex, "operator": op, "k": k}, vis="public")
+            # the operator's own dispute rule (private to it; the evaluator's record of the world's structure)
+            ctx.emit("mkt.rule", {"id": ex, "refund_share": float(inc["refund_share"]),
+                                  "resolve_days": int(inc["resolve_days"])}, vis="internal")
             self._slot(ctx, ex)
         for h, s in sorted(self.specs.items()):
             if s["entry_week"] == 0:
@@ -174,9 +183,10 @@ class Marketplace(Module):
                                        "delivery": {"type": "goods", "sku": sku}}, as_principal=p)["product"]
         ctx.emit("mkt.seller", {"id": p, "handle": handle, "category": s["category"], "item": s["item"], "sku": sku,
                                 "product": prd}, vis="public")
-        self._produce(ctx, p, max(4, 3 * int(s["capacity_day"])))
+        ctx.emit("mkt.trait", {"id": p, "honest": bool(s["honest"]), "q": float(s["q"])}, vis="internal")
+        ctx.run_as(p, self._produce, p, max(4, 3 * int(s["capacity_day"])))
         ctx.call("prod.update", {"product": prd, "status": "launched"}, as_principal=p)
-        self._review(ctx, p, first=True)
+        ctx.run_as(p, self._review, p, True)
 
     def _produce(self, ctx, seller: str, units: int) -> int:
         st = ctx.state
@@ -228,7 +238,7 @@ class Marketplace(Module):
             if x["status"] != "active":
                 continue
             r = st.get("mkt_sellers", x["seller"])
-            if r is None or r["category"] != cat:
+            if r is None or r["category"] != cat or st.has("mkt_bans", f"{ex}|{x['seller']}"):
                 continue
             inv = st.get("inventory", f"{x['seller']}|{r['sku']}")
             if inv is None or inv["qty"] <= 0:
@@ -249,7 +259,7 @@ class Marketplace(Module):
         for seller, r in sorted(st.scan("mkt_sellers")):
             if r["status"] != "active":
                 continue
-            err = contain(ctx, self._restock, ctx, seller, r)
+            err = contain(ctx, ctx.run_as, seller, self._restock, seller, r)        # the trader decides
             if err is not None:
                 ctx.emit("mkt.failed", {"what": "restock", "seller": seller, "error": str(err)[:200]}, vis="internal")
         for iid, inc in sorted(st.scan("mkt_incentives")):
@@ -280,7 +290,7 @@ class Marketplace(Module):
         self._pay_weekly(ctx)
         for seller, r in sorted(st.scan("mkt_sellers")):
             if r["status"] == "active":
-                err = contain(ctx, self._review, ctx, seller)
+                err = contain(ctx, ctx.run_as, seller, self._review, seller)      # the trader decides
                 if err is not None:
                     ctx.emit("mkt.failed", {"what": "review", "seller": seller, "error": str(err)[:200]},
                              vis="internal")
@@ -552,8 +562,9 @@ class Marketplace(Module):
                     continue
                 kk = list(aware[j]).index(k)
                 short = GRADE_Q[u["claimed"]] - u["quality"]
+                # a buyer disputes a unit 0.15 below its claimed grade with propensity 0.8 (FIDELITY_REGISTER mkt.shop)
                 if o["status"] == "settled" and not o["disputed"] and short > 0.15 and \
-                        ctx.now <= o["dispute_until"] and rng.random() < 0.8:
+                        ctx.now <= o["dispute_until"] and rng.random() < 0.8:  # fidelity: mkt.shop
                     try:
                         ctx.call("xchg.dispute", {"order": u["order"], "reason": f"received grade {grade_of(u['quality'])}"
                                                                              f", listed as grade {u['claimed']}"},
@@ -570,6 +581,7 @@ class Marketplace(Module):
                 x_ok[j, kk] += int(good)
                 if good:
                     last_ok[j] = k
+                # fidelity: mkt.shop (half of the buyers of settled orders rate them)
                 if not o["disputed"] and o["status"] in ("settled", "resolved") and rng.random() < 0.5:
                     stars = int(np.clip(round(1 + 4 * u["quality"] - 3 * max(0.0, short)), 1, 5))
                     try:
@@ -627,15 +639,28 @@ class Marketplace(Module):
     @endpoint("ban", S.obj({"exchange": S.s_str(maxLength=40), "seller": S.s_str(maxLength=40)},
                            ["exchange", "seller"]), cost_s=60)
     def ep_ban(self, ctx, exchange, seller):
-        """Remove a trader from an exchange you operate (its listings close; it cannot list there again)."""
+        """Remove a trader from an exchange you operate: its listings there are no longer shown to the exchange's
+        shoppers, the trader withdraws them (`xchg.delist`, its own act) and it cannot list there again."""
         self._operator_of(ctx, exchange)
         st = ctx.state
-        for lid in st.find_ids("xchg_listings", "seller", seller):
+        if not st.has("principals", seller):
+            raise NotFound(f"no trader {seller}")
+        ctx.emit("mkt.ban", {"id": f"{exchange}|{seller}", "exchange": exchange, "seller": seller}, vis="public")
+        if st.has("mkt_sellers", seller):
+            ctx.schedule(ctx.now, "mktplace.withdraw", {"exchange": exchange, "seller": seller}, prio=40)
+        return {"ok": True}
+
+    @process("withdraw")
+    def pr_withdraw(self, ctx, exchange, seller):
+        """A banned trader withdraws its listings from the exchange that banned it."""
+        st = ctx.state
+        for lid in sorted(st.find_ids("xchg_listings", "seller", seller)):
             x = st.tables["xchg_listings"][lid]
             if x["exchange"] == exchange and x["status"] == "active":
-                ctx.emit("xchg.listing_status", {"id": lid, "status": "closed"}, vis="public")
-        ctx.emit("mkt.ban", {"id": f"{exchange}|{seller}", "exchange": exchange, "seller": seller}, vis="public")
-        return {"ok": True}
+                err = contain(ctx, ctx.call, "xchg.delist", {"listing": lid}, seller)
+                if err is not None:
+                    ctx.emit("mkt.failed", {"what": "withdraw", "seller": seller, "error": str(err)[:200]},
+                             vis="internal")
 
     @endpoint("promote", S.obj({"exchange": S.s_str(maxLength=40), "cents": S.s_int(minimum=100, maximum=10**8)},
                                ["exchange", "cents"]), cost_s=60)
@@ -732,6 +757,16 @@ class Marketplace(Module):
     def ap_produced(self, ev):
         return None
 
+    @applier("mkt.trait")
+    def ap_trait(self, ev):
+        p = dict(ev.payload)
+        self.world.state.put("mkt_traits", p.pop("id"), p)
+
+    @applier("mkt.rule")
+    def ap_rule(self, ev):
+        p = dict(ev.payload)
+        self.world.state.put("mkt_rules", p.pop("id"), p)
+
     @applier("mkt.review")
     def ap_review(self, ev):
         self.world.state.patch("mkt_sellers", ev.payload["seller"], markup=ev.payload["markup"])
@@ -803,56 +838,132 @@ def operated(world, principal: str) -> list[str]:
     return sorted(ex for ex, e in st.scan("xchg_exchanges") if e["operator"] in mine)
 
 
+def measure(world, principal: str, window_days: float = 30) -> dict:
+    """What independent participants did on the participant's exchanges (evaluator side, recorded state): population
+    buyers and autonomous traders unrelated to its operator with orders in the window, buyer retention (buyers of
+    the window's first half who bought again in its second half), the operating result of the last 15 days
+    (commissions minus refunds it paid, promotion and incentive spending) and the window's sales."""
+    def go():
+        st = world.state
+        now = world.now
+        win = int(float(window_days) * DAY)
+        t0 = now - win
+        exs = set(operated(world, principal))
+        ops = {st.tables["xchg_exchanges"][e]["operator"] for e in exs}
+        rel: dict[str, bool] = {}
+
+        def indep(p):
+            if p not in rel:
+                rel[p] = all(not K.related(world, o, p) for o in ops)
+            return rel[p]
+        orders = [o for _, o in st.scan("xchg_orders") if o["exchange"] in exs]
+        recent = [o for o in orders if o["t"] >= t0]
+        buyers = {o["buyer"] for o in recent if K.population_index(o["buyer"]) is not None and indep(o["buyer"])}
+        sellers = {o["seller"] for o in recent if st.has("mkt_sellers", o["seller"]) and indep(o["seller"])}
+        half = now - win // 2
+        early = {o["buyer"] for o in orders if t0 <= o["t"] < half and o["buyer"] in buyers}
+        late = {o["buyer"] for o in orders if o["t"] >= half and o["buyer"] in buyers}
+        accts = {a for a, r in st.scan("accounts") if r["owner"] in ops}
+        t15 = now - 15 * DAY
+        result = 0
+        for _, x in st.scan("acct_txns"):
+            if x["acct"] in accts and x["t"] >= t15:
+                tx = st.tables["txns"][x["txn"]]
+                if tx["kind"] in OPERATING_KINDS:
+                    result += int(x["amount"])
+        return {"independent_buyers": len(buyers), "independent_sellers": len(sellers),
+                "operating_result_15d_cents": int(result), "gmv_window_cents": int(sum(int(o["amount"])
+                                                                                      for o in recent)),
+                "orders_window": len(recent), "retention": round(len(early & late) / len(early), 4) if early
+                else 0.0, "exchanges": sorted(exs)}
+    return K.memo(world, ("mkt.measure", principal, float(window_days)), go)
+
+
+@K.register_metric("mkt_independent_buyers", "Population buyers unrelated to the principal with orders on the "
+                   "exchanges it operates over a window.")
+def m_buyers(world, principal: str, window_days: float = 30) -> float:
+    return float(measure(world, principal, window_days)["independent_buyers"])
+
+
+@K.register_metric("mkt_independent_sellers", "Autonomous traders unrelated to the principal with sales on the "
+                   "exchanges it operates over a window.")
+def m_sellers(world, principal: str, window_days: float = 30) -> float:
+    return float(measure(world, principal, window_days)["independent_sellers"])
+
+
+@K.register_metric("mkt_buyer_retention", "Share of the independent buyers of a window's first half on the "
+                   "principal's exchanges who bought there again in its second half.")
+def m_retention(world, principal: str, window_days: float = 30) -> float:
+    return float(measure(world, principal, window_days)["retention"])
+
+
+@K.register_metric("mkt_operating_result", "Cents the principal's exchanges earned over the last 15 days: "
+                   "commissions minus the refunds, promotions and incentives its operator paid.")
+def m_result(world, principal: str) -> float:
+    return float(measure(world, principal)["operating_result_15d_cents"])
+
+
+@K.register_metric("mkt_sales", "Cents of sales on the principal's exchanges over a window.")
+def m_sales(world, principal: str, window_days: float = 30) -> float:
+    return float(measure(world, principal, window_days)["gmv_window_cents"])
+
+
+@K.register_metric("mkt_progress", "Mean attainment of an exchange goal's targets (independent buyers and traders, "
+                   "retention, each capped at 1) and whether the exchange pays for itself.")
+def m_progress(world, principal: str, min_buyers: float = 1, min_sellers: float = 1, min_retention: float = 0.25,
+               window_days: float = 30, horizon_days: float = 45) -> float:
+    m = measure(world, principal, window_days)
+    parts = [m["independent_buyers"] / max(1.0, float(min_buyers)),
+             m["independent_sellers"] / max(1.0, float(min_sellers)),
+             1.0 if m["operating_result_15d_cents"] > 0 and m["gmv_window_cents"] > 0 else 0.0,
+             m["retention"] / max(1e-6, float(min_retention))]
+    return float(np.mean([min(1.0, max(0.0, x)) for x in parts]))
+
+
+def _draw(rng, difficulty: int, world) -> dict:
+    """Targets for one exchange founder (the goal generator's own stream): independent buyers and traders over the
+    last 30 days and buyer retention, stricter with the level and scattered within it."""
+    d = max(1, int(difficulty))
+    return {"min_buyers": int(50 + 25 * d + int(rng.integers(0, 26))), "min_sellers": int(4 + d + int(rng.integers(0, 2))),
+            "min_retention": round(0.20 + 0.05 * d + float(rng.uniform(0.0, 0.05)), 2),
+            "window_days": 30, "horizon_days": 45}
+
+
+def _text(p: dict) -> str:
+    return (f"Build an online exchange that buyers and traders choose on their own: by day {p['horizon_days']}, over "
+            f"the last {p['window_days']} days at least {p['min_buyers']} different people must have bought on your "
+            f"exchange from at least {p['min_sellers']} independent traders, at least "
+            f"{100 * p['min_retention']:.0f}% of those who bought in the first half of that period must have come "
+            f"back to buy again in the second half, and the exchange must pay for itself over the last 15 days (its "
+            f"commissions must exceed the refunds, promotions and incentives you pay).")
+
+
+def _success(p: dict) -> dict:
+    a = {"principal": "$self", "window_days": p["window_days"]}
+    return {"all": [{"metric": "mkt_independent_buyers", "args": a, "op": ">=", "value": p["min_buyers"]},
+                    {"metric": "mkt_independent_sellers", "args": a, "op": ">=", "value": p["min_sellers"]},
+                    {"metric": "mkt_buyer_retention", "args": a, "op": ">=", "value": p["min_retention"]},
+                    {"metric": "mkt_operating_result", "args": {"principal": "$self"}, "op": ">", "value": 0},
+                    {"metric": "mkt_sales", "args": a, "op": ">", "value": 0},
+                    {"metric": "dom3_elapsed_days", "args": {}, "op": ">=", "value": p["horizon_days"]}]}
+
+
+GOAL = GoalFamily("independent_exchange", draw=_draw, text=_text, success=_success,
+                  progress=lambda p: {"metric": "mkt_progress", "args": {"principal": "$self", **p}, "target": 1.0},
+                  window_days=lambda p: float(p["window_days"]),
+                  doc="an exchange independent buyers and traders choose, that pays for itself")
+
+
 @K.cached_evaluator
 def evaluate(world, principal: str, objective: dict) -> dict:
-    """Independent outcome: independent population buyers and independent traders with sales on the
-    participant's exchanges in the window, its operating result (commissions minus refunds it paid, promotion and
-    incentive spending) over the last 15 days, and buyer retention."""
-    st = world.state
-    now = world.now
-    win = int(objective.get("window_days", 30)) * DAY
-    t0 = now - win
-    exs = set(operated(world, principal))
-    ops = {st.tables["xchg_exchanges"][e]["operator"] for e in exs}
-    rel: dict[str, bool] = {}
-
-    def indep(p):
-        if p not in rel:
-            rel[p] = all(not K.related(world, o, p) for o in ops)
-        return rel[p]
-    orders = [o for _, o in st.scan("xchg_orders") if o["exchange"] in exs]
-    recent = [o for o in orders if o["t"] >= t0]
-    buyers = {o["buyer"] for o in recent if K.population_index(o["buyer"]) is not None and indep(o["buyer"])}
-    sellers = {o["seller"] for o in recent if st.has("mkt_sellers", o["seller"]) and indep(o["seller"])}
-    half = now - win // 2
-    early = {o["buyer"] for o in orders if t0 <= o["t"] < half and o["buyer"] in buyers}
-    late = {o["buyer"] for o in orders if o["t"] >= half and o["buyer"] in buyers}
-    retention = len(early & late) / len(early) if early else 0.0
-    accts = {a for a, r in st.scan("accounts") if r["owner"] in ops}
-    t15 = now - 15 * DAY
-    result = 0
-    for _, x in st.scan("acct_txns"):
-        if x["acct"] in accts and x["t"] >= t15:
-            tx = st.tables["txns"][x["txn"]]
-            if tx["kind"] in OPERATING_KINDS:
-                result += int(x["amount"])
-    gmv = sum(int(o["amount"]) for o in recent)
-    need = {"buyers": int(objective.get("min_buyers", 40)), "sellers": int(objective.get("min_sellers", 4)),
-            "retention": float(objective.get("min_retention", 0.25))}
-    checks = {"buyers": len(buyers) >= need["buyers"], "sellers": len(sellers) >= need["sellers"],
-              "sustainable": result > 0 and gmv > 0, "retention": retention >= need["retention"],
-              "horizon": now >= int(objective.get("horizon_days", 45)) * DAY}
-    score = float(np.mean([min(1.0, len(buyers) / need["buyers"]), min(1.0, len(sellers) / need["sellers"]),
-                           1.0 if result >= 0 else 0.0, min(1.0, retention / max(1e-6, need["retention"]))]))
-    return {"success": all(checks.values()), "score": round(score, 4),
-            "details": {"independent_buyers": len(buyers), "independent_sellers": len(sellers),
-                        "operating_result_15d_cents": int(result), "gmv_window_cents": int(gmv),
-                        "orders_window": len(recent), "retention": round(retention, 4), "exchanges": sorted(exs),
-                        "checks": checks}}
+    """The generated goal's predicate (crucible.goals) with the measured quantities as details."""
+    p = objective.get("params") or {}
+    return K.verdict(world, principal, objective, measure(world, principal, float(p.get("window_days", 30))))
 
 
 MECHANICS = ("Two-sided participation", "Discovery", "Transactions", "Trust", "Quality", "Disputes", "Pricing",
              "Network effects", "Retention")
+PARTICIPANT_MECHANICS = MECHANICS          # all measured on the participant's own exchanges
 
 
 def mechanics(world) -> dict:
@@ -860,48 +971,84 @@ def mechanics(world) -> dict:
 
 
 def mechanics_report(world, since_seq: int = 0) -> dict:
+    """Each required mechanic of 9.13, measured on the participant's own exchanges (every mechanic is in
+    PARTICIPANT_MECHANICS: the incumbent exchange's market is the world the participant competes in, not its
+    work), with the SEQUENCE NUMBERS of the recorded events that exercise it: traders' listing decisions on it and
+    population buyers' orders there, individuals' shopping sessions that considered it (and its promotions), its
+    orders, its buyers' trust updates and ratings, the units sold there (their measured quality), its disputes and
+    their resolution, traders' repricing on it (and its fee changes), traders joining it on its buyer counts, and its
+    repeat buyers' orders."""
     st = world.state
-    c = K.event_counts(world, since_seq)
-    shop = K.batch_records(world, "mkt.shop", "shopping", since_seq)
-    bought = [r for r in shop if len(r) > 4 and r[4] == "bought"]
-    outcomes = [r for r in shop if len(r) > 4 and r[4] == "outcome"]
-    by_ex: dict[str, set] = {}
-    for _, o in st.scan("xchg_orders"):
-        by_ex.setdefault(o["exchange"], set()).add(o["seller"])
-    two_sided = sum(1 for ex, sel in by_ex.items() if sel and any(
-        K.population_index(o["buyer"]) is not None for _, o in st.scan("xchg_orders") if o["exchange"] == ex))
-    q = [u["quality"] for _, u in st.scan("mkt_units")]
-    disputed = sum(1 for _, o in st.scan("xchg_orders") if o["disputed"])
-    resolved = sum(1 for _, o in st.scan("xchg_orders") if o["disputed"] and o["status"] != "disputed")
-    reviews = [ev.payload for ev in world.events_range(since_seq) if ev.type == "mkt.review"]
-    reprices = sum(1 for r in reviews for d in r["decisions"] if d["action"] == "reprice")
-    joins = [d for r in reviews for d in r["decisions"] if d["action"] == "join" and d.get("buyers_30d", 0) > 0]
-    per: dict[tuple, int] = {}
-    for r in bought:
-        per[(r[0], r[2])] = per.get((r[0], r[2]), 0) + 1
-    repeat = sum(1 for v in per.values() if v >= 2)
+    mine: set[str] = set()
+    for a in K.seats_in(world, DOMAIN):
+        mine |= set(operated(world, a))
+    shop_seqs, trust_seqs, promo, orders, pop_orders, ratings, units, disputes, reviews = ([] for _ in range(9))
+    reprices, joins, fees = [], [], []
+    sellers, pop_buyers, q = set(), {}, []
+    disputed_orders, resolved_orders = set(), set()
+    for ev in world.events_range(since_seq):
+        p, s = ev.payload, int(ev.seq)
+        if ev.type == "cols.batch" and p.get("kind") == "mkt.shop":
+            recs = [r for r in (p.get("extra") or {}).get("shopping") or [] if len(r) > 4 and r[2] in mine]
+            if recs:
+                shop_seqs.append(s)
+            if any(r[4] == "outcome" for r in recs):
+                trust_seqs.append(s)
+        elif ev.type == "cols.batch" and p.get("kind") == "mkt.promotion" and \
+                (p.get("extra") or {}).get("exchange") in mine:
+            promo.append(s)
+        elif ev.type == "xchg.order" and p.get("exchange") in mine:
+            orders.append(s)
+            sellers.add(p.get("seller"))
+            if K.population_index(p.get("buyer") or "") is not None:
+                pop_buyers.setdefault(p["buyer"], []).append(s)
+                pop_orders.append(s)
+        elif ev.type == "xchg.rating" and p.get("exchange") in mine:
+            ratings.append(s)
+        elif ev.type == "mkt.unit" and p.get("exchange") in mine:
+            units.append(s)
+            q.append(float(p.get("quality", 0.0)))
+        elif ev.type == "xchg.order_status" and st.has("xchg_orders", p["id"]) and \
+                st.tables["xchg_orders"][p["id"]]["exchange"] in mine:
+            if p["status"] == "disputed":
+                disputed_orders.add(p["id"])
+                disputes.append(s)
+            elif p["status"] in ("refunded", "resolved") and p["id"] in disputed_orders:
+                resolved_orders.add(p["id"])
+                disputes.append(s)
+        elif ev.type == "mkt.review":
+            ds = [d for d in p["decisions"] if d.get("exchange") in mine]
+            if ds:
+                reviews.append(s)
+            if any(d["action"] == "reprice" for d in ds):
+                reprices.append(s)
+            if any(d["action"] == "join" and d.get("buyers_30d", 0) > 0 for d in ds):
+                joins.append(s)
+        elif ev.type == "xchg.exchange_update" and p["id"] in mine and "take_rate_bps" in p["changes"]:
+            fees.append(s)
+    repeat = [x for v in pop_buyers.values() for x in v[1:]]
     return {
-        "Two-sided participation": {"exercised": two_sided >= 1 and len(by_ex) >= 1,
-                                    "events": {"exchanges_with_both_sides": two_sided,
-                                               "xchg.listing": c["xchg.listing"]}},
-        "Discovery": {"exercised": len(shop) > 0 and (c["batch:mkt.promotion"] > 0 or c["batch:mkt.shop"] > 0),
-                      "events": {"shopping_decisions": len(shop), "batch:mkt.promotion": c["batch:mkt.promotion"]}},
-        "Transactions": {"exercised": c["xchg.order"] > 0, "events": {"xchg.order": c["xchg.order"]}},
-        "Trust": {"exercised": len(outcomes) > 0 and c["xchg.rating"] > 0,
-                  "events": {"trust_updates": len(outcomes), "xchg.rating": c["xchg.rating"]}},
-        "Quality": {"exercised": len(q) > 1 and min(q) < GRADE_Q["B"] <= max(q),
-                    "events": {"mkt.unit": c["mkt.unit"]}},
-        "Disputes": {"exercised": disputed > 0 and resolved > 0, "events": {"disputed": disputed,
-                                                                            "resolved_or_refunded": resolved}},
-        "Pricing": {"exercised": reprices > 0, "events": {"reprices": reprices,
-                                                          "xchg.exchange_update": c["xchg.exchange_update"]}},
-        "Network effects": {"exercised": len(joins) > 0, "events": {"joins_on_buyer_counts": len(joins)}},
-        "Retention": {"exercised": repeat > 0, "events": {"repeat_buyer_exchange_pairs": repeat}},
+        "Two-sided participation": {"exercised": len(sellers) >= 2 and len(pop_buyers) >= 2 and bool(reviews),
+                                    "seqs": reviews + pop_orders,
+                                    "events": {"sellers_with_sales": len(sellers), "population_buyers":
+                                               len(pop_buyers), "trader_reviews_on_it": len(reviews)}},
+        "Discovery": {"exercised": bool(shop_seqs), "seqs": shop_seqs + promo,
+                      "events": {"shopping_sessions_considering_it": len(shop_seqs), "promotions": len(promo)}},
+        "Transactions": {"exercised": bool(orders), "seqs": orders, "events": {"xchg.order": len(orders)}},
+        "Trust": {"exercised": bool(trust_seqs) and bool(ratings), "seqs": trust_seqs + ratings,
+                  "events": {"trust_update_sessions": len(trust_seqs), "xchg.rating": len(ratings)}},
+        "Quality": {"exercised": len(q) > 1 and min(q) < GRADE_Q["B"] <= max(q), "seqs": units,
+                    "events": {"mkt.unit": len(units)}},
+        "Disputes": {"exercised": bool(disputed_orders) and bool(resolved_orders), "seqs": disputes,
+                     "events": {"disputed": len(disputed_orders), "resolved_or_refunded": len(resolved_orders)}},
+        "Pricing": {"exercised": bool(reprices), "seqs": reprices + fees,
+                    "events": {"reprices": len(reprices), "fee_changes": len(fees)}},
+        "Network effects": {"exercised": bool(joins), "seqs": joins, "events": {"joins_on_buyer_counts": len(joins)}},
+        "Retention": {"exercised": bool(repeat), "seqs": repeat, "events": {"repeat_orders": len(repeat)}},
     }
 
 
 # ====================================================================== the domain
-from .base import Actor, Domain, DomainConfig, Mechanic, Probe, Seat, register  # noqa: E402
 
 A = K.A
 
@@ -961,19 +1108,6 @@ def build(config: DomainConfig, seed: int, overrides: dict) -> dict:
                             ("products", {}), ("market", {}), ("xchg", {}), ("pop", K.pop_config(n)),
                             ("mktplace", inst)])
     return K.recipe(mods, {"max_actions_per_hour": 600})
-
-
-def objective(world, principal: str, difficulty: int = 1) -> dict:
-    d = max(1, int(difficulty))
-    buyers, sellers = 50 + 25 * d, 4 + d
-    text = (f"Build an online exchange that buyers and traders choose on their own: by day 45, over "
-                           f"the last 30 days at least {buyers} different people must have bought on your exchange "
-                           f"from at least {sellers} independent traders, at least 25% of those who bought in the "
-                           f"first half of that period must have come back to buy again in the second half, and the "
-                           f"exchange must pay for itself over the last 15 days (its commissions must exceed the "
-                           f"refunds, promotions and incentives you pay).")
-    return {"text": text, "description": text, "difficulty": d, "window_days": 30, "horizon_days": 45, "min_buyers": buyers, "min_sellers": sellers,
-            "min_retention": 0.25}
 
 
 class ExchangeOperator(K.ReadingReference):
@@ -1047,26 +1181,29 @@ class FreeExchange(ExchangeOperator):
 
 
 def structure(world) -> dict:
-    """Measured on the built world: the goods categories traded, the incumbents' dispute rules (lenient or strict)
-    and whether most traders are honest."""
-    mod = world.modules["mktplace"]
-    rules = sorted({"strict" if float(i["refund_share"]) >= 0.3 else "lenient" for i in mod.c["incumbents"]})
-    # the traders' honesty regime of the world (the share it draws honest traders with), not the seed's draw
-    honest = float(mod.c["honest_share"]) > 0.5
-    return {"categories": sorted(mod.cats), "incumbent_rules": rules,
-            "incumbents": "one" if len(mod.c["incumbents"]) == 1 else "several", "honest_majority": honest}
+    """Measured on the built world (`base.BuiltWorld`: recorded state only): the goods categories its traders sell,
+    the incumbent operators' dispute rules (lenient or strict refunders), how many incumbents there are, and whether
+    most of its traders are honest about the grade of what they sell."""
+    st = world.state
+    rules = sorted({"strict" if float(r["refund_share"]) >= 0.3 else "lenient" for _, r in st.scan("mkt_rules")})
+    traits = [t for _, t in st.scan("mkt_traits")]
+    honest = 2 * sum(1 for t in traits if t["honest"]) > len(traits)
+    n_inc = sum(1 for _ in st.scan("mkt_rules"))
+    return {"categories": sorted({r["category"] for _, r in st.scan("mkt_sellers")}), "incumbent_rules": rules,
+            "incumbents": "one" if n_inc == 1 else "several", "honest_majority": honest}
 
 
 Reference = ExchangeOperator
 
 DOMAIN = register(Domain(
     name="marketplace", title="Digital marketplace", spec_part="9.13", required_mechanics=MECHANICS,
-    configs=CONFIGS, build=build, objective=objective, evaluate=evaluate, reference=ExchangeOperator,
-    mechanics=tuple(Mechanic(m, (), f"measured by marketplace_domain.mechanics_report: {m}",
-                             count=K.measured(mechanics_report, m)) for m in MECHANICS),
+    configs=CONFIGS, build=build, goal=GOAL, evaluate=evaluate, reference=ExchangeOperator,
+    mechanics=tuple(Mechanic(m, (), f"recorded events selected by marketplace_domain.mechanics_report: {m}",
+                             count=K.evidence(mechanics_report, m)) for m in MECHANICS),
     seats=(Seat("agent", 1_000_000, "Exchange founder"),),
     actors=(Actor("buyers", ("cols.batch:mkt.shop",), "population individuals shopping on exchanges they know"),
-            Actor("traders", ("mkt.review", "mkt.produced"), "sellers deciding where to list, prices, production"),
+            Actor("traders", ("mkt.review", "mkt.produced"), "sellers deciding where to list, prices, production "
+                  "(their own decisions: events whose actor is the trader)"),
             Actor("incumbent operators", ("xchg.order_status",), "orders settled and disputes decided")),
     degenerate=(Probe("free_exchange", "the same exchange without any fee", FreeExchange),),
     structure=structure, mode="B", horizon_days=45.0, slowest_effect_days=14.0, dt=6 * HOUR,

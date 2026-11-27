@@ -52,6 +52,7 @@ from ..services.identity import ident
 from ..services.search import tokenize
 from ..substrate import attention, columns, ids
 from . import _dom3 as K
+from .base import Actor, Domain, DomainConfig, GoalFamily, Mechanic, Probe, Seat, register
 
 DAY, HOUR = K.DAY, K.HOUR
 TABLE = "info"
@@ -282,7 +283,8 @@ class InfoEco(Module):
         for t, ix in (("info_entities", ("region",)), ("info_facts", ("entity",)), ("info_sources", ("kind",)),
                       ("info_mem", ("source",)), ("info_prov", ("owner",)), ("info_services", ("owner", "status")),
                       ("info_served", ("service",)), ("info_feedback", ("service",)), ("info_verify", ("who",)),
-                      ("info_reads", ()), ("info_sched", ()), ("info_looks", ()), ("info_web", ())):
+                      ("info_reads", ()), ("info_sched", ()), ("info_looks", ()), ("info_web", ()),
+                      ("info_world", ())):
             st.declare_table(t, index=ix)
         from .. import population as P
         n = P.n_individuals(world)
@@ -311,6 +313,7 @@ class InfoEco(Module):
             for a in self.attrs:
                 ctx.emit("info.fact", {"id": f"{e['id']}|{a}", "entity": e["id"], "attr": a, "value": e["values"][a],
                                        "text": fmt(a, e["values"][a])}, vis="internal")
+        ctx.emit("info.dynamics", {"id": "facts", "process": str(self.cfg["change"]["process"])}, vis="internal")
         self._genesis_sources(ctx)
         self._genesis_people(ctx)
         base = (ctx.now // DAY) * DAY
@@ -550,7 +553,7 @@ class InfoEco(Module):
         st = ctx.state
         day = ctx.now // DAY
         for org, s in self._sources(st, "official"):
-            err = contain(ctx, self._official, ctx, org, s, day)
+            err = contain(ctx, ctx.run_as, s["manager"], self._official, org, s, day)
             if err is not None:
                 ctx.emit("info.failed", {"what": "official", "source": org, "error": str(err)[:200]}, vis="internal")
 
@@ -590,7 +593,7 @@ class InfoEco(Module):
     def pr_reporters(self, ctx):
         st = ctx.state
         for org, s in self._sources(st, "reporter"):
-            err = contain(ctx, self._reporter, ctx, org, s)
+            err = contain(ctx, ctx.run_as, s["manager"], self._reporter, org, s)
             if err is not None:
                 ctx.emit("info.failed", {"what": "reporter", "source": org, "error": str(err)[:200]}, vis="internal")
 
@@ -639,7 +642,7 @@ class InfoEco(Module):
         day = int(ctx.now // DAY)
         for org, s in self._sources(st, "aggregator"):
             if day % max(1, int(s["period"])) == 0:
-                err = contain(ctx, self._aggregate, ctx, org, s, day)
+                err = contain(ctx, ctx.run_as, s["manager"], self._aggregate, org, s, day)
                 if err is not None:
                     ctx.emit("info.failed", {"what": "aggregator", "source": org, "error": str(err)[:200]},
                              vis="internal")
@@ -992,15 +995,26 @@ class InfoEco(Module):
         return {"ok": True}
 
     def _wiki_write(self, ctx, did: str, body: str, claims: dict) -> None:
-        """The community wiki is an open-edit document host: anyone's edit becomes the page's next version (the same
-        `docs.edit` record and search re-indexing an owner's edit produces), with the editor recorded as its author."""
-        from ..services.search import extract_hosts, index as search_index
-        d = ctx.state.tables["documents"][did]
-        hosts = extract_hosts(ctx.world, d["title"] + "\n" + body)
-        ctx.emit("docs.edit", {"id": did, "v": int(d["version"]) + 1, "title": d["title"], "body": body,
-                               "hosts": hosts, "by": ctx.actor}, vis="public")
-        search_index(ctx, did, "doc", d["title"], body, d["owner"], ref=did, hosts=hosts)
-        ctx.emit("info.src_claims", {"doc": did, "claims": claims}, vis="internal")
+        """The community wiki is open to every editor: the edit is carried out at once by the wiki's own process
+        (`infoeco.wiki_apply`): its manager grants the editor write access to the page (`docs.share`, once per editor
+        and page) and the editor's change is an ordinary `docs.edit` by the editor (a new version, re-indexed by
+        search, the editor recorded as its author) - the docs module's own tools, never its events."""
+        ctx.schedule(ctx.now, "infoeco.wiki_apply", {"doc": did, "body": body, "editor": ctx.actor,
+                                                     "claims": claims}, prio=45)
+
+    @process("wiki_apply")
+    def pr_wiki_apply(self, ctx, doc, body, editor, claims):
+        st = ctx.state
+        mgr = st.tables["info_sources"]["o:wiki"]["manager"]
+        err = None
+        if editor != mgr and (st.get("doc_shares", f"{doc}|{editor}") or {}).get("perm") != "write":
+            err = contain(ctx, ctx.call, "docs.share", {"doc": doc, "principal": editor, "perm": "write"}, mgr)
+        if err is None:
+            err = contain(ctx, ctx.call, "docs.edit", {"doc": doc, "body": body}, editor)
+        if err is not None:
+            ctx.emit("info.failed", {"what": "wiki edit", "doc": doc, "error": str(err)[:200]}, vis="internal")
+            return
+        ctx.emit("info.src_claims", {"doc": doc, "claims": claims}, vis="internal")
 
     @process("billing")
     def pr_billing(self, ctx):
@@ -1140,7 +1154,7 @@ class InfoEco(Module):
                 sid = services[k][0]
                 served.append((sid, i, q, results, opened))
                 p_fb = {"ok": 0.15, "wrong": 0.45, "none": 0.3}[outcome] * (0.6 + 0.8 * (1 - tolerance[jj]))
-                if rng.random() < p_fb:
+                if rng.random() < p_fb:  # fidelity: info.lookup
                     text = {"ok": "this answered my question",
                             "wrong": f"the information I found was wrong ({claim[1] if claim else ''} is not right)",
                             "none": "I could not find an answer"}[outcome]
@@ -1217,6 +1231,11 @@ class InfoEco(Module):
     @applier("info.shock")
     def ap_shock(self, ev):
         return None
+
+    @applier("info.dynamics")
+    def ap_dynamics(self, ev):
+        p = dict(ev.payload)
+        self.world.state.put("info_world", p.pop("id"), p)
 
     @applier("info.source")
     def ap_source(self, ev):
@@ -1411,91 +1430,211 @@ def _state_ledger(world) -> dict:
     return led
 
 
+def measure(world, principal: str, window_days: float = 10) -> dict:
+    """Independent outcome (evaluator side, recorded state): look-ups by independent population members through the
+    participant's services in the window, their success, the open web search's success in the same window, and
+    verified retrieval performance (MRR, precision@1 against the value true at query time) of its result lists."""
+    def go():
+        led = _state_ledger(world)
+        win = int(float(window_days) * DAY)
+        t0 = world.now - win
+        slots = service_slots(world, principal)
+        owners = {world.state.tables["info_services"][sid]["owner"] for sid in slots.values()}
+        rel_cache: dict[str, bool] = {}
+
+        def independent(u: int) -> bool:
+            p = f"p{u}"
+            if p not in rel_cache:
+                rel_cache[p] = all(not K.related(world, o, p) for o in owners) if owners else True
+            return rel_cache[p]
+        recent = [r for r in led["lookups"] if r["t"] >= t0]
+        mine = [r for r in recent if r["ch"] in slots and independent(r["user"])]
+        web_n = sum(r["n"] for r in led["web"] if r["t"] >= t0)
+        web_ok = sum(r["ok"] for r in led["web"] if r["t"] >= t0)
+        ok = sum(r["outcome"] == "ok" for r in mine)
+        succ = ok / len(mine) if mine else 0.0
+        web_succ = web_ok / web_n if web_n else 0.0
+        rr, p1 = [], []
+        for r in mine:
+            rel = relevance(world, led, r)
+            first = next((k for k, x in enumerate(rel) if x), None)
+            rr.append(0.0 if first is None else 1.0 / (first + 1))
+            p1.append(float(bool(rel and rel[0])))
+        users = {r["user"] for r in mine}
+        returning = users & {r["user"] for r in led["lookups"] if r["ch"] in slots and t0 - win <= r["t"] < t0}
+        return {"independent_users": len(users), "lookups": len(mine), "success_rate": round(succ, 4),
+                "web_success_rate": round(web_succ, 4), "web_lookups": int(web_n),
+                "margin_over_web": round(succ - web_succ, 4) if mine else -1.0,
+                "mrr": round(float(np.mean(rr)) if rr else 0.0, 4),
+                "precision_at_1": round(float(np.mean(p1)) if p1 else 0.0, 4),
+                "returning_users": len(returning), "services": sorted(slots.values())}
+    return K.memo(world, ("info.measure", principal, float(window_days)), go)
+
+
+@K.register_metric("info_independent_users", "Independent people who looked things up through the principal's "
+                   "retrieval services over a window.")
+def m_users(world, principal: str, window_days: float = 10) -> float:
+    return float(measure(world, principal, window_days)["independent_users"])
+
+
+@K.register_metric("info_success_rate", "Share of independent people's look-ups through the principal's services "
+                   "over a window whose answer, acted on, was right.")
+def m_success(world, principal: str, window_days: float = 10) -> float:
+    return float(measure(world, principal, window_days)["success_rate"])
+
+
+@K.register_metric("info_margin_over_web", "Success rate of look-ups through the principal's services minus that "
+                   "of the open web search over the same window (-1 without look-ups).")
+def m_margin(world, principal: str, window_days: float = 10) -> float:
+    return float(measure(world, principal, window_days)["margin_over_web"])
+
+
+@K.register_metric("info_mrr", "Mean reciprocal rank of the first result from which a reader takes the value true "
+                   "at query time, over independent look-ups through the principal's services in a window.")
+def m_mrr(world, principal: str, window_days: float = 10) -> float:
+    return float(measure(world, principal, window_days)["mrr"])
+
+
+@K.register_metric("info_progress", "Mean attainment of an information-service goal's targets (independent users, "
+                   "success rate, MRR), each capped at 1.")
+def m_progress(world, principal: str, min_users: float = 1, min_success: float = 0.8, min_mrr: float = 0.6,
+               window_days: float = 10, **_targets) -> float:
+    m = measure(world, principal, window_days)
+    return float(np.mean([min(1.0, m["independent_users"] / max(1.0, float(min_users))),
+                          min(1.0, m["success_rate"] / max(1e-9, float(min_success))),
+                          min(1.0, m["mrr"] / max(1e-9, float(min_mrr)))]))
+
+
+def _draw(rng, difficulty: int, world) -> dict:
+    """The service's targets (the goal generator's own stream): independent users, success, the margin over the
+    open web and the rank of the right answer - stricter with the level, scattered within it."""
+    d = max(1, int(difficulty))
+    return {"min_users": int(15 + 10 * d + int(rng.integers(0, 6))),
+            "min_success": round(0.78 + 0.01 * d + float(rng.uniform(0.0, 0.02)), 3), "margin": 0.1,
+            "min_mrr": round(0.55 + 0.05 * d + float(rng.uniform(0.0, 0.05)), 2), "window_days": 10,
+            "horizon_days": 30}
+
+
+def _text(p: dict) -> str:
+    return (f"Run an information service on this world's web that people choose to rely on: over the last "
+            f"{p['window_days']} of the first {p['horizon_days']} days, at least {p['min_users']} different people "
+            f"must have looked things up through your service, what they found and acted on must have been right at "
+            f"least {100 * p['min_success']:.1f}% of the time and at least {100 * p['margin']:.0f} points more often "
+            f"than with the open web search, and the right answer must come near the top of what your service "
+            f"returns (a mean reciprocal rank of at least {p['min_mrr']:.2f}).")
+
+
+def _success(p: dict) -> dict:
+    a = {"principal": "$self", "window_days": p["window_days"]}
+    return {"all": [{"metric": "info_independent_users", "args": a, "op": ">=", "value": p["min_users"]},
+                    {"metric": "info_success_rate", "args": a, "op": ">=", "value": p["min_success"]},
+                    {"metric": "info_margin_over_web", "args": a, "op": ">=", "value": p["margin"]},
+                    {"metric": "info_mrr", "args": a, "op": ">=", "value": p["min_mrr"]},
+                    {"metric": "dom3_elapsed_days", "args": {}, "op": ">=", "value": p["horizon_days"]}]}
+
+
+GOAL = GoalFamily("relied_on_information", draw=_draw, text=_text, success=_success,
+                  progress=lambda p: {"metric": "info_progress", "args": {"principal": "$self", **p}, "target": 1.0},
+                  window_days=lambda p: float(p["window_days"]),
+                  doc="a retrieval service independent people rely on and that answers right")
+
+
 @K.cached_evaluator
 def evaluate(world, principal: str, objective: dict) -> dict:
-    """Independent outcome of the objective: lookups by independent population members through the participant's
-    services in the window, their success, the open web search's success in the same window, and verified
-    retrieval performance (MRR, precision@1) of the participant's result lists."""
-    led = _state_ledger(world)
-    win = int(objective.get("window_days", 10)) * DAY
-    t0 = world.now - win
-    slots = service_slots(world, principal)
-    owners = {world.state.tables["info_services"][sid]["owner"] for sid in slots.values()}
-    rel_cache: dict[str, bool] = {}
-
-    def independent(u: int) -> bool:
-        p = f"p{u}"
-        if p not in rel_cache:
-            rel_cache[p] = all(not K.related(world, o, p) for o in owners) if owners else True
-        return rel_cache[p]
-    recent = [r for r in led["lookups"] if r["t"] >= t0]
-    mine = [r for r in recent if r["ch"] in slots and independent(r["user"])]
-    web_n = sum(r["n"] for r in led["web"] if r["t"] >= t0)
-    web_ok = sum(r["ok"] for r in led["web"] if r["t"] >= t0)
-    ok = sum(r["outcome"] == "ok" for r in mine)
-    succ = ok / len(mine) if mine else 0.0
-    web_succ = web_ok / web_n if web_n else 0.0
-    rr, p1 = [], []
-    for r in mine:
-        rel = relevance(world, led, r)
-        first = next((k for k, x in enumerate(rel) if x), None)
-        rr.append(0.0 if first is None else 1.0 / (first + 1))
-        p1.append(float(bool(rel and rel[0])))
-    mrr = float(np.mean(rr)) if rr else 0.0
-    users = len({r["user"] for r in mine})
-    returning = len({r["user"] for r in mine} & {r["user"] for r in led["lookups"]
-                                                  if r["ch"] in slots and t0 - win <= r["t"] < t0})
-    need = {"users": int(objective.get("min_users", 25)), "success": float(objective.get("min_success", 0.8)),
-            "margin": float(objective.get("margin", 0.1)), "mrr": float(objective.get("min_mrr", 0.6))}
-    checks = {"users": users >= need["users"], "success": succ >= need["success"],
-              "beats_web": succ >= web_succ + need["margin"], "mrr": mrr >= need["mrr"],
-              "horizon": world.now >= int(objective.get("horizon_days", 30)) * DAY}
-    score = float(np.mean([min(1.0, users / max(1, need["users"])), min(1.0, succ / need["success"]),
-                           min(1.0, mrr / need["mrr"])]))
-    return {"success": all(checks.values()), "score": round(score, 4),
-            "details": {"independent_users": users, "lookups": len(mine), "success_rate": round(succ, 4),
-                        "web_success_rate": round(web_succ, 4), "web_lookups": int(web_n), "mrr": round(mrr, 4),
-                        "precision_at_1": round(float(np.mean(p1)) if p1 else 0.0, 4),
-                        "returning_users": returning, "services": sorted(slots.values()), "checks": checks}}
+    """The generated goal's predicate (crucible.goals) with the measured quantities as details."""
+    p = objective.get("params") or {}
+    return K.verdict(world, principal, objective, measure(world, principal, float(p.get("window_days", 10))))
 
 
 MECHANICS = ("Search", "Documents", "Knowledge artifacts", "Queries", "Source provenance", "Information quality",
              "Updating facts", "Independent user satisfaction", "Verified retrieval performance")
+# mechanics measured only on the participant's own artifacts (its retrieval services); the others are the
+# autonomous ecosystem the participant works in (publishers, the population's queries, changing facts)
+PARTICIPANT_MECHANICS = ("Search", "Independent user satisfaction", "Verified retrieval performance")
 
 
 def mechanics_report(world, since_seq: int = 0) -> dict:
-    """Each required mechanic of 9.11 and the recorded events (after `since_seq`) that exercise it, measured on the
-    world's log."""
-    c = K.event_counts(world, since_seq)
-    led = _ledger(world)
+    """Each required mechanic of 9.11, whether its condition holds and the SEQUENCE NUMBERS of the recorded events
+    (after `since_seq`) that exercise it. PARTICIPANT_MECHANICS are measured on the participant's own retrieval
+    services only; the others are the autonomous ecosystem (publishers' documents, the population's look-ups,
+    changing facts)."""
     st = world.state
-    t0 = world.events_range(since_seq, since_seq + 1)[0].t if since_seq and since_seq < world.seq else 0
-    looks = [r for r in led["lookups"] if r["t"] >= t0]
-    web = sum(1 for r in looks if r["ch"] == 0)
-    svc = [r for r in looks if r["ch"] > 0]
-    outcomes = {o: sum(1 for r in looks if r["outcome"] == o) for o in ("ok", "wrong", "none")}
-    cited = sum(1 for _, p in st.scan("info_prov") if p["cites"] and p["t"] >= t0)
-    changes = sum(1 for v in led["facts"].values() for tt, _ in v[1:] if tt >= t0)
+    led = _ledger(world)
+    slots: dict[int, str] = {}
+    for a in K.seats_in(world, DOMAIN):
+        slots.update(service_slots(world, a))
+    my_svcs = set(slots.values())
+    owners = {st.tables["info_services"][sid]["owner"] for sid in my_svcs}
+    rel_cache: dict[int, bool] = {}
+
+    def independent(u: int) -> bool:
+        if u not in rel_cache:
+            rel_cache[u] = all(not K.related(world, o, f"p{u}") for o in owners)
+        return rel_cache[u]
+    recs = {(r["t"], r["user"], r["q"]): r for r in led["lookups"]}
+    queries, web_b, mine_b, wrong_b, ok_any, ind_ok_b = ([] for _ in range(6))
+    docs, edits, prov, cited, facts, served, verified, feedback = ([] for _ in range(8))
     judged = 0
-    for r in svc[:400]:
-        relevance(world, led, r)
-        judged += 1
-    sat = sum(1 for r in svc if r["outcome"] in ("ok", "wrong"))
+    for ev in world.events_range(since_seq):
+        p, q, t = ev.payload, int(ev.seq), ev.type
+        if t == "cols.batch" and p.get("kind") == "info.lookup":
+            rows = (p.get("extra") or {}).get("lookups") or []
+            if not rows:
+                continue
+            queries.append(q)
+            if any(int(r[1]) == 0 for r in rows):
+                web_b.append(q)
+            if any(r[9] == "wrong" for r in rows):
+                wrong_b.append(q)
+            if any(r[9] == "ok" for r in rows):
+                ok_any.append(q)
+            mine = [r for r in rows if int(r[1]) in slots]
+            if mine:
+                mine_b.append(q)
+            if any(r[9] == "ok" and independent(int(r[0])) for r in mine):
+                ind_ok_b.append(q)
+        elif t == "docs.create":
+            docs.append(q)
+        elif t == "docs.edit":
+            edits.append(q)
+        elif t == "info.provenance":
+            prov.append(q)
+            if p.get("cites"):
+                cited.append(q)
+        elif t == "info.src_doc":
+            prov.append(q)
+        elif t == "info.fact":
+            facts.append(q)
+        elif t == "info.served" and p["service"] in my_svcs:
+            served.append(q)
+            r = recs.get((int(ev.t), K.population_index(p["user"]), p["q"]))
+            if r is not None and judged < 400:
+                judged += 1
+                if any(relevance(world, led, r)):
+                    verified.append(q)
+        elif t == "info.feedback" and p["service"] in my_svcs and K.population_index(p["user"]) is not None and \
+                independent(int(K.population_index(p["user"]))):
+            feedback.append(q)
     return {
-        "Search": {"exercised": web > 0 and len(svc) > 0 and c["info.served"] > 0,
-                   "events": {"web_search_lookups": web, "service_lookups": len(svc), "info.served": c["info.served"]}},
-        "Documents": {"exercised": c["docs.create"] > 0, "events": {"docs.create": c["docs.create"]}},
-        "Knowledge artifacts": {"exercised": cited > 0, "events": {"documents_citing_sources": cited}},
-        "Queries": {"exercised": len(looks) > 0, "events": {"batch:info.lookup": c["batch:info.lookup"],
-                                                            "queries": len(looks)}},
-        "Source provenance": {"exercised": c["info.provenance"] > 0 and cited > 0,
-                              "events": {"info.provenance": c["info.provenance"]}},
-        "Information quality": {"exercised": outcomes["ok"] > 0 and outcomes["wrong"] > 0, "events": outcomes},
-        "Updating facts": {"exercised": changes > 0 and c["docs.edit"] > 0,
-                           "events": {"fact_changes": changes, "docs.edit": c["docs.edit"]}},
-        "Independent user satisfaction": {"exercised": sat > 0 and c["batch:pop.session"] > 0,
-                                          "events": {"service_outcomes": sat, "info.feedback": c["info.feedback"]}},
-        "Verified retrieval performance": {"exercised": judged > 0, "events": {"judged_result_lists": judged}},
+        "Search": {"exercised": bool(web_b) and bool(mine_b) and bool(served), "seqs": mine_b + served,
+                   "events": {"web_search_sessions": len(web_b), "sessions_on_its_services": len(mine_b),
+                              "info.served": len(served)}},
+        "Documents": {"exercised": bool(docs), "seqs": docs, "events": {"docs.create": len(docs)}},
+        "Knowledge artifacts": {"exercised": bool(cited), "seqs": cited, "events": {"documents_citing": len(cited)}},
+        "Queries": {"exercised": bool(queries), "seqs": queries, "events": {"lookup_sessions": len(queries)}},
+        "Source provenance": {"exercised": bool(prov) and bool(cited), "seqs": prov,
+                              "events": {"provenance_records": len(prov)}},
+        "Information quality": {"exercised": bool(ok_any) and bool(wrong_b), "seqs": wrong_b,
+                                "events": {"sessions_acting_on_wrong_information": len(wrong_b),
+                                           "sessions_with_right_answers": len(ok_any)}},
+        "Updating facts": {"exercised": bool(facts) and bool(edits), "seqs": facts + edits,
+                           "events": {"fact_changes": len(facts), "docs.edit": len(edits)}},
+        "Independent user satisfaction": {"exercised": bool(ind_ok_b) and bool(feedback), "seqs": ind_ok_b + feedback,
+                                          "events": {"sessions_with_independent_successes": len(ind_ok_b),
+                                                     "independent_feedback": len(feedback)}},
+        "Verified retrieval performance": {"exercised": bool(verified), "seqs": verified,
+                                           "events": {"judged_result_lists": judged,
+                                                      "lists_with_a_verified_answer": len(verified)}},
     }
 
 
@@ -1504,7 +1643,6 @@ def mechanics(world) -> dict:
 
 
 # ====================================================================== the domain (configurations, objective, reference)
-from .base import Actor, Domain, DomainConfig, Mechanic, Probe, Seat, register  # noqa: E402
 
 POPULATION = 400
 
@@ -1545,12 +1683,15 @@ def _structure(name: str) -> dict:
 
 
 def structure(world) -> dict:
-    """Measured on the built world: the kind of entities, the fact-change process and the kinds of publishers that
-    exist (with the official operators' publishing mode)."""
-    mod = world.modules["infoeco"]
+    """Measured on the built world (`base.BuiltWorld`: recorded state only): the attributes its entities have (the
+    kind of entities), the fact-change process it runs and the kinds of publishers that exist (with the official
+    operators' publishing mode)."""
+    st = world.state
     kinds = sorted({s["kind"] + (f":{s['mode']}" if s["kind"] == "official" else "")
-                    for _, s in world.state.scan("info_sources")})
-    return {"entities": mod.cfg["kind"], "fact_change_process": mod.cfg["change"]["process"], "publishers": kinds}
+                    for _, s in st.scan("info_sources")})
+    attrs = sorted({a for _, e in st.scan("info_entities") for a in e["attrs"]})
+    return {"entity_attributes": attrs, "fact_change_process": (st.get("info_world", "facts") or {}).get("process"),
+            "publishers": kinds}
 
 
 CONFIGS = (
@@ -1580,18 +1721,6 @@ def build(config: DomainConfig, seed: int, overrides: dict) -> dict:
     mods = K.order_modules([("identity", {}), ("bank", {}), ("admin", {}), ("artifacts", {}), ("cols", {}),
                             ("docs", {}), ("search", {}), ("pop", K.pop_config(n)), ("infoeco", inst)])
     return K.recipe(mods, {"max_actions_per_hour": 600})
-
-
-def objective(world, principal: str, difficulty: int = 1) -> dict:
-    d = max(1, int(difficulty))
-    users = 15 + 10 * d
-    text = (f"Run an information service on this world's web that people choose to rely on: over the last 10 of the "
-            f"first 30 days, at least {users} different people must have looked things up through your service, "
-            f"what they found and acted on must have been right at least 80% of the time and at least 10 points "
-            f"more often than with the open web search, and the right answer must come near the top of what your "
-            f"service returns.")
-    return {"text": text, "description": text, "window_days": 10, "horizon_days": 30, "min_users": users,
-            "min_success": 0.8, "margin": 0.1, "min_mrr": 0.6, "difficulty": d}
 
 
 class InfoCurator(K.ReadingReference):
@@ -1768,13 +1897,15 @@ IndexAllProbe = IndexEverything
 
 DOMAIN = register(Domain(
     name="information", title="Information ecosystem", spec_part="9.11", required_mechanics=MECHANICS,
-    configs=CONFIGS, build=build, objective=objective, evaluate=evaluate, reference=InfoCurator,
-    mechanics=tuple(Mechanic(m, (), f"measured by information.mechanics_report: {m}",
-                             count=K.measured(mechanics_report, m)) for m in MECHANICS),
+    configs=CONFIGS, build=build, goal=GOAL, evaluate=evaluate, reference=InfoCurator,
+    mechanics=tuple(Mechanic(m, (), f"recorded events selected by information.mechanics_report: {m}",
+                             count=K.evidence(mechanics_report, m)) for m in MECHANICS),
     seats=(Seat("agent", 1_000_000, "Information service operator"),),
     actors=(Actor("population readers", ("cols.batch:info.lookup",), "individuals looking things up"),
-            Actor("publishers", ("docs.create", "docs.edit"), "operators, news desks, aggregators, farms, wiki"),
-            Actor("news desks", ("info.check",), "reporters checking facts with their own capacity")),
+            Actor("publishers", ("docs.create", "docs.edit"), "operators, news desks, aggregators, farms, wiki "
+                  "(their editors' own documents and edits: events whose actor is an editor)"),
+            Actor("news desks", ("info.check",), "reporters checking facts with their own capacity (as their "
+                  "editors)")),
     degenerate=(Probe("index_everything", "a service that indexes every search result and curates nothing",
                       IndexEverything),),
     structure=structure, mode="B", horizon_days=30.0, slowest_effect_days=7.0, dt=3 * HOUR,

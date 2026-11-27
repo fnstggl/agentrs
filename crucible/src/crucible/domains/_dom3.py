@@ -134,6 +134,13 @@ def mechanics_from_events(counts: Counter, table: dict[str, list[tuple[str, int]
     return out
 
 
+def seats_in(world, domain) -> list[str]:
+    """The domain's seat principals that exist in `world` (the participants whose own activity the domains'
+    PARTICIPANT_MECHANICS are measured on)."""
+    princ = world.state.tables.get("principals", {})
+    return [p for p in domain.seat_principals() if p in princ]
+
+
 def batch_records(world, kind: str, key: str, since_seq: int = 0) -> list:
     """The `extra[key]` lists of every recorded cohort batch of `kind` (evaluator side: decision records)."""
     out = []
@@ -250,17 +257,18 @@ def session_provenance(world, table: str, kinds: Iterable[str]) -> dict:
     return out
 
 
-# ====================================================================== framework adapters (domains-framework/2)
+# ====================================================================== framework adapters (domains-framework/3)
 def seeded_rng(name: str, seed: int):
     """The generator a domain's `build` draws its procedural instance from (seed and configuration name)."""
     from ..core.canonical import digest
     return np.random.default_rng(np.random.SeedSequence([int(seed), int(digest(name)[:8], 16)]))
 
 
-def measured(report_fn, name: str):
-    """`Mechanic.count` from a domain's measured mechanics report `report_fn(world, since_seq) -> {mechanic:
-    {"exercised", "events"}}`: the number of recorded events behind the mechanic when it is exercised, else 0.
-    The report is computed once per (world, log position, since_seq)."""
+def evidence(report_fn, name: str):
+    """`Mechanic.count` (domains-framework/3) from a domain's measured mechanics report `report_fn(world, since_seq)
+    -> {mechanic: {"exercised": bool, "events": {...}, "seqs": [...]}}`: the SEQUENCE NUMBERS of the recorded events
+    that exercise the mechanic (the framework checks each one against the log), empty when the mechanic's condition
+    is not met. The report is computed once per (world, log position, since_seq)."""
     def count(world, since_seq):
         key = ("dom3.mech", id(world.state), int(world.seq), int(since_seq), report_fn.__module__)
         cache = world.runtime.setdefault("dom3.mech", {})
@@ -269,11 +277,50 @@ def measured(report_fn, name: str):
             cache[key] = report_fn(world, int(since_seq))
         row = cache[key].get(name) or {}
         if not row.get("exercised"):
-            return 0
-        ev = row.get("events") or {}
-        n = sum(int(v) for v in ev.values() if isinstance(v, (int, float)) and not isinstance(v, bool))
-        return max(1, n)
+            return []
+        return sorted({int(x) for x in row.get("seqs") or ()})
+    count.__name__ = f"evidence_{name.lower().replace(' ', '_').replace('-', '_')}"
     return count
+
+
+# ====================================================================== goals (crucible.goals)
+def register_metric(name: str, doc: str):
+    """Register an evaluator-side metric of recorded state in `crucible.goals.metrics` (no subject: it cannot be
+    used in an agreement between participants, so no participant can probe it through a contract)."""
+    from ..goals import metrics as GM
+
+    def deco(fn):
+        GM.metric(name, doc)(fn)
+        GM.EVALUATOR_ONLY_METRICS.add(name)
+        return fn
+    return deco
+
+
+@register_metric("dom3_elapsed_days", "Simulated days since the world's genesis (the evaluation horizon of the I-3 "
+                 "domains' goals).")
+def m_elapsed_days(world) -> float:
+    return float(world.now) / DAY
+
+
+def memo(world, key, fn):
+    """`fn()` computed once per (world state, log position, instant, key): the metrics of one goal read the same
+    measurement (a world rebuilt from its log has another state object and is measured afresh)."""
+    c = world.runtime.setdefault("dom3.memo", {})
+    k = (id(world.state), int(world.seq), int(world.now), key)
+    if k not in c:
+        if len(c) > 256:
+            c.clear()
+        c[k] = fn()
+    return c[k]
+
+
+def verdict(world, principal: str, objective: dict, details: dict) -> dict:
+    """The generated goal's verdict (`base.goal_verdict`: the success predicate over registered metrics, the score
+    from the progress metric) with the domain's diagnostic `details` added (evaluator side)."""
+    from .base import goal_verdict
+    out = goal_verdict(world, principal, objective)
+    out["details"] = {**dict(details), "goal": out["details"]}
+    return out
 
 
 from .base import ScriptedReference as _ScriptedReference, act_ as _act  # noqa: E402
@@ -327,20 +374,39 @@ class ReadingReference(_ScriptedReference):
 A = _act
 
 
+# Event types that record only that a command ran (the kernel's command bookkeeping: per-principal action
+# counters and idempotency records). No dom3 evaluator reads them, so they cannot change a verdict.
+COMMAND_BOOKKEEPING = frozenset({"cmd", "cmd.rejected", "idem"})
+
+
 def cached_evaluator(fn):
-    """Evaluator results cached per (world state, simulated instant, principal, objective): the learner interface
-    asks the evaluator after every action (its status and the legacy reward gate), and many actions share one
-    simulated instant; a world rebuilt from the log (another state object) is evaluated afresh."""
+    """Evaluator results cached per (world state, principal, objective) and valid only for the world they were
+    computed on: the same simulated instant and no recorded event since then other than command bookkeeping
+    (`COMMAND_BOOKKEEPING`: a read-only tool call records a `cmd` event and nothing else). Any other event - an
+    action at the same simulated instant included - invalidates the verdict (a verdict keyed by the instant alone
+    returned the pre-action verdict after a same-instant action). The learner interface asks the evaluator after
+    every action; most of a reference's actions are read-only reads, which keep the verdict. A world rebuilt from
+    the log (another state object) is evaluated afresh."""
     import functools
     import json as _json
 
     @functools.wraps(fn)
     def wrapped(world, principal, objective):
-        key = (id(world.state), int(world.now), str(principal), _json.dumps(objective, sort_keys=True, default=str))
+        key = (id(world.state), str(principal), _json.dumps(objective, sort_keys=True, default=str))
         cache = world.runtime.setdefault(f"dom3.eval.{fn.__module__}", {})
-        if key not in cache:
-            if len(cache) > 64:
-                cache.clear()
-            cache[key] = fn(world, principal, objective)
-        return cache[key]
+        seq, now = int(world.seq), int(world.now)
+        hit = cache.get(key)
+        if hit is not None and hit[1] == now and hit[0] <= seq:
+            try:
+                same = hit[0] == seq or all(e.type in COMMAND_BOOKKEEPING for e in world.events_range(hit[0], seq))
+            except Exception:                   # events no longer readable: evaluate afresh
+                same = False
+            if same:
+                cache[key] = (seq, now, hit[2])
+                return hit[2]
+        if hit is None and len(cache) > 64:
+            cache.clear()
+        out = fn(world, principal, objective)
+        cache[key] = (seq, now, out)
+        return out
     return wrapped
