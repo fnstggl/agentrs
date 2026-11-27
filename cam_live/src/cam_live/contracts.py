@@ -509,6 +509,8 @@ class VerifiedOutcome(Record):
     notes: str = ""
     secondary: List[Quantity] = field(default_factory=list)
     signature: str = ""
+    origin: str = ""                 # TaskSpec.origin of the verified task, covered by the signature [C-12] ("" = not
+                                     # stated by the verifier)
 
 
 # --------------------------------------------------------------------------------------------------------------

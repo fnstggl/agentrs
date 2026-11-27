@@ -327,8 +327,12 @@ class SignedVerifier:
         start = self._started(task, now)
         return start + task.limits.duration_s if task.limits.duration_s > 0 else None
 
-    def _emit(self, outcome: VerifiedOutcome, detail: Dict[str, Any]) -> VerifiedOutcome:
+    def _emit(self, outcome: VerifiedOutcome, detail: Dict[str, Any], task: Optional[TaskSpec] = None) -> VerifiedOutcome:
         outcome.evidence_refs = list(outcome.evidence_refs) + [f"verifier-log:{self.log.seq + 1}"]
+        if task is not None and hasattr(outcome, "origin"):
+            # the origin of the task this verifier was asked to judge is part of what it signs (C-12): a
+            # self-generated goal cannot be passed off as an operator objective by code on the learner's side
+            outcome.origin = str(getattr(task, "origin", "") or "")
         outcome.signature = self._signature(outcome)
         self.log.append(outcome.evaluated_at, "verify", {"outcome": outcome.to_dict(), "detail": detail})
         return outcome
@@ -655,7 +659,7 @@ class MembershipVerifier(SignedVerifier):
             secondary=self._secondary(task, ev))
         return self._emit(outcome, {"lower": ev["lower"], "upper": ev["upper"], "uncertain": unc,
                                     "members_listed": len(ev["members"]), "source_live": bool(self.source.live),
-                                    "rules": self._loggable_rules(ev["rules"]), "deadline": deadline})
+                                    "rules": self._loggable_rules(ev["rules"]), "deadline": deadline}, task)
 
     def _values(self, task: TaskSpec) -> Dict[str, float]:
         ev = self._evaluate(task)
@@ -709,7 +713,7 @@ class MetricThresholdVerifier(SignedVerifier):
                                   evaluated_at=now, evidence_refs=[f"source:{self.source.name}"], notes=notes,
                                   secondary=secondary)
         return self._emit(outcome, {"metric_present": present, "source_live": bool(self.source.live),
-                                    "deadline": deadline})
+                                    "deadline": deadline}, task)
 
     def measure(self, queries: Sequence[OutcomeQuery]) -> List[OutcomeObservation]:
         return self._measure(queries, lambda: {q.name: float(q.value) for q in self.source.read()}, self.source.name)

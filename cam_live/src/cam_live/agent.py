@@ -304,6 +304,10 @@ def grounded_candidates(tools: Sequence[ToolDescriptor], surf: Optional[Dict[str
             continue                                       # read-only tools stay page-level (schema walker)
         required = set(schema.get("required") or [])
         value_props = [p for p in props if p not in LOCATOR_PROPS + CONTEXT_PROPS]
+        # a tool some element supplies a value for (a text field's text, a list's option, a link's target) sets that
+        # value: it is instantiated only on elements that supply one, never bare
+        sets_value = any(element_values(e, p, props, texts, numbers) for e in surf["elements"][:max_elements]
+                         for p in value_props)
         for e in surf["elements"][:max_elements]:
             base: Dict[str, Any] = {"ref": e["ref"]}
             if "obs_id" in props:
@@ -317,7 +321,7 @@ def grounded_candidates(tools: Sequence[ToolDescriptor], surf: Optional[Dict[str
                     vals = rng.sample(vals, texts_per_field)      # different observed strings across decisions
                 if vals:
                     fills[p] = vals[:12]
-            if any(p not in base and p not in fills for p in required):
+            if any(p not in base and p not in fills for p in required) or (sets_value and not fills):
                 continue
             settings = [{**base, p: v} for p, vals in fills.items() for v in vals] or [dict(base)]
             for args in settings:
@@ -818,7 +822,9 @@ class CamLiveAgent:
             self.counters["verified_refused"] += 1
             return {"accepted": False, "reason": "signature not checked" if self.verifier is None else "bad signature"}
         origin = getattr(self.task, "origin", Trust.OPERATOR) if self.task is not None else Trust.OPERATOR
-        adm = self.meta.admit_objective(v, objective_origin=origin)
+        same = self.task is not None and self.task.objective_id == v.objective_id
+        # C-10: the recorded origin of the objective decides whether its outcome may supervise psi
+        adm = self.meta.admit_objective(v, objective_origin=origin, **({"task": self.task} if same else {}))
         out: Dict[str, Any] = {"accepted": True, "status": v.status, "value": v.value,
                                "meta_ledger": {"accepted": adm.accepted, "reason": adm.reason}}
         entry = {"outcome": v.to_dict(), "deadline": self._deadline() or v.evaluated_at,
@@ -1171,6 +1177,8 @@ class CamLiveAgent:
         return {k: vals[-24:] for k, vals in v.items()}
 
     def _goal_free_candidates(self, b: torch.Tensor, cands: List[ActionSpec]) -> List[ActionSpec]:
+        for k in list(self.active_goals):                  # goals of an earlier proposal that never got a result
+            self._abandon_goal(self.active_goals.pop(k))
         pairs = []
         for a in cands:
             for q in self._queries_for(a):
@@ -1307,7 +1315,8 @@ class CamLiveAgent:
         pp = [inc.get(c.action.action_id) for c in decision.candidates]
         if self.offer.get("tracked") and pp and all(isinstance(x, float) for x in pp):
             decision.diagnostics["proposal_probs"] = pp          # inclusion probability of each offered candidate
-        decision.diagnostics["offer"] = {k: self.offer.get(k) for k in ("pool", "policy_ranked", "random", "backbone")}
+        decision.diagnostics["offer"] = {k: self.offer.get(k) for k in ("pool", "policy_ranked", "random", "backbone",
+                                                                        "skills", "grounded")}
         decision.diagnostics["planner_horizon"] = self.pending_eval.get("planner_horizon", 0)
         if rec is not None:
             self.exp_out[rec.experiment_id] = rec
@@ -1422,7 +1431,11 @@ class CamLiveAgent:
         for k in [k for k in self.active_goals if k != a.action_id]:      # proposed, not chosen
             self._abandon_goal(self.active_goals.pop(k))
         g = self.active_goals.get(a.action_id)
-        if g is not None and result.status != ResultStatus.OK:
+        if g is not None and result.status in (ResultStatus.DENIED, ResultStatus.NEEDS_APPROVAL) or (
+                g is not None and result.status != ResultStatus.OK and result.failure_class == FailureClass.INVALID_ARGUMENTS
+                and not result.ops):
+            self._abandon_goal(self.active_goals.pop(a.action_id))        # C-11: refused before execution
+        elif g is not None and result.status != ResultStatus.OK:
             self.goal_free.resolve(g, None, result.cost)
             del self.active_goals[a.action_id]
         for o in immediate:
@@ -1706,6 +1719,13 @@ class CamLiveAgent:
         self._load_json_state(ex.get("agent", {}))
         if st.current_task:
             self.task = TaskSpec.from_dict(st.current_task)
+            reg = getattr(self.meta, "register_objective", None)
+            if callable(reg):                              # C-10: the task in force after a restart
+                reg(self.task)
+        pend = getattr(self.goal_free, "abandon_pending", None)
+        if callable(pend):                                 # C-11: goals pending at the checkpoint give back budget
+            pend()
+        self.active_goals = {}
         self.checkpoint_id = ex.get("checkpoint_id", "")
         for d in self.verified_log:
             d["admitted_to_evaluator"] = False
@@ -1918,11 +1938,18 @@ def register_agent_heads(model: Any, cfg: Optional[CamLiveConfig] = None) -> Any
     from .nn.api import GROUP_REWARD
     from .reward.intrinsic import IntrinsicReward
     from .reward.metalearner import MetaConfig
+    cfg = cfg or getattr(model, "cfg", None) or CamLiveConfig()
     heads = attach_heads(model)
+    s = AgentSettings.from_cfg(cfg)
+    for name, make in (("credit_rudder", ReturnDecompositionProvider), ("credit_cocoa", HindsightProvider)):
+        try:
+            model.head(name)
+        except KeyError:                                   # the credit heads (no store needed to rebuild them)
+            make(model, None, beta=s.credit_beta, seed=cfg.seed)
     try:
         model.head("reward")
     except KeyError:
-        mc = MetaConfig.from_cfg(cfg or model.cfg)
+        mc = MetaConfig.from_cfg(cfg)
         model.register_head("reward", IntrinsicReward(model.d_model, d_hidden=mc.reward_hidden, d_life=mc.reward_life,
                                                       bound=mc.reward_bound), GROUP_REWARD)
     return heads
