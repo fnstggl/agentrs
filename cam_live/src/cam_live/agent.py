@@ -898,6 +898,11 @@ class CamLiveAgent:
         beliefs return to the learned prior and the meta-learner starts a new objective segment (R_psi's lifetime
         context carries on: the agent's lifetime spans its objectives, KF-E05). The same objective id only updates
         the task's boundaries."""
+        ck = getattr(self, "_checkpoint_auth_hash", "")
+        if ck and auth_config_hash(task) != ck:               # G2L-10: restored before a task was known
+            self.counters["auth_config_changed_on_load"] += 1
+            self.restore_report = dict(getattr(self, "restore_report", {}) or {}, auth_config_changed=True)
+        self._checkpoint_auth_hash = ""
         if self.task is not None and task.objective_id == self.task.objective_id:
             self.task = task
             reg = getattr(self.meta, "register_objective", None)
@@ -2346,9 +2351,15 @@ class CamLiveAgent:
     def load(self, path: str) -> None:
         st = load_checkpoint(path, map_location=self.model.device)
         _generator_states_to_cpu(st.aux_state)     # torch.Generator.set_state takes a CPU ByteTensor only
-        restore_learner(self.learner, st, extra_optimizers={"reward_meta": self.meta.optimizer},
-                        generators={"agent": self.gen, "decider": self.decider.generator},
-                        expected_auth_hash=auth_config_hash(self.task) if self.task is not None else None)  # DX-2
+        current = self.task
+        rep = restore_learner(self.learner, st, extra_optimizers={"reward_meta": self.meta.optimizer},
+                              generators={"agent": self.gen, "decider": self.decider.generator},
+                              expected_auth_hash=auth_config_hash(current) if current is not None else None)  # DX-2
+        # CL-10 / G2L-10: the authorization configuration in force wins over the checkpoint's. A change is recorded
+        # (counter + restore report) and the current task is kept; an agent restored before it has a task compares
+        # when the runtime sets one (set_objective).
+        self.restore_report = dict(rep or {})
+        self._checkpoint_auth_hash = "" if current is not None else str(getattr(st, "auth_config_hash", "") or "")
         aux = (st.aux_state or {}).get("agent", {})
         self.meta.load_state_dict(aux["meta"])
         self._load_meta_batches(aux.get("meta_batches", {}))
@@ -2367,7 +2378,10 @@ class CamLiveAgent:
         if ex.get("planner"):
             self.planner.controller.load_state(ex["planner"])
         self._load_json_state(ex.get("agent", {}))
-        if st.current_task:
+        if current is not None and self.restore_report.get("auth_config_changed"):
+            self.counters["auth_config_changed_on_load"] += 1
+            self.task = current                            # G2L-10: never bring back the checkpoint's old limits
+        elif st.current_task:
             self.task = TaskSpec.from_dict(st.current_task)
             reg = getattr(self.meta, "register_objective", None)
             if callable(reg):                              # C-10: the task in force after a restart
