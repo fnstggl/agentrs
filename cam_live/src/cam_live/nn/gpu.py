@@ -19,12 +19,23 @@ class GpuUnavailable(RuntimeError):
     """The lock was not acquired in time, or too little GPU memory is free."""
 
 
+def open_lock_file(path: str):
+    """The shared lock file, created if missing. A service uid that may not write it (the machine's lock file is
+    root:root 0664; the separated learner ``camlearn`` is neither) opens it read-only: ``flock`` works on any open
+    file, so every process still takes the same lock. Measured 2026-11-28: ``open(path, "a+")`` as camlearn raised
+    PermissionError, so a separated live run could not lease the GPU."""
+    try:
+        return open(path, "a+")
+    except PermissionError:
+        return open(path, "r")
+
+
 @contextlib.contextmanager
 def gpu_lock(timeout_s: float = 1800.0, min_free_gb: float = 0.0, poll_s: float = 5.0) -> Iterator[float]:
     """Hold the shared lock; yields the time it was acquired. Raises :class:`GpuUnavailable` on timeout or when
     less than ``min_free_gb`` of GPU memory is free once the lock is held."""
     os.makedirs(os.path.dirname(GPU_LOCK_PATH), exist_ok=True)
-    f = open(GPU_LOCK_PATH, "a+")
+    f = open_lock_file(GPU_LOCK_PATH)
     t0 = time.time()
     try:
         while True:

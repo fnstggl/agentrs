@@ -59,7 +59,8 @@ class GpuLease:
         if self.held:
             return 0.0
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
-        fh = open(self.path, "a+")
+        from ..nn.gpu import open_lock_file
+        fh = open_lock_file(self.path)
         t0 = time.time()
         got = threading.Event()
         state = {"abandoned": False}
