@@ -345,7 +345,7 @@ evidence; (c)/(d) not reached: in 35 decisions the evidence could not support gi
 stated before the run: an R_psi of the quality the debug runs reached needs 50-130 informative pairs, the hold gave
 11), so R_psi did not influence a single live update and the frozen arm — identical by construction while the mix is
 1 — was not run (it would only have measured GPU nondeterminism). No further GPU hold was used: one hold supplies
-~35 decisions, the debug-scale promotions came after 221-573.
+~35 decisions, the debug-scale promotions came after 221-568.
 
 ## 6. Negative results and their diagnosis
 
@@ -411,8 +411,10 @@ stated before the run: an R_psi of the quality the debug runs reached needs 50-1
 
 ## 9. Not done / limitations
 
-* No reliable improvement from the learned reward is shown. The pathway is complete at debug scale in one seed of
-  three (default utility); the improvement after promotion there is one seed, ~48 decisions, correlated decisions.
+* No reliable improvement from the learned reward is shown. The pathway is complete at debug scale (5 promoted
+  objectives of 9 at 600 decisions); a clear gain after promotion in one of them (319 decisions left), the four short
+  post-promotion periods inconclusive; one seed per objective, correlated decisions; controlled configuration without
+  the agent's goal term.
 * The inner-loss return half-life (diagnosis (ii)) was not changed; it governs the live policy updates and needs its
   own evaluation of policy learning, which this round did not do.
 * The validity score uses signs only and disjoint pairs; magnitude-aware or within-batch scores could need fewer
@@ -425,4 +427,4 @@ stated before the run: an R_psi of the quality the debug runs reached needs 50-1
 * The pooled estimator evaluates the updated policy on the matured decisions *before* the update (states of the past,
   importance-weighted actions): it assumes the situation changes slowly within an objective. The query estimator
   (decisions after the update) is still used when the pool lacks evidence (`auto`).
-* Real-model evidence is limited by the GPU budget: one hold of ~14 minutes is ~40 decisions on the real configuration, while the debug-scale promotions came after 221-573 decisions.
+* Real-model evidence is limited by the GPU budget: one hold of ~14 minutes is ~40 decisions on the real configuration, while the debug-scale promotions came after 221-568 decisions.
