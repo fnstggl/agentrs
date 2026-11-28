@@ -99,7 +99,16 @@ REJECTED_TEXT: Dict[str, str] = {
                            r"campaigns?|newsletters?|partners?|partnerships?|amas?|cold (?:dm|message)s?)\b",
     "platform or subreddit": r"(?i)(?<![\w/])r/[A-Za-z0-9_]{2,}|\b(?:reddit|twitter|tiktok|youtube|facebook|instagram|"
                              r"telegram|whatsapp|linkedin|twitch|mastodon|hacker ?news|product ?hunt|subreddits?|"
-                             r"4chan|quora|medium\.com)\b",
+                             r"4chan|quora|medium\.com|threads\.net|bluesky|bsky|snapchat|pinterest|tumblr|kick\.com|"
+                             r"x\.com|steam ?community|github ?discussions|stack ?overflow)\b",
+    # G2R-1b: Discord server listing / bump sites and the moves made on them
+    "listing or bump site": r"(?i)\b(?:disboard|top[ .]?gg|discord[ .]?me|discords[ .]?com|discordservers?|discadia|"
+                            r"disforge|discordhome|discordlist\w*|discord ?bot ?list|server ?lists?|listing ?sites?|"
+                            r"server ?directory|bump(?:s|ed|ing|er)?|cool ?down)\b",
+    "outreach move": r"(?i)\b(?:cold[ -]?(?:dm|message|email)s?|mass[ -]?(?:dm|message|invite)s?|dm(?:s|ing|ed)? "
+                     r"(?:every|each|all|new|them|people|members|users)|invite ?links?|shill\w*|spam\w*|promot\w*|"
+                     r"cross ?post\w*|referrals?|collabs?|partnerships?|shout ?outs?|boost(?:s|ing)? (?:the|our|it)|"
+                     r"word of mouth)\b",
 }
 #: further patterns for the objective text, which CAM receives verbatim (flagged; confirmable by the operator)
 OBJECTIVE_TEXT: Dict[str, str] = {
@@ -387,7 +396,113 @@ def normalise_for_scan(text: str) -> str:
     return re.sub(r"\s+", " ", t).strip()
 
 
+#: G2R-1b: Unicode TR39-style confusables — letters of other scripts (Cyrillic, Greek, Armenian, Latin extensions)
+#: that render like Latin letters, mapped to the Latin letter before the content checks
+_CONFUSABLES = str.maketrans({
+    "а": "a", "в": "b", "с": "c", "ԁ": "d", "е": "e", "ё": "e", "һ": "h", "і": "i", "ї": "i", "ј": "j", "к": "k",
+    "ӏ": "l", "м": "m", "н": "h", "о": "o", "р": "p", "ԛ": "q", "г": "r", "ѕ": "s", "т": "t", "ц": "u", "ѵ": "v",
+    "ԝ": "w", "х": "x", "у": "y", "ү": "y", "з": "3", "ь": "b", "п": "n", "ɡ": "g", "ı": "i", "ȷ": "j", "ℓ": "l",
+    "ꞁ": "l", "ɑ": "a", "ɩ": "i", "ʋ": "u", "ɒ": "a", "ο": "o", "α": "a", "β": "b", "ε": "e", "η": "n", "ι": "i",
+    "κ": "k", "ν": "v", "ρ": "p", "τ": "t", "υ": "u", "χ": "x", "γ": "y", "ω": "w", "ϲ": "c", "ϳ": "j", "օ": "o",
+    "ս": "u", "ո": "n", "հ": "h", "ց": "g", "զ": "q", "А": "A", "В": "B", "С": "C", "Е": "E", "Н": "H", "І": "I",
+    "Ј": "J", "К": "K", "М": "M", "О": "O", "Р": "P", "Ѕ": "S", "Т": "T", "Х": "X", "У": "Y", "Ԁ": "D", "Ԛ": "Q",
+    "Ԝ": "W", "Α": "A", "Β": "B", "Ε": "E", "Ζ": "Z", "Η": "H", "Ι": "I", "Κ": "K", "Μ": "M", "Ν": "N", "Ο": "O",
+    "Ρ": "P", "Τ": "T", "Υ": "Y", "Χ": "X", "Ϲ": "C", "Ꭺ": "A", "Ᏼ": "B", "Ꮯ": "C", "Ꭼ": "E", "Ꮋ": "H", "Ꭻ": "J",
+    "Ꮶ": "K", "Ꮇ": "M", "Ꮲ": "P", "Ꮪ": "S", "Ꭲ": "T", "Ꮃ": "W",
+})
+_LEET = str.maketrans({"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s", "!": "i",
+                       "|": "l", "€": "e"})
+_LEET_TOKEN = re.compile(r"[A-Za-z0-9@$!|€]*[A-Za-z][A-Za-z0-9@$!|€]*")
+_SPELLED = re.compile(r"(?<![A-Za-z])(?:[A-Za-z][ .\-]){2,}[A-Za-z](?![A-Za-z])")
+#: words that occur in concatenated identifiers and labels ("postmemesdaily"): used only to split such a token into
+#: words before the content checks (nothing here is shown to the learner)
+_SEGMENT_WORDS = frozenset("""
+a about ad ads advertise advertising all and announce any app art artists ask at audience back be best boost bot bots
+build bump bumping campaign campaigns channel channels chat clip clips cold collab community contest contests content
+create cross crosspost daily day days developer developers discord dm dms each email engage event events every
+everyone fan fans feed first for forum forums free friend friends from fun game gamer gamers games get giveaway
+giveaways group grow growth guide hack help host hourly in influencer influencers invite invites inviting it join
+joiner joiners joining link links list listing make many marketing mass meme memes member members message messages
+monthly more music new news newsletter niche nitro of on or our outreach partner partners people personally plan
+play player players post posting posts prize prizes promo promote promotion recruit referral reddit reward rewards
+role roles run running send server servers share sharing site sites social spam start strategy stream streams
+student students subreddit sunday team the their them then thread threads through tiktok tips to top topic twitch
+twitter up users via video videos viral weekly weekend welcome with youtube your
+""".split())
+
+
+def _segment(token: str) -> str:
+    """A lowercase run split into known words (dynamic programming: the most characters covered); characters not
+    covered stay together as their own word. The token itself unless two or more known words of three or more
+    letters cover at least half of it."""
+    n = len(token)
+    best: List[Optional[Tuple[int, List[str]]]] = [None] * (n + 1)
+    best[0] = (0, [])
+    for i in range(n):
+        if best[i] is None:
+            continue
+        cov, words = best[i]
+        for j in range(min(n, i + 14), i, -1):
+            w = token[i:j]
+            if w in _SEGMENT_WORDS and (best[j] is None or best[j][0] < cov + len(w)):
+                best[j] = (cov + len(w), words + [w])
+        if best[i + 1] is None or best[i + 1][0] < cov:      # one character not covered by a known word
+            best[i + 1] = (cov, words + [token[i]])
+    cov, words = best[n] or (0, [token])
+    known = [w for w in words if w in _SEGMENT_WORDS and len(w) >= 3]
+    if len(known) < 2 or cov < 0.5 * n:
+        return token
+    out, run = [], ""
+    for w in words:                                        # uncovered characters stay together
+        if w in _SEGMENT_WORDS:
+            if run:
+                out.append(run)
+                run = ""
+            out.append(w)
+        else:
+            run += w
+    return " ".join(out + ([run] if run else []))
+
+
+def skeleton(text: str) -> str:
+    """The text as it reads to a person (G2R-1b): NFKC, invisible characters removed, confusable letters of other
+    scripts mapped to Latin."""
+    t = unicodedata.normalize("NFKC", str(text))
+    t = "".join(c for c in t if not (_INVISIBLE.match(c) or unicodedata.category(c) == "Cf"))
+    return t.translate(_CONFUSABLES)
+
+
+def _scan_variants(text: str, *, ident: bool) -> List[str]:
+    """Readings of ``text`` the content rules are applied to besides the text itself (G2R-1, G2R-1b): the
+    confusable skeleton, leetspeak folded (tokens mixing letters with 0 1 3 4 5 7 @ $), letters spelled one by one
+    joined, and — for identifiers — separators as spaces and concatenated words split."""
+    sk = skeleton(text)
+    if ident:
+        sk = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", sk)
+        sk = re.sub(r"\s+", " ", _ID_SEPARATORS.sub(" ", sk)).strip()
+    leet = _LEET_TOKEN.sub(lambda m: m.group(0).translate(_LEET) if re.search(r"[0-9@$!|€]", m.group(0))
+                           else m.group(0), sk)
+    joined = _SPELLED.sub(lambda m: re.sub(r"[ .\-]", "", m.group(0)), leet)
+    out = [sk, leet, joined]
+    if ident:
+        out.append(" ".join(_segment(w) if w.isalpha() and len(w) >= 7 else w
+                            for w in joined.lower().split(" ")))
+    return [v for i, v in enumerate(out) if v and v != text and v not in out[:i]]
+
+
+def mixed_script_words(text: str) -> List[str]:
+    """Words that mix Latin letters with letters of another script (homoglyph spellings, G2R-1b)."""
+    out = []
+    for w in re.findall(r"[^\W\d_]+", unicodedata.normalize("NFKC", str(text))):
+        scripts = {("latin" if "LATIN" in unicodedata.name(c, "") else unicodedata.name(c, "?").split(" ")[0])
+                   for c in w}
+        if "latin" in scripts and len(scripts) > 1:
+            out.append(w)
+    return sorted(set(out))
+
+
 _IMPERATIVE_RULES = [(l, r) for l, r in _OBJECTIVE_TEXT if l == "imperative steps"] + _INSTRUCTION_TEXT
+_AUDIENCE_RULE = [(l, r) for l, r in _OBJECTIVE_TEXT if l == "audience or topic of the community"]
 
 
 def _content_hits(value: str, *, ident: bool) -> List[str]:
@@ -395,10 +510,23 @@ def _content_hits(value: str, *, ident: bool) -> List[str]:
     label, metric, tool pattern, URL): read as words, it is also checked for commands when it has three or more."""
     hits = _text_hits(value, _REJECTED_TEXT)
     norm = normalise_for_scan(value)
-    if norm and norm != value:
-        hits += [h for h in _text_hits(norm, _REJECTED_TEXT) if h not in hits]
-    if ident and len(re.findall(r"[A-Za-z]{2,}", norm)) >= 3:
-        hits += [h for h in _text_hits(norm, _IMPERATIVE_RULES) if h not in hits]
+    readings = ([norm] if norm and norm != value else []) + [v for v in _scan_variants(value, ident=ident) if v != norm]
+    for r in readings:
+        hits += [h for h in _text_hits(r, _REJECTED_TEXT) if h not in hits]
+        if ident and len(re.findall(r"[A-Za-z]{2,}", r)) >= 3:
+            hits += [h for h in _text_hits(r, _IMPERATIVE_RULES + _AUDIENCE_RULE) if h not in hits]
+    if ident:
+        # each separated part of an identifier ("community/<part>/<part>"), read as words (concatenations split),
+        # is checked for commands and audiences as well (G2R-1b)
+        for part in _ID_SEPARATORS.split(skeleton(value)):
+            if len(part) < 7:
+                continue
+            for r in _scan_variants(part, ident=True)[-1:]:
+                if len(re.findall(r"[A-Za-z]{2,}", r)) >= 3:
+                    hits += [h for h in _text_hits(r, _IMPERATIVE_RULES + _AUDIENCE_RULE) if h not in hits]
+    mixed = mixed_script_words(value)
+    if mixed:
+        hits.append(f"letters of another script inside a word (homoglyphs): {', '.join(mixed[:5])}")
     return hits
 
 
@@ -419,12 +547,13 @@ def objective_flags(text: str) -> List[str]:
         return []
     out = _text_hits(text, _REJECTED_TEXT) + _text_hits(text.strip(), _OBJECTIVE_TEXT)
     hidden = invisible_characters(text)
-    seen = unicodedata.normalize("NFKC", "".join(c for c in text if not (_INVISIBLE.match(c)
-                                                                        or unicodedata.category(c) == "Cf")))
-    if seen != text:
+    for seen in _scan_variants(text, ident=False):         # NFKC, confusables, leetspeak, spelled-out letters
         out += [h for h in _text_hits(seen, _REJECTED_TEXT) + _text_hits(seen.strip(), _OBJECTIVE_TEXT) if h not in out]
     if hidden:
         out.append(f"invisible or direction-control characters: {', '.join(hidden)}")
+    mixed = mixed_script_words(text)
+    if mixed:
+        out.append(f"letters of another script inside a word (homoglyphs): {', '.join(mixed[:5])}")
     return out
 
 

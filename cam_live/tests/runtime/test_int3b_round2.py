@@ -41,6 +41,8 @@ def _refused(raw, tmp_path) -> bool:
     return False
 
 
+_OBJ = ("Create and operate a genuinely useful Discord community that attracts 100 distinct real human members who "
+        "voluntarily choose to join ")
 # neutral placeholders for content words (the test file itself carries no community strategy): the rules look for
 # kinds of words (platforms, cadence, strategy vocabulary, ordered / imperative steps), not for these examples
 DISGUISES = {
@@ -60,6 +62,22 @@ DISGUISES = {
                                                          "attracts 100 members by posting on r" + ZW + "eddit e" + ZW +
                                                          "very day, within the authorized experimental constraints"),
     "zero-width in an identifier": lambda r: r["resources"].update(authorized_tools=["disc" + ZW + "ord.*"]),
+    # round 3 (G2R-1b, the verifier's round-2 variants with neutral placeholders)
+    "Cyrillic homoglyphs in the objective": lambda r: r.update(objective=_OBJ + "by posting widgets on r\u0435ddit "
+                                                             "\u0435very day, within the authorized experimental constraints"),
+    "leetspeak objective": lambda r: r.update(objective=_OBJ + "by posting widgets on r3ddit 3very d4y, within the "
+                                                             "authorized experimental constraints"),
+    "listing sites": lambda r: r.update(objective=_OBJ + "by listing it on disboard and top.gg and bumping it, within "
+                                                       "the authorized experimental constraints"),
+    "spelled-out letters": lambda r: r.update(objective=_OBJ + "by posting widgets on r e d d i t, within the "
+                                                             "authorized experimental constraints"),
+    "concatenated metric": lambda r: r["secondary_metrics"].append("secondary.redditwidgetstrategywithdailythings"),
+    "concatenated family": lambda r: r.update(family="community/widgetserverforgamers/invitefriendspersonally"),
+    "concatenated channel labels": lambda r: r["resources"].update(discord={"guild_id": "123456789012345678", "channels": {
+        "postwidgetsdaily": "223456789012345678", "dmeverynewjoiner": "323456789012345678"}}),
+    "concatenated objective_id": lambda r: r.update(objective_id="discord100viaredditwidgetsandthings"),
+    "homoglyph URL query": lambda r: r["resources"].update(authorized_destinations=[
+        "example.invalid", "https://example.invalid/?plan=widgets_on_r\u0435ddit_d\u0430ily"]),
 }
 
 
@@ -850,3 +868,25 @@ def test_members_present_at_the_start_who_leave_and_rejoin_are_not_counted(tmp_p
     assert _uid(0) not in stored and _uid(0) not in log       # keyed hashes only, and only in the state directory
     assert oct(os.stat(tmp_path / "v" / "verifier" / "baseline_members.json").st_mode & 0o777) == "0o600"
     assert "usefulness" in o.notes                            # G2R-3b: reported as not measured
+
+
+def test_confusables_leetspeak_and_concatenations_are_read_and_task_files_stay_clean(tmp_path):
+    """G2R-1b: the readings the content rules see; no task file of the repository and no ordinary identifier is
+    refused (false-refusal rate on legitimate files: zero)."""
+    import glob
+    assert T.skeleton("r\u0435ddit d\u0430ily") == "reddit daily"
+    assert "reddit every day" in T._scan_variants("r3ddit 3very d4y", ident=False)
+    assert any("reddit" in v for v in T._scan_variants("on r e d d i t now", ident=False))
+    assert T._segment("postwidgetsdaily") != "postwidgetsdaily" and "daily" in T._segment("postwidgetsdaily")
+    assert T.mixed_script_words("a r\u0435ddit word") == ["r\u0435ddit"]
+    files = glob.glob(os.path.join(PROJECT, "tasks", "**", "*.yaml"), recursive=True)
+    assert len(files) >= 6
+    for f in files:
+        raw = T.load_task_raw(f)
+        assert T.strategy_findings(raw) == [], f
+    ordinary = ["secondary.retention_7d", "secondary.participation", "community/membership", "membership.confirmed",
+                "announcements", "general", "welcome", "introductions", "discord_100", "utility_staging",
+                "lab.adopters.total", "secondary.time_elapsed_s", "staging/store-entry", "https://example.invalid/a?b=1",
+                "api.v2", "ipv4", "h264", "notifications", "moderation", "discord.channels.read"]
+    for x in ordinary:
+        assert T._content_hits(x, ident=True) == [], x
