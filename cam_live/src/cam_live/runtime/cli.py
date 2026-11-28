@@ -284,6 +284,10 @@ def cmd_validate(a: argparse.Namespace) -> int:
         kw["evidence_dir"] = os.path.abspath(a.evidence_dir)
     if getattr(a, "budget_s", 0.0):
         kw["budget_s"] = float(a.budget_s)
+    if getattr(a, "meta_min_independent", 0):
+        kw["meta_min_independent"] = int(a.meta_min_independent)
+    if getattr(a, "computer_share", 0.0):
+        kw["computer_share"] = float(a.computer_share)
     report = run_staging(cfg, **_accepted(run_staging, kw))
     out = os.path.join(kw.get("out_dir") or os.path.join(cfg.resolved_home(), "validation"), "staging_report.json")
     atomic_write_json(out, report)
@@ -801,6 +805,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--evidence-dir", default="", help="also write the evidence file here")
     p.add_argument("--budget-s", type=float, default=0.0, help="seconds the GPU lock may be held for the learning "
                    "phases (0: the validation's default; keep it <= ~840 on a shared GPU)")
+    p.add_argument("--meta-min-independent", type=int, default=0, help="independent verified groups a reward "
+                   "meta-update needs in this validation (0: the validation's default, 4)")
+    p.add_argument("--computer-share", type=float, default=0.0, help="share of the decisions in the computer phase")
     p.add_argument("--seed", type=int, default=0)
     p = add("inspect-harness", cmd_inspect_harness, "list available tools, permissions and missing integrations")
     p.add_argument("--run-dir", default="")
