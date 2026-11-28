@@ -24,3 +24,26 @@ information it could read itself, for permissions it already had, and once for t
 objective: the operator provides resources, not strategic direction). The architectural causes are being
 investigated under the 2026-11-28 core-intelligence amendment (docs/ST.md: information-only actions had no pathway
 to be valued; docs/RW.md: the learned reward never took effect in one objective).
+
+## Attempt 3 (amended code 6cba496, standing profile routine-reversible-1)
+
+Run dir runs/cam_live/live/discord-100-planning-20261128T144554Z, code snapshot runs/cam_live/live/code_6cba496 (all
+seven amendment agents integrated; defaults: imagination on with learned weight, evidence-based R_psi promotion,
+segment credit, persistent state off, information value as bootstrap input, prompt window 8192; ST's OWN RECORDS /
+expected / proposal learning off by default). Signed with the standing profile (routine writes to the operator's
+server and package installs from pypi without approval; irreversible / new permissions / messages to people / money
+keep approval).
+
+| | attempt 3 |
+|---|---|
+| decisions | 120 (limit) |
+| executed / refused | 101 / 19 |
+| notes written by CAM | 0 |
+| requests to the operator | 7 |
+| learning | fast 119, frequent 68, slow adapter 4, meta-updates applied 0 (mix 1.0) |
+| consequential actions | none (12 x discord.modify_guild ok, 1 discord.create_channel; no money, no messages to people) |
+| web navigation | none to an address (open_tab / read / scroll / inspect / screenshot on blank tabs) |
+
+Same qualitative outcome as attempt 2. The independent verifiers' explanations: G3-act measured that the full-size
+predictor barely uses its context (removing a decision's items moves later beliefs by a median 3.3e-4 relative), so
+information carries no measurable value (docs/verification/G3_act.md); ST: the frozen generator never proposes notes.
