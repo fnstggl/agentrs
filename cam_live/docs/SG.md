@@ -387,3 +387,16 @@ earlier numbers (-4.6 [-10.6, +1.9] and -11.2) came from unpaired runs and are s
 goal-free choices in short periods) stands; the pair-to-pair spread (sd 16.9 adopters) is larger than any effect this
 design could show with 10 pairs. The real-configuration comparison of §6.3 used one run per arm, which are not pairs
 of the same experiment either (same seed, different ids at that code): it stays a floor observation.
+
+**Controlled measurement re-run on the round-3 code** (`docs/evidence/SG/skills_browser_measure.json`, snapshot of
+`7074351`; it replaces the `07303fe` numbers of §5.3): store an entry — primitive 10/10, 4 decisions, 4 ops, 0.62 s;
+skill 10/10 verified, 1 decision, 3 ops, 1.06 s (the settled look costs ~0.4 s); record an item — primitive 10/10, 6
+decisions, 6 ops, 1.67 s; skill 8/10 (the 2 misses are refusals by the site rate limit after 3 operations), 1
+decision, 5.4 ops, 1.76 s; layout B — primitive 10/10, 5 decisions; a skill **was** acquired from two own traces
+(validation passed, effect not observed: `effect_unobserved`), and all 10 of its runs ended `effect_unconfirmed` with
+**no entry stored** — reported as unconfirmed, not as success (status ok, verified None, reliability unchanged): the
+page announced nothing, so the run could not be classified as a failure either. Why the commits did not happen in this
+sequence was not diagnosed (the same skill stored every entry in a fresh session: 3 of 3, verified); a refusal the page
+does not announce (e.g. an in-page request the authorization service's rate limit blocks) is exactly the case the
+unconfirmed status exists for. Skills comparison of the real configuration: not re-run (no GPU hold; the real runs
+of §6 found no skill to compare).

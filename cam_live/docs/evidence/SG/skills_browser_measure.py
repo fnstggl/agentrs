@@ -179,19 +179,25 @@ def main(argv=None):
              "skill_id": sid_b, "source_decisions": 10, "detail": r.failure_detail[:300]}
     sk_b = []
     if sid_b:
+        # a skill run issues its steps and the page's own commit request within ~1 s: paced so that the site's rate
+        # limit (which also covers in-page requests, and whose refusal the page does not announce) is not measured
+        b.pace_s = 6.0
         names = sorted(b.skills.library.get(sid_b).arg_schema["properties"])
         for i in range(a.n):
             args = {n: (f"Bee skill {i}" if n == "text" else labels[i % 3]) for n in names}
             _, r, s = b.run("skill.run", {"skill_id": sid_b, "arguments": args})
             sk_b.append({"decisions": 1, "primitive_ops": len(r.ops), "latency_s": s,
-                         "ok": r.status == ResultStatus.OK and r.verified is True})
+                         "ok": r.status == ResultStatus.OK and r.verified is True,
+                         "termination": r.artifacts.get("termination"), "detail": r.failure_detail[:120]})
+        b.pace_s = 2.0
     b_names = [e["name"] for e in b.sc.sites.variants.entries]
     out["tasks"]["store_entry_layout_b"] = {
         "primitive_only": summary(prim_b), "skill_based": summary(sk_b) if sk_b else None, "acquisition": acq_b,
         "every_skill_entry_stored": bool(sk_b) and all(f"Bee skill {i}" in b_names for i in range(a.n)),
         "skill": {"operations": b.skills.library.get(sid_b).operations(),
                   "params": b.skills.library.get(sid_b).arg_schema["properties"]} if sid_b else None,
-        "note": "the layout-A skill is refused here by its precondition; this one was acquired from traces on B"}
+        "note": "the layout-A skill is refused here by its precondition; this one was acquired from traces on B",
+        "failures": [x for x in sk_b if not x["ok"]][:3]}
     out["tasks"]["store_entry"] = {"primitive_only": summary(prim), "skill_based": summary(sk), "acquisition": acq,
                                    "every_skill_entry_stored": stored_ok,
                                    "unfamiliar_path_same_layout": app_path, "interface_changed_to_layout_b": changed,

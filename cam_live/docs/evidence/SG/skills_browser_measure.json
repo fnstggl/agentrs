@@ -8,21 +8,84 @@
     "success": 10,
     "decisions_per_task": 5,
     "primitive_ops_per_task": 5,
-    "latency_s_mean": 0.9320624174550176,
-    "latency_s_median": 0.9271986235398799
+    "latency_s_mean": 0.8624366741627455,
+    "latency_s_median": 0.8597183839883655
    },
-   "skill_based": null,
+   "skill_based": {
+    "n": 10,
+    "success": 0,
+    "decisions_per_task": 1,
+    "primitive_ops_per_task": 4.1,
+    "latency_s_mean": 0.8999670632649213,
+    "latency_s_median": 0.8934525484219193
+   },
    "acquisition": {
-    "ok": false,
-    "latency_s": 0.4086757027544081,
+    "ok": true,
+    "latency_s": 0.8650158829987049,
     "primitive_ops": 4,
-    "skill_id": null,
+    "skill_id": "skill_28eef7fb3480406d",
     "source_decisions": 10,
-    "detail": "no skill registered: postconditions_met: "
+    "detail": ""
    },
    "every_skill_entry_stored": false,
-   "skill": null,
-   "note": "the layout-A skill is refused here by its precondition; this one was acquired from traces on B"
+   "skill": {
+    "operations": [
+     "browser.click",
+     "browser.fill",
+     "browser.click",
+     "browser.click"
+    ],
+    "params": {
+     "text": {
+      "type": "string",
+      "description": "step 1 (browser.fill) text",
+      "examples": [
+       "Bee source one",
+       "Bee source two"
+      ]
+     },
+     "name": {
+      "type": "string",
+      "description": "step 2 (browser.click) name",
+      "examples": [
+       "Parts",
+       "Misc"
+      ],
+      "enum": [
+       "Tools",
+       "Parts",
+       "Misc"
+      ]
+     }
+    }
+   },
+   "note": "the layout-A skill is refused here by its precondition; this one was acquired from traces on B",
+   "failures": [
+    {
+     "decisions": 1,
+     "primitive_ops": 4,
+     "latency_s": 0.8836257150396705,
+     "ok": false,
+     "termination": "effect_unconfirmed",
+     "detail": ""
+    },
+    {
+     "decisions": 1,
+     "primitive_ops": 4,
+     "latency_s": 0.8990231170319021,
+     "ok": false,
+     "termination": "effect_unconfirmed",
+     "detail": ""
+    },
+    {
+     "decisions": 1,
+     "primitive_ops": 4,
+     "latency_s": 0.8762885858304799,
+     "ok": false,
+     "termination": "effect_unconfirmed",
+     "detail": ""
+    }
+   ]
   },
   "store_entry": {
    "primitive_only": {
@@ -30,22 +93,22 @@
     "success": 10,
     "decisions_per_task": 4,
     "primitive_ops_per_task": 4,
-    "latency_s_mean": 0.726397834904492,
-    "latency_s_median": 0.6855863768141717
+    "latency_s_mean": 0.622284033941105,
+    "latency_s_median": 0.615842389408499
    },
    "skill_based": {
     "n": 10,
     "success": 10,
     "decisions_per_task": 1,
     "primitive_ops_per_task": 3,
-    "latency_s_mean": 0.6436141487210989,
-    "latency_s_median": 0.5971262480597943
+    "latency_s_mean": 1.0633840458467603,
+    "latency_s_median": 1.065723635489121
    },
    "acquisition": {
     "ok": true,
-    "latency_s": 0.5464872801676393,
+    "latency_s": 1.0425693322904408,
     "primitive_ops": 3,
-    "skill_id": "skill_94fb62371a534b04",
+    "skill_id": "skill_852dfe0dc8784664",
     "source_decisions": 8,
     "detail": ""
    },
@@ -91,22 +154,22 @@
     "success": 10,
     "decisions_per_task": 6,
     "primitive_ops_per_task": 6,
-    "latency_s_mean": 1.704693370871246,
-    "latency_s_median": 1.6707095897290856
+    "latency_s_mean": 1.6699364565778523,
+    "latency_s_median": 1.656867990968749
    },
    "skill_based": {
     "n": 10,
     "success": 8,
     "decisions_per_task": 1,
     "primitive_ops_per_task": 5.4,
-    "latency_s_mean": 1.3525643920060246,
-    "latency_s_median": 1.5707459894474596
+    "latency_s_mean": 1.7564763809554278,
+    "latency_s_median": 2.062634822446853
    },
    "acquisition": {
     "ok": true,
-    "latency_s": 1.4124569790437818,
+    "latency_s": 2.0093309776857495,
     "primitive_ops": 6,
-    "skill_id": "skill_d3db920789374a72",
+    "skill_id": "skill_774420c4772441e5",
     "source_decisions": 12,
     "detail": ""
    },
@@ -129,19 +192,19 @@
     {
      "decisions": 1,
      "primitive_ops": 3,
-     "latency_s": 0.40789317805320024,
+     "latency_s": 0.44550031097605824,
      "ok": false,
-     "detail": "resource: rate limit for url:127.0.0.1:39047 reached (60 operations per 60 s; 60 used, 1 more requested); retry in 1 s"
+     "detail": "resource: rate limit for url:127.0.0.1:44585 reached (60 operations per 60 s; 60 used, 1 more requested); retry in 1 s"
     },
     {
      "decisions": 1,
      "primitive_ops": 3,
-     "latency_s": 0.444337991066277,
+     "latency_s": 0.4632653435692191,
      "ok": false,
-     "detail": "resource: rate limit for url:127.0.0.1:39047 reached (60 operations per 60 s; 60 used, 1 more requested); retry in 1 s"
+     "detail": "resource: rate limit for url:127.0.0.1:44585 reached (60 operations per 60 s; 60 used, 1 more requested); retry in 1 s"
     }
    ],
-   "rate_limit_waits": 8
+   "rate_limit_waits": 7
   }
  }
 }
