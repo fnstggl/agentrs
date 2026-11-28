@@ -37,6 +37,10 @@ def _task(target=100, **excl):
     t.success["exclusions"]["test_account_ids"] = ["op-1", "op-2"]
     t.success["exclusions"].update(excl)
     t.limits.duration_s = 30 * DAY
+    # the experiment's start (G2R-2: members who joined before it are not counted); these tests' members all join
+    # during the experiment
+    t.measurement["window_start_ts"] = 1.0
+    t.measurement["deadline_ts"] = 1e12
     return t
 
 
@@ -113,7 +117,9 @@ def test_secondary_metrics_are_separate_quantities(tmp_path):
                            {"member_id": "bot", "consented": True}])
     clock.advance(10 * DAY)
     v = MembershipVerifier(src, clock, str(tmp_path / "v"), cost_source=lambda: {"money": 12.5, "currency": "USD"})
-    o = v.verify(_task(target=100))
+    t = _task(target=100)
+    t.data_permissions["collect_feedback_with_consent"] = True   # consented feedback is measured only when permitted
+    o = v.verify(t)
     sec = {q.name: q for q in o.secondary}
     assert sec["secondary.retention_7d"].value == pytest.approx(3 / 4) and sec["secondary.retention_7d"].exposure == 4
     assert sec["secondary.participation.members"].value == 2          # a and new; the bot's activity is not counted

@@ -31,7 +31,9 @@ def task(target=100, **excl):
     return TaskSpec(objective_id="obj_members", objective="members", family="community/membership", mode="staging",
                     success={"verifier": "membership", "metric": "membership.confirmed", "target": target,
                              "confidence": 0.95, "exclusions": excl},
-                    limits=Limits(duration_s=30 * DAY, max_decisions=10))
+                    limits=Limits(duration_s=30 * DAY, max_decisions=10),
+                    measurement={"window_start_ts": 0.5,      # G2R-2: every member here joined after the start
+                                 "deadline_ts": T0 + 30 * DAY})
 
 
 def humans(n, prefix="u", **kw):

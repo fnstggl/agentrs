@@ -91,8 +91,12 @@ def build_inproc(task: TaskSpec, cfg: CamLiveConfig, run_dir: str) -> Tuple[Any,
                             compose="all" if not sec.get("executors") else "minimal", task=task,   # E-2
                             executors=tuple(sec.get("executors", ())), browser=bool(sec.get("browser", True)))
     source = source_from_spec(evidence_source(task), task, run_dir)
+    from .verifier import authorization_cost_source
+    currency = str((task.resources or {}).get("currency", "")) if isinstance(task.resources, dict) else ""
     verifier = build_verifier(task, os.path.join(run_dir, "verifier"), clock, source,
-                              log_path=os.path.join(run_dir, "verifier.jsonl"))
+                              log_path=os.path.join(run_dir, "verifier.jsonl"),
+                              cost_source=authorization_cost_source(policy, lambda _o: currency),   # G2R-3
+                              operator_dir=run_dir)                                                 # G2R-4
     return env, policy, verifier, clock
 
 

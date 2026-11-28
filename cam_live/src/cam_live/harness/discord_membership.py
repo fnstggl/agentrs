@@ -92,7 +92,25 @@ class DiscordMembershipSource:
         return out
 
     def resource_usage(self) -> Dict[str, float]:
+        """The verifier's own measurement overhead (logged by the verifier; not a resource use of CAM's)."""
         return {"discord.verifier.requests": float(self._client.requests_sent)}
+
+    def participation(self, per_channel: int = 100) -> Dict[str, int]:
+        """Voluntary participation as an aggregate signal (G2R-3): per member, the number of messages among the
+        latest ``per_channel`` of every text channel of the guild. Only authors are counted: message text is
+        never read into a structure; the verifier keeps counts of counted members only and releases two numbers."""
+        c, g = self._client, self.guild_id
+        counts: Dict[str, int] = {}
+        for ch in c._request("GET", f"/guilds/{g}/channels", route=f"/guilds/{g}/channels") or []:
+            if int(ch.get("type", -1)) not in (0, 5, 11, 12):          # text, announcement, threads
+                continue
+            cid = str(ch["id"])
+            for m in c._request("GET", f"/channels/{cid}/messages", route=f"/channels/{cid}/messages",
+                                params={"limit": str(max(1, min(100, per_channel)))}) or []:
+                a = m.get("author") or {}
+                if a.get("id") and not a.get("bot"):
+                    counts[str(a["id"])] = counts.get(str(a["id"]), 0) + 1
+        return counts
 
 
 def membership_source(task: TaskSpec, run_dir: str) -> DiscordMembershipSource:

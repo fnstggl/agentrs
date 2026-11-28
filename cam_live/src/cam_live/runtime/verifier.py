@@ -267,7 +267,8 @@ class HashChainLog:
 class SignedVerifier:
     """Signing, signature checks, the evaluation log and first-evaluation times shared by the verifiers."""
 
-    def __init__(self, clock: Clock, state_dir: str, *, log_path: str = "", pinned_task: Optional[TaskSpec] = None):
+    def __init__(self, clock: Clock, state_dir: str, *, log_path: str = "", pinned_task: Optional[TaskSpec] = None,
+                 operator_dir: str = ""):
         self.clock = clock
         self.state_dir = os.path.abspath(state_dir)
         os.makedirs(self.state_dir, mode=0o700, exist_ok=True)
@@ -275,10 +276,19 @@ class SignedVerifier:
         self.log = HashChainLog(log_path or os.path.join(self.state_dir, RunFiles.VERIFIER),
                                 os.path.join(self.state_dir, "head.json"))
         self.pinned_task = pinned_task
+        #: G2R-4: objectives the operator assigned later, accepted only with the operator's signed command; the
+        #: run directory whose control.pub is the operator's key (default: the directory above the state dir)
+        self.operator_dir = os.path.abspath(operator_dir or os.path.dirname(self.state_dir))
+        self._assigned: Dict[str, TaskSpec] = {}
+        self._current_id = pinned_task.objective_id if pinned_task is not None else ""
         self._first_seen: Dict[str, float] = {}
         for e in iter_jsonl(self.log.path):
             if e.get("kind") == "first_seen":
                 self._first_seen[e["payload"]["objective_id"]] = float(e["payload"]["ts"])
+            elif e.get("kind") == "assigned" and pinned_task is not None:
+                with_err = self._reload_assigned(e.get("payload") or {})
+                if with_err:
+                    self.log.append(clock.now(), "assignment_not_restored", {"reason": with_err[:300]})
 
     # ---- signatures ----------------------------------------------------------------------------------------
     def _signature(self, outcome: VerifiedOutcome) -> str:
@@ -301,15 +311,65 @@ class SignedVerifier:
         return (isinstance(obs, OutcomeObservation) and bool(sig) and obs.verified is True
                 and hmac.compare_digest(sig, self._obs_signature(obs)))
 
+    # ---- operator-assigned objectives (G2R-4) --------------------------------------------------------------
+    def _load_assigned_file(self, path: str, sha256: str) -> TaskSpec:
+        from .control import file_sha256
+        from .tasks import load_task
+        if not sha256 or file_sha256(path) != sha256:
+            raise PermissionError("the task file differs from the one the operator's command names")
+        return load_task(path, for_run=True)
+
+    def _reload_assigned(self, payload: Dict[str, Any]) -> str:
+        try:
+            t = self._load_assigned_file(str(payload.get("path", "")), str(payload.get("sha256", "")))
+        except Exception as e:  # noqa: BLE001 — not restored: verifying that objective is refused
+            return f"{type(e).__name__}: {e}"
+        self._assigned[t.objective_id] = t
+        return ""
+
+    def assign_objective(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        """Accept a further objective to judge: only with the operator's signed ``assign_objective`` command (checked
+        here against the operator's key in ``operator_dir``, not by the caller) and only the task file whose hash the
+        command names. The success criteria come from that file, never from the caller."""
+        from .control import ControlChannel
+        if self.pinned_task is None:
+            return {"accepted": True, "note": "this verifier is not pinned to an objective"}
+        if not isinstance(command, dict) or command.get("cmd") != "assign_objective":
+            raise PermissionError("not an assign_objective command")
+        ok, why = ControlChannel(self.operator_dir).authenticate(command)
+        if not ok:
+            raise PermissionError(f"the assignment is not signed by the operator ({why})")
+        args = command.get("args") or {}
+        path, sha = str(args.get("path", "")), str(args.get("sha256", ""))
+        t = self._load_assigned_file(path, sha)
+        if t.objective_id == self.pinned_task.objective_id:
+            raise PermissionError("the first objective is pinned; its criteria are not replaced")
+        self._assigned[t.objective_id] = t
+        self.log.append(self.clock.now(), "assigned", {"objective_id": t.objective_id, "path": path, "sha256": sha,
+                                                       "command_id": str(command.get("id", ""))})
+        return {"accepted": True, "objective_id": t.objective_id}
+
     # ---- helpers -------------------------------------------------------------------------------------------
     def _task(self, task: TaskSpec) -> TaskSpec:
         """The task the verifier judges. When the operator pinned one, the caller's copy is only an identifier:
-        success criteria never come from the learner's side."""
+        success criteria never come from the learner's side — from the pinned task, or from a task the operator
+        assigned with a signed command (:meth:`assign_objective`)."""
         if self.pinned_task is None:
             return task
-        if task.objective_id != self.pinned_task.objective_id:
-            raise PermissionError(f"this verifier serves objective {self.pinned_task.objective_id!r} only")
-        return self.pinned_task
+        if task.objective_id == self.pinned_task.objective_id:
+            self._current_id = task.objective_id
+            return self.pinned_task
+        if task.objective_id in self._assigned:
+            self._current_id = task.objective_id
+            return self._assigned[task.objective_id]
+        raise PermissionError(f"this verifier serves objective {self.pinned_task.objective_id!r} and the "
+                              f"objectives the operator assigned ({sorted(self._assigned)}) only")
+
+    def _current_task(self) -> Optional[TaskSpec]:
+        """The objective measured now: the last one verified (the runtime verifies the objective it works on)."""
+        if self.pinned_task is None:
+            return None
+        return self._assigned.get(self._current_id) or self.pinned_task
 
     def _started(self, task: TaskSpec, now: float) -> float:
         t = task.measurement.get("window_start_ts")
@@ -516,6 +576,8 @@ def classify_members(members: Sequence[MemberRecord], rules: Dict[str, Any], now
             out(excluded, reasons[i], m)
         elif m.left_at is not None and m.left_at <= now and not rules.get("count_departed", False):
             out(excluded, "departed", m)
+        elif rules.get("counted_from_ts") and 0 < m.joined_at < float(rules["counted_from_ts"]):
+            out(excluded, "joined_before_start", m)      # G2R-2: already a member before the experiment began
         elif links and person in tainted:
             out(excluded, "linked_to_excluded", m)
         elif links and person in claimed:
@@ -548,9 +610,15 @@ class MembershipVerifier(SignedVerifier):
 
     def __init__(self, source: MembershipSource, clock: Clock, state_dir: str, *, log_path: str = "",
                  pinned_task: Optional[TaskSpec] = None,
-                 cost_source: Optional[Callable[[], Dict[str, float]]] = None):
-        super().__init__(clock, state_dir, log_path=log_path, pinned_task=pinned_task)
+                 cost_source: Optional[Callable[..., Dict[str, float]]] = None, operator_dir: str = ""):
+        super().__init__(clock, state_dir, log_path=log_path, pinned_task=pinned_task, operator_dir=operator_dir)
         self.source, self.cost_source = source, cost_source
+        self._cohorts_path = os.path.join(self.state_dir, "cohorts.json")
+        self._cohorts: Dict[str, Dict[str, Dict[str, Any]]] = read_json(self._cohorts_path, {}) or {}
+        self._baseline: Dict[str, Dict[str, Any]] = {}
+        for e in iter_jsonl(self.log.path):
+            if e.get("kind") == "baseline":
+                self._baseline[e["payload"]["objective_id"]] = dict(e["payload"])
 
     def _rules(self, task: TaskSpec) -> Dict[str, Any]:
         rules = dict(DEFAULT_RULES)
@@ -578,8 +646,17 @@ class MembershipVerifier(SignedVerifier):
     def _evaluate(self, task: TaskSpec) -> Dict[str, Any]:
         now = self.clock.now()
         rules = self._rules(task)
+        # G2R-2: only members who joined at or after the experiment's start are members the community attracted;
+        # the start is measurement.window_start_ts, else the verifier's first reading of this objective
+        rules["counted_from_ts"] = self._started(task, now)
         members = list(self.source.list_members())
         c = classify_members(members, rules, now)
+        if task.objective_id not in self._baseline:
+            before = len(c["excluded"].get("joined_before_start", []))
+            b = {"objective_id": task.objective_id, "start": rules["counted_from_ts"], "at": now,
+                 "members_listed": len(members), "members_before_start": before}
+            self._baseline[task.objective_id] = b
+            self.log.append(now, "baseline", b)         # counts only: no identifier is recorded
         n_c = len(c["counted"])
         n_u = sum(len(v) for v in c["uncertain"].values())
         alpha = 1.0 - float(rules["confidence"])
@@ -592,43 +669,113 @@ class MembershipVerifier(SignedVerifier):
         return {"now": now, "rules": rules, "members": members, "classes": c, "confirmed": n_c, "uncertain": n_u,
                 "lower": lower, "upper": upper, "snapshot": digest.hexdigest()}
 
+    def _retention_from_cohorts(self, task: TaskSpec, counted: Sequence[MemberRecord], now: float,
+                                win: float) -> Optional[Quantity]:
+        """Seven-day retention from a source that lists current members only (departures are invisible in it):
+        per join hour the verifier keeps, as counts only, how many members it has ever seen with that join time
+        and — the first time that hour is ``win`` old — how many of them are still members; retention = retained /
+        seen over the hours old enough. Members who joined and left between two readings are not seen (bounded by
+        the verification interval)."""
+        coh = self._cohorts.setdefault(task.objective_id, {})
+        present: Dict[str, int] = {}
+        for m in counted:
+            if m.joined_at > 0:
+                h = str(int(m.joined_at // 3600))
+                present[h] = present.get(h, 0) + 1
+        for h, n in present.items():
+            e = coh.setdefault(h, {"seen": 0, "retained": None})
+            e["seen"] = max(int(e["seen"]), n)
+        for h, e in coh.items():
+            if e.get("retained") is None and (int(h) + 1) * 3600 + win <= now:
+                e["retained"] = min(int(e["seen"]), present.get(h, 0))
+        try:
+            atomic_write_json(self._cohorts_path, self._cohorts)
+        except OSError:
+            pass
+        done = [e for e in coh.values() if e.get("retained") is not None and int(e["seen"]) > 0]
+        seen = sum(int(e["seen"]) for e in done)
+        if not seen:
+            return None
+        return Quantity("secondary.retention_7d", sum(int(e["retained"]) for e in done) / seen, "fraction",
+                        OutcomeKind.REAL, float(seen))
+
+    def _cost(self, task: TaskSpec) -> Dict[str, Any]:
+        if self.cost_source is None:
+            return {}
+        try:
+            try:
+                return dict(self.cost_source(task.objective_id) or {})
+            except TypeError:
+                return dict(self.cost_source() or {})
+        except Exception as e:  # noqa: BLE001 — reported as not measured
+            return {"error": f"{type(e).__name__}: {e}"[:200]}
+
     def _secondary(self, task: TaskSpec, ev: Dict[str, Any]) -> List[Quantity]:
         now, rules, c = ev["now"], ev["rules"], ev["classes"]
         out: List[Quantity] = []
+        missing: Dict[str, str] = {}
         legit = list(c["counted"]) + list(c["excluded"].get("departed", []))
         win = float(rules["retention_window_s"])
-        cohort = [m for m in legit if m.joined_at > 0 and m.joined_at <= now - win]
-        if cohort:
-            kept = sum(1 for m in cohort if m.left_at is None or m.left_at - m.joined_at >= win)
-            out.append(Quantity("secondary.retention_7d", kept / len(cohort), "fraction", OutcomeKind.REAL,
-                                float(len(cohort))))
+        if any(m.left_at is not None for m in ev["members"]):          # the source keeps departed members
+            cohort = [m for m in legit if m.joined_at > 0 and m.joined_at <= now - win]
+            if cohort:
+                kept = sum(1 for m in cohort if m.left_at is None or m.left_at - m.joined_at >= win)
+                out.append(Quantity("secondary.retention_7d", kept / len(cohort), "fraction", OutcomeKind.REAL,
+                                    float(len(cohort))))
+        else:                                                          # G2R-3: current members only
+            q = self._retention_from_cohorts(task, c["counted"], now, win)
+            if q is not None:
+                out.append(q)
+        if not any(q.name == "secondary.retention_7d" for q in out):
+            missing["retention_7d"] = "no member has been in the guild for the retention window yet"
         ids = {m.id for m in c["counted"]}
         part = getattr(self.source, "participation", None)
+        counts: Optional[Dict[str, float]] = None
         if callable(part):
-            counts: Dict[str, float] = {}
-            for k, v in (part() or {}).items():
-                if norm_id(k) in ids and isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0:
-                    counts[norm_id(k)] = counts.get(norm_id(k), 0) + v
+            try:
+                raw = part() or {}
+                counts = {}
+                for k, v in raw.items():
+                    if norm_id(k) in ids and isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0:
+                        counts[norm_id(k)] = counts.get(norm_id(k), 0) + v
+            except Exception as e:  # noqa: BLE001
+                missing["participation"] = f"the source could not measure it ({type(e).__name__})"
+        else:
+            missing["participation"] = "the evidence source has no participation signal"
+        if counts is not None:
             out.append(Quantity("secondary.participation.members", float(len(counts)), "members", OutcomeKind.COUNT,
                                 float(max(len(ids), 1))))
             out.append(Quantity("secondary.participation.interactions", float(sum(counts.values())), "interactions",
                                 OutcomeKind.COUNT, float(max(len(ids), 1))))
         fb = getattr(self.source, "feedback", None)
-        if callable(fb):
-            n = sum(1 for f in (fb() or []) if isinstance(f, dict) and f.get("consented") is True
-                    and norm_id(f.get("member_id")) in ids)
-            out.append(Quantity("secondary.feedback.consented", float(n), "responses", OutcomeKind.COUNT))
-        use = getattr(self.source, "resource_usage", None)
-        if callable(use):
-            for name, v in sorted((use() or {}).items()):
-                out.append(Quantity(f"secondary.resource_use.{name}", float(v), "uses", OutcomeKind.COUNT))
-        if self.cost_source is not None:
-            cost = self.cost_source() or {}
-            if "money" in cost:
-                out.append(Quantity("secondary.operating_cost", float(cost["money"]), str(cost.get("currency", ""))))
-            if "compute_s" in cost:
-                out.append(Quantity("secondary.compute_s", float(cost["compute_s"]), "s"))
+        if callable(fb) and task.data_permissions.get("collect_feedback_with_consent", False):
+            try:
+                n = sum(1 for f in (fb() or []) if isinstance(f, dict) and f.get("consented") is True
+                        and norm_id(f.get("member_id")) in ids)
+                out.append(Quantity("secondary.feedback.consented", float(n), "responses", OutcomeKind.COUNT))
+            except Exception as e:  # noqa: BLE001
+                missing["feedback"] = f"the source could not measure it ({type(e).__name__})"
+        elif not task.data_permissions.get("collect_feedback_with_consent", False):
+            missing["feedback"] = "the task does not permit collecting feedback (collect_feedback_with_consent)"
+        else:
+            missing["feedback"] = "the evidence source has no consented-feedback signal"
+        # G2R-3: resource use and cost are CAM's, from the authorization service's ledger of this objective (the
+        # verifier's own request count is measurement overhead, kept in the log only)
+        cost = self._cost(task)
+        if "money" in cost:
+            out.append(Quantity("secondary.operating_cost", float(cost["money"]), str(cost.get("currency", ""))))
+        else:
+            missing["operating_cost"] = cost.get("error", "no cost accounting is connected to this verifier")
+        for name in ("external_actions", "decisions", "compute_s"):
+            if name in cost:
+                out.append(Quantity(f"secondary.resource_use.{name}", float(cost[name]),
+                                    "s" if name == "compute_s" else "uses", OutcomeKind.COUNT))
+        if "compute_s" in cost:
+            out.append(Quantity("secondary.compute_s", float(cost["compute_s"]), "s"))
+        if not any(q.name.startswith("secondary.resource_use.") for q in out):
+            missing["resource_use"] = cost.get("error", "no resource accounting is connected to this verifier")
         out.append(Quantity("secondary.time_elapsed_s", max(0.0, now - self._started(task, now)), "s"))
+        ev["not_measured"] = missing
         return out
 
     def verify(self, task: TaskSpec) -> VerifiedOutcome:
@@ -651,15 +798,26 @@ class MembershipVerifier(SignedVerifier):
             notes += " The target is not established with the required confidence; success is not claimed."
         if status == GoalStatus.PENDING and deadline is not None and now >= deadline:
             notes += " The measurement window has ended with the result undetermined; operator review is required."
+        before = len(c["excluded"].get("joined_before_start", []))
+        if before:
+            notes += f" {before} members joined before the experiment started and are not counted."
+        secondary = self._secondary(task, ev)
+        if ev.get("not_measured"):
+            notes += " Not measured: " + "; ".join(f"{k} ({v})" for k, v in sorted(ev["not_measured"].items())) + "."
         outcome = VerifiedOutcome(
             objective_id=task.objective_id, status=status, value=float(ev["confirmed"]), target=target,
             uncertainty=(ev["upper"] - ev["lower"]) / 2.0, evaluated_at=now,
             evidence_refs=[f"source:{self.source.name}", f"snapshot:hmac-sha256:{ev['snapshot']}"],
             excluded={k: len(v) for k, v in sorted(c["excluded"].items())}, notes=notes,
-            secondary=self._secondary(task, ev))
+            secondary=secondary)
+        use = getattr(self.source, "resource_usage", None)
         return self._emit(outcome, {"lower": ev["lower"], "upper": ev["upper"], "uncertain": unc,
                                     "members_listed": len(ev["members"]), "source_live": bool(self.source.live),
-                                    "rules": self._loggable_rules(ev["rules"]), "deadline": deadline}, task)
+                                    "rules": self._loggable_rules({k: v for k, v in ev["rules"].items()
+                                                                   if k != "counted_from_ts"}),
+                                    "counted_from_ts": ev["rules"]["counted_from_ts"], "deadline": deadline,
+                                    "not_measured": ev.get("not_measured", {}),
+                                    "measurement_overhead": (use() or {}) if callable(use) else {}}, task)
 
     def _values(self, task: TaskSpec) -> Dict[str, float]:
         ev = self._evaluate(task)
@@ -674,7 +832,7 @@ class MembershipVerifier(SignedVerifier):
     def measure(self, queries: Sequence[OutcomeQuery]) -> List[OutcomeObservation]:
         if self.pinned_task is None:
             raise RuntimeError("measure() needs the operator's task: construct the verifier with pinned_task")
-        return self._measure(queries, lambda: self._values(self.pinned_task), self.source.name)
+        return self._measure(queries, lambda: self._values(self._current_task()), self.source.name)
 
 
 # --------------------------------------------------------------------------------------------------------------
@@ -685,8 +843,8 @@ class MetricThresholdVerifier(SignedVerifier):
     target}``; the metrics named in ``task.secondary_metrics`` are reported separately when the source has them."""
 
     def __init__(self, source: MetricSource, clock: Clock, state_dir: str, *, log_path: str = "",
-                 pinned_task: Optional[TaskSpec] = None):
-        super().__init__(clock, state_dir, log_path=log_path, pinned_task=pinned_task)
+                 pinned_task: Optional[TaskSpec] = None, operator_dir: str = ""):
+        super().__init__(clock, state_dir, log_path=log_path, pinned_task=pinned_task, operator_dir=operator_dir)
         self.source = source
 
     def verify(self, task: TaskSpec) -> VerifiedOutcome:
@@ -723,12 +881,30 @@ VERIFIERS = {"membership": MembershipVerifier, "metric_threshold": MetricThresho
 
 
 def build_verifier(task: TaskSpec, state_dir: str, clock: Clock, source: Any, *, log_path: str = "",
-                   pin: bool = True, cost_source: Optional[Callable[[], Dict[str, float]]] = None) -> SignedVerifier:
-    """Verifier for a task, chosen by ``task.success['verifier']``."""
+                   pin: bool = True, cost_source: Optional[Callable[..., Dict[str, float]]] = None,
+                   operator_dir: str = "") -> SignedVerifier:
+    """Verifier for a task, chosen by ``task.success['verifier']``. ``cost_source(objective_id)``: CAM's resource
+    use and spend for that objective (``authorization_cost_source``); ``operator_dir``: the run directory whose
+    ``control.pub`` signs further assigned objectives (default: the directory above ``state_dir``)."""
     kind = str(task.success.get("verifier", ""))
     if kind not in VERIFIERS:
         raise ValueError(f"task.success.verifier must be one of {sorted(VERIFIERS)}, got {kind!r}")
-    kw: Dict[str, Any] = {"log_path": log_path, "pinned_task": task if pin else None}
+    kw: Dict[str, Any] = {"log_path": log_path, "pinned_task": task if pin else None, "operator_dir": operator_dir}
     if kind == "membership":
         kw["cost_source"] = cost_source
     return VERIFIERS[kind](source, clock, state_dir, **kw)
+
+
+def authorization_cost_source(policy: Any, currency_of: Callable[[str], str] = lambda _o: "") -> Callable[[str], Dict[str, Any]]:
+    """CAM's resource use and spend for an objective, read from the independent authorization service's ledger
+    (``PolicyEngine.limits_state``: what it charged for that task) — never from the learner's own counters."""
+    def cost(objective_id: str) -> Dict[str, Any]:
+        st = policy.limits_state() or {}
+        t = (st.get("tasks") or {}).get(objective_id)
+        if not isinstance(t, dict) or "used" not in t:
+            raise LookupError(f"the authorization service holds no accounting for {objective_id!r}")
+        used = t["used"]
+        return {"money": float(used.get("money", 0.0)), "currency": currency_of(objective_id),
+                "external_actions": float(used.get("external_actions", 0.0)),
+                "decisions": float(used.get("decisions", 0.0)), "compute_s": float(used.get("compute_s", 0.0))}
+    return cost

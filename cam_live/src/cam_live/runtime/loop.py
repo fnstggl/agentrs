@@ -54,7 +54,7 @@ from ..contracts import (ActionResult, ActionSpec, AgentAPI, AuthorizationDecisi
                          PredictionRecord, Provenance, ResultStatus, RunFiles, TaskSpec, Trust, VerifiedOutcome,
                          new_id)
 from .control import PID_FILE, PRIVILEGED, ControlChannel, file_sha256
-from .logs import (Redactor, RunLog, _repair_torn_tail, atomic_write_json, atomic_write_text, iter_jsonl,
+from .logs import (Redactor, RunLog, RunReader, _repair_torn_tail, atomic_write_json, atomic_write_text, iter_jsonl,
                    iter_since, load_salt, read_json)
 from .obstacles import ObstacleTracker, is_obstacle
 from .private import PrivateBox, SealError
@@ -193,6 +193,7 @@ class LiveRuntime:
         self._storage_warned = False
         self._draining = False
         self._settle: Optional[Dict[str, Any]] = None          # the ended objective whose outcomes are being measured
+        self._cmd_in_progress: Optional[Dict[str, Any]] = None
         self.box = PrivateBox(self.run_dir)
         self.log = RunLog(self.run_dir, clock, provenance=task.mode, durable=self._durable,
                           redactor=Redactor.from_config(self.cfg.redaction, load_salt(self.run_dir),
@@ -803,10 +804,13 @@ class LiveRuntime:
                 ok, detail = False, (f"refused: {cmd} needs a command signed with the operator's key ({why}); "
                                      "use the cam-live CLI or the dashboard as the operator")
             else:
+                self._cmd_in_progress = c if signed else None       # the signed command, for the verifier (G2R-4)
                 try:
                     ok, detail = self._apply_command(cmd, c.get("args", {}) or {}, by)
                 except Exception as e:  # noqa: BLE001
                     ok, detail = False, f"{type(e).__name__}: {e}"
+                finally:
+                    self._cmd_in_progress = None
             if signed:
                 self._seen_cmds.append(cid)
             self._control_applied += 1
@@ -903,6 +907,15 @@ class LiveRuntime:
             return False, "task file changed after the command was issued"
         task = load_task(path, for_run=True)           # same validation as any task (no strategy, explicit limits)
         self._guard_live(task)
+        # G2R-4: the run's verifier must be able to judge the new objective: it accepts it only with the operator's
+        # signed command (it checks the signature and the task file itself); if it refuses, so does the runtime
+        accept = getattr(self.verifier, "assign_objective", None)
+        if callable(accept) and task.objective_id != self.task.objective_id:
+            try:
+                accept(dict(self._cmd_in_progress or {}))
+            except Exception as e:  # noqa: BLE001
+                return False, (f"refused: the run's verifier cannot judge objective {task.objective_id} "
+                               f"({type(e).__name__}: {str(e)[:200]})")
         entry = {"task": task.to_dict(), "path": path, "by": by, "assigned_at": self.clock.now()}
         if task.objective_id == self.task.objective_id:
             self._use_task(task)                       # updated boundaries for the same objective
@@ -1320,7 +1333,7 @@ class LiveRuntime:
             return (f"estimated cost {est:g} exceeds the remaining budget "
                     f"{money - self.counters['money']:g}; not executed")
         ext = _finite(lim.max_external_actions) or 0.0
-        if ext > 0 and self._is_external(action) and self.counters["external_actions"] >= ext:
+        if ext > 0 and self._external_steps(action) > 0 and self.counters["external_actions"] >= ext:
             return "the limit on external actions is reached; not executed"
         return ""
 
@@ -1328,6 +1341,28 @@ class LiveRuntime:
         if action.modality == Modality.INTERNAL:
             return False
         return self._tool_effects.get(action.operation, "external_write") not in ("none", "local")
+
+    def _external_steps(self, action: ActionSpec) -> int:
+        """G2R-5: externally effective steps of an action — a program's (composition's) steps counted one by one,
+        recursively, whatever the program tool itself declares; a single action counts 1 when it is external."""
+        steps = list(getattr(action, "steps", None) or [])
+        if steps:
+            return sum(self._external_steps(s) for s in steps)
+        return int(self._is_external(action))
+
+    def _external_steps_ran(self, action: ActionSpec, result: ActionResult) -> int:
+        """External steps of an executed action that ran: from the executor's primitive record when it lists the
+        steps' operations, else every external step (an action that ran is booked in full, like an in-flight one)."""
+        steps = list(getattr(action, "steps", None) or [])
+        if not steps:
+            return int(self._is_external(action))
+        ops = [o for o in (result.ops or []) if getattr(o, "op", "")]
+        if ops:
+            ran = [o for o in ops if getattr(o, "status", ResultStatus.OK) in _RAN]
+            n = sum(1 for o in ran if self._tool_effects.get(o.op, "external_write") not in ("none", "local")
+                    and getattr(o, "modality", "") != Modality.INTERNAL)
+            return min(n, self._external_steps(action)) if n else 0
+        return self._external_steps(action)
 
     def _execute(self, decision: Decision, auth: AuthorizationDecision, preds: List[Dict[str, Any]], *,
                  approval_id: str = "", new_decision: bool = True) -> None:
@@ -1447,7 +1482,7 @@ class LiveRuntime:
         if kind == "execute":
             ran = result.status not in (ResultStatus.DENIED, ResultStatus.NEEDS_APPROVAL)
             delta["actions_executed"] = int(ran)
-            delta["external_actions"] = int(ran and self._is_external(action))
+            delta["external_actions"] = self._external_steps_ran(action, result) if ran else 0   # G2R-5
             delta["money"] = float(result.cost.money)
         if is_obstacle(result):
             delta["failures"] = 1
@@ -1739,6 +1774,23 @@ class LiveRuntime:
             n += 1
         return n
 
+    def _finished_logged(self) -> bool:
+        """An ``objective_finished`` record of the current objective exists after its start (written before a
+        crash that came before the next state save)."""
+        try:
+            for e in reversed(RunReader(self.run_dir).records(RunFiles.EVENTS, types=["objective_finished",
+                                                                                     "objective_assigned",
+                                                                                     "run_started"])):
+                if e["type"] != "objective_finished":
+                    return False
+                d = e.get("data") or {}
+                if d.get("objective_id") == self.task.objective_id and float(e.get("ts", 0.0)) >= self.started_at:
+                    return True
+                return False
+        except Exception:  # noqa: BLE001 — unreadable log: record normally
+            return False
+        return False
+
     def _finish(self, status: str, reason: str) -> None:
         self._finish_wait()
         settle, self._settle = self._settle, None
@@ -1747,24 +1799,28 @@ class LiveRuntime:
         self.status, self.status_reason = status, reason
         self._set_activity("finished", reason)
         carried = len(self.pending)
+        # G2R-8: after a crash between this record and the next state save, the restarted runtime finishes the
+        # objective again: the record exists already and is not written twice
+        already = self._finished_logged()
         self.lifetime["objectives"].append({"objective_id": self.task.objective_id, "status": status,
                                             "reason": reason, "at": self.clock.now(),
                                             "decisions": self.counters["decisions"],
                                             "verified": (self._last_verified.get("outcome") or {}).get("value"),
                                             "pending_outcomes_carried": carried})
-        self.log.event("objective_finished", {"objective_id": self.task.objective_id, "status": status,
-                                              "reason": reason, "counters": dict(self.counters),
-                                              "limits": self._limit_state(),
-                                              "checkpoint": (self._committed.get("ckpt") or {}).get("id", ""),
-                                              "verified_rid": self._last_verified.get("rid", ""),
-                                              "settle": None if settle is None else
-                                              {k: settle[k] for k in ("since", "until", "pending_at_end",
-                                                                      "maturing_in_window", "measured", "cycles")},
-                                              "pending_outcomes_carried": carried,
-                                              "approvals_closed_unexecuted": closed,
-                                              "approvals_pending": sum(1 for a in self.approvals.values()
-                                                                       if a.get("status") == "pending")},
-                       consequential=True)
+        if not already:
+            self.log.event("objective_finished", {"objective_id": self.task.objective_id, "status": status,
+                                                  "reason": reason, "counters": dict(self.counters),
+                                                  "limits": self._limit_state(),
+                                                  "checkpoint": (self._committed.get("ckpt") or {}).get("id", ""),
+                                                  "verified_rid": self._last_verified.get("rid", ""),
+                                                  "settle": None if settle is None else
+                                                  {k: settle[k] for k in ("since", "until", "pending_at_end",
+                                                                          "maturing_in_window", "measured", "cycles")},
+                                                  "pending_outcomes_carried": carried,
+                                                  "approvals_closed_unexecuted": closed,
+                                                  "approvals_pending": sum(1 for a in self.approvals.values()
+                                                                           if a.get("status") == "pending")},
+                           consequential=True)
         self._journal()
         self._save_state()
         if self._next_tasks:

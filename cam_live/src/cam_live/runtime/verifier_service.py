@@ -23,7 +23,7 @@ from ..harness.rpc import RpcClient, RpcServer
 from .tasks import evidence_source, load_task
 from .verifier import SignedVerifier, build_verifier, source_from_spec
 
-METHODS = ("verify", "measure", "check_signature", "check_measurement", "info")
+METHODS = ("verify", "measure", "check_signature", "check_measurement", "info", "assign_objective")
 
 
 class VerifierEndpoint:
@@ -46,6 +46,12 @@ class VerifierEndpoint:
 
     def check_measurement(self, obs: OutcomeObservation) -> bool:
         return bool(self._v.check_measurement(obs))
+
+    def assign_objective(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        """G2R-4: a further objective, accepted only with the operator's signed command (checked by the verifier
+        against the operator's key in the run directory, not by the caller)."""
+        with self._lock:
+            return self._v.assign_objective(dict(command))
 
     def info(self) -> Dict[str, Any]:
         pinned = self._v.pinned_task
@@ -72,6 +78,9 @@ class RemoteVerifier:
     def check_measurement(self, obs: OutcomeObservation) -> bool:
         return bool(self._rpc.call("check_measurement", obs))
 
+    def assign_objective(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        return self._rpc.call("assign_objective", dict(command))
+
     def info(self) -> Dict[str, Any]:
         return self._rpc.call("info")
 
@@ -82,8 +91,23 @@ class RemoteVerifier:
 def serve(run_dir: str, socket_path: str, task: TaskSpec, source: Any, *, clock: Any = None,
           allowed_uids: Optional[set] = None) -> RpcServer:
     """Build the verifier for ``task`` and start serving it (returns the running server)."""
+    # G2R-3: CAM's spend and resource use come from the authorization service's ledger (the verifier uid may read
+    # limits_state), connected lazily so that the verifier starts before or without it
+    from ..harness import SOCK_AUTH
+    from .verifier import authorization_cost_source
+    holder: Dict[str, Any] = {}
+
+    class _LazyPolicy:
+        def limits_state(self) -> Dict[str, Any]:
+            if "p" not in holder:
+                from ..harness.service import RemotePolicy
+                holder["p"] = RemotePolicy(os.path.join(run_dir, "sock", SOCK_AUTH), connect_timeout=5.0)
+            return holder["p"].limits_state()
+    currency = str((task.resources or {}).get("currency", "")) if isinstance(task.resources, dict) else ""
     verifier = build_verifier(task, os.path.join(run_dir, "verifier"), clock or WallClock(), source,
-                              log_path=os.path.join(run_dir, RunFiles.VERIFIER), pin=True)
+                              log_path=os.path.join(run_dir, RunFiles.VERIFIER), pin=True,
+                              cost_source=authorization_cost_source(_LazyPolicy(), lambda _o: currency),
+                              operator_dir=run_dir)
     endpoint = VerifierEndpoint(verifier, getattr(source, "name", type(source).__name__),
                                 bool(getattr(source, "live", False)))
     uids = allowed_uids if allowed_uids is not None else {uid_of("learner"), os.getuid()}
