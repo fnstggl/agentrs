@@ -99,7 +99,7 @@ def build_config(arm: str, seed: int, *, real: bool, backbone: bool, extra_predi
 
 def run(arm: str, seed: int, *, family: str, lifetimes: int, decisions: int, real: bool, backbone: bool,
         out: str, workdir: str, threads: int, world_base: Optional[int], extra_predict: Dict[str, Any],
-        budget_s: float) -> Dict[str, Any]:
+        budget_s: float, from_dir: str = "", save: bool = False) -> Dict[str, Any]:
     from ..agent import CamLiveAgent
     from ..eval.runner import run_lifetime
     from ..validation import OffsetClock
@@ -112,7 +112,16 @@ def run(arm: str, seed: int, *, family: str, lifetimes: int, decisions: int, rea
     os.makedirs(root)
     cfg = build_config(arm, seed, real=real, backbone=backbone, extra_predict=extra_predict)
     clock = OffsetClock()
+    restored = None
+    if from_dir:                                  # continue from an earlier run's experience and checkpoint
+        shutil.copytree(os.path.join(from_dir, "agent"), os.path.join(root, "agent"))
+        meta = json.load(open(os.path.join(from_dir, "saved.json")))
+        clock.advance(max(0.0, float(meta["clock_now"]) - float(clock.now()) + 1.0))
     agent = CamLiveAgent(cfg, os.path.join(root, "agent"), clock=clock)
+    if from_dir:
+        agent.load(os.path.join(from_dir, "ckpt"))
+        restored = {"from": from_dir, "checkpoint_id": agent.checkpoint_id, "planner": agent.planner.restore_info,
+                    "imagination_calibration": agent.planner.calibration.summary()}
     plan_s: List[float] = []
     orig_plan = agent.planner.plan
 
@@ -125,7 +134,8 @@ def run(arm: str, seed: int, *, family: str, lifetimes: int, decisions: int, rea
     agent.planner.plan = timed_plan
     res: Dict[str, Any] = {"arm": arm, "seed": seed, "family": family, "real": real, "backbone": backbone,
                            "decisions_per_lifetime": decisions, "code": _code(), "predict_overrides": extra_predict,
-                           "backbone_name": cfg.backbone.name, "scale": cfg.core.scale, "lifetimes": []}
+                           "backbone_name": cfg.backbone.name, "scale": cfg.core.scale, "lifetimes": [],
+                           "restored": restored}
     wb = (WORLD_BASE.get(family, 70_000) + 100 * int(seed)) if world_base is None else int(world_base)
     try:
         for i in range(lifetimes):
@@ -151,6 +161,10 @@ def run(arm: str, seed: int, *, family: str, lifetimes: int, decisions: int, rea
         res["imagination_calibration"] = agent.planner.calibration.summary()
         res["horizon_controller"] = agent.planner.controller.state()
         res["selection_calibration"] = agent.meta.selection.summary()
+        if save:                                  # experience + checkpoint for runs that continue from here
+            res["saved_checkpoint"] = agent.save(os.path.join(root, "ckpt"))
+            with open(os.path.join(root, "saved.json"), "w") as f:
+                json.dump({"clock_now": float(clock.now()), "checkpoint_id": res["saved_checkpoint"]}, f)
     finally:
         res["wall_seconds"] = time.time() - t0
         res["gpu_peak_gb"] = (torch.cuda.max_memory_allocated() / 2 ** 30) if torch.cuda.is_available() else None
@@ -162,6 +176,126 @@ def run(arm: str, seed: int, *, family: str, lifetimes: int, decisions: int, rea
             os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
             with open(out, "w") as f:
                 json.dump(res, f, default=str)
+    return res
+
+
+# ------------------------------------------------------------------------------------------------ replay
+def copy_live_learner(src_run_dir: str, ckpt_dir: str, work: str) -> Dict[str, str]:
+    """Read-only copy of a (running) run's learner directory and one of its checkpoints into ``work``: the SQLite
+    store through the backup API of a read-only connection (consistent while the owner keeps writing), everything
+    else file by file. Nothing in the source is opened for writing."""
+    import sqlite3
+    src = os.path.join(src_run_dir, "learner")
+    dst = os.path.join(work, "learner")
+    os.makedirs(dst, exist_ok=True)
+    for name in sorted(os.listdir(src)):
+        p = os.path.join(src, name)
+        if name.startswith("experience.sqlite") and name != "experience.sqlite.blobs":
+            continue
+        if os.path.isdir(p):
+            shutil.copytree(p, os.path.join(dst, name), dirs_exist_ok=True)
+        else:
+            shutil.copy2(p, os.path.join(dst, name))
+    con = sqlite3.connect(f"file:{os.path.join(src, 'experience.sqlite')}?mode=ro", uri=True)
+    out = sqlite3.connect(os.path.join(dst, "experience.sqlite"))
+    with out:
+        con.backup(out)
+    con.close()
+    out.close()
+    ck = os.path.join(work, "ckpt")
+    shutil.copytree(ckpt_dir, ck, dirs_exist_ok=True)
+    return {"learner": dst, "ckpt": ck}
+
+
+def replay(src_run_dir: str, ckpt_dir: str, work: str, *, n_last: int, out: str, measure_len: int = 12
+           ) -> Dict[str, Any]:
+    """Full-size, real experience: restore CAM's own checkpoint with this code into a copy of its run, measure the
+    accuracy of imagination on its real decision sequences (latent and value errors, persistence baseline), and
+    re-evaluate its latest real decisions in their recorded contexts with the planner: the distribution of rule
+    thompson_policy with and without imagination (both recorded), the imagined preference, information value and
+    imagined next action. Nothing is executed; no outcome is produced."""
+    from ..agent import CamLiveAgent
+    from ..config import CamLiveConfig
+    from ..credit.checkpoint import load_checkpoint
+    t0 = time.time()
+    if os.path.exists(work):
+        shutil.rmtree(work)
+    paths = copy_live_learner(src_run_dir, ckpt_dir, work)
+    st = load_checkpoint(paths["ckpt"], map_location="cpu")
+    cfg = CamLiveConfig.from_dict((st.extra or {})["config"])
+    cfg.device = "cuda" if torch.cuda.is_available() else "cpu"
+    del st
+    agent = CamLiveAgent(cfg, work)
+    res: Dict[str, Any] = {"source_run": src_run_dir, "checkpoint": ckpt_dir, "code": _code(),
+                           "backbone": cfg.backbone.name, "scale": cfg.core.scale, "device": cfg.device}
+    try:
+        old_planner = None
+        st2 = load_checkpoint(paths["ckpt"], map_location="cpu")
+        old_planner = (st2.extra or {}).get("planner")
+        del st2
+        agent.load(paths["ckpt"])
+        res["restore"] = {"planner_state_in_checkpoint": old_planner, "planner_restore": agent.planner.restore_info,
+                          "restore_report": {k: v for k, v in (agent.restore_report or {}).items()
+                                             if isinstance(v, (str, int, float, bool, list, dict))}}
+        task = agent.task
+        res["objective_id"] = task.objective_id if task is not None else None
+        traj = [r for r in agent.store.trajectory(task.objective_id) if r.post_item_refs and r.result is not None] \
+            if task is not None else []
+        res["n_records"] = len(traj)
+        seqs = [traj[i:i + measure_len] for i in range(0, max(len(traj) - 2, 0), measure_len)]
+        seqs = [s for s in seqs if len(s) >= 3]
+        t1 = time.time()
+        res["measure"] = agent.planner.measure(agent.store, seqs)
+        res["measure_seconds"] = time.time() - t1
+        rows = []
+        from .policy import RULE_THOMPSON_POLICY
+        for rec in traj[-n_last:]:
+            items = agent.store.items(rec.context_item_refs)
+            cands = [c.action for c in rec.decision.candidates]
+            if len(cands) < 2:
+                continue
+            t2 = time.time()
+            evals = agent.predictor.evaluate_candidates(
+                items, rec.goal_text, cands, queries=agent._queries_for, objective_id=task.objective_id,
+                deadline=agent._deadline(), objective_scale=agent._scale(), compute_voi=False)
+            t3 = time.time()
+            plans = agent.planner.plan(items, rec.goal_text, cands, now=float(agent.clock.now()),
+                                       deadline=agent._deadline(), objective_scale=agent._scale(),
+                                       predictor=agent.predictor, evaluations=evals)
+            t4 = time.time()
+            for e, p in zip(evals, plans):
+                e.extras.update(p.extras())
+            probs, sc = agent.decider.probabilities(evals, mode=RULE_THOMPSON_POLICY)
+            im = (sc.get("selection") or {}).get("imagination") or {}
+            w, wo = im.get("with_probabilities") or [], im.get("without_probabilities") or []
+            rows.append({
+                "exp_id": rec.exp_id, "recorded_choice": rec.decision.chosen.operation,
+                "recorded_exploration": rec.decision.exploration, "n_candidates": len(cands),
+                "operations": [c.operation for c in cands], "value_source": sc.get("value_source"),
+                "horizon": plans[0].horizon_steps if plans else None,
+                "im_cont": [p.cont_mean for p in plans], "im_cont_std": [p.cont_std for p in plans],
+                "im_info_value": [p.info_value for p in plans], "im_next": [p.next_index for p in plans],
+                "imagination": {k: im.get(k) for k in ("share_tv", "weight", "preference", "calibration")},
+                "argmax_with": max(range(len(w)), key=lambda k: w[k]) if w else None,
+                "argmax_without": max(range(len(wo)), key=lambda k: wo[k]) if wo else None,
+                "evaluate_s": t3 - t2, "plan_s": t4 - t3, "search_levels": getattr(agent.planner, "last_search", {})})
+            print(f"[imp_eval replay] {rec.exp_id} tv {im.get('share_tv')} plan {t4 - t3:.2f} s", flush=True)
+        res["decisions"] = rows
+        tvs = [r["imagination"]["share_tv"] for r in rows if r["imagination"].get("share_tv") is not None]
+        res["summary"] = {"n": len(rows), "share_tv_mean": sum(tvs) / len(tvs) if tvs else None,
+                          "share_tv_max": max(tvs) if tvs else None,
+                          "argmax_changed": sum(1 for r in rows if r["argmax_with"] != r["argmax_without"]),
+                          "plan_s_mean": sum(r["plan_s"] for r in rows) / max(len(rows), 1)}
+    finally:
+        res["wall_seconds"] = time.time() - t0
+        res["gpu_peak_gb"] = (torch.cuda.max_memory_allocated() / 2 ** 30) if torch.cuda.is_available() else None
+        try:
+            agent.close()
+        except Exception:  # noqa: BLE001
+            pass
+        os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+        with open(out, "w") as f:
+            json.dump(res, f, default=str)
     return res
 
 
@@ -269,6 +403,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     r.add_argument("--predict", default="{}", help="JSON of further predict-section overrides (both arms alike)")
     r.add_argument("--workdir", required=True)
     r.add_argument("--out", required=True)
+    r.add_argument("--from-dir", default="", help="workdir of a run made with --save: continue from its checkpoint")
+    r.add_argument("--save", action="store_true", help="save a checkpoint (and keep the experience) at the end")
+    rp = sub.add_parser("replay")
+    rp.add_argument("--run-dir", required=True)
+    rp.add_argument("--ckpt", required=True)
+    rp.add_argument("--work", required=True)
+    rp.add_argument("--n-last", type=int, default=24)
+    rp.add_argument("--out", required=True)
     s = sub.add_parser("summarize")
     s.add_argument("paths", nargs="+")
     s.add_argument("--out", required=True)
@@ -276,7 +418,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if a.cmd == "run":
         kw = dict(family=a.family, lifetimes=a.lifetimes, decisions=a.decisions, real=a.real, backbone=a.backbone,
                   out=a.out, workdir=a.workdir, threads=a.threads, world_base=a.world_base,
-                  extra_predict=json.loads(a.predict), budget_s=a.budget_s)
+                  extra_predict=json.loads(a.predict), budget_s=a.budget_s, from_dir=a.from_dir, save=a.save)
         if a.real:
             from ..nn.gpu import free_gpu_memory, gpu_lock
             with gpu_lock(timeout_s=3 * 3600.0):
@@ -286,6 +428,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     free_gpu_memory()
         else:
             run(a.arm, a.seed, **kw)
+        return 0
+    if a.cmd == "replay":
+        from ..nn.gpu import free_gpu_memory, gpu_lock
+        with gpu_lock(timeout_s=3 * 3600.0):
+            try:
+                replay(a.run_dir, a.ckpt, a.work, n_last=a.n_last, out=a.out)
+            finally:
+                free_gpu_memory()
         return 0
     res = summarize(a.paths)
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
