@@ -290,3 +290,16 @@ def test_a_background_job_with_scoped_network_keeps_its_grant_for_its_connection
     r = connect(a, "pypi.org")
     assert r.verdict == DENY and "P-NO-ACTIVE-GRANT" in r.policy_ids, r.policy_ids
     assert decide(svc, lt, "http.get", None, url="https://pypi.org/simple/").verdict == ALLOW
+
+
+def test_revoking_the_standing_record_returns_to_per_item_approval(svc, tmp_path, clock, lt):
+    plain = standing_record(lt, clock.now(), record_id="rec-plain", preauthorized=[])
+    plain.pop("standing")
+    sign_register(svc, tmp_path, plain)
+    clock.advance(1.0)
+    sign_register(svc, tmp_path, standing_record(lt, clock.now(), record_id="rec-standing"))
+    msg = dsc("x", content="Weekly notes are up.")
+    assert decide(svc, lt, "discord.send_message", None, **msg).verdict == ALLOW
+    svc.revoke("live:rec-standing", "operator")
+    d = decide(svc, lt, "discord.send_message", None, **msg)
+    assert d.verdict == NEEDS and "P-PUBLISH-APPROVAL" in d.policy_ids, (d.verdict, d.policy_ids)
