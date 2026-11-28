@@ -407,7 +407,7 @@ forgetting of the first block (on minus off, NLL change first->last block): mean
 
 **No measurable effect on learning to predict at full size either**: on − off −0.006 (SE 0.006) over 9 pairs, on
 better in 5. Retention is mixed (forgetting of the first block −0.013 on − off, 3 of 6); in x0, after the unfamiliar
-MECH block, the first block's NLL rose less with the chain in seeds 0 and 2. On the live run's stream the chain's
+MECH block, the first block's NLL rose less with the chain in seeds 0 and 1 (+0.135 vs +0.381, +0.157 vs +0.185) and more in seed 2 (+0.419 vs +0.356). On the live run's stream the chain's
 model ends with a worse fit of the stream it trained on (0.31–0.35 vs 0.23–0.28 nats). Cost at full size: an on run
 took 70–74 s against 23–28 s off (the K-step refresh in every replayed row and the anchor recomputation at every
 commit).
