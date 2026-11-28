@@ -16,7 +16,8 @@ exactly what they computed before (§2). It is integrated in the runtime and cau
 window (out-of-window accuracy 0.29 → 0.80); on the agent's actual experience — LabWorld, codec and SW / MECH
 objectives, and CAM's own live planning run, at debug scale and at full size, paired on identical experience — it
 gives **no measurable improvement** in learning to predict (on − off within ±0.02 nats) and no consistent retention
-effect. The diagnosis (§5): in this experience what the predictions need is already held by the context window or, in
+effect; the one detectable effect is tiny — at debug scale the held-out codec domain is predicted better in 21 of 28
+pairs (−0.027 nats, p = 0.012). The diagnosis (§5): in this experience what the predictions need is already held by the context window or, in
 longer objectives, by the per-objective fast posterior; the mechanism's benefit needs non-stationary or one-off
 information needed long after it left the window, which the evaluated experience does not contain — an empirical
 limitation of the evidence, not a defect found in the mechanism.
