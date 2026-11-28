@@ -2,13 +2,13 @@
  "CU-01": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2: D2 fixed -- in the deployment cam-live run starts, Python / shell execution works through the root sandbox host as camsbx (g04 1/0, test_hx_sandbox_host_privileged.py); in-process tests and p11 / p12 hold. The host's privilege-separation defect R2-C1 is judged under CU-37.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: D2 fixed -- in the deployment cam-live run starts, Python / shell execution works through the root sandbox host as camsbx (g04 1/0, test_hx_sandbox_host_privileged.py); in-process tests and p11 / p12 hold. The host's privilege-separation defect R2-C1 is judged under CU-37.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/g2harness/g04_separated_sandbox.py",
    "cam_live/docs/verification/repro/sec/p11_sandbox.py",
    "cam_live/docs/verification/G2_harness.md"
@@ -17,13 +17,13 @@
  "CU-02": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 6/6; EB's registered separated probe: Chromium 159 from the shared copy as cambrowser loads the staging page.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 6/6; EB's registered separated probe: Chromium 159 from the shared copy as cambrowser loads the staging page.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/EB/repro/probe_separated_registered.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -31,13 +31,13 @@
  "CU-03": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 12/12; G-env probe_browser 19/0.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 12/12; G-env probe_browser 19/0.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/env/probe_browser.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -45,13 +45,13 @@
  "CU-04": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2: HX-4 fixed -- compute's Chromium fixture is module-scoped; the whole harness suite with compute first: 616 passed, 0 failed.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: HX-4 fixed -- compute's Chromium fixture is module-scoped; the whole harness suite with compute first: 616 passed, 0 failed.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/tests/harness/env/test_browser_sessions.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -59,13 +59,13 @@
  "CU-05": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 9/9; BR-STALE HOLDS.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 9/9; BR-STALE HOLDS.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/env/probe_browser.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -73,26 +73,26 @@
  "CU-06": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 5/5.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 5/5.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/G2_harness.md"
   ]
  },
  "CU-07": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Non-GPU tests 5/5 (pinned revisions and licences, no model in a credential-holding process, unpinned snapshots unavailable, checkpoint key mapping, strict answer parsing) and both -m gpu GoClick-Base tests (isolated child process; in-process frozen and releases memory) pass in my run. Custom remote code is not executed (native Florence-2 with renamed tensors; disclosed).",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Non-GPU tests 5/5 (pinned revisions and licences, no model in a credential-holding process, unpinned snapshots unavailable, checkpoint key mapping, strict answer parsing) and both -m gpu GoClick-Base tests (isolated child process; in-process frozen and releases memory) pass in my run. Custom remote code is not executed (native Florence-2 with renamed tensors; disclosed).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute/test_ec_grounding.py -q --rootdir=cam_live -o addopts=\"\" -m gpu",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -100,13 +100,13 @@
  "CU-08": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Executed by me: the named non-GPU tests (registry pins revisions / licences, strict answer parsing, grounded-click recovery) and the -m gpu Vocaela evaluation-only test pass. NOT executed by me: test_mai_ui_2b_grounds_under_the_shared_gpu_lock -- twice the shared GPU lock was not free (first run: pytest timeout 900 s in the gpu_heavy fixture; retry with -o timeout=2500: skipped after the fixture's 1800 s wait; the evaluation queue held the lock). Basis for MAI-UI-2B itself: EC_gpu.xml (pass, 17.6 s) and G-sec's independent -m gpu run (4 passed), both on grounding code unchanged since 6851826 (git log of harness/grounding). No failure was observed.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Executed by me: the named non-GPU tests (registry pins revisions / licences, strict answer parsing, grounded-click recovery) and the -m gpu Vocaela evaluation-only test pass. NOT executed by me: test_mai_ui_2b_grounds_under_the_shared_gpu_lock -- twice the shared GPU lock was not free (first run: pytest timeout 900 s in the gpu_heavy fixture; retry with -o timeout=2500: skipped after the fixture's 1800 s wait; the evaluation queue held the lock). Basis for MAI-UI-2B itself: EC_gpu.xml (pass, 17.6 s) and G-sec's independent -m gpu run (4 passed), both on grounding code unchanged since 6851826 (git log of harness/grounding). No failure was observed.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute/test_ec_grounding.py -q --rootdir=cam_live -o addopts=\"\" -m gpu",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -114,13 +114,13 @@
  "CU-09": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 16/16; G-sec p14 21/0 (stale-observation refusal, coordinate validation, per-gesture authorization).",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 16/16; G-sec p14 21/0 (stale-observation refusal, coordinate validation, per-gesture authorization).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/sec/p14_visual.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -128,13 +128,13 @@
  "CU-11": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 6/6; PG-PROGRAMS-REAL-POLICY HOLDS.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 6/6; PG-PROGRAMS-REAL-POLICY HOLDS.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/env/probe_programs.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -142,13 +142,13 @@
  "CU-13": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 8/8; six modalities composed behind one interface in the launched service (SEP-COMPOSITION). The code modality is unavailable in the separated deployment (D2, judged under CU-01 / CU-37).",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 8/8; six modalities composed behind one interface in the launched service (SEP-COMPOSITION). The code modality is unavailable in the separated deployment (D2, judged under CU-01 / CU-37).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/env/probe_separated.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -156,13 +156,13 @@
  "CU-14": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 4/4 (persistent profiles survive restart; stored-secret fill by reference).",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 4/4 (persistent profiles survive restart; stored-secret fill by reference).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/tests/harness/env/test_browser_sessions.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -170,13 +170,13 @@
  "CU-15": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 9/9; SK-INDUCE-RUN and SK-WIRING HOLD.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 9/9; SK-INDUCE-RUN and SK-WIRING HOLD.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/env/probe_skills.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -184,13 +184,13 @@
  "CU-16": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 4/4; SK-SMUGGLED-STEP, SK-PROTECTED-GUARD, SK-NO-APPROVAL-BYPASS HOLD.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 4/4; SK-SMUGGLED-STEP, SK-PROTECTED-GUARD, SK-NO-APPROVAL-BYPASS HOLD.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/env/probe_skills.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -198,13 +198,13 @@
  "CU-17": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 5/5.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 5/5.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/env/probe_skills.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -212,13 +212,13 @@
  "CU-18": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 5/5; SK-STALE-REPAIR and SK-RETIRED HOLD.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 5/5; SK-STALE-REPAIR and SK-RETIRED HOLD.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/env/probe_skills.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -226,39 +226,40 @@
  "CU-19": {
   "status": "partial",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: As claimed: the procedure level (skill.run) records start / end observation, primitive operations with times, elapsed time, resources, termination (tests 2/2). FAILS: programs of steps are merged into one ActionResult without per-step boundaries, and nothing calls cam_live.credit.smdp.attach_trace (grep), so the semi-Markov trace / duration-aware discounting is not reached from the runtime (HX-3).",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: As claimed: the procedure level (skill.run) records start / end observation, primitive operations with times, elapsed time, resources, termination (tests 2/2). FAILS: programs of steps are merged into one ActionResult without per-step boundaries, and nothing calls cam_live.credit.smdp.attach_trace (grep), so the semi-Markov trace / duration-aware discounting is not reached from the runtime (HX-3).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/G2_harness.md"
   ]
  },
  "CU-21": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 9/9.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 9/9.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/G2_harness.md"
   ]
  },
  "CU-25": {
-  "status": "partial",
+  "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2: D1, D7 fixed (g03, g05 24/0, g08 A); every G-sec / G-env executor probe 0 defects. FAILS (minor, R2-m2, g09 part 2): a path on the task's deny list is still requested and read by a same-origin page through <img>+canvas, <link rel=stylesheet>+CSSOM and <script src>, and requested through <link rel=prefetch> (only fetch / XHR / EventSource are judged per URL since round 2; g06's fetch case holds); R2-m1 (g08 B): a discord.* step lends adapter standing to the other steps' runtime primitives; a page's images from Discord's attachment CDN pass (origin-level check, g08 B').",
+  "notes": "Round 3: R2-m1 fixed (adapter standing only for the adapter's own action, no release on behalf of a program, CDN hosts as a whole: g08 39/0); R2-m2 fixed (subresources under deny-listed paths per URL: g09 part 2 holds, g14 5/0 incl. a deny entry spelled localhost, a percent-encoded path, preload and a stylesheet's image); D1 / D7 hold (g03, g05 24/0); every G-sec / G-env probe 0 defects.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/g2harness/g14_deny_paths.py",
    "cam_live/docs/verification/repro/g2harness/g09_round2_browser.py",
    "cam_live/docs/verification/repro/g2harness/g08_round2_policy.py",
    "cam_live/docs/verification/repro/g2harness/g06_browser_same_origin_reads.py",
@@ -273,13 +274,13 @@
  "CU-26": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 7/7; G-sec p15 18/0; G-env BR-INJECT, BR-TRUST, IN-OPERATOR-TRUST HOLD. The guarantee is structural (content carries no authority); the learner's own resistance is not tested here.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 7/7; G-sec p15 18/0; G-env BR-INJECT, BR-TRUST, IN-OPERATOR-TRUST HOLD. The guarantee is structural (content carries no authority); the learner's own resistance is not tested here.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/sec/p15_injection_circumvention.py",
    "cam_live/docs/verification/repro/env/probe_browser.py",
    "cam_live/docs/verification/repro/env/probe_perception_internal.py",
@@ -287,15 +288,16 @@
   ]
  },
  "CU-27": {
-  "status": "partial",
+  "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2: the credential-isolation tests (privileged) and p10 / p13 hold. FAILS in the launched deployment: R2-C1 (critical, g07): in the launched deployment the root sandbox host starts as `python -m cam_live.harness.sandbox_host` with cwd = the run directory (auth/launcher.py _spawn cwd=self.run_dir; the no_new_privs trampoline execs python without -I), so the run directory is sys.path[0]; prepare_run_dir creates it mode 1771 with the LEARNER's group (launcher.py:230,237), so the learner uid can write <run>/argparse.py, which the root host imports and runs as euid 0 at its next start (crash restart, or launcher.resume after an emergency stop). Measured: marker '0 --run-dir ...' after a restart. Non-root services are not affected (they cannot list the run directory).",
+  "notes": "Round 3: R2-C1 fixed (g07 7/0, g11 S1-S3); the privileged credential-isolation tests and p10 / p13 hold. R3-M1 (root overwrites files with fixed content at the learner's choice) is an integrity / availability defect, recorded under CU-37 / IH-16.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/g2harness/g11_boot_path.py",
    "cam_live/docs/verification/repro/g2harness/g07_sandbox_host.py",
    "cam_live/docs/verification/repro/sec/p10_secrets.py",
    "cam_live/docs/verification/repro/sec/p13_uid_separation.py",
@@ -305,13 +307,13 @@
  "CU-28": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 4/4; ENV-ORDER HOLDS (submitted, started, primitive_check, primitive_op, observation, result).",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 4/4; ENV-ORDER HOLDS (submitted, started, primitive_check, primitive_op, observation, result).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/env/probe_env_core.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -319,13 +321,13 @@
  "CU-29": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 4/4; ENV-RESTART HOLDS (SIGKILL during a write: not re-sent, recorded result returned).",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 4/4; ENV-RESTART HOLDS (SIGKILL during a write: not re-sent, recorded result returned).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/env/probe_env_core.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -333,13 +335,13 @@
  "CU-31": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 6/6; MS-BLOCK-SCOPE and MS-NO-SWITCH HOLD.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 6/6; MS-BLOCK-SCOPE and MS-NO-SWITCH HOLD.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/env/probe_api_publish_modality.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -347,13 +349,13 @@
  "CU-32": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 13/13; FT-RETRY-BOUNDS, HT-HARD-NEVER-RETRIED, HT-POST-RETRY HOLD.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 13/13; FT-RETRY-BOUNDS, HT-HARD-NEVER-RETRIED, HT-POST-RETRY HOLD.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/env/probe_api_publish_modality.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -361,13 +363,13 @@
  "CU-34": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 4/4; benchmark evidence present; G-sec reproduced it on a 32-target subset (repro/sec/bench_spot.json). I did not re-run the benchmark (single synthetic run, disclosed).",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 4/4; benchmark evidence present; G-sec reproduced it on a 32-target subset (repro/sec/bench_spot.json). I did not re-run the benchmark (single synthetic run, disclosed).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/sec/bench_spot.json",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -375,40 +377,41 @@
  "CU-35": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: The 8 named controlled tests (structured HTML, canvas controls, dynamic changes, multi-step workflow, unfamiliar variants and a mid-run interface change, repeated tasks with skills, delayed consequences) pass on real Chromium. Scripted harness tests, not learner-driven (disclosed).",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: The 8 named controlled tests (structured HTML, canvas controls, dynamic changes, multi-step workflow, unfamiliar variants and a mid-run interface change, repeated tasks with skills, delayed consequences) pass on real Chromium. Scripted harness tests, not learner-driven (disclosed).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/G2_harness.md"
   ]
  },
  "CU-36": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 5/5; ENV-ONCE-1 and ENV-ONCE-2 (two valid grants, concurrent) HOLD; Discord sends carry an enforced nonce.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 5/5; ENV-ONCE-1 and ENV-ONCE-2 (two valid grants, concurrent) HOLD; Discord sends carry an enforced nonce.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/env/probe_env_core.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
  },
  "CU-37": {
-  "status": "failed",
+  "status": "partial",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2: D2 fixed functionally -- sandbox.python runs as camsbx in the separated deployment (g04 1/0); the host refuses the learner, sandbox and verifier uids (g07 H1). FAILS: R2-C1 (critical, g07): in the launched deployment the root sandbox host starts as `python -m cam_live.harness.sandbox_host` with cwd = the run directory (auth/launcher.py _spawn cwd=self.run_dir; the no_new_privs trampoline execs python without -I), so the run directory is sys.path[0]; prepare_run_dir creates it mode 1771 with the LEARNER's group (launcher.py:230,237), so the learner uid can write <run>/argparse.py, which the root host imports and runs as euid 0 at its next start (crash restart, or launcher.resume after an emergency stop). Measured: marker '0 --run-dir ...' after a restart. Non-root services are not affected (they cannot list the run directory). The learner uid can therefore become root, which defeats every uid separation. Also noted: the host verifies no grant -- the browser uid can run programs as camsbx without the authorization service (no privilege gain; the egress broker still refuses loopback / link-local, g07 H2).",
+  "notes": "Round 3: R2-C1 fixed -- every separated service boots as python -I service_boot.py <roots> -m <module> with cwd /; the root sandbox host gets HOME /root and a system PATH; no sys.path entry, file below them, interpreter chain, pyvenv.cfg or LD_LIBRARY_PATH directory is writable by any service uid; no hook planted by camlearn (run dir), cambrowser (<run>/exec) or camsbx (workspace) ran after restarts (g11 S1-S3, g07 7/0); the host checks the peer uid before reading (g07 H1). FAILS: R3-M1 (major, pre-existing, g11 S4): the run directory stays group-writable for the learner (mode 1771, group = learner gid, auth/launcher.py prepare_run_dir) and root writes into it with runtime/logs.py atomic_write_text, whose temporary file .<name>.<pid>.<thread id>.tmp is opened O_WRONLY|O_CREAT|O_TRUNC without O_EXCL / O_NOFOLLOW (fs.protected_symlinks does not cover a sticky directory that is not world-writable). Watching the run directory with inotify, the learner uid learned the name from the supervisor's preflight.json write and planted a symlink for the following learner.go write (the order of runtime/cli.py cmd_supervise): root overwrote a root-owned 0600 file with 'go' in 5 of 5 races. Fixed content only (no code execution shown), but any root file can be destroyed by the learner -- the audit log and its head, the vault, the policy, /etc files. Still noted: the host verifies no grant (browser uid -> camsbx code without the authorization service; no privilege gain).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/g2harness/g11_boot_path.py",
    "cam_live/docs/verification/repro/g2harness/g07_sandbox_host.py",
    "cam_live/docs/verification/repro/g2harness/g04_separated_sandbox.py",
    "cam_live/docs/verification/repro/sec/p13_uid_separation.py",
@@ -419,13 +422,13 @@
  "CU-38": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 3/3; G-sec p14 21/0 (grounder output is an untrusted proposal, validated against the observation, authorized per gesture).",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 3/3; G-sec p14 21/0 (grounder output is an untrusted proposal, validated against the observation, authorized per gesture).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/sec/p14_visual.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -433,13 +436,13 @@
  "IH-01": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 16/16; G-env probe_env_core 8/0 (authorization before execution, order, restart, stop, RPC uid).",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 16/16; G-env probe_env_core 8/0 (authorization before execution, order, restart, stop, RPC uid).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/env/probe_env_core.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -447,13 +450,13 @@
  "IH-02": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 12/12; G-env probe_browser 19/0 and BR-WORKFLOW-REAL-POLICY HOLD with the real policy.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 12/12; G-env probe_browser 19/0 and BR-WORKFLOW-REAL-POLICY HOLD with the real policy.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/env/probe_browser.py",
    "cam_live/docs/verification/repro/env/probe_browser_workflow.py",
    "cam_live/docs/verification/G2_harness.md"
@@ -462,13 +465,13 @@
  "IH-04": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 11/11; PB-FLOW, PB-APPROVAL-BINDING-ES3 HOLD (preview binds the exact text).",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 11/11; PB-FLOW, PB-APPROVAL-BINDING-ES3 HOLD (preview binds the exact text).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/env/probe_api_publish_modality.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -476,13 +479,13 @@
  "IH-05": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 50/50 (staging Discord); the adapter sends only 'Authorization: Bot', no user-token path; scope and NEVER_GRANTED permissions enforced in the adapter; raw writes to Discord refused (g03 controls). The D1 read gap is a policy / modality gap recorded under IH-15 and CU-25.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 50/50 (staging Discord); the adapter sends only 'Authorization: Bot', no user-token path; scope and NEVER_GRANTED permissions enforced in the adapter; raw writes to Discord refused (g03 controls). The D1 read gap is a policy / modality gap recorded under IH-15 and CU-25.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/g2harness/g03_planning_task_raw_api.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -490,27 +493,28 @@
  "IH-06": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 5/5; PB-ANALYTICS HOLDS; Discord counts via discord.get_guild_stats.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 5/5; PB-ANALYTICS HOLDS; Discord counts via discord.get_guild_stats.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/env/probe_api_publish_modality.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
  },
  "IH-07": {
-  "status": "partial",
+  "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2: in-process guarantees and tests hold (suite, p10 23/0). FAILS in the launched deployment: R2-C1 (critical, g07): in the launched deployment the root sandbox host starts as `python -m cam_live.harness.sandbox_host` with cwd = the run directory (auth/launcher.py _spawn cwd=self.run_dir; the no_new_privs trampoline execs python without -I), so the run directory is sys.path[0]; prepare_run_dir creates it mode 1771 with the LEARNER's group (launcher.py:230,237), so the learner uid can write <run>/argparse.py, which the root host imports and runs as euid 0 at its next start (crash restart, or launcher.resume after an emergency stop). Measured: marker '0 --run-dir ...' after a restart. Non-root services are not affected (they cannot list the run directory). Root can read the vault, so credentials are reachable by the learner uid.",
+  "notes": "Round 3: R2-C1 fixed -- services boot isolated (python -I service_boot.py, cwd /, root HOME /root, system PATH); nothing the root host imports or loads is writable by a service uid; planted argparse / sitecustomize / usercustomize / .pth / cam_live package never ran after restarts of the root host, auth and exec (g11 S1-S3, g07 7/0). Credentials stay outside observations (p10 23/0, suite). R3-M1 lets the learner make root OVERWRITE files (fixed content) but not read them; recorded under CU-37 / IH-16.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/g2harness/g11_boot_path.py",
    "cam_live/docs/verification/repro/g2harness/g07_sandbox_host.py",
    "cam_live/docs/verification/repro/sec/p10_secrets.py",
    "cam_live/docs/verification/repro/env/probe_browser.py",
@@ -521,13 +525,13 @@
  "IH-08": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2: D5 fixed -- resources.authorized_tools enforced for actions and program steps (P-TOOL-NOT-AUTHORIZED; g03 7/0); g08 D: none of the 57 composed tools the planning task's list matches is refused as not authorized. Tool table / modality / interface checks hold (p01, p15).",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: D5 fixed -- resources.authorized_tools enforced for actions and program steps (P-TOOL-NOT-AUTHORIZED; g03 7/0); g08 D: none of the 57 composed tools the planning task's list matches is refused as not authorized. Tool table / modality / interface checks hold (p01, p15).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/g2harness/g03_planning_task_raw_api.py",
    "cam_live/docs/verification/repro/sec/p01_grant_core.py",
    "cam_live/docs/verification/G2_harness.md"
@@ -536,13 +540,13 @@
  "IH-09": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 12/12; G-sec p04 15/0 (exact coverage by tool class, method and full destination; page-bound interaction approvals; transport table); G-env PB-APPROVAL-BINDING and -ES3 HOLD.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 12/12; G-sec p04 15/0 (exact coverage by tool class, method and full destination; page-bound interaction approvals; transport table); G-env PB-APPROVAL-BINDING and -ES3 HOLD.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/sec/p04_approvals.py",
    "cam_live/docs/verification/repro/env/probe_api_publish_modality.py",
    "cam_live/docs/verification/G2_harness.md"
@@ -551,13 +555,13 @@
  "IH-10": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 19/19; G-sec p03 9/0 (per-step and per-primitive charging, write_global); G-env SK-RATE-LIMIT (10 vs 10) and PG-RATE-LIMIT HOLD.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 19/19; G-sec p03 9/0 (per-step and per-primitive charging, write_global); G-env SK-RATE-LIMIT (10 vs 10) and PG-RATE-LIMIT HOLD.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/sec/p03_limits.py",
    "cam_live/docs/verification/repro/env/probe_skills.py",
    "cam_live/docs/verification/repro/env/probe_programs.py",
@@ -567,13 +571,13 @@
  "IH-11": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 9/9; G-sec p02 13/0 (API, opctl and touch R/auth/STOP void outstanding grants; reset_stop); ENV-STOP HOLDS.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 9/9; G-sec p02 13/0 (API, opctl and touch R/auth/STOP void outstanding grants; reset_stop); ENV-STOP HOLDS.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/sec/p02_stop_pause.py",
    "cam_live/docs/verification/repro/env/probe_env_core.py",
    "cam_live/docs/verification/G2_harness.md"
@@ -582,13 +586,13 @@
  "IH-12": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: docs/HARNESS_ADAPTER_GUIDE.md documents the contract, secret references (secret:<name>), check_primitive per primitive and peer_ip; tests 5/5. (Change request HX-2, the hard-constraints section of docs/EA/SECURITY.md, is not applied -- D8, EA's security doc, not the adapter guide.)",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: docs/HARNESS_ADAPTER_GUIDE.md documents the contract, secret references (secret:<name>), check_primitive per primitive and peer_ip; tests 5/5. (Change request HX-2, the hard-constraints section of docs/EA/SECURITY.md, is not applied -- D8, EA's security doc, not the adapter guide.)",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/HARNESS_ADAPTER_GUIDE.md",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -596,13 +600,13 @@
  "IH-13": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 4/4 incl. every executor of factories.all_executors behind the real service (browser and visual with -m browser); grep of harness code: only 'reward': False capability and the docstrings.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 4/4 incl. every executor of factories.all_executors behind the real service (browser and visual with -m browser); grep of harness code: only 'reward': False capability and the docstrings.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/tests/harness/env/test_hx_no_reward.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -610,13 +614,13 @@
  "IH-14": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2: D1 and D4 fixed -- raw reads of Discord data refused by X-PLATFORM-ADAPTER (g03, g08 A: 20 spellings), a site's own CAPTCHA refused (g02 2/0, g01 C); p07 13/0. Over-refusal of ordinary forms / controls by the new structural recognition is recorded under OP-09 (R2-M1).",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: D1 and D4 fixed -- raw reads of Discord data refused by X-PLATFORM-ADAPTER (g03, g08 A: 20 spellings), a site's own CAPTCHA refused (g02 2/0, g01 C); p07 13/0. Over-refusal of ordinary forms / controls by the new structural recognition is recorded under OP-09 (R2-M1).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/g2harness/g08_round2_policy.py",
    "cam_live/docs/verification/repro/g2harness/g09_round2_browser.py",
    "cam_live/docs/verification/repro/g2harness/g01_policy_bypass.py",
@@ -629,13 +633,13 @@
  "IH-15": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2: D1 fixed -- under the planning task + record, generic http.get/api.get of message history and the member list refused (X-PLATFORM-ADAPTER) and the bot token is not released (g03 7/0, g01 30/0; g08 A: 20 host/path/encoding variants and 3 credential references refused). Residual, minor (R2-m1, g08 B): inside a program that contains a discord.* step, runtime primitives of its other steps (a redirect hop to Discord's API or attachment CDN) pass and secret_get checks the whole program, not the step -- no other step may name the credential at authorization, so API data stays unreadable; CDN attachment URLs (signed, no token) are reachable.",
+  "notes": "Round 3: D1 and R2-m1 fixed -- Discord data and the bot credential only through the adapter's own action (g03 7/0, g01 30/0, g08 A/B/B' hold).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/g2harness/g08_round2_policy.py",
    "cam_live/docs/verification/repro/g2harness/g03_planning_task_raw_api.py",
    "cam_live/docs/verification/repro/g2harness/g01_policy_bypass.py",
@@ -646,13 +650,15 @@
  "IH-16": {
   "status": "partial",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2: chain, MAC, head and uid checks hold (p09 12/0, p13 18/0). FAILS: (1) in the launched deployment R2-C1 (critical, g07): in the launched deployment the root sandbox host starts as `python -m cam_live.harness.sandbox_host` with cwd = the run directory (auth/launcher.py _spawn cwd=self.run_dir; the no_new_privs trampoline execs python without -I), so the run directory is sys.path[0]; prepare_run_dir creates it mode 1771 with the LEARNER's group (launcher.py:230,237), so the learner uid can write <run>/argparse.py, which the root host imports and runs as euid 0 at its next start (crash restart, or launcher.resume after an emergency stop). Measured: marker '0 --run-dir ...' after a restart. Non-root services are not affected (they cannot list the run directory). Root can rewrite the audit log and its head. (2) R2-m3 (pre-existing, g10): HX's intermittent failure reproduced -- after an emergency stop, a launcher stop and a relaunch the chain fails verification in 2 of 20 rounds ('head file says 11 entries ..., log has 12 ... (truncated or extended outside the service)'); test_ea_privileged.py::test_launcher_starts_supervises_and_stops_services_under_their_own_uids failed 1 of 8 repetitions at line 398. Cause: audit.py append writes the line, then replaces the head (l.131-136); a stop / kill between the two leaves the head one entry behind and nothing reconciles it at start, so an ordinary stop raises a false tamper alarm.",
+  "notes": "Round 3: R2-m3 fixed -- verify_audit_log reads log and head under a shared lock and a kill-left head is reconciled only over chaining MAC-valid entries; g10 0 false alarms in the rounds run (20 + 40 rounds; test_ea_privileged.py and the launcher / sandbox-host privileged tests 8 of 8 repetitions pass); g12: edited, foreign-key, unMACed and replayed tail entries are all still detected. FAILS: (1) R3-M1 (major, pre-existing, g11 S4): the run directory stays group-writable for the learner (mode 1771, group = learner gid, auth/launcher.py prepare_run_dir) and root writes into it with runtime/logs.py atomic_write_text, whose temporary file .<name>.<pid>.<thread id>.tmp is opened O_WRONLY|O_CREAT|O_TRUNC without O_EXCL / O_NOFOLLOW (fs.protected_symlinks does not cover a sticky directory that is not world-writable). Watching the run directory with inotify, the learner uid learned the name from the supervisor's preflight.json write and planted a symlink for the following learner.go write (the order of runtime/cli.py cmd_supervise): root overwrote a root-owned 0600 file with 'go' in 5 of 5 races. Fixed content only (no code execution shown), but any root file can be destroyed by the learner -- the audit log and its head, the vault, the policy, /etc files. (2) R3-m1 (minor, pre-existing, g12 f/g): every start of the authorization service rewrites the head from the log as found, so a tail removed while the service is down (by the auth uid or root, who can write the log) is no longer detectable after the next start -- within SECURITY.md's statement that the auth uid's own tampering needs an external anchor; the 64-entry reconciliation bound does not limit this.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/g2harness/g12_audit_reconcile.py",
+   "cam_live/docs/verification/repro/g2harness/g11_boot_path.py",
    "cam_live/docs/verification/repro/g2harness/g10_audit_after_stop.py",
    "cam_live/docs/verification/repro/g2harness/g07_sandbox_host.py",
    "cam_live/docs/verification/repro/sec/p09_audit.py",
@@ -664,13 +670,13 @@
  "IH-17": {
   "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Tests 4/4; g01 section D 13/0: destination revocation refuses 6 spellings of the host, stops an in-flight action at its next primitive, survives a restart; secret, task and live-record revocation; unknown scope raises; every revocation audited. A request already sent before revocation is not recalled (disclosed).",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Tests 4/4; g01 section D 13/0: destination revocation refuses 6 spellings of the host, stops an in-flight action at its next primitive, survives a restart; secret, task and live-record revocation; unknown scope raises; every revocation audited. A request already sent before revocation is not recalled (disclosed).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/g2harness/g01_policy_bypass.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
@@ -678,28 +684,29 @@
  "OP-04": {
   "status": "partial",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2 (0a30cd8): unchanged result -- suite 616/0 and the named tests pass, G-sec p01-p15 and G-env probes as at 4d6044a (0 defects; SEP-BROWSER stale). Earlier basis: Judged from docs/evidence/discord/ only (no contact with Discord). Shows: 50/50 steps ok against https://discord.com/api/v10 and the Gateway, 2026-11-27 05:53-06:00 UTC, bot identity bot:true, designated guild only (other_guilds 0), guild name restored, temporary channel deleted, token-free. Does not show: the current code -- the run used policy 'default-1+discord-live-check' (current default-2) and predates a1cdc0e and 204e9d4; the post-run restoration check is stated in the README, not a recorded step. The two staging acceptance tests pass fresh. A fresh operator-run live check is needed.",
+  "notes": "Round 3 (85101a2): unchanged result -- suite 627/0 (compute first) and the named tests pass; G-sec p01-p15 and G-env probes 0 defects (SEP-BROWSER stale); g01-g09 hold. Earlier basis: Judged from docs/evidence/discord/ only (no contact with Discord). Shows: 50/50 steps ok against https://discord.com/api/v10 and the Gateway, 2026-11-27 05:53-06:00 UTC, bot identity bot:true, designated guild only (other_guilds 0), guild name restored, temporary channel deleted, token-free. Does not show: the current code -- the run used policy 'default-1+discord-live-check' (current default-2) and predates a1cdc0e and 204e9d4; the post-run restoration check is stated in the README, not a recorded step. The two staging acceptance tests pass fresh. A fresh operator-run live check is needed.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
    "cam_live/docs/evidence/discord/live_check_20261127.json",
    "cam_live/docs/evidence/discord/README.md",
    "cam_live/docs/verification/G2_harness.md"
   ]
  },
  "OP-07": {
-  "status": "partial",
+  "status": "verified",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2: M's tests and HX's privileged test pass (suite). FAILS in the launched deployment: R2-C1 (critical, g07): in the launched deployment the root sandbox host starts as `python -m cam_live.harness.sandbox_host` with cwd = the run directory (auth/launcher.py _spawn cwd=self.run_dir; the no_new_privs trampoline execs python without -I), so the run directory is sys.path[0]; prepare_run_dir creates it mode 1771 with the LEARNER's group (launcher.py:230,237), so the learner uid can write <run>/argparse.py, which the root host imports and runs as euid 0 at its next start (crash restart, or launcher.resume after an emergency stop). Measured: marker '0 --run-dir ...' after a restart. Non-root services are not affected (they cannot list the run directory). The vault file and the verifier copy are then readable by the learner uid.",
+  "notes": "Round 3: R2-C1 fixed (g07, g11); M's tests and HX's privileged test pass. The value stays in the vault and the verifier copy only; R3-M1 could destroy (not read) them, recorded under CU-37.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/g2harness/g11_boot_path.py",
    "cam_live/docs/verification/repro/g2harness/g07_sandbox_host.py",
    "cam_live/tests/integration/test_credentials_membership.py",
    "cam_live/tests/harness/auth/test_hx_credentials_privileged.py",
@@ -709,13 +716,14 @@
  "OP-09": {
   "status": "partial",
   "by": "G2-harness",
-  "commit": "0a30cd8f23184fcded019f481bc885ac7defd2b7",
+  "commit": "85101a2a248f246014b8b929e35a82847dcac9b6",
   "supersedes": [
    "all"
   ],
-  "notes": "Round 2: D3 (developer portal), D4 (a site's own CAPTCHA, unlisted answer keys), D6 (page-script reads of Discord) fixed: g01 30/0, g02 2/0, g06 2/0. FAILS (R2-M1, moderate): the structural recognition refuses ordinary operations, and as a hard constraint no operator setting can lift it -- form bodies with honeypot / quiz / unrelated keys (botcheck, antibot_key, challenge_answer, turnstile_count) and clicks on 'Run security check', 'Security checkup', 'Bot protection settings', 'Turnstile counts' (g08 C, 9 defects); in real Chromium a newsletter form with Drupal Antibot's empty hidden antibot_key and a community quiz answer (challenge_answer) are refused (g09 part 1). Causes: TOKEN_KEY_PARTS substrings and _HUMAN_TEST_TEXT (platform_constraints.py ~l.125-140), form_fields names matched regardless of value.",
+  "notes": "Round 3: R2-M1 fixed for every round-2 case (g08 39/0, g09 9/0: honeypots, Drupal Antibot, quiz answers, turnstile counts, 'Run security check'); real answers stay refused (g02 2/0, g13 controls: CAPTCHA answer field, \"I'm not a robot\", 'Verify you are human', g-recaptcha-response, captcha_answer). FAILS (minor, R3-m2, g13 6 defects): the hard constraint still refuses configuring the operator's own site's CAPTCHA (settings keys enable_captcha / captcha_provider / require_captcha_on_signup, an 'Enable CAPTCHA on sign-up' checkbox, a 'Get reCAPTCHA keys' button), a FAQ link 'Are you a bot?' and an e-mail confirmation field 'Type the code shown in the e-mail we sent you' (TOKEN_KEY_PARTS 'captcha', _ANSWER_ROLES + 'captcha', _CAPTCHA_CONTROL, _HUMAN_TEST_TEXT).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 0a30cd8, compute first: 616 passed, 0 failed (root)",
+   ".venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m \"browser or privileged or not (gpu or slow or network)\"  # at 85101a2, compute first: 627 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/g2harness/g13_round3_false_refusals.py",
    "cam_live/docs/verification/repro/g2harness/g08_round2_policy.py",
    "cam_live/docs/verification/repro/g2harness/g09_round2_browser.py",
    "cam_live/docs/verification/repro/g2harness/g01_policy_bypass.py",

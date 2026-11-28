@@ -164,21 +164,24 @@ try:
     R.note(f"the learner uid writes {planted}: exit {cp.returncode} {cp.stderr[-120:]!r}")
     if cp.returncode == 0 and pid:
         os.kill(pid, signal.SIGKILL)            # a crash of the host; the launcher's supervisor restarts it
-        deadline = time.time() + 60
+        deadline = time.time() + 20             # bounded wait: on fixed code no marker ever appears
         while time.time() < deadline and not (os.path.exists(MARK) and open(MARK).read().strip()):
             time.sleep(0.5)
         time.sleep(1.0)
     marks = open(MARK).read().split("\n") if os.path.exists(MARK) else []
     root_runs = [m for m in marks if m.startswith("0 ")]
-    R.check(not root_runs, "a module the learner uid writes into the run directory is never imported by the root "
-                           "sandbox host", f"marker lines: {[m for m in marks if m]}")
+    restarted = host_pid(D)
+    R.check(bool(restarted) and restarted != pid and not root_runs,
+            "a module the learner uid writes into the run directory is never imported by the root sandbox host "
+            "(the host was restarted after the plant)", f"host pid {pid} -> {restarted}; marker lines: {[m for m in marks if m]}")
     # H4: the same file and the authorization service (pre-existing at 4d6044a: every service starts with
     # cwd = run directory and imports argparse)
     auth_pid = host_pid(D, "cam_live.harness.auth.service")
     if auth_pid and os.path.exists(planted):
         os.kill(auth_pid, signal.SIGKILL)
-        deadline = time.time() + 60
-        while time.time() < deadline and not any(m.startswith(f"{uid_of('auth')} ") for m in open(MARK).read().split("\n")):
+        deadline = time.time() + 20
+        while time.time() < deadline and not (os.path.exists(MARK) and any(
+                m.startswith(f"{uid_of('auth')} ") for m in open(MARK).read().split("\n"))):
             time.sleep(0.5)
     time.sleep(3.0)
     R.note(f"authorization service pid {auth_pid} -> after the kill {host_pid(D, 'cam_live.harness.auth.service')} "

@@ -346,3 +346,80 @@ Live Discord (forbidden; OP-04 unchanged: the evidence predates round 2's policy
 (grounding code unchanged since 6851826, verdict basis as in round 1); public-network egress of the sandbox host's
 broker (would contact an external host); Discord's handling of unusual path spellings (`/API/…`, IP literal with a
 Host header — allowed by the policy, but no credential can be attached; g08 NOTE lines).
+
+---
+
+# Round 3 — re-verification at 85101a2 (2026-11-28)
+
+Verdict commit: `85101a2a248f246014b8b929e35a82847dcac9b6` (`git log -1 --format=%H -- cam_live/src/cam_live/harness`;
+HX's fixes in `c9ae2d4` and `85101a2`, claims in `57b95aa`, `docs/HX.md` "Round 3"; `docs/EA/SECURITY.md` §2a added
+in `1bbee15`). The working tree's harness, harness tests and contracts are identical to 85101a2. Policy-level and
+Chromium probes ran against `git archive 85101a2` (`G2H_SRC`), root probes and suites from the working tree. All 49
+ids re-judged at 85101a2.
+
+**Verdicts (49):** 44 verified, 5 partial (CU-37, IH-16, OP-09, CU-19, OP-04), 0 failed. Compared with round 2:
+CU-37 failed -> partial; IH-07, CU-27, OP-07, CU-25 partial -> verified.
+
+## R3.1 What I executed
+
+| What | Result |
+|---|---|
+| Harness suites as root, browser + privileged, compute first | **627 passed, 0 failed, 4 deselected, 274 s** |
+| G-sec p01-p15 / G-env probes / EB registered variant | all 0 defects (same counts as round 2); SEP-BROWSER stale as before |
+| g01-g06, g08, g09 (round-1/2 probes) | g01 30/0, g02 2/0, g03 7/0, g04 1/0, g05 24/0, g06 2/0, **g08 39/0, g09 9/0** |
+| g07 (fixed: the marker read is guarded and the waits bounded; the H3 check now also requires that the host really restarted) | **7/0** |
+| g10 audit after stop / relaunch | **20/20 and 40/40 rounds clean** |
+| HX's flaky test: `test_ea_launcher.py` + `test_ea_privileged.py` + `test_hx_sandbox_host_privileged.py`, 8 repetitions | **8 of 8 pass** (round 2: 1 of 8 failed) |
+| New probes g11-g14 | g11 9 / **2** (root), g12 6 / **2**, g13 10 / **6**, g14 5/0 (Chromium) |
+
+## R3.2 Round-2 defects re-checked
+
+| Defect | Re-check |
+|---|---|
+| R2-C1 learner -> root through the sandbox host's cwd | **fixed.** Every separated service runs `python -I …/service_boot.py <roots> -m <module>` with cwd `/`, no_new_privs, no LD_PRELOAD / LD_AUDIT; the root host has HOME `/root` and a system PATH (PYTHONPATH is still in its environment but ignored under `-I`: its sys.path is the source root, the base interpreter's stdlib, the venv's site-packages and the agentrs site-packages of the venv's `.pth`). No sys.path entry, no file below them (8037 directories walked), no interpreter in the chain, no `pyvenv.cfg` and no LD_LIBRARY_PATH directory is writable by camlearn, cambrowser, camsbx, camauth or camverify. `argparse.py`, `sitecustomize.py`, `usercustomize.py`, a `.pth` and a `cam_live/` package planted by the learner in the run directory, `sitecustomize.py` and a user-site `.pth` planted by the browser uid in `<run>/exec`, and `argparse.py` planted by the sandbox uid in the workspace never ran after kills and restarts of the root host, the authorization service and the environment service (g11 S1-S3, g07 7/0). `<roots>` is built by the launcher from its own source root and `LauncherConfig.pythonpath`, i.e. the operator's config file (`--config`, or on resume the path in the root-written `run.json`); the supervisor itself starts with cwd = the repository root. |
+| R2-M1 false refusals | **fixed for every round-2 case** (g08 C, g09 part 1: honeypots, Drupal Antibot, quiz answers, turnstile counts, "Run security check"); real answers stay refused (g02, g13 controls). Narrower residue R3-m2 below |
+| R2-m1 program-wide adapter standing | **fixed** (g08 B, B': redirect hops of a program's other steps, release on behalf of a program, CDN images all refused) |
+| R2-m2 subresources under deny-listed paths | **fixed** (g09 part 2; g14: a deny entry spelled `localhost` for a `127.0.0.1` site, a percent-encoded path, `<link rel=preload>`, an image requested by an allowed stylesheet — nothing was sent) |
+| R2-m3 audit false alarm after a stop | **fixed** (g10 60 rounds, 8/8 privileged repetitions); g12: an edited tail entry, an entry chained correctly but MAC'd with another key or without a MAC, and an entry replayed from another log are still detected after reconciliation — a forged tail is not accepted |
+
+## R3.3 New defects
+
+**R3-M1 (major, pre-existing since 4d6044a; missed in rounds 1-2) — the learner can make root overwrite any file
+(CU-37, IH-16).** The run directory stays group-writable for the learner (mode 1771, group = the learner's gid;
+`auth/launcher.py` `prepare_run_dir`), and root writes into it while the learner runs: the supervisor
+(`runtime/cli.py` `cmd_supervise`) writes `preflight.json` and then `learner.go`, a `cam-live resume` also the
+supervisor pid file, the operator CLI `control.json` (and opens `control.json.lock` with `"a+"`). All go through
+`runtime/logs.py` `atomic_write_text`, which opens `.<name>.<pid>.<thread id>.tmp` with `O_WRONLY|O_CREAT|O_TRUNC`
+— no `O_EXCL`, no `O_NOFOLLOW` — and `fs.protected_symlinks=1` does not cover a sticky directory that is not
+world-writable. Measured (g11 S4): (a) with the name given, root followed the learner's symlink and overwrote a
+root-owned 0600 file with `go`; (b) **unaided**: the learner uid watched the run directory with inotify, read the
+temporary name of the `preflight.json` write (same pid and thread for every write of the supervisor's main thread)
+and planted the link for the following `learner.go` write — the victim was overwritten in **5 of 5** races. Content
+is fixed (`go`, or the JSON of the later writes), so no code execution was shown, but the learner can destroy any
+root-writable file: the audit log or its head, the vault, the policy, the operator's signed record, `/etc` files.
+Fix: create temporary files with `O_EXCL|O_NOFOLLOW` (or `tempfile.mkstemp`) in a directory the learner cannot
+write, and/or take the learner's group off the run directory. Owners: runtime (`logs.py`, `cli.py`, `control.py`)
+and the launcher layout. Repro (root): `g11_boot_path.py` (S4).
+
+**R3-m1 (minor, pre-existing) — a restart rewrites the audit head from the log as found (IH-16).** Every start of
+the authorization service appends and replaces the head from its in-memory state, so a tail removed while the
+service was down passes verification after the next start (g12 f: 5 entries left of 7, `ok`), and a head far
+behind is simply replaced (g12 g: 70 behind, `ok`) — the reconciliation's own 64-entry bound and its MAC checks are
+not what decides. Only the auth uid or root can write the log in the launched deployment, which `SECURITY.md`
+already places outside what the head can detect without an external anchor; but the head's truncation detection
+does not survive a restart. Repro: `g12_audit_reconcile.py` (also on 4d6044a: same two lines).
+
+**R3-m2 (minor) — remaining false refusals of the human-verification constraint (OP-09).** Still refused, and no
+operator setting can lift a hard constraint: configuring the operator's own site's CAPTCHA (`http.post` of
+`enable_captcha` / `captcha_provider` / `require_captcha_on_signup`; an "Enable CAPTCHA on sign-up" checkbox; a
+"Get reCAPTCHA keys" button), a community FAQ link "Are you a bot?", and an e-mail confirmation field "Type the code
+shown in the e-mail we sent you" (g13, 6 defects). Repro: `g13_round3_false_refusals.py`.
+
+Not new: the sandbox host still verifies no grant (the browser uid can run programs as camsbx without the
+authorization service; no privilege gain, g07 H2); the host's silent-client timeout and pre-read uid check were
+read in the code (`sandbox_host.py` `_handle`) and the uid refusals measured (g07 H1).
+
+## R3.4 Not checked
+
+Live Discord (OP-04 unchanged); the MAI-UI-2B GPU test; public-network egress of the root host's broker; code
+execution through R3-M1 (only fixed-content overwrites were attempted).
