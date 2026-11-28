@@ -240,3 +240,109 @@ A live run against Discord or any public service (forbidden here); whether Disco
 executor (needs a public DNS name); headed browser mode; the grounding benchmark itself (only its tests and the
 earlier spot check); the MAI-UI-2B GPU test (the shared GPU lock was never free for it); the learner's own
 behaviour under prompt injection (outside the harness).
+
+---
+
+# Round 2 — re-verification at 0a30cd8 (2026-11-28)
+
+Commit judged: `0a30cd8f23184fcded019f481bc885ac7defd2b7` (harness last changed at `efff208`; HX's fixes in `863bdae`,
+`efff208`). Claims read: `docs/HX.md` "Round 2", `docs/status/EA|EB|EC|ES.json`. All 49 ids were re-judged at
+0a30cd8 (`verdicts_g2harness.json` updated in place, `supersedes: ["all"]`). The working tree's harness, its tests,
+contracts, tasks and tools are byte-identical to 0a30cd8 (`git diff --stat 0a30cd8 -- ...` empty); policy-level and
+in-process probes ran against `git archive 0a30cd8` (`G2H_SRC`), the root probes (g04, g07, g10) and the suites from
+the working tree. Since 0a30cd8 the `--import-mode=importlib` addopts and the new `tests/conftest.py` are committed,
+so the suites ran with the repository's pytest configuration.
+
+**Verdicts (49):** 40 verified, 8 partial (IH-07, IH-16, CU-25, CU-27, OP-07, OP-09, CU-19, OP-04), 1 failed (CU-37).
+Compared with round 1: IH-15 failed -> verified, IH-08 / IH-14 / CU-01 partial -> verified; CU-37 partial -> failed,
+IH-07 / IH-16 / CU-27 / OP-07 verified -> partial (all through the new critical R2-C1).
+
+## R2.1 What I executed
+
+| What | Result |
+|---|---|
+| Harness suites as root, browser + privileged, **compute first** (`.venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -m "browser or privileged or not (gpu or slow or network)"`) | **616 passed, 0 failed, 4 deselected, 257 s** (HX: 616 / 263 s) — HX-4 fixed |
+| G-sec p01-p15 | all 0 defects (25, 13, 9, 15, 3, 4, 13, 14, 12, 23, 16, 8, 18, 21, 18 holds) |
+| G-env probes | env_core 8/0, browser 19/0, browser_workflow 1/0, perception_internal 12/0, skills 10/0, api_publish_modality 15/0, programs 2/0, separated 3/1 (SEP-BROWSER, stale as in round 1); EB's registered variant 4/0 |
+| My round-1 probes g01-g06 | **g01 30/0, g02 2/0, g03 7/0, g04 1/0, g05 24/0, g06 2/0** (HX's figures reproduce) |
+| New probes g07-g10 | g07 6 / **1** (root), g08 26 / **13**, g09 3 / **6** (Chromium), g10 0 / **1** (root, 20 rounds) |
+| HX's flaky launcher test | `test_ea_launcher.py::test_authorization_service_is_restarted_with_its_state` 30/30 pass; `test_ea_launcher.py` + `test_ea_privileged.py` + `test_hx_sandbox_host_privileged.py` x8: **1 of 8 failed** (`test_ea_privileged.py:398`, `verify_audit()["ok"]` false) — reproduced and explained, R2-m3 |
+
+## R2.2 Round-1 defects re-checked
+
+| Defect | Re-check |
+|---|---|
+| D1 Discord data via generic HTTP with the bot token | **fixed**: g03 7/0 (planning task + record: message history and member list refused, token not released), g01 B; g08 A: 20 spellings (case, trailing dot, www / ptb / discordapp, port, user-info, `%61pi`, `//`, `/./`, `/x/../`, `../v9`, full-width host, encoded id, Gateway `wss:`, `gateway-*.discord.gg`, attachment CDN, webhooks) refused by `X-PLATFORM-ADAPTER`; the credential named as `secret:discord_bot_token`, bare name or with a leading space, and inside generated-code arguments, refused. Residual R2-m1 below |
+| D2 no code sandbox in the separated deployment | **fixed functionally** (g04 1/0: `sandbox.python` runs as camsbx); but the new root sandbox host opens R2-C1 (critical) |
+| D3 developer portal | **fixed** (g01 A) |
+| D4 a site's own CAPTCHA, exact answer keys | **fixed** (g02 2/0 in Chromium, g01 C) — but the structural recognition over-refuses (R2-M1) |
+| D5 authorized_tools | **fixed** (g03); g08 D: none of the 57 composed tools that match the planning task's list is refused as `P-TOOL-NOT-AUTHORIZED`; the 22 refused by design are http.*, publish.*, skill.*, visual.* (not listed by the task; skill and visual were already outside its interfaces) |
+| D6 same-origin reads | **fixed for fetch / XHR / EventSource and for Discord** (g06 2/0, g01 A); residual R2-m2 below |
+| D7 public address in the launched service | **fixed** (g05 24/0) |
+| D8 / HX-2 documentation | addressed in the module docstring of `platform_constraints.py` and `docs/HX.md`; `docs/EA/SECURITY.md` still has no section (EA's file) |
+| HX-4 | **fixed** (module-scoped fixture; compute-first suite 616/0) |
+
+## R2.3 New defects
+
+**R2-C1 (critical) — the learner uid can run code as root through the new sandbox host (CU-37; also IH-07, IH-16,
+CU-27, OP-07 in the launched deployment).** The launcher starts every service with `cwd=self.run_dir`
+(`auth/launcher.py` `_spawn`), and the no_new_privs trampoline `python -I -c … os.execv(exe, [exe, "-m", module, …])`
+runs the real interpreter *without* `-I`, so `python -m cam_live.harness.sandbox_host` puts the run directory first on
+`sys.path`. `prepare_run_dir` creates the run directory owner root, **group = the learner's primary group, mode
+1771** (`launcher.py:230`, `:237`), so the learner uid may create files in it. The probe, as `camlearn`, writes
+`<run>/argparse.py` (a module that appends `<euid> <argv>` to a marker and then hands over to the real `argparse`);
+at the host's next start — a crash restart by the supervisor, or `launcher.resume()` after an emergency stop
+(`stop_on_estop` halts the host) — the root host imports it: marker `0 --run-dir /tmp/g2hsh…`. Non-root services
+are not affected (as "others" they have no read permission on the run directory, so Python's path finder sees
+nothing there; the authorization service restarted after the same plant and did not import it), which is why this
+did not exist before round 2: the sandbox host is the first root service. Fix options: start services with
+`python -I` / `-P` (or `PYTHONSAFEPATH=1`) and `cwd="/"`; do not make the run directory writable by the learner's
+group. Also observed (no privilege gain): the host verifies no grant — the browser uid can connect directly and run
+programs as camsbx with every check answered by itself; the sandbox's own limits still hold (camsbx, no access to
+/root, vault, auth dir, browser profile; the egress broker refuses 127.0.0.1, 169.254.169.254 and localhost even
+when the client answers "allow"). The host refuses camlearn, camsbx and camverify (SO_PEERCRED), but reads one frame
+before the uid check with no read timeout (same pattern as `rpc.py`; a denial-of-service lever only). The root host's
+`HOME` is `<run>/exec` (the browser uid's directory); user site-packages are disabled in this venv, so no import path
+follows from it. Repro (root): `g07_sandbox_host.py`.
+
+**R2-M1 (moderate) — the structural human-verification recognition refuses ordinary operations, and as a hard
+constraint nothing can lift it (OP-09; spec 12.6 "these boundaries must not prevent it from learning how to create
+genuine value").** `TOKEN_KEY_PARTS` substrings and `_HUMAN_TEST_TEXT` (`platform_constraints.py`, D4 fix) and the
+browser's `form_fields` (names, matched whatever the value): `http.post` bodies with `botcheck` (Web3Forms honeypot),
+`antibot_key` (Drupal Antibot), `challenge_answer` (a quiz), `turnstile_count`, and clicks on "Run security check",
+"Security checkup", "Bot protection settings", "Turnstile counts" are all `X-HUMAN-VERIFICATION` (g08 C, 9 defects).
+In real Chromium on an owned, pre-authorized staging site: a newsletter form carrying Drupal Antibot's empty hidden
+`antibot_key` and a community quiz answer (`challenge_answer`) were refused; a Web3Forms-style unticked honeypot
+checkbox passed only because Chromium does not submit unticked checkboxes (g09 part 1). Repro: `g08_round2_policy.py`
+section C, `g09_round2_browser.py` part 1.
+
+**R2-m1 (minor) — a discord.* step lends the adapter's standing to the rest of a program (IH-15, CU-25).**
+`check_primitive` passes the granted action as `parent`, and `findings(..., realises=…)` treats every primitive of a
+program that contains any `discord.*` step as the adapter's: a redirect hop of the program's `http.get` step to
+`https://discord.com/api/v10/channels/<id>/messages` or to the attachment CDN is `allow`, while the same hop of a lone
+`http.get` is refused; `secret_get` releases the bot token on behalf of the whole program (no step named). No other
+step may name the credential at authorization (steps are judged without `parent`), and no executor attaches it on a
+redirect, so API data stays unreadable; signed attachment URLs need no token. Also: a page's images from
+`cdn.discordapp.com` pass, because image reads are judged per origin (`https://cdn.discordapp.com/`), so
+`X-PLATFORM-ADAPTER` never sees the attachment path in the browser. Repro: `g08_round2_policy.py` sections B, B'.
+
+**R2-m2 (minor) — the D6 fix covers fetch / XHR / EventSource only (CU-25).** With `<site>/private/*` on the task's
+deny list, the allowed page `<site>/public` still requested **and read** the denied path through `<img>` + a
+same-origin canvas (`getImageData`), `<link rel=stylesheet>` + CSSOM (`PRIVATE-CSS-TEXT`), `<script src>`
+(`window.__leak='PRIVATE-JS'`), and requested it through `<link rel=prefetch>`; a Worker's `fetch` was refused.
+Repro: `g09_round2_browser.py` part 2.
+
+**R2-m3 (minor, pre-existing; HX's flaky test) — an ordinary stop can leave the audit log failing verification
+(IH-16).** `AuditLog.append` writes and fsyncs the line, then replaces the head file (`audit.py:131-136`); a stop or
+kill between the two leaves the head one entry behind, and nothing reconciles it when the service starts again.
+After emergency stop -> launcher stop -> relaunch on the same run directory, `verify_audit` failed in 2 of 20 rounds:
+"head file says 11 entries ending in …, log has 12 ending in … (truncated or extended outside the service)" — a
+false tamper alarm. The same caused the 1-of-8 failure of `test_ea_privileged.py:398`. Repro (root):
+`g10_audit_after_stop.py 20`.
+
+## R2.4 Not checked in round 2
+
+Live Discord (forbidden; OP-04 unchanged: the evidence predates round 2's policy changes too); the MAI-UI-2B GPU test
+(grounding code unchanged since 6851826, verdict basis as in round 1); public-network egress of the sandbox host's
+broker (would contact an external host); Discord's handling of unusual path spellings (`/API/…`, IP literal with a
+Host header — allowed by the policy, but no credential can be attached; g08 NOTE lines).
