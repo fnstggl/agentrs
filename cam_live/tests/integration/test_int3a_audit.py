@@ -3,9 +3,11 @@
 * KF-E01 "credit trains nothing": the stored retrospective credit (``ExperienceRecord.credit``, written by
   ``credit.providers.CreditAssigner``) now reaches the policy-improvement update (spec 9.2: "use redistributed credit
   during eligible training updates"): the evidence-selected estimator's credit is a per-decision goal reward
-  (``simple``, where the environment attributes outcomes) or the row's goal return (``rudder`` / ``cocoa``: the
-  redistributed return-to-go replaces the discounted sum). A change of the stored credit changes the training target
-  (returns) and the gradient of the inner loss; without credit the update is unchanged.
+  (``simple`` where the environment attributes outcomes, ``rudder``: its redistributed contribution) or the row's goal
+  return (``cocoa``: its counterfactual credit replaces the discounted sum) - CR round 2 semantics
+  (``credit.providers.LEARNING_KEY`` / ``RETURN_LIKE``, change request CR-4). A change of the stored credit changes
+  the training target (returns) and the gradient of the inner loss; a row the selected estimator has not credited
+  keeps its simple per-decision credit; without any credit the update is unchanged.
 * KF-E02: the reward signal ``info_gain`` was always masked (the assembler read ``extras["info_gain"]``, the
   predictor writes ``info_gain_nats``); it is now present for decisions whose chosen candidate had a VOI estimate.
 * KF-E05: R_psi's lifetime context was zeroed at every objective change; the architecture (section 4) says it is a
@@ -55,39 +57,57 @@ def _set_credit(agent, exp_id, key, value):
 
 
 def test_stored_credit_changes_the_policy_update_target_and_gradient(tmp_path):
+    """KF-E01 under CR round 2's semantics (credit.providers.LEARNING_KEY / RETURN_LIKE, CR-4): simple and RUDDER give
+    per-decision credit (RUDDER's learning signal is its redistributed contribution), COCOA a return-like credit that
+    replaces the row's discounted goal return. In each case a change of the stored credit changes the training target
+    (returns) and the gradient of the real inner loss."""
     agent, task, *_ = _agent_run(tmp_path)
     try:
         assert task.objective_id in agent.attributing                    # LabWorld attributes adopters
         recs = [r for r in agent.store.trajectory(task.objective_id) if agent.meta.inner.eligible(r)]
         assert len(recs) >= 6
+        open_rows = [k for k, r in enumerate(recs) if verified_progress(r) is None]
+        assert open_rows
         # (1) per-decision credit (estimator simple, the default): a row without a final verified annotation
         assert agent.assigner.default == "simple"
-        target = next(r for r in recs if verified_progress(r) is None)
-        i = [r.exp_id for r in recs].index(target.exp_id)
+        i = open_rows[0]
         out = []
         for v in (3.0, -3.0):
-            _set_credit(agent, target.exp_id, "simple", v)
+            _set_credit(agent, recs[i].exp_id, "simple", v)
             fresh = [agent.store.get(r.exp_id) for r in recs]
             ib = agent.meta.inner.build_batch(agent.store, fresh)
             assert ib.goal_source[i] == "credit:simple" and float(ib.r_goal[i]) == v
             out.append(_loss_and_grad(agent, ib))
         assert not torch.equal(out[0][1], out[1][1])                    # the returns (training target) changed
         assert not torch.allclose(out[0][2], out[1][2])                  # ... and the gradient
-        # (2) return-like credit (RUDDER's redistributed return-to-go) once that estimator is the selected one
+        # (2) RUDDER selected: its learning signal is the stored contribution, a per-decision goal reward
         agent.selector.default = "rudder"
         assert agent.assigner.default == "rudder"
         rows = []
         for scale in (1.0, -2.0):
             for k, r in enumerate(recs):
-                _set_credit(agent, r.exp_id, "rudder", scale * (k + 1))
+                _set_credit(agent, r.exp_id, "rudder_contribution", scale * (k + 1))
+                _set_credit(agent, r.exp_id, "rudder", 100.0 + k)         # the segment signal is not the learning key
+            fresh = [agent.store.get(r.exp_id) for r in recs]
+            ib = agent.meta.inner.build_batch(agent.store, fresh)
+            assert ib.g_credit_ok is None                                # per decision: no return-like row
+            for k in open_rows:
+                assert ib.goal_source[k] == "credit:rudder" and float(ib.r_goal[k]) == scale * (k + 1)
+            rows.append(_loss_and_grad(agent, ib))
+        assert not torch.equal(rows[0][1], rows[1][1]) and not torch.allclose(rows[0][2], rows[1][2])
+        # (3) COCOA selected: return-like - the credited goal return replaces the discounted goal rewards (not added
+        # to them): with the intrinsic reward fixed, the return is the intrinsic return plus c_g * C / rms(C)
+        agent.selector.default = "cocoa"
+        cocoa = []
+        for scale in (1.0, -2.0):
+            for k, r in enumerate(recs):
+                _set_credit(agent, r.exp_id, "cocoa", scale * (k + 1))
             fresh = [agent.store.get(r.exp_id) for r in recs]
             ib = agent.meta.inner.build_batch(agent.store, fresh)
             assert ib.g_credit_ok is not None and bool(ib.g_credit_ok.all())
-            assert all(s == "credit:rudder" for s in ib.goal_source)
-            rows.append(_loss_and_grad(agent, ib))
-        assert not torch.equal(rows[0][1], rows[1][1]) and not torch.allclose(rows[0][2], rows[1][2])
-        # the credited goal return replaces the discounted goal rewards (not added to them): with the intrinsic
-        # reward fixed, the return is the intrinsic return plus c_g * C / rms(C)
+            assert all(s == "credit:cocoa" for s in ib.goal_source)
+            cocoa.append(_loss_and_grad(agent, ib))
+        assert not torch.equal(cocoa[0][1], cocoa[1][1]) and not torch.allclose(cocoa[0][2], cocoa[1][2])
         inner = agent.meta.inner
         gc = inner.credited_goal_return(ib, torch.float32)
         c = ib.g_credit
@@ -97,16 +117,30 @@ def test_stored_credit_changes_the_policy_update_target_and_gradient(tmp_path):
 
 
 def test_without_credit_the_update_is_unchanged(tmp_path):
+    """(a) CR-4 / G3-core D-CR1: a learned default that has not credited a row leaves the row its simple per-decision
+    credit - the update is exactly the one under the default ``simple`` (changing the default removes no credit).
+    (b) KF-E01: records without any stored credit give exactly the update before KF-E01 (no credit is invented)."""
+    import dataclasses
     agent, task, *_ = _agent_run(tmp_path, seed=8)
     try:
         recs = [r for r in agent.store.trajectory(task.objective_id) if agent.meta.inner.eligible(r)]
-        agent.selector.default = "rudder"                     # selected, but no record carries RUDDER credit
+        assert any("simple" in r.credit for r in recs)                    # LabWorld attributes adopters
+        assert not any(k in r.credit for r in recs for k in ("rudder_contribution", "cocoa"))
+        # (a) RUDDER selected, but no record carries RUDDER credit yet: the simple credit stays, labelled simple
+        ib_simple = agent.meta.inner.build_batch(agent.store, recs)
+        agent.selector.default = "rudder"
         ib = agent.meta.inner.build_batch(agent.store, recs)
-        assert ib.g_credit is None and not any(s.startswith("credit:") for s in ib.goal_source)
-        agent.meta.inner.credit_fn = None                     # the update as before KF-E01
-        ib0 = agent.meta.inner.build_batch(agent.store, recs)
-        a, b = _loss_and_grad(agent, ib), _loss_and_grad(agent, ib0)
+        assert ib.goal_source == ib_simple.goal_source and any(s == "credit:simple" for s in ib.goal_source)
+        a, b = _loss_and_grad(agent, ib), _loss_and_grad(agent, ib_simple)
         assert a[0] == b[0] and torch.equal(a[1], b[1]) and torch.equal(a[2], b[2])
+        # (b) without any stored credit the update equals the update without the credit hook
+        bare = [dataclasses.replace(r, credit={}, credit_uncertainty={}) for r in recs]
+        ib_bare = agent.meta.inner.build_batch(agent.store, bare)
+        assert ib_bare.g_credit is None and not any(s.startswith("credit:") for s in ib_bare.goal_source)
+        agent.meta.inner.credit_fn = None                     # the update as before KF-E01
+        ib0 = agent.meta.inner.build_batch(agent.store, bare)
+        c, d = _loss_and_grad(agent, ib_bare), _loss_and_grad(agent, ib0)
+        assert c[0] == d[0] and torch.equal(c[1], d[1]) and torch.equal(c[2], d[2])
     finally:
         agent.close()
 
