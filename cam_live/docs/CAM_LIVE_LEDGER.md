@@ -159,6 +159,25 @@ Read at the start of every session, after `CAM_LIVE_SPEC.md` (operator specifica
 - Default config: nn.max_prompt_tokens 6144 (a7b8fa4). History rewrite of unpushed c0b408b..8172929 (fake canary
   literal, push protection); map in docs/evidence/commit_map.tsv.
 
+### 2026-11-28 — session 4 (continued, ~05:45 UTC): FINAL FREEZE 257267c
+
+- Fixed since f54d8cc: DX round 2 (slow-step guard measured in different units: running statistics restored after
+  the slow step's loss evaluation, deterministic COCOA validation, noise-based tolerance; real configuration 11/12
+  slow steps kept — was 1/13), DX-1 / DX-2 applied (experiments reach the credit store; auth hash in checkpoints),
+  G2L-10 and G2D-1 (master), HX rounds 4-5 (safefs for every root write / read, audit anchor, export-checkpoint and
+  plan-report as root, CAPTCHA false refusals), HX-6 (master), INT3B round 2 (membership counted from the
+  experiment start, program steps counted against limits, secondary metrics, next-objective verification, task
+  disguises, plan-report byte-exact + escaped, validation defaults, approval grant reuse, limit refusal class),
+  INT3B-8 (master), push secret scan over every blob of every commit (master, G2I-1/2), retention symlink fix.
+- Verification state: G2-learn 27/27 verified (cf46eb1); G2-harness 47 verified / 2 partial, GO for the planning
+  launch (8f6c615); G2-decision 25 / 7 partial (f54d8cc; round 2 at ef0f3ff running); G2-runtime 20 / 11 partial
+  (a5ab772; round 2 at 257267c running); G2-integration 9 / 18 / 1 failed LX-11 (a5ab772; round 2 running).
+- Evaluation: S2 restarts Protocol v3 on 257267c (results runs/cam_live/eval/v5; the f54d8cc runs are archived as
+  the pre-fix comparison); deadline 2026-11-29 16:00 UTC. Whole default suite on an archive of 257267c running.
+- Planning launch (operator): `bash cam_live/tools/launch_live.sh --accept-ephemeral-storage
+  cam_live/tasks/discord_100_planning.yaml 8 --read 'https://*' --read 'http://*'`; read the report with
+  `cam-live plan-report --run-dir R --out <root-only dir>/plan.md`.
+
 ## Active jobs
 
 | Started (UTC) | Job | Resume |
