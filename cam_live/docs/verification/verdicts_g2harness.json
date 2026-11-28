@@ -256,9 +256,10 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Holds: one evaluator for every modality; every G-sec / G-env probe for M1-M4, m6, C1, C2, M1, M7, M10 HOLDS; g05 22 spellings of this machine refused. FAILS: data-use / data-collection classes are enforced on the Discord modality only -- the api modality reads the same Discord data with the same bot credential (D1). Minor: the launched authorization service does not recognise $PUBLIC_IPADDR (launcher ENV_PASSTHROUGH, auth/launcher.py:63-66; D7). Disclosed: http_api does not report peer_ip (DNS rebinding).",
+  "notes": "Holds: one evaluator for every modality; every G-sec / G-env probe for M1-M4, m6, C1, C2, M1, M7, M10 HOLDS; g05 22 spellings of this machine refused. FAILS: data-use / data-collection classes are enforced on the Discord modality only -- the api modality reads the same Discord data with the same bot credential (D1). Minor: the launched authorization service does not recognise $PUBLIC_IPADDR (launcher ENV_PASSTHROUGH, auth/launcher.py:63-66; D7). Minor: a path-level deny entry is not applied to a page's same-origin reads (g06, browser.py:1511-1524/1629). Disclosed: http_api does not report peer_ip (DNS rebinding).",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/g2harness/g06_browser_same_origin_reads.py",
    "cam_live/docs/verification/repro/g2harness/g01_policy_bypass.py",
    "cam_live/docs/verification/repro/g2harness/g03_planning_task_raw_api.py",
    "cam_live/docs/verification/repro/g2harness/g05_local_address.py",
@@ -701,11 +702,12 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Holds: solver services, third-party challenge endpoints (HX Chromium test: answer never leaves), solved-token keys of the list, proxy rotation, user-only endpoints, non-bot schemes, literal Authorization headers, self-bot code (tests 9/9). FAILS: (D3) browser.navigate to https://discord.com/developers/applications[/<id>/bot] and /developers/teams (user-session application) is allowed -- missing from DISCORD_CLIENT_PATHS (platform_constraints.py:131-136); (D4) a site's own CAPTCHA answered via browser.fill + click reached the server (g02), unlisted answer keys allowed (g01 C, TOKEN_FIELDS exact match, platform_constraints.py:91-97); (D6) a Discord page's same-origin reads are judged per origin (browser.py:1511-1524), so the per-URL refusal asserted in test_hx_platform_constraints.py:136 is not what the browser does.",
+  "notes": "Holds: solver services, third-party challenge endpoints (HX Chromium test: answer never leaves), solved-token keys of the list, proxy rotation, user-only endpoints, non-bot schemes, literal Authorization headers, self-bot code (tests 9/9). FAILS: (D3) browser.navigate to https://discord.com/developers/applications[/<id>/bot] and /developers/teams (user-session application) is allowed -- missing from DISCORD_CLIENT_PATHS (platform_constraints.py:131-136); (D4) a site's own CAPTCHA answered via browser.fill + click reached the server (g02), unlisted answer keys allowed (g01 C, TOKEN_FIELDS exact match, platform_constraints.py:91-97); (D6) a Discord page's same-origin reads are judged per origin (browser.py:1511-1524), so the per-URL refusal asserted in test_hx_platform_constraints.py:136 is not what the browser does (mechanism shown in real Chromium: a path on the task's deny list is read by a same-origin script, g06).",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
    "cam_live/docs/verification/repro/g2harness/g01_policy_bypass.py",
    "cam_live/docs/verification/repro/g2harness/g02_browser_captcha.py",
+   "cam_live/docs/verification/repro/g2harness/g06_browser_same_origin_reads.py",
    "cam_live/docs/verification/G2_harness.md"
   ]
  }

@@ -39,7 +39,7 @@ defect reported by G-sec and G-env is fixed (their probes HOLD), SEP-BROWSER is 
 | G-sec probes p01-p15 | `.venv/bin/python cam_live/docs/verification/repro/sec/pNN_*.py` | **all 0 defects**: p01 25, p02 13, p03 9, p04 15, p05 3, p06 4, p07 13, p08 14, p09 12, p10 23, p11 16, p12 8, p13 18, p14 21, p15 18 holds |
 | G-env probes | `.venv/bin/python cam_live/docs/verification/repro/env/<probe>.py` | env_core 8/0, browser 19/0 (2 notes), browser_workflow 1/0, perception_internal 12/0 (1 note), skills 10/0, api_publish_modality 15/0 (1 note), programs 2/0, **separated 3/1** (SEP-BROWSER) |
 | EB's registered variant | `.venv/bin/python cam_live/docs/EB/repro/probe_separated_registered.py` | 4/0 (SEP-BROWSER holds: Chromium 159 as `cambrowser`) |
-| My probes g01-g05 | `repro/g2harness/` | g01 19 hold / **11 defects**; g02 1 / **1**; g03 4 / **3**; g04 0 / **1**; g05 23 / **1** |
+| My probes g01-g06 | `repro/g2harness/` | g01 19 hold / **11 defects**; g02 1 / **1**; g03 4 / **3**; g04 0 / **1**; g05 23 / **1**; g06 1 / **1** |
 
 Probe outputs of my runs are in my scratch directory; every probe prints one line per property and can be re-run.
 
@@ -137,12 +137,16 @@ is `allow` under the planning task. This is what opens D1. Repro: `g03_planning_
 ### Minor
 
 **D6 — OP-09: a Discord page's same-origin reads are judged per origin.** `browser.py:1511-1524` checks GET / HEAD
-subresources once per origin with URL `origin + "/"`. HX's test asserts that
+subresources once per origin with URL `origin + "/"`, and not at all for the origin of a page the action navigated
+to (`sess.origins_ok[origin] = True`, `browser.py:1629`, short-circuits `_read_allowed`). HX's test asserts that
 `browser.request GET https://discord.com/api/v9/users/@me` (xhr) is refused (`test_hx_platform_constraints.py:136`),
-but the real browser never reports that URL: under a Discord documentation page it reports `https://discord.com/`,
-which is `allow`. So Discord's own scripts on an allowed page could read its API with a session the profile holds.
+but the real browser never reports that URL: under a Discord documentation page the read is not checked, and from
+another page it is reported as `https://discord.com/`, which is `allow`. So Discord's own scripts on an allowed page could read its API with a session the profile holds.
 Mitigated today by the absence of a Discord session in the profile (the one login attempt stopped at hCaptcha,
-ledger session 1). Repro: `g01_policy_bypass.py` section A (NOTE + DEFECT line).
+ledger session 1). The mechanism shown in real Chromium on a staging site (Discord cannot be contacted): with
+`<site>/private/*` on the task's deny list, navigating there is refused, but a script of the allowed page
+`<site>/public` fetched `/private/data` and the page displayed its content — a path-level rule is not applied to
+same-origin reads. Repro: `g01_policy_bypass.py` section A (NOTE + DEFECT line), `g06_browser_same_origin_reads.py`.
 
 **D7 — local-address rule: the launched authorization service does not know the instance's public address.**
 `localnet.py:104` adds `$PUBLIC_IPADDR` to this machine's addresses, but the launcher's `ENV_PASSTHROUGH`
