@@ -340,9 +340,21 @@ class RunView:
         st = self.r.state()
         pid = read_pid(self.run_dir)
         du = shutil.disk_usage(self.run_dir)
+        free = du.free / 2**30
+        guard = st.get("storage_guard") if isinstance(st.get("storage_guard"), dict) else {}
+        if not guard:
+            from .doctor import storage_thresholds
+            mn, wn = storage_thresholds({})
+            guard = {"min_free_gb": mn, "warn_free_gb": wn, "source": "defaults (the run recorded none)"}
+        mn, wn = float(guard.get("min_free_gb", 0.0)), float(guard.get("warn_free_gb", 0.0))
         out: Dict[str, Any] = {
             "process": {"pid": pid, "alive": pid_alive(pid)},
-            "state_file_age_s": None, "disk_free_gb": round(du.free / 2**30, 2),
+            "state_file_age_s": None, "disk_free_gb": round(free, 2),
+            # G2I-7 (round 2): the storage guard's level — below the minimum the runtime writes no checkpoint and
+            # pauses; below the warning level it logs a warning
+            "storage": {"free_gb": round(free, 2), "min_free_gb": mn, "warn_free_gb": wn,
+                        "level": "low" if free < mn else "warning" if free < wn else "ok",
+                        **({"source": guard["source"]} if guard.get("source") else {})},
             # defence in depth: error text is redacted again before it is served (the runtime redacts it too)
             "errors_recent": Redactor()(list(st.get("errors") or [])[-5:]),
             "log_bytes": {n: os.path.getsize(self.r.path(n)) for n in LOG_FILES if os.path.exists(self.r.path(n))},
@@ -751,7 +763,8 @@ APP_JS = r"""'use strict';
         el('p', 'Checkpoint: ' + (s.checkpoint ? txt(ck.id) + ' (generation ' + txt(ck.generation) + ')' : 'none')),
         el('p', 'Pending outcomes: ' + txt(s.pending_outcomes) + ' · process ' + (pr.alive === true ? 'alive' : 'not running') +
            ' (pid ' + txt(pr.pid) + ') · restarts ' + txt(h.restarts) + ' · disk free ' + txt(h.disk_free_gb) +
-           ' GB · verifier log ' + (vl ? (obj(vl).intact === true ? 'intact' : 'PROBLEM: ' + txt(obj(vl).problem)) : 'n/a')),
+           ' GB (storage ' + txt(obj(h.storage).level) + ': minimum ' + txt(obj(h.storage).min_free_gb) + ' GB, warning below ' +
+           txt(obj(h.storage).warn_free_gb) + ' GB) · verifier log ' + (vl ? (obj(vl).intact === true ? 'intact' : 'PROBLEM: ' + txt(obj(vl).problem)) : 'n/a')),
         s.gpu ? el('p', 'Shared GPU lock: ' + (obj(s.gpu).held ? 'held ' + txt(obj(s.gpu).held_for_s) + ' s' : 'not held') +
            (obj(s.gpu).waiting_for_s != null ? ' · WAITING ' + txt(obj(s.gpu).waiting_for_s) + ' s' : '') +
            ' · holds <= ' + txt(obj(s.gpu).hold_s) + ' s · waited ' + txt(obj(s.gpu).waited_s_total) + ' s in total') : null,

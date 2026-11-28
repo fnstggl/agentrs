@@ -319,7 +319,12 @@ def test_program_steps_count_toward_the_external_action_limit(tmp_path):
                      str(tmp_path / "run"), clock, RuntimeConfig(fsync=False, settle_after_finish_s=0.0))
     rt.run(max_iterations=200)
     assert rt.counters["external_actions"] == world._n_exec > 0            # a5ab772: counter 0
-    assert world._n_exec <= 4 + 3 and "max_external_actions" in rt.status_reason
+    # round 3: a program whose steps do not fit into what is left is not started (no overshoot past the limit)
+    assert world._n_exec <= 4
+    from cam_live.runtime.logs import RunReader
+    refused = [e["data"] for e in RunReader(rt.run_dir).records(RunFiles.EVENTS, types=["action_result"])
+               if "external steps" in str(e["data"].get("failure_detail"))]
+    assert refused and all(d["failure_class"] == "resource_limit" for d in refused)
     rt.close()
 
 
@@ -890,3 +895,42 @@ def test_confusables_leetspeak_and_concatenations_are_read_and_task_files_stay_c
                 "api.v2", "ipv4", "h264", "notifications", "moderation", "discord.channels.read"]
     for x in ordinary:
         assert T._content_hits(x, ident=True) == [], x
+
+
+def test_the_dashboard_shows_the_storage_guards_level(tmp_path):
+    """G2-integration round 2 (G2I-7 remainder): the dashboard showed free GB without the guard's level."""
+    from cam_live.runtime.dashboard import RunView
+    from cam_live.runtime.logs import atomic_write_json
+    from cam_live.runtime.loop import RuntimeConfig
+    from rt_helpers import make_lab
+    lab = make_lab(str(tmp_path / "run"), rt_cfg=RuntimeConfig(fsync=False, min_free_gb=0.0, warn_free_gb=10 ** 7))
+    lab.rt.run(max_iterations=3)
+    st = lab.rt.run_dir and __import__("cam_live.runtime.logs", fromlist=["read_json"]).read_json(
+        os.path.join(lab.run_dir, RunFiles.STATE))
+    assert st["storage_guard"] == {"min_free_gb": 0.0, "warn_free_gb": 10.0 ** 7}
+    h = RunView(lab.run_dir).health()
+    assert h["storage"]["level"] == "warning" and h["storage"]["warn_free_gb"] == 10.0 ** 7   # 257267c: no level
+    st["storage_guard"] = {"min_free_gb": 10.0 ** 7, "warn_free_gb": 10.0 ** 8}
+    atomic_write_json(os.path.join(lab.run_dir, RunFiles.STATE), st)
+    assert RunView(lab.run_dir).health()["storage"]["level"] == "low"
+    lab.rt.close()
+
+
+def test_a_program_is_not_started_when_its_external_steps_do_not_fit_into_the_limit(tmp_path):
+    """G2R-5 remainder (probe_limits_program 4): a program started below the limit ran all its steps past it."""
+    from cam_live.contracts import ActionSpec, Modality, new_id
+    from cam_live.runtime.loop import RuntimeConfig
+    from rt_helpers import make_lab
+    lab = make_lab(str(tmp_path / "run"), rt_cfg=RuntimeConfig(fsync=False),
+                   task_edit=lambda t: setattr(t.limits, "max_external_actions", 4))
+    lab.rt.run(max_iterations=1)
+    act = next(t for t in lab.world.discover_tools() if t.name == "lab.act")
+
+    def program(n):
+        return ActionSpec(action_id=new_id("act"), operation="program", modality=Modality.INTERNAL,
+                          steps=[ActionSpec(action_id=new_id("act"), operation="lab.act", modality=act.modality,
+                                            arguments={"channel": 0, "effort": 1}) for _ in range(n)])
+    lab.rt.counters["external_actions"] = 2
+    assert "3 external steps" in lab.rt._would_exceed(program(3))            # 257267c: '' (started, ran to 5)
+    assert lab.rt._would_exceed(program(2)) == ""
+    lab.rt.close()

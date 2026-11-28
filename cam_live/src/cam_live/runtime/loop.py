@@ -711,6 +711,7 @@ class LiveRuntime:
             "obstacles_open": self.obstacles.open_count(), "errors": red(self._errors[-20:]),
             "settling": None if self._settle is None else {**self._settle, "reason": self._red(self._settle["reason"])},
             "gpu": self.gpu,
+            "storage_guard": {"min_free_gb": float(self.cfg.min_free_gb), "warn_free_gb": float(self.cfg.warn_free_gb)},
             "waiting": None if w is None else {"until": w["until"], "started": w["started"],
                                                 "action_id": w["decision"].chosen.action_id},
             "sealed": self.box.seal(inner),
@@ -1407,8 +1408,13 @@ class LiveRuntime:
             return (f"estimated cost {est:g} exceeds the remaining budget "
                     f"{money - self.counters['money']:g}; not executed")
         ext = _finite(lim.max_external_actions) or 0.0
-        if ext > 0 and self._external_steps(action) > 0 and self.counters["external_actions"] >= ext:
+        n = self._external_steps(action)
+        if ext > 0 and n > 0 and self.counters["external_actions"] >= ext:
             return "the limit on external actions is reached; not executed"
+        if ext > 0 and n > 1 and self.counters["external_actions"] + n > ext + 1e-9:
+            # a program whose external steps do not fit into what is left is not started (G2R-5, round 3)
+            return (f"the action has {n} external steps and {ext - self.counters['external_actions']:g} external "
+                    "actions are left; not executed")
         return ""
 
     def _is_external(self, action: ActionSpec) -> bool:
