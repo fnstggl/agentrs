@@ -118,26 +118,27 @@
  "IH-08": {
   "status": "verified",
   "by": "G3-act",
-  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "commit": "dc99abd9d6b8ffc52db1820217792d4791f1611f",
   "supersedes": [
    "all"
   ],
-  "notes": "AU changed default_policy.yaml, evaluate.py, liveauth.py, policy.py, schema.py, vault.py; tool permissions are still independently enforced (authorized_tools, unknown tool / modality deny, fail-closed policy; acceptance tests 14 pass; an unknown standing profile is refused at registration and ignored by an older policy). The standing profile's retained-approval classes are a separate property, judged under CU-25 / G3A-2.",
+  "notes": "Round 2 (AU fcd8294 / 09eb373, judged at HEAD): tool permissions still independently enforced; acceptance tests + tests/harness/autonomy (incl. test_au_consequence) + operator requests 164 passed from the worktree as root (privileged, browser). The standing profile cannot be widened by the learner (signed records; routine manifest validated: no wildcard host, no DELETE, '/' and '/*' refused).",
   "evidence": [
-   "pytest <named acceptance tests> on the freeze (worktree = 6cba496; -m '(privileged or browser or slow or not privileged) and not network and not gpu'): 148 passed",
-   "cam_live/docs/verification/repro/g3act/probe_au_standing.py"
+   "cam_live/docs/verification/repro/g3act/probe_au_standing.py (0 VIOLATED of 47 at HEAD)",
+   "pytest tests/harness/autonomy + IH-08/CU-25/CU-37 acceptance tests, worktree at dc99abd: 164 passed"
   ]
  },
  "CU-25": {
   "status": "partial",
   "by": "G3-act",
-  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "commit": "dc99abd9d6b8ffc52db1820217792d4791f1611f",
   "supersedes": [
    "all"
   ],
-  "notes": "Acceptance tests pass (denials hold across modalities). As changed by AU, the retained approvals of a standing profile are not modality- or spelling-independent (G3A-2): an HTTP DELETE keeps approval but the same deletion as POST + X-HTTP-Method-Override / _method, or as a browser.click on a pre-authorized hosting page, is allowed without approval (end to end: hosted site deleted, 0 approvals); purchases, transfers, messages to people and new credentials through an approved integration are not recognised.",
+  "notes": "Round 2 (AU's routine-only-where-declared + consequence reading, judged at HEAD). Fixed: my 47 round-1 attempts 0 VIOLATED (undeclared -> R-NOT-ROUTINE; money words / fields ask on every live record), the method-override deletion end to end now asks, a redirect from a declared route to an undeclared destructive one is refused at the hop. Still open: (1) a typed adapter operation the POLICY lists routine, discord.set_channel_permissions, gave @everyone MANAGE_CHANNELS + MANAGE_MESSAGES in a channel of CAM's server without approval, executed on staging Discord (G3A-13); (2) on operator-declared routes the consequence reading sees only operation / path words, keys and whole-value e-mail / phone: GraphQL / JSON-RPC / MCP mutations (delete, purchase, createApiKey, addCollaborator), body fields ({action: delete}, {owner: ...}, {visibility: public}), unknown verbs (release, archive, suspend, rotate, ...), base64 / XML / nested form bodies and an address inside a longer string all run without approval (39 of 43 attempts on declared routes, G3A-14); a single-endpoint API cannot be declared routine for reads only; the record validator refuses 'https://host/*' but accepts the broader 'https://host/**'. AU discloses that the vocabulary is a second line and to declare narrowly.",
   "evidence": [
-   "pytest <named acceptance tests> on the freeze (worktree = 6cba496; -m '(privileged or browser or slow or not privileged) and not network and not gpu'): 148 passed",
+   "cam_live/docs/verification/repro/g3act/probe_au_round2.py",
+   "cam_live/docs/verification/repro/g3act/test_g3act_au_round2_e2e.py",
    "cam_live/docs/verification/repro/g3act/probe_au_standing.py",
    "cam_live/docs/verification/repro/g3act/test_g3act_au_e2e.py"
   ]
@@ -145,14 +146,13 @@
  "CU-37": {
   "status": "verified",
   "by": "G3-act",
-  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "commit": "dc99abd9d6b8ffc52db1820217792d4791f1611f",
   "supersedes": [
    "all"
   ],
-  "notes": "Privileged acceptance tests pass from the worktree (= freeze): launcher uids, uid matrix, no privilege regain, chromium under cambrowser; AU's test_au_separated (standing record over AuthRPC across uids) and test_au_sandbox_packages (camsbx, Landlock + seccomp, egress broker) pass.",
+  "notes": "Round 2 at HEAD: privileged acceptance tests (launcher uids, uid matrix, no privilege regain, chromium under cambrowser) and AU's separated / sandbox tests pass from the worktree as root (164-test run).",
   "evidence": [
-   "pytest <named acceptance tests> on the freeze (worktree = 6cba496; -m '(privileged or browser or slow or not privileged) and not network and not gpu'): 148 passed",
-   "tests/harness/autonomy privileged tests passed"
+   "pytest (privileged) worktree at dc99abd: 164 passed"
   ]
  },
  "CU-19": {

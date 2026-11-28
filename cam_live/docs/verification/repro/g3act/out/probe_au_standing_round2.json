@@ -1,0 +1,482 @@
+[
+ {
+  "label": "control: routine PUT deployment runs without approval",
+  "holds": true,
+  "verdict": "allow",
+  "policy_ids": [
+   "P-ALLOW"
+  ],
+  "note": ""
+ },
+ {
+  "label": "control: HTTP DELETE on hosting keeps approval",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-IRREVERSIBLE-HTTP",
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "control: discord.delete_channel keeps approval",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-IRREVERSIBLE",
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "control: payment.purchase asks (P-SPEND)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE",
+   "P-SPEND-APPROVAL"
+  ],
+  "note": ""
+ },
+ {
+  "label": "control: 'to' field keeps approval",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-PERSON-MESSAGE",
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "control: 'To' (case) keeps approval",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-PERSON-MESSAGE",
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "control: nested personalizations[].to keeps approval",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-PERSON-MESSAGE",
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "DELETE via X-HTTP-Method-Override header on a POST",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE"
+  ],
+  "note": "APIs that honour method override (e.g. Google APIs, many frameworks) execute a DELETE"
+ },
+ {
+  "label": "DELETE via _method form field on a POST",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE"
+  ],
+  "note": "Rails / Laravel style method override"
+ },
+ {
+  "label": "program with a delete step inside a routine program",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-IRREVERSIBLE",
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "transfer a domain away (POST /v1/domains/x.com/transfer)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "P-SPEND-APPROVAL",
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "delete a DNS record through a POST route (POST /api/json/v3/dns/delete/x.com/123)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "buy a domain through the hosting API (POST .../domains/buy)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "P-SPEND-APPROVAL",
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "place an order (POST /v1/orders)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "P-SPEND-APPROVAL",
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "create a charge (POST /v1/charges, amount field)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "P-SPEND-APPROVAL",
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "start a checkout (POST /v1/checkout/sessions)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "P-SPEND-APPROVAL",
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "upgrade a plan (PATCH /v1/sites/7 plan)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "P-SPEND-APPROVAL",
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "purchase a domain through a DNS / registrar API (POST /v1/domains/purchase)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "P-SPEND-APPROVAL",
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "create (= buy) a domain at a registrar (POST /api/json/v3/domain/create/x.com)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "P-SPEND-APPROVAL",
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "chat API DM: channel = a user id (Slack-style chat.postMessage)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "bot API DM: chat_id (Telegram-style sendMessage)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "e-mail API: recipient under 'email'",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "e-mail API: recipient in the URL query string",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "e-mail API: recipient in the query object",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-PERSON-MESSAGE",
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "add an SSH key (POST /user/keys)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "create a deploy key (POST /v1/deploy_keys)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "mint a token (POST /v1/token, singular)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "share access (POST /v1/sites/7/access)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "add to team (PUT /v1/teams/1/users/someone)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "create a webhook to a third party (POST /v1/hooks)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "upper-case path (POST /v1/API-Keys)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "read the integration's customer records (GET /v1/customers)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "read personal fields explicitly (GET /v1/users?fields=email,phone)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "export members' e-mail addresses (GET /v1/members/export)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE"
+  ],
+  "note": ""
+ },
+ {
+  "label": "browser.click on an element of an owned, pre-authorized hosting page (e.g. a 'Delete site' button)",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "R-NOT-ROUTINE"
+  ],
+  "note": "the policy cannot see what the clicked element does"
+ },
+ {
+  "label": "sandbox.python network=scoped hosts=['pypi.org.evil.example']",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "P-CODE-NETWORK"
+  ],
+  "note": ""
+ },
+ {
+  "label": "sandbox.python network=scoped hosts=['evil.example']",
+  "holds": true,
+  "verdict": "needs_approval",
+  "policy_ids": [
+   "P-CODE-NETWORK"
+  ],
+  "note": ""
+ },
+ {
+  "label": "sandbox.python network=scoped hosts=['169.254.169.254']",
+  "holds": true,
+  "verdict": "deny",
+  "policy_ids": [
+   "P-LOCAL-ADDRESS"
+  ],
+  "note": ""
+ },
+ {
+  "label": "sandbox.python network=scoped hosts=['127.0.0.1']",
+  "holds": true,
+  "verdict": "deny",
+  "policy_ids": [
+   "P-LOCAL-ADDRESS"
+  ],
+  "note": ""
+ },
+ {
+  "label": "record accepts code_network ['*.co.uk']",
+  "holds": true,
+  "verdict": "refused",
+  "policy_ids": [],
+  "note": "operator-signed; informational"
+ },
+ {
+  "label": "record accepts code_network ['*.github.io']",
+  "holds": true,
+  "verdict": "refused",
+  "policy_ids": [],
+  "note": "operator-signed; informational"
+ },
+ {
+  "label": "record accepts code_network ['*.ngrok.io']",
+  "holds": true,
+  "verdict": "refused",
+  "policy_ids": [],
+  "note": "operator-signed; informational"
+ },
+ {
+  "label": "record accepts code_network ['8.8.8.8']",
+  "holds": true,
+  "verdict": "refused",
+  "policy_ids": [],
+  "note": "operator-signed; informational"
+ },
+ {
+  "label": "record accepts code_network ['localhost']",
+  "holds": true,
+  "verdict": "refused",
+  "policy_ids": [],
+  "note": "operator-signed; informational"
+ },
+ {
+  "label": "hard constraint: captcha answer in a request",
+  "holds": true,
+  "verdict": "deny",
+  "policy_ids": [
+   "X-HUMAN-VERIFICATION"
+  ],
+  "note": ""
+ },
+ {
+  "label": "hard constraint: Discord user-account automation (browser on discord.com)",
+  "holds": true,
+  "verdict": "deny",
+  "policy_ids": [
+   "PL-DISCORD-NO-USER-AUTOMATION",
+   "X-USER-ACCOUNT"
+  ],
+  "note": ""
+ },
+ {
+  "label": "hard constraint: Discord HTTP API outside the adapter",
+  "holds": true,
+  "verdict": "deny",
+  "policy_ids": [
+   "P-WRITE-NON-OWNED",
+   "X-PLATFORM-ADAPTER"
+  ],
+  "note": ""
+ },
+ {
+  "label": "credential pattern matches https://deploy.host.example/x",
+  "holds": null,
+  "verdict": "True",
+  "policy_ids": [],
+  "note": "informational"
+ },
+ {
+  "label": "credential pattern matches https://deploy.host.example.evil.example/x",
+  "holds": null,
+  "verdict": "False",
+  "policy_ids": [],
+  "note": "informational"
+ },
+ {
+  "label": "credential pattern matches https://deploy.host.example@evil.example/x",
+  "holds": null,
+  "verdict": "False",
+  "policy_ids": [],
+  "note": "informational"
+ },
+ {
+  "label": "credential pattern matches http://deploy.host.example/x",
+  "holds": null,
+  "verdict": "False",
+  "policy_ids": [],
+  "note": "informational"
+ },
+ {
+  "label": "credential pattern matches https://evil.example/https://deploy.host.example",
+  "holds": null,
+  "verdict": "False",
+  "policy_ids": [],
+  "note": "informational"
+ },
+ {
+  "label": "credential pattern matches https://deploy.host.example:8443/x",
+  "holds": null,
+  "verdict": "True",
+  "policy_ids": [],
+  "note": "informational"
+ },
+ {
+  "label": "credential pattern matches https://DEPLOY.HOST.EXAMPLE/x",
+  "holds": null,
+  "verdict": "True",
+  "policy_ids": [],
+  "note": "informational"
+ }
+]

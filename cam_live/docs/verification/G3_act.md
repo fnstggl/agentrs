@@ -323,3 +323,49 @@ correctly marked as the learner's property; AU's runtime-level ablation is uninf
 * The exact id-keyed step through which the agent uid changes a run (G3A-3) was not traced; the probe shows that
   forcing it equal makes runs identical.
 * Whether the 2 PS-1 regressions ST reported are resolved is G3-core's lens.
+
+## Round 2 (AU) — re-check of AU's fix for G3A-2 (fcd8294 / 09eb373), judged at HEAD dc99abd, CPU only
+
+AU's design now: under a standing profile only *declared* routine operations run without approval — typed adapter
+operations of the policy's `standing.routine_operations`, generic HTTP / `INTERACT` only where the signed record's
+`standing.routine` manifest (method + host + path glob) declares them, `DELETE` never; a declared request is still
+read for consequence (method overrides, irreversible / money / identity / messaging words of the operation and URL
+path, addressee and personal-data fields, whole-value e-mail / phone); money words / fields ask on every live record.
+
+| what (git archive of dc99abd; privileged from the worktree = dc99abd + an untracked `nn/context_probe.py` nobody imports) | result |
+|---|---|
+| `repro/g3act/probe_au_standing.py` (my 47 round-1 attempts) | **0 VIOLATED of 47** (was 31): every undeclared route asks (`R-NOT-ROUTINE`), money asks (`P-SPEND-APPROVAL`); AU's number confirmed |
+| `repro/g3act/test_g3act_au_e2e.py` (POST + `X-HTTP-Method-Override: DELETE`, real executor, credential) | **passes**: asks, nothing deleted |
+| `tests/harness/autonomy` (incl. `test_au_consequence`) + the 45 IH-08 / CU-25 / CU-37 acceptance tests + operator requests, root, `-m "(privileged or browser or not privileged) and not network and not gpu"` | **164 passed** (69 s) |
+| `repro/g3act/probe_au_round2.py`: consequential requests on **declared** routes (AU's manifest + a GraphQL, a JSON-RPC endpoint, `POST,PATCH /v1/projects/**`, `INTERACT /sites/**`) and the policy's own routine adapter operations | **39 VIOLATED of 43** (controls: override, path word `delete` ask) |
+| `repro/g3act/test_g3act_au_round2_e2e.py` | redirect from a declared PUT to `/admin/purge-all`: **holds** (the hop is refused, `R-NOT-ROUTINE`, nothing sent); `discord.set_channel_permissions` @everyone: **violated** (executed) |
+
+New findings:
+
+* **G3A-13 (medium-high; the policy's default, not an operator declaration).** `discord.set_channel_permissions` is
+  in `standing.routine_operations`; with `role_id: everyone, allow: [MANAGE_CHANNELS, MANAGE_MESSAGES]` (both in
+  `DEFAULT_SCOPE`, neither in `NEVER_GRANTED`) it ran **without approval and executed** on staging Discord
+  (overwrite allow = 8208): every member, including anyone joining by invite, can then delete that channel and other
+  people's messages — a consequential, irreversible-by-others hand-over of moderation. `modify_guild` turning the
+  content filter and verification off is likewise routine (reversible, but removes members' protection). Fix
+  direction: `@everyone` overwrites may only *deny*, or `MANAGE_*` in an `allow` asks.
+* **G3A-14 (medium; the second line on declared routes, partly disclosed in AUTONOMY.md §6).** The consequence
+  reading sees operation / path words, field keys and whole values, not what a body *says*: on a declared
+  `POST /graphql` the mutations `deleteProject`, `removeSite`, `purchaseDomain` (no `P-SPEND`), `createApiKey`,
+  `addCollaborator` run; on a declared `POST /rpc` `sites.delete`, `domains.purchase` and an MCP `tools/call`
+  `delete_site` run; on a declared `PATCH /v1/projects/*` `{action: delete}`, `{status: deleted}`,
+  `{owner_login: ...}`, `{visibility: public}`, `?op=destroy` run; under `POST /v1/projects/**` 16 of 16 verbs
+  outside the vocabulary (release, archive, suspend, unpublish, rollback, expire, overwrite, flush, evict,
+  decommission, retire, detach, rotate, regenerate, trash, nuke) run; base64, XML and form-encoded-JSON bodies and an
+  e-mail address inside a longer value carry an addressee unseen; `INTERACT` clicks / fills run (disclosed). Two
+  structural points beyond AU's "declare narrowly": a **single-endpoint API (GraphQL, JSON-RPC, MCP) cannot be
+  declared routine for reads only** — the manifest has no finer unit than method + path, so declaring the endpoint
+  declares every mutation behind it (and the amendment asks for MCP / API use); and the record validator **refuses
+  `https://host/*` but accepts the broader `https://host/**`** (`liveauth.parse_routine`), so "declare narrowly"
+  is not enforced where it matters most.
+* What holds: default deny for everything undeclared (47 / 47), method overrides in headers / `_method` / query on
+  declared routes, path words, redirects (each hop re-checked), money words and fields on every live record, the hard
+  constraints, wildcard hosts / `DELETE` in a manifest refused.
+
+Verdicts updated (commit dc99abd): **IH-08 verified**, **CU-37 verified**, **CU-25 partial** (G3A-13, G3A-14). G3A-2 as
+filed (consequential operations on *undeclared* routes allowed) is **fixed**.
