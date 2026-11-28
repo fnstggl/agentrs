@@ -103,6 +103,7 @@ class PredictConfig:
                                              # CPU thread: 32768 rows ~4 s per level, 8192 ~0.5 s)
     imagination_aleatoric: bool = False      # add the transition's aleatoric noise to imagined beliefs
     imagination_prior_sd: float = 0.5        # prior sd of beta_im (and beta_q) of the ImaginationCalibration
+    content: bool = True                     # content-prediction head + loss (predict.content): what an action returns
     seed: int = 0
 
     @classmethod
@@ -204,6 +205,7 @@ def attach_heads(model: LatentModelAPI, pcfg: Optional[PredictConfig] = None) ->
                              have[HEAD_DOWNSTREAM])
         heads.scaler = getattr(have[HEAD_WORLD], "_real_scaler", heads.scaler)
         have[HEAD_WORLD]._real_scaler = heads.scaler
+        _attach_content(model, heads, pcfg)
         return heads
     if any(m is not None for m in have.values()):
         raise RuntimeError("only some of the predict heads are registered on this model")
@@ -226,7 +228,18 @@ def attach_heads(model: LatentModelAPI, pcfg: Optional[PredictConfig] = None) ->
     for name, mod in heads.modules().items():
         model.register_head(name, mod, GROUP_HEADS)
     world._real_scaler = heads.scaler
+    _attach_content(model, heads, pcfg)
     return heads
+
+
+def _attach_content(model: LatentModelAPI, heads: PredictHeads, pcfg: PredictConfig) -> None:
+    """The content-prediction head (``predict.content``), registered with the others when ``pcfg.content`` (a model
+    restored from an older checkpoint gets it freshly initialised; the non-strict restore reports it)."""
+    if not pcfg.content:
+        object.__setattr__(heads, "content", None)
+        return
+    from .content import ensure_content_head
+    object.__setattr__(heads, "content", ensure_content_head(model, pcfg.seed))
 
 
 # ----------------------------------------------------------------------------------------------------------------

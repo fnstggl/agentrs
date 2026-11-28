@@ -37,10 +37,10 @@ def test_providers_follow_the_protocol(lab_rig):
     rig = lab_rig(n_lifetimes=1)
     provs = default_providers(rig.heads, rig.check_signature)
     assert [p.name for p in provs] == ["world_model", "fast_prior", "evaluator", "world_model_adapters",
-                                       "evaluator_adapters"]
+                                       "evaluator_adapters", "content"]      # content: IMP, predict.content
     assert all(isinstance(p, LossProvider) for p in provs)
-    assert [p.timescale for p in provs] == [TIMESCALE_FREQUENT] * 3 + [TIMESCALE_SLOW] * 2
-    assert len(default_providers(rig.heads, None)) == 3               # no verifier check -> no evaluator providers
+    assert [p.timescale for p in provs] == [TIMESCALE_FREQUENT] * 3 + [TIMESCALE_SLOW] * 2 + [TIMESCALE_FREQUENT]
+    assert len(default_providers(rig.heads, None)) == 4               # no verifier check -> no evaluator providers
 
 
 def test_world_loss_trains_on_matured_outcomes_only(lab_rig):

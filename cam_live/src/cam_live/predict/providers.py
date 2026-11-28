@@ -472,4 +472,7 @@ def default_providers(heads: PredictHeads, check_signature: Optional[Callable[[V
             ev = EvaluatorAdapterLoss(heads, check_signature)
             ev._objectives = out[2]._objectives                    # one shared table of verified outcomes
             out.append(ev)
+    if getattr(heads, "content", None) is not None:              # what actions return (predict.content)
+        from .content import ContentLoss
+        out.append(ContentLoss(heads))
     return out

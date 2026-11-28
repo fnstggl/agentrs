@@ -348,6 +348,11 @@ class Predictor:
         out: List[CandidateEvaluation] = []
         p_succ, q_logit = ev_q.p_success[0].double().cpu(), ev_q.success_logit[0].double().cpu()
         z_norm = z[0].norm(dim=-1).double().cpu()
+        content = getattr(heads, "content", None)
+        c_ig = c_epi = None
+        if content is not None:                         # information an action's returned content would carry
+            co = content(z[0])
+            c_ig, c_epi = co.information_gain().cpu(), co.epistemic_var.mean(-1).cpu()
         for i, a in enumerate(cands):
             preds: List[PredictionRecord] = []
             for j, q in enumerate(concrete[i]):
@@ -370,6 +375,8 @@ class Predictor:
                       "z_norm": float(z_norm[i]), "b_norm": float(b[0].norm()), "net_cost": float(net_cost[i])}
             if any_goal:
                 extras["q_goal"], extras["q_goal_epistemic_std"] = float(goal[i]), float(goal_epi[i])
+            if c_ig is not None:
+                extras["content_ig"], extras["content_epistemic"] = float(c_ig[i]), float(c_epi[i])
             if ts is not None:
                 extras.update({f"{THOMPSON_KEY}{s}": float(ts[s, i]) for s in range(ts.shape[0])})
             if info is not None:
