@@ -69,7 +69,7 @@ def part_write(d):
     cfg.device = "cuda"
     cfg.core.max_context = 64
     t0 = time.time()
-    with gpu_lock(timeout_s=3600.0, min_free_gb=14.0):
+    with gpu_lock(timeout_s=7200.0, min_free_gb=14.0, poll_s=0.2):
         lab = build_lab(os.path.join(d, "store.sqlite"), cfg, bridge=True, beta=BETA,
                         settings=LearnerSettings.from_cfg(cfg, batch_size=8, slow_batch_size=4, grad_last=8,
                                                           val_fraction=0.2, probe_size=4, val_batch=8))
@@ -154,7 +154,7 @@ def part_read(d):
     from cam_live.credit.labkit import register_lab_heads
     from cam_live.credit.replay import SqliteExperienceStore
     meta = json.load(open(os.path.join(d, "ids.json")))
-    with gpu_lock(timeout_s=3600.0, min_free_gb=14.0):
+    with gpu_lock(timeout_s=7200.0, min_free_gb=14.0, poll_s=0.2):
         holder = {}
         em = ckpt.load_exported_model(os.path.join(d, "export"), device="cuda",
                                       register_heads=lambda mm: holder.update(register_lab_heads(mm, None, beta=BETA)))
@@ -184,7 +184,7 @@ def part_within(d):
     from cam_live.credit.labkit import register_lab_heads
     from cam_live.credit.replay import SqliteExperienceStore
     meta = json.load(open(os.path.join(d, "ids.json")))
-    with gpu_lock(timeout_s=3600.0, min_free_gb=14.0):
+    with gpu_lock(timeout_s=7200.0, min_free_gb=14.0, poll_s=0.2):
         holder = {}
         em = ckpt.load_exported_model(os.path.join(d, "export"), device="cuda",
                                       register_heads=lambda mm: holder.update(register_lab_heads(mm, None, beta=BETA)))

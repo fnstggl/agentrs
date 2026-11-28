@@ -56,7 +56,7 @@ CPU = "--cpu" in sys.argv              # the real Qwen3-4B configuration on the 
                                        # property) is skipped
 t_wait = time.time()
 import contextlib  # noqa: E402
-with (contextlib.nullcontext(time.time()) if (TINY or CPU) else gpu_lock(timeout_s=7200.0, min_free_gb=16.0)) as t_lock:
+with (contextlib.nullcontext(time.time()) if (TINY or CPU) else gpu_lock(timeout_s=7200.0, min_free_gb=16.0, poll_s=0.2)) as t_lock:
     info("waited for the GPU lock (s)", round(t_lock - t_wait, 1))
     t0 = time.time()
     cfg = CamLiveConfig.debug() if TINY else CamLiveConfig(device="cpu" if CPU else "cuda")

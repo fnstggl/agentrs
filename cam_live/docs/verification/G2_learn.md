@@ -21,6 +21,7 @@ I edited no source file and no other agent's test. All commands run from `/works
 |---|---|---|
 | A's default tests | `.venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live` | 99 passed, 13 skipped, 56 s |
 | D's default tests | `... cam_live/tests/credit -q ...` | 114 passed, 7 skipped, 148 s |
+| D's and A's slow tests (clean export) | `... cam_live/tests/credit cam_live/tests/nn -q --rootdir=cam_live -m slow --timeout=7200` | 6 passed (5 credit incl. `test_evidence.py`, 1 nn), 910 s |
 | Integration acceptance tests of RC-01 / CL-02 / CL-03 (+ CL-05 integrated) | `... cam_live/tests/integration/test_agent_runtime.py::test_delayed_outcomes_link_to_their_decisions ...::test_learning_changes_experiential_and_adapter_weights cam_live/tests/integration/test_int2_checkpoints.py` | dirty worktree 2 + 2 passed; clean export 4 passed (284 s) |
 | G-nn's CPU probes (unchanged) | `cam_live/docs/verification/repro/nn/probe_{fast,stale_cache,presets,invariants [--scale 50m],saveload_cpu}.py` | fast 43/44, stale cache 3/3, presets 12/12, invariants 23/23 (debug and 50m), save / fresh-process load 2/2 + 8/8 |
 | G-cl's CPU probes (unchanged) | `cam_live/docs/verification/repro/cl/probe_{rudder,smdp,store_links --kills 12,providers,learner,cocoa --seeds 200 --n 400}.py` (`CL_THREADS=1`) | 63/63, 8/8, 37/37, 4/4 (+ D prints `unsupported`), 26/26, 47/47 |
