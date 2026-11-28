@@ -220,8 +220,12 @@ no longer reads the learner's flags. After (3 runs): 9 / 14 / 14 records, every 
 `val:fast_prior` (and `val:evaluator` after the verdict), the evaluator's train flags are set for 12 of 14 records,
 promoted 3 of 3; the INT2 test passed 8 of 8 consecutive runs (it also passed 4 of 4 here before the fix: the failure is
 probabilistic). Regression tests `tests/predict/test_int3a_eligibility.py` (2; both fail on the old code).
+The verifier's own probe on the fixed code (`docs/verification/repro/g2learn/probe_promotion_evidence.py --reps 5`):
+3 of 5 first promotions granted — with world-model, fast-prior (and, where the verdict was in, evaluator, RUDDER,
+COCOA) validation metrics — and 2 refused, both with no `val:` flag of any provider, i.e. no held-out record at all
+(15 records each). So the probe's check still FAILS (3 / 5), now only through the residual below.
 Residual: with a 15 % record split an objective of N records has no held-out record with probability 0.85^N
-(0.10-0.23 for N = 9-14), and then its promotion is refused (fail-closed). That is the split's property
+(0.09-0.23 for N = 9-15), and then its promotion is refused (fail-closed). That is the split's property
 (`credit/learner.py`, frozen): change request INT3A-5. Behaviour change to note: the evaluator and fast-prior now train
 on records they were silently excluded from.
 
