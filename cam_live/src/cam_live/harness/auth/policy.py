@@ -1071,7 +1071,38 @@ class PolicyService:
                     self._set_location(tc.task_id, urls[0].raw, tab)
         if bump or rate_hits:
             info["charged"] = dict(bump, rate=sorted(rate_hits))
-        return self._decision(ALLOW, ah, [("P-ALLOW", "permitted by policy " + pol.policy_id)], approval_id=approval_id)
+        findings = [("P-ALLOW", "permitted by policy " + pol.policy_id)]
+        if node.modality in _BROWSER_MODALITIES:
+            hint = self._deny_path_hint(ne, tc)
+            if hint:
+                findings.append(("P-DENY-PATHS", hint))
+        return self._decision(ALLOW, ah, findings, approval_id=approval_id)
+
+    #: prefix of the reason that tells the browser which paths of an allowed origin are denied (R2-m2)
+    DENY_PATHS_PREFIX = "deny-paths:"
+
+    def _deny_path_hint(self, ne: NodeEval, tc: TaskCtx) -> str:
+        """For an allowed browser primitive: the path globs the deny lists name on the same host, so that the
+        browser judges those subresources per URL although it judges a page's other reads per origin (G2-harness
+        R2-m2). '' when the host has no path-level denial."""
+        urls = [d for d in ne.dests if d.kind == "url"]
+        if not urls:
+            return ""
+        globs: List[str] = []
+        for d in urls:
+            for pat in list(self.policy.deny) + list(tc.deny):
+                if pat.kind != "url" or not pat.path or pat.path in ("/", "/*"):
+                    continue
+                if "*" in pat.host or "?" in pat.host:
+                    if not fnmatch.fnmatchcase(d.host, pat.host):
+                        continue
+                elif D.bare_host(d.host) != D.bare_host(pat.host):
+                    continue
+                if pat.port and pat.port != (d.port or D._DEFAULT_PORTS.get(d.scheme, 0)):
+                    continue
+                if pat.path not in globs:
+                    globs.append(pat.path)
+        return (self.DENY_PATHS_PREFIX + json.dumps(globs[:32])) if globs else ""
 
     def _peer_check(self, ne: NodeEval, args: Dict[str, Any], tc: TaskCtx) -> None:
         """An executor may report the address it actually connected to (``peer_ip`` / ``resolved_ip``): a public
@@ -1480,8 +1511,9 @@ class PolicyService:
         if plat:
             # a platform credential goes only to that platform's adapter (the Discord bot token only to discord.*
             # operations, never to generic HTTP, the browser or the sandbox): G2-harness D1
-            ops = [n.operation for n in self._eval.flatten(action)] if action.steps else [action.operation]
-            if not any(platform_constraints.adapter_op(o, plat) for o in ops):
+            # released to the adapter's own action only: not on behalf of a program or skill that contains one
+            # (no step is named in a release; G2-harness R2-m1)
+            if action.steps or not platform_constraints.adapter_op(action.operation, plat):
                 raise SecretError(f"secret {name!r} is the {plat} credential and is released only to the {plat} "
                                   f"adapter's operations, not to {action.operation!r}")
         return self.vault.release(name, dest)

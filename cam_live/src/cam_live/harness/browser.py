@@ -553,6 +553,7 @@ class _Session:
         self.checked: set = set()                     # URLs approved during the current action
         self.origins_ok: Dict[str, bool] = {}         # origins navigated to during the current action
         self.origin_cache: Dict[str, Tuple[bool, float]] = {}
+        self.origin_paths: Dict[str, List[str]] = {}  # per origin: path globs the deny lists name (R2-m2)
         self.blocked: List[Dict[str, Any]] = []
         # handed from the route layer to the network layer: requests that were just authorized (method, url) ->
         # [count, expiry], and host:port tunnels -> expiry
@@ -968,6 +969,38 @@ class BrowserScreen:
 _SCRIPT_READ_TYPES = ("fetch", "xhr", "eventsource")
 
 
+def _deny_paths(dec: AuthorizationDecision) -> List[str]:
+    """Path globs an origin's read decision names as denied ("deny-paths:[...]" reason of the policy service)."""
+    for r in dec.reasons or []:
+        if isinstance(r, str) and r.startswith("deny-paths:"):
+            try:
+                v = json.loads(r[len("deny-paths:"):])
+                return [str(x) for x in v if isinstance(x, str)]
+            except ValueError:
+                return []
+    return []
+
+
+def _under_paths(url: str, globs: Sequence[str]) -> bool:
+    """Conservatively: could ``url`` fall under one of ``globs``? (case-folded, percent-decoded path; any URL whose
+    path starts with a glob's literal prefix is sent to the policy, which decides exactly)."""
+    if not globs:
+        return False
+    from urllib.parse import unquote, urlsplit
+    try:
+        path = unquote(urlsplit(url).path or "/").lower().replace("\\", "/")
+    except ValueError:
+        return True
+    while "//" in path:
+        path = path.replace("//", "/")
+    for g in globs:
+        lit = g.lower().split("*", 1)[0].split("?", 1)[0]
+        base = lit[:-1] if lit.endswith("/") else lit
+        if path.startswith(lit) or path == base or "/.." in path or "/./" in path:
+            return True
+    return False
+
+
 def _form_fields(req: Any, limit: int = 64) -> List[str]:
     """Names of the fields a request submits (form-urlencoded, multipart or a JSON object), bounded; [] if none."""
     try:
@@ -1200,6 +1233,7 @@ class BrowserExecutor:
             # what was authorized for an earlier action is not authorized for this one
             sess.checked, sess.blocked = set(), []
             sess.origins_ok, sess.origin_cache, sess.net_tokens, sess.tunnel_ok = {}, {}, {}, {}
+            sess.origin_paths = {}
             try:
                 self._loop.call(self._run_action(sess, action, ctx, res, budget), timeout=budget + 15)
             except TimeoutError:
@@ -1559,21 +1593,30 @@ class BrowserExecutor:
         sess.origin_cache[key] = (dec.verdict == AuthVerdict.ALLOW, now + self.cfg.origin_cache_s)
         return dec
 
-    async def _read_allowed(self, sess: _Session, origin: str, resource: str, method: str) -> AuthorizationDecision:
-        """Reads (GET / HEAD / OPTIONS of a subresource) are judged per origin, once per action."""
+    async def _read_allowed(self, sess: _Session, origin: str, resource: str, method: str,
+                            url: str = "") -> AuthorizationDecision:
+        """Reads (GET / HEAD / OPTIONS of a subresource) are judged per origin, once per action -- except a URL
+        under a path the deny lists name for this origin (the origin's decision carries those paths): such a read
+        is judged per URL, whatever its resource type (image, style, script, prefetch; G2-harness R2-m2)."""
         now = self.clock.now()
-        if sess.origins_ok.get(origin):
-            return AuthorizationDecision(AuthVerdict.ALLOW)
         cached = sess.origin_cache.get(origin)
         if cached is None or cached[1] < now:
+            # also for the origin of a page this action navigated to: its decision says which paths are denied
             op = PrimitiveOp(op="browser.request", modality=self.modality, started=now, ended=now,
                              arguments={"url": origin + "/", "resource_type": resource, "method": method,
                                         "session": sess.name})
             dec = await self._check(sess.ctx, op, sess.action)
-            sess.origin_cache[origin] = (dec.verdict == AuthVerdict.ALLOW, now + self.cfg.origin_cache_s)
-            return dec
-        return AuthorizationDecision(AuthVerdict.ALLOW if cached[0] else AuthVerdict.DENY,
-                                     reasons=[] if cached[0] else ["request to this origin denied earlier in this action"])
+            sess.origin_paths[origin] = _deny_paths(dec)
+            ok = dec.verdict == AuthVerdict.ALLOW or bool(sess.origins_ok.get(origin))
+            sess.origin_cache[origin] = (ok, now + self.cfg.origin_cache_s)
+            cached = sess.origin_cache[origin]
+            if not ok:
+                return dec
+        if not cached[0]:
+            return AuthorizationDecision(AuthVerdict.DENY, reasons=["request to this origin denied earlier in this action"])
+        if url and _under_paths(url, sess.origin_paths.get(origin) or []):
+            return await self._script_read_allowed(sess, url, resource, method)
+        return AuthorizationDecision(AuthVerdict.ALLOW)
 
     async def _net_decide(self, sess: _Session, method: str, url: str, *, tunnel: str = "", document: bool = False,
                           main: bool = False, resource: str = "", peer_ips: Sequence[str] = ()) -> Tuple[bool, str]:
@@ -1689,7 +1732,7 @@ class BrowserExecutor:
                 # page's own origin (G2-harness D6); allowed URLs are remembered for the rest of the action
                 dec = await self._script_read_allowed(sess, url, req.resource_type, method)
             elif method in self._READ_METHODS:
-                dec = await self._read_allowed(sess, origin, req.resource_type, method)
+                dec = await self._read_allowed(sess, origin, req.resource_type, method, url)
             else:
                 # a write (a script's POST, a form submission into a frame, a beacon): reported and judged per URL,
                 # also on an origin the page itself came from; the names of submitted form fields are reported so

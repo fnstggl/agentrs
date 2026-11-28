@@ -65,7 +65,7 @@ class AuditLog:
         self._fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         self._seq, self._prev, self._size = 0, GENESIS, -1
         with self._lock:
-            self._locked(self._resync)
+            self._locked(self._open)
 
     # -- internals -------------------------------------------------------------------------------------------
     def _locked(self, fn: Callable[[], Any]) -> Any:
@@ -98,6 +98,52 @@ class AuditLog:
                 # marker that can never be a real hash
                 seq, prev = self._count_lines(), "damaged-tail"
         self._seq, self._prev, self._size = seq, prev, size
+
+    def _open(self) -> None:
+        self._resync()
+        self._reconcile_head()
+
+    def _reconcile_head(self) -> None:
+        """An entry is written and synced before the head file is replaced, so a stop or kill between the two
+        leaves the head behind the log (G2-harness R2-m3: a false tamper alarm). At open, if the head names an
+        entry of this log and every entry after it chains from it and carries a valid MAC under this key, the head
+        is advanced to the log's last entry. Anything else -- a head ahead of the log, a head naming no entry, a
+        break in the chain, a bad MAC, no head at all -- is left exactly as it is, for the verifier to report."""
+        if not self.key or not os.path.exists(self.head_path) or self._seq <= 0 or self._prev == "damaged-tail":
+            return
+        try:
+            with open(self.head_path, "rb") as f:
+                h = json.loads(f.read().decode())
+            hseq, hhash = int(h["seq"]), str(h["hash"])
+            if not hmac.compare_digest(_mac(self.key, f"{hseq}:{hhash}"), str(h.get("mac", ""))):
+                return
+        except (OSError, ValueError, KeyError, TypeError, UnicodeDecodeError):
+            return
+        if hseq >= self._seq or self._seq - hseq > 64:
+            return
+        prev, found = (GENESIS if hseq == 0 else None), hseq == 0
+        with open(self.path, "rb") as f:
+            lines = [ln for ln in f.read().split(b"\n") if ln.strip()]
+        if len(lines) != self._seq:
+            return
+        for raw in lines[max(0, hseq - 1):]:
+            try:
+                e = json.loads(raw.decode())
+                seq, ts, event, data = int(e["seq"]), float(e["ts"]), str(e["event"]), e["data"]
+                eprev, ehash, emac = str(e["prev"]), str(e["hash"]), str(e.get("mac", ""))
+            except (ValueError, KeyError, TypeError, UnicodeDecodeError):
+                return
+            if not found:
+                if seq != hseq or ehash != hhash:
+                    return
+                found, prev = True, ehash
+                continue
+            if eprev != prev or entry_hash(eprev, seq, ts, event, data) != ehash or \
+                    not hmac.compare_digest(_mac(self.key, ehash), emac):
+                return
+            prev = ehash
+        if found and prev == self._prev:
+            self._write_head()
 
     def _count_lines(self) -> int:
         with open(self.path, "rb") as f:
@@ -175,9 +221,30 @@ def verify_audit_log(path: str, key: Optional[bytes] = None, head_path: Optional
     if require_head is None:
         require_head = expect_head is None or expect_head[0] <= 0
     res = AuditVerification(ok=True)
+    hp = head_path or next((c for c in (path + ".head", os.path.join(os.path.dirname(os.path.abspath(path)), "auth",
+                                                                     "audit.head")) if os.path.exists(c)), path + ".head")
+    head_raw: Optional[bytes] = None
     try:
         with open(path, "rb") as f:
-            lines = f.read().split(b"\n")
+            # an append writes its line and then the head under an exclusive lock on the log: reading both under a
+            # shared lock never sees the moment in between (G2-harness R2-m3: a false tamper alarm otherwise)
+            try:
+                fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+            except OSError:
+                pass
+            try:
+                lines = f.read().split(b"\n")
+                if os.path.exists(hp):
+                    try:
+                        with open(hp, "rb") as hf:
+                            head_raw = hf.read()
+                    except OSError:
+                        head_raw = b""
+            finally:
+                try:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                except OSError:
+                    pass
     except OSError as e:
         return AuditVerification(False, errors=[f"cannot read {path}: {e.strerror}"])
     prev, n, anchored = GENESIS, 0, None
@@ -208,12 +275,9 @@ def verify_audit_log(path: str, key: Optional[bytes] = None, head_path: Optional
         if expect_head is not None and n == expect_head[0]:
             anchored = ehash
     res.entries, res.head_hash = n, prev
-    hp = head_path or next((c for c in (path + ".head", os.path.join(os.path.dirname(os.path.abspath(path)), "auth",
-                                                                     "audit.head")) if os.path.exists(c)), path + ".head")
-    if os.path.exists(hp):
+    if head_raw is not None:
         try:
-            with open(hp, "rb") as f:
-                h = json.loads(f.read().decode())
+            h = json.loads(head_raw.decode())
             if int(h["seq"]) != n or str(h["hash"]) != prev:
                 res.errors.append(f"head file says {h['seq']} entries ending in {str(h['hash'])[:12]}, "
                                   f"log has {n} ending in {prev[:12]} (truncated or extended outside the service)")

@@ -497,7 +497,9 @@ class Evaluator:
                 node, ne.dests, base, text_all, expand(args), raw_tool=tool.id == "T-NET-REQUEST" or
                 tool.effect == "by_method" and node.modality not in (C.Modality.STRUCTURED_BROWSER, C.Modality.VISUAL),
                 opaque=bool(tool.opaque), secret_platform=self.secret_platform,
-                realises=[n.operation for n in self.flatten(parent)] if parent is not None else ()):
+                # the adapter's standing belongs to the granted action itself, never to a program that merely
+                # contains an adapter step (G2-harness R2-m1)
+                realises=[parent.operation] if parent is not None and not parent.steps else ()):
             ne.deny.append(Finding(pid, why, d))
         ne.effect = [e for e, r in EFFECT_RANK.items() if r == rank][0]
         ne.potential = [e for e, r in EFFECT_RANK.items() if r == max(pot, rank)][0]

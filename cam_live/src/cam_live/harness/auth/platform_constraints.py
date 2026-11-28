@@ -122,16 +122,23 @@ TOKEN_FIELDS = frozenset((
 #: parts of a normalised key (argument, body field, URL query, form field) that make it a human-verification
 #: answer: matched as substrings, so ``captcha_input``, ``recaptcha_response_field``, ``captchaResponseToken``,
 #: ``human_check`` are recognised without an exact list (G2-harness D4)
-TOKEN_KEY_PARTS = ("captcha", "recaptcha", "hcaptcha", "turnstile", "humancheck", "humanverif", "notarobot",
-                   "imnotarobot", "botcheck", "antibot", "arkose", "funcaptcha", "geetest", "frccaptcha",
-                   "challengeresponse", "challengeanswer", "challengetoken", "proofofhuman")
-#: accessible names / labels of page elements that are a human-verification test (structural, any site)
+TOKEN_KEY_PARTS = ("captcha", "cfturnstile", "turnstileresponse", "turnstiletoken", "humanverif", "humancheck",
+                   "notarobot", "imnotarobot", "proofofhuman", "arkosetoken", "geetest", "frccaptcha")
+#: precise (G2-harness R2-M1): generic words such as "challenge", "security", "bot", "antibot", "turnstile" alone are
+#: NOT markers -- honeypots (botcheck), Drupal Antibot keys, quiz answers and turnstile counts are ordinary fields.
+#: Accessible names that are about proving one is human, on any element
 _HUMAN_TEST_TEXT = re.compile(
-    r"(?i)captcha|\bturnstile\b|human[\s_\-]*(verification|check|test)|verify\s+(that\s+)?you(\s+are|'re)\s+(a\s+)?"
-    r"(human|real|not\s+a\s+(ro)?bot)|prove\s+(that\s+)?you(\s+are|'re)\s+(a\s+)?human|(i\s*am|i'm)\s+not\s+a\s+"
-    r"(ro)?bot|are\s+you\s+(a\s+)?(human|(ro)?bot)|not\s+a\s+robot|bot\s+(check|detection|protection)|"
-    r"security\s+(check|challenge)|type\s+the\s+(characters|letters|text|code)\s+(you\s+see|shown|in\s+the\s+image)|"
-    r"select\s+all\s+(images|squares)")
+    r"(?i)\bhuman[\s_\-]*(verification|check)\b|\bverify\s+(that\s+)?you(\s+are|'re)\s+(a\s+)?(human|real\s+person|not\s+a\s+(ro)?bot)"
+    r"|\bprove\s+(that\s+)?you(\s+are|'re)\s+(a\s+)?(human|real\s+person|not\s+a\s+(ro)?bot)|(i\s*am|i'm)\s+not\s+a\s+(ro)?bot"
+    r"|\bare\s+you\s+(a\s+)?(human|(ro)?bot)\s*\?|\bnot\s+a\s+robot\b|\btype\s+the\s+(characters|letters|text|code|word)s?"
+    r"\s+(you\s+see|shown|in\s+the\s+(image|picture))|\bselect\s+all\s+(images|squares)\s+with\b")
+#: a CAPTCHA control: "captcha" together with what one does with a challenge
+_CAPTCHA_CONTROL = re.compile(
+    r"(?i)(re|h)?captcha.{0,40}\b(answer|code|response|solution|solve|verify|submit|text|characters|audio|refresh|reload|"
+    r"challenge|enter|input)\b|\b(answer|code|response|solution|solve|verify|enter|type|new|another|get|refresh|reload|play|listen|skip)\b.{0,40}"
+    r"(re|h)?captcha")
+#: element roles that take an answer: any "captcha" in their name is a CAPTCHA field
+_ANSWER_ROLES = ("textbox", "searchbox", "combobox", "spinbutton", "checkbox", "radio", "slider")
 
 
 def is_token_key(key: str) -> bool:
@@ -140,8 +147,16 @@ def is_token_key(key: str) -> bool:
     return k in TOKEN_FIELDS or any(part in k for part in TOKEN_KEY_PARTS)
 
 
-def is_human_test_label(text: str) -> bool:
-    return bool(text) and bool(_HUMAN_TEST_TEXT.search(str(text)))
+def is_human_test_label(text: str, role: str = "") -> bool:
+    """An element (accessible name / label, role) that is a human-verification test, precisely: a phrase about
+    proving one is human, a CAPTCHA control ("captcha" with answer / verify / refresh ...), or an answer field
+    (textbox, checkbox ...) named like a CAPTCHA. "Run security check" or "Turnstile counts" are not."""
+    t = str(text or "")
+    if not t:
+        return False
+    if _HUMAN_TEST_TEXT.search(t) or _CAPTCHA_CONTROL.search(t):
+        return True
+    return str(role or "").lower() in _ANSWER_ROLES and re.search(r"(?i)captcha", t) is not None
 
 
 #: normalised operation-name parts that make an operation a human-verification "solver"
@@ -257,7 +272,9 @@ def is_discord_data(d: D.Destination) -> bool:
         return False
     if discord_api_path(d) is not None or _host_in(d.host, _GATEWAY_HOSTS):
         return True
-    return any(_host_in(d.host, (h,)) and _path_in(d.path, paths) for h, paths in _DISCORD_CDN)
+    # the attachment CDN hosts as a whole: the browser judges a page's images per origin (url = origin + "/"), so
+    # a path rule would never see /attachments/ there (G2-harness R2-m1)
+    return any(_host_in(d.host, (h,)) for h, _paths in _DISCORD_CDN)
 
 
 def _discord_client_path(path: str) -> bool:
@@ -350,7 +367,7 @@ def findings(node: C.ActionSpec, dests: Sequence[D.Destination], effect: str, te
     el = a0.get("element")
     if isinstance(el, dict) and (active or effect in ("interact",)):
         label = " ".join(str(el.get(k) or "") for k in ("name", "label", "placeholder", "id", "field"))
-        if is_human_test_label(label):
+        if is_human_test_label(label, str(el.get("role") or "")):
             out.append((PID_HUMAN, f"the element {str(el.get('role') or '')} {str(el.get('name') or '')[:60]!r} is a "
                                    f"human-verification test; it is never answered or ticked", None))
     if tok:
