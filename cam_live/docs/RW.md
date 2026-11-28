@@ -121,7 +121,9 @@ once those outcomes mature — prospective for exactly the rewards the live upda
 ### Tests
 
 Whole directory on an isolated copy of HEAD 0b429f0 + RW's round-2 files: **173 passed, 3 skipped** (208 s;
-`docs/evidence/test_results/RW_fix.xml`). New in `tests/reward/test_reward_rw.py`: `test_an_unlearned_r_psi_of_either_sign_is_never_promoted_however_well_it_agrees`
+`docs/evidence/test_results/RW_fix.xml`). The integrated agent with the control rewards active (same copy):
+`tests/integration/test_agent_runtime.py` + `test_agent_recovery.py` **13 passed** (641 s; restore determinism
+holds with the controls checkpointed; `docs/evidence/RW/other_tests_round2_integration.log`). New in `tests/reward/test_reward_rw.py`: `test_an_unlearned_r_psi_of_either_sign_is_never_promoted_however_well_it_agrees`
 (a frozen initialisation that agrees strongly and beats the bootstrap is held with reason
 `R_psi_not_shown_to_agree_better_than_every_unlearned_reward`, both signs), `test_a_learned_r_psi_better_than_every_
 unlearned_reward_is_promoted`, `test_with_a_tied_bootstrap_the_walk_stops_at_the_first_step_and_says_why`,
