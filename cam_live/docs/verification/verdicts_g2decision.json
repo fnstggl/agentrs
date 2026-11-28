@@ -6,7 +6,7 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Mechanism re-verified at f54d8cc: every family's likelihood == scipy (G-pr probe_predict_numerics 31/31), action- and horizon-conditioned predictions (the real-configuration predict test was not re-run at the freeze (GPU lock contention); G-pr verified it on 9ba1e45 and later predict/ changes are covered by the CPU suites). FAILS / not shown: on held-out NEW mechanisms the heads do not beat the action-independent baseline (B's scientific_failures: held-out NLL 1.666 vs 1.645 at 6 h, 2.211 vs 2.163 at 2 d); learning is shown at debug scale only; no training on the real configuration.",
+  "notes": "Mechanism re-verified at f54d8cc: every family's likelihood == scipy (G-pr probe_predict_numerics 31/31), action- and horizon-conditioned predictions (tests/predict/test_gpu_real_config.py passed at f54d8cc). FAILS / not shown: on held-out NEW mechanisms the heads do not beat the action-independent baseline (B's scientific_failures: held-out NLL 1.666 vs 1.645 at 6 h, 2.211 vs 2.163 at 2 d); learning is shown at debug scale only; no training on the real configuration.",
   "evidence": [
    "cam_live/docs/verification/repro/g2decision/../pr/probe_predict_numerics.py (31/31 at f54d8cc)",
    "pytest cam_live/tests/predict (164 passed)",
@@ -49,7 +49,7 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Two horizons predicted and registered per candidate; horizon is a continuous input; tests pass at f54d8cc (the real-configuration predict test was not re-run at the freeze (GPU lock contention); G-pr verified it on 9ba1e45 and later predict/ changes are covered by the CPU suites).",
+  "notes": "Two horizons predicted and registered per candidate; horizon is a continuous input; tests pass at f54d8cc (tests/predict/test_gpu_real_config.py passed at f54d8cc).",
   "evidence": [
    "pytest cam_live/tests/predict/test_gpu_real_config.py -m gpu",
    "pytest cam_live/tests/predict"
@@ -62,7 +62,7 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Epistemic (ensemble + fast posterior) and aleatoric parts reported; tests that epistemic uncertainty shrinks with data pass (the real-configuration predict test was not re-run at the freeze (GPU lock contention); G-pr verified it on 9ba1e45 and later predict/ changes are covered by the CPU suites); calibration of the combined uncertainty on the real model not measured by anyone.",
+  "notes": "Epistemic (ensemble + fast posterior) and aleatoric parts reported; tests that epistemic uncertainty shrinks with data pass (tests/predict/test_gpu_real_config.py passed at f54d8cc); calibration of the combined uncertainty on the real model not measured by anyone.",
   "evidence": [
    "pytest cam_live/tests/predict",
    "pytest cam_live/tests/predict/test_gpu_real_config.py -m gpu"

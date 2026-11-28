@@ -153,17 +153,17 @@ proposer's prompt and normalisation.
 | real proposer | `python -m cam_live.eval.proposal_probe --plan SW:rle,MECH:7 --rounds 4` (lock obtained 02:46-03:01) | section 4: 16/16 + 16/16 valid, all permitted tools listed, SW files 60/60 offline |
 | pathway, debug scale | `cam_live/docs/evidence/C/real_pathway.py --debug --lifetimes 4 --meta '{"mix": 0.5, "mixer_step": 0.0}' --agent '{"selection_rule": "thompson_policy", "use_backbone": false, "promotion": false}'` (stopped by my 1700 s timeout in lifetime 4 on a loaded machine) | 10 live updates, KL 0.035-0.074, each depending on R_psi's shape (TV 0.006-0.148); 1 applied meta-update of 55 calls (importance-weighted, gradient 1.62, psi delta 0.047, 14 psi tensors); R_psi on the support changed by 0.0048 (std 0.030); that event's live update recomputed with psi after vs before: TV 0.0114. The *next* live update after the step was not reached before the timeout |
 | pathway, REAL Qwen3-4B + LoRA + bridge + 50m | same, without `--debug`, `--lifetimes 3 --budget-s 780` (lock obtained at the 3rd attempt, 04:40 UTC) | 2 lifetimes (the script stopped before the 3rd: lock budget 780 s: 526 s used, the longest lifetime took 338 s, not starting lifetime 2); 8 live updates, KL 0.042-0.069, each depending on R_psi's shape at mix 0.5 (TV 0.0010-0.0100); 40 meta-update calls, **0 applied** ({'insufficient_independent_outcomes': 35, 'no_policy_update_recorded': 2, 'no_supported_episode': 3}); `pathway_complete` False: the outer step and its effect on the next live update were NOT reached in the two lifetimes the hold allowed; lock 526 s, peak 10.2 GB |
-| B real-configuration / proposer GPU tests | `pytest cam_live/tests/predict/test_gpu_real_config.py cam_live/tests/predict/test_proposer.py -m gpu` | **not run**: both errored with pytest-timeout (900 s) while waiting for the GPU lock (03:01-03:31); a retry after the pathway attempts did not get the lock either. The proposer claim is covered by my own real-model probe run above |
+| B real-configuration test | `pytest cam_live/tests/predict/test_gpu_real_config.py -m gpu --timeout=2400` (Qwen3-4B + LoRA + bridge + 50m; most of the 1631 s was the wait for the lock, obtained ~05:15 UTC) | **1 passed**: predictions registered at two horizons with epistemic std > 0, VOI >= 0, exact decision probabilities, fast update without a gradient step, policy depends on the latent, imagined plans flagged, gradients reach the experiential / heads / LoRA groups. `tests/predict/test_proposer.py -m gpu` errored on the lock wait (900 s) in the first attempt and was not retried; my own real-model proposer run covers it |
 | C 50m cost test | `pytest cam_live/tests/reward/test_reward_experiment.py -m gpu` | not run (GPU lock contention; cost measurement only) |
 
 ## 7. Per requirement (basis; full notes in `verdicts_g2decision.json`)
 
 | id | verdict | basis |
 |---|---|---|
-| PI-01 | partial | likelihoods == scipy, action / horizon-conditioned predictions (real configuration: G-pr at 9ba1e45; B's GPU test could not get the lock at the freeze); FAILS on held-out new mechanisms (no gain over the action-independent baseline, B's own scientific failure); debug-scale learning only |
+| PI-01 | partial | likelihoods == scipy, action / horizon-conditioned predictions (real-configuration test passed at f54d8cc); FAILS on held-out new mechanisms (no gain over the action-independent baseline, B's own scientific failure); debug-scale learning only |
 | PI-02 | verified | registry refusals and registration-before-return re-checked; suites pass |
 | PI-03 | verified | targets from matured observations only (float64); providers now train under the integrated ContinualLearner (G2L-8 fixed); debug scale |
-| PI-04 | verified | two horizons per candidate (tests at f54d8cc; real configuration: G-pr); continuous horizon input |
+| PI-04 | verified | two horizons per candidate, also on the real configuration (GPU test passed at f54d8cc); continuous horizon input |
 | PI-05 | verified | epistemic + aleatoric reported; shrinkage tests pass |
 | PI-06 | verified | masking, never filled; zero loss for pending |
 | PI-07 | partial | as B claims: horizon never > 1, transition worse than the mean, no decision comparison |
@@ -203,6 +203,6 @@ proposer's prompt and normalisation.
   partial by B.
 * D9 (bridge conditioning) not re-measured.
 * GPU tests that could not get the shared lock at the freeze (evaluation batch and other verifiers' real-model runs
-  held it): `tests/predict/test_gpu_real_config.py`, `tests/predict/test_proposer.py -m gpu`,
+  held it): `tests/predict/test_proposer.py -m gpu` (covered by my own real-model proposer run) and
   `tests/reward/test_reward_experiment.py -m gpu` (50m meta-update cost). An applied outer step on the real
   configuration was not reached in the one hold I got (2 lifetimes); C's evidence for it is from b6006a2.
