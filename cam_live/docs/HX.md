@@ -150,3 +150,31 @@ g04 1/0, g06 2/0 still hold. Every new test fails on 0a30cd8 except `test_reconc
 * **R2-m3.** `verify_audit_log` reads log and head under a shared lock (the g10 false alarm was a verification
   racing the relaunched service's start entries); at open a head left behind by a kill is advanced only when every
   later entry chains and carries a valid MAC.
+
+# Round 4 — fixes of the G2-harness round-3 findings at 85101a2 (2026-11-28)
+
+Commit `0fedb1a`. Probes (HOLDS / DEFECT) before → after: g11 9/2 → 11/0 (root, incl. the inotify race S4b),
+g12 6/2 → 8/0, g13 10/6 → 16/0; g01 30/0, g08 39/0, g10 1/0 still hold. The new tests fail on 85101a2
+(`tests/runtime/test_hx4_safe_writes.py` race test: the victim was overwritten with `go`; `test_hx4_fixes.py`: 5 of 5).
+
+* **R3-M1 (major).** The class, not the instance: `cam_live.harness.safefs` — the parent directory is reached one
+  component at a time with `O_PATH|O_DIRECTORY|O_NOFOLLOW` (a symlink is followed only where it lies in a directory
+  only root can write), writes go through a random `O_CREAT|O_EXCL|O_NOFOLLOW` temporary created relative to the
+  directory fd, owner and mode are set on the fd, the rename happens within the directory fd, a target that exists
+  and is not a regular file is refused; reads are `O_NOFOLLOW`; directories are created and then opened without
+  following. Used by `runtime.logs.atomic_write_text` / `atomic_write_json` / `read_json` (so by the supervisor's
+  `preflight.json`, `learner.go`, pid and `run.json` writes and the operator CLI's `control.json`), the launcher's
+  layout (`_mk`, key and policy copies), the vault, the credentials CLI (vault / verifier copy, ownership by fd or
+  without following) and the sandbox host (its own directory; the socket is created 0660 through the umask and its
+  group set without following). Not changed: the run directory stays group-writable for the learner (the learner
+  writes its logs there); `runtime/control.py` still opens `control.json.lock` with `open(..., "a+")` (not HX's
+  file; change request HX-6).
+* **R3-m1 (minor).** At open, a head that does not describe the log (ahead of it, naming another entry, more than
+  64 behind, missing although the log has entries, a bad MAC) is recorded as a MAC'd *discontinuity* in every later
+  head and every verification reports it; in the separated deployment the launcher (root) also keeps the head of the
+  last stop in `<run>/logs/audit.anchor` (root, 0600) and passes it to the next start (`--audit-anchor`), so a log
+  cut back together with its head by the auth uid is reported too.
+* **R3-m2 (minor).** A key with "captcha" is an answer only with an answer word (`captcha_answer`, `captcha_input`,
+  `g-recaptcha-response`; `captcha` alone); "are you a robot?" only on a control that answers; typed fields named
+  CAPTCHA unless they configure it; "type the code shown" only for an image. `enable_captcha`, `captcha_provider`,
+  "Enable CAPTCHA on sign-up", "Get reCAPTCHA keys", an "Are you a bot?" link and the e-mail code field pass.

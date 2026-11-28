@@ -81,3 +81,11 @@ directories env, auth, skills, integration, compute.
 * HX-1, HX-3 unchanged.
 * New, HX-5 (runtime / operator, owners F / M): a staging run through `cam-live run` must register its staging
   sites (`opctl local-service add`); nothing in `runtime/` does (G2-harness §2). Not changed by HX.
+
+## HX-6 (runtime, owner F / INT): `control.json.lock` opened with `open(path, "a+")` by root (G2-harness R3-M1)
+
+`runtime/control.py` opens `<run>/control.json.lock` with `"a+"` as root; the run directory is writable by the
+learner's group, so a planted symlink makes root create (empty) or open any file. Change: open it with
+`os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)` relative to a directory fd from
+`cam_live.harness.safefs.open_dir(run_dir)` (and refuse a non-regular entry), or keep the lock in a root-only
+directory. `control.json` itself is written through `runtime.logs.atomic_write_json`, which is safe since 0fedb1a.

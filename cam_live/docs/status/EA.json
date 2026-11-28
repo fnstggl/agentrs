@@ -494,7 +494,9 @@
   "IH-16": {
    "state": "implemented",
    "files": [
-    "src/cam_live/harness/auth/audit.py"
+    "src/cam_live/harness/auth/audit.py",
+    "src/cam_live/harness/auth/launcher.py",
+    "src/cam_live/harness/auth/service.py"
    ],
    "integration_points": [
     "cam_live.harness.auth.audit.AuditLog",
@@ -510,22 +512,29 @@
     "tests/harness/auth/test_ea_privileged.py::test_learner_and_sandbox_uids_cannot_read_vault_audit_or_verifier_files",
     "tests/harness/auth/test_hx3_fixes.py::test_a_head_left_behind_by_a_stop_is_reconciled_at_open",
     "tests/harness/auth/test_hx3_fixes.py::test_reconciliation_never_hides_tampering",
-    "tests/harness/auth/test_hx3_fixes.py::test_verifying_while_the_service_appends_never_raises_a_false_alarm"
+    "tests/harness/auth/test_hx3_fixes.py::test_verifying_while_the_service_appends_never_raises_a_false_alarm",
+    "tests/harness/auth/test_hx4_fixes.py::test_a_tail_removed_while_the_service_was_down_stays_detected_after_restarts",
+    "tests/harness/auth/test_hx4_fixes.py::test_a_head_rolled_back_far_or_a_replaced_entry_is_reported_and_a_clean_restart_is_not",
+    "tests/harness/auth/test_hx4_fixes.py::test_an_out_of_band_anchor_detects_a_log_cut_back_with_its_head"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix3.xml   # 627 passed, 0 failed, 4 deselected (gpu/slow/network) in 274 s at 85101a2, compute first; browser and privileged marks included",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/runtime -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix4.xml   # 874 passed, 0 failed, 4 deselected (gpu/slow/network) in 401 s at 0fedb1a, compute first, tests/runtime included; browser and privileged marks included",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g12_audit_reconcile.py   # HOLDS, 0 DEFECT",
     "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g10_audit_after_stop.py   # HOLDS, 0 DEFECT",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix3.xml   # 627 passed, 0 failed, 4 deselected (gpu/slow/network) in 274 s at 85101a2, compute first; browser and privileged marks included",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included",
     "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p09_audit.py   # 12 HOLDS, 0 DEFECT (exit 0)"
    ],
    "evidence": [
     "docs/HX.md",
     "docs/evidence/test_results/HX_fix.xml",
-    "docs/evidence/test_results/HX_fix3.xml"
+    "docs/evidence/test_results/HX_fix3.xml",
+    "docs/evidence/test_results/HX_fix4.xml"
    ],
    "limitations": "Detective, not preventive: the hash chain + MAC + head file detect edit / delete / reorder / truncation / keyless rebuild; root can still destroy the log and an emptied log is detected only with the head file or an external anchor. 'Not writable by the learner' is uid separation in the launched deployment (learner and sandbox uids get EACCES on read, write, unlink, rename), measured as root with the real service users; in an in-process deployment the learner shares the uid. Every authorization decision, primitive check, approval, revocation and operator action is audited (test_service_audits_every_kind_of_event).",
    "hx_2026_11_27": "No code change. Ran the named tests including -m privileged; G-sec probe p09 re-run: 12 HOLDS / 0 DEFECT.",
-   "hx_round3_2026_11_28": "Round 3 (G2-harness R2-m3): verify_audit_log reads the log and the head under a shared lock on the log (appends hold the exclusive lock from line to head) - the g10 false alarm was a verification racing the relaunched service's start entries; and at open a head left one or more entries behind (a kill between line and head) is advanced when every entry after it chains from it and has a valid MAC (an edited, forged or truncated log is left for the verifier). g10 0/1 -> 1/0 (20 rounds)."
+   "hx_round3_2026_11_28": "Round 3 (G2-harness R2-m3): verify_audit_log reads the log and the head under a shared lock on the log (appends hold the exclusive lock from line to head) - the g10 false alarm was a verification racing the relaunched service's start entries; and at open a head left one or more entries behind (a kill between line and head) is advanced when every entry after it chains from it and has a valid MAC (an edited, forged or truncated log is left for the verifier). g10 0/1 -> 1/0 (20 rounds).",
+   "hx_round4_2026_11_28": "Round 4 (G2-harness R3-m1): a head that does not describe the log at open (ahead, replaced entry, >64 behind, missing, bad MAC) or a log without the launcher's root-only anchor (<run>/logs/audit.anchor, kept at each stop of the authorization service and passed as --audit-anchor) is recorded as a MAC'd discontinuity that every later verification reports. g12 6/2 -> 8/0. The operator has no tool yet to acknowledge a recorded discontinuity (it stays reported)."
   },
   "IH-17": {
    "state": "implemented",
@@ -561,7 +570,10 @@
     "src/cam_live/harness/sandbox_host.py",
     "src/cam_live/harness/factories.py",
     "src/cam_live/harness/__init__.py",
-    "src/cam_live/harness/service_boot.py"
+    "src/cam_live/harness/service_boot.py",
+    "src/cam_live/harness/safefs.py",
+    "src/cam_live/runtime/logs.py",
+    "src/cam_live/harness/credentials.py"
    ],
    "integration_points": [
     "cam_live.harness.auth.launcher.launch"
@@ -573,9 +585,14 @@
     "tests/harness/auth/test_ea_privileged.py::test_service_uids_cannot_regain_privileges",
     "tests/harness/env/test_browser_uid.py::test_chromium_runs_under_the_browser_uid_with_a_private_profile",
     "tests/harness/auth/test_hx_sandbox_host_privileged.py::test_generated_code_runs_as_the_sandbox_uid_in_the_separated_deployment",
-    "tests/harness/auth/test_hx_sandbox_host_privileged.py::test_root_services_never_import_what_a_service_uid_can_write"
+    "tests/harness/auth/test_hx_sandbox_host_privileged.py::test_root_services_never_import_what_a_service_uid_can_write",
+    "tests/runtime/test_hx4_safe_writes.py::test_the_learner_cannot_redirect_roots_run_directory_writes_through_a_race",
+    "tests/runtime/test_hx4_safe_writes.py::test_a_planted_target_or_directory_is_refused_not_followed",
+    "tests/harness/auth/test_hx4_fixes.py::test_safefs_never_follows_a_symlink_in_a_writable_directory"
    ],
    "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/runtime -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix4.xml   # 874 passed, 0 failed, 4 deselected (gpu/slow/network) in 401 s at 0fedb1a, compute first, tests/runtime included; browser and privileged marks included",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g11_boot_path.py   # HOLDS, 0 DEFECT",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix3.xml   # 627 passed, 0 failed, 4 deselected (gpu/slow/network) in 274 s at 85101a2, compute first; browser and privileged marks included",
     "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g07_sandbox_host.py   # HOLDS, 0 DEFECT",
     "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g04_separated_sandbox.py   # HOLDS, 0 DEFECT",
@@ -587,12 +604,14 @@
     "docs/HX.md",
     "docs/evidence/test_results/HX_fix.xml",
     "docs/evidence/test_results/HX_fix2.xml",
-    "docs/evidence/test_results/HX_fix3.xml"
+    "docs/evidence/test_results/HX_fix3.xml",
+    "docs/evidence/test_results/HX_fix4.xml"
    ],
    "limitations": "Process and uid separation inside one unprivileged container: learner (camlearn), environment service with Chromium (cambrowser), generated code (camsbx, run by the sandbox host, a root process the launcher starts with the environment service; it serves only the environment uid and holds no policy and no secrets), authorization service (camauth), verifier (camverify); Landlock, seccomp, no_new_privs. Not a VM, no network namespaces, shared kernel; the sandbox host is root (its only function is to start sandboxed jobs). Generated code has no network under the default policy (net.connect is not a policy tool). Background jobs started through the host deliver late events only by polling (job.status / job.result), not as pushed events. Measured as root with the real service users. Round 3: the sandbox host stays root for its whole life (it drops each job to camsbx through the per-job monitor); a pre-forked unprivileged helper was not built. The host still trusts the environment service's uid to have asked the authorization service (it verifies no grant itself); what a job can do is bounded by the sandbox (camsbx, Landlock, seccomp, egress broker).",
    "hx_2026_11_27": "No code change. Ran the named tests with -m privileged and -m browser; G-sec probe p13 re-run: 18 HOLDS / 0 DEFECT.",
    "hx_round2_2026_11_28": "G2-harness D2: in the separated deployment sandbox.python was unavailable ('not root'); fixed in 863bdae (sandbox host). g04 0/1 -> 1/0 (code runs as camsbx); privileged test through a cam-live-run-style launch.",
-   "hx_round3_2026_11_28": "Round 3 (G2-harness R2-C1, critical): every separated service now starts as 'python -I service_boot.py <roots> -m <module>' with cwd '/', so neither the run directory nor any other service-writable directory is on its import path and PYTHON* variables are ignored; root services get HOME /root and a system PATH; the sandbox host refuses a peer before reading from it and times out a silent one. On 0a30cd8 a module the learner planted in the run directory was imported as root at the host's restart; now no service imports it. Audit: the import path of a launched service (cam_live src, the venv's stdlib and site-packages, the shared base venv the venv's .pth adds) has no directory writable by a service uid (checked by the test). The run directory itself stays group-writable for the learner (launcher layout, unchanged)."
+   "hx_round3_2026_11_28": "Round 3 (G2-harness R2-C1, critical): every separated service now starts as 'python -I service_boot.py <roots> -m <module>' with cwd '/', so neither the run directory nor any other service-writable directory is on its import path and PYTHON* variables are ignored; root services get HOME /root and a system PATH; the sandbox host refuses a peer before reading from it and times out a silent one. On 0a30cd8 a module the learner planted in the run directory was imported as root at the host's restart; now no service imports it. Audit: the import path of a launched service (cam_live src, the venv's stdlib and site-packages, the shared base venv the venv's .pth adds) has no directory writable by a service uid (checked by the test). The run directory itself stays group-writable for the learner (launcher layout, unchanged).",
+   "hx_round4_2026_11_28": "Round 4 (G2-harness R3-M1): every root write into a directory another uid can write goes through cam_live.harness.safefs (O_PATH|O_NOFOLLOW walk, random O_EXCL|O_NOFOLLOW temporaries, fd-based owner/mode, rename within the directory fd, non-regular targets refused, O_NOFOLLOW reads): runtime.logs atomic writes and read_json (supervisor, operator CLI), launcher layout and key/policy copies, vault, credentials CLI, sandbox host. g11 9/2 -> 11/0 (the inotify race S4b no longer wins). Remaining: the run directory stays group-writable for the learner; runtime/control.py opens control.json.lock with 'a+' (change request HX-6)."
   },
   "OP-09": {
    "state": "implemented",
@@ -621,13 +640,16 @@
     "tests/harness/env/test_hx2_browser.py::test_a_sites_own_captcha_is_neither_answered_nor_submitted",
     "tests/harness/auth/test_hx3_fixes.py::test_ordinary_fields_and_controls_are_not_taken_for_human_verification",
     "tests/harness/auth/test_hx3_fixes.py::test_real_human_verification_is_still_refused",
-    "tests/harness/env/test_hx3_browser.py::test_ordinary_forms_with_antibot_keys_or_quiz_answers_are_submitted"
+    "tests/harness/env/test_hx3_browser.py::test_ordinary_forms_with_antibot_keys_or_quiz_answers_are_submitted",
+    "tests/harness/auth/test_hx4_fixes.py::test_configuring_a_sites_captcha_and_ordinary_controls_pass"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix3.xml   # 627 passed, 0 failed, 4 deselected (gpu/slow/network) in 274 s at 85101a2, compute first; browser and privileged marks included",
-    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g08_round2_policy.py   # HOLDS, 0 DEFECT",
-    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g09_round2_browser.py   # HOLDS, 0 DEFECT",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/runtime -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix4.xml   # 874 passed, 0 failed, 4 deselected (gpu/slow/network) in 401 s at 0fedb1a, compute first, tests/runtime included; browser and privileged marks included",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g13_round3_false_refusals.py   # HOLDS, 0 DEFECT",
     "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g01_policy_bypass.py   # HOLDS, 0 DEFECT",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g08_round2_policy.py   # HOLDS, 0 DEFECT",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix3.xml   # 627 passed, 0 failed, 4 deselected (gpu/slow/network) in 274 s at 85101a2, compute first; browser and privileged marks included",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g09_round2_browser.py   # HOLDS, 0 DEFECT",
     "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g02_browser_captcha.py   # HOLDS, 0 DEFECT",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix2.xml   # 616 passed, 0 failed, 4 deselected (gpu/slow/network) in 263 s at efff208, compute first (HX-4 fixed); browser and privileged marks included",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included"
@@ -636,12 +658,14 @@
     "docs/HX.md",
     "docs/evidence/test_results/HX_fix.xml",
     "docs/evidence/test_results/HX_fix2.xml",
-    "docs/evidence/test_results/HX_fix3.xml"
+    "docs/evidence/test_results/HX_fix3.xml",
+    "docs/evidence/test_results/HX_fix4.xml"
    ],
    "limitations": "Where it is enforced: (1) cam_live.harness.auth.platform_constraints (X-HUMAN-VERIFICATION, X-USER-ACCOUNT), fixed in code and called from Evaluator.node for authorize and check_primitive, so no policy file, record, approval or owned / pre-authorized / interactive entry can permit them; (2) the policy rule PL-DISCORD-NO-USER-AUTOMATION (browser / visual interaction or writes on Discord hosts); (3) the Discord adapter sends only 'Authorization: Bot <token>' and has no user-token code path; (4) the live check of 2026-11-27 showed the stored credential is a bot (bot: true). Limits: the solver-service, challenge-endpoint and Discord user-endpoint lists are finite and need upkeep; detection of solver / evasion use in generated code is lexical; user-account automation is constrained for Discord (the only configured platform) -- other platforms rely on the policy's ordinary rules; a challenge on a staging site is recognised by its path (/cdn-cgi/challenge-platform/...), third-party widgets by their hosts, which staging cannot serve (tested at the policy level). An operator who stores a user token under the bot credential's name is not detected offline (Discord would reject it with the Bot scheme).",
    "hx_2026_11_27": "Missing before HX (commit a1cdc0e): on 40734d6 a record that owned and pre-authorized the destinations allowed http.post to 2captcha.com, a solved g-recaptcha-response, browser.navigate to discord.com/login and a raw POST to /api/v9/auth/login; 7 of the 8 new policy tests and the Chromium test (the challenge answer reached the server) fail on that code and pass now.",
    "hx_round2_2026_11_28": "Round 2 (G2-harness D3, D4, D6): developer portal refused, CAPTCHA recognised structurally (substring keys, element labels, submitted form fields), page-script reads of Discord refused. g01 19/11 -> 30/0, g02 1/1 -> 2/0.",
-   "hx_round3_2026_11_28": "Round 3 (G2-harness R2-M1): recognition made precise - answer keys only with 'captcha', provider token names (cf-turnstile-response ...) or humanity phrases (human_check, not_a_robot); element names only when about proving one is human, a CAPTCHA control (captcha + answer / verify / refresh / challenge ...) or an answer field named CAPTCHA. Honeypots (botcheck), Drupal Antibot keys, quiz answers, turnstile counts, 'Run security check', 'Security checkup', 'Bot protection settings', 'CAPTCHA settings' pass. g08 26/13 -> 39/0, g09 3/6 -> 9/0, g01 30/0, g02 2/0."
+   "hx_round3_2026_11_28": "Round 3 (G2-harness R2-M1): recognition made precise - answer keys only with 'captcha', provider token names (cf-turnstile-response ...) or humanity phrases (human_check, not_a_robot); element names only when about proving one is human, a CAPTCHA control (captcha + answer / verify / refresh / challenge ...) or an answer field named CAPTCHA. Honeypots (botcheck), Drupal Antibot keys, quiz answers, turnstile counts, 'Run security check', 'Security checkup', 'Bot protection settings', 'CAPTCHA settings' pass. g08 26/13 -> 39/0, g09 3/6 -> 9/0, g01 30/0, g02 2/0.",
+   "hx_round4_2026_11_28": "Round 4 (G2-harness R3-m2): CAPTCHA keys need an answer word, configuration controls / FAQ links / e-mail code fields pass. g13 10/6 -> 16/0; g01 30/0, g08 39/0, g02 2/0, g09 9/0 hold."
   },
   "OP-07": {
    "state": "implemented",
@@ -801,6 +825,15 @@
    ],
    "final_run": "627 passed, 0 failed, 4 deselected (gpu/slow/network) in 274 s at 85101a2, compute first; browser and privileged marks included",
    "junit": "docs/evidence/test_results/HX_fix3.xml"
+  },
+  "round4": {
+   "date": "2026-11-28",
+   "fixes": "G2-harness R3-M1, R3-m1, R3-m2",
+   "commits": [
+    "0fedb1a"
+   ],
+   "final_run": "874 passed, 0 failed, 4 deselected (gpu/slow/network) in 401 s at 0fedb1a, compute first, tests/runtime included; browser and privileged marks included",
+   "junit": "docs/evidence/test_results/HX_fix4.xml"
   }
  }
 }
