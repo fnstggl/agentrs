@@ -89,3 +89,9 @@ learner's group, so a planted symlink makes root create (empty) or open any file
 `os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)` relative to a directory fd from
 `cam_live.harness.safefs.open_dir(run_dir)` (and refuse a non-regular entry), or keep the lock in a root-only
 directory. `control.json` itself is written through `runtime.logs.atomic_write_json`, which is safe since 0fedb1a.
+
+**HX-6 applied by the master (2026-11-28):** `runtime/control.py` `_open_lock` — parent via `safefs.open_dir`, entry
+opened relative to it with `O_NOFOLLOW` (read-only fallback for a process that may not write it), non-regular entries
+refused. Tests `tests/runtime/test_hx6_control_lock.py` (a planted / dangling symlink is refused and its target is
+neither opened nor created; ordinary appends still work); `tests/runtime`: 240 passed, 5 skipped
+(`docs/evidence/test_results/M_hx6_runtime.xml`).

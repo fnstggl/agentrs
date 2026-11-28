@@ -191,6 +191,30 @@ def file_sha256(path: str) -> str:
     return h.hexdigest()
 
 
+def _open_lock(path: str):
+    """The command channel's lock file, opened without following a symlink (change request HX-6, G2-harness R3-M1):
+    the run directory is writable by the learner's group, so ``open(path, "a+")`` by a root process could be
+    redirected by a planted symlink to create or open any file. The parent is reached with ``safefs.open_dir``
+    (no symlink in a directory another uid can write), the entry is opened relative to it with ``O_NOFOLLOW``, and
+    anything but a regular file is refused. A process that may not write the lock opens it read-only (``flock``
+    works on any open file)."""
+    from ..harness import safefs
+    d, name = os.path.split(os.path.abspath(path))
+    dfd = safefs.open_dir(d)
+    try:
+        base = os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+        try:
+            fd = os.open(name, base | os.O_RDWR | os.O_CREAT, 0o644, dir_fd=dfd)
+        except PermissionError:
+            fd = os.open(name, base | os.O_RDONLY, dir_fd=dfd)
+    finally:
+        os.close(dfd)
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        raise safefs.UnsafePath(f"{path}: not a regular file")
+    return os.fdopen(fd, "rb")
+
+
 class ControlChannel:
     """The control file. Writers (operator tools) append under a lock; the runtime only reads and verifies."""
 
@@ -243,7 +267,7 @@ class ControlChannel:
         entry: Dict[str, Any] = {"id": cid, "cmd": cmd, "by": by, "issued_at": self.clock.now(), "args": args}
         if signer is not None:
             entry["sig"] = signer(entry)
-        with open(self.path + ".lock", "a+") as lock:
+        with _open_lock(self.path + ".lock") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             try:
                 doc = read_json(self.path, {}) or {}
