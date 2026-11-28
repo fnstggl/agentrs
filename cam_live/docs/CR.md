@@ -15,8 +15,9 @@ Every number below comes from a command named next to it; raw outputs are listed
 * **Why the selection failed** (section 1): not one cause. (i) In D's lab the failure is seed-specific: with weakly
   heterogeneous mechanisms (seed 0) both estimators under-resolve the mechanisms (slopes 0.36 / 0.19 against the true
   effects) and fail; with strongly heterogeneous ones (seed 1) both *pass* the old gate (RUDDER 1.42, COCOA 2.73).
-  RUDDER was under-trained: with 4x the updates on the same data it resolves the mechanisms like an ideal learner
-  (slope 1.25, mean z^2 3.53 vs the ideal learner's 3.10); COCOA instead degrades with longer training (32.0).
+  RUDDER was under-trained: with 4x the updates on the same data it reaches the ideal learner's level in both seeds
+  tried (seed 0: 6.72 -> 3.53, ideal 3.10; seed 2: 14.0 -> 2.28, passing); COCOA is unstable with training length
+  (seed 0: 10.9 -> 32.0; seed 2: 3.43 -> 2.81).
   (ii) The gate rejects an ideal learner at realistic sizes (it ignores the estimator's own training error; ideal
   learner with as much training data as experiment data passes 79 %, a perfectly calibrated estimator at 2 units per
   arm 60 %). (iii) In the integrated agent the comparison was impossible by construction (closed lifetimes only,
@@ -56,6 +57,8 @@ learner can know from the actual training data: the training lifetimes' arm diff
 | seed 1, 48 per mechanism | **1.42 / 2.73** / 0.56 / 0.38 / 161 | 0.89 / 1.40 / 1.11 |
 | seed 0, 144 per mechanism | 6.00 / 5.17 / 2.37 / 2.35 / 7.73 | 0.59 / 0.48 / 1.26 |
 | seed 0, 48 per mechanism, **1600 updates** (D: 400) | **3.53** / 32.0 / 2.37 / 3.10 / 7.73 | **1.25** / -0.16 / 1.24 |
+| seed 2, 48 per mechanism, 400 updates | 14.0 / 3.43 / 1.22 / 2.22 / 29.8 | 1.52 / 1.08 / 1.60 |
+| seed 2, 48 per mechanism, **1600 updates** | **2.28** / 2.81 / 1.22 / 2.22 / 29.8 | 1.67 / 1.48 / 1.60 |
 
 Findings (each measured, raw JSON in section 7):
 
@@ -89,16 +92,16 @@ Findings (each measured, raw JSON in section 7):
 
    At the agent's minimum of 2 matured held-out units per arm, a perfectly calibrated estimator fails 40 % of the
    time (the paired SE rests on 1 degree of freedom per arm). Validation at 0.5 sd precision needs ~100+ units.
-4. **RUDDER was under-trained; COCOA is unstable under longer training** (one run, seed 0, same 48 training
-   lifetimes, 1600 instead of 400 updates): RUDDER's slope rises from 0.36 to 1.25 (correlation 0.88; the ideal
-   learner's 1.24 / 0.85) and its mean z^2 falls from 6.72 to 3.53 - as close to the gate as the ideal learner on
-   the same data (3.10), so the remaining failure is the gate's (finding 3). COCOA degrades: its estimates turn
-   negative for five of six positive effects (mean z^2 32.0, pooled bias -6.15, refused by the pooled rule too): the
-   learned hindsight model overfits with training length - an estimator weakness, and the reason a fixed training
-   budget cannot be trusted to validate it once. Where effects are distinguishable (seed 1) both estimators track
-   them at 400 updates. COCOA additionally has a pooled bias of -1.48 in seed 0
-   (90 % CI [-2.71, -0.25]) and underestimates the largest effect strongly (3.7 vs measured 11.9). RUDDER's pooled
-   bias is +1.53 (CI [0.40, 2.67]) in seed 0, -2.49 (SE 1.86) in seed 1.
+4. **RUDDER was under-trained; COCOA is unstable with training length.** Same training lifetimes, 1600 instead of
+   D's 400 updates: RUDDER improves in both seeds tried - seed 0 from 6.72 to 3.53 (slope 1.25, correlation 0.88: the
+   ideal learner's 1.24 / 0.85 and 3.10, so the remaining failure is the gate's, finding 3), seed 2 from 14.0 (a
+   pooled bias of +4.87) to **2.28, which passes both rules** (chi^2_6 13.7 < 16.8; ideal learner 2.22). COCOA goes
+   from 10.89 to 32.0 in seed 0 (its estimates turn negative for five of six positive effects; pooled bias -6.15,
+   refused by the pooled rule too) but from 3.43 to 2.81 in seed 2 (chi^2 16.9, just above 16.8): the learned
+   hindsight model can overfit with training length. So D's failure was largely an estimator *training budget*
+   problem for RUDDER (not a design defect), and a stability problem for COCOA; neither is a reason to change the
+   gate, both are reasons why a fixed budget cannot validate an estimator once and for all (the selection re-runs
+   whenever new held-out evidence arrives and falls back when an estimator stops passing).
 5. **In the integrated agent the comparison could not run at all, by construction (KF-R14):** learned credit needed a
    *closed* lifetime, validation units were whole lifetimes, the agent's experiments have one unit each and every
    lifetime is trained on. Inside one long objective - CAM Live's real setting - this meant no learned credit before
@@ -281,9 +284,12 @@ in `docs/evidence/CR/`.
   needs ~100 units at the 0.5 sd margin. The margin and unit minimum are choices, documented with their power.
 * The pooled bias test is a necessary condition; with one-unit experiments per-context calibration cannot be tested
   (only where experiments reach 5 units per arm).
+* RUDDER's decomposer is trained by one head step per frequent update in the agent (~40-50 steps in a 64-decision
+  run, on a handful of segments); in D's lab it needed ~1600 steps on 288 lifetimes to resolve the mechanisms. A
+  dedicated, guarded training schedule for the credit heads is the next step suggested by the data; not built.
 * The integrated ablation is debug scale (tiny random backbone, schema-walker candidates) and LabWorld only; the
   real-configuration runs are in section 5.
 * Under the master's CPU rule (10:50 UTC) the last 12 ablation runs were paused (SIGSTOP) and resumed one at a time;
-  the runtime uses a simulated clock, so only wall-clock learning budgets could be affected. The 1600-update lab run
-  (section 1, finding 4) is a single seed.
+  the runtime uses a simulated clock, so only wall-clock learning budgets could be affected. The 1600-update lab runs
+  (section 1, finding 4) are two seeds.
 * The live run's estimator selection is untouched until restart; no live-run directory was written.

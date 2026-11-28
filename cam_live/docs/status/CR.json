@@ -1,7 +1,7 @@
 {
  "workstream": "CR",
  "stage": "amendment 2026-11-28 item 4 (retrospective credit assignment)",
- "commit": "b7c6719db3af1db19d716e99c3da0a29338dca22",
+ "commit": "8c63508cbdb3effb43fee8502f52eaf2547da07d",
  "summary": "Diagnosis of the failed held-out estimator selection (seed-specific under-resolution of weakly heterogeneous mechanisms; a gate that rejects an ideal learner at realistic sizes; impossible by construction in the agent), learned credit inside one long open objective (segments), a blocked held-out split by segment, an estimand-matched pooled selection rule over held-out randomised units of any experiment size, a revision queue for the policy update (agent hook CR-3), a controlled policy-learning diagnostic and an integrated-agent ablation (simple vs forced RUDDER / COCOA). docs/CR.md.",
  "requirements": {
   "AM4-credit-inside-one-objective": {
@@ -62,8 +62,8 @@
    "evidence": "docs/evidence/CR/estimand_*.json, power.json (docs/CR.md section 1)",
    "findings": [
     "seed-specific: seed 0 fails (RUDDER 6.72, COCOA 10.89), seed 1 passes (1.42, 2.73)",
-    "RUDDER under-trained at D's 400 updates: 1600 updates on the same data give slope 1.25 vs truth and mean z^2 3.53 (ideal learner on the same data 3.10)",
-    "COCOA unstable: 1600 updates give mean z^2 32.0 and a pooled bias of -6.15 (estimates change sign)",
+    "RUDDER under-trained at D's 400 updates: 1600 updates on the same data give seed 0 mean z^2 3.53 (ideal learner 3.10, slope 1.25) and seed 2 2.28 (passes both rules; ideal 2.22; was 14.0)",
+    "COCOA unstable with training length: seed 0 10.89 -> 32.0 (estimates change sign), seed 2 3.43 -> 2.81",
     "the gate rejects an ideal learner at realistic sizes: 79 % pass at equal training / experiment size; 60 % for an exactly calibrated estimator at 2 units per arm",
     "the first-decision latent is identical within a mechanism and distinct across mechanisms (D's 'identical across mechanisms' refuted)"
    ]
@@ -591,6 +591,14 @@
    "rudder": 3.53,
    "cocoa": 32.0
   },
+  "lab_gate_mean_z2_seed2_48": {
+   "rudder": 14.0,
+   "cocoa": 3.43
+  },
+  "lab_gate_mean_z2_seed2_48_1600_updates": {
+   "rudder": 2.28,
+   "cocoa": 2.81
+  },
   "lab_gate_mean_z2_seed1_48": {
    "rudder": 1.42,
    "cocoa": 2.73
@@ -602,7 +610,7 @@
  "not_done": [
   "agent.py hooks CR-1 / CR-3 are change requests (ST)",
   "no estimator was validated inside one objective: too few held-out units at the agent's experimentation rate",
-  "the 1600-update lab run (RUDDER under-trained at 400 updates, COCOA unstable with longer training) is a single seed",
+  "the 1600-update lab runs are two seeds (0, 2) and one training-data size",
   "the contribution signal (validated quantity) as a per-decision learning signal would need an agent change (_credit_for treats every learned estimator as return-like); not proposed"
  ],
  "scientific_failures": [
