@@ -1,0 +1,1027 @@
+{
+ "runs": 12,
+ "per_seed": [
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 0,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 48,
+    "progress_mean": 0.6286676286676287,
+    "achieved": 1,
+    "expected_adopters": 35.42417318380236,
+    "oracle_expected_adopters": 176.91041406348654,
+    "truth_efficiency_mean": 0.3919494433964865,
+    "imagination_tv_mean": 0.02361111111111111,
+    "imagination_tv_max": 0.0625,
+    "decisions_with_tv_over_0.1": 0,
+    "argmax_changed_by_imagination": 2,
+    "n_with_imagination": 45,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.017857142857142856,
+      "weight_mean": 0.18950903535414373,
+      "calibration_n": 68,
+      "beta_im_last": 0.11674478720171558,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.0390625,
+      "weight_mean": 0.24088382992240318,
+      "calibration_n": 86,
+      "beta_im_last": 0.051454641013886276,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.0125,
+      "weight_mean": 0.167606247344061,
+      "calibration_n": 98,
+      "beta_im_last": 0.07440867519108285,
+      "argmax_changed": 1
+     }
+    ],
+    "operations": {
+     "lab.act": 40,
+     "lab.probe": 2,
+     "lab.unlock": 3,
+     "wait": 3
+    },
+    "unlock": 3,
+    "door_channel_acts": {
+     "after_unlock": 10,
+     "without_unlock": 3,
+     "lifetimes_with_unlock": 2
+    },
+    "progress_by_lifetime": [
+     0.15873015873015872,
+     1.0,
+     0.7272727272727273
+    ],
+    "planner_seconds_per_decision": 0.02624746150104329,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 107,
+       "scale": 2.635893582673822,
+       "beta_q": 0.10595239790780793,
+       "beta_q_sd": 0.10545959550844701,
+       "beta_im": 0.05340006751666643,
+       "beta_im_sd": 0.30982462332301935,
+       "noise_var": 0.755341495619944
+      }
+     },
+     "pending": 2
+    },
+    "wall_seconds": 817.2613680362701
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 37,
+    "progress_mean": 0.780952380952381,
+    "achieved": 1,
+    "expected_adopters": 46.85156762232444,
+    "oracle_expected_adopters": 176.91041406348654,
+    "truth_efficiency_mean": 0.414523210731173,
+    "imagination_tv_mean": 0.029411764705882353,
+    "imagination_tv_max": 0.09375,
+    "decisions_with_tv_over_0.1": 0,
+    "argmax_changed_by_imagination": 1,
+    "n_with_imagination": 34,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.041666666666666664,
+      "weight_mean": 0.18434822631629144,
+      "calibration_n": 64,
+      "beta_im_last": 0.002787556329819807,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.017578125,
+      "weight_mean": 0.2522513794178239,
+      "calibration_n": 78,
+      "beta_im_last": 0.1890722834770701,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.03819444444444445,
+      "weight_mean": 0.28891823666588645,
+      "calibration_n": 91,
+      "beta_im_last": 0.22743425959258967,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "lab.act": 33,
+     "lab.unlock": 4
+    },
+    "unlock": 4,
+    "door_channel_acts": {
+     "after_unlock": 11,
+     "without_unlock": 5,
+     "lifetimes_with_unlock": 3
+    },
+    "progress_by_lifetime": [
+     0.47619047619047616,
+     0.8666666666666667,
+     1.0
+    ],
+    "planner_seconds_per_decision": 0.026665058767272008,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 99,
+       "scale": 4.162714760792192,
+       "beta_q": -0.005616752396425083,
+       "beta_q_sd": 0.12686862175436073,
+       "beta_im": 0.26651314755291783,
+       "beta_im_sd": 0.3844947668005517,
+       "noise_var": 0.8230152669354986
+      }
+     },
+     "pending": 2
+    },
+    "wall_seconds": 646.1318595409393
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": 0.15228475228475227,
+    "expected_adopters_on_minus_off": 3.8091314795073608,
+    "first_divergence": {
+     "lifetime": 0,
+     "decision": 0
+    }
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 1,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 24,
+    "progress_mean": 0.913978494623656,
+    "achieved": 2,
+    "expected_adopters": 49.47934075396654,
+    "oracle_expected_adopters": 91.84118100367648,
+    "truth_efficiency_mean": 0.3218996859017717,
+    "imagination_tv_mean": 0.05823863636363636,
+    "imagination_tv_max": 0.15625,
+    "decisions_with_tv_over_0.1": 3,
+    "argmax_changed_by_imagination": 6,
+    "n_with_imagination": 22,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.04375,
+      "weight_mean": 0.18208668344963444,
+      "calibration_n": 64,
+      "beta_im_last": 0.002787556329819807,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.0375,
+      "weight_mean": 0.1752043009712722,
+      "calibration_n": 71,
+      "beta_im_last": 0.010974286341325079,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.09821428571428571,
+      "weight_mean": 0.39131580479855604,
+      "calibration_n": 82,
+      "beta_im_last": 0.3442135989838674,
+      "argmax_changed": 4
+     }
+    ],
+    "operations": {
+     "lab.act": 22,
+     "lab.unlock": 1,
+     "wait": 1
+    },
+    "unlock": 1,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 4,
+     "lifetimes_with_unlock": 1
+    },
+    "progress_by_lifetime": [
+     1.0,
+     0.7419354838709677,
+     1.0
+    ],
+    "planner_seconds_per_decision": 0.03296309164337193,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 84,
+       "scale": 2.9525667820295487,
+       "beta_q": 0.23935074829829175,
+       "beta_q_sd": 0.11498634970353884,
+       "beta_im": 0.3213451516919614,
+       "beta_im_sd": 0.3925772487555953,
+       "noise_var": 0.7001537881160305
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 446.2575161457062
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 26,
+    "progress_mean": 0.903225806451613,
+    "achieved": 2,
+    "expected_adopters": 54.71763078452199,
+    "oracle_expected_adopters": 91.84118100367648,
+    "truth_efficiency_mean": 0.33952638976154564,
+    "imagination_tv_mean": 0.05859375,
+    "imagination_tv_max": 0.125,
+    "decisions_with_tv_over_0.1": 3,
+    "argmax_changed_by_imagination": 3,
+    "n_with_imagination": 24,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.05625,
+      "weight_mean": 0.18208668344963444,
+      "calibration_n": 64,
+      "beta_im_last": 0.002787556329819807,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.03125,
+      "weight_mean": 0.18437045316003065,
+      "calibration_n": 71,
+      "beta_im_last": 0.02317726246977589,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.084375,
+      "weight_mean": 0.3717804909976735,
+      "calibration_n": 80,
+      "beta_im_last": 0.3404868785320986,
+      "argmax_changed": 1
+     }
+    ],
+    "operations": {
+     "lab.act": 26
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 4,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     1.0,
+     0.7096774193548387,
+     1.0
+    ],
+    "planner_seconds_per_decision": 0.02879468102652866,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 88,
+       "scale": 2.940358995183776,
+       "beta_q": 0.2586086807196273,
+       "beta_q_sd": 0.11225959360955605,
+       "beta_im": 0.30530246298919717,
+       "beta_im_sd": 0.39953547559640623,
+       "noise_var": 0.6297154827447494
+      }
+     },
+     "pending": 2
+    },
+    "wall_seconds": 523.914181470871
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": -0.010752688172043001,
+    "expected_adopters_on_minus_off": 1.7460966768518158,
+    "first_divergence": {
+     "lifetime": 1,
+     "decision": 3
+    }
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 2,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 30,
+    "progress_mean": 0.712121212121212,
+    "achieved": 2,
+    "expected_adopters": 34.167801889845556,
+    "oracle_expected_adopters": 168.45312640159125,
+    "truth_efficiency_mean": 0.1971539907433329,
+    "imagination_tv_mean": 0.052455357142857144,
+    "imagination_tv_max": 0.125,
+    "decisions_with_tv_over_0.1": 2,
+    "argmax_changed_by_imagination": 2,
+    "n_with_imagination": 28,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.04375,
+      "weight_mean": 0.18208668344963444,
+      "calibration_n": 64,
+      "beta_im_last": 0.002787556329819807,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.05803571428571429,
+      "weight_mean": 0.2028207012828601,
+      "calibration_n": 71,
+      "beta_im_last": 0.04973096350913736,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.052734375,
+      "weight_mean": 0.16506871348167088,
+      "calibration_n": 83,
+      "beta_im_last": -0.08127124286072873,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "lab.act": 29,
+     "lab.unlock": 1
+    },
+    "unlock": 1,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 6,
+     "lifetimes_with_unlock": 1
+    },
+    "progress_by_lifetime": [
+     1.0,
+     1.0,
+     0.13636363636363635
+    ],
+    "planner_seconds_per_decision": 0.02952616705248753,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 90,
+       "scale": 2.3446342811599825,
+       "beta_q": 0.19669021434396708,
+       "beta_q_sd": 0.10934820693463199,
+       "beta_im": -0.14929617387586852,
+       "beta_im_sd": 0.3832842273495869,
+       "noise_var": 0.6699040981896119
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 534.7168369293213
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 27,
+    "progress_mean": 0.702020202020202,
+    "achieved": 2,
+    "expected_adopters": 31.508324271597964,
+    "oracle_expected_adopters": 168.45312640159125,
+    "truth_efficiency_mean": 0.24501098454862036,
+    "imagination_tv_mean": 0.04375,
+    "imagination_tv_max": 0.125,
+    "decisions_with_tv_over_0.1": 1,
+    "argmax_changed_by_imagination": 4,
+    "n_with_imagination": 25,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.04375,
+      "weight_mean": 0.18208668344963444,
+      "calibration_n": 64,
+      "beta_im_last": 0.002787556329819807,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.05357142857142857,
+      "weight_mean": 0.20273653525206017,
+      "calibration_n": 71,
+      "beta_im_last": 0.04953971237123336,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.038461538461538464,
+      "weight_mean": 0.17766022383851754,
+      "calibration_n": 81,
+      "beta_im_last": 0.06960696491188528,
+      "argmax_changed": 3
+     }
+    ],
+    "operations": {
+     "lab.act": 27
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 9,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     1.0,
+     1.0,
+     0.10606060606060606
+    ],
+    "planner_seconds_per_decision": 0.03007549626959695,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 88,
+       "scale": 2.238092876813235,
+       "beta_q": 0.19224402888640654,
+       "beta_q_sd": 0.11721941184686897,
+       "beta_im": -0.06902601913895329,
+       "beta_im_sd": 0.3782123262709233,
+       "noise_var": 0.6883115218173739
+      }
+     },
+     "pending": 3
+    },
+    "wall_seconds": 515.5408370494843
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": -0.010101010101010097,
+    "expected_adopters_on_minus_off": -0.8864925394158639,
+    "first_divergence": {
+     "lifetime": 1,
+     "decision": 5
+    }
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 3,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 44,
+    "progress_mean": 0.6508295625942685,
+    "achieved": 1,
+    "expected_adopters": 28.61320363733892,
+    "oracle_expected_adopters": 174.85447601739781,
+    "truth_efficiency_mean": 0.24130542157868115,
+    "imagination_tv_mean": 0.05945121951219512,
+    "imagination_tv_max": 0.15625,
+    "decisions_with_tv_over_0.1": 4,
+    "argmax_changed_by_imagination": 6,
+    "n_with_imagination": 41,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.04567307692307692,
+      "weight_mean": 0.23445732064922709,
+      "calibration_n": 66,
+      "beta_im_last": 0.2731221632946373,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.057692307692307696,
+      "weight_mean": 0.2922401363243131,
+      "calibration_n": 82,
+      "beta_im_last": 0.23301212223868897,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.07291666666666667,
+      "weight_mean": 0.3092676641438665,
+      "calibration_n": 99,
+      "beta_im_last": 0.23267210948640096,
+      "argmax_changed": 2
+     }
+    ],
+    "operations": {
+     "lab.act": 39,
+     "lab.probe": 1,
+     "lab.unlock": 4
+    },
+    "unlock": 4,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 5,
+     "lifetimes_with_unlock": 1
+    },
+    "progress_by_lifetime": [
+     0.9230769230769231,
+     1.0,
+     0.029411764705882353
+    ],
+    "planner_seconds_per_decision": 0.02723388323052363,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 104,
+       "scale": 1.995344801947616,
+       "beta_q": 0.15075456131139944,
+       "beta_q_sd": 0.11634852057785416,
+       "beta_im": 0.20663737873434992,
+       "beta_im_sd": 0.21422093069742404,
+       "noise_var": 0.7428122145263865
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 737.2958431243896
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 35,
+    "progress_mean": 0.6855742296918766,
+    "achieved": 1,
+    "expected_adopters": 59.182962092832,
+    "oracle_expected_adopters": 174.85447601739781,
+    "truth_efficiency_mean": 0.2492029364117854,
+    "imagination_tv_mean": 0.07765151515151515,
+    "imagination_tv_max": 0.1875,
+    "decisions_with_tv_over_0.1": 12,
+    "argmax_changed_by_imagination": 6,
+    "n_with_imagination": 33,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.04017857142857143,
+      "weight_mean": 0.18832811351231574,
+      "calibration_n": 64,
+      "beta_im_last": 0.002787556329819807,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.08984375,
+      "weight_mean": 0.3487871205029926,
+      "calibration_n": 74,
+      "beta_im_last": 0.27643964541800364,
+      "argmax_changed": 5
+     },
+     {
+      "tv_mean": 0.084375,
+      "weight_mean": 0.26380697359987126,
+      "calibration_n": 89,
+      "beta_im_last": 0.16033779221229238,
+      "argmax_changed": 1
+     }
+    ],
+    "operations": {
+     "lab.act": 33,
+     "lab.probe": 1,
+     "lab.unlock": 1
+    },
+    "unlock": 1,
+    "door_channel_acts": {
+     "after_unlock": 2,
+     "without_unlock": 6,
+     "lifetimes_with_unlock": 1
+    },
+    "progress_by_lifetime": [
+     1.0,
+     0.5714285714285714,
+     0.4852941176470588
+    ],
+    "planner_seconds_per_decision": 0.029604047004665648,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 96,
+       "scale": 4.249922570955174,
+       "beta_q": 0.22959348884267694,
+       "beta_q_sd": 0.12624183955797647,
+       "beta_im": -0.17851411423815405,
+       "beta_im_sd": 0.34496660466206425,
+       "noise_var": 0.782090859831888
+      }
+     },
+     "pending": 3
+    },
+    "wall_seconds": 602.8703558444977
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": 0.03474466709760824,
+    "expected_adopters_on_minus_off": 10.18991948516436,
+    "first_divergence": {
+     "lifetime": 0,
+     "decision": 3
+    }
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 4,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 39,
+    "progress_mean": 0.7163742690058479,
+    "achieved": 1,
+    "expected_adopters": 54.8764398074727,
+    "oracle_expected_adopters": 129.96720148450666,
+    "truth_efficiency_mean": 0.25983582484162904,
+    "imagination_tv_mean": 0.033854166666666664,
+    "imagination_tv_max": 0.125,
+    "decisions_with_tv_over_0.1": 2,
+    "argmax_changed_by_imagination": 4,
+    "n_with_imagination": 36,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.05133928571428571,
+      "weight_mean": 0.19429478741760206,
+      "calibration_n": 67,
+      "beta_im_last": 0.03374193060277794,
+      "argmax_changed": 4
+     },
+     {
+      "tv_mean": 0.036458333333333336,
+      "weight_mean": 0.12503577665540844,
+      "calibration_n": 83,
+      "beta_im_last": -0.07473403275887332,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.00625,
+      "weight_mean": 0.052583882153450855,
+      "calibration_n": 94,
+      "beta_im_last": -0.20678822568915278,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "lab.noise": 1,
+     "lab.probe": 2,
+     "lab.act": 30,
+     "wait": 3,
+     "lab.unlock": 3
+    },
+    "unlock": 3,
+    "door_channel_acts": {
+     "after_unlock": 3,
+     "without_unlock": 5,
+     "lifetimes_with_unlock": 2
+    },
+    "progress_by_lifetime": [
+     0.3333333333333333,
+     0.8157894736842105,
+     1.0
+    ],
+    "planner_seconds_per_decision": 0.0267567972604854,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 100,
+       "scale": 4.086231992762035,
+       "beta_q": 0.1034900052424234,
+       "beta_q_sd": 0.11204668728355217,
+       "beta_im": -0.1371025948896575,
+       "beta_im_sd": 0.3273339844448951,
+       "noise_var": 0.8400551320112001
+      }
+     },
+     "pending": 3
+    },
+    "wall_seconds": 696.220654964447
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 39,
+    "progress_mean": 0.6666666666666666,
+    "achieved": 2,
+    "expected_adopters": 35.19926163984492,
+    "oracle_expected_adopters": 129.96720148450666,
+    "truth_efficiency_mean": 0.26497524943890766,
+    "imagination_tv_mean": 0.048986486486486486,
+    "imagination_tv_max": 0.125,
+    "decisions_with_tv_over_0.1": 2,
+    "argmax_changed_by_imagination": 5,
+    "n_with_imagination": 37,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.041666666666666664,
+      "weight_mean": 0.19815188913959403,
+      "calibration_n": 65,
+      "beta_im_last": 0.05988751294038541,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.044921875,
+      "weight_mean": 0.1622794128674674,
+      "calibration_n": 81,
+      "beta_im_last": 0.046008215972597355,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.059895833333333336,
+      "weight_mean": 0.19341493157112208,
+      "calibration_n": 94,
+      "beta_im_last": 0.14636043767103968,
+      "argmax_changed": 3
+     }
+    ],
+    "operations": {
+     "lab.noise": 2,
+     "lab.probe": 2,
+     "lab.act": 29,
+     "lab.unlock": 3,
+     "wait": 3
+    },
+    "unlock": 3,
+    "door_channel_acts": {
+     "after_unlock": 7,
+     "without_unlock": 6,
+     "lifetimes_with_unlock": 2
+    },
+    "progress_by_lifetime": [
+     1.0,
+     0.0,
+     1.0
+    ],
+    "planner_seconds_per_decision": 0.028750808730434913,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 101,
+       "scale": 2.600056325499534,
+       "beta_q": 0.14321999803375415,
+       "beta_q_sd": 0.11647332310324796,
+       "beta_im": 0.10490842953811194,
+       "beta_im_sd": 0.17889145693136396,
+       "noise_var": 0.7509900513314007
+      }
+     },
+     "pending": 2
+    },
+    "wall_seconds": 636.7547063827515
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": -0.049707602339181256,
+    "expected_adopters_on_minus_off": -6.55905938920926,
+    "first_divergence": {
+     "lifetime": 0,
+     "decision": 3
+    }
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 5,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 37,
+    "progress_mean": 0.6608623548922057,
+    "achieved": 1,
+    "expected_adopters": 63.327889905882444,
+    "oracle_expected_adopters": 225.82229537919264,
+    "truth_efficiency_mean": 0.4040837185288518,
+    "imagination_tv_mean": 0.04411764705882353,
+    "imagination_tv_max": 0.09375,
+    "decisions_with_tv_over_0.1": 0,
+    "argmax_changed_by_imagination": 5,
+    "n_with_imagination": 34,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.0390625,
+      "weight_mean": 0.1753702601869577,
+      "calibration_n": 66,
+      "beta_im_last": -0.03771219645145843,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.034722222222222224,
+      "weight_mean": 0.12572783315898534,
+      "calibration_n": 80,
+      "beta_im_last": -0.07260058874897668,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.055288461538461536,
+      "weight_mean": 0.3096629865291908,
+      "calibration_n": 88,
+      "beta_im_last": 0.1839228414349884,
+      "argmax_changed": 4
+     }
+    ],
+    "operations": {
+     "lab.act": 33,
+     "lab.unlock": 1,
+     "wait": 2,
+     "lab.probe": 1
+    },
+    "unlock": 1,
+    "door_channel_acts": {
+     "after_unlock": 5,
+     "without_unlock": 6,
+     "lifetimes_with_unlock": 1
+    },
+    "progress_by_lifetime": [
+     0.14925373134328357,
+     1.0,
+     0.8333333333333334
+    ],
+    "planner_seconds_per_decision": 0.028726707111943414,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 98,
+       "scale": 5.084282491627719,
+       "beta_q": 0.26000117009105933,
+       "beta_q_sd": 0.11694796957512013,
+       "beta_im": 0.11817417273708303,
+       "beta_im_sd": 0.2676522370374371,
+       "noise_var": 0.7307291609779817
+      }
+     },
+     "pending": 3
+    },
+    "wall_seconds": 730.4715592861176
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 37,
+    "progress_mean": 0.46831319592513626,
+    "achieved": 0,
+    "expected_adopters": 34.662533356534354,
+    "oracle_expected_adopters": 225.82229537919264,
+    "truth_efficiency_mean": 0.27003409815935775,
+    "imagination_tv_mean": 0.03125,
+    "imagination_tv_max": 0.09375,
+    "decisions_with_tv_over_0.1": 0,
+    "argmax_changed_by_imagination": 3,
+    "n_with_imagination": 34,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.03515625,
+      "weight_mean": 0.19444094801806497,
+      "calibration_n": 64,
+      "beta_im_last": 0.002787556329819807,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.03125,
+      "weight_mean": 0.12060977621989889,
+      "calibration_n": 75,
+      "beta_im_last": -0.09481837857943637,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.029166666666666667,
+      "weight_mean": 0.1186438099202951,
+      "calibration_n": 89,
+      "beta_im_last": 0.005830667436480553,
+      "argmax_changed": 1
+     }
+    ],
+    "operations": {
+     "lab.act": 34,
+     "wait": 2,
+     "lab.probe": 1
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 8,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.05970149253731343,
+     0.6785714285714286,
+     0.6666666666666666
+    ],
+    "planner_seconds_per_decision": 0.028881735357179028,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 94,
+       "scale": 2.22419532286243,
+       "beta_q": 0.1894358857064378,
+       "beta_q_sd": 0.11123418522819917,
+       "beta_im": 0.007603013373061546,
+       "beta_im_sd": 0.28179636449336104,
+       "noise_var": 0.6564462569994111
+      }
+     },
+     "pending": 7
+    },
+    "wall_seconds": 654.2244169712067
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": -0.19254915896706945,
+    "expected_adopters_on_minus_off": -9.555118849782698,
+    "first_divergence": {
+     "lifetime": 0,
+     "decision": 1
+    }
+   }
+  }
+ ],
+ "paired_over_seeds": {
+  "progress_on_minus_off": {
+   "n": 6,
+   "mean": -0.012680173366157213,
+   "sd": 0.11242490110985112,
+   "lo": -0.10045190370729858,
+   "hi": 0.07087464506819345
+  },
+  "expected_adopters_on_minus_off": {
+   "n": 6,
+   "mean": -0.20925385614738082,
+   "sd": 7.158735888638868,
+   "lo": -5.265592640433709,
+   "hi": 4.927654537107166
+  },
+  "seeds_diverged": 6,
+  "n_pairs": 6
+ },
+ "on_arm": {
+  "imagination_tv_mean": {
+   "n": 6,
+   "mean": 0.048273919390647325,
+   "sd": 0.018089280504127843,
+   "lo": 0.03537029676735559,
+   "hi": 0.06165775777448571
+  },
+  "argmax_changed": 22,
+  "decisions_with_imagination": 187
+ },
+ "pooled": {
+  "on": {
+   "lifetimes": 18,
+   "achieved": 8,
+   "progress_mean_over_seeds": {
+    "n": 6,
+    "mean": 0.7011254136179792,
+    "sd": 0.14342139827349282,
+    "lo": 0.5929051618507565,
+    "hi": 0.8039938556067588
+   },
+   "expected_adopters": 262.12227976765564,
+   "oracle_expected_adopters": 967.8486943498514,
+   "unlock": 8,
+   "door_acts_after_unlock": 20,
+   "lifetimes_with_unlock": 6,
+   "planner_seconds_per_decision": {
+    "n": 6,
+    "mean": 0.0287953045259462,
+    "sd": 0.0011696454884197612,
+    "lo": 0.02786476422658983,
+    "hi": 0.02955535887905439
+   }
+  },
+  "off": {
+   "lifetimes": 18,
+   "achieved": 8,
+   "progress_mean_over_seeds": {
+    "n": 6,
+    "mean": 0.7138055869841365,
+    "sd": 0.10401544656200236,
+    "lo": 0.655329658256202,
+    "hi": 0.7998497656109428
+   },
+   "expected_adopters": 265.88884917830853,
+   "oracle_expected_adopters": 967.8486943498514,
+   "unlock": 13,
+   "door_acts_after_unlock": 18,
+   "lifetimes_with_unlock": 8,
+   "planner_seconds_per_decision": {
+    "n": 6,
+    "mean": 0.0285756846333092,
+    "sd": 0.002478102908408801,
+    "lo": 0.026994851310920737,
+    "hi": 0.030564935099265004
+   }
+  }
+ },
+ "off_arm_counterfactual": {
+  "imagination_tv_mean": {
+   "n": 6,
+   "mean": 0.04528802297588166,
+   "sd": 0.01429459030673116,
+   "lo": 0.034189739658489655,
+   "hi": 0.055325452658890606
+  }
+ }
+}
