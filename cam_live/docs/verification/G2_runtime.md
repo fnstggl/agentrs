@@ -19,7 +19,7 @@ CUDA test is the small checkpoint test of the CL-06 list, which needs no lock).
 
 ## Result in short
 
-**19 verified, 11 partial, 0 failed, 1 unverified (CM-04: its debug validation run is still running)** of 31 (each basis in the table at the end and in the verdict file). The runtime's core holds up well under attack at the freeze: the 17 steps in order, kill -9
+**20 verified, 11 partial, 0 failed, 0 unverified** of 31 (each basis in the table at the end and in the verdict file). The runtime's core holds up well under attack at the freeze: the 17 steps in order, kill -9
 recovery at 477 + 10 points (settle phase included), signed operator commands (replay, transplanted signatures,
 foreign keys, replay after restart all refused), the dashboard's operator credential / CSRF / same-origin checks, the
 separated uids, and — newly exercised — a real `cam-live resume` of a separated run whose every process was SIGKILLed.
@@ -53,7 +53,7 @@ reach; the worktree's runtime and harness sources were identical to the commit n
 | CL-06 acceptance tests (credit checkpoint / evidence / learner checkpoint / replay, `tests/integration/test_agent_recovery.py`, `tests/runtime/test_int3b_settle.py`, `-m "gpu or slow or not (gpu or slow)"`) | 32 passed, 689 s (the small CUDA checkpoint test included; a real-model test outside the CL-06 list waited for the shared GPU lock and was not run) | (credit and integration sources unchanged) |
 | G-rt probes `repro/rt/p01 … p15` (unchanged, `G_RT_SCRATCH` = my scratch) | p01 0/36, p02 0/477, p02 `--no-dedup` 6/477, p03 0/15, p04 0/11, p05 1/33 (1a: 16 REQUIRED, not 17), p06 0/38, p07 0/62, p08 2/18 (6, 8: by design, F-8; 12, 13 hold in Chromium), p09 1/28 (1b, same as 1a), p13 0/8, p14 0/11, p15 0/3 | same as a5ab772 (p01 0/36, p02 0/477, p03 0/15, p04 0/11, p05 1/33, p06 0/38, p07 0/62, p08 2/18, p09 1/28, p13 0/8, p14 0/11, p15 0/3) |
 | `probe_cli_p10copy.py` (G-rt p10; step 4a `validate` run separately, next row) | 34 of 35 hold; 0c reports /workspace/camlive/runs/cam_live, which another workstream created on 2026-11-27 06:56 (before this session; my commands wrote under CAM_LIVE_HOME only) — not a defect | 34 of 35 hold (0c: same pre-existing directory); 7f / 7i: export with the process alive and offline work after the R4-C1 rewrite |
-| `cam-live validate --mode staging --debug --config <tiny> --out D` (CPU) | ran 27 min through the computer phase and the first LabWorld lifetime (records inspected: LX-07 / 08 / 13) and was stopped by me when the CLI probe's timeout was reached | (running) |
+| `cam-live validate --mode staging --debug --config <tiny> --out D` (CPU) | ran 27 min through the computer phase and the first LabWorld lifetime (records inspected: LX-07 / 08 / 13) and was stopped by me when the CLI probe's timeout was reached | ran to the end: exit 1 (13 of 16 checks hold; approvals_exercised, meta_update_applied, meta_step_changes_policy fail at debug scale), report and evidence written, 737 s, GPU peak 0.0 GB |
 | `cam-live evaluate-transfer --checkpoint X --baseline X --domains T1 --seeds 0 --lifetimes 1 --decisions 2` (debug weights-only export of `cam_live.agent.build_agent`) | — | exit 0, `executed: true`, 2 fresh-process runs, 0 failed, 83 s |
 | `probe_separated_p11copy.py` (G-rt p11, root, *worktree*) | 1/39 (14: by design, resume refuses a stopped run) | 1/39 (same) |
 | `probe_separated_resume.py` (root, *worktree*) | 0/8 | 0/8 |
@@ -252,7 +252,7 @@ actions 15 vs 14): the same disclosed mechanism (an interrupted action is booked
 | CM-01 | **verified** | 8f6c615 | doctor sections, --strict |
 | CM-02 | **verified** | 8f6c615 | init with default (tiny) and stand-in factories |
 | CM-03 | **verified** | 8f6c615 | test runs pytest, JUnit, unknown suite 2, empty selection not success |
-| CM-04 | **unverified** | 8f6c615 | pending: the debug staging validation run had not finished |
+| CM-04 | **verified** | 8f6c615 | the debug staging validation ran to the end on the CPU (exit 1: 13 of 16 checks hold, as reported) |
 | CM-05 | **verified** | 8f6c615 | tools, scopes, missing integrations incl. Discord |
 | CM-06 | **verified** | 8f6c615 | every refusal, in-process and separated starts |
 | CM-07 | **verified** | 8f6c615 | status from the run directory; FIFO no longer blocks (8f6c615) |

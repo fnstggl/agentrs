@@ -448,15 +448,17 @@
   ]
  },
  "CM-04": {
-  "status": "unverified",
+  "status": "verified",
   "by": "G2-runtime",
   "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
   "supersedes": [
    "all"
   ],
-  "notes": "PENDING: my debug staging validation run at 8f6c615 has not finished yet.",
+  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. `cam-live validate --mode staging --debug --config <tiny backbone> --out D` executed to the end at 8f6c615 on the CPU (real_model false, GPU peak 0.0 GB, 737 s): it ran the computer phase and two LabWorld lifetimes, wrote staging_report.json and the evidence file, and exited 1 because 3 of 16 checks fail at debug scale (approvals_exercised, meta_update_applied, meta_step_changes_policy) — the documented exit code of a command that ran and reports a failure; 13 hold (incl. recovery_exercised, resource_limit_exercised, predictions_before_outcomes, weights changed, behaviour change explained by the weights). `--mode live` is refused (exit 2, CLI probe 4b). Whether the validation passes is LX-11, not this requirement; the real-model validation was not run by me (GPU).",
   "evidence": [
-   "cam_live/docs/verification/G2_runtime.md"
+   "cam_live/docs/verification/G2_runtime.md",
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (G-rt p10 with 4a run separately)",
+   "cam-live validate --mode staging --debug --config <tiny> --out D  (8f6c615 copy: exit 1, 13/16 checks, 737 s)"
   ]
  }
 }
