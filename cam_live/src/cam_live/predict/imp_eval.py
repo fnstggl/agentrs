@@ -353,6 +353,23 @@ def _arm_stats(r: Dict[str, Any]) -> Dict[str, Any]:
     ops = {}
     for row in rows:
         ops[row["operation"]] = ops.get(row["operation"], 0) + 1
+    # the evaluator knows the family's mechanism (CAM does not): the delayed-dependency channel of LabWorld is the
+    # last one; count interventions on it before / after an unlock in the same lifetime
+    door = {"after_unlock": 0, "without_unlock": 0, "lifetimes_with_unlock": 0}
+    try:
+        from ..eval.envs import lab_family_config
+        last_ch = lab_family_config(r["family"], 0).n_channels - 1
+    except Exception:  # noqa: BLE001
+        last_ch = None
+    for lt in lts:
+        unlocked = False
+        for row in lt["decision_rows"]:
+            if row["operation"] == "lab.unlock":
+                unlocked = True
+            elif row["operation"] == "lab.act" and last_ch is not None and \
+                    (row.get("arguments") or {}).get("channel") == last_ch:
+                door["after_unlock" if unlocked else "without_unlock"] += 1
+        door["lifetimes_with_unlock"] += int(unlocked)
     return {"lifetimes": len(lts), "decisions": len(rows),
             "progress_mean": sum(lt["progress"] for lt in lts) / max(len(lts), 1),
             "achieved": sum(1 for lt in lts if lt["achieved"]),
@@ -363,7 +380,8 @@ def _arm_stats(r: Dict[str, Any]) -> Dict[str, Any]:
             "imagination_tv_max": max(tvs) if tvs else None,
             "decisions_with_tv_over_0.1": sum(1 for t in tvs if t > 0.1),
             "argmax_changed_by_imagination": len(flips), "n_with_imagination": len(tvs),
-            "operations": ops, "unlock": ops.get("lab.unlock", 0),
+            "operations": ops, "unlock": ops.get("lab.unlock", 0), "door_channel_acts": door,
+            "progress_by_lifetime": [lt["progress"] for lt in lts],
             "planner_seconds_per_decision": (sum(lt["planner_seconds"] for lt in lts)
                                              / max(sum(lt["planner_calls"] for lt in lts), 1)),
             "horizon_final": (r.get("horizon_controller") or {}).get("allowed"),
@@ -408,6 +426,19 @@ def summarize(paths: Sequence[str]) -> Dict[str, Any]:
                                                        if "on" in r and r["on"]["imagination_tv_mean"] is not None]),
                       "argmax_changed": sum(r["on"]["argmax_changed_by_imagination"] for r in per_seed if "on" in r),
                       "decisions_with_imagination": sum(r["on"]["n_with_imagination"] for r in per_seed if "on" in r)},
+           "pooled": {a: {"lifetimes": sum(r[a]["lifetimes"] for r in per_seed if a in r),
+                          "achieved": sum(r[a]["achieved"] for r in per_seed if a in r),
+                          "progress_mean_over_seeds": _mean_ci([r[a]["progress_mean"] for r in per_seed if a in r]),
+                          "expected_adopters": sum(r[a]["expected_adopters"] for r in per_seed if a in r),
+                          "oracle_expected_adopters": sum(r[a]["oracle_expected_adopters"] for r in per_seed if a in r),
+                          "unlock": sum(r[a]["unlock"] for r in per_seed if a in r),
+                          "door_acts_after_unlock": sum(r[a]["door_channel_acts"]["after_unlock"] for r in per_seed
+                                                        if a in r),
+                          "lifetimes_with_unlock": sum(r[a]["door_channel_acts"]["lifetimes_with_unlock"]
+                                                       for r in per_seed if a in r),
+                          "planner_seconds_per_decision": _mean_ci([r[a]["planner_seconds_per_decision"]
+                                                                    for r in per_seed if a in r])}
+                      for a in ("on", "off")},
            "off_arm_counterfactual": {
                "imagination_tv_mean": _mean_ci([r["off"]["imagination_tv_mean"] for r in per_seed
                                                 if "off" in r and r["off"]["imagination_tv_mean"] is not None])}}
