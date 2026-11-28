@@ -1,7 +1,7 @@
 {
  "workstream": "B",
- "commit": "66b4fce375dd89cd0c3af4a0b6921f6950134955",
- "summary": "Stage 1 + stage 2. Prediction and decision-making under src/cam_live/predict, wired onto the real CamLiveModel: five heads registered on the model, five LossProviders (world model incl. fast-prior and latent-consistency terms, ALPaCA-style fast prior, evaluator on signed verified outcomes, and adapter variants), the runtime Predictor (registered multi-horizon predictions, immediate fast-belief update, resolution, decision-relevant VOI), DecisionMaker (exact probabilities for five rules, self-proposed randomised experiments), LatentPlanner, BackboneProposer (100 % schema-valid proposals from Qwen3-4B on two tool sets), and debug-scale learning evidence in LabWorld with honest failures recorded. | LRN round (S-5, 2026-11-27): selection rule thompson_policy (Thompson sampling over the world model's posterior + a policy correction weighted by a calibration on verified outcomes), policy-improvement loss with a goal term and an all-candidate model term, trust-region live step, reward components standardised before mixing, promotion as a non-inferiority test, delta V / verified-delta fixes; docs/C/LRN_S5.md, docs/evidence/B/choice_summary.json, docs/evidence/C/lrn_probes_*.json; JUnit docs/evidence/test_results/LRN.xml (298 passed, 13 skipped).",
+ "commit": "a7b8fa4331fc62918c56f3c0a07aa40e77747cc5",
+ "summary": "INT3A (2026-11-28): agent / predict integration fixes on the real configuration (docs/INT3A.md). S-6b: the proposer prompt lists every tool the task permits (no rotation), argument names exactly (the 'name*' marker had been copied into every written argument name and all such writes refused), nested object properties, the success definition and latest action results, fitted to the 2048-token window by shortening observations then descriptions; probe after: 16/16 valid, a written solution.py / model.py in 4/4 rounds of SW and MECH (before: 1/15 and 7/16 valid with tools visible; 0 writes with the sandbox unavailable under a 0700 run root); SW:rle verified achieved after 2 decisions through the runtime. INT2-9 fixed in the parser. LRN-3: Predictor.goal_epistemic_after + record_world_nll feed epistemic_after / learning_progress annotations. G2L-8: provider eligibility no longer reads the learner's own flags (held-out sets survived one refresh only; the evaluator trained on no record checked before the verdict). VOI reuses the evaluation's means and runs its loop on the fast state's device (numbers equal to 4e-16). || Stage 1 + stage 2. Prediction and decision-making under src/cam_live/predict, wired onto the real CamLiveModel: five heads registered on the model, five LossProviders (world model incl. fast-prior and latent-consistency terms, ALPaCA-style fast prior, evaluator on signed verified outcomes, and adapter variants), the runtime Predictor (registered multi-horizon predictions, immediate fast-belief update, resolution, decision-relevant VOI), DecisionMaker (exact probabilities for five rules, self-proposed randomised experiments), LatentPlanner, BackboneProposer (100 % schema-valid proposals from Qwen3-4B on two tool sets), and debug-scale learning evidence in LabWorld with honest failures recorded. | LRN round (S-5, 2026-11-27): selection rule thompson_policy (Thompson sampling over the world model's posterior + a policy correction weighted by a calibration on verified outcomes), policy-improvement loss with a goal term and an all-candidate model term, trust-region live step, reward components standardised before mixing, promotion as a non-inferiority test, delta V / verified-delta fixes; docs/C/LRN_S5.md, docs/evidence/B/choice_summary.json, docs/evidence/C/lrn_probes_*.json; JUnit docs/evidence/test_results/LRN.xml (298 passed, 13 skipped).",
  "requirements": {
   "PI-01": {
    "state": "implemented",
@@ -1131,7 +1131,87 @@
   "lrn_greedy_pred_quality_after_E": 0.39198174655118523,
   "lrn_uniform_quality_after_E": 0.2161259458795556,
   "lrn_selection_probe_relative_predicted_value_policy": 0.23068921129216813,
-  "lrn_selection_probe_relative_predicted_value_thompson_policy": 0.9256029823136103
+  "lrn_selection_probe_relative_predicted_value_thompson_policy": 0.9256029823136103,
+  "int3a": {
+   "s6b_probe_before_untraversable": {
+    "SW": {
+     "tools_listed": 5,
+     "prompt_tokens": 907,
+     "rounds_write_target": 0,
+     "validity": "16/16"
+    },
+    "MECH": {
+     "tools_listed": 7,
+     "prompt_tokens": 1102,
+     "rounds_write_target": 0,
+     "validity": "3/15"
+    },
+    "file": "docs/evidence/INT3A/probe_before_untraversable.json"
+   },
+   "s6b_probe_before_traversable": {
+    "SW": {
+     "tools_listed": 12,
+     "prompt_tokens": "1269-1319",
+     "rounds_write_target": 0,
+     "validity": "1/15"
+    },
+    "MECH": {
+     "tools_listed": 12,
+     "prompt_tokens": "1424-1459",
+     "rounds_write_target": 2,
+     "validity": "7/16"
+    },
+    "file": "docs/evidence/INT3A/probe_before_traversable.json"
+   },
+   "s6b_probe_after": {
+    "SW": {
+     "tools_listed": 14,
+     "prompt_tokens": 1690,
+     "rounds_write_target": 4,
+     "rounds_run_code": 0,
+     "validity": "16/16",
+     "written_solutions_offline_hidden_test_pass": "60/60 each of 4"
+    },
+    "MECH": {
+     "tools_listed": 16,
+     "prompt_tokens": 1932,
+     "rounds_write_target": 4,
+     "rounds_run_code": 0,
+     "validity": "16/16"
+    },
+    "file": "docs/evidence/INT3A/probe_after.json"
+   },
+   "runtime_sw_rle": {
+    "decisions": 2,
+    "chosen": [
+     "internal.request_operator (backbone)",
+     "sandbox.write_file solution.py (backbone)"
+    ],
+    "verified": "achieved, pass fraction 1.0",
+    "file": "docs/evidence/INT3A/runtime_sw_rle_profile.json"
+   },
+   "decision_seconds_real_config": {
+    "mech_b663d5e": 17.8,
+    "mech_before_voi": 18.5,
+    "mech_after_voi": 17.1,
+    "sw": 16.7,
+    "generation_share": "0.60-0.73",
+    "voi_s_before_after": [
+     1.67,
+     1.45
+    ],
+    "voi_old_new_max_abs_diff": 4.4e-16
+   },
+   "g2l8_promotion_test_consecutive_passes_after_fix": "8/8",
+   "tests_final": {
+    "passed": 323,
+    "skipped": 13,
+    "failed": 0,
+    "seconds": 411.3,
+    "junit": "docs/evidence/test_results/INT3A_fix.xml",
+    "command": "pytest cam_live/tests/predict cam_live/tests/reward cam_live/tests/integration/test_int3a_*.py (4 files)"
+   }
+  }
  },
  "not_done": [
   "Nothing in cam_live.agent / runtime calls cam_live.predict yet (master integrates): Predictor, DecisionMaker, BackboneProposer, LatentPlanner and default_providers are ready and documented in docs/B/API.md.",
@@ -1148,7 +1228,10 @@
   "Diagnostics are statistically, not bit-wise, reproducible: record ids come from uuid4 (contracts.new_id) and select the bootstrap resamples of the ensemble.",
   "JSON-Schema support is a subset ($ref, if/then/else, patternProperties, dependent*, format unchecked).",
   "Registries are single-writer.",
-  "Master-owned contracts unchanged: 11 change requests open in docs/change_requests/B.md."
+  "Master-owned contracts unchanged: 11 change requests open in docs/change_requests/B.md.",
+  "INT3A: Evidence-based credit estimator selection is not fed by the agent (G2L-6 / RC-08; DX).",
+  "INT3A: No program execution proposed in the S-6b probe rounds; MECH not solved in 8 decisions; planning task needs nn.max_prompt_tokens (INT3A-4).",
+  "INT3A: G2L-8 residual: an objective with no held-out record (probability 0.85^N under the 15 % record split) cannot be promoted (INT3A-5)."
  ],
  "scientific_failures": [
   "World model on NEW mechanisms (heads only, no adaptation) does not beat the action-independent baseline: held-out NLL 1.666 vs 1.645 (6 h) and 2.211 vs 2.163 (2 d); gain CIs {'hi': 0.0281, 'lo': -0.068, 'mean': -0.0199, 'n': 20.0, 'n_rows': 156.0} / {'hi': -0.005, 'lo': -0.0981, 'mean': -0.0515, 'n': 20.0, 'n_rows': 156.0}. At debug scale the core did not learn to read an unseen channel's rate from the features in its context.",

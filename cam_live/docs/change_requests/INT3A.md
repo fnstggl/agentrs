@@ -4,6 +4,8 @@ Each request has the reason, the exact diff and what INT3A did meanwhile in its 
 
 ## INT3A-1 (tests/integration/test_int2_queries.py, owner INT3B): the INT2-9 test pins the parser defect
 
+**Status: applied by INT3B (4ab2747).**
+
 **What / why.** INT2-9 is now fixed where it belongs (`predict/candidates.py::_build`: a parsed program gets the
 modality of the environment's `program` tool, internal when none is described). The INT2 test
 `test_backbone_program_takes_the_modality_of_the_program_tool` asserts the *defect* first
