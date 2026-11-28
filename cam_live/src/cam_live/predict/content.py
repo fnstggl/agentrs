@@ -331,6 +331,84 @@ def diagnose(seed: int = 0, n_lifetimes: int = 8, n_decisions: int = 12, steps: 
             "seconds": _time.time() - t0, "provenance": "diagnostic (LabWorld, debug-scale model)"}
 
 
+def diagnose_prequential(seed: int = 0, n_lifetimes: int = 10, n_decisions: int = 12, steps_per_record: int = 4,
+                         batch: int = 8, lr: float = 1e-3) -> Dict[str, Any]:
+    """The learner's regime: records arrive in time order; for each new record its content NLL and information gain
+    are measured *before* it is trained on, then a few steps on a replay batch that includes it. Per operation:
+    the NLL over time (does the content become predictable?), the IG over time, and whether the IG predicted before
+    observing a record tracks the actual NLL reduction on that operation's next record (Spearman rank correlation)."""
+    import random as _random
+    import time as _time
+    from ..diagnostics.memstore import MemoryStore
+    from ..learning_api import encode_decisions
+    from . import labdata as L
+    t0 = _time.time()
+    torch.manual_seed(seed)
+    model, heads = L.build(seed)
+    store = MemoryStore()
+    lts = L.collect(store, range(n_lifetimes), n_decisions)
+    stream = [r for lt in lts for r in lt.records if r.post_item_refs and returned_items(store, r)]
+    head = ensure_content_head(model, seed)
+    loss_fn = ContentLoss(heads)
+    params = list(head.parameters()) + [p for n, p in model.named_parameters() if p.requires_grad and
+                                        n.startswith("exp.")]
+    opt = torch.optim.Adam(params, lr=lr)
+    rng = _random.Random(seed)
+    rows: List[Dict[str, Any]] = []
+    seen: List[ExperienceRecord] = []
+    for t, rec in enumerate(stream):
+        with torch.no_grad():
+            bt = encode_decisions(model, store, [rec], grad=False)
+            ig = float(head(bt.z_chosen).information_gain()[0])
+        nll = record_content_nll(model, store, [rec])[0]
+        rows.append({"t": t, "op": rec.decision.chosen.operation, "nll": nll, "ig": ig})
+        seen.append(rec)
+        for _ in range(steps_per_record):
+            b = encode_decisions(model, store, [rec] + rng.sample(seen, min(batch - 1, len(seen))), grad=True)
+            loss, _ = loss_fn.loss(model, b, store)
+            opt.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(params, 1.0)
+            opt.step()
+    # IG before observing record i vs the drop of NLL from op's occurrence i to its next occurrence
+    by: Dict[str, List[Dict[str, Any]]] = {}
+    for r in rows:
+        by.setdefault(r["op"], []).append(r)
+    pairs = []
+    for op, rs in by.items():
+        for a, b in zip(rs, rs[1:]):
+            if a["nll"] is not None and b["nll"] is not None:
+                pairs.append((a["ig"], a["nll"] - b["nll"], op))
+
+    def rank(xs: Sequence[float]) -> List[float]:
+        order = sorted(range(len(xs)), key=lambda i: xs[i])
+        r = [0.0] * len(xs)
+        for k, i in enumerate(order):
+            r[i] = float(k)
+        return r
+
+    def spearman(ps: Sequence[Tuple[float, float, str]]) -> Optional[float]:
+        if len(ps) < 3:
+            return None
+        a, b = rank([p[0] for p in ps]), rank([p[1] for p in ps])
+        ma, mb = sum(a) / len(a), sum(b) / len(b)
+        num = sum((x - ma) * (y - mb) for x, y in zip(a, b))
+        den = math.sqrt(sum((x - ma) ** 2 for x in a) * sum((y - mb) ** 2 for y in b))
+        return num / den if den > 0 else None
+    third = max(1, len(rows) // 3)
+    summary = {}
+    for op, rs in by.items():
+        first, last = rs[:max(1, len(rs) // 3)], rs[-max(1, len(rs) // 3):]
+        avg = lambda xs: sum(xs) / len(xs) if xs else None                               # noqa: E731
+        summary[op] = {"n": len(rs), "nll_first_third": avg([r["nll"] for r in first if r["nll"] is not None]),
+                       "nll_last_third": avg([r["nll"] for r in last if r["nll"] is not None]),
+                       "ig_first_third": avg([r["ig"] for r in first]), "ig_last_third": avg([r["ig"] for r in last]),
+                       "spearman_ig_vs_next_nll_drop": spearman([p for p in pairs if p[2] == op])}
+    return {"seed": seed, "records": len(stream), "steps_per_record": steps_per_record, "per_operation": summary,
+            "spearman_ig_vs_next_nll_drop_all": spearman(pairs), "n_pairs": len(pairs), "rows": rows,
+            "stream_third": third, "seconds": _time.time() - t0, "provenance": "diagnostic (LabWorld, debug scale)"}
+
+
 if __name__ == "__main__":
     import argparse
     import json
@@ -339,8 +417,15 @@ if __name__ == "__main__":
     ap.add_argument("--lifetimes", type=int, default=8)
     ap.add_argument("--steps", type=int, default=300)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--prequential", action="store_true")
     a = ap.parse_args()
     torch.set_num_threads(4)
+    if a.prequential:
+        res = diagnose_prequential(a.seed, a.lifetimes)
+        with open(a.out, "w") as f:
+            json.dump(res, f, indent=1)
+        print(json.dumps({k: v for k, v in res.items() if k != "rows"}, indent=1))
+        raise SystemExit(0)
     res = diagnose(a.seed, a.lifetimes, steps=a.steps)
     with open(a.out, "w") as f:
         json.dump(res, f, indent=1)
