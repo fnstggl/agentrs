@@ -339,8 +339,9 @@ def write_report(run_dir: str, out: str = "", as_json: bool = False) -> str:
     body = json.dumps(rep, indent=1, sort_keys=True, default=str) if as_json or out.endswith(".json") else \
         render_markdown(rep)
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
-    tmp = out + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write(body)
-    os.replace(tmp, out)
+    # root writes this report on the operator's behalf, by default into the run directory the learner's group may
+    # write: random O_EXCL|O_NOFOLLOW temporary, rename within the directory fd, a planted symlink / non-regular
+    # target refused (G2-harness R4-M1; cam_live.harness.safefs)
+    from ..harness import safefs
+    safefs.write_atomic(out, body.encode("utf-8"), 0o644)
     return out

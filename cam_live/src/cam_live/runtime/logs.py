@@ -267,11 +267,20 @@ def read_json(path: str, default: Any = None) -> Any:
         return default
 
 
+def _open_log_read(path: str) -> Any:
+    """A run log opened for reading without following a symlink and without blocking on a FIFO (root reads the
+    learner's logs: status, dashboard, journal). None when missing; a non-regular entry is treated as missing."""
+    from ..harness import safefs
+    try:
+        return safefs.open_read(path)
+    except (FileNotFoundError, NotADirectoryError, safefs.UnsafePath):
+        return None
+
+
 def iter_jsonl(path: str) -> Iterator[Dict[str, Any]]:
     """Yield the complete records of a JSONL file; a torn final line (crash mid-write) is skipped."""
-    try:
-        f = open(path, "rb")
-    except FileNotFoundError:
+    f = _open_log_read(path)
+    if f is None:
         return
     with f:
         for raw in f:
@@ -289,9 +298,8 @@ def iter_jsonl(path: str) -> Iterator[Dict[str, Any]]:
 def iter_since(path: str, seq: int, block: int = 1 << 16) -> Iterator[Dict[str, Any]]:
     """Records of a RunLog file with ``seq >= seq``, newest first. Reads the file backwards and stops at the first
     older record (each file is appended in seq order), so a restart does not re-read a long run's logs."""
-    try:
-        f = open(path, "rb")
-    except FileNotFoundError:
+    f = _open_log_read(path)
+    if f is None:
         return
     with f:
         f.seek(0, os.SEEK_END)

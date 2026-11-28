@@ -190,7 +190,10 @@ def _mk(path: str, is_dir: bool, uid: int, gid: int, mode: int, chown: bool) -> 
         else:
             # no O_CREAT on an existing file: with fs.protected_regular the kernel refuses even root an O_CREAT open
             # of another uid's file inside a sticky directory
-            fd = os.open(name, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW, dir_fd=dfd)
+            fd = os.open(name, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dfd)
+            if not stat.S_ISREG(os.fstat(fd).st_mode):        # a FIFO cannot block us, and is refused (R4-m1)
+                os.close(fd)
+                raise RuntimeError(f"refusing to use {path}: not a regular file")
     finally:
         os.close(dfd)
     try:

@@ -503,10 +503,10 @@ def create_app(run_dir: str, token: str, policy: Optional[PolicyEngine] = None, 
 
     @app.get("/api/journal", response_class=PlainTextResponse, dependencies=guard)
     def journal() -> str:
-        try:
-            with open(view.r.path(RunFiles.JOURNAL)) as f:
-                return f.read()
-        except FileNotFoundError:
+        from ..harness import safefs
+        try:                                    # the run directory is the learner's to write: no symlink followed
+            return safefs.read_nofollow(view.r.path(RunFiles.JOURNAL)).decode("utf-8", "replace")
+        except (FileNotFoundError, safefs.UnsafePath):
             return ""
 
     @app.get("/api/tasks", dependencies=guard)

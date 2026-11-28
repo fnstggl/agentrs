@@ -77,6 +77,15 @@ def open_dir(path: str, _depth: int = 0) -> int:
         raise
 
 
+def open_dir_read(path: str) -> int:
+    """Like :func:`open_dir`, but an fd that can be listed (O_RDONLY; needs read permission on the directory)."""
+    pfd = open_dir(path)
+    try:
+        return os.open(".", os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_CLOEXEC", 0), dir_fd=pfd)
+    finally:
+        os.close(pfd)
+
+
 def split(path: str) -> Tuple[str, str]:
     p = os.path.abspath(path)
     d, name = os.path.dirname(p), os.path.basename(p)
@@ -146,21 +155,39 @@ def write_atomic(path: str, data: bytes, mode: int = 0o644, uid: Optional[int] =
         os.close(dfd)
 
 
-def read_nofollow(path: str, max_bytes: int = 64 * 1024 * 1024) -> bytes:
-    """Contents of the regular file ``path``; refuses a symlink anywhere in the path or a non-regular file."""
+def open_regular(path: str, flags: int = os.O_RDONLY, mode: int = 0o600) -> int:
+    """fd of the regular file ``path``: no symlink followed anywhere in the path, opened ``O_NONBLOCK`` so that a
+    FIFO or device in its place cannot block the caller (G2-harness R4-m1), type checked on the fd, then
+    ``O_NONBLOCK`` cleared. ``flags`` may add ``O_WRONLY|O_APPEND|O_CREAT``."""
+    import fcntl
     d, name = split(path)
     dfd = open_dir(d)
     try:
-        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0), dir_fd=dfd)
+        fd = os.open(name, flags | os.O_NOFOLLOW | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0), mode, dir_fd=dfd)
     except OSError as e:
-        os.close(dfd)
         if e.errno == errno.ELOOP:
             raise UnsafePath(e.errno, f"{path} is a symlink") from None
+        if e.errno == errno.ENXIO:
+            raise UnsafePath(e.errno, f"{path} is a FIFO or device, not a regular file") from None
         raise
-    os.close(dfd)
+    finally:
+        os.close(dfd)
     try:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
             raise UnsafePath(errno.EINVAL, f"{path} is not a regular file")
+        fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, fl & ~os.O_NONBLOCK)
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def read_nofollow(path: str, max_bytes: int = 64 * 1024 * 1024) -> bytes:
+    """Contents of the regular file ``path``; refuses a symlink anywhere in the path or a non-regular file (a FIFO
+    is refused without blocking)."""
+    fd = open_regular(path)
+    try:
         out = bytearray()
         while len(out) < max_bytes:
             chunk = os.read(fd, min(1 << 20, max_bytes - len(out)))
@@ -170,6 +197,33 @@ def read_nofollow(path: str, max_bytes: int = 64 * 1024 * 1024) -> bytes:
         return bytes(out)
     finally:
         os.close(fd)
+
+
+def open_read(path: str):
+    """A binary file object of the regular file ``path`` (as :func:`open_regular`)."""
+    return os.fdopen(open_regular(path), "rb")
+
+
+def open_append(path: str, mode: int = 0o640):
+    """A binary append-only file object of ``path``, created if missing; never through a symlink, never a FIFO."""
+    return os.fdopen(open_regular(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, mode), "ab")
+
+
+def unlink(path: str) -> bool:
+    """Remove the entry ``path`` (a file or a symlink itself), reached without following a symlink in its parents.
+    False when it does not exist."""
+    d, name = split(path)
+    dfd = open_dir(d)
+    try:
+        st = os.stat(name, dir_fd=dfd, follow_symlinks=False)
+        if stat.S_ISDIR(st.st_mode):
+            raise UnsafePath(errno.EISDIR, f"{path} is a directory")
+        os.unlink(name, dir_fd=dfd)
+        return True
+    except FileNotFoundError:
+        return False
+    finally:
+        os.close(dfd)
 
 
 def ensure_dir(path: str, mode: int = 0o700, uid: Optional[int] = None, gid: Optional[int] = None) -> None:
@@ -209,8 +263,8 @@ def chown_chmod_nofollow(path: str, uid: Optional[int], gid: Optional[int], mode
         if uid is not None or gid is not None:
             os.chown(name, -1 if uid is None else uid, -1 if gid is None else gid, dir_fd=dfd, follow_symlinks=False)
         if mode is not None and not stat.S_ISSOCK(st.st_mode):
-            fd = os.open(name, (os.O_RDONLY | os.O_NOFOLLOW) | (os.O_DIRECTORY if stat.S_ISDIR(st.st_mode) else 0),
-                         dir_fd=dfd)
+            fd = os.open(name, (os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK) |
+                         (os.O_DIRECTORY if stat.S_ISDIR(st.st_mode) else 0), dir_fd=dfd)
             try:
                 os.fchmod(fd, mode)
             finally:

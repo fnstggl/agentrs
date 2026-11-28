@@ -145,8 +145,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     if a.command == "revoke":
         hit = SecretBroker(os.path.join(os.path.abspath(a.run_dir), "vault")).revoke(f"secret:{a.name}", time.time())
         copy = os.path.join(os.path.abspath(a.run_dir), "verifier", "secrets", a.name)
-        if os.path.exists(copy):
-            os.unlink(copy)
+        from . import safefs
+        try:
+            safefs.unlink(copy)          # relative to the directory fd, no symlink followed (G2-harness R4-m2)
+        except FileNotFoundError:
+            pass
         print(json.dumps({"revoked": hit}))
         return 0
     try:

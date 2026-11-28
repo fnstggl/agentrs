@@ -27,8 +27,10 @@ import fcntl
 import importlib
 import json
 import os
+import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -177,7 +179,8 @@ def _policy_handle(run_dir: str) -> Any:
 
 def _spawn_detached(argv: List[str], log_path: str, env: Optional[Dict[str, str]] = None) -> int:
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    with open(log_path, "ab") as log:
+    from ..harness import safefs
+    with safefs.open_append(log_path, 0o640) as log:          # never through a planted symlink / FIFO (R4 sweep)
         p = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
                              start_new_session=True, env=env or dict(os.environ), cwd=REPO_ROOT)
     return p.pid
@@ -191,9 +194,9 @@ def _child_env() -> Dict[str, str]:
 
 
 def _tail(path: str, n: int = 30) -> str:
+    from ..harness import safefs
     try:
-        with open(path, errors="replace") as f:
-            return "".join(f.readlines()[-n:])
+        return "".join(safefs.read_nofollow(path).decode("utf-8", "replace").splitlines(True)[-n:])
     except OSError:
         return ""
 
@@ -421,7 +424,9 @@ def cmd_run(a: argparse.Namespace) -> int:
     os.makedirs(run_dir, exist_ok=True)
     task_copy = os.path.join(run_dir, "task.yaml")
     if os.path.abspath(a.task) != task_copy:
-        shutil.copyfile(a.task, task_copy)
+        from ..harness import safefs
+        with open(a.task, "rb") as f:                         # the operator's file
+            safefs.write_atomic(task_copy, f.read(), 0o644)    # into the run directory: never through a planted link
     atomic_write_json(os.path.join(run_dir, "run.json"),
                       {"task_file": os.path.abspath(a.task), "config": os.path.abspath(a.config) if a.config else "",
                        "agent_factory": a.agent_factory, "separated": separated, "mode": task.mode,
@@ -677,35 +682,161 @@ def cmd_resume(a: argparse.Namespace) -> int:
     return 0
 
 
+_CKPT_NAME = re.compile(r"^ckpt_\d{1,12}$")
+#: bounds of one offline checkpoint copy (entries, bytes)
+_EXPORT_MAX_FILES, _EXPORT_MAX_BYTES = 20000, 256 * 1024 ** 3
+
+
+class ExportRefused(RuntimeError):
+    pass
+
+
+def _checkpoint_names(run_dir: str) -> List[str]:
+    """Names of checkpoint directories directly in ``<run>/checkpoints`` (real directories, no symlinks)."""
+    from ..harness import safefs
+    root = os.path.join(run_dir, RunFiles.CHECKPOINTS)
+    try:
+        dfd = safefs.open_dir_read(root)
+    except (FileNotFoundError, NotADirectoryError):
+        return []
+    try:
+        out = []
+        for n in os.listdir(dfd):
+            if not _CKPT_NAME.match(n):
+                continue
+            st = os.stat(n, dir_fd=dfd, follow_symlinks=False)
+            if stat.S_ISDIR(st.st_mode):
+                out.append(n)
+        return sorted(out)
+    finally:
+        os.close(dfd)
+
+
+def _copy_tree_safe(src_dfd: int, dst: str, budget: Dict[str, int]) -> None:
+    """Copy the directory open as ``src_dfd`` into the new directory ``dst`` (created 0700): regular files and
+    directories only, nothing followed; a symlink, FIFO, socket or device anywhere refuses the whole export."""
+    os.mkdir(dst, 0o700)
+    for n in sorted(os.listdir(src_dfd)):
+        st = os.stat(n, dir_fd=src_dfd, follow_symlinks=False)
+        budget["files"] -= 1
+        if budget["files"] < 0:
+            raise ExportRefused("the checkpoint has too many entries")
+        if stat.S_ISDIR(st.st_mode):
+            sub = os.open(n, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=src_dfd)
+            try:
+                _copy_tree_safe(sub, os.path.join(dst, n), budget)
+            finally:
+                os.close(sub)
+        elif stat.S_ISREG(st.st_mode):
+            fd = os.open(n, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=src_dfd)
+            try:
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    raise ExportRefused(f"{n} changed type while it was copied")
+                out = os.open(os.path.join(dst, n), os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                try:
+                    while True:
+                        chunk = os.read(fd, 1 << 20)
+                        if not chunk:
+                            break
+                        budget["bytes"] -= len(chunk)
+                        if budget["bytes"] < 0:
+                            raise ExportRefused("the checkpoint is larger than an export may be")
+                        os.write(out, chunk)
+                    os.fsync(out)
+                finally:
+                    os.close(out)
+            finally:
+                os.close(fd)
+        else:
+            kind = "a symlink" if stat.S_ISLNK(st.st_mode) else "a FIFO, socket or device"
+            raise ExportRefused(f"the checkpoint contains {kind} ({n}); nothing is exported")
+
+
+def _export_offline(run_dir: str, a: argparse.Namespace) -> Dict[str, Any]:
+    """Export the committed checkpoint of a run with no runtime process (G2-harness R4-C1). Root runs this on the
+    operator's behalf over a directory the learner writes, so: the checkpoint is chosen by NAME among the real
+    directories of ``<run>/checkpoints`` (the learner's state.json may only name which one, by its base name, and
+    is never used as a path); it is copied with nothing followed into a private staging directory; a checkpoint
+    with a MANIFEST must match its hashes; the destination is the operator's ``--out`` (or the state root's
+    ``exports``), normalised, outside the run directory, and must not exist (never merged into a tree)."""
+    from ..harness import safefs
+    names = _checkpoint_names(run_dir)
+    st = read_json(os.path.join(run_dir, RunFiles.STATE), {}) or {}
+    ck = (st.get("committed") or {}).get("ckpt") or {}
+    wanted = getattr(a, "checkpoint", "") or os.path.basename(str(ck.get("path") or ""))
+    if wanted and not _CKPT_NAME.match(wanted):
+        raise ExportRefused(f"{wanted!r} is not a checkpoint name (ckpt_<digits>)")
+    if not names:
+        raise ExportRefused(f"no checkpoint in {os.path.join(run_dir, RunFiles.CHECKPOINTS)}")
+    name = wanted if wanted in names else ("" if getattr(a, "checkpoint", "") else names[-1])
+    if not name:
+        raise ExportRefused(f"no checkpoint named {wanted!r} in the run")
+    run_real = os.path.realpath(run_dir)
+    if a.out:
+        dest = os.path.abspath(a.out)
+    else:
+        home = _cfg(getattr(a, "config", "")).resolved_home()
+        dest = os.path.join(home, "exports", f"{os.path.basename(run_real)}_{name}")
+    dest_real = os.path.realpath(dest)
+    if dest_real == run_real or dest_real.startswith(run_real.rstrip("/") + "/"):
+        raise ExportRefused("the export destination must be outside the run directory (the learner can write there)")
+    if os.path.lexists(dest):
+        if not (os.path.isdir(dest) and not os.path.islink(dest) and not os.listdir(dest)
+                and os.lstat(dest).st_uid == os.geteuid()):
+            raise ExportRefused(f"{dest} exists; an export is never merged into an existing tree")
+        os.rmdir(dest)
+    parent = os.path.dirname(dest)
+    os.makedirs(parent, exist_ok=True)
+    import tempfile
+    staging = tempfile.mkdtemp(prefix=".cam-export-", dir=parent)        # 0700, this uid's, next to the destination
+    try:
+        cdfd = safefs.open_dir_read(os.path.join(run_dir, RunFiles.CHECKPOINTS, name))
+        try:
+            copy = os.path.join(staging, "checkpoint")
+            _copy_tree_safe(cdfd, copy, {"files": _EXPORT_MAX_FILES, "bytes": _EXPORT_MAX_BYTES})
+        finally:
+            os.close(cdfd)
+        verified: Any = "no MANIFEST.json in the checkpoint (not verifiable)"
+        if os.path.isfile(os.path.join(copy, "MANIFEST.json")):
+            from ..credit.checkpoint import verify_checkpoint
+            bad = verify_checkpoint(copy)
+            if bad:
+                raise ExportRefused(f"the checkpoint does not match its MANIFEST: {bad[:3]}")
+            verified = True
+        try:
+            mod = importlib.import_module("cam_live.credit.checkpoint")
+            state = mod.load_checkpoint(copy)
+            mod.export_weights_only(state, dest, config=(state.extra or {}).get("config") or {})
+            how = ("cam_live.credit.checkpoint.export_weights_only (weights, adapters and the model configuration; "
+                   "load with credit.checkpoint.load_exported_model)")
+        except ExportRefused:
+            raise
+        except Exception as e:  # noqa: BLE001 — not a checkpoint of that format: the verified copy is the export
+            how = f"complete copy of the committed checkpoint (weights-only export not applicable: {type(e).__name__})"
+            if os.path.lexists(dest):
+                shutil.rmtree(dest)
+            os.rename(copy, dest)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+    meta = {"checkpoint_id": str(ck.get("id") or name) if os.path.basename(str(ck.get("path") or "")) == name else name,
+            "checkpoint": name, "source": os.path.join(run_dir, RunFiles.CHECKPOINTS, name), "path": dest,
+            "method": how, "manifest_verified": verified, "task": st.get("task"),
+            "provenance": (st.get("task") or {}).get("mode") if isinstance(st.get("task"), dict) else None,
+            "exported_at": WallClock().now()}
+    atomic_write_json(dest.rstrip("/") + ".export.json", meta)
+    return meta
+
+
 def cmd_export_checkpoint(a: argparse.Namespace) -> int:
     run_dir = _run_dir(a)
     if pid_alive(read_pid(run_dir)):
         return _command(a, lambda c: c.export_checkpoint(a.out))
-    # no runtime process: export the last committed checkpoint from disk
-    st = read_json(os.path.join(run_dir, RunFiles.STATE), {}) or {}
-    ckpt = (st.get("committed") or {}).get("ckpt")
-    if not ckpt or not os.path.exists(ckpt["path"]):
-        print(f"cam-live export-checkpoint: no committed checkpoint in {run_dir}", file=sys.stderr)
-        return 1
-    dest = os.path.abspath(a.out) if a.out else os.path.join(run_dir, "exports", f"export_{ckpt['id']}")
     try:
-        mod = importlib.import_module("cam_live.credit.checkpoint")
-        state = mod.load_checkpoint(ckpt["path"])
-        # the configuration that rebuilds the model (credit.checkpoint.load_exported_model reads it)
-        mod.export_weights_only(state, dest, config=(state.extra or {}).get("config") or {})
-        how = ("cam_live.credit.checkpoint.export_weights_only (weights, adapters and the model configuration; "
-               "load with credit.checkpoint.load_exported_model)")
-    except Exception as e:  # noqa: BLE001 — not a checkpoint of that format (or the module is absent): say so and copy
-        how = f"complete copy of the committed checkpoint (weights-only export not applicable: {type(e).__name__})"
-        if os.path.isdir(ckpt["path"]):
-            shutil.copytree(ckpt["path"], dest, dirs_exist_ok=True)
-        else:
-            os.makedirs(os.path.dirname(dest), exist_ok=True)
-            shutil.copy2(ckpt["path"], dest)
-    meta = {"checkpoint_id": ckpt["id"], "source": ckpt["path"], "path": dest, "method": how,
-            "task": st.get("task"), "provenance": (st.get("task") or {}).get("mode"), "exported_at": WallClock().now()}
-    atomic_write_json(dest.rstrip("/") + ".export.json", meta)
-    _out(meta, a.json, f"exported checkpoint {ckpt['id']} to {dest} ({how})")
+        meta = _export_offline(run_dir, a)
+    except (ExportRefused, OSError) as e:
+        print(f"cam-live export-checkpoint: {e}", file=sys.stderr)
+        return 1
+    _out(meta, a.json, f"exported checkpoint {meta['checkpoint']} to {meta['path']} ({meta['method']})")
     return 0
 
 
@@ -713,8 +844,8 @@ def cmd_journal(a: argparse.Namespace) -> int:
     from .journal import write_journal
     path = write_journal(_run_dir(a))
     if a.print:
-        with open(path) as f:
-            print(f.read())
+        from ..harness import safefs
+        print(safefs.read_nofollow(path).decode("utf-8", "replace"))
     else:
         print(path)
     return 0
@@ -857,6 +988,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = add("export-checkpoint", cmd_export_checkpoint, "export trained weights, adapters and compatible configuration",
             run_dir=True)
     p.add_argument("--out", default="")
+    p.add_argument("--checkpoint", default="", help="checkpoint directory name (ckpt_<digits>) when no runtime runs; "
+                                                    "default: the committed one, else the newest")
     p = add("journal", cmd_journal, "regenerate the research journal", run_dir=True)
     p.add_argument("--print", action="store_true")
     p = add("plan-report", cmd_plan_report, "export CAM's objective, notes, predictions, experiments, operator requests, "
