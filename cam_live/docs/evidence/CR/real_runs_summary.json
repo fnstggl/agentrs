@@ -53,5 +53,60 @@
   "replay_cr3": true,
   "max_credit_versions": 67,
   "errors": []
+ },
+ "simple": {
+  "decisions": 40,
+  "executed": 39,
+  "waits": 1,
+  "stopped_by_wall": true,
+  "wall_s": 732.9552609920502,
+  "use_backbone": true,
+  "segment": 4,
+  "credit_keys": {
+   "rudder": 32,
+   "rudder_contribution": 32,
+   "rudder_rtg": 32,
+   "simple": 34
+  },
+  "policy_updates": 13,
+  "rows": 140,
+  "credited_rows": 74,
+  "replayed": 2,
+  "replayed_credited": 2,
+  "default_at_end": "simple",
+  "held_out_records": 5,
+  "selection_rows": 5,
+  "last_selection": {
+   "default_after": "simple",
+   "mode": null,
+   "n_units": 0,
+   "ran": false,
+   "reason": "no held-out randomised unit (matured return; lifetime or segment that no estimator and no learner trained on; logged propensities) and no randomised experiment has 2 or more matured held-out units in each arm (held out by lifetime or segment); the default stays simple"
+  },
+  "expected_adopters": 40.57785751607993,
+  "ops": {
+   "lab.act": 34,
+   "lab.noise": 1,
+   "lab.probe": 4
+  },
+  "learner_counters": {
+   "fast": 117,
+   "frequent": 39,
+   "skipped": 0,
+   "slow": 13,
+   "slow_deferred": 0,
+   "slow_reverted": 0,
+   "triggers": 25
+  },
+  "compute": {
+   "seconds": {
+    "inference": 306.52189161395654,
+    "save": 8.155157103203237,
+    "training": 405.3273356901482
+   }
+  },
+  "replay_cr3": true,
+  "max_credit_versions": 86,
+  "errors": []
  }
 }

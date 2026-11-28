@@ -1,0 +1,878 @@
+{
+ "_code": {
+  "clean": true,
+  "commit": "",
+  "python_hash_seed": "0",
+  "threads": 4,
+  "torch": "2.15.0+cu132",
+  "uncommitted": []
+ },
+ "_command": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.cr_agent_eval --condition simple --real --seed 0 --decisions 40 --segment 4 --threads 4 --max-wall-s 720 --gpu-timeout-s 5400 --out /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/CR/agent/real/simple_real_s0.json --work /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/CR/agent/real/simple_real_s0_work",
+ "agent_source": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/CR/snap/cam_live/src/cam_live/agent.py",
+ "compute": {
+  "seconds": {
+   "inference": 306.52189161395654,
+   "save": 8.155157103203237,
+   "training": 405.3273356901482
+  }
+ },
+ "condition": "simple",
+ "counters": {
+  "actions_executed": 39,
+  "compute_s": 720.0192748303525,
+  "decisions": 40,
+  "external_actions": 39,
+  "failures": 0,
+  "money": 201.2,
+  "waits": 1
+ },
+ "credit_keys": {
+  "rudder": 32,
+  "rudder_contribution": 32,
+  "rudder_rtg": 32,
+  "simple": 34
+ },
+ "credit_versions_first64": {
+  "exp_7466e6000000": 58,
+  "exp_7466e6000001": 85,
+  "exp_7466e6000002": 86,
+  "exp_7466e6000003": 85,
+  "exp_7466e6000004": 50,
+  "exp_7466e6000005": 73,
+  "exp_7466e6000006": 73,
+  "exp_7466e6000007": 73,
+  "exp_7466e6000008": 43,
+  "exp_7466e6000009": 64,
+  "exp_7466e6000010": 61,
+  "exp_7466e6000011": 61,
+  "exp_7466e6000012": 34,
+  "exp_7466e6000013": 49,
+  "exp_7466e6000014": 49,
+  "exp_7466e6000015": 49,
+  "exp_7466e6000016": 26,
+  "exp_7466e6000017": 38,
+  "exp_7466e6000018": 37,
+  "exp_7466e6000019": 37,
+  "exp_7466e6000020": 18,
+  "exp_7466e6000021": 25,
+  "exp_7466e6000022": 24,
+  "exp_7466e6000023": 25,
+  "exp_7466e6000024": 13,
+  "exp_7466e6000025": 16,
+  "exp_7466e6000026": 15,
+  "exp_7466e6000027": 16,
+  "exp_7466e6000028": 7,
+  "exp_7466e6000029": 9,
+  "exp_7466e6000030": 14,
+  "exp_7466e6000031": 11,
+  "exp_7466e6000032": 2,
+  "exp_7466e6000033": 1,
+  "exp_7466e6000034": 2,
+  "exp_7466e6000035": 1,
+  "exp_7466e6000036": 1,
+  "exp_7466e6000037": 1
+ },
+ "default_at_end": "simple",
+ "errors": [],
+ "held_out_records": 5,
+ "learner_counters": {
+  "fast": 117,
+  "frequent": 39,
+  "skipped": 0,
+  "slow": 13,
+  "slow_deferred": 0,
+  "slow_reverted": 0,
+  "triggers": 25
+ },
+ "n_selection_rows": 5,
+ "policy_updates": [
+  {
+   "applied": true,
+   "credit_rows": 2,
+   "estimators": [
+    "simple"
+   ],
+   "n_decisions": 3,
+   "replayed_credit_rows": 0,
+   "replayed_rows": 0,
+   "return_like_rows": 0,
+   "rows": 3
+  },
+  {
+   "applied": true,
+   "credit_rows": 3,
+   "estimators": [
+    "simple"
+   ],
+   "n_decisions": 6,
+   "replayed_credit_rows": 0,
+   "replayed_rows": 0,
+   "return_like_rows": 0,
+   "rows": 6
+  },
+  {
+   "applied": true,
+   "credit_rows": 3,
+   "estimators": [
+    "simple"
+   ],
+   "n_decisions": 9,
+   "replayed_credit_rows": 0,
+   "replayed_rows": 0,
+   "return_like_rows": 0,
+   "rows": 9
+  },
+  {
+   "applied": true,
+   "credit_rows": 7,
+   "estimators": [
+    "simple"
+   ],
+   "n_decisions": 12,
+   "replayed_credit_rows": 0,
+   "replayed_rows": 0,
+   "return_like_rows": 0,
+   "rows": 12
+  },
+  {
+   "applied": true,
+   "credit_rows": 7,
+   "estimators": [
+    "simple"
+   ],
+   "n_decisions": 15,
+   "replayed_credit_rows": 0,
+   "replayed_rows": 0,
+   "return_like_rows": 0,
+   "rows": 12
+  },
+  {
+   "applied": true,
+   "credit_rows": 7,
+   "estimators": [
+    "simple"
+   ],
+   "n_decisions": 18,
+   "replayed_credit_rows": 0,
+   "replayed_rows": 0,
+   "return_like_rows": 0,
+   "rows": 12
+  },
+  {
+   "applied": true,
+   "credit_rows": 6,
+   "estimators": [
+    "simple"
+   ],
+   "n_decisions": 21,
+   "replayed_credit_rows": 0,
+   "replayed_rows": 0,
+   "return_like_rows": 0,
+   "rows": 12
+  },
+  {
+   "applied": true,
+   "credit_rows": 6,
+   "estimators": [
+    "simple"
+   ],
+   "n_decisions": 24,
+   "replayed_credit_rows": 0,
+   "replayed_rows": 0,
+   "return_like_rows": 0,
+   "rows": 12
+  },
+  {
+   "applied": true,
+   "credit_rows": 8,
+   "estimators": [
+    "simple"
+   ],
+   "n_decisions": 27,
+   "replayed_credit_rows": 0,
+   "replayed_rows": 0,
+   "return_like_rows": 0,
+   "rows": 12
+  },
+  {
+   "applied": true,
+   "credit_rows": 5,
+   "estimators": [
+    "simple"
+   ],
+   "n_decisions": 31,
+   "replayed_credit_rows": 0,
+   "replayed_rows": 0,
+   "return_like_rows": 0,
+   "rows": 12
+  },
+  {
+   "applied": true,
+   "credit_rows": 6,
+   "estimators": [
+    "simple"
+   ],
+   "n_decisions": 34,
+   "replayed_credit_rows": 1,
+   "replayed_rows": 1,
+   "return_like_rows": 0,
+   "rows": 13
+  },
+  {
+   "applied": true,
+   "credit_rows": 7,
+   "estimators": [
+    "simple"
+   ],
+   "n_decisions": 37,
+   "replayed_credit_rows": 1,
+   "replayed_rows": 1,
+   "return_like_rows": 0,
+   "rows": 13
+  },
+  {
+   "applied": true,
+   "credit_rows": 7,
+   "estimators": [
+    "simple"
+   ],
+   "n_decisions": 40,
+   "replayed_credit_rows": 0,
+   "replayed_rows": 0,
+   "return_like_rows": 0,
+   "rows": 12
+  }
+ ],
+ "real": true,
+ "replay_cr3": true,
+ "runtime_status": "stopped",
+ "seed": 0,
+ "segment_decisions": 4,
+ "selection_log": [
+  {
+   "default_after": "simple",
+   "mode": null,
+   "n_units": 0,
+   "ran": false,
+   "reason": "no experiment is recorded in the experience store"
+  },
+  {
+   "default_after": "simple",
+   "mode": null,
+   "n_units": 0,
+   "ran": false,
+   "reason": "no held-out randomised unit (matured return; lifetime or segment that no estimator and no learner trained on; logged propensities) and no randomised experiment has 2 or more matured held-out units in each arm (held out by lifetime or segment); the default stays simple"
+  },
+  {
+   "default_after": "simple",
+   "mode": null,
+   "n_units": 0,
+   "ran": false,
+   "reason": "no held-out randomised unit (matured return; lifetime or segment that no estimator and no learner trained on; logged propensities) and no randomised experiment has 2 or more matured held-out units in each arm (held out by lifetime or segment); the default stays simple"
+  },
+  {
+   "default_after": "simple",
+   "mode": null,
+   "n_units": 0,
+   "ran": false,
+   "reason": "no held-out randomised unit (matured return; lifetime or segment that no estimator and no learner trained on; logged propensities) and no randomised experiment has 2 or more matured held-out units in each arm (held out by lifetime or segment); the default stays simple"
+  },
+  {
+   "default_after": "simple",
+   "mode": null,
+   "n_units": 0,
+   "ran": false,
+   "reason": "no held-out randomised unit (matured return; lifetime or segment that no estimator and no learner trained on; logged propensities) and no randomised experiment has 2 or more matured held-out units in each arm (held out by lifetime or segment); the default stays simple"
+  }
+ ],
+ "split": "segment",
+ "steps": 41,
+ "stopped_by_wall": true,
+ "summary": {
+  "decisions": 39,
+  "expected_adopters_per_decision": {
+   "first_half": 0.652725389322308,
+   "last_quarter": 1.8699973513901706,
+   "second_half": 1.4088037559478042
+  },
+  "expected_adopters_total": 40.57785751607993,
+  "n_act": 34,
+  "n_unlock": 0,
+  "ops": {
+   "lab.act": 34,
+   "lab.noise": 1,
+   "lab.probe": 4
+  },
+  "oracle_rate_mean": 6.291187570855041,
+  "unlock_index": null
+ },
+ "trained_units": 10,
+ "truth_rows": [
+  {
+   "arguments": {
+    "channel": 0
+   },
+   "failure": "none",
+   "i": 0,
+   "operation": "lab.probe",
+   "oracle_rate": 6.291187570855041,
+   "status": "ok",
+   "t": 1800000000.0
+  },
+  {
+   "arguments": {
+    "channel": 2
+   },
+   "failure": "none",
+   "i": 1,
+   "operation": "lab.probe",
+   "oracle_rate": 6.291187570855041,
+   "status": "ok",
+   "t": 1800000600.0
+  },
+  {
+   "arguments": {
+    "channel": 2,
+    "effort": 3
+   },
+   "expected_adopters": 0.8760306275508343,
+   "failure": "none",
+   "i": 2,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.2920102091836114,
+   "status": "ok",
+   "t": 1800001200.0
+  },
+  {
+   "arguments": {
+    "channel": 2,
+    "effort": 3
+   },
+   "expected_adopters": 0.8760306275508343,
+   "failure": "none",
+   "i": 3,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.2920102091836114,
+   "status": "ok",
+   "t": 1800004800.0
+  },
+  {
+   "arguments": {
+    "channel": 4,
+    "effort": 3
+   },
+   "expected_adopters": 0.15727968927137603,
+   "failure": "none",
+   "i": 4,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.05242656309045868,
+   "status": "ok",
+   "t": 1800008400.0
+  },
+  {
+   "arguments": {
+    "channel": 0,
+    "effort": 3
+   },
+   "expected_adopters": 0.629478624026854,
+   "failure": "none",
+   "i": 5,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.2098262080089513,
+   "status": "ok",
+   "t": 1800012000.0
+  },
+  {
+   "arguments": {
+    "channel": 0,
+    "effort": 3
+   },
+   "expected_adopters": 0.629478624026854,
+   "failure": "none",
+   "i": 6,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.2098262080089513,
+   "status": "ok",
+   "t": 1800015600.0
+  },
+  {
+   "arguments": {
+    "channel": 4,
+    "effort": 3
+   },
+   "expected_adopters": 0.15727968927137603,
+   "failure": "none",
+   "i": 7,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.05242656309045868,
+   "status": "ok",
+   "t": 1800019200.0
+  },
+  {
+   "arguments": {
+    "channel": 3,
+    "effort": 3
+   },
+   "expected_adopters": 1.5582263569859427,
+   "failure": "none",
+   "i": 8,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.5194087856619809,
+   "status": "ok",
+   "t": 1800022800.0
+  },
+  {
+   "arguments": {
+    "channel": 1,
+    "effort": 3
+   },
+   "expected_adopters": 2.776163339416568,
+   "failure": "none",
+   "i": 9,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.9253877798055228,
+   "status": "ok",
+   "t": 1800026400.0
+  },
+  {
+   "arguments": {
+    "channel": 0,
+    "effort": 3
+   },
+   "expected_adopters": 0.629478624026854,
+   "failure": "none",
+   "i": 10,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.2098262080089513,
+   "status": "ok",
+   "t": 1800030000.0
+  },
+  {
+   "arguments": {
+    "channel": 4,
+    "effort": 3
+   },
+   "expected_adopters": 0.15727968927137603,
+   "failure": "none",
+   "i": 11,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.05242656309045868,
+   "status": "ok",
+   "t": 1800033600.0
+  },
+  {
+   "arguments": {
+    "channel": 0,
+    "effort": 3
+   },
+   "expected_adopters": 0.629478624026854,
+   "failure": "none",
+   "i": 12,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.2098262080089513,
+   "status": "ok",
+   "t": 1800037200.0
+  },
+  {
+   "arguments": {
+    "channel": 0,
+    "effort": 3
+   },
+   "expected_adopters": 0.629478624026854,
+   "failure": "none",
+   "i": 13,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.2098262080089513,
+   "status": "ok",
+   "t": 1800040800.0
+  },
+  {
+   "arguments": {
+    "channel": 0,
+    "effort": 3
+   },
+   "expected_adopters": 0.629478624026854,
+   "failure": "none",
+   "i": 14,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.2098262080089513,
+   "status": "ok",
+   "t": 1800044400.0
+  },
+  {
+   "arguments": {
+    "channel": 4,
+    "effort": 3
+   },
+   "expected_adopters": 0.15727968927137603,
+   "failure": "none",
+   "i": 15,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.05242656309045868,
+   "status": "ok",
+   "t": 1800048000.0
+  },
+  {
+   "arguments": {
+    "channel": 4,
+    "effort": 3
+   },
+   "expected_adopters": 0.15727968927137603,
+   "failure": "none",
+   "i": 16,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.05242656309045868,
+   "status": "ok",
+   "t": 1800051600.0
+  },
+  {
+   "arguments": {
+    "channel": 2,
+    "effort": 3
+   },
+   "expected_adopters": 0.8760306275508343,
+   "failure": "none",
+   "i": 17,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.2920102091836114,
+   "status": "ok",
+   "t": 1800055200.0
+  },
+  {
+   "arguments": {
+    "channel": 2,
+    "effort": 3
+   },
+   "expected_adopters": 0.8760306275508343,
+   "failure": "none",
+   "i": 18,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.2920102091836114,
+   "status": "ok",
+   "t": 1800058800.0
+  },
+  {
+   "arguments": {
+    "channel": 2,
+    "effort": 3
+   },
+   "expected_adopters": 0.8760306275508343,
+   "failure": "none",
+   "i": 19,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.2920102091836114,
+   "status": "ok",
+   "t": 1800062400.0
+  },
+  {
+   "arguments": {
+    "channel": 2,
+    "effort": 3
+   },
+   "expected_adopters": 0.8760306275508343,
+   "failure": "none",
+   "i": 20,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.2920102091836114,
+   "status": "ok",
+   "t": 1800066000.0
+  },
+  {
+   "arguments": {
+    "channel": 2,
+    "effort": 3
+   },
+   "expected_adopters": 0.8760306275508343,
+   "failure": "none",
+   "i": 21,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.2920102091836114,
+   "status": "ok",
+   "t": 1800069600.0
+  },
+  {
+   "arguments": {
+    "channel": 2
+   },
+   "failure": "none",
+   "i": 22,
+   "operation": "lab.probe",
+   "oracle_rate": 6.291187570855041,
+   "status": "ok",
+   "t": 1800073200.0
+  },
+  {
+   "arguments": {
+    "channel": 1,
+    "effort": 3
+   },
+   "expected_adopters": 2.776163339416568,
+   "failure": "none",
+   "i": 23,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.9253877798055228,
+   "status": "ok",
+   "t": 1800073800.0
+  },
+  {
+   "arguments": {
+    "channel": 1,
+    "effort": 3
+   },
+   "expected_adopters": 2.776163339416568,
+   "failure": "none",
+   "i": 24,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.9253877798055228,
+   "status": "ok",
+   "t": 1800077400.0
+  },
+  {
+   "arguments": {
+    "channel": 2,
+    "effort": 3
+   },
+   "expected_adopters": 0.8760306275508343,
+   "failure": "none",
+   "i": 25,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.2920102091836114,
+   "status": "ok",
+   "t": 1800081000.0
+  },
+  {
+   "arguments": {
+    "channel": 2
+   },
+   "failure": "none",
+   "i": 26,
+   "operation": "lab.probe",
+   "oracle_rate": 6.291187570855041,
+   "status": "ok",
+   "t": 1800084600.0
+  },
+  {
+   "arguments": {
+    "channel": 0,
+    "effort": 2
+   },
+   "expected_adopters": 0.4196524160179026,
+   "failure": "none",
+   "i": 27,
+   "money": 4.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.2098262080089513,
+   "status": "ok",
+   "t": 1800085200.0
+  },
+  {
+   "arguments": {},
+   "failure": "none",
+   "i": 28,
+   "operation": "lab.noise",
+   "oracle_rate": 6.291187570855041,
+   "status": "ok",
+   "t": 1800088800.0
+  },
+  {
+   "arguments": {
+    "channel": 1,
+    "effort": 3
+   },
+   "expected_adopters": 2.776163339416568,
+   "failure": "none",
+   "i": 29,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.9253877798055228,
+   "status": "ok",
+   "t": 1800091200.0
+  },
+  {
+   "arguments": {
+    "channel": 3,
+    "effort": 3
+   },
+   "expected_adopters": 1.5582263569859427,
+   "failure": "none",
+   "i": 30,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.5194087856619809,
+   "status": "ok",
+   "t": 1800094800.0
+  },
+  {
+   "arguments": {
+    "channel": 1,
+    "effort": 3
+   },
+   "expected_adopters": 2.776163339416568,
+   "failure": "none",
+   "i": 31,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.9253877798055228,
+   "status": "ok",
+   "t": 1800098400.0
+  },
+  {
+   "arguments": {
+    "channel": 2,
+    "effort": 3
+   },
+   "expected_adopters": 0.8760306275508343,
+   "failure": "none",
+   "i": 32,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.2920102091836114,
+   "status": "ok",
+   "t": 1800102000.0
+  },
+  {
+   "arguments": {
+    "channel": 1,
+    "effort": 3
+   },
+   "expected_adopters": 2.776163339416568,
+   "failure": "none",
+   "i": 33,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.9253877798055228,
+   "status": "ok",
+   "t": 1800105600.0
+  },
+  {
+   "arguments": {
+    "channel": 3,
+    "effort": 3
+   },
+   "expected_adopters": 1.5582263569859427,
+   "failure": "none",
+   "i": 34,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.5194087856619809,
+   "status": "ok",
+   "t": 1800109200.0
+  },
+  {
+   "arguments": {
+    "channel": 1,
+    "effort": 3
+   },
+   "expected_adopters": 2.776163339416568,
+   "failure": "none",
+   "i": 35,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.9253877798055228,
+   "status": "ok",
+   "t": 1800112800.0
+  },
+  {
+   "arguments": {
+    "channel": 1,
+    "effort": 2
+   },
+   "expected_adopters": 1.8507755596110456,
+   "failure": "none",
+   "i": 36,
+   "money": 4.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.9253877798055228,
+   "status": "ok",
+   "t": 1800116400.0
+  },
+  {
+   "arguments": {
+    "channel": 2,
+    "effort": 3
+   },
+   "expected_adopters": 0.8760306275508343,
+   "failure": "none",
+   "i": 37,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.2920102091836114,
+   "status": "ok",
+   "t": 1800120000.0
+  },
+  {
+   "arguments": {
+    "channel": 2,
+    "effort": 3
+   },
+   "expected_adopters": 0.8760306275508343,
+   "failure": "none",
+   "i": 38,
+   "money": 6.0,
+   "operation": "lab.act",
+   "oracle_rate": 6.291187570855041,
+   "rate": 0.2920102091836114,
+   "status": "ok",
+   "t": 1800123600.0
+  }
+ ],
+ "use_backbone": true,
+ "wall_seconds": 732.9552609920502,
+ "world_seed": 0
+}

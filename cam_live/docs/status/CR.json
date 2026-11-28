@@ -1,7 +1,7 @@
 {
  "workstream": "CR",
  "stage": "amendment 2026-11-28 item 4 (retrospective credit assignment)",
- "commit": "8c63508cbdb3effb43fee8502f52eaf2547da07d",
+ "commit": "f18db675d24e248373dfe2528f18eccf60813e71",
  "summary": "Diagnosis of the failed held-out estimator selection (seed-specific under-resolution of weakly heterogeneous mechanisms; a gate that rejects an ideal learner at realistic sizes; impossible by construction in the agent), learned credit inside one long open objective (segments), a blocked held-out split by segment, an estimand-matched pooled selection rule over held-out randomised units of any experiment size, a revision queue for the policy update (agent hook CR-3), a controlled policy-learning diagnostic and an integrated-agent ablation (simple vs forced RUDDER / COCOA). docs/CR.md.",
  "requirements": {
   "AM4-credit-inside-one-objective": {
@@ -50,7 +50,7 @@
     "tests/credit/test_cr.py::test_revised_credit_is_queued_for_replay_and_survives_a_checkpoint"
    ],
    "evidence": {
-    "b_runtime_c_causal": "RUDDER forced: credited policy-update rows 112 / 132 / 134 with the CR-3 line vs 28 / 35 / 35 without (seeds 0-2, 64 decisions); 3 of 96 rows in the 22-decision smoke run without it; real configuration: 80 of 179 rows credited, 41 replayed"
+    "b_runtime_c_causal": "RUDDER forced: credited policy-update rows 112 / 132 / 134 with the CR-3 line vs 28 / 35 / 35 without (seeds 0-2, 64 decisions); 3 of 96 rows in the 22-decision smoke run without it; real configuration: 80 of 179 rows credited, 41 replayed (RUDDER forced), 2 replayed under simple"
    },
    "limitations": "a revision is replayed once; frequent small revisions of a still-training decomposer queue the same records repeatedly (bounded by half a policy batch)"
   },
@@ -577,7 +577,7 @@
   "tests_credit": "155 passed, 9 skipped, 0 failed, 213 s (docs/evidence/test_results/CR_fix.xml)",
   "slow_test_cr_agent": "1 passed, 125 s",
   "patched_copy_integration": "test_int3a_audit 4/4, test_int2_wiring + test_agent_runtime + test_int2_checkpoints 20/20 on a copy with CR-1 + CR-3",
-  "cr3": "RUDDER forced: credited policy-update rows 112 / 132 / 134 with the CR-3 line vs 28 / 35 / 35 without (seeds 0-2, 64 decisions); 3 of 96 rows in the 22-decision smoke run without it; real configuration: 80 of 179 rows credited, 41 replayed",
+  "cr3": "RUDDER forced: credited policy-update rows 112 / 132 / 134 with the CR-3 line vs 28 / 35 / 35 without (seeds 0-2, 64 decisions); 3 of 96 rows in the 22-decision smoke run without it; real configuration: 80 of 179 rows credited, 41 replayed (RUDDER forced), 2 replayed under simple",
   "integrated_rudder_minus_simple_expected_adopters": "-66.8 +- 26.0 (n = 9 paired seeds, p ~ 0.03)",
   "integrated_cocoa_minus_simple_expected_adopters": "-38.2 +- 47.1 (n = 6, n.s.)",
   "lab_gate_mean_z2_seed0_48": {
@@ -605,7 +605,7 @@
   },
   "power_pass_old_gate_calibrated_2_units_per_arm": 0.6,
   "power_pass_old_gate_ideal_learner_24_per_arm": 0.79,
-  "real_configuration": "one hold, Qwen3-4B + 50m, backbone candidates on, RUDDER forced, one open objective: 39 decisions in 720 s, RUDDER credit on 28/39 records before closure, COCOA none (open-ended candidates refused), 80/179 policy-update rows credited (41 replayed by CR-3), no randomised experiment, no paired control (docs/evidence/CR/real_rudder_s0.json)"
+  "real_configuration": "two holds, Qwen3-4B + 50m, backbone candidates on, one open objective, seed 0: rudder forced 39 decisions (RUDDER credit on 28/39 records before closure, COCOA none: open-ended candidates refused, 80/179 policy rows credited, 41 replayed) and simple 40 decisions (74/140 rows credited, 2 replayed; credit-truth Pearson simple 0.64, RUDDER 0.51); no randomised experiment in either; one pair, no competence claim (docs/evidence/CR/real_*_s0.json)"
  },
  "not_done": [
   "agent.py hooks CR-1 / CR-3 are change requests (ST)",
