@@ -771,6 +771,9 @@ class PromotionDecision:
     retention: Dict[str, float] = field(default_factory=dict)
     deltas: Dict[str, float] = field(default_factory=dict)
     ignored: List[str] = field(default_factory=list)
+    #: what held-out evidence existed (``promote_learner``: held-out records per provider and whether any provider
+    #: produced a held-out loss); ``{}`` when the caller supplied its own validation metrics
+    held_out: Dict[str, Any] = field(default_factory=dict)
 
 
 #: provenance of a metric that can justify a promotion (independent of the agent's own reward)
@@ -872,7 +875,8 @@ class CheckpointManager:
         return {}, {}
 
     def promote(self, checkpoint_id: str, *, validation: Dict[str, Any], retention: Dict[str, Any],
-                notes: str = "", provenance: Optional[Dict[str, str]] = None) -> PromotionDecision:
+                notes: str = "", provenance: Optional[Dict[str, str]] = None,
+                held_out: Optional[Dict[str, Any]] = None) -> PromotionDecision:
         """Decide whether ``checkpoint_id`` becomes the promoted checkpoint.
 
         ``validation``: independent validation metrics of this checkpoint; ``retention``: its performance on
@@ -881,7 +885,9 @@ class CheckpointManager:
         provenance is in :data:`INDEPENDENT_PROVENANCE` count. The agent's own reward (:data:`INTERNAL_PROVENANCE`)
         and unknown provenances are ignored, whatever the metric is called. A plain number is the caller's
         declaration ("declared_validation" / "declared_retention"), except that an undeclared metric named like the
-        internal reward is ignored as well. The decision, the numbers and each metric's provenance are logged."""
+        internal reward is ignored as well. The decision, the numbers and each metric's provenance are logged.
+        ``held_out`` (from :func:`promote_learner`) states the held-out evidence behind ``validation``; when it says
+        there is none (``evidence`` False) the refusal names it explicitly (fail closed, as the slow-step guard)."""
         g = self.gates
         prov_used: Dict[str, str] = {}
         ignored: List[str] = []
@@ -899,7 +905,9 @@ class CheckpointManager:
         ignored = sorted(ignored)
         base = self.promoted()
         dec = PromotionDecision(False, checkpoint_id, base.checkpoint_id if base else "", validation=val, retention=ret,
-                                ignored=ignored)
+                                ignored=ignored, held_out=dict(held_out or {}))
+        if held_out is not None and not held_out.get("evidence", True):
+            dec.reasons.append("no held-out evidence: " + str(held_out.get("why") or "no provider has a held-out loss"))
         info = self.get(checkpoint_id)
         if info is None:
             dec.reasons.append("checkpoint not found")
@@ -942,7 +950,7 @@ class CheckpointManager:
         _append_log(self.root, {"event": "promote", "ts": self.clock.now(), "checkpoint_id": checkpoint_id,
                                 "promoted": dec.promoted, "baseline_id": dec.baseline_id, "validation": val,
                                 "retention": ret, "deltas": dec.deltas, "reasons": dec.reasons, "ignored": ignored,
-                                "provenance": prov_used, "notes": notes})
+                                "provenance": prov_used, "held_out": dec.held_out, "notes": notes})
         if dec.promoted:
             atomic_write_bytes(os.path.join(self.root, "PROMOTED"), checkpoint_id.encode())
             self.prune()
@@ -1078,15 +1086,31 @@ def promote_learner(manager: "CheckpointManager", learner: Any, *, retention: Di
     promoted checkpoint (weights, optimizers, schedules, fast state); experience is never rolled back.
     Returns (decision, the checkpoint that was judged, rollback report or None)."""
     provenance: Dict[str, str] = {}
+    held_out: Optional[Dict[str, Any]] = None
     if validation is None:
         validation = {}
         names = {p.name: p for p in getattr(learner, "providers", [])}
-        for k, v in learner.validate().items():
+        losses = learner.validate()
+        for k, v in losses.items():
             validation[f"heldout/neg_{k}"] = -float(v)
             provenance[f"heldout/neg_{k}"] = provider_metric_provenance(names.get(k))
+        store = getattr(learner, "store", None)
+        counts: Dict[str, int] = {}
+        if store is not None and hasattr(store, "count"):
+            for name in names:
+                try:
+                    counts[name] = int(store.count(loss="val:" + name))
+                except Exception:  # noqa: BLE001 — a store without eligibility counts: reported as unknown
+                    counts[name] = -1
+        n_rec = int(store.count()) if store is not None and hasattr(store, "count") else -1
+        held_out = {"evidence": bool(losses), "validation_records": counts, "providers_with_loss": sorted(losses),
+                    "records": n_rec}
+        if not losses:
+            held_out["why"] = (f"no provider has a held-out loss ({sum(c for c in counts.values() if c > 0)} held-out "
+                               f"provider-records among {n_rec} records)")
     info = save_learner(manager, learner, notes=notes, **capture_kw)
     dec = manager.promote(info.checkpoint_id, validation=validation, retention=retention, notes=notes,
-                          provenance=provenance)
+                          provenance=provenance, held_out=held_out)
     rb = None
     if dec.promoted and hasattr(learner, "set_slow_reference"):
         learner.set_slow_reference(info.checkpoint_id)       # the slow-update drift bound starts again here

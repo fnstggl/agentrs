@@ -141,7 +141,7 @@ def test_the_agents_experiments_reach_the_store_and_the_selection_runs_on_held_o
             assert pr["compared"] and pr["held_out"] is True and n == len(runs[x["experiment_id"]])
             assert "rudder" in pr["estimates"] and pr["paired_n"]["rudder"] == n
     assert sel["default_after"] == ag.lab.assigner.default == ev.default_after
-    assert L.trigger_state["credit_selection"]["n_evidence"] == 2
+    assert L.credit_selection["n_evidence"] == 2 and L.status()["credit_selection"] == L.credit_selection
     # a second pass with unchanged evidence neither re-runs the selection nor writes another row
     n_rows = len(ag.log())
     ag.learn(rounds=1)
@@ -185,7 +185,7 @@ def test_without_an_attached_source_nothing_changes(agents):
     ag.run_experiment(0, 4)
     ag.learn(rounds=1)
     assert ag.lab.store.experiments() == [] and ag.log() == []
-    assert ag.lab.assigner.last_evaluation is None and "credit_selection" not in ag.lab.learner.trigger_state
+    assert ag.lab.assigner.last_evaluation is None and ag.lab.learner.credit_selection == {}
     # the API also works when called directly with the records
     ev = ag.lab.assigner.evaluate_experiments(ag.experiments.records())
     assert ev.n_recorded == 1 and ev.n_experiments == 1 and not ev.ran
@@ -224,6 +224,7 @@ def test_integrated_agent_with_the_change_request_line_records_and_evaluates_its
                 assert h["held_out"] is True
         if not ev.ran:
             assert ev.reason and all(x.get("compared") or x.get("reason") for x in ev.experiments)
-        assert "credit_selection" in agent.learner.trigger_state
+        # the learner's status keeps the last pass (a later poll() rewrites trigger_state; it did in one run)
+        assert agent.learner.status()["credit_selection"].get("default") == agent.assigner.default
     finally:
         agent.close()

@@ -79,7 +79,8 @@ class LearnerSettings:
     max_steps: int = 8
     fresh_fraction: float = 0.25         # share of a batch reserved for the experience that triggered the update
     val_fraction: float = 0.15
-    val_split: str = "objective"         # "objective": whole objectives are held out; "record": single records
+    val_split: str = "objective"         # "objective": whole objectives are held out; "record": single records,
+                                         # stratified within each objective (every 1/val_fraction-th record, INT3A-5)
     holdout_experiments: bool = True     # lifetimes with a decision of a registered randomised experiment are always
                                          # held out: they validate the credit estimators (RC-08), so nothing trains on them
     val_batch: int = 32
@@ -220,6 +221,8 @@ class ContinualLearner:
         self._hash_cache: Tuple[Any, Dict[str, str]] = (None, {})
         self._probe_cache: Tuple[Any, Dict[str, Tensor]] = (None, {})
         self._xobj: Tuple[Any, frozenset] = (None, frozenset())
+        self._val_cache: Dict[Tuple[str, int, float], bool] = {}      # record split decisions (history is immutable)
+        self.credit_selection: Dict[str, Any] = {}                      # last estimator-selection pass (RC-08)
         self.slow_guard_state: Dict[str, Any] = self._fresh_guard_state()
         #: objectives with a record in a batch that a parameter step was taken on (never validation data)
         self.trained_objectives: set = set()
@@ -306,13 +309,42 @@ class ContinualLearner:
 
     def is_validation(self, rec: ExperienceRecord) -> bool:
         """Held out from training: every lifetime of a registered randomised experiment (``holdout_experiments``),
-        and a seeded hash split of the rest (whole objectives by default)."""
+        and a seeded split of the rest: whole objectives by a hash (``val_split="objective"``), or single records
+        stratified within their objective (``val_split="record"``, :meth:`_record_held_out`)."""
         if self.settings.holdout_experiments:
             if rec.decision.experiment_id or (rec.objective_id and rec.objective_id in self.experiment_objectives()):
                 return True
+        if self.settings.val_split != "objective" and rec.objective_id and int(rec.seq or 0) > 0 \
+                and hasattr(self.store, "position_in_objective"):
+            return self._record_held_out(rec)
         key = rec.objective_id if (self.settings.val_split == "objective" and rec.objective_id) else rec.exp_id
         h = int(hashlib.sha1(f"{self.settings.seed}|{key}".encode()).hexdigest()[:8], 16) / 2.0 ** 32
         return h < self.settings.val_fraction
+
+    def _record_held_out(self, rec: ExperienceRecord) -> bool:
+        """Stratified record split (change request INT3A-5): the k-th stored record of an objective (k = its position
+        in the append-only history) is held out iff floor(u + (k + 1) f) > floor(u + k f), f = ``val_fraction``,
+        u = a seeded hash of the objective. Exactly every 1/f-th record of each objective is held out (fraction f,
+        up to one record), so an objective with >= ceil(1 / f) records always has a held-out record; the old
+        independent hash per record left a 14-record objective without one with probability 0.85^14 = 0.10.
+        Deterministic given the seed and the stored history; a record is on one side only."""
+        s = self.settings
+        f = float(s.val_fraction)
+        if f <= 0.0:
+            return False
+        if f >= 1.0:
+            return True
+        ck = (rec.exp_id, s.seed, f)
+        hit = self._val_cache.get(ck)
+        if hit is not None:
+            return hit
+        u = int(hashlib.sha1(f"{s.seed}|record-split|{rec.objective_id}".encode()).hexdigest()[:8], 16) / 2.0 ** 32
+        k = int(self.store.position_in_objective(rec.objective_id, int(rec.seq)))
+        out = math.floor(u + (k + 1) * f) > math.floor(u + k * f)
+        if len(self._val_cache) > 200_000:
+            self._val_cache.clear()
+        self._val_cache[ck] = out
+        return out
 
     def refresh_eligibility(self, exp_ids: Optional[Sequence[str]] = None, *, full: bool = False) -> Dict[str, int]:
         """Store, per provider, which records may be trained on (``provider.eligible`` and not held out) and which
@@ -704,11 +736,11 @@ class ContinualLearner:
         if evaluates:              # RC-08: estimator selection on held-out randomised evidence (or why it did not run)
             try:
                 ev = self.credit.evaluate_experiments()
-                self.trigger_state["credit_selection"] = {"ran": ev.ran, "default": ev.default_after,
-                                                          "n_evidence": ev.n_evidence, "reason": ev.reason[:300]}
+                self.credit_selection = {"ran": ev.ran, "default": ev.default_after, "n_evidence": ev.n_evidence,
+                                         "reason": ev.reason[:300]}
             except Exception as e:  # noqa: BLE001 — recorded (status + selection log), never silently dropped
                 err = f"{type(e).__name__}: {e}"
-                self.trigger_state["credit_selection"] = {"ran": False, "error": err[:300]}
+                self.credit_selection = {"ran": False, "error": err[:300]}
                 sel = getattr(self.credit, "selector", None)
                 if sel is not None and hasattr(sel, "log_row"):
                     sel.log_row({"evaluation": None, "selection": None, "error": err, "ts": self.clock.now()})
@@ -1011,6 +1043,7 @@ class ContinualLearner:
     def status(self) -> Dict[str, Any]:
         last = self.history[-1] if self.history else None
         return {"counters": dict(self.counters), "model_version": self.model_version, "trigger": dict(self.trigger_state),
+                "credit_selection": dict(self.credit_selection),
                 "providers": [{"name": p.name, "timescale": p.timescale, "weight": p.weight} for p in self.providers],
                 "last_update": None if last is None else {"timescale": last.timescale, "trigger": last.trigger,
                                                           "param_groups": last.param_groups, "losses": last.losses},

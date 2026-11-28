@@ -889,6 +889,12 @@ class SqliteExperienceStore:
             sql += f" LIMIT {int(limit)}"
         return [self._row(r) for r in self._q(sql, args)]
 
+    def position_in_objective(self, objective_id: str, seq: int) -> int:
+        """Number of stored records of ``objective_id`` that precede lifetime position ``seq`` (0 for the first). The
+        history is append-only, so a stored record's position never changes."""
+        return int(self._q("SELECT COUNT(*) FROM experiences WHERE objective_id=? AND seq<?",
+                           (objective_id, int(seq)))[0][0])
+
     def trajectory(self, objective_id: str) -> List[ExperienceRecord]:
         """All decisions of one objective in order (the sequence a return decomposition runs over)."""
         return self.iter_records(objective_id=objective_id)
