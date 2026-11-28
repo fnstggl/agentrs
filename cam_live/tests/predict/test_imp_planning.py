@@ -195,7 +195,10 @@ class _ToyPredictor:
         z = model.decision_latent(b, model.e_a, model.e_g)
         self.last = {"b": b, "e_a": model.e_a, "e_g": model.e_g, "z": z, "world": {"toy": True}}
 
-    def goal_values(self, z, member=None):
+    def fast_draws(self, n, generator=None):
+        return {}
+
+    def goal_values(self, z, member=None, fast_w=None, particle=None):
         return _toy_value(z)
 
 
@@ -431,3 +434,20 @@ def test_transition_prior_keeps_the_mean_and_the_checkpoint_and_makes_untried_ac
     measure("imp_transition_prior_spread_untrained", {"without": s0, "with": s1})
     measure("imp_transition_prior_spread_trained", {"seen": float(on.detach()), "never_taken": float(off.detach())})
     assert float(off) > 3.0 * float(on)
+
+
+def test_goal_values_at_the_real_latents_are_the_recorded_goal_values(lab_rig):
+    """Imagination reads the world model exactly as the real evaluation did: at the real decision latents the
+    goal value of every candidate equals ``extras["q_goal"] - extras["net_cost"]``; the per-particle path (one
+    world-model member and one fast-posterior draw per row) gives finite values that differ across draws."""
+    rig = lab_rig(n_lifetimes=2)
+    cands = rig.candidates()
+    evs = rig.evaluate(candidates=cands)
+    gv = rig.predictor.goal_values(rig.predictor.last["z"])
+    want = torch.tensor([e.extras["q_goal"] - e.extras["net_cost"] for e in evs], dtype=F64)
+    assert torch.allclose(gv[0], want, rtol=1e-6, atol=1e-8)
+    fw = rig.predictor.fast_draws(4, torch.Generator().manual_seed(0))
+    z4 = rig.predictor.last["z"].expand(4, -1, -1)
+    gp = rig.predictor.goal_values(z4, member=torch.arange(4), fast_w=fw, particle=torch.arange(4))
+    assert gp.shape == (4, len(cands)) and bool(torch.isfinite(gp).all())
+    assert float((gp - gp.mean(0)).abs().max()) > 0.0

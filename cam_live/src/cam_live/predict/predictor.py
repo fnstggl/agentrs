@@ -88,11 +88,14 @@ class _View:
 def _head_view(o: Any, exposure: Tensor, phi: Tensor, kind_ids: Tensor, real_loc: Tensor, real_scale: Tensor
                ) -> _View:
     sq = lambda t: t[:, :, 0].to(F64)                                                      # noqa: E731
-    edges = o._edges()[:, :, 0]
-    return _View(count=torch.exp(sq(o.log_rate)) * exposure.to(F64)[None], loc=sq(o.loc),
-                 logit=sq(o.logit), time=D.hazard_expected_time(o.hazard_logits[:, :, 0], edges).to(F64),
-                 cat=o._cat_mode_prob()[:, :, 0].to(F64), phi=phi[:, 0].to(F64), kind_ids=kind_ids,
-                 real_loc=real_loc.to(F64), real_scale=real_scale.to(F64))
+    count = torch.exp(sq(o.log_rate)) * exposure.to(F64)[None]
+    if bool((kind_ids == K_TTE).any()):            # the hazard and categorical read-outs only where asked for
+        time = D.hazard_expected_time(o.hazard_logits[:, :, 0], o._edges()[:, :, 0]).to(F64)
+    else:
+        time = torch.ones_like(count)
+    cat = o._cat_mode_prob()[:, :, 0].to(F64) if bool((kind_ids == max(KIND_OF_ID)).any()) else torch.zeros_like(count)
+    return _View(count=count, loc=sq(o.loc), logit=sq(o.logit), time=time, cat=cat, phi=phi[:, 0].to(F64),
+                 kind_ids=kind_ids, real_loc=real_loc.to(F64), real_scale=real_scale.to(F64))
 
 
 def _pick_members(v: _View, member: Tensor) -> _View:
@@ -387,34 +390,103 @@ class Predictor:
                      "world": ({"wb": wb, "gmask": gmask, "n": n} if (has_q and any_goal) else None)}
         return out
 
-    @torch.no_grad()
-    def goal_values(self, z: Tensor, member: Optional[Tensor] = None) -> Optional[Tensor]:
-        """[R, N] float64 net goal-relevant values of the candidates of the latest evaluation at other decision
-        latents ``z`` [R, N, D] (e.g. at imagined beliefs): the same goal-relevant questions, query encodings, scalers,
-        exposures and fast state as :meth:`evaluate_candidates`, the world model read at ``z`` instead of the real
-        decision latents, minus the same weighted cost. ``member`` [R] reads one world-model ensemble member per row
-        (a coherent imagined particle); None averages the members. None when the latest evaluation asked no
-        goal-relevant question (the value of a candidate is then its evaluator success probability)."""
+    def _goal_columns(self) -> Optional[Dict[str, Any]]:
+        """The goal-relevant columns of the latest evaluation's world batch (gmask > 0), [N, G] with padding: only
+        those enter a goal value, so imagination reads only them (cached per evaluation)."""
         w = (self.last or {}).get("world")
         if w is None:
             return None
-        wb, gmask, n = w["wb"], w["gmask"], int(w["n"])
+        if "cols" in w:
+            return w["cols"]
+        wb, gmask = w["wb"], w["gmask"]
+        n = gmask.shape[0]
+        g = max(1, int((gmask > 0).sum(-1).max()))
+        idx = torch.zeros(n, g, dtype=torch.long)
+        wgt = torch.zeros(n, g, dtype=F64)
+        for i in range(n):
+            js = torch.nonzero(gmask[i] > 0).squeeze(-1)
+            idx[i, :len(js)] = js
+            wgt[i, :len(js)] = gmask[i, js]
+        dev = wb.e_q.device
+        ix = idx.to(dev)
+        take = lambda t: torch.gather(t, 1, ix.to(t.device))                                 # noqa: E731
+        cols = {"e_q": torch.gather(wb.e_q, 1, ix[..., None].expand(n, g, wb.e_q.shape[-1])),
+                "kind": take(wb.kind_ids), "horizon": take(wb.horizon_s), "expo": take(wb.meta.exposure),
+                "ncat": take(wb.meta.n_categories), "rl": take(wb.real_loc), "rs": take(wb.real_scale),
+                "w": wgt.to(dev), "n": n, "g": g}
+        w["cols"] = cols
+        return cols
+
+    @torch.no_grad()
+    def fast_draws(self, n: int, generator: Optional[torch.Generator] = None) -> Dict[str, Tensor]:
+        """[n, F] posterior draws of the fast layer's weights per outcome kind of the goal-relevant questions of
+        the latest evaluation (one per imagined particle; empty without a fast state)."""
+        cols = self._goal_columns()
+        if cols is None or self.fast is None:
+            return {}
+        out: Dict[str, Tensor] = {}
+        for k in sorted({KIND_OF_ID[int(x)] for x in torch.unique(cols["kind"])}):
+            if k in (OutcomeKind.REAL, OutcomeKind.COUNT, OutcomeKind.BINARY, OutcomeKind.TIME_TO_EVENT) and \
+                    self._supports(self.fast, k):
+                out[k] = self.fast.sample_weights(n, k, generator)
+        return out
+
+    @torch.no_grad()
+    def goal_values(self, z: Tensor, member: Optional[Tensor] = None, fast_w: Optional[Dict[str, Tensor]] = None,
+                    particle: Optional[Tensor] = None) -> Optional[Tensor]:
+        """[R, N] float64 net goal-relevant values of the candidates of the latest evaluation at other decision
+        latents ``z`` [R, N, D] (e.g. at imagined beliefs): the same goal-relevant questions, query encodings, scalers
+        and exposures as :meth:`evaluate_candidates`, the world model read at ``z`` instead of the real decision
+        latents, minus the same weighted cost. Without ``member`` / ``fast_w`` the value is the combined predictive
+        mean (world-model members averaged, fast posterior mean: the number ``extras["q_goal"]`` holds at the real
+        latents). With ``member`` [R] (world-model ensemble member per row) and ``fast_w`` (:meth:`fast_draws`) with
+        ``particle`` [R] (which draw per row) it is one coherent sampled model per row, as in the Thompson samples.
+        None when the latest evaluation asked no goal-relevant question."""
+        cols = self._goal_columns()
+        if cols is None:
+            return None
+        n, g = cols["n"], cols["g"]
         r, n_z, d = z.shape
         if n_z != n:
             raise ValueError(f"goal_values: {n_z} candidates given, the latest evaluation had {n}")
         rep = lambda t: t.repeat((r,) + (1,) * (t.dim() - 1))                               # noqa: E731
         z1 = z.reshape(r * n, d).unsqueeze(1)
-        e_q, kind = rep(wb.e_q), rep(wb.kind_ids)
-        expo, rl, rs = rep(wb.meta.exposure), rep(wb.real_loc), rep(wb.real_scale)
+        e_q, kind, expo, rl, rs = rep(cols["e_q"]), rep(cols["kind"]), rep(cols["expo"]), rep(cols["rl"]), rep(cols["rs"])
         phi = self.model.features(z1, e_q)
-        out = self.heads.world(z1, e_q, kind, rep(wb.horizon_s), phi if self.heads.world.in_phi is not None else None,
-                               exposure=expo, n_categories=rep(wb.meta.n_categories), real_loc=rl, real_scale=rs)
+        out = self.heads.world(z1, e_q, kind, rep(cols["horizon"]), phi if self.heads.world.in_phi is not None
+                               else None, exposure=expo, n_categories=rep(cols["ncat"]), real_loc=rl, real_scale=rs)
         v = _head_view(out, expo, phi, kind, rl, rs)
         if member is not None:
             v = _pick_members(v, member.repeat_interleave(n))
-        mean, _ = self._means(v, self.fast)
-        g = (mean * rep(gmask).to(mean.device)).sum(-1).reshape(r, n).cpu()
-        return g - self.last["net_cost"].to(g.dtype)[None]
+        if fast_w is None or particle is None:
+            mean, _ = self._means(v, self.fast)
+        else:
+            mean = self._row_sample(v, fast_w, particle.repeat_interleave(n))
+        gsum = (mean * rep(cols["w"]).to(mean.device)).sum(-1).reshape(r, n).cpu()
+        return gsum - self.last["net_cost"].to(gsum.dtype)[None]
+
+    def _row_sample(self, v: _View, w: Dict[str, Tensor], row_draw: Tensor) -> Tensor:
+        """[R, Q] predictive means of one sampled model per row: the view's member (``_pick_members``) and the fast
+        weight draw ``w[kind][row_draw]`` (the per-row analogue of :meth:`_samples`)."""
+        kid, phi = v.kind_ids, v.phi
+        def lin(kind: str) -> Optional[Tensor]:
+            if kind not in w:
+                return None
+            wr = w[kind].to(phi.device)[row_draw.to(phi.device)]                              # [R, F]
+            return torch.einsum("rqf,rf->rq", phi, wr)
+        hm = lambda t: t.mean(0)                                                              # noqa: E731
+        lr = lin(OutcomeKind.REAL)
+        out = (hm(v.loc) + (lr if lr is not None else 0.0)) * v.real_scale + v.real_loc
+        lc = lin(OutcomeKind.COUNT)
+        out = torch.where(kid == K_COUNT, hm(v.count) * (torch.exp(lc.clamp(max=30.0)) if lc is not None else 1.0), out)
+        lb = lin(OutcomeKind.BINARY)
+        shift = 0.0
+        if lb is not None:
+            shift = lb - self._ref.linear(phi, OutcomeKind.BINARY)[0]
+        out = torch.where(kid == K_BINARY, torch.sigmoid(hm(v.logit) + shift), out)
+        lt = lin(OutcomeKind.TIME_TO_EVENT)
+        out = torch.where(kid == K_TTE, hm(v.time) * (torch.exp(-lt.clamp(min=-30.0)) if lt is not None else 1.0), out)
+        return torch.where(kid == max(KIND_OF_ID), hm(v.cat), out)
 
     @staticmethod
     def _goal_mask(canon: List[List[OutcomeQuery]], wb: WorldBatch) -> Tensor:

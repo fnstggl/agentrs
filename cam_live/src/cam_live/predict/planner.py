@@ -12,8 +12,9 @@ or, when the decision asks no goal-relevant question, the evaluator's success pr
     continuation value   C_i^p = sum_{k=1..H} v_p(b_k^{i,p}, a_k^{i,p})      (goal values: additive progress)
                          C_i^p = max_j v_p(b_H^{i,p}, a_j)                   (success probabilities: terminal)
 
-where particle p follows transition ensemble member p mod M_T and reads world-model ensemble member p mod M_W
-(a coherent sampled model: epistemic uncertainty; the transition's aleatoric noise is added only with
+where particle p follows transition ensemble member p mod M_T, reads world-model ensemble member p mod M_W and the
+p-th draw of the fast posterior's weights (a coherent sampled model: epistemic uncertainty, read only at the
+goal-relevant questions; the transition's aleatoric noise is added only with
 ``imagination_aleatoric``), and an imagined step whose action would end after the objective's deadline adds
 nothing. ``H`` is the horizon the :class:`HorizonController` allows: it starts at one imagined transition (a two-
 action look-ahead) and grows only while the measured error of imagination on held-out *real* sequences stays under
@@ -337,11 +338,9 @@ class LatentPlanner:
         m_t = heads.transition.n_members
         m_w = heads.world.cfg.n_members
         p = max(1, int(n_particles or cfg.imagination_particles))
-        if not cfg.imagination_aleatoric:
-            p = min(p, m_t * m_w)                     # without aleatoric noise a particle is a (member, member) pair
         r = n * p                                     # row = first candidate * P + particle
-        part = torch.arange(r, device=dev) % p
-        mem_t0, mem_w0 = part % m_t, part % m_w
+        part = torch.arange(r, device=dev) % p        # particle p: transition member p mod M_T, world member
+                                                      # p mod M_W, fast-posterior draw p (one sampled model)
         left = float((deadline - now) if deadline is not None else cfg.default_horizon_s)
         f_scale = max(float(objective_scale), 1.0)
         feas_idx = torch.nonzero(feas).squeeze(-1)
@@ -363,21 +362,24 @@ class LatentPlanner:
                 nxt = out.member_mean[mt.to(out.member_mean.device), torch.arange(z.shape[0], device=dev)]
             return nxt, out.epistemic_var.sqrt().mean(-1)
 
-        def values(z_all: Tensor, hz: Tensor, mw: Tensor) -> Tensor:                         # [rows, N] float64
+        fast_w = predictor.fast_draws(p, generator) if goal_mode else {}
+
+        def values(z_all: Tensor, hz: Tensor, prt: Tensor) -> Tensor:                        # [rows, N] float64
             if goal_mode:
-                return predictor.goal_values(z_all, member=mw).to(dev)
+                return predictor.goal_values(z_all, member=prt % m_w, fast_w=fast_w or None,
+                                             particle=prt if fast_w else None).to(dev)
             rows = z_all.shape[0]
             ev = heads.evaluator.forward_candidates(z_all, e_g.expand(rows, d), hz.clamp_min(1.0),
                                                     scale=torch.full((rows,), f_scale, device=dev))
             return ev.p_success.double() - cost[None]
 
-        def search(parts: Tensor, elapsed: Tensor, mt: Tensor, mw: Tensor, depth: int):
+        def search(parts: Tensor, elapsed: Tensor, prt: Tensor, depth: int):
             """Best imagined continuation of every row over ``depth`` more actions: (value [rows], first action of
             it [rows], summed transition epistemic std [rows], elapsed time at its end [rows], belief at its end)."""
             rows = parts.shape[0]
             ar = torch.arange(rows, device=dev)
             z_all = model.decision_latent(parts, e_a.expand(rows, n, d), e_g.expand(rows, d))       # [rows, N, D]
-            v = values(z_all, (left - elapsed).to(F64), mw)
+            v = values(z_all, (left - elapsed).to(F64), prt)
             fm = feas[None].expand(rows, n)
             ninf = torch.full_like(v, float("-inf"))
             if goal_mode:                             # additive progress; an action ending after the deadline adds 0
@@ -407,16 +409,16 @@ class LatentPlanner:
             self.last_search["levels"].append({"rows": rows, "children": wk})
             rr = ar.repeat_interleave(wk)
             act = kids.reshape(-1)
-            nb, e1 = step(z_all[rr, act], dt[act], parts[rr], mt[rr])
-            sub_v, _, sub_e, sub_el, sub_b = search(nb, elapsed[rr] + dt[act], mt[rr], mw[rr], depth - 1)
+            nb, e1 = step(z_all[rr, act], dt[act], parts[rr], prt[rr] % m_t)
+            sub_v, _, sub_e, sub_el, sub_b = search(nb, elapsed[rr] + dt[act], prt[rr], depth - 1)
             tot = (gain[rr, act] + sub_v).reshape(rows, wk)
             j = tot.argmax(-1)
             pick = ar * wk + j
             return tot.max(-1).values, kids[ar, j], (e1 + sub_e)[pick], sub_el[pick], sub_b[pick]
 
         first = torch.arange(n, device=dev).repeat_interleave(p)
-        parts, epi0 = step(z0[0][first], dt[first], b0.expand(r, d), mem_t0)
-        cont, nxt_idx, epi_rest, elapsed, parts = search(parts, dt[first].clone(), mem_t0, mem_w0, steps)
+        parts, epi0 = step(z0[0][first], dt[first], b0.expand(r, d), part % m_t)
+        cont, nxt_idx, epi_rest, elapsed, parts = search(parts, dt[first].clone(), part, steps)
         epi = epi0 + epi_rest
         hz = (left - elapsed).clamp_min(1.0)
         val = heads.evaluator(parts, e_g.expand(r, d), hz, scale=torch.full((r,), f_scale, device=dev)).p_success.double()
