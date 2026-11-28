@@ -667,3 +667,18 @@ def test_validate_has_options_for_lifetimes_and_meta_evidence_and_working_defaul
     assert cli.main(["validate", "--mode", "staging", "--debug", "--lab-lifetimes", "5", "--compute-limit-s", "40",
                      "--meta-min-independent", "2", "--out", str(tmp_path / "v")]) == 1
     assert seen["lab_lifetimes"] == 5 and seen["compute_limit_s"] == 40.0 and seen["meta_min_independent"] == 2
+
+
+def test_the_storage_thresholds_follow_the_configuration_and_the_environment_can_only_tighten_them(monkeypatch):
+    """p03 check 5: `cam-live export-checkpoint` ignored CAM_LIVE_MIN_FREE_GB (the configuration's 20 GB won)."""
+    from cam_live.config import CamLiveConfig
+    from cam_live.runtime.doctor import storage_thresholds
+    from cam_live.runtime.loop import RuntimeConfig
+    cfg = CamLiveConfig.load(os.path.join(PROJECT, "configs", "cam_live.yaml"))
+    monkeypatch.delenv("CAM_LIVE_MIN_FREE_GB", raising=False)
+    monkeypatch.delenv("CAM_LIVE_WARN_FREE_GB", raising=False)
+    assert storage_thresholds(cfg) == (20.0, 50.0)
+    monkeypatch.setenv("CAM_LIVE_MIN_FREE_GB", "5000")
+    monkeypatch.setenv("CAM_LIVE_WARN_FREE_GB", "1")
+    assert storage_thresholds(cfg) == (5000.0, 50.0)
+    assert RuntimeConfig.from_any(cfg).min_free_gb == 5000.0

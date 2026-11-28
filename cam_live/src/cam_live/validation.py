@@ -214,10 +214,13 @@ class _BoxedAgent:
         return self._timed("select", self._agent.select, *a)
 
     def _budgeted(self, kind: str, budget_s: float) -> Any:
-        b = min(float(budget_s), self._box.left() - self._box.expect(kind + "_overrun"))
-        if b < 1.0:
-            self._box.skip(kind)
-            return []
+        b = float(budget_s)
+        room = self._box.left() - self._box.expect(kind + "_overrun")
+        if room < b:                       # the box, not the runtime's own budget, is what limits this call
+            if room < 1.0:
+                self._box.skip(kind)
+                return []
+            b = room
         t = time.time()
         try:
             return getattr(self._agent, kind)(b)

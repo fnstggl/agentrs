@@ -16,7 +16,7 @@ import platform
 import pwd
 import shutil
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..config import GPU_LOCK_PATH, PROJECT_ROOT, CamLiveConfig
 from ..harness import SERVICE_MODULES, SERVICE_USERS
@@ -29,6 +29,24 @@ HARNESS_MODULES = ("cam_live.harness.env", "cam_live.harness.service", "cam_live
                    "cam_live.harness.auth.policy", "cam_live.harness.auth.service", "cam_live.harness.auth.launcher",
                    "cam_live.agent", "cam_live.validation")
 CAP_SYS_ADMIN, CAP_NET_ADMIN, CAP_SETUID, CAP_SETGID = 21, 12, 7, 6
+
+
+
+def storage_thresholds(cfg: Any) -> Tuple[float, float]:
+    """(min_free_gb, warn_free_gb) of the storage guard: the configuration's ``storage`` section (defaults of
+    ``cam_live.storage``); ``CAM_LIVE_MIN_FREE_GB`` / ``CAM_LIVE_WARN_FREE_GB``, when set, can only make it stricter."""
+    from ..storage import DEFAULT_MIN_FREE_GB, DEFAULT_WARN_FREE_GB
+    st = (cfg.section("storage") if hasattr(cfg, "section") else cfg if isinstance(cfg, dict) else {}) or {}
+    out = []
+    for key, env, default in (("min_free_gb", "CAM_LIVE_MIN_FREE_GB", DEFAULT_MIN_FREE_GB),
+                              ("warn_free_gb", "CAM_LIVE_WARN_FREE_GB", DEFAULT_WARN_FREE_GB)):
+        v = float(st.get(key, default))
+        try:
+            v = max(v, float(os.environ[env])) if os.environ.get(env) else v
+        except ValueError:
+            pass
+        out.append(v)
+    return out[0], out[1]
 
 
 def _check(name: str, ok: Optional[bool], detail: str, needed_for: str = "") -> Dict[str, Any]:
@@ -97,10 +115,7 @@ def storage_checks(cfg: CamLiveConfig) -> List[Dict[str, Any]]:
     while not os.path.exists(probe):
         probe = os.path.dirname(probe)
     du = shutil.disk_usage(probe)
-    st = (cfg.section("storage") if hasattr(cfg, "section") else {}) or {}
-    from ..storage import DEFAULT_MIN_FREE_GB, DEFAULT_WARN_FREE_GB
-    min_gb = float(st.get("min_free_gb", DEFAULT_MIN_FREE_GB))      # the storage rule's thresholds, not a constant
-    warn_gb = float(st.get("warn_free_gb", DEFAULT_WARN_FREE_GB))
+    min_gb, warn_gb = storage_thresholds(cfg)                       # the storage rule's thresholds, not a constant
     free = du.free / 2**30
     out = [_check("disk", free >= min_gb, f"{free:.0f} GB free of {du.total / 2**30:.0f} GB at {probe} "
                                           f"(minimum {min_gb:g} GB, warning below {warn_gb:g} GB"

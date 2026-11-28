@@ -138,10 +138,10 @@ class RuntimeConfig:
             return cls()
         d = dict(cfg.section("runtime")) if hasattr(cfg, "section") else dict(cfg)
         if hasattr(cfg, "section"):                    # the storage thresholds live in their own section
-            st = cfg.section("storage") or {}
-            for k in ("min_free_gb", "warn_free_gb"):
-                if k in st and k not in d:
-                    d[k] = st[k]
+            from .doctor import storage_thresholds     # (the environment can only make them stricter)
+            mn, wn = storage_thresholds(cfg)
+            d.setdefault("min_free_gb", mn)
+            d.setdefault("warn_free_gb", wn)
         known = {f.name for f in dataclasses.fields(cls)}
         return cls(**{k: v for k, v in d.items() if k in known})
 

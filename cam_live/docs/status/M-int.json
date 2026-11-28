@@ -68,16 +68,24 @@
    ],
    "tests": [
     "tests/runtime/test_int3b_ops.py::test_a_resource_limit_counts_only_when_it_is_not_the_decision_budget",
-    "tests/integration/test_int2_queries.py::test_a_result_after_approval_is_recorded_without_rewriting_history"
+    "tests/integration/test_int2_queries.py::test_a_result_after_approval_is_recorded_without_rewriting_history",
+    "tests/runtime/test_int3b_round2.py::test_validate_has_options_for_lifetimes_and_meta_evidence_and_working_defaults",
+    "tests/runtime/test_int3b_round2.py::test_the_validation_holds_the_gpu_no_longer_than_its_budget_within_a_step",
+    "tests/runtime/test_int3b_round2.py::test_the_operators_approval_grant_is_used_so_the_budget_is_not_reserved_twice",
+    "tests/integration/test_int3b_validation.py::test_the_harness_navigation_takes_nothing_from_the_objectives_external_actions"
    ],
    "commands": [
-    "cam-live validate --mode staging --real-model --decisions 40 --budget-s 840 --meta-min-independent 3 --computer-share 0.2 (run 1); run_staging(real_model=True, n_decisions=46, budget_s=840, computer_share=0.22, lab_seeds=(101..106), lab_target=(6,30,10,40,8,20), meta_min_independent=3, compute_limit_s=140) (run 2)"
+    "cam-live validate --mode staging --real-model --decisions 40 --budget-s 840 --meta-min-independent 3 --computer-share 0.2 (run 1); run_staging(real_model=True, n_decisions=46, budget_s=840, computer_share=0.22, lab_seeds=(101..106), lab_target=(6,30,10,40,8,20), meta_min_independent=3, compute_limit_s=140) (run 2)",
+    "CAM_LIVE_HOME=<scratch> cam-live validate --mode staging --real-model (INT3B round 2: the defaults; run 3)"
    ],
    "evidence": [
     "docs/evidence/validation/staging_20261128T005844Z.json",
-    "docs/evidence/test_results/INT3B_fix.xml"
+    "docs/evidence/test_results/INT3B_fix.xml",
+    "docs/evidence/validation/staging_20261128T051702Z.json",
+    "docs/evidence/validation/staging_20261128T051613Z_cpu.json",
+    "docs/evidence/test_results/INT3B_fix2.xml"
    ],
-   "limitations": "INT3B real-configuration staging validation, run 2 (staging_20261128T005844Z.json, worktree 3e29595 = INT3B fc96aeb + INT3A, lock 809 s, peak 18.7 GB): 15 of 16 checks hold, NOT passed. Hold now: resource_limit_exercised (computer phase ended by limit compute_s exhausted), meta_update_applied (2 applied, meta-gradient norms 40.7 / 15.4, psi deltas 0.097 / 0.062), meta_step_changes_policy (mean TV 0.22 / 0.011) - with meta_min_independent_outcomes 3 and six LabWorld lifetimes drained to signed verdicts (documented staging-scale configuration; live default 8). Fails: approvals_exercised (1 approval requested and approved, after the compute limit had ended the objective: not executed; none rejected). Run 1 (staging_20261128T004747Z.json, 4 lifetimes): 13 of 16 (meta checks and approvals failed)."
+   "limitations": "INT3B round 2 (G2I-3 / G2I-11 / G2I-15, da6ebb6): the computer phase is an approvals objective (operator = OperatorControl, every 2nd request rejected, stopped once both outcomes happened) followed by a compute-limited objective; the harness's navigation is added to the objective's limit; the approval's grant is used (no double reservation); defaults 48 decisions, six lifetimes, 3 independent groups, budget 840 s; the hold is bounded by budget_s within steps. Run 3 = the default command on the real configuration (staging_20261128T051702Z.json, load average ~41 from other tenants): 13 of 16, NOT passed - approvals_exercised fails (one approval request in 7 decisions: approved and executed; no second request, so no rejection; the learner's choices are not steered), meta_update_applied / meta_step_changes_policy fail (only 2 of 6 lifetimes ran in the time box); lock 685 s of 840 (G2-integration run A: 1095 s of 780). CPU debug run with the same defaults: 16 of 16 (plumbing check, not evidence about learning). Earlier: INT3B real-configuration staging validation, run 2 (staging_20261128T005844Z.json, worktree 3e29595 = INT3B fc96aeb + INT3A, lock 809 s, peak 18.7 GB): 15 of 16 checks hold, NOT passed. Hold now: resource_limit_exercised (computer phase ended by limit compute_s exhausted), meta_update_applied (2 applied, meta-gradient norms 40.7 / 15.4, psi deltas 0.097 / 0.062), meta_step_changes_policy (mean TV 0.22 / 0.011) - with meta_min_independent_outcomes 3 and six LabWorld lifetimes drained to signed verdicts (documented staging-scale configuration; live default 8). Fails: approvals_exercised (1 approval requested and approved, after the compute limit had ended the objective: not executed; none rejected). Run 1 (staging_20261128T004747Z.json, 4 lifetimes): 13 of 16 (meta checks and approvals failed)."
   },
   "NA-06": {
    "state": "implemented",
@@ -770,6 +778,8 @@
    "junit": "docs/evidence/test_results/INT3B_fix.xml",
    "rt_probes": "docs/verification/repro/rt p01 / p03 / p04 / p07: 124 of 124 HOLD"
   },
-  "junit": "docs/evidence/test_results/INT3B_fix.xml"
+  "junit": "docs/evidence/test_results/INT3B_fix.xml",
+  "validation_round2": "docs/evidence/validation/staging_20261128T051702Z.json (13/16, not passed)",
+  "junit_round2": "docs/evidence/test_results/INT3B_fix2.xml (tests/runtime + tests/integration: 339 passed, 11 skipped, 0 failed, 779 s)"
  }
 }

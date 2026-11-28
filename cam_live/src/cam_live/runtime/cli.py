@@ -757,11 +757,11 @@ def _copy_tree_safe(src_dfd: int, dst: str, budget: Dict[str, int]) -> None:
 
 
 def _disk_guard(a: argparse.Namespace, path: str) -> Any:
-    """The storage guard with the configuration's thresholds (section ``storage``)."""
-    from ..storage import DEFAULT_MIN_FREE_GB, DEFAULT_WARN_FREE_GB, DiskGuard
-    st = _cfg(getattr(a, "config", "")).section("storage") or {}
-    return DiskGuard(path, float(st.get("min_free_gb", DEFAULT_MIN_FREE_GB)),
-                     float(st.get("warn_free_gb", DEFAULT_WARN_FREE_GB)))
+    """The storage guard with the configuration's thresholds (section ``storage``; the environment can only make
+    them stricter: ``doctor.storage_thresholds``)."""
+    from ..storage import DiskGuard
+    from .doctor import storage_thresholds
+    return DiskGuard(path, *storage_thresholds(_cfg(getattr(a, "config", ""))))
 
 
 def _tree_bytes(path: str) -> int:

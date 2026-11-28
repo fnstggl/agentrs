@@ -268,3 +268,76 @@ worktree at fa008fd (+ other workstreams' files as they were): **1540 tests: 144
 `tests/eval/test_meta_integrity.py::test_meta_checks_on_a_saved_run` (a 1e-5 relative tolerance exceeded by 1.1e-7
 under the thread count another module of the same process set; passes alone in 98 s): change request INT3B-5.
 Runtime probes of G-rt (`docs/verification/repro/rt/p01, p03, p04, p07`): 124 of 124 checks HOLD on the final code.
+
+## 10. Round 2 — defects of G2-runtime, G2-integration and G2-harness (R5)
+
+Each fix has a regression test that fails on a5ab772 (copy of the tree at a5ab772 with the new test files; checked
+one by one) and, where the verifier wrote a probe, the probe was re-run on the fixed tree. Tests:
+`tests/runtime/test_int3b_round2.py`, `tests/integration/test_int3b_validation.py` (browser).
+
+| defect | fix (commit) | probe at the fix |
+|---|---|---|
+| G2R-1 task disguises | NFKC + invisible / direction characters stripped, identifiers split on `_ - . : / @ ...` and camelCase, every learner-visible string scanned; invisible characters refused in identifiers and keys (93533b5) | `probe_tasks_disguise` 14/14 hold |
+| G2R-2 pre-existing members counted | only members who joined at / after the experiment's start (`measurement.window_start_ts`, else the verifier's first reading) count; a count-only baseline is logged (b741142) | `probe_verifier_live_source` A holds |
+| G2R-3 secondary metrics | retention from left_at or the verifier's own hourly cohorts; participation from aggregate message authorship (Discord source), feedback only with `collect_feedback_with_consent`; operating cost and resource use = CAM's own from the authorization ledger (wired in `verifier_service.serve` and in-process); anything not available is named "Not measured" (b741142) | B, C5, C6 hold; C1-C4 report "not measured" in the probe's set-up (its fake API answers no channel request and it builds the verifier without the ledger the services now pass) |
+| G2R-4 assigned objective unverifiable | the verifier follows an objective assigned by a command signed with the operator's key (file hash checked, task reloaded with the run rules); a forged one is refused (b741142) | `probe_next_objective` 2/2 hold |
+| G2R-5 programs bypass the external-action limit | every external step of a program counts; a program is not started at the limit (b741142) | `probe_limits_program` 3/3 hold |
+| G2R-6 redaction | JWT, HTTP Basic, OAuth (ya29), bare 32/40/48-hex values, integer ids under `*_id`, phone numbers, IPv6; prose with "token:" stays readable (1f34590) | `probe_redaction` 13/13 hold |
+| G2R-7 / R5-m2 plan report | JSON byte-exact; every CAM text in Markdown inside a code span / fenced block with terminal controls shown as escapes (34e184a) | `probe_plan_report` 6/6; g18 X6b holds |
+| G2R-8 doubled objective_finished | written once per objective (b741142) | `probe_settle_crash` 15/15 hold |
+| G2R-9 GPU holds | every learner call holds the shared lock; a hold yields between learner calls when the next one would overrun (6ee6ffd) | `probe_gpu_lease` 2 and 3 hold; 1 broken: one 2.5 s learner call against a 1 s bound (a call is not pre-empted) |
+| G2R-10 preflight spellings | environment / provenance labels and local addresses recognised in any spelling (6ee6ffd) | `probe_preflight` 7/7 hold |
+| G2R-11 dashboard 500 | error responses carry the security headers (34e184a) | `probe_dashboard` 19/19 |
+| G2R-13 --no-dedup claim | the claim is corrected (6 of 477, incl. the file-size-limit lifetime; status F.json) | not re-run (number from the verifier) |
+| G2I-14 limit refusals | an L- refusal is `resource_limit` (577d70e) | p07 4/4 hold |
+| G2I-15 approved then refused | reported as "approved by the operator, then refused by the authorization service (rule): reason" (577d70e); the cause — the approval's grant reserved the budget and the runtime's second `authorize` reserved it again — fixed in the runtime: `OperatorControl` relays the approval's grant with the signed notice and the runtime executes with it (da6ebb6); the service side is change request INT3B-6 | p08 0 broken on both new validation runs (the approved action executed with the approval's own grant; one reservation) |
+| G2I-8 / G2I-9 obstacles | unknown class informational; learning linked to an obstacle only by use of its experience (577d70e) | p04 12/12 hold |
+| storage | DiskGuard before export-checkpoint (both paths) and plan-report; doctor and the CLI use `storage.min_free_gb` / `warn_free_gb` (the environment can only tighten them) (47d5eb1, this commit) | p03 10/11: check 4 (`agent.export_weights` called directly, agent code) is change request INT3B-8 |
+| G2I-10 GPU lock path | default `<repo>/runs/gpu_heavy.lock`; on this machine that path is a symbolic link to the lock the machine uses (same inode), so the lock in use is unchanged; `CAM_LIVE_GPU_LOCK` overrides (47d5eb1) | p05 4/5: check 3 (the virtual environment is layered over another tenant's) is outside INT3B's files |
+| R5-m1 export MANIFEST | only relative paths resolving inside the checkpoint, no symlinks (ceb5095) | g18 X4 holds |
+| G2I-3 approvals unreachable | see below (da6ebb6) | below |
+| G2I-11 GPU hold over budget_s | see below (da6ebb6) | `test_the_validation_holds_the_gpu_no_longer_than_its_budget_within_a_step`; real run below |
+
+**G2I-3.** The computer phase is two objectives in one computer: first *approvals* (site not pre-authorized, no
+compute limit, stopped by the validation once an approved action executed and a rejected one was reported), then
+*limit* (site pre-authorized, `compute_s` = 8 s per decision of it on the real configuration, 2 s in the debug
+configuration). The validation approves / rejects the way the operator does (`OperatorControl` with its handle on
+the service: `cam-live approve`); every 2nd request is rejected. The harness's navigation before an objective is
+counted under the task by the service (which is how the service learns the page the browser is on — counting it under
+a separate task made every page interaction "no page location is known") and added to the task's external-action
+limit, so the objective keeps its whole budget. Defaults of `run_staging` / `cam-live validate` (documented in
+`--help`): 48 decisions (8 approvals + 4 limit + 6 lifetimes x 6), budget 840 s, six LabWorld lifetimes (targets
+6, 30, 10, 40, 8, 20), 3 independent groups for a meta-update; options `--lab-lifetimes`, `--compute-limit-s`.
+`approvals_exercised` still depends on the learner choosing at least two interactions that need approval in the
+approvals objective; the validation never steers that (change request INT3B-7).
+
+**G2I-11.** `TimeBox`: the deadline is the lock time + `budget_s` - 45 s for the final measurements; no runtime
+step, no proposal (propose + evaluate + select) and no learning call is started that would not fit by the longest
+of its last five durations, and learning budgets are capped by the time left. `lock_seconds` is now measured after
+the agent is closed. A single call cannot be pre-empted once started.
+
+**Real-configuration run with the defaults** (`docs/evidence/validation/staging_20261128T051702Z.json`;
+`CAM_LIVE_HOME=<scratch> cam-live validate --mode staging --real-model` with no other option; the validation,
+runtime and control code of da6ebb6 in the working tree — the evidence's `git_head` a3844c8 is the commit below it;
+load average 18 at the start, ~41 during the LabWorld phase from other tenants): **13 of 16 checks hold, not
+passed.** The GPU lock was held **685 s** with `budget_s` 840 (peak 18.0 GB; build 8 s, final measurements 27 s):
+one LabWorld step took 259 s (evaluate 209 s) under that load, so the box did not start another step with 110 s
+left — under similar load G2-integration's run A held 1095 s with budget 780. Approvals objective: 7 decisions in
+113 s, one request (an HTTP write to the owned site) approved by the validation's operator through
+`OperatorControl` and executed with the approval's own grant (the site answered 501: an executed, failed action;
+p08 0 broken); no second request in the time it had, so no rejection: `approvals_exercised` fails. Limit objective:
+ended by `limit compute_s exhausted` at its 2nd decision (`resource_limit_exercised` holds). LabWorld: only 2 of the
+6 lifetimes ran under the load (lifetime 1 failed 5/6 by signed verdict; lifetime 2 interrupted, restarted from
+disk and resumed, then stopped by the time box), so `meta_update_applied` / `meta_step_changes_policy` fail (0
+applied, 19 skips for fewer than 3 independent groups). Holding: computer decisions (9), no grant refusals,
+recovery, logging, 2 verified lifetimes, 99 predictions resolved after registration, internal rewards,
+experiential (30 non-zero) and adapter (6) weight changes, 22 delayed-outcome links, held-out behaviour change
+TV 0.33, restored weights give TV 0.0. The CPU debug validation with the same defaults
+(`staging_20261128T051613Z_cpu.json`, plumbing only) held 16 of 16: two approval requests (approved + executed,
+rejected + reported), approvals objective stopped by the validation, limit objective by `compute_s`, six
+lifetimes, meta-updates applied.
+
+**Tests (round 2, final tree).** `tests/runtime` + `tests/integration`, default marks, one process:
+339 passed, 11 skipped, 0 failed in 779 s (`docs/evidence/test_results/INT3B_fix2.xml`); the privileged HX tests
+(`test_hx5_operator_cli_root.py`, `test_hx4_safe_writes.py`, `-m privileged`) 6 passed; the browser test of
+`test_int3b_validation.py` (`-m browser`) passed.

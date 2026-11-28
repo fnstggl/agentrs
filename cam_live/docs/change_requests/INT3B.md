@@ -76,3 +76,12 @@ staging site that need the operator's approval (the first is approved and must e
 The validation never steers that choice (operator rule: CAM authors its own plan), so a run in which the learner
 makes fewer than two such requests fails the check honestly. The time box (G2I-11) cannot pre-empt a learner call
 once started: the first call of a kind, or one much slower than the five before it, can end after the deadline.
+
+## INT3B-8 (agent, `agent.py`, owner INT3A): `export_weights` writes below the storage minimum
+
+G2-integration `p03_storage.py` check 4: `CamLiveAgent.export_weights` writes its export when the free space is
+below `storage.min_free_gb` (`save` and `promote` refuse). The runtime's export path (`LiveRuntime._export`, used by
+`export-checkpoint` of a running run) now checks the storage guard before it calls `export_weights`, and
+`cam-live export-checkpoint` of a stopped run checks it before it copies (p03 check 5 holds); a direct call of the
+agent's method is still unguarded. **Proposed.** Call the agent's `DiskGuard.check` at the start of `export_weights`,
+as `save` does.
