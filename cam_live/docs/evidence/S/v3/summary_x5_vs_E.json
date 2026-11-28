@@ -1,0 +1,70 @@
+{
+ "executed": true,
+ "experiment": "x5_vs_E",
+ "results_dir": "/workspace/camlive/runs/cam_live/eval/v5/results/v3",
+ "note": "goal-free phase first minus without (X1 E), seed-paired, the goal-free phase itself excluded (descriptive only, v3.5)",
+ "paired_seeds": [
+  0,
+  1
+ ],
+ "n_to_achieve": {
+  "a_per_seed": [
+   12.0,
+   14.75
+  ],
+  "b_per_seed": [
+   10.75,
+   7.75
+  ],
+  "a_minus_b": {
+   "n": 2,
+   "mean": 4.125,
+   "lo": 1.25,
+   "hi": 7.0,
+   "se": 2.875,
+   "paired": true,
+   "p": 0.5,
+   "test": "exact sign-flip permutation"
+  }
+ },
+ "verified_value": {
+  "a_per_seed": [
+   0.75,
+   0.6791666666666667
+  ],
+  "b_per_seed": [
+   0.75,
+   1.0
+  ],
+  "a_minus_b": {
+   "n": 2,
+   "mean": -0.16041666666666665,
+   "lo": -0.3208333333333333,
+   "hi": 0.0,
+   "se": 0.16041666666666665,
+   "paired": true,
+   "p": 1.0,
+   "test": "exact sign-flip permutation"
+  }
+ },
+ "achieved": {
+  "a_per_seed": [
+   0.75,
+   0.5
+  ],
+  "b_per_seed": [
+   0.75,
+   1.0
+  ],
+  "a_minus_b": {
+   "n": 2,
+   "mean": -0.25,
+   "lo": -0.5,
+   "hi": 0.0,
+   "se": 0.25,
+   "paired": true,
+   "p": 1.0,
+   "test": "exact sign-flip permutation"
+  }
+ }
+}

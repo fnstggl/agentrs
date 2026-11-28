@@ -1,0 +1,429 @@
+{
+ "executed": true,
+ "experiment": "x2",
+ "results_dir": "/workspace/camlive/runs/cam_live/eval/v5/results/v3",
+ "seeds": [],
+ "pairs": [],
+ "S_q": null,
+ "S_q_by_problem": {},
+ "value_difference_experienced_minus_initial": null,
+ "fresh_process_checks": {
+  "initial_s0": {
+   "export": "/workspace/camlive/runs/cam_live/eval/v5/fresh/x2_initial_s0/export",
+   "cwd_files_at_start": [],
+   "store_records": 0,
+   "predictions_registered": 0,
+   "experiments": 0,
+   "fast_state_updates": {
+    "count": 0,
+    "real": 0,
+    "binary": 0
+   },
+   "load_clean": true,
+   "tensors_loaded": 500,
+   "pid": 2017324,
+   "hashes_match_export": true
+  }
+ },
+ "initial": {
+  "seeds": [
+   0
+  ],
+  "objectives_planned": 3,
+  "objectives_attempted": 2,
+  "objectives_achieved": 2,
+  "objectives_never_reached": 0,
+  "objectives_interrupted": 0,
+  "objectives_not_run": 1,
+  "stops": {
+   "achieved": 2
+  },
+  "achieved_by_problem": {
+   "base": "1/1",
+   "unique": "1/1"
+  },
+  "decisions_to_achieve_censored": {
+   "per_seed": [
+    7.5
+   ],
+   "mean": 7.5,
+   "min": 7.5,
+   "max": 7.5
+  },
+  "decisions_used": {
+   "per_seed": [
+    7.5
+   ],
+   "mean": 7.5,
+   "min": 7.5,
+   "max": 7.5
+  },
+  "verified_value": {
+   "per_seed": [
+    1.0
+   ],
+   "mean": 1.0,
+   "min": 1.0,
+   "max": 1.0
+  },
+  "executable_fraction": {
+   "per_seed": [
+    1.0
+   ],
+   "mean": 1.0,
+   "min": 1.0,
+   "max": 1.0
+  },
+  "backbone_chosen_fraction": {
+   "per_seed": [
+    0.3333333333333333
+   ],
+   "mean": 0.3333333333333333,
+   "min": 0.3333333333333333,
+   "max": 0.3333333333333333
+  },
+  "backbone_candidate_fraction": {
+   "per_seed": [
+    0.3333333333333333
+   ],
+   "mean": 0.3333333333333333,
+   "min": 0.3333333333333333,
+   "max": 0.3333333333333333
+  },
+  "repeats_of_failed_actions": {
+   "per_seed": [
+    0.0
+   ],
+   "mean": 0.0,
+   "min": 0.0,
+   "max": 0.0
+  },
+  "distinct_strategies": {
+   "per_seed": [
+    5.0
+   ],
+   "mean": 5.0,
+   "min": 5.0,
+   "max": 5.0
+  },
+  "mean_prediction_nll": {
+   "per_seed": [
+    1.6060312809430721
+   ],
+   "mean": 1.6060312809430721,
+   "min": 1.6060312809430721,
+   "max": 1.6060312809430721
+  },
+  "meta_update_records": 17,
+  "meta_updates_applied_total": 0,
+  "meta_skip_reasons": {
+   "no_policy_update_recorded": 2,
+   "insufficient_independent_outcomes": 13,
+   "no_supported_episode": 2
+  },
+  "meta_grad_norms": [],
+  "objectives_with_reward_change": 0,
+  "objectives_with_adapter_change": 2,
+  "bootstrap_mix_values": [
+   1.0
+  ],
+  "slow_steps": {
+   "objectives_with_log": 2,
+   "total": 6,
+   "kept": 6,
+   "reverted": 0,
+   "deferred": 0,
+   "kept_unguarded": 0,
+   "skipped": {}
+  },
+  "unavailable_tools_seen": [],
+  "max_lock_hold_s": 345.9666907787323,
+  "gpu_peak_gb_max": 12.965763568878174,
+  "wall_s_per_objective": {
+   "per_seed": [
+    250.80098700523376
+   ],
+   "mean": 250.80098700523376,
+   "min": 250.80098700523376,
+   "max": 250.80098700523376
+  },
+  "learning_curve_by_index": {
+   "0": "1/1",
+   "1": "1/1"
+  },
+  "code_check": {
+   "expected": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
+   "snapshot_commit_per_seed": {
+    "0": "257267c1c31568b693adf0cbcd0e9f9b547e62e1"
+   },
+   "objective_eval_codes": {
+    "257267c1c31568b693adf0cbcd0e9f9b547e62e1": 2
+   },
+   "all_match": true
+  },
+  "plans": {
+   "0": "SW:unique,SW:base,MECH:11"
+  },
+  "per_seed": {
+   "0": [
+    {
+     "index": 0,
+     "family": "SW",
+     "problem": "unique",
+     "achieved": true,
+     "interrupted": false,
+     "verified_value": 1.0,
+     "verified_status": "achieved",
+     "stop": "achieved",
+     "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+     "decisions": 6,
+     "n_to_achieve": 6.0,
+     "censored": false,
+     "executable_fraction": 1.0,
+     "backbone_chosen_fraction": 0.3333333333333333,
+     "backbone_candidate_fraction": 0.3,
+     "repeats_of_failed_actions": 0,
+     "distinct_strategies": 4,
+     "mean_prediction_nll": 5.207719826090005,
+     "n_predictions_resolved": 24,
+     "primitive_ops_total": 6,
+     "skill_runs": 0,
+     "skill_runs_ok": 0,
+     "wall_s": 167.21187591552734,
+     "inference_s": 115.40568007715046,
+     "training_s": 46.649781943298876,
+     "meta_records": 7,
+     "meta_applied": 0,
+     "meta_skipped": {
+      "no_policy_update_recorded": 2,
+      "insufficient_independent_outcomes": 5
+     },
+     "meta_grad_norms": [],
+     "meta_estimators": [],
+     "reward_changed": false,
+     "groups_changed": {
+      "semantic_adapters": true,
+      "experiential": true,
+      "reward": false,
+      "heads": true,
+      "backbone_frozen": false
+     },
+     "mix": 1.0,
+     "learning_by_timescale": {
+      "fast": 6,
+      "frequent": 10,
+      "slow_adapters": 2
+     },
+     "slow_steps": {
+      "total": 2,
+      "kept": 2,
+      "reverted": 0,
+      "deferred": 0,
+      "kept_unguarded": 0,
+      "skipped": {},
+      "kept_adapter_delta": [
+       0.06953617185354233,
+       0.13449344038963318
+      ]
+     },
+     "unavailable_tools": [],
+     "lock_hold_s": 178.13898849487305,
+     "gpu_peak_gb": 10.8134126663208,
+     "errors": 0,
+     "eval_code": "257267c1c31568b693adf0cbcd0e9f9b547e62e1"
+    },
+    {
+     "index": 1,
+     "family": "SW",
+     "problem": "base",
+     "achieved": true,
+     "interrupted": false,
+     "verified_value": 1.0,
+     "verified_status": "achieved",
+     "stop": "achieved",
+     "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+     "decisions": 9,
+     "n_to_achieve": 9.0,
+     "censored": false,
+     "executable_fraction": 1.0,
+     "backbone_chosen_fraction": 0.3333333333333333,
+     "backbone_candidate_fraction": 0.36666666666666664,
+     "repeats_of_failed_actions": 0,
+     "distinct_strategies": 6,
+     "mean_prediction_nll": -1.9956572642038612,
+     "n_predictions_resolved": 40,
+     "primitive_ops_total": 9,
+     "skill_runs": 0,
+     "skill_runs_ok": 0,
+     "wall_s": 334.3900980949402,
+     "inference_s": 198.2075092336163,
+     "training_s": 117.55775506654754,
+     "meta_records": 10,
+     "meta_applied": 0,
+     "meta_skipped": {
+      "insufficient_independent_outcomes": 8,
+      "no_supported_episode": 2
+     },
+     "meta_grad_norms": [],
+     "meta_estimators": [],
+     "reward_changed": false,
+     "groups_changed": {
+      "semantic_adapters": true,
+      "experiential": true,
+      "reward": false,
+      "heads": true,
+      "backbone_frozen": false
+     },
+     "mix": 1.0,
+     "learning_by_timescale": {
+      "checkpoint": 1,
+      "fast": 9,
+      "frequent": 15,
+      "slow_adapters": 4
+     },
+     "slow_steps": {
+      "total": 4,
+      "kept": 4,
+      "reverted": 0,
+      "deferred": 0,
+      "kept_unguarded": 0,
+      "skipped": {},
+      "kept_adapter_delta": [
+       0.1282927393913269,
+       0.13065384328365326,
+       0.12610884010791779,
+       0.1261826902627945
+      ]
+     },
+     "unavailable_tools": [],
+     "lock_hold_s": 345.9666907787323,
+     "gpu_peak_gb": 12.965763568878174,
+     "errors": 0,
+     "eval_code": "257267c1c31568b693adf0cbcd0e9f9b547e62e1"
+    }
+   ]
+  },
+  "configuration": {
+   "0": {
+    "agent_class": "CamLiveAgent",
+    "backbone": "Qwen/Qwen3-4B",
+    "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+    "scale": "50m",
+    "device": "cuda:0",
+    "parameters": {
+     "frozen": 4022468096,
+     "experiential": 50953765,
+     "adapters": 16713856,
+     "adapters_lora": 11796480,
+     "adapters_bridge": 4917376,
+     "reward": 949121,
+     "heads": {
+      "predict_world": 1022954,
+      "predict_transition": 1977600,
+      "predict_evaluator": 783192,
+      "predict_policy": 702339,
+      "predict_downstream": 84195,
+      "reward": 949121,
+      "credit_rudder": 559361,
+      "credit_cocoa": 925696
+     },
+     "head_groups": {
+      "predict_world": "heads",
+      "predict_transition": "heads",
+      "predict_evaluator": "heads",
+      "predict_policy": "heads",
+      "predict_downstream": "heads",
+      "reward": "reward",
+      "credit_rudder": "heads",
+      "credit_cocoa": "heads"
+     },
+     "heads_total": 6055337,
+     "total_persistent_trainable": 74672079,
+     "by_group": {
+      "backbone_frozen": 4022468096,
+      "semantic_adapters": 16713856,
+      "experiential": 50953765,
+      "reward": 949121,
+      "heads": 6055337
+     },
+     "scale": "50m",
+     "backbone": "Qwen/Qwen3-4B",
+     "backbone_pretrained": true,
+     "fast_state_numbers_per_kind": 16512
+    },
+    "agent_settings": {
+     "use_backbone": true,
+     "selection_rule": "thompson_policy",
+     "proposer_max_new_tokens": 512,
+     "proposer_k": 4,
+     "experiment_rate": 0.1,
+     "adapters": true,
+     "bridge_grounding": true,
+     "retention": true
+    },
+    "loss_providers": [
+     "world_model",
+     "fast_prior",
+     "evaluator",
+     "world_model_adapters",
+     "evaluator_adapters",
+     "rudder",
+     "cocoa",
+     "retention",
+     "bridge_grounding"
+    ],
+    "credit_assigner": true,
+    "pathways": {
+     "fast_beliefs": true,
+     "weights": true,
+     "policy_update": true,
+     "meta_learning": true,
+     "bootstrap_mix": 1.0,
+     "chooser": "thompson_policy"
+    },
+    "trainable_groups": [
+     "backbone_frozen",
+     "experiential",
+     "heads",
+     "reward",
+     "semantic_adapters"
+    ]
+   }
+  },
+  "fresh_process": {
+   "0": {
+    "export": "/workspace/camlive/runs/cam_live/eval/v5/fresh/x2_initial_s0/export",
+    "cwd_files_at_start": [],
+    "store_records": 0,
+    "predictions_registered": 0,
+    "experiments": 0,
+    "fast_state_updates": {
+     "count": 0,
+     "real": 0,
+     "binary": 0
+    },
+    "load_clean": true,
+    "tensors_loaded": 500,
+    "pid": 2017324,
+    "hashes_match_export": true
+   }
+  },
+  "code": {
+   "0": {
+    "cam_live_dir": "/workspace/camlive/runs/cam_live/eval/snapshots/257267c1c315/cam_live/src/cam_live",
+    "snapshot": "/workspace/camlive/runs/cam_live/eval/snapshots/257267c1c315",
+    "snapshot_commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
+    "agent.py": "7dfdd898c0458980",
+    "reward/metalearner.py": "ae41b8753f5af469",
+    "credit/learner.py": "3d27948091a37084",
+    "predict/predictor.py": "dab210bf908dce89",
+    "runtime/loop.py": "d2e68b21c7fe8f83",
+    "nn/model.py": "d2e2e4bb36914ddc",
+    "eval/conditions.py": "b9d2a82a70388055",
+    "eval/runner.py": "e829a782e3463f5b"
+   }
+  }
+ },
+ "experienced": null,
+ "note": "pairs are (seed, held-out objective); with this many pairs no test can reach p < 0.05 (Protocol v3.5); S_q is reported with its bootstrap range only"
+}

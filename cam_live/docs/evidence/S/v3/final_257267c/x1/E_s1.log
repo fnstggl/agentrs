@@ -1,1 +1,16 @@
 Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 4828.04it/s]
+/workspace/agentrs/.venv/lib/python3.12/site-packages/triton/knobs.py:504: UserWarning: TRITON_DEFAULT_FP_FUSION is unset: defaulting to FP fusion ENABLED for backward compatibility in Triton 3.9. The default will change to DISABLED in Triton 3.10; set TRITON_DEFAULT_FP_FUSION=1 to keep fusion enabled or =0 to adopt the new default early and silence this warning.
+  warn_once(FP_FUSION_DEFAULT_WARNING)
+[E s1] objective 0 SW:rle achieved value 1.000 decisions 6 exec 1.0 backbone 0.6666666666666666 hold 210s
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights:  99%|█████████▉| 395/398 [00:00<00:00, 3942.03it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 3910.34it/s]
+/workspace/agentrs/.venv/lib/python3.12/site-packages/triton/knobs.py:504: UserWarning: TRITON_DEFAULT_FP_FUSION is unset: defaulting to FP fusion ENABLED for backward compatibility in Triton 3.9. The default will change to DISABLED in Triton 3.10; set TRITON_DEFAULT_FP_FUSION=1 to keep fusion enabled or =0 to adopt the new default early and silence this warning.
+  warn_once(FP_FUSION_DEFAULT_WARNING)
+[E s1] objective 1 SW:rpn achieved value 1.000 decisions 3 exec 1.0 backbone 0.3333333333333333 hold 181s
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 5147.37it/s]
+/workspace/agentrs/.venv/lib/python3.12/site-packages/triton/knobs.py:504: UserWarning: TRITON_DEFAULT_FP_FUSION is unset: defaulting to FP fusion ENABLED for backward compatibility in Triton 3.9. The default will change to DISABLED in Triton 3.10; set TRITON_DEFAULT_FP_FUSION=1 to keep fusion enabled or =0 to adopt the new default early and silence this warning.
+  warn_once(FP_FUSION_DEFAULT_WARNING)
+[E s1] objective 2 SW:merge achieved value 1.000 decisions 12 exec 1.0 backbone 0.4166666666666667 hold 564s
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights:  94%|█████████▍| 376/398 [00:00<00:00, 3754.14it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 3695.33it/s]
+/workspace/agentrs/.venv/lib/python3.12/site-packages/triton/knobs.py:504: UserWarning: TRITON_DEFAULT_FP_FUSION is unset: defaulting to FP fusion ENABLED for backward compatibility in Triton 3.9. The default will change to DISABLED in Triton 3.10; set TRITON_DEFAULT_FP_FUSION=1 to keep fusion enabled or =0 to adopt the new default early and silence this warning.
+  warn_once(FP_FUSION_DEFAULT_WARNING)
+[E s1] objective 3 SW:topk achieved value 1.000 decisions 10 exec 1.0 backbone 0.3 hold 504s
