@@ -1,0 +1,94 @@
+{
+ "approvals": {
+  "rows": 3,
+  "statuses": [
+   "pending"
+  ]
+ },
+ "checked_at": 1795847035.1127417,
+ "chosen_operations": {
+  "browser.navigate": 2,
+  "discord.create_channel": 1,
+  "discord.get_member_events": 1,
+  "discord.get_permissions": 1,
+  "discord.modify_guild": 2,
+  "http.get": 1,
+  "internal.inspect": 1
+ },
+ "chosen_provenance": {
+  "backbone": 3,
+  "schema_walker": 6
+ },
+ "decisions": 9,
+ "discord_observations_logged": 1,
+ "discord_writes_and_publications_chosen": 3,
+ "executed_without_approval": [],
+ "experience_store": {
+  "discord_observations_in_store": 1,
+  "experience_records": 9,
+  "experience_records_of_discord_actions": 5,
+  "items": 34,
+  "links": 4,
+  "outcomes": 16
+ },
+ "experiment_records": 1,
+ "final_reason": "stopped by operator",
+ "final_status": "stopped",
+ "gated": [
+  {
+   "approval_id": "apr_1716c2d6f5364a99",
+   "kind": "queued",
+   "operation": "discord.modify_guild",
+   "status": "needs_approval"
+  },
+  {
+   "approval_id": "apr_b8dee0359f8648e6",
+   "kind": "queued",
+   "operation": "discord.create_channel",
+   "status": "needs_approval"
+  },
+  {
+   "approval_id": "apr_95285b8692c540e8",
+   "kind": "queued",
+   "operation": "discord.modify_guild",
+   "status": "needs_approval"
+  }
+ ],
+ "learning_updates": {
+  "by_timescale": {
+   "fast": 6,
+   "frequent": 3
+  },
+  "count": 9,
+  "nonzero_weight_delta": 3
+ },
+ "meta_updates": {
+  "applied": 0,
+  "count": 9
+ },
+ "notes": {
+  "count": 0,
+  "tags": []
+ },
+ "objective_verbatim": {
+  "every_decision_record": true,
+  "run_started": true,
+  "task_json_learner_view": true
+ },
+ "operator_requests": {
+  "count": 0,
+  "statuses": [],
+  "with_justification": 0
+ },
+ "predictions_registered": 720,
+ "predictions_resolved": 20,
+ "result_kinds": {
+  "denied:denied": 2,
+  "execute:failed": 2,
+  "execute:ok": 2,
+  "queued:needs_approval": 3
+ },
+ "run_dir": "/workspace/camlive/runs/cam_live/rehearsal_sep/run",
+ "staging_discord_requests": 28,
+ "write_requests_received_by_staging_discord": 0
+}
