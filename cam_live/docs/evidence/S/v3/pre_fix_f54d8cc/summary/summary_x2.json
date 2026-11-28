@@ -1,0 +1,882 @@
+{
+ "executed": true,
+ "experiment": "x2",
+ "results_dir": "/workspace/camlive/cam_live/docs/evidence/S/v3/pre_fix_f54d8cc",
+ "seeds": [
+  0
+ ],
+ "pairs": [
+  {
+   "seed": 0,
+   "problem": "unique",
+   "initial": 2.0,
+   "initial_achieved": true,
+   "experienced": 7.0,
+   "experienced_achieved": true,
+   "initial_value": 1.0,
+   "experienced_value": 1.0,
+   "initial_stop": "achieved",
+   "experienced_stop": "achieved"
+  }
+ ],
+ "S_q": {
+  "S_q": 0.2857142857142857,
+  "lo": 0.2857142857142857,
+  "hi": 0.2857142857142857,
+  "log_ratio": {
+   "mean": -1.252762968495368,
+   "lo": null,
+   "hi": null,
+   "p": null
+  },
+  "n_units": 1,
+  "units_both_censored": 0,
+  "reached_initial": 1,
+  "reached_experienced": 1
+ },
+ "S_q_by_problem": {
+  "unique": {
+   "S_q": 0.2857142857142857,
+   "lo": 0.2857142857142857,
+   "hi": 0.2857142857142857,
+   "log_ratio": {
+    "mean": -1.252762968495368,
+    "lo": null,
+    "hi": null,
+    "p": null
+   },
+   "n_units": 1,
+   "units_both_censored": 0,
+   "reached_initial": 1,
+   "reached_experienced": 1
+  }
+ },
+ "value_difference_experienced_minus_initial": {
+  "n": 1,
+  "mean": 0.0,
+  "lo": null,
+  "hi": null,
+  "se": null,
+  "paired": true,
+  "p": null
+ },
+ "fresh_process_checks": {
+  "initial_s0": {
+   "export": "/workspace/camlive/runs/cam_live/eval/v4/fresh/x2_initial_s0/export",
+   "cwd_files_at_start": [],
+   "store_records": 0,
+   "predictions_registered": 0,
+   "experiments": 0,
+   "fast_state_updates": {
+    "count": 0,
+    "real": 0,
+    "binary": 0
+   },
+   "load_clean": true,
+   "tensors_loaded": 500,
+   "pid": 1757933,
+   "hashes_match_export": true
+  },
+  "experienced_s0": {
+   "export": "/workspace/camlive/runs/cam_live/eval/v4/fresh/x2_experienced_s0/export",
+   "cwd_files_at_start": [],
+   "store_records": 0,
+   "predictions_registered": 0,
+   "experiments": 0,
+   "fast_state_updates": {
+    "count": 0,
+    "real": 0,
+    "binary": 0
+   },
+   "load_clean": true,
+   "tensors_loaded": 500,
+   "pid": 1822653,
+   "hashes_match_export": true
+  }
+ },
+ "initial": {
+  "seeds": [
+   0
+  ],
+  "objectives_planned": 3,
+  "objectives_attempted": 3,
+  "objectives_achieved": 2,
+  "objectives_never_reached": 1,
+  "objectives_interrupted": 0,
+  "objectives_not_run": 0,
+  "stops": {
+   "achieved": 2,
+   "decision_budget": 1
+  },
+  "achieved_by_problem": {
+   "11": "0/1",
+   "base": "1/1",
+   "unique": "1/1"
+  },
+  "decisions_to_achieve_censored": {
+   "per_seed": [
+    7.666666666666667
+   ],
+   "mean": 7.666666666666667,
+   "min": 7.666666666666667,
+   "max": 7.666666666666667
+  },
+  "decisions_used": {
+   "per_seed": [
+    7.666666666666667
+   ],
+   "mean": 7.666666666666667,
+   "min": 7.666666666666667,
+   "max": 7.666666666666667
+  },
+  "verified_value": {
+   "per_seed": [
+    0.6666666666666666
+   ],
+   "mean": 0.6666666666666666,
+   "min": 0.6666666666666666,
+   "max": 0.6666666666666666
+  },
+  "executable_fraction": {
+   "per_seed": [
+    0.9666666666666667
+   ],
+   "mean": 0.9666666666666667,
+   "min": 0.9666666666666667,
+   "max": 0.9666666666666667
+  },
+  "backbone_chosen_fraction": {
+   "per_seed": [
+    0.6333333333333333
+   ],
+   "mean": 0.6333333333333333,
+   "min": 0.6333333333333333,
+   "max": 0.6333333333333333
+  },
+  "backbone_candidate_fraction": {
+   "per_seed": [
+    0.39333333333333337
+   ],
+   "mean": 0.39333333333333337,
+   "min": 0.39333333333333337,
+   "max": 0.39333333333333337
+  },
+  "repeats_of_failed_actions": {
+   "per_seed": [
+    0.0
+   ],
+   "mean": 0.0,
+   "min": 0.0,
+   "max": 0.0
+  },
+  "distinct_strategies": {
+   "per_seed": [
+    5.0
+   ],
+   "mean": 5.0,
+   "min": 5.0,
+   "max": 5.0
+  },
+  "mean_prediction_nll": {
+   "per_seed": [
+    -0.653491640046895
+   ],
+   "mean": -0.653491640046895,
+   "min": -0.653491640046895,
+   "max": -0.653491640046895
+  },
+  "meta_update_records": 27,
+  "meta_updates_applied_total": 0,
+  "meta_skip_reasons": {
+   "no_policy_update_recorded": 3,
+   "insufficient_independent_outcomes": 12,
+   "no_supported_episode": 1,
+   "zero_advantage": 11
+  },
+  "meta_grad_norms": [],
+  "objectives_with_reward_change": 0,
+  "objectives_with_adapter_change": 1,
+  "bootstrap_mix_values": [
+   1.0
+  ],
+  "slow_steps": {
+   "objectives_with_log": 3,
+   "total": 6,
+   "kept": 3,
+   "reverted": 1,
+   "deferred": 2,
+   "kept_unguarded": 0,
+   "skipped": {}
+  },
+  "unavailable_tools_seen": [],
+  "max_lock_hold_s": 622.9813392162323,
+  "gpu_peak_gb_max": 11.016905307769775,
+  "wall_s_per_objective": {
+   "per_seed": [
+    230.34474794069925
+   ],
+   "mean": 230.34474794069925,
+   "min": 230.34474794069925,
+   "max": 230.34474794069925
+  },
+  "learning_curve_by_index": {
+   "0": "1/1",
+   "1": "1/1",
+   "2": "0/1"
+  },
+  "code_check": {
+   "expected": "f54d8cc056722f2ba373ba70627bfc52e2500332+eval:b06a6af7dc9c9289c05cda01b425e1a8928dc2d1",
+   "snapshot_commit_per_seed": {
+    "0": "f54d8cc056722f2ba373ba70627bfc52e2500332+eval:b06a6af7dc9c9289c05cda01b425e1a8928dc2d1"
+   },
+   "objective_eval_codes": {
+    "f54d8cc056722f2ba373ba70627bfc52e2500332+eval:b06a6af7dc9c9289c05cda01b425e1a8928dc2d1": 3
+   },
+   "all_match": true
+  },
+  "plans": {
+   "0": "SW:unique,SW:base,MECH:11"
+  },
+  "per_seed": {
+   "0": [
+    {
+     "index": 0,
+     "family": "SW",
+     "problem": "unique",
+     "achieved": true,
+     "interrupted": false,
+     "verified_value": 1.0,
+     "verified_status": "achieved",
+     "stop": "achieved",
+     "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+     "decisions": 2,
+     "n_to_achieve": 2.0,
+     "censored": false,
+     "executable_fraction": 1.0,
+     "backbone_chosen_fraction": 0.5,
+     "backbone_candidate_fraction": 0.4,
+     "repeats_of_failed_actions": 0,
+     "distinct_strategies": 2,
+     "mean_prediction_nll": 1.8858752332640905,
+     "n_predictions_resolved": 8,
+     "primitive_ops_total": 1,
+     "skill_runs": 0,
+     "skill_runs_ok": 0,
+     "wall_s": 49.96716547012329,
+     "inference_s": 41.04972519725561,
+     "training_s": 3.815551678650081,
+     "meta_records": 3,
+     "meta_applied": 0,
+     "meta_skipped": {
+      "no_policy_update_recorded": 3
+     },
+     "meta_grad_norms": [],
+     "meta_estimators": [],
+     "reward_changed": false,
+     "groups_changed": {
+      "semantic_adapters": false,
+      "experiential": true,
+      "reward": false,
+      "heads": true,
+      "backbone_frozen": false
+     },
+     "mix": 1.0,
+     "learning_by_timescale": {
+      "fast": 2,
+      "frequent": 2
+     },
+     "slow_steps": {
+      "total": 0,
+      "kept": 0,
+      "reverted": 0,
+      "deferred": 0,
+      "kept_unguarded": 0,
+      "skipped": {},
+      "kept_adapter_delta": []
+     },
+     "unavailable_tools": [],
+     "lock_hold_s": 65.56748604774475,
+     "gpu_peak_gb": 9.497837543487549,
+     "errors": 0,
+     "eval_code": "f54d8cc056722f2ba373ba70627bfc52e2500332+eval:b06a6af7dc9c9289c05cda01b425e1a8928dc2d1"
+    },
+    {
+     "index": 1,
+     "family": "SW",
+     "problem": "base",
+     "achieved": true,
+     "interrupted": false,
+     "verified_value": 1.0,
+     "verified_status": "achieved",
+     "stop": "achieved",
+     "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+     "decisions": 1,
+     "n_to_achieve": 1.0,
+     "censored": false,
+     "executable_fraction": 1.0,
+     "backbone_chosen_fraction": 1.0,
+     "backbone_candidate_fraction": 0.4,
+     "repeats_of_failed_actions": 0,
+     "distinct_strategies": 1,
+     "mean_prediction_nll": -1.7067769813115345,
+     "n_predictions_resolved": 4,
+     "primitive_ops_total": 1,
+     "skill_runs": 0,
+     "skill_runs_ok": 0,
+     "wall_s": 42.36307072639465,
+     "inference_s": 25.222159505356103,
+     "training_s": 1.2934263669885695,
+     "meta_records": 2,
+     "meta_applied": 0,
+     "meta_skipped": {
+      "insufficient_independent_outcomes": 2
+     },
+     "meta_grad_norms": [],
+     "meta_estimators": [],
+     "reward_changed": false,
+     "groups_changed": {
+      "semantic_adapters": false,
+      "experiential": true,
+      "reward": false,
+      "heads": true,
+      "backbone_frozen": false
+     },
+     "mix": 1.0,
+     "learning_by_timescale": {
+      "checkpoint": 1,
+      "frequent": 1,
+      "fast": 1
+     },
+     "slow_steps": {
+      "total": 0,
+      "kept": 0,
+      "reverted": 0,
+      "deferred": 0,
+      "kept_unguarded": 0,
+      "skipped": {},
+      "kept_adapter_delta": []
+     },
+     "unavailable_tools": [],
+     "lock_hold_s": 58.94866061210632,
+     "gpu_peak_gb": 9.026316165924072,
+     "errors": 0,
+     "eval_code": "f54d8cc056722f2ba373ba70627bfc52e2500332+eval:b06a6af7dc9c9289c05cda01b425e1a8928dc2d1"
+    },
+    {
+     "index": 2,
+     "family": "MECH",
+     "problem": "11",
+     "achieved": false,
+     "interrupted": false,
+     "verified_value": 0.0,
+     "verified_status": "pending",
+     "stop": "decision_budget",
+     "runtime_reason": "limit max_decisions exhausted",
+     "decisions": 20,
+     "n_to_achieve": 20.0,
+     "censored": true,
+     "executable_fraction": 0.9,
+     "backbone_chosen_fraction": 0.4,
+     "backbone_candidate_fraction": 0.38,
+     "repeats_of_failed_actions": 0,
+     "distinct_strategies": 12,
+     "mean_prediction_nll": -2.139573172093241,
+     "n_predictions_resolved": 90,
+     "primitive_ops_total": 17,
+     "skill_runs": 0,
+     "skill_runs_ok": 0,
+     "wall_s": 598.7040076255798,
+     "inference_s": 383.86964071542025,
+     "training_s": 185.3011252162978,
+     "meta_records": 22,
+     "meta_applied": 0,
+     "meta_skipped": {
+      "insufficient_independent_outcomes": 10,
+      "no_supported_episode": 1,
+      "zero_advantage": 11
+     },
+     "meta_grad_norms": [],
+     "meta_estimators": [],
+     "reward_changed": false,
+     "groups_changed": {
+      "semantic_adapters": true,
+      "experiential": true,
+      "reward": false,
+      "heads": true,
+      "backbone_frozen": false
+     },
+     "mix": 1.0,
+     "learning_by_timescale": {
+      "checkpoint": 1,
+      "frequent": 24,
+      "slow_adapters": 6,
+      "fast": 21
+     },
+     "slow_steps": {
+      "total": 6,
+      "kept": 3,
+      "reverted": 1,
+      "deferred": 2,
+      "kept_unguarded": 0,
+      "skipped": {},
+      "kept_adapter_delta": [
+       0.06995922327041626,
+       0.1586948037147522,
+       0.15651622414588928
+      ]
+     },
+     "unavailable_tools": [],
+     "lock_hold_s": 622.9813392162323,
+     "gpu_peak_gb": 11.016905307769775,
+     "errors": 0,
+     "eval_code": "f54d8cc056722f2ba373ba70627bfc52e2500332+eval:b06a6af7dc9c9289c05cda01b425e1a8928dc2d1"
+    }
+   ]
+  },
+  "configuration": {
+   "0": {
+    "agent_class": "CamLiveAgent",
+    "backbone": "Qwen/Qwen3-4B",
+    "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+    "scale": "50m",
+    "device": "cuda:0",
+    "parameters": {
+     "frozen": 4022468096,
+     "experiential": 50953765,
+     "adapters": 16713856,
+     "adapters_lora": 11796480,
+     "adapters_bridge": 4917376,
+     "reward": 949121,
+     "heads": {
+      "predict_world": 1022954,
+      "predict_transition": 1977600,
+      "predict_evaluator": 783192,
+      "predict_policy": 702339,
+      "predict_downstream": 84195,
+      "reward": 949121,
+      "credit_rudder": 559361,
+      "credit_cocoa": 925696
+     },
+     "head_groups": {
+      "predict_world": "heads",
+      "predict_transition": "heads",
+      "predict_evaluator": "heads",
+      "predict_policy": "heads",
+      "predict_downstream": "heads",
+      "reward": "reward",
+      "credit_rudder": "heads",
+      "credit_cocoa": "heads"
+     },
+     "heads_total": 6055337,
+     "total_persistent_trainable": 74672079,
+     "by_group": {
+      "backbone_frozen": 4022468096,
+      "semantic_adapters": 16713856,
+      "experiential": 50953765,
+      "reward": 949121,
+      "heads": 6055337
+     },
+     "scale": "50m",
+     "backbone": "Qwen/Qwen3-4B",
+     "backbone_pretrained": true,
+     "fast_state_numbers_per_kind": 16512
+    },
+    "agent_settings": {
+     "use_backbone": true,
+     "selection_rule": "thompson_policy",
+     "proposer_max_new_tokens": 512,
+     "proposer_k": 4,
+     "experiment_rate": 0.1,
+     "adapters": true,
+     "bridge_grounding": true,
+     "retention": true
+    },
+    "loss_providers": [
+     "world_model",
+     "fast_prior",
+     "evaluator",
+     "world_model_adapters",
+     "evaluator_adapters",
+     "rudder",
+     "cocoa",
+     "retention",
+     "bridge_grounding"
+    ],
+    "credit_assigner": true,
+    "pathways": {
+     "fast_beliefs": true,
+     "weights": true,
+     "policy_update": true,
+     "meta_learning": true,
+     "bootstrap_mix": 1.0,
+     "chooser": "thompson_policy"
+    },
+    "trainable_groups": [
+     "backbone_frozen",
+     "experiential",
+     "heads",
+     "reward",
+     "semantic_adapters"
+    ]
+   }
+  },
+  "fresh_process": {
+   "0": {
+    "export": "/workspace/camlive/runs/cam_live/eval/v4/fresh/x2_initial_s0/export",
+    "cwd_files_at_start": [],
+    "store_records": 0,
+    "predictions_registered": 0,
+    "experiments": 0,
+    "fast_state_updates": {
+     "count": 0,
+     "real": 0,
+     "binary": 0
+    },
+    "load_clean": true,
+    "tensors_loaded": 500,
+    "pid": 1757933,
+    "hashes_match_export": true
+   }
+  },
+  "code": {
+   "0": {
+    "cam_live_dir": "/workspace/camlive/runs/cam_live/eval/snapshots/f54d8cc05672+evalb06a6af7dc9c/cam_live/src/cam_live",
+    "snapshot": "/workspace/camlive/runs/cam_live/eval/snapshots/f54d8cc05672+evalb06a6af7dc9c",
+    "snapshot_commit": "f54d8cc056722f2ba373ba70627bfc52e2500332+eval:b06a6af7dc9c9289c05cda01b425e1a8928dc2d1",
+    "agent.py": "51a4178c83269861",
+    "reward/metalearner.py": "ae41b8753f5af469",
+    "credit/learner.py": "d312fadfb10aeba4",
+    "predict/predictor.py": "dab210bf908dce89",
+    "runtime/loop.py": "c87a008e4a9db9d9",
+    "nn/model.py": "d2e2e4bb36914ddc",
+    "eval/conditions.py": "b9d2a82a70388055",
+    "eval/runner.py": "e829a782e3463f5b"
+   }
+  }
+ },
+ "experienced": {
+  "seeds": [
+   0
+  ],
+  "objectives_planned": 3,
+  "objectives_attempted": 1,
+  "objectives_achieved": 1,
+  "objectives_never_reached": 0,
+  "objectives_interrupted": 0,
+  "objectives_not_run": 2,
+  "stops": {
+   "achieved": 1
+  },
+  "achieved_by_problem": {
+   "unique": "1/1"
+  },
+  "decisions_to_achieve_censored": {
+   "per_seed": [
+    7.0
+   ],
+   "mean": 7.0,
+   "min": 7.0,
+   "max": 7.0
+  },
+  "decisions_used": {
+   "per_seed": [
+    7.0
+   ],
+   "mean": 7.0,
+   "min": 7.0,
+   "max": 7.0
+  },
+  "verified_value": {
+   "per_seed": [
+    1.0
+   ],
+   "mean": 1.0,
+   "min": 1.0,
+   "max": 1.0
+  },
+  "executable_fraction": {
+   "per_seed": [
+    0.8571428571428571
+   ],
+   "mean": 0.8571428571428571,
+   "min": 0.8571428571428571,
+   "max": 0.8571428571428571
+  },
+  "backbone_chosen_fraction": {
+   "per_seed": [
+    0.42857142857142855
+   ],
+   "mean": 0.42857142857142855,
+   "min": 0.42857142857142855,
+   "max": 0.42857142857142855
+  },
+  "backbone_candidate_fraction": {
+   "per_seed": [
+    0.34285714285714286
+   ],
+   "mean": 0.34285714285714286,
+   "min": 0.34285714285714286,
+   "max": 0.34285714285714286
+  },
+  "repeats_of_failed_actions": {
+   "per_seed": [
+    0.0
+   ],
+   "mean": 0.0,
+   "min": 0.0,
+   "max": 0.0
+  },
+  "distinct_strategies": {
+   "per_seed": [
+    5.0
+   ],
+   "mean": 5.0,
+   "min": 5.0,
+   "max": 5.0
+  },
+  "mean_prediction_nll": {
+   "per_seed": [
+    1.7219550855795072
+   ],
+   "mean": 1.7219550855795072,
+   "min": 1.7219550855795072,
+   "max": 1.7219550855795072
+  },
+  "meta_update_records": 8,
+  "meta_updates_applied_total": 0,
+  "meta_skip_reasons": {
+   "no_policy_update_recorded": 2,
+   "insufficient_independent_outcomes": 6
+  },
+  "meta_grad_norms": [],
+  "objectives_with_reward_change": 0,
+  "objectives_with_adapter_change": 0,
+  "bootstrap_mix_values": [
+   1.0
+  ],
+  "slow_steps": {
+   "objectives_with_log": 1,
+   "total": 2,
+   "kept": 0,
+   "reverted": 2,
+   "deferred": 0,
+   "kept_unguarded": 0,
+   "skipped": {}
+  },
+  "unavailable_tools_seen": [],
+  "max_lock_hold_s": 310.8317093849182,
+  "gpu_peak_gb_max": 9.643572807312012,
+  "wall_s_per_objective": {
+   "per_seed": [
+    285.97411251068115
+   ],
+   "mean": 285.97411251068115,
+   "min": 285.97411251068115,
+   "max": 285.97411251068115
+  },
+  "learning_curve_by_index": {
+   "0": "1/1"
+  },
+  "code_check": {
+   "expected": "f54d8cc056722f2ba373ba70627bfc52e2500332+eval:b06a6af7dc9c9289c05cda01b425e1a8928dc2d1",
+   "snapshot_commit_per_seed": {
+    "0": "f54d8cc056722f2ba373ba70627bfc52e2500332+eval:b06a6af7dc9c9289c05cda01b425e1a8928dc2d1"
+   },
+   "objective_eval_codes": {
+    "f54d8cc056722f2ba373ba70627bfc52e2500332+eval:b06a6af7dc9c9289c05cda01b425e1a8928dc2d1": 1
+   },
+   "all_match": true
+  },
+  "plans": {
+   "0": "SW:unique,SW:base,MECH:11"
+  },
+  "per_seed": {
+   "0": [
+    {
+     "index": 0,
+     "family": "SW",
+     "problem": "unique",
+     "achieved": true,
+     "interrupted": false,
+     "verified_value": 1.0,
+     "verified_status": "achieved",
+     "stop": "achieved",
+     "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+     "decisions": 7,
+     "n_to_achieve": 7.0,
+     "censored": false,
+     "executable_fraction": 0.8571428571428571,
+     "backbone_chosen_fraction": 0.42857142857142855,
+     "backbone_candidate_fraction": 0.34285714285714286,
+     "repeats_of_failed_actions": 0,
+     "distinct_strategies": 5,
+     "mean_prediction_nll": 1.7219550855795072,
+     "n_predictions_resolved": 25,
+     "primitive_ops_total": 5,
+     "skill_runs": 0,
+     "skill_runs_ok": 0,
+     "wall_s": 285.97411251068115,
+     "inference_s": 214.16017630323768,
+     "training_s": 66.63870267104357,
+     "meta_records": 8,
+     "meta_applied": 0,
+     "meta_skipped": {
+      "no_policy_update_recorded": 2,
+      "insufficient_independent_outcomes": 6
+     },
+     "meta_grad_norms": [],
+     "meta_estimators": [],
+     "reward_changed": false,
+     "groups_changed": {
+      "semantic_adapters": false,
+      "experiential": true,
+      "reward": false,
+      "heads": true,
+      "backbone_frozen": false
+     },
+     "mix": 1.0,
+     "learning_by_timescale": {
+      "fast": 7,
+      "frequent": 8,
+      "slow_adapters": 2
+     },
+     "slow_steps": {
+      "total": 2,
+      "kept": 0,
+      "reverted": 2,
+      "deferred": 0,
+      "kept_unguarded": 0,
+      "skipped": {},
+      "kept_adapter_delta": []
+     },
+     "unavailable_tools": [],
+     "lock_hold_s": 310.8317093849182,
+     "gpu_peak_gb": 9.643572807312012,
+     "errors": 0,
+     "eval_code": "f54d8cc056722f2ba373ba70627bfc52e2500332+eval:b06a6af7dc9c9289c05cda01b425e1a8928dc2d1"
+    }
+   ]
+  },
+  "configuration": {
+   "0": {
+    "agent_class": "CamLiveAgent",
+    "backbone": "Qwen/Qwen3-4B",
+    "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+    "scale": "50m",
+    "device": "cuda:0",
+    "parameters": {
+     "frozen": 4022468096,
+     "experiential": 50953765,
+     "adapters": 16713856,
+     "adapters_lora": 11796480,
+     "adapters_bridge": 4917376,
+     "reward": 949121,
+     "heads": {
+      "predict_world": 1022954,
+      "predict_transition": 1977600,
+      "predict_evaluator": 783192,
+      "predict_policy": 702339,
+      "predict_downstream": 84195,
+      "reward": 949121,
+      "credit_rudder": 559361,
+      "credit_cocoa": 925696
+     },
+     "head_groups": {
+      "predict_world": "heads",
+      "predict_transition": "heads",
+      "predict_evaluator": "heads",
+      "predict_policy": "heads",
+      "predict_downstream": "heads",
+      "reward": "reward",
+      "credit_rudder": "heads",
+      "credit_cocoa": "heads"
+     },
+     "heads_total": 6055337,
+     "total_persistent_trainable": 74672079,
+     "by_group": {
+      "backbone_frozen": 4022468096,
+      "semantic_adapters": 16713856,
+      "experiential": 50953765,
+      "reward": 949121,
+      "heads": 6055337
+     },
+     "scale": "50m",
+     "backbone": "Qwen/Qwen3-4B",
+     "backbone_pretrained": true,
+     "fast_state_numbers_per_kind": 16512
+    },
+    "agent_settings": {
+     "use_backbone": true,
+     "selection_rule": "thompson_policy",
+     "proposer_max_new_tokens": 512,
+     "proposer_k": 4,
+     "experiment_rate": 0.1,
+     "adapters": true,
+     "bridge_grounding": true,
+     "retention": true
+    },
+    "loss_providers": [
+     "world_model",
+     "fast_prior",
+     "evaluator",
+     "world_model_adapters",
+     "evaluator_adapters",
+     "rudder",
+     "cocoa",
+     "retention",
+     "bridge_grounding"
+    ],
+    "credit_assigner": true,
+    "pathways": {
+     "fast_beliefs": true,
+     "weights": true,
+     "policy_update": true,
+     "meta_learning": true,
+     "bootstrap_mix": 1.0,
+     "chooser": "thompson_policy"
+    },
+    "trainable_groups": [
+     "backbone_frozen",
+     "experiential",
+     "heads",
+     "reward",
+     "semantic_adapters"
+    ]
+   }
+  },
+  "fresh_process": {
+   "0": {
+    "export": "/workspace/camlive/runs/cam_live/eval/v4/fresh/x2_experienced_s0/export",
+    "cwd_files_at_start": [],
+    "store_records": 0,
+    "predictions_registered": 0,
+    "experiments": 0,
+    "fast_state_updates": {
+     "count": 0,
+     "real": 0,
+     "binary": 0
+    },
+    "load_clean": true,
+    "tensors_loaded": 500,
+    "pid": 1822653,
+    "hashes_match_export": true
+   }
+  },
+  "code": {
+   "0": {
+    "cam_live_dir": "/workspace/camlive/runs/cam_live/eval/snapshots/f54d8cc05672+evalb06a6af7dc9c/cam_live/src/cam_live",
+    "snapshot": "/workspace/camlive/runs/cam_live/eval/snapshots/f54d8cc05672+evalb06a6af7dc9c",
+    "snapshot_commit": "f54d8cc056722f2ba373ba70627bfc52e2500332+eval:b06a6af7dc9c9289c05cda01b425e1a8928dc2d1",
+    "agent.py": "51a4178c83269861",
+    "reward/metalearner.py": "ae41b8753f5af469",
+    "credit/learner.py": "d312fadfb10aeba4",
+    "predict/predictor.py": "dab210bf908dce89",
+    "runtime/loop.py": "c87a008e4a9db9d9",
+    "nn/model.py": "d2e2e4bb36914ddc",
+    "eval/conditions.py": "b9d2a82a70388055",
+    "eval/runner.py": "e829a782e3463f5b"
+   }
+  }
+ },
+ "note": "pairs are (seed, held-out objective); with this many pairs no test can reach p < 0.05 (Protocol v3.5); S_q is reported with its bootstrap range only"
+}
