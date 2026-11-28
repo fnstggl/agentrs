@@ -9,6 +9,7 @@ import contextlib
 import fcntl
 import gc
 import os
+import threading
 import time
 from typing import Iterator
 
@@ -42,16 +43,41 @@ def gpu_lock(timeout_s: float = 1800.0, min_free_gb: float = 0.0, poll_s: float 
     """Hold the shared lock; yields the time it was acquired. Raises :class:`GpuUnavailable` on timeout or when
     less than ``min_free_gb`` of GPU memory is free once the lock is held."""
     f = open_lock_file(GPU_LOCK_PATH)
-    t0 = time.time()
+    # a QUEUED blocking flock in a helper thread (as runtime.gpu_cycle.GpuLease does): a non-blocking poll never
+    # wins against holders that release and immediately re-queue a blocking flock (measured 2026-11-28: PS polled
+    # for over an hour while the live runtime and staging runtimes passed the lock between them). On timeout the
+    # wait is abandoned: if the kernel grants the lock later, the helper releases it at once.
+    state = {"abandoned": False, "got": False, "error": None}
+    cond = threading.Condition()
+
+    def wait() -> None:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX)
+        except Exception as e:  # noqa: BLE001 - reported to the waiting caller
+            with cond:
+                state["error"] = e
+                cond.notify_all()
+            return
+        with cond:
+            if state["abandoned"]:
+                fcntl.flock(f, fcntl.LOCK_UN)
+                f.close()
+                return
+            state["got"] = True
+            cond.notify_all()
+
+    threading.Thread(target=wait, name="gpu-lock-wait", daemon=True).start()
+    with cond:
+        cond.wait_for(lambda: state["got"] or state["error"] is not None, timeout=timeout_s)
+        if not state["got"]:
+            state["abandoned"] = True
+            err = state["error"]
+    if not state["got"]:
+        if err is not None:
+            f.close()
+            raise GpuUnavailable(f"shared GPU lock: {type(err).__name__}: {err}")
+        raise GpuUnavailable(f"shared GPU lock not acquired within {timeout_s:.0f} s")
     try:
-        while True:
-            try:
-                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except BlockingIOError:
-                if time.time() - t0 > timeout_s:
-                    raise GpuUnavailable(f"shared GPU lock not acquired within {timeout_s:.0f} s")
-                time.sleep(poll_s)
         try:
             if min_free_gb:
                 import torch
