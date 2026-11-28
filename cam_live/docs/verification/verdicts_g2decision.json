@@ -1,0 +1,422 @@
+{
+ "PI-01": {
+  "status": "partial",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Mechanism re-verified at f54d8cc: every family's likelihood == scipy (G-pr probe_predict_numerics 31/31), action- and horizon-conditioned predictions (the real-configuration predict test was not re-run at the freeze (GPU lock contention); G-pr verified it on 9ba1e45 and later predict/ changes are covered by the CPU suites). FAILS / not shown: on held-out NEW mechanisms the heads do not beat the action-independent baseline (B's scientific_failures: held-out NLL 1.666 vs 1.645 at 6 h, 2.211 vs 2.163 at 2 d); learning is shown at debug scale only; no training on the real configuration.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_predict_numerics.py (31/31 at f54d8cc)",
+   "pytest cam_live/tests/predict (164 passed)",
+   "pytest cam_live/tests/predict/test_gpu_real_config.py -m gpu",
+   "cam_live/docs/status/B.json scientific_failures"
+  ]
+ },
+ "PI-02": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Registry refuses edits / future-dated predictions / resolutions at or before registration (G-pr checks re-run, 31/31); predictions registered before evaluate_candidates returns (tests pass at f54d8cc); integration suite 64/64.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_predict_numerics.py",
+   "pytest cam_live/tests/predict",
+   "pytest cam_live/tests/integration"
+  ]
+ },
+ "PI-03": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Targets only from matured observed outcomes (pending / unobservable / censored-count masked, imagined refused; float64 targets now, G-pr D11 fixed). G-pr's gap (trained only with a plain optimiser) is closed by integration: the world-model / fast-prior / evaluator providers train under the integrated agent's ContinualLearner and keep their held-out flags (G2L-8 fix, tests/predict/test_int3a_eligibility.py passes). Debug scale only; on the real configuration single updates only.",
+  "evidence": [
+   "pytest cam_live/tests/predict",
+   "pytest cam_live/tests/integration",
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_predict_numerics.py"
+  ]
+ },
+ "PI-04": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Two horizons predicted and registered per candidate; horizon is a continuous input; tests pass at f54d8cc (the real-configuration predict test was not re-run at the freeze (GPU lock contention); G-pr verified it on 9ba1e45 and later predict/ changes are covered by the CPU suites).",
+  "evidence": [
+   "pytest cam_live/tests/predict/test_gpu_real_config.py -m gpu",
+   "pytest cam_live/tests/predict"
+  ]
+ },
+ "PI-05": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Epistemic (ensemble + fast posterior) and aleatoric parts reported; tests that epistemic uncertainty shrinks with data pass (the real-configuration predict test was not re-run at the freeze (GPU lock contention); G-pr verified it on 9ba1e45 and later predict/ changes are covered by the CPU suites); calibration of the combined uncertainty on the real model not measured by anyone.",
+  "evidence": [
+   "pytest cam_live/tests/predict",
+   "pytest cam_live/tests/predict/test_gpu_real_config.py -m gpu"
+  ]
+ },
+ "PI-06": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Pending / unobservable / missing masked, never filled; pending objective -> zero evaluator loss and gradient (G-pr probe re-run 31/31; tests pass).",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_predict_numerics.py"
+  ]
+ },
+ "PI-07": {
+  "status": "partial",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Agrees with B's own 'partial': the planner exists and is flagged imagined, but the latent transition is worse than predicting the mean on held-out real transitions, the horizon never exceeds 1 step and no decision comparison with / without planning exists. Not re-measured.",
+  "evidence": [
+   "cam_live/docs/status/B.json PI-07"
+  ]
+ },
+ "PI-08": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Rules thompson / ucb / greedy / voi / policy / randomized re-checked (G-pr probe_decisions 28/28 at f54d8cc). New rule thompson_policy (agent default): the index is drawn from exactly the recorded vector (generator replay), frequencies over 20,000 draws == mean recorded propensity with overlapping posteriors (max |z| 0.9), infeasible = 0 and the eps floor hold, the distribution is invariant to q -> a q + b and to logits + k z, a uniform policy gives the value-only Thompson distribution, my own reference reproduces the vector to 0.0, the calibration posterior == my weighted Bayesian regression and recovers known coefficients, a noise preference ends with mean lambda 0.003. Observation G2D-2: the prior alone (beta_pi ~ N(0, 0.5^2)) gives a peaked policy weight before any verified outcome (mean lambda 0.36, TV 0.17 added to a 6-candidate decision), so 'influence grows only as preferences prove predictive' is an overstatement for the first decisions. LRN's choice diagnostic re-run at f54d8cc (condition E, debug scale, 3 seeds x 8 lifetimes): expected choice quality 0.337 (LRN 0.375 [0.321, 0.428]), uniform 0.203, greedy on own predictions 0.311, policy head 0.269.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/probe_selection.py (10/10)",
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_decisions.py (28/28)",
+   "cam_live/docs/verification/repro/g2decision/out/choice_diagnostic_E_f54d8cc.json"
+  ]
+ },
+ "PI-09": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Real Qwen3-4B + 50m (python -m cam_live.eval.proposal_probe --plan SW:rle,MECH:7 --rounds 4, run by me): 16/16 and 16/16 backbone items parse and validate, every prompt lists every permitted available tool (14 / 16), a backbone multi-step program (program[sandbox.write_file, http.get, http.get]) is parsed and valid, every candidate carries provenance and decisions record exact probabilities (PI-08). The 4 SW solution.py files pass 60/60 hidden tests offline. Limitation kept from G-pr D9: the latent bridge is an exact no-op at initialisation, so 'conditioned on the belief' is structural until the bridge is trained; proposal usefulness in the loop not measured by me.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/probe_prompt.py --real <probe.json> (13/13)",
+   "python -m cam_live.eval.proposal_probe --plan SW:rle,MECH:7 --rounds 4 (GPU lock)"
+  ]
+ },
+ "PI-10": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Imagined objects refused by build_targets, the registry and the evaluator path (tests pass; G-pr probe re-run).",
+  "evidence": [
+   "pytest cam_live/tests/predict",
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_predict_numerics.py"
+  ]
+ },
+ "PI-11": {
+  "status": "partial",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Unclaimed in every status file; judged on code and test. classify_error labels noise / model_uncertain / model_wrong / changed_conditions / missing and its test passes. DEFECT G2D-1 (minor): Predictor.observe_outcomes keeps one ChangeDetector per metric (predict/predictor.py:694-697) that nothing ever resets (no reset() call in predict/ or agent.py); detected_at latches (predict/errors.py:51), so after the first detected shift every later confident miss of that metric is labelled changed_conditions and never model_wrong again, even after 2000 well-calibrated residuals. The labels feed no learning signal (diagnostics only).",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/probe_misc.py (check 1 FAILS)",
+   "pytest cam_live/tests/predict/test_imagination.py"
+  ]
+ },
+ "SE-03": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Count magnitudes by negative binomial (== scipy), time to achievement by censoring-aware discrete hazard (== geometric), resources on log1p (G-pr probe re-run 31/31). Accuracy debug scale only.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_predict_numerics.py"
+  ]
+ },
+ "SE-04": {
+  "status": "partial",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "G-pr D5 FIXED: on the clustered null the 95 % slope interval now excludes 0 in 7 % of runs (G-pr probe, was 61 %); D10 fixed (NLL intervals over cluster means). Measurement is prospective and grouped by family / horizon. Still partial as B claims: calibration has been measured only in B's LabWorld diagnostics at debug scale (trained evaluator ~ base rate, slope CI -28..636); nothing in the runtime / evaluation path produces a calibration report (score_predictions is called only by predict/diagnose.py and the registry).",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_predict_numerics.py (clustered-null check PASS)",
+   "cam_live/docs/status/B.json SE-04"
+  ]
+ },
+ "SE-05": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "action_quality = q[chosen] - E_pi q, quality + luck = surprise hold (G-pr); now computed on the world model's predicted goal values (LRN 2.4). Tests pass.",
+  "evidence": [
+   "pytest cam_live/tests/predict"
+  ]
+ },
+ "SE-06": {
+  "status": "partial",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Agrees with B: decision-relevant VOI is correct (reference estimators vs Monte Carlo, irrelevant-surprise VOI exactly 0; G-pr probe_decisions 28/28 at f54d8cc) and INT3A's VOI refactor is bit-identical on the CPU (test passes). NOT done: the learned downstream-usefulness estimator has no LossProvider and is never scored against realised downstream learning; VOI-aware selection did not beat greedy.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_decisions.py",
+   "cam_live/docs/status/B.json SE-06"
+  ]
+ },
+ "AE-01": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Experiments registered (question, hypothesis, prediction copies) before the first assignment; assignment frequencies match the recorded probabilities (G-pr probe_decisions re-run). Hypotheses only restate predictions (B states it).",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_decisions.py"
+  ]
+ },
+ "CU-12": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "G-pr's gaps closed: measured now on the open-ended computer's own discover_tools() output (sandbox.*, http.*, internal.*, program; real Qwen3-4B): every permitted available tool listed with exact argument names, required marked, nested properties shown; 32/32 backbone items valid; a backbone multi-step program parsed and valid. The compact form drops only minLength / maxLength bounds of a few string arguments (listed). Normalisation is meaning-preserving (marker undone only for real properties, numeric coercion only for numeric types).",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/probe_prompt.py --real <probe.json> (13/13)",
+   "python -m cam_live.eval.proposal_probe --plan SW:rle,MECH:7"
+  ]
+ },
+ "MR-01": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "R_psi rewards every real decision; intrinsic / bootstrap reward and reward_version stored (tests pass); LRN-3 / KF-E02 inputs now produced (tests/integration/test_int3a_bootstrap_inputs.py, test_int3a_audit.py pass).",
+  "evidence": [
+   "pytest cam_live/tests/reward",
+   "pytest cam_live/tests/integration"
+  ]
+ },
+ "MR-02": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Applied meta-updates change psi, skipped ones leave it bit-identical (G-pr probes re-run; my probe: psi changed by every applied step, 3 seeds).",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/probe_meta_path.py",
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_integrity.py"
+  ]
+ },
+ "MR-03": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Every live policy update (38 in 3 seeds) equals MY K-step SGD on the documented current loss (component-normalised mix of bootstrap and R_psi, goal term with verified / credit / calibrated-prediction sources, credited return replacing the goal return, all-candidate model term) to <= 4.3e-6 relative, at live mix 0 where R_psi carries the reward. Note: at the agent's default (mix 1) R_psi has weight exactly 0 in the live update until a promotion (cold start by design); real-configuration pathway at mix 0.5: real Qwen3-4B + 50m pathway at f54d8cc (2 lifetimes, mix 0.5): 8 live updates, each depending on R_psi's shape (TV 0.001-0.010), KL 0.042-0.069; 0 of 40 meta-updates applied (insufficient independent outcomes), so the outer step on the real configuration was not reproduced at the freeze (C's b6006a2 evidence shows it).",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/probe_meta_path.py (seeds 5, 6, 7)",
+   "cam_live/docs/verification/repro/g2decision/out/real_pathway_check_f54d8cc.json",
+   "cam_live/docs/verification/repro/g2decision/out/debug_pathway_check_f54d8cc_partial.json"
+  ]
+ },
+ "MR-04": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Functional unroll over the real adaptable subset (policy head + decision trunk, debug preset) with the current loss: the code's engine gradient == mine to <= 1.9e-15 and == central FD to ~5e-10 for K = 1, 2, 4, 8 (float64); live updates replayed bit-identically. 50m cost test: not re-run (GPU lock contention).",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/probe_meta_path.py (K sweep)",
+   "pytest cam_live/tests/reward/test_reward_experiment.py -m gpu"
+  ]
+ },
+ "MR-05": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "The applied meta-gradient on the real MetaLearner path (trust-region step, matured replay, goal / credit / model terms on) equals my independent recomputation (own loss, own unroll with sibling-node baseline, own estimator choice and leave-group-out baselines) to 2.4e-7 .. 7.2e-7 in 5 applied updates (3 seeds); my surrogate's derivative == central FD (float64) to 1e-6 and the code's gradient along a random direction == FD to <= 2e-5. G-pr D1 FIXED (baseline independent of the row's own outcome, 200 random chains, |db| 3.6e-15); D7 fixed (shadow update importance-weighted). Approximation noted: the trust-region step is held constant (exact at the default live mix 1 where the step does not depend on psi). Real Qwen3-4B + 50m at f54d8cc (pathway script, mix 0.5, 2 lifetimes in one GPU hold): 0 of 40 meta-updates applied (insufficient independent outcomes), so an applied outer step on the real configuration rests on C's b6006a2 evidence and was not reproduced at the freeze.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/probe_meta_path.py",
+   "cam_live/docs/verification/repro/g2decision/probe_misc.py (check 2)",
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_metalearner_path.py (D7 info line)",
+   "cam_live/docs/verification/repro/g2decision/out/real_pathway_check_f54d8cc.json"
+  ]
+ },
+ "MR-06": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "G-pr D2 FIXED (a signed outcome cannot be admitted with a utility the verifier never stated) and D3 FIXED (a verifier-signed outcome of a self-generated goal does not supervise by default): probe_integrity 21/21 at f54d8cc; the agent registers its task's origin (agent.py register_objective).",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_integrity.py (21/21)"
+  ]
+ },
+ "MR-07": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "G-pr probe_metagrad_small 40/40 at f54d8cc (exact tabular / small reference, K = 1..8) and my K = 1, 2, 4, 8 FD on the real subset with the CURRENT loss (rel <= 6e-10). G-pr's probe_metagrad_real now fails only because it encodes the pre-LRN loss (stale probe, superseded by probe_meta_path.py).",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/probe_meta_path.py",
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_metagrad_small.py"
+  ]
+ },
+ "MR-08": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Bootstrap works without pretraining and is labelled 'bootstrap' until a meta-update was applied AND promoted (D12 fixed); the shadow update is importance-weighted (D7 fixed); promotion decisions == my one-sided 95 % t non-inferiority rule (300/300); held-out groups never enter the outer gradient (code: rows require not held). INT3A's power analysis stands: the mix stays at 1 unless the learned reward is far better.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/probe_misc.py (check 3)",
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_metalearner_path.py",
+   "pytest cam_live/tests/reward"
+  ]
+ },
+ "MR-09": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Integrity tests exist and execute (143 reward tests pass); G-pr's successful attacks D2, D3, D6 (reworded self-goals now weighted 1, 0.5, 0.25, 0.125) and D8 (truncated ledger now fails verification) no longer succeed (probe_integrity 21/21).",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_integrity.py",
+   "pytest cam_live/tests/reward"
+  ]
+ },
+ "MR-10": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Skip-with-reason until enough independent verified groups; D1 fixed (return-to-go chain is one baseline group; my probe and G-pr's path probe).",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/probe_misc.py",
+   "cam_live/docs/verification/repro/g2decision/probe_meta_path.py"
+  ]
+ },
+ "MR-11": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "psi bit-identical after live policy updates (PsiGuard), reward optimizer holds exactly psi, R_psi detached in the learner loss; ledger anchored by a head file (D8 fixed). Guards are in-process.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_integrity.py",
+   "pytest cam_live/tests/reward"
+  ]
+ },
+ "AE-04": {
+  "status": "partial",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "D4 FIXED (G-pr probe_extras 4/4: select(k=5) under a 2-decision budget returns 2; pending goals stay within budget) and C-11 is applied in agent.py:1933-1938 (C.json still lists it as not done: stale). Still partial: expected transferable competence is the constant 1.0 (reward/selfgoals.py:339), spec 11.4 asks for an estimate; usefulness against later objectives only in LabWorld.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_extras.py (4/4)"
+  ]
+ },
+ "RC-01": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Re-checked after INT3A / DX at f54d8cc: G2-learn's integrated-agent probe re-run on the snapshot 13/13 (30 matured declared outcomes all linked, weights <= 1 per outcome, no link to a later decision, no leakage); credit 135 passed, integration 64 passed incl. tests/integration/test_agent_runtime.py::test_delayed_outcomes_link_to_their_decisions; G2-learn's link checks stand (agent.py and credit/links.py unchanged in what they verified except DX's overflow fix).",
+  "evidence": [
+   "pytest cam_live/tests/credit",
+   "pytest cam_live/tests/integration",
+   "cam_live/docs/verification/repro/g2learn/probe_agent_credit.py (snapshot copy; cam_live/docs/verification/repro/g2decision/out/g2learn_probe_agent_credit_f54d8cc.txt)"
+  ]
+ },
+ "RC-02": {
+  "status": "verified",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Decomposer and full-trajectory credit verified by G-cl / G2-learn; KF-E01 re-verified here: return-like (RUDDER-like) credit replaces the row's goal return exactly as documented and per-decision credit enters only rows without a final verified annotation, inside the live update and the differentiated one (my recomputation equal to 1e-7, gradients equal); in the integrated agent the hook returns stored credit for 26 of 27 records (simple, per decision; G2-learn's probe re-run). RUDDER's credit reaches training only once evidence selects RUDDER, which never happens in the agent (RC-08).",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2decision/probe_meta_path.py",
+   "pytest cam_live/tests/integration/test_int3a_audit.py"
+  ]
+ },
+ "RC-08": {
+  "status": "partial",
+  "by": "G2-decision",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "In D's lab the selection is held out by lifetime with paired SE (G2-learn). FAILS in the integrated agent at f54d8cc: change request DX-1 was not applied (agent.py:717 builds the CreditAssigner without attach_experiments), so ContinualLearner.learn never runs evaluate_experiments / selector.select and the default stays 'simple' by construction; DX measured that even with DX-1 the agent's one-unit experiments and holdout_experiments=False would not allow a comparison. G2-learn's probe re-run at f54d8cc: 0 selection log rows, 0 experiments in the store against 6 experiment ids on the agent's decisions, default 'simple'.",
+  "evidence": [
+   "grep attach_experiments cam_live/src/cam_live/agent.py (no match)",
+   "cam_live/docs/change_requests/DX.md DX-1",
+   "cam_live/docs/verification/repro/g2decision/out/g2learn_probe_agent_credit_f54d8cc.txt"
+  ]
+ }
+}

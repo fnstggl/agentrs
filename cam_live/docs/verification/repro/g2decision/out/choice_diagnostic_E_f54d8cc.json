@@ -1,0 +1,116 @@
+{
+ "command": "PYTHONPATH=$SNAP/cam_live/src .venv/bin/python $SNAP/cam_live/docs/evidence/B/choice_diagnostic.py --condition E --seed {0,1,2} (8 lifetimes x 16 decisions, debug scale, code f54d8cc)",
+ "summaries": {
+  "E_s0.json": {
+   "n_decisions": 103,
+   "expected_quality": 0.3813583015064281,
+   "quality": 0.35694933173042737,
+   "uniform_quality": 0.1952759585418792,
+   "greedy_pred_quality": 0.3884980814738112,
+   "policy_quality": 0.17276922523174365,
+   "spearman_pred_truth": 0.8328969027773088,
+   "zero_value_share": 0.06796116504854369,
+   "share_positive_stored_reward_to_zero_value": 0.06325466142326037,
+   "share_positive_inner_reward_to_zero_value": 0.01250496676685743,
+   "spearman_inner_reward_truth": 0.21141079027618667,
+   "per_lifetime_spearman_pred_vs_expected_quality": 0.5238095238095238,
+   "expected_adopters_per_decision": 1.5958776936959835,
+   "progress": 0.5824444287344887,
+   "mix_trajectory": [
+    1.0,
+    1.0,
+    0.75,
+    0.75,
+    0.75,
+    0.75,
+    0.75,
+    0.75
+   ],
+   "mix_decisions": [
+    {
+     "action": "lower",
+     "reason": "held_out_evidence_shows_no_harm",
+     "mix_before": 1.0,
+     "mix_after": 0.75,
+     "n": 4,
+     "mean_diff": 0.0750322233172908,
+     "lower": -0.026349168038834997,
+     "upper": 0.1764136146734166,
+     "margin": 0.1797091084446928
+    }
+   ],
+   "meta_applied": 7,
+   "policy_updates": 33
+  },
+  "E_s1.json": {
+   "n_decisions": 97,
+   "expected_quality": 0.2977769808879647,
+   "quality": 0.33458505188129994,
+   "uniform_quality": 0.18808450208339175,
+   "greedy_pred_quality": 0.2614593495462013,
+   "policy_quality": 0.3254747477374672,
+   "spearman_pred_truth": 0.6553791040962724,
+   "zero_value_share": 0.21649484536082475,
+   "share_positive_stored_reward_to_zero_value": 0.0070006839092003025,
+   "share_positive_inner_reward_to_zero_value": 0.04233918910988042,
+   "spearman_inner_reward_truth": 0.5298524341124538,
+   "per_lifetime_spearman_pred_vs_expected_quality": 0.0,
+   "expected_adopters_per_decision": 6.050076229471162,
+   "progress": 0.8557312859112318,
+   "mix_trajectory": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ],
+   "mix_decisions": [],
+   "meta_applied": 2,
+   "policy_updates": 32
+  },
+  "E_s2.json": {
+   "n_decisions": 91,
+   "expected_quality": 0.3308523465771836,
+   "quality": 0.3429033586861184,
+   "uniform_quality": 0.2257150764822876,
+   "greedy_pred_quality": 0.28242497412168877,
+   "policy_quality": 0.3087830907031677,
+   "spearman_pred_truth": 0.6402586725134348,
+   "zero_value_share": 0.01098901098901099,
+   "share_positive_stored_reward_to_zero_value": 0.011441061017723669,
+   "share_positive_inner_reward_to_zero_value": 0.0011094126083708653,
+   "spearman_inner_reward_truth": 0.5211170377709794,
+   "per_lifetime_spearman_pred_vs_expected_quality": 0.11904761904761904,
+   "expected_adopters_per_decision": 3.0063414003641924,
+   "progress": 0.4902821640086605,
+   "mix_trajectory": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ],
+   "mix_decisions": [
+    {
+     "action": "hold",
+     "reason": "inconclusive_evidence",
+     "mix_before": 1.0,
+     "mix_after": 1.0,
+     "n": 4,
+     "mean_diff": -0.9289886060629272,
+     "lower": -2.6687470940134537,
+     "upper": 0.8107698818875991,
+     "margin": 0.7841990911327926
+    }
+   ],
+   "meta_applied": 5,
+   "policy_updates": 30
+  }
+ }
+}
