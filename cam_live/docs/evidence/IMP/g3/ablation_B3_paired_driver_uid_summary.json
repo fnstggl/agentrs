@@ -1,0 +1,2067 @@
+{
+ "runs": 20,
+ "per_seed": [
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 0,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 36,
+    "progress_mean": 0.5796269727403156,
+    "achieved": 1,
+    "expected_adopters": 39.84075697878932,
+    "oracle_expected_adopters": 213.97114661739437,
+    "truth_efficiency_mean": 0.2844297798580515,
+    "imagination_tv_mean": 0.03787878787878788,
+    "imagination_tv_max": 0.125,
+    "decisions_with_tv_over_0.1": 2,
+    "argmax_changed_by_imagination": 1,
+    "n_with_imagination": 33,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.05,
+      "weight_mean": 0.2955657372949117,
+      "calibration_n": 6,
+      "beta_im_last": 0.40057299992126566,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.033854166666666664,
+      "weight_mean": 0.2344328331834348,
+      "calibration_n": 16,
+      "beta_im_last": 0.20674941926982887,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.015625,
+      "weight_mean": 0.12091807165891051,
+      "calibration_n": 30,
+      "beta_im_last": 0.005839391660446308,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "wait": 6,
+     "lab.probe": 3,
+     "lab.act": 27
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 8,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.2682926829268293,
+     0.47058823529411764,
+     1.0
+    ],
+    "planner_seconds_per_decision": 0.02792014648568713,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 34,
+       "scale": 3.6659363446495354,
+       "beta_q": 0.13988455754781104,
+       "beta_q_sd": 0.20032606247576865,
+       "beta_im": -0.0798887422239887,
+       "beta_im_sd": 0.29705549361049305,
+       "noise_var": 0.6945089588242459
+      }
+     },
+     "pending": 2
+    },
+    "wall_seconds": 274.02893924713135
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 36,
+    "progress_mean": 0.49784791965566716,
+    "achieved": 1,
+    "expected_adopters": 46.34343526627215,
+    "oracle_expected_adopters": 213.97114661739437,
+    "truth_efficiency_mean": 0.3125739162034372,
+    "imagination_tv_mean": 0.043198529411764705,
+    "imagination_tv_max": 0.15625,
+    "decisions_with_tv_over_0.1": 3,
+    "argmax_changed_by_imagination": 2,
+    "n_with_imagination": 34,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.035416666666666666,
+      "weight_mean": 0.22300145516952416,
+      "calibration_n": 4,
+      "beta_im_last": 0.41500381943691744,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.03125,
+      "weight_mean": 0.3263580275930951,
+      "calibration_n": 16,
+      "beta_im_last": 0.3285311219412428,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.065625,
+      "weight_mean": 0.353020622718312,
+      "calibration_n": 29,
+      "beta_im_last": 0.4146643063459728,
+      "argmax_changed": 1
+     }
+    ],
+    "operations": {
+     "wait": 5,
+     "lab.probe": 3,
+     "lab.act": 28
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 5,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.3170731707317073,
+     0.17647058823529413,
+     1.0
+    ],
+    "planner_seconds_per_decision": 0.027285098667360015,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 32,
+       "scale": 3.135201333065528,
+       "beta_q": 0.5849373436703805,
+       "beta_q_sd": 0.2860649517505266,
+       "beta_im": 0.3697396259226168,
+       "beta_im_sd": 0.33589700974093134,
+       "noise_var": 0.6349058597968319
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 258.42312836647034
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": -0.08177905308464849,
+    "expected_adopters_on_minus_off": 2.1675594291609417,
+    "first_divergence": {
+     "lifetime": 0,
+     "decision": 3
+    },
+    "pairing": {
+     "decisions_compared": 36,
+     "first_input_difference": 4,
+     "first_action_difference": 3,
+     "share_tv_at_first_action_difference": 0.0625,
+     "first_action_difference_attributable": true,
+     "first_action_difference_via_learning": false,
+     "first_imagination_influence": 0,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.0625,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     0.04878048780487804,
+     -0.2941176470588235,
+     0.0
+    ]
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 1,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 37,
+    "progress_mean": 0.7264957264957265,
+    "achieved": 2,
+    "expected_adopters": 47.3723795794268,
+    "oracle_expected_adopters": 127.5895455268011,
+    "truth_efficiency_mean": 0.23662731552154895,
+    "imagination_tv_mean": 0.06653225806451613,
+    "imagination_tv_max": 0.1875,
+    "decisions_with_tv_over_0.1": 8,
+    "argmax_changed_by_imagination": 6,
+    "n_with_imagination": 31,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.020833333333333332,
+      "weight_mean": 0.1654368542610554,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.07291666666666667,
+      "weight_mean": 0.20270367571308776,
+      "calibration_n": 12,
+      "beta_im_last": 0.0,
+      "argmax_changed": 3
+     },
+     {
+      "tv_mean": 0.09375,
+      "weight_mean": 0.16127608414017894,
+      "calibration_n": 2,
+      "beta_im_last": 0.006292282473348183,
+      "argmax_changed": 2
+     }
+    ],
+    "operations": {
+     "lab.act": 34,
+     "lab.unlock": 3
+    },
+    "unlock": 3,
+    "door_channel_acts": {
+     "after_unlock": 4,
+     "without_unlock": 2,
+     "lifetimes_with_unlock": 3
+    },
+    "progress_by_lifetime": [
+     1.0,
+     1.0,
+     0.1794871794871795
+    ],
+    "planner_seconds_per_decision": 0.11669451097731252,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 21,
+       "scale": 4.119178123124297,
+       "beta_q": 0.3924402356984266,
+       "beta_q_sd": 0.28302740563833495,
+       "beta_im": 0.034097122187933426,
+       "beta_im_sd": 0.48239460137065016,
+       "noise_var": 0.6437231764946478
+      },
+      "4": {
+       "horizon": 4,
+       "n": 6,
+       "scale": 5.51852544249588,
+       "beta_q": 0.9902177836402027,
+       "beta_q_sd": 0.46889721193488637,
+       "beta_im": 0.04117494874465909,
+       "beta_im_sd": 0.48281350276042156,
+       "noise_var": 0.6613744434308024
+      }
+     },
+     "pending": 10
+    },
+    "wall_seconds": 296.6288802623749
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 32,
+    "progress_mean": 0.7008547008547009,
+    "achieved": 2,
+    "expected_adopters": 68.49362770371752,
+    "oracle_expected_adopters": 127.5895455268011,
+    "truth_efficiency_mean": 0.2357587823221452,
+    "imagination_tv_mean": 0.05048076923076923,
+    "imagination_tv_max": 0.15625,
+    "decisions_with_tv_over_0.1": 1,
+    "argmax_changed_by_imagination": 3,
+    "n_with_imagination": 26,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.020833333333333332,
+      "weight_mean": 0.1654368542610554,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.05859375,
+      "weight_mean": 0.20576117395881618,
+      "calibration_n": 12,
+      "beta_im_last": -0.002311807669712213,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.07291666666666667,
+      "weight_mean": 0.15218168531771264,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "lab.act": 28,
+     "lab.unlock": 4
+    },
+    "unlock": 4,
+    "door_channel_acts": {
+     "after_unlock": 3,
+     "without_unlock": 2,
+     "lifetimes_with_unlock": 2
+    },
+    "progress_by_lifetime": [
+     1.0,
+     1.0,
+     0.10256410256410256
+    ],
+    "planner_seconds_per_decision": 0.11179236631141976,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 20,
+       "scale": 9.788190246806906,
+       "beta_q": 0.5297897824792855,
+       "beta_q_sd": 0.31974366317600267,
+       "beta_im": -0.07820107959534478,
+       "beta_im_sd": 0.48710467479026776,
+       "noise_var": 0.7517042749693348
+      },
+      "4": {
+       "horizon": 4,
+       "n": 8,
+       "scale": 2.439675894995489,
+       "beta_q": 0.9601866418595625,
+       "beta_q_sd": 0.4578489396190498,
+       "beta_im": -0.13906876045851382,
+       "beta_im_sd": 0.35847169165392356,
+       "noise_var": 0.6705192786541871
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 238.00165796279907
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": -0.025641025641025644,
+    "expected_adopters_on_minus_off": 7.040416041430241,
+    "first_divergence": {
+     "lifetime": 1,
+     "decision": 1
+    },
+    "pairing": {
+     "decisions_compared": 32,
+     "first_input_difference": 14,
+     "first_action_difference": 13,
+     "share_tv_at_first_action_difference": 0.09375,
+     "first_action_difference_attributable": true,
+     "first_action_difference_via_learning": false,
+     "first_imagination_influence": 2,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.03125,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     0.0,
+     0.0,
+     -0.07692307692307693
+    ]
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 2,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 44,
+    "progress_mean": 0.5220785840051895,
+    "achieved": 0,
+    "expected_adopters": 45.411288445520945,
+    "oracle_expected_adopters": 286.19948480887854,
+    "truth_efficiency_mean": 0.3287836437711865,
+    "imagination_tv_mean": 0.03800675675675676,
+    "imagination_tv_max": 0.125,
+    "decisions_with_tv_over_0.1": 1,
+    "argmax_changed_by_imagination": 1,
+    "n_with_imagination": 37,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.04017857142857143,
+      "weight_mean": 0.18409814770193483,
+      "calibration_n": 3,
+      "beta_im_last": 0.11145945595457078,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.024553571428571428,
+      "weight_mean": 0.1881141016527624,
+      "calibration_n": 16,
+      "beta_im_last": 0.05977096875636043,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.05555555555555555,
+      "weight_mean": 0.20517134906907403,
+      "calibration_n": 24,
+      "beta_im_last": 0.025947707758544658,
+      "argmax_changed": 1
+     }
+    ],
+    "operations": {
+     "wait": 3,
+     "lab.act": 40,
+     "lab.unlock": 1
+    },
+    "unlock": 1,
+    "door_channel_acts": {
+     "after_unlock": 1,
+     "without_unlock": 11,
+     "lifetimes_with_unlock": 1
+    },
+    "progress_by_lifetime": [
+     0.11926605504587157,
+     0.8636363636363636,
+     0.5833333333333334
+    ],
+    "planner_seconds_per_decision": 0.05341243916402825,
+    "horizon_final": 2,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 28,
+       "scale": 2.4050735334035016,
+       "beta_q": 0.1635907096441868,
+       "beta_q_sd": 0.22761290257947756,
+       "beta_im": -0.08348658982280388,
+       "beta_im_sd": 0.316125392189404,
+       "noise_var": 0.6559080679886097
+      },
+      "2": {
+       "horizon": 2,
+       "n": 14,
+       "scale": 3.7638506966060263,
+       "beta_q": 0.5400257346900411,
+       "beta_q_sd": 0.3568450863562442,
+       "beta_im": 0.02519595775150561,
+       "beta_im_sd": 0.4786678127874972,
+       "noise_var": 0.5507872970845349
+      }
+     },
+     "pending": 2
+    },
+    "wall_seconds": 399.8475453853607
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 44,
+    "progress_mean": 0.5220785840051895,
+    "achieved": 0,
+    "expected_adopters": 45.411288445520945,
+    "oracle_expected_adopters": 286.19948480887854,
+    "truth_efficiency_mean": 0.3287836437711865,
+    "imagination_tv_mean": 0.03800675675675676,
+    "imagination_tv_max": 0.125,
+    "decisions_with_tv_over_0.1": 1,
+    "argmax_changed_by_imagination": 1,
+    "n_with_imagination": 37,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.04017857142857143,
+      "weight_mean": 0.18409814770193483,
+      "calibration_n": 3,
+      "beta_im_last": 0.11145945595457078,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.024553571428571428,
+      "weight_mean": 0.1881141016527624,
+      "calibration_n": 16,
+      "beta_im_last": 0.05977096875636043,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.05555555555555555,
+      "weight_mean": 0.2051714208333592,
+      "calibration_n": 24,
+      "beta_im_last": 0.025947730857120776,
+      "argmax_changed": 1
+     }
+    ],
+    "operations": {
+     "wait": 3,
+     "lab.act": 40,
+     "lab.unlock": 1
+    },
+    "unlock": 1,
+    "door_channel_acts": {
+     "after_unlock": 1,
+     "without_unlock": 11,
+     "lifetimes_with_unlock": 1
+    },
+    "progress_by_lifetime": [
+     0.11926605504587157,
+     0.8636363636363636,
+     0.5833333333333334
+    ],
+    "planner_seconds_per_decision": 0.05452928679402579,
+    "horizon_final": 2,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 28,
+       "scale": 2.4050735334035016,
+       "beta_q": 0.16359071755114954,
+       "beta_q_sd": 0.22761291418280089,
+       "beta_im": -0.08348657948183427,
+       "beta_im_sd": 0.3161252982822737,
+       "noise_var": 0.6559080671077188
+      },
+      "2": {
+       "horizon": 2,
+       "n": 14,
+       "scale": 3.7638506966060263,
+       "beta_q": 0.5400258865882794,
+       "beta_q_sd": 0.3568452488872059,
+       "beta_im": 0.02519540072500483,
+       "beta_im_sd": 0.4786681082700268,
+       "noise_var": 0.550787396724553
+      }
+     },
+     "pending": 2
+    },
+    "wall_seconds": 396.1406409740448
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": 0.0,
+    "expected_adopters_on_minus_off": 0.0,
+    "first_divergence": null,
+    "pairing": {
+     "decisions_compared": 44,
+     "first_input_difference": 16,
+     "first_action_difference": null,
+     "share_tv_at_first_action_difference": null,
+     "first_action_difference_attributable": null,
+     "first_action_difference_via_learning": null,
+     "first_imagination_influence": 1,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.03125,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 3,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 46,
+    "progress_mean": 0.5172751776525362,
+    "achieved": 0,
+    "expected_adopters": 59.68071394161968,
+    "oracle_expected_adopters": 311.9058466648598,
+    "truth_efficiency_mean": 0.36106901645215467,
+    "imagination_tv_mean": 0.03277439024390244,
+    "imagination_tv_max": 0.09375,
+    "decisions_with_tv_over_0.1": 0,
+    "argmax_changed_by_imagination": 4,
+    "n_with_imagination": 41,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.038461538461538464,
+      "weight_mean": 0.19823872810451057,
+      "calibration_n": 4,
+      "beta_im_last": 0.054873665972765495,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.026442307692307692,
+      "weight_mean": 0.17660706986634372,
+      "calibration_n": 20,
+      "beta_im_last": -0.05699731457994113,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.03333333333333333,
+      "weight_mean": 0.14329470300199498,
+      "calibration_n": 36,
+      "beta_im_last": -0.14427663865244056,
+      "argmax_changed": 2
+     }
+    ],
+    "operations": {
+     "lab.probe": 2,
+     "wait": 2,
+     "lab.act": 41,
+     "lab.unlock": 1
+    },
+    "unlock": 1,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 3,
+     "lifetimes_with_unlock": 1
+    },
+    "progress_by_lifetime": [
+     0.10377358490566038,
+     0.8571428571428571,
+     0.5909090909090909
+    ],
+    "planner_seconds_per_decision": 0.02628319942311424,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 42,
+       "scale": 2.707571271115606,
+       "beta_q": 0.37527175737463314,
+       "beta_q_sd": 0.27515650111545054,
+       "beta_im": -0.10044524294349017,
+       "beta_im_sd": 0.43663868084932067,
+       "noise_var": 0.45217258763204593
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 412.8877465724945
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 40,
+    "progress_mean": 0.5098219390672221,
+    "achieved": 0,
+    "expected_adopters": 57.9859330195601,
+    "oracle_expected_adopters": 311.9058466648598,
+    "truth_efficiency_mean": 0.4953524110471391,
+    "imagination_tv_mean": 0.05295138888888889,
+    "imagination_tv_max": 0.28125,
+    "decisions_with_tv_over_0.1": 3,
+    "argmax_changed_by_imagination": 2,
+    "n_with_imagination": 36,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.021634615384615384,
+      "weight_mean": 0.1870162614311754,
+      "calibration_n": 3,
+      "beta_im_last": -0.0745552348198747,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.08203125,
+      "weight_mean": 0.18687328755349855,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.06458333333333334,
+      "weight_mean": 0.23241643817448365,
+      "calibration_n": 8,
+      "beta_im_last": 0.09381598298109614,
+      "argmax_changed": 1
+     }
+    ],
+    "operations": {
+     "lab.probe": 3,
+     "wait": 3,
+     "lab.act": 34
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 10,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.29245283018867924,
+     0.9642857142857143,
+     0.2727272727272727
+    ],
+    "planner_seconds_per_decision": 0.15327090591890738,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 16,
+       "scale": 6.730472900809767,
+       "beta_q": 0.38553866784043606,
+       "beta_q_sd": 0.24855713833604987,
+       "beta_im": -0.054306735695074444,
+       "beta_im_sd": 0.4881810900113061,
+       "noise_var": 0.7743722110438475
+      },
+      "4": {
+       "horizon": 4,
+       "n": 20,
+       "scale": 7.597517513979402,
+       "beta_q": 0.5269860952870296,
+       "beta_q_sd": 0.3081520967159137,
+       "beta_im": 0.15933042497541836,
+       "beta_im_sd": 0.46977165647130903,
+       "noise_var": 0.7876667256452693
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 318.7523832321167
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": -0.007453238585314058,
+    "expected_adopters_on_minus_off": -0.5649269740198589,
+    "first_divergence": {
+     "lifetime": 0,
+     "decision": 1
+    },
+    "pairing": {
+     "decisions_compared": 40,
+     "first_input_difference": 2,
+     "first_action_difference": 1,
+     "share_tv_at_first_action_difference": 0.0625,
+     "first_action_difference_attributable": true,
+     "first_action_difference_via_learning": false,
+     "first_imagination_influence": 0,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.03125,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     0.18867924528301885,
+     0.1071428571428572,
+     -0.31818181818181823
+    ]
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 4,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 40,
+    "progress_mean": 0.6083139083139083,
+    "achieved": 0,
+    "expected_adopters": 36.84482494075444,
+    "oracle_expected_adopters": 197.674123018718,
+    "truth_efficiency_mean": 0.40294650495824563,
+    "imagination_tv_mean": 0.07932692307692307,
+    "imagination_tv_max": 0.1875,
+    "decisions_with_tv_over_0.1": 12,
+    "argmax_changed_by_imagination": 7,
+    "n_with_imagination": 39,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.05,
+      "weight_mean": 0.18060455358220726,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.103515625,
+      "weight_mean": 0.17234633343002795,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.0859375,
+      "weight_mean": 0.17119516435429794,
+      "calibration_n": 16,
+      "beta_im_last": 0.15638736703388606,
+      "argmax_changed": 4
+     }
+    ],
+    "operations": {
+     "lab.act": 40
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 11,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.8333333333333334,
+     0.8461538461538461,
+     0.14545454545454545
+    ],
+    "planner_seconds_per_decision": 0.17036617901176215,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 12,
+       "scale": 4.4418852833491,
+       "beta_q": 0.7042347801698854,
+       "beta_q_sd": 0.3914341794200711,
+       "beta_im": -0.06679111435418739,
+       "beta_im_sd": 0.489397422745615,
+       "noise_var": 0.82458054186944
+      },
+      "3": {
+       "horizon": 3,
+       "n": 4,
+       "scale": null,
+       "beta_q": 1.0,
+       "beta_q_sd": 0.5,
+       "beta_im": 0.0,
+       "beta_im_sd": 0.5,
+       "noise_var": 1.0
+      },
+      "4": {
+       "horizon": 4,
+       "n": 19,
+       "scale": 7.350803499230015,
+       "beta_q": 0.42446509044480824,
+       "beta_q_sd": 0.30304542003664536,
+       "beta_im": 0.16805263176221646,
+       "beta_im_sd": 0.29704502829687857,
+       "noise_var": 0.9341907686135041
+      }
+     },
+     "pending": 5
+    },
+    "wall_seconds": 346.8965039253235
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 39,
+    "progress_mean": 0.3978243978243978,
+    "achieved": 0,
+    "expected_adopters": 28.830850533734846,
+    "oracle_expected_adopters": 197.674123018718,
+    "truth_efficiency_mean": 0.3863938201341703,
+    "imagination_tv_mean": 0.06085526315789474,
+    "imagination_tv_max": 0.15625,
+    "decisions_with_tv_over_0.1": 8,
+    "argmax_changed_by_imagination": 2,
+    "n_with_imagination": 38,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.0375,
+      "weight_mean": 0.18060455358220726,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.09821428571428571,
+      "weight_mean": 0.16287296256219938,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.06640625,
+      "weight_mean": 0.11694268349191134,
+      "calibration_n": 7,
+      "beta_im_last": -0.04958440623191286,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "lab.act": 39
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 16,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.8333333333333334,
+     0.2692307692307692,
+     0.09090909090909091
+    ],
+    "planner_seconds_per_decision": 0.1667090836339272,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 12,
+       "scale": 4.4418852833491,
+       "beta_q": 0.7171427214222671,
+       "beta_q_sd": 0.39207170215882065,
+       "beta_im": -0.05056075777958995,
+       "beta_im_sd": 0.48936425088170316,
+       "noise_var": 0.8166693261384129
+      },
+      "3": {
+       "horizon": 3,
+       "n": 4,
+       "scale": null,
+       "beta_q": 1.0,
+       "beta_q_sd": 0.5,
+       "beta_im": 0.0,
+       "beta_im_sd": 0.5,
+       "noise_var": 1.0
+      },
+      "4": {
+       "horizon": 4,
+       "n": 19,
+       "scale": 3.496086762177876,
+       "beta_q": 0.5358431762149382,
+       "beta_q_sd": 0.35725412199102125,
+       "beta_im": -0.02117021231117291,
+       "beta_im_sd": 0.2976994659887945,
+       "noise_var": 0.8618720907103056
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 320.3151607513428
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": -0.21048951048951048,
+    "expected_adopters_on_minus_off": -2.6713248023398655,
+    "first_divergence": {
+     "lifetime": 0,
+     "decision": 8
+    },
+    "pairing": {
+     "decisions_compared": 39,
+     "first_input_difference": 9,
+     "first_action_difference": 8,
+     "share_tv_at_first_action_difference": 0.03125,
+     "first_action_difference_attributable": true,
+     "first_action_difference_via_learning": false,
+     "first_imagination_influence": 0,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.0625,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     0.0,
+     -0.5769230769230769,
+     -0.054545454545454536
+    ]
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 5,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 47,
+    "progress_mean": 0.15752688172043008,
+    "achieved": 0,
+    "expected_adopters": 20.343803698525345,
+    "oracle_expected_adopters": 174.19793743450506,
+    "truth_efficiency_mean": 0.4129316803135015,
+    "imagination_tv_mean": 0.03197674418604651,
+    "imagination_tv_max": 0.125,
+    "decisions_with_tv_over_0.1": 1,
+    "argmax_changed_by_imagination": 2,
+    "n_with_imagination": 43,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.060546875,
+      "weight_mean": 0.1793545610089467,
+      "calibration_n": 8,
+      "beta_im_last": 0.0,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.011160714285714286,
+      "weight_mean": 0.17700859954564013,
+      "calibration_n": 16,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.019230769230769232,
+      "weight_mean": 0.10431874052639287,
+      "calibration_n": 32,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "wait": 9,
+     "lab.probe": 7,
+     "lab.noise": 1,
+     "lab.act": 30
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 1,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.0,
+     0.15,
+     0.3225806451612903
+    ],
+    "planner_seconds_per_decision": 0.03041496607375906,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 46,
+       "scale": 1.2884474366013263,
+       "beta_q": 0.2243598039995457,
+       "beta_q_sd": 0.16268938306387387,
+       "beta_im": -0.015705918483537706,
+       "beta_im_sd": 0.3108548797307293,
+       "noise_var": 0.7494240999738574
+      },
+      "4": {
+       "horizon": 4,
+       "n": 0,
+       "scale": null,
+       "beta_q": 1.0,
+       "beta_q_sd": 0.5,
+       "beta_im": 0.0,
+       "beta_im_sd": 0.5,
+       "noise_var": 1.0
+      }
+     },
+     "pending": 1
+    },
+    "wall_seconds": 409.73769068717957
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 46,
+    "progress_mean": 0.16868279569892475,
+    "achieved": 0,
+    "expected_adopters": 26.234287935333057,
+    "oracle_expected_adopters": 174.19793743450506,
+    "truth_efficiency_mean": 0.22916844438103579,
+    "imagination_tv_mean": 0.03794642857142857,
+    "imagination_tv_max": 0.09375,
+    "decisions_with_tv_over_0.1": 0,
+    "argmax_changed_by_imagination": 2,
+    "n_with_imagination": 42,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.0546875,
+      "weight_mean": 0.1793545610089467,
+      "calibration_n": 8,
+      "beta_im_last": 0.0,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.022321428571428572,
+      "weight_mean": 0.12925975139287676,
+      "calibration_n": 22,
+      "beta_im_last": 0.057831424957128306,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.033854166666666664,
+      "weight_mean": 0.12492466874675928,
+      "calibration_n": 34,
+      "beta_im_last": 0.0508255234103298,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "wait": 9,
+     "lab.probe": 9,
+     "lab.act": 27,
+     "lab.noise": 1
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 4,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.1875,
+     0.125,
+     0.1935483870967742
+    ],
+    "planner_seconds_per_decision": 0.02709938058346186,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 43,
+       "scale": 1.055648736103102,
+       "beta_q": 0.211790011516828,
+       "beta_q_sd": 0.176999744102648,
+       "beta_im": 0.06692397472132207,
+       "beta_im_sd": 0.26255796391959907,
+       "noise_var": 0.6262158868845242
+      }
+     },
+     "pending": 3
+    },
+    "wall_seconds": 377.99893260002136
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": 0.011155913978494627,
+    "expected_adopters_on_minus_off": 1.9634947456025704,
+    "first_divergence": {
+     "lifetime": 0,
+     "decision": 4
+    },
+    "pairing": {
+     "decisions_compared": 46,
+     "first_input_difference": 5,
+     "first_action_difference": 4,
+     "share_tv_at_first_action_difference": 0.0625,
+     "first_action_difference_attributable": true,
+     "first_action_difference_via_learning": false,
+     "first_imagination_influence": 0,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.09375,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     0.1875,
+     -0.024999999999999994,
+     -0.12903225806451613
+    ]
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 6,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 34,
+    "progress_mean": 0.45253299276287784,
+    "achieved": 1,
+    "expected_adopters": 37.49712382232978,
+    "oracle_expected_adopters": 197.42601957843948,
+    "truth_efficiency_mean": 0.2798563692534733,
+    "imagination_tv_mean": 0.048828125,
+    "imagination_tv_max": 0.125,
+    "decisions_with_tv_over_0.1": 1,
+    "argmax_changed_by_imagination": 0,
+    "n_with_imagination": 32,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.044642857142857144,
+      "weight_mean": 0.1696195638699858,
+      "calibration_n": 1,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.058333333333333334,
+      "weight_mean": 0.16009647660846282,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.0375,
+      "weight_mean": 0.16976033072718244,
+      "calibration_n": 9,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "lab.noise": 1,
+     "wait": 2,
+     "lab.act": 29,
+     "lab.unlock": 1,
+     "lab.probe": 1
+    },
+    "unlock": 1,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 0,
+     "lifetimes_with_unlock": 1
+    },
+    "progress_by_lifetime": [
+     1.0,
+     0.1724137931034483,
+     0.18518518518518517
+    ],
+    "planner_seconds_per_decision": 0.1902987621998524,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 7,
+       "scale": 9.681018227672347,
+       "beta_q": 0.5993005129014671,
+       "beta_q_sd": 0.2910039522868836,
+       "beta_im": -0.060532101883580325,
+       "beta_im_sd": 0.4813924759397389,
+       "noise_var": 0.5091409700817376
+      },
+      "3": {
+       "horizon": 3,
+       "n": 7,
+       "scale": 3.2172455506218354,
+       "beta_q": 0.790567077348341,
+       "beta_q_sd": 0.3758407269828914,
+       "beta_im": -0.11933981682074536,
+       "beta_im_sd": 0.45426760777381625,
+       "noise_var": 0.6189338051974979
+      },
+      "4": {
+       "horizon": 4,
+       "n": 16,
+       "scale": 3.6689379699632068,
+       "beta_q": 0.39613419495126256,
+       "beta_q_sd": 0.3417813872944178,
+       "beta_im": -0.1055864736553263,
+       "beta_im_sd": 0.4541072001417314,
+       "noise_var": 1.064646748454967
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 268.7427628040314
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 25,
+    "progress_mean": 0.4171988080034057,
+    "achieved": 1,
+    "expected_adopters": 44.041253494994024,
+    "oracle_expected_adopters": 197.42601957843948,
+    "truth_efficiency_mean": 0.38814097348904025,
+    "imagination_tv_mean": 0.06929347826086957,
+    "imagination_tv_max": 0.1875,
+    "decisions_with_tv_over_0.1": 4,
+    "argmax_changed_by_imagination": 1,
+    "n_with_imagination": 23,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.04017857142857143,
+      "weight_mean": 0.1696195638699858,
+      "calibration_n": 1,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.08035714285714286,
+      "weight_mean": 0.13511352081336733,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.08333333333333333,
+      "weight_mean": 0.1843142115244588,
+      "calibration_n": 1,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "lab.noise": 1,
+     "wait": 2,
+     "lab.act": 20,
+     "lab.unlock": 2
+    },
+    "unlock": 2,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 4,
+     "lifetimes_with_unlock": 1
+    },
+    "progress_by_lifetime": [
+     1.0,
+     0.10344827586206896,
+     0.14814814814814814
+    ],
+    "planner_seconds_per_decision": 0.18899450533092021,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 7,
+       "scale": 11.75230755958429,
+       "beta_q": 0.4573571491206593,
+       "beta_q_sd": 0.22898074045248187,
+       "beta_im": 0.001178955846558194,
+       "beta_im_sd": 0.488865948673212,
+       "noise_var": 0.46593171372431885
+      },
+      "3": {
+       "horizon": 3,
+       "n": 7,
+       "scale": 1.8228692720683555,
+       "beta_q": 0.7760452443599127,
+       "beta_q_sd": 0.37523400729953327,
+       "beta_im": -0.00521994102041148,
+       "beta_im_sd": 0.4582948762758955,
+       "noise_var": 0.6593881844462799
+      },
+      "4": {
+       "horizon": 4,
+       "n": 7,
+       "scale": 4.9064026395976414,
+       "beta_q": 0.7410299083799421,
+       "beta_q_sd": 0.3901975542005007,
+       "beta_im": 0.0029641322132513553,
+       "beta_im_sd": 0.46374255117969077,
+       "noise_var": 0.8242801965460776
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 166.21062755584717
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": -0.03533418475947212,
+    "expected_adopters_on_minus_off": 2.181376557554747,
+    "first_divergence": {
+     "lifetime": 0,
+     "decision": 5
+    },
+    "pairing": {
+     "decisions_compared": 25,
+     "first_input_difference": 6,
+     "first_action_difference": 5,
+     "share_tv_at_first_action_difference": 0.09375,
+     "first_action_difference_attributable": true,
+     "first_action_difference_via_learning": false,
+     "first_imagination_influence": 0,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.03125,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     0.0,
+     -0.06896551724137932,
+     -0.037037037037037035
+    ]
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 7,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 28,
+    "progress_mean": 0.4580896686159844,
+    "achieved": 1,
+    "expected_adopters": 53.88634957710344,
+    "oracle_expected_adopters": 183.56848569087435,
+    "truth_efficiency_mean": 0.3407385379897822,
+    "imagination_tv_mean": 0.04807692307692308,
+    "imagination_tv_max": 0.15625,
+    "decisions_with_tv_over_0.1": 3,
+    "argmax_changed_by_imagination": 0,
+    "n_with_imagination": 26,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.05625,
+      "weight_mean": 0.1864188615636044,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.03125,
+      "weight_mean": 0.12119889867847114,
+      "calibration_n": 2,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.05357142857142857,
+      "weight_mean": 0.17754316855235142,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "lab.unlock": 1,
+     "lab.act": 26,
+     "wait": 1
+    },
+    "unlock": 1,
+    "door_channel_acts": {
+     "after_unlock": 3,
+     "without_unlock": 7,
+     "lifetimes_with_unlock": 1
+    },
+    "progress_by_lifetime": [
+     1.0,
+     0.2631578947368421,
+     0.1111111111111111
+    ],
+    "planner_seconds_per_decision": 0.1708821089040222,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 11,
+       "scale": 16.066600740503198,
+       "beta_q": 0.25752378884564636,
+       "beta_q_sd": 0.3168866007752687,
+       "beta_im": -0.16077416242000245,
+       "beta_im_sd": 0.3976447881162515,
+       "noise_var": 0.8833348881235531
+      },
+      "3": {
+       "horizon": 3,
+       "n": 1,
+       "scale": null,
+       "beta_q": 1.0,
+       "beta_q_sd": 0.5,
+       "beta_im": 0.0,
+       "beta_im_sd": 0.5,
+       "noise_var": 1.0
+      },
+      "4": {
+       "horizon": 4,
+       "n": 12,
+       "scale": 1.439489466976153,
+       "beta_q": 0.6797541765658909,
+       "beta_q_sd": 0.38645903166217066,
+       "beta_im": 0.034895567396958024,
+       "beta_im_sd": 0.49417036932914904,
+       "noise_var": 0.9331115397243793
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 182.31310391426086
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 40,
+    "progress_mean": 0.38700454840805715,
+    "achieved": 0,
+    "expected_adopters": 33.22161345276943,
+    "oracle_expected_adopters": 183.56848569087435,
+    "truth_efficiency_mean": 0.320891002751352,
+    "imagination_tv_mean": 0.05555555555555555,
+    "imagination_tv_max": 0.1875,
+    "decisions_with_tv_over_0.1": 4,
+    "argmax_changed_by_imagination": 3,
+    "n_with_imagination": 36,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.03333333333333333,
+      "weight_mean": 0.17595354721307757,
+      "calibration_n": 2,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.05078125,
+      "weight_mean": 0.17370035319372107,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.08413461538461539,
+      "weight_mean": 0.19088956299046483,
+      "calibration_n": 8,
+      "beta_im_last": 0.012706415352125716,
+      "argmax_changed": 1
+     }
+    ],
+    "operations": {
+     "lab.unlock": 2,
+     "lab.probe": 1,
+     "wait": 1,
+     "lab.act": 35,
+     "lab.noise": 1
+    },
+    "unlock": 2,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 5,
+     "lifetimes_with_unlock": 1
+    },
+    "progress_by_lifetime": [
+     0.3111111111111111,
+     0.3684210526315789,
+     0.48148148148148145
+    ],
+    "planner_seconds_per_decision": 0.17085745729273186,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 12,
+       "scale": 3.449229981954076,
+       "beta_q": 0.35126174792213233,
+       "beta_q_sd": 0.29639128534439046,
+       "beta_im": 0.11859551402430928,
+       "beta_im_sd": 0.3058521359496794,
+       "noise_var": 0.7389663116993476
+      },
+      "3": {
+       "horizon": 3,
+       "n": 4,
+       "scale": null,
+       "beta_q": 1.0,
+       "beta_q_sd": 0.5,
+       "beta_im": 0.0,
+       "beta_im_sd": 0.5,
+       "noise_var": 1.0
+      },
+      "4": {
+       "horizon": 4,
+       "n": 20,
+       "scale": 4.956411699840631,
+       "beta_q": 0.4351482159739647,
+       "beta_q_sd": 0.32668662050571756,
+       "beta_im": -0.07933289214351558,
+       "beta_im_sd": 0.42799698190436813,
+       "noise_var": 0.8512088615959152
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 322.0942795276642
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": -0.07108512020792723,
+    "expected_adopters_on_minus_off": -6.888245374778002,
+    "first_divergence": {
+     "lifetime": 0,
+     "decision": 1
+    },
+    "pairing": {
+     "decisions_compared": 28,
+     "first_input_difference": 2,
+     "first_action_difference": 1,
+     "share_tv_at_first_action_difference": 0.125,
+     "first_action_difference_attributable": true,
+     "first_action_difference_via_learning": false,
+     "first_imagination_influence": 0,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.09375,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     -0.6888888888888889,
+     0.10526315789473684,
+     0.37037037037037035
+    ]
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 8,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 46,
+    "progress_mean": 0.3888888888888889,
+    "achieved": 0,
+    "expected_adopters": 30.947550992221323,
+    "oracle_expected_adopters": 323.3483378190685,
+    "truth_efficiency_mean": 0.29406944311936006,
+    "imagination_tv_mean": 0.03571428571428571,
+    "imagination_tv_max": 0.125,
+    "decisions_with_tv_over_0.1": 2,
+    "argmax_changed_by_imagination": 2,
+    "n_with_imagination": 42,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.037109375,
+      "weight_mean": 0.17086136554790662,
+      "calibration_n": 4,
+      "beta_im_last": -0.07378015247824693,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.029166666666666667,
+      "weight_mean": 0.108490398621596,
+      "calibration_n": 19,
+      "beta_im_last": -0.038835614234912816,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.04261363636363636,
+      "weight_mean": 0.12926611181384606,
+      "calibration_n": 35,
+      "beta_im_last": -0.11821457690077594,
+      "argmax_changed": 1
+     }
+    ],
+    "operations": {
+     "wait": 3,
+     "lab.probe": 2,
+     "lab.act": 41
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 7,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.75,
+     0.3,
+     0.11666666666666667
+    ],
+    "planner_seconds_per_decision": 0.0273532561512421,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 45,
+       "scale": 2.003951388063483,
+       "beta_q": 0.23534934237668328,
+       "beta_q_sd": 0.3069541938934764,
+       "beta_im": -0.13868146276853668,
+       "beta_im_sd": 0.3580503879808871,
+       "noise_var": 0.6719693576523207
+      }
+     },
+     "pending": 1
+    },
+    "wall_seconds": 397.86702513694763
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 39,
+    "progress_mean": 0.44166666666666665,
+    "achieved": 1,
+    "expected_adopters": 23.673949897170136,
+    "oracle_expected_adopters": 323.3483378190685,
+    "truth_efficiency_mean": 0.32155004616254546,
+    "imagination_tv_mean": 0.03993055555555555,
+    "imagination_tv_max": 0.15625,
+    "decisions_with_tv_over_0.1": 2,
+    "argmax_changed_by_imagination": 5,
+    "n_with_imagination": 36,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.03125,
+      "weight_mean": 0.17892755825823975,
+      "calibration_n": 2,
+      "beta_im_last": 0.0,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.03958333333333333,
+      "weight_mean": 0.12936020026500394,
+      "calibration_n": 13,
+      "beta_im_last": 0.0,
+      "argmax_changed": 3
+     },
+     {
+      "tv_mean": 0.06875,
+      "weight_mean": 0.17749635387916352,
+      "calibration_n": 1,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "wait": 7,
+     "lab.probe": 1,
+     "lab.act": 31
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 9,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     1.0,
+     0.3,
+     0.025
+    ],
+    "planner_seconds_per_decision": 0.07831118667784792,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 27,
+       "scale": 2.743656440994664,
+       "beta_q": 0.3907733276782287,
+       "beta_q_sd": 0.2140403742970139,
+       "beta_im": -0.11951219496710173,
+       "beta_im_sd": 0.4357230926950192,
+       "noise_var": 0.7044503160670388
+      },
+      "4": {
+       "horizon": 4,
+       "n": 4,
+       "scale": 2.604573937586927,
+       "beta_q": 0.9128155024765934,
+       "beta_q_sd": 0.4470834892270198,
+       "beta_im": 0.007076151523281334,
+       "beta_im_sd": 0.49830747184345564,
+       "noise_var": 0.8242491155196425
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 291.16210293769836
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": 0.05277777777777778,
+    "expected_adopters_on_minus_off": -2.424533698350396,
+    "first_divergence": {
+     "lifetime": 0,
+     "decision": 3
+    },
+    "pairing": {
+     "decisions_compared": 39,
+     "first_input_difference": 4,
+     "first_action_difference": 3,
+     "share_tv_at_first_action_difference": 0.03125,
+     "first_action_difference_attributable": true,
+     "first_action_difference_via_learning": false,
+     "first_imagination_influence": 0,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.03125,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     0.25,
+     0.0,
+     -0.09166666666666667
+    ]
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 9,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 39,
+    "progress_mean": 0.19729206963249515,
+    "achieved": 0,
+    "expected_adopters": 39.803988927929126,
+    "oracle_expected_adopters": 340.6459372028044,
+    "truth_efficiency_mean": 0.4110116758856223,
+    "imagination_tv_mean": 0.06944444444444445,
+    "imagination_tv_max": 0.25,
+    "decisions_with_tv_over_0.1": 8,
+    "argmax_changed_by_imagination": 3,
+    "n_with_imagination": 36,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.04375,
+      "weight_mean": 0.16206583350178785,
+      "calibration_n": 2,
+      "beta_im_last": 0.0,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.14375,
+      "weight_mean": 0.19186661667339866,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.0703125,
+      "weight_mean": 0.16032682713963875,
+      "calibration_n": 7,
+      "beta_im_last": 0.002259967059036184,
+      "argmax_changed": 1
+     }
+    ],
+    "operations": {
+     "wait": 3,
+     "lab.probe": 1,
+     "lab.act": 35
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 7,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.2727272727272727,
+     0.3191489361702128,
+     0.0
+    ],
+    "planner_seconds_per_decision": 0.16174112275863686,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 12,
+       "scale": 2.3858540004368014,
+       "beta_q": 0.5399502953572876,
+       "beta_q_sd": 0.2925873613355738,
+       "beta_im": -0.1322977633130437,
+       "beta_im_sd": 0.447271733950084,
+       "noise_var": 0.707664771130761
+      },
+      "3": {
+       "horizon": 3,
+       "n": 4,
+       "scale": null,
+       "beta_q": 1.0,
+       "beta_q_sd": 0.5,
+       "beta_im": 0.0,
+       "beta_im_sd": 0.5,
+       "noise_var": 1.0
+      },
+      "4": {
+       "horizon": 4,
+       "n": 19,
+       "scale": 10.140003736507625,
+       "beta_q": 0.6819999449322013,
+       "beta_q_sd": 0.36396282958429693,
+       "beta_im": -0.05643469407536039,
+       "beta_im_sd": 0.3916738029930494,
+       "noise_var": 0.8358864758278701
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 327.14653992652893
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 41,
+    "progress_mean": 0.072856221792392,
+    "achieved": 0,
+    "expected_adopters": 21.324708092919483,
+    "oracle_expected_adopters": 340.6459372028044,
+    "truth_efficiency_mean": 0.2431230583640894,
+    "imagination_tv_mean": 0.06743421052631579,
+    "imagination_tv_max": 0.21875,
+    "decisions_with_tv_over_0.1": 5,
+    "argmax_changed_by_imagination": 8,
+    "n_with_imagination": 38,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.05625,
+      "weight_mean": 0.16206583350178785,
+      "calibration_n": 2,
+      "beta_im_last": 0.0,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.05357142857142857,
+      "weight_mean": 0.17987271885118788,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.083984375,
+      "weight_mean": 0.16124454025613436,
+      "calibration_n": 9,
+      "beta_im_last": -0.007920381655218429,
+      "argmax_changed": 4
+     }
+    ],
+    "operations": {
+     "wait": 2,
+     "lab.probe": 1,
+     "lab.act": 38
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 19,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.09090909090909091,
+     0.1276595744680851,
+     0.0
+    ],
+    "planner_seconds_per_decision": 0.18074340622008936,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 12,
+       "scale": 0.8086265943445313,
+       "beta_q": 0.42951535520794537,
+       "beta_q_sd": 0.2981287535455931,
+       "beta_im": -0.06355703123671448,
+       "beta_im_sd": 0.4522952480192037,
+       "noise_var": 0.8233931038736695
+      },
+      "3": {
+       "horizon": 3,
+       "n": 4,
+       "scale": null,
+       "beta_q": 1.0,
+       "beta_q_sd": 0.5,
+       "beta_im": 0.0,
+       "beta_im_sd": 0.5,
+       "noise_var": 1.0
+      },
+      "4": {
+       "horizon": 4,
+       "n": 12,
+       "scale": 4.429306249965394,
+       "beta_q": 0.8576223510525749,
+       "beta_q_sd": 0.4337697326063766,
+       "beta_im": 0.04519710450116207,
+       "beta_im_sd": 0.4768314070395622,
+       "noise_var": 0.8466130114032033
+      }
+     },
+     "pending": 13
+    },
+    "wall_seconds": 333.53283309936523
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": -0.12443584784010316,
+    "expected_adopters_on_minus_off": -6.159760278336549,
+    "first_divergence": {
+     "lifetime": 0,
+     "decision": 4
+    },
+    "pairing": {
+     "decisions_compared": 39,
+     "first_input_difference": 5,
+     "first_action_difference": 4,
+     "share_tv_at_first_action_difference": 0.0625,
+     "first_action_difference_attributable": true,
+     "first_action_difference_via_learning": false,
+     "first_imagination_influence": 0,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.03125,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     -0.1818181818181818,
+     -0.1914893617021277,
+     0.0
+    ]
+   }
+  }
+ ],
+ "paired_over_seeds": {
+  "progress_on_minus_off": {
+   "n": 10,
+   "mean": -0.04922842888517288,
+   "sd": 0.07613446132043619,
+   "lo": -0.0969257227006671,
+   "hi": -0.00822919600267422
+  },
+  "expected_adopters_on_minus_off": {
+   "n": 10,
+   "mean": -0.5355944354076171,
+   "sd": 4.1996683281019855,
+   "lo": -2.951830614254979,
+   "hi": 1.9702883850029071
+  },
+  "seeds_diverged": 9,
+  "n_pairs": 10,
+  "pairs_paired_until_influence": 10,
+  "pairs_action_differs_before_influence": 0,
+  "actions_changed_at_first_influence": 0,
+  "expected_changes_at_first_influence": 0.5,
+  "pairs_with_different_actions": 9,
+  "first_action_difference_attributable": 9,
+  "first_action_difference_via_learning": 0
+ },
+ "on_arm": {
+  "imagination_tv_mean": {
+   "n": 10,
+   "mean": 0.05156529359157993,
+   "sd": 0.01176676823488984,
+   "lo": 0.04464293320959343,
+   "hi": 0.05876028018949762
+  },
+  "argmax_changed": 29,
+  "decisions_with_imagination": 346
+ },
+ "pooled": {
+  "on": {
+   "lifetimes": 30,
+   "achieved": 5,
+   "progress_mean_over_seeds": {
+    "n": 10,
+    "mean": 0.4115836581976624,
+    "sd": 0.17902396479816005,
+    "lo": 0.2984193495090709,
+    "hi": 0.5086410999928856
+   },
+   "expected_adopters": 395.5609478419917,
+   "oracle_expected_adopters": 2356.5268643623435,
+   "unlock": 9,
+   "door_acts_after_unlock": 4,
+   "lifetimes_with_unlock": 5,
+   "planner_seconds_per_decision": {
+    "n": 10,
+    "mean": 0.11595926774306912,
+    "sd": 0.064532692267817,
+    "lo": 0.07630085476453893,
+    "hi": 0.15272565797881893
+   }
+  },
+  "off": {
+   "lifetimes": 30,
+   "achieved": 5,
+   "progress_mean_over_seeds": {
+    "n": 10,
+    "mean": 0.4608120870828352,
+    "sd": 0.1764076219082884,
+    "lo": 0.3489010457784739,
+    "hi": 0.5576519378056839
+   },
+   "expected_adopters": 411.6287809042202,
+   "oracle_expected_adopters": 2356.5268643623435,
+   "unlock": 7,
+   "door_acts_after_unlock": 8,
+   "lifetimes_with_unlock": 7,
+   "planner_seconds_per_decision": {
+    "n": 10,
+    "mean": 0.09753666911494169,
+    "sd": 0.07077290053004753,
+    "lo": 0.056969781807878386,
+    "hi": 0.1385471076560326
+   }
+  }
+ },
+ "off_arm_counterfactual": {
+  "imagination_tv_mean": {
+   "n": 10,
+   "mean": 0.0488559638442586,
+   "sd": 0.01706151095065056,
+   "lo": 0.03936438838826903,
+   "hi": 0.059282684838292486
+  }
+ }
+}

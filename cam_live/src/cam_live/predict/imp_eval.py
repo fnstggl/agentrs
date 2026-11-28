@@ -484,11 +484,15 @@ def pairing(on: Dict[str, Any], off: Dict[str, Any]) -> Dict[str, Any]:
     ok = first_in is None or (first_inf is not None and first_in > first_inf)
     tv = (xs[first_inf].get("imagination") or {}).get("share_tv") if first_inf is not None else None
     tv_act = (xs[first_act].get("imagination") or {}).get("share_tv") if first_act is not None else None
-    # the first different action is attributable to imagination when the inputs were still identical there and the
-    # on arm's distributions with and without imagination differed at that decision
+    # the arms differ only in the imagination weight, so every difference after the first influence is caused by
+    # it: directly (the first different action at a decision with identical inputs where the distributions with and
+    # without imagination differ) or through learning (the recorded selection distributions differ from the first
+    # influence on; the learner uses them, so later inputs and choices drift apart)
     attributable = None if first_act is None else bool((first_in is None or first_in > first_act) and (tv_act or 0) > 0)
     return {"decisions_compared": n, "first_input_difference": first_in, "first_action_difference": first_act,
             "share_tv_at_first_action_difference": tv_act, "first_action_difference_attributable": attributable,
+            "first_action_difference_via_learning": None if first_act is None else bool(
+                first_in is not None and first_in <= first_act and first_inf is not None and first_inf < first_in),
             "first_imagination_influence": first_inf, "paired_until_influence": bool(ok),
             "share_tv_at_first_influence": tv,
             "action_differs_at_first_influence": (first_act == first_inf) if first_inf is not None else None,
@@ -541,7 +545,9 @@ def summarize(paths: Sequence[str]) -> Dict[str, Any]:
                                  "pairs_with_different_actions": sum(1 for p in pairs if p["pairing"][
                                      "first_action_difference"] is not None),
                                  "first_action_difference_attributable": sum(1 for p in pairs if p["pairing"][
-                                     "first_action_difference_attributable"])},
+                                     "first_action_difference_attributable"]),
+                                 "first_action_difference_via_learning": sum(1 for p in pairs if p["pairing"][
+                                     "first_action_difference_via_learning"])},
            "on_arm": {"imagination_tv_mean": _mean_ci([r["on"]["imagination_tv_mean"] for r in per_seed
                                                        if "on" in r and r["on"]["imagination_tv_mean"] is not None]),
                       "argmax_changed": sum(r["on"]["argmax_changed_by_imagination"] for r in per_seed if "on" in r),

@@ -25,7 +25,7 @@ patched copy of the tree; applied by ST in `dde7d2d`).
 
 ## 2. What changed (design)
 
-All in `src/cam_live/predict/` (commits listed in §7). Nothing names an action, a tool, a task or a strategy; every
+All in `src/cam_live/predict/` (commits listed in §8). Nothing names an action, a tool, a task or a strategy; every
 number a decision uses comes from CAM's learned heads, its fast posterior and its verified outcomes.
 
 ### 2.1 Multi-step imagination of candidate sequences (`planner.LatentPlanner.plan`)
@@ -202,11 +202,35 @@ with the same seeds (same code, same random numbers until behaviour differs).
 |---|---|---|---|
 | A: no transition priors, ratio weight (code c5a81ed + CR; 6 seeds, 47 lifetimes, stopped) | 249 | 0.010 (0.007-0.014) | 7 (2.8 %) |
 | B: transition priors, ratio weight (6415b45 + CR; 6 seeds, 24 lifetimes, stopped) | 118 | 0.068 (0.056-0.081) | 21 (18 %) |
-| **B2: final code** (00f8913 + CR; 10 seeds, 42 lifetimes) | 244 | **0.053 (0.046-0.059)** | **22 (9.0 %)** |
+| B2: final code of round 1 (00f8913 + CR; 10 seeds, 42 lifetimes; **arms not paired**, see below) | 244 | 0.053 (0.046-0.059) | 22 (9.0 %) |
+| **B4: paired re-run** (5eb7ad9: weight floor, overlap correction, base-backbone content target, ST's seeded ids 831cc85 / b74b312 with an explicit pair salt; 10 seeds x 3 lifetimes) | 332 | **0.056 (0.045-0.066)** | **23 (6.9 %)** |
 | full size, CAM's own live decisions (replay, prior weight, no transition priors in that code) | 24 | 0.004 (max 0.031) | 0 |
 
-In every one of the 10 B2 seed pairs the arms' executed actions diverge in lifetime 0 (first divergence at decision
-0-5). Imagination therefore causally changes actual decisions on the runtime path; without the transition's
+**Correction (G3-core D-IMP1).** Round 1 inferred from "in every one of the 10 B2 seed pairs the arms' executed actions
+diverge in lifetime 0" that imagination changes decisions. That inference was wrong: the B2 arms were not paired.
+At decision 0 (identical context, no learning) their recorded inputs already differed (one-step values up to 0.16,
+imagined continuations up to 4.69) and 5 of 10 pairs executed different actions where imagination explains 0.53
+(P = 5e-5); the run environment differed between the arms — wall-clock time stamps and deadlines, random record ids
+(their hashes decide bootstrap memberships), the agent's random id prefix, wall-clock learning budgets, string
+hashing. The within-decision counterfactual (share_tv, argmax changed) was and remains valid; the cross-arm
+divergence of B2 is not evidence, and B2's outcome intervals are unpaired comparisons.
+
+**Paired re-run B4** (`python -m cam_live.predict.imp_eval`, evidence `docs/evidence/IMP/g3/`): the driver removes
+that nondeterminism (seeded `uuid4`, simulated clock, PYTHONHASHSEED = 0, learning budgets lifted so each call runs its
+planned steps; the agent's id prefix is seeded by the agent since ST's 831cc85 and both arms set the same explicit
+`agent.id_salt`, b74b312). The same arm run twice is identical decision for decision (test
+`test_paired_runs_are_identical_until_imagination_can_act`). In B4 the verifier's own analysis
+(`analyse_imp_b2_pairing.py` on the B4 rows, `g3/imp_b4_pairing_decision0.txt`) finds the decision-0 inputs of all
+10 pairs **bit-identical** and 0 of 10 executed actions different (expected from imagination: 0.44). Over all
+decisions (`summarize`'s pairing check): in all 10 pairs the inputs are identical up to and including the first
+decision at which imagination can act (share_tv > 0; decision 0-2), and no pair's actions differ before it. All 10
+pairs diverge afterwards, all through imagination, the only difference between the arms: in 5 the first different
+action is drawn at a decision with still identical inputs where the distributions with and without imagination
+differ (share_tv 0.03-0.13); in 5 the arms first drift apart through learning (the recorded selection distributions
+differ from the first influence on, and the learner uses them) and the actions follow 1-11 decisions later.
+
+Imagination therefore changes actual decisions on the runtime path — by about 5.6 % of the probability mass per
+decision and the argmax in 6.9 % of decisions under the prior-level weight; without the transition's
 randomised priors that influence was nearly nil (A, and the full-size replay), because imagined continuations hardly
 differed between first actions. In B2 the planner ran at horizons 1 (176 decisions), 4 (85), 3 (10), 2 (2); the
 chosen candidate's |imagined preference| had median 0.10 and 90th percentile 0.81 one-step units; information value
@@ -220,7 +244,16 @@ exploratory perturbation. Under the earlier ratio weight (A, B) the drawn weight
 
 ### 3.4 (d) Measured improvement in learning or competence
 
-**Debug scale, B2 (final code), paired on - off over 10 seeds** (evidence
+**Debug scale, B4 (paired re-run, 10 seeds x 3 lifetimes x 16 decisions)**: verified progress on - off per lifetime
++0.019 (CI -0.052-0.097); by lifetime -0.005 (CI -0.032-0.020; 1 pair better, 3 worse, 6 equal), +0.106
+(-0.050-0.259; 4 / 1), -0.044 (-0.155-0.064; 2 / 4); objectives achieved 10 of 30 (on) vs 9 of 30 (off);
+ground-truth adopters on - off +0.6 per lifetime (CI -1.3-2.8); unlock executed 8 vs 9 times, interventions on the
+delayed-dependency channel after an unlock 15 vs 14. **No improvement** (evidence
+`docs/evidence/IMP/g3/ablation_B4_paired_summary.json`, raw rows `ablation_B4_paired_raw.tar.xz`). A supplementary
+paired run on 19579a4 with the driver setting the agent id itself (B3, before ST's fix) gives the same picture (paired
+in 10 of 10; progress -0.049, CI -0.097 to -0.008; `ablation_B3_paired_driver_uid_summary.json`).
+
+**Round 1, B2 (unpaired, kept for the record), on - off over 10 seeds** (evidence
 `docs/evidence/IMP/ablation_B2_final_code_summary.json`, raw rows `ablation_B2_final_code_raw.tar.xz`):
 
 * verified progress per lifetime, lifetime 0: +0.237 (bootstrap 95 % CI 0.014-0.488; 5 seeds better, 2 worse,
@@ -229,14 +262,15 @@ exploratory perturbation. Under the earlier ratio weight (A, B) the drawn weight
   lifetimes each pair completed: +0.164 (CI -0.043-0.413). Objectives achieved 8 of 23 lifetimes (on) vs 5 of 19
   (off); ground-truth expected adopters on - off +2.7 per lifetime (CI -2.0-8.5).
 * the delayed dependency of T1 (the last channel yields 6x after `lab.unlock`): unlock executed in 3 (on) vs 2 (off)
-  lifetimes; interventions on that channel after an unlock 7 (on) vs 0 (off) — one on-arm pair (seed 7) unlocked at
-  its first decision (the decisions of the two arms differed from decision 0) and achieved the objective in 7
-  decisions where the off arm did not (0.29).
+  lifetimes; interventions on that channel after an unlock 7 (on) vs 0 (off). (Round 1 cited seed 7, whose on arm
+  unlocked at its first decision, as an example; G3-core showed that the two arms' imagined continuations already
+  differed by 4.69 there — the run environment, not imagination; in the paired B4 both arms of seed 7 unlock at
+  decision 0.)
 * **Verdict: no reliable improvement.** The lifetime-0 difference does not survive the second lifetime, is carried
-  by three seeds, and the per-decision record shows that the on arm's changed choices came from the exploratory
-  imagination weight (beta_im ~ 0), not from a learned trust in imagination. The batch was stopped at 42 of 120
-  planned lifetimes by the CPU rule (master, 10:50 UTC); A and B, with the earlier designs, show on - off -0.064
-  (CI -0.159-0.024) and -0.014 (CI -0.107-0.099).
+  by three seeds, and — as G3-core showed — B2's arms were not paired, so its intervals are unpaired comparisons
+  (the paired B4 above confirms the direction: no improvement). The batch was stopped at 42 of 120 planned lifetimes
+  by the CPU rule (master, 10:50 UTC); A and B, with the earlier designs and the same pairing defect, show on - off
+  -0.064 (CI -0.159-0.024) and -0.014 (CI -0.107-0.099).
 
 **Full size**: §3.5. **From one experienced checkpoint**: §3.6 (no improvement either).
 
@@ -337,9 +371,13 @@ observation *says*, so information had no measurable value and imagination nothi
 
 * **Target** of an executed decision: the items its result added to the context (result line + returned
   observations; outcome readings of earlier questions excluded) mapped to K = 16 dims: a fixed seeded projection of
-  the frozen backbone's standardised semantic embedding of the item texts (`model.embed_texts`: a target the learner
-  cannot move or collapse) plus `sum_q symlog(value_q) h(name_q)` with a fixed pseudo-random unit vector per quantity
-  name (exact numbers enter). Nothing names a task, a tool or a metric.
+  the standardised semantic embedding of the item texts by the **frozen base** backbone (since 19579a4: the LoRA
+  adapters switched off for the call — round 1 used `model.embed_texts`, which runs through the adapters the slow
+  update trains, so the target moved by 2 % / 22 % with adapter steps of 1e-3 / 1e-2, G3-core D-IMP2) plus
+  `sum_q symlog(value_q) h(name_q)` with a fixed pseudo-random unit vector per quantity name (exact numbers enter).
+  No gradient reaches the target. Nothing names a task, a tool or a metric. (The §6 debug diagnostics below were
+  measured with the round-1 target; on the debug model with untrained adapters the two coincide until the first
+  accepted slow step.)
 * **`ContentHead`** (registered as head `predict_content` by `attach_heads`, `PredictConfig.content = True`): an
   ensemble of 5 Gaussian members on the decision latent with zero-mean randomised priors: predictive NLL (mixture),
   epistemic variance, information gain `0.5 sum_d log(1 + epi_d / alea_d)` nats.
@@ -372,14 +410,31 @@ Evidence (debug scale, LabWorld; `tests/predict/test_imp_content.py` 4 tests; `d
   verified), a content information value that ranks information-bearing actions above uninformative ones, its use
   in exploration / goal-free learning and in the planner, and a real-model run. No agent.py hook is needed.
 
-## 7. Commits (prefix `cam live [IMP]`)
+## 7. G3-core round (defects D-IMP1..3, docs/verification/G3_core.md §2.2)
+
+| defect | fix (commit) | verifier's probe after the fix | regression test |
+|---|---|---|---|
+| D-IMP1 paired ablation not paired | `imp_eval` removes the run environment's nondeterminism (seeded uuid4, SimClock, PYTHONHASHSEED = 0, unbounded learning budgets; 19579a4), pairs set an explicit `agent.id_salt` on ST's seeded agent ids (5eb7ad9, 831cc85 / b74b312), `summarize` checks pairing | `analyse_imp_b2_pairing.py` on the paired B4 rows: decision-0 inputs bit-identical in 10 of 10, executed actions differ 0 of 10 (expected 0.44); before: 5 of 10, P = 5e-5 | `test_imp_g3.py::test_paired_runs_are_identical_until_imagination_can_act` |
+| D-IMP2 content target moves with LoRA | target from the frozen base backbone: adapters switched off (output scale 0) for the call, cached by text (19579a4) | `probe_imp_content_target.py`: relative change 0.0 / 0.0 for adapter steps 1e-3 / 1e-2 (before 2.2 % / 21.9 %); target requires no grad | `test_imp_g3.py::test_the_content_target_does_not_move_with_the_lora_adapters` (fresh target unchanged while the adapted embedding moves) |
+| D-IMP3 overlapping windows overconfident | each window counts 1 / (h + 1) in the ImaginationCalibration's likelihood (effective-sample correction; older states load with it; 19579a4) | `probe_imp_overlapping_windows.py` (200 runs): h = 4, AR 0.9, overlapping: interval excludes 0 in 0.5 %, confidently positive 0.5 %, empirical / posterior sd 0.57 (before 18 % / 9.5 % / 1.5); every configuration now calibrated or conservative (the non-overlapping control, which the class now also down-weights, is conservative) | `test_imp_g3.py::test_overlapping_windows_do_not_make_the_imagination_calibration_overconfident` |
+
+Corrected numbers: §3.3 (causal influence: within-decision share_tv 0.056 / argmax changed 6.9 % in the paired B4; the
+round-1 cross-arm divergence claim withdrawn), §3.4 (paired B4: no improvement, +0.019 per lifetime, CI -0.052 to
+0.097). Also corrected: the transition priors keep the ensemble mean at initialisation and on the training data, not
+off-data after training (§2.1); the value criterion certifies that imagination is harmless, not informative (§2.3).
+Not changed by this round: the full-size evidence (§3.5) and the exploration-checkpoint diagnostic (§3.6), which
+G3-core found consistent with pairing.
+
+## 8. Commits (prefix `cam live [IMP]`)
 
 `bb24f96` planner search, goal values at imagined beliefs, value criterion, ImaginationCalibration, rule integration ·
 `f4c44e6` paired ablation driver · `f259f44` change request IMP, agent-path / compatibility tests, replay ·
 `a88f5fe` device row budget · `c5a81ed` partial results · `88a9f68` transition randomised priors · `404a366` goal
 columns + per-particle fast draws (30 s -> sub-second plans), full-size replay evidence · `6415b45` lifetime wall cap
 · `6e06869` summary · `00f8913` imagination weight floored at the prior mean · `cb1daf7` ablation evidence; later
-commits: c3c6c7d full-size pair, 8d598fa / 6a18485 / 1cb4bda content target, this document, status, JUnit.
+commits: c3c6c7d full-size pair, 8d598fa / 6a18485 / 1cb4bda content target, this document, status, JUnit;
+G3-core round: 19579a4 (D-IMP1 driver determinism, D-IMP2 base-backbone target, D-IMP3 overlap correction), 64e2686
+(regression tests, doc corrections), 5eb7ad9 (pair salt), then the B4 evidence, docs, status and JUnit.
 
 Reproduce: `scratchpad/IMP/export.sh <dir>` = `git archive HEAD cam_live/src` + `patch agent.py <
 docs/change_requests/IMP.md's diff`; `PYTHONPATH=<dir> python -m cam_live.predict.imp_eval run --arm on|off --seed S

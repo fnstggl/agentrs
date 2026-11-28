@@ -1,0 +1,12 @@
+decision 0 of lifetime 0: executed action per arm, on-arm share_tv, max |difference| of recorded inputs
+seed 0: on wait {"seconds": 259200.0} | off wait {"seconds": 259200.0} | executed differ: False | share_tv(on) 0.062 | max|d one-step value| 0.0e+00 | max|d imagined continuation| 0.000
+seed 1: on lab.act {"channel": 1, "effort": 1} | off lab.act {"channel": 1, "effort": 1} | executed differ: False | share_tv(on) 0.000 | max|d one-step value| 0.0e+00 | max|d imagined continuation| 0.000
+seed 2: on wait {"seconds": 194415.0} | off wait {"seconds": 194415.0} | executed differ: False | share_tv(on) 0.000 | max|d one-step value| 0.0e+00 | max|d imagined continuation| 0.000
+seed 3: on lab.probe {"channel": 0} | off lab.probe {"channel": 0} | executed differ: False | share_tv(on) 0.031 | max|d one-step value| 0.0e+00 | max|d imagined continuation| 0.000
+seed 4: on lab.act {"channel": 4, "effort": 3} | off lab.act {"channel": 4, "effort": 3} | executed differ: False | share_tv(on) 0.062 | max|d one-step value| 0.0e+00 | max|d imagined continuation| 0.000
+seed 5: on wait {"seconds": 64845.0} | off wait {"seconds": 64845.0} | executed differ: False | share_tv(on) 0.094 | max|d one-step value| 0.0e+00 | max|d imagined continuation| 0.000
+seed 6: on lab.noise {} | off lab.noise {} | executed differ: False | share_tv(on) 0.031 | max|d one-step value| 0.0e+00 | max|d imagined continuation| 0.000
+seed 7: on lab.unlock {} | off lab.unlock {} | executed differ: False | share_tv(on) 0.094 | max|d one-step value| 0.0e+00 | max|d imagined continuation| 0.000
+seed 8: on wait {"seconds": 60.0} | off wait {"seconds": 60.0} | executed differ: False | share_tv(on) 0.031 | max|d one-step value| 0.0e+00 | max|d imagined continuation| 0.000
+seed 9: on wait {"seconds": 259200.0} | off wait {"seconds": 259200.0} | executed differ: False | share_tv(on) 0.031 | max|d one-step value| 0.0e+00 | max|d imagined continuation| 0.000
+diverged at decision 0: 0 of 10; expected if only imagination caused it: 0.44; P(>= 0) = 1.0e+00 (Poisson-binomial over share_tv)

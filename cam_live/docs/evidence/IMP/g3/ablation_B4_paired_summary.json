@@ -1,0 +1,2101 @@
+{
+ "runs": 20,
+ "per_seed": [
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 0,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 31,
+    "progress_mean": 0.6269727403156384,
+    "achieved": 1,
+    "expected_adopters": 39.948411005872025,
+    "oracle_expected_adopters": 213.97114661739437,
+    "truth_efficiency_mean": 0.5206995180495649,
+    "imagination_tv_mean": 0.041294642857142856,
+    "imagination_tv_max": 0.125,
+    "decisions_with_tv_over_0.1": 2,
+    "argmax_changed_by_imagination": 4,
+    "n_with_imagination": 28,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.03125,
+      "weight_mean": 0.16980048739842235,
+      "calibration_n": 1,
+      "beta_im_last": 0.0,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.052083333333333336,
+      "weight_mean": 0.14925188876012013,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.0546875,
+      "weight_mean": 0.12253513500010377,
+      "calibration_n": 3,
+      "beta_im_last": -0.02471628562815418,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "wait": 2,
+     "lab.probe": 1,
+     "lab.act": 28
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 8,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.2926829268292683,
+     0.5882352941176471,
+     1.0
+    ],
+    "planner_seconds_per_decision": 0.14985727436179597,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 12,
+       "scale": 4.872321671643292,
+       "beta_q": 0.44850634785858895,
+       "beta_q_sd": 0.2880517624347738,
+       "beta_im": 0.410504464850019,
+       "beta_im_sd": 0.3664933518690953,
+       "noise_var": 0.5088087433867886
+      },
+      "3": {
+       "horizon": 3,
+       "n": 4,
+       "scale": null,
+       "beta_q": 1.0,
+       "beta_q_sd": 0.5,
+       "beta_im": 0.0,
+       "beta_im_sd": 0.5,
+       "noise_var": 1.0
+      },
+      "4": {
+       "horizon": 4,
+       "n": 10,
+       "scale": 4.547380785821535,
+       "beta_q": 0.6563936789384103,
+       "beta_q_sd": 0.38130490191121136,
+       "beta_im": -0.07698945792744111,
+       "beta_im_sd": 0.4641182612724179,
+       "noise_var": 0.8647511658104218
+      }
+     },
+     "pending": 5
+    },
+    "wall_seconds": 222.95074033737183
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 34,
+    "progress_mean": 0.509325681492109,
+    "achieved": 1,
+    "expected_adopters": 38.61751498849527,
+    "oracle_expected_adopters": 213.97114661739437,
+    "truth_efficiency_mean": 0.632198870853811,
+    "imagination_tv_mean": 0.05040322580645161,
+    "imagination_tv_max": 0.125,
+    "decisions_with_tv_over_0.1": 4,
+    "argmax_changed_by_imagination": 6,
+    "n_with_imagination": 31,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.03125,
+      "weight_mean": 0.16980048739842235,
+      "calibration_n": 1,
+      "beta_im_last": 0.0,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.06473214285714286,
+      "weight_mean": 0.13690339085417333,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 3
+     },
+     {
+      "tv_mean": 0.09375,
+      "weight_mean": 0.1643925574929589,
+      "calibration_n": 12,
+      "beta_im_last": 0.04996503949752325,
+      "argmax_changed": 1
+     }
+    ],
+    "operations": {
+     "wait": 3,
+     "lab.probe": 1,
+     "lab.act": 30
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 5,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.2926829268292683,
+     0.23529411764705882,
+     1.0
+    ],
+    "planner_seconds_per_decision": 0.1578286307014744,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 12,
+       "scale": 4.872321671643292,
+       "beta_q": 0.44850634785858895,
+       "beta_q_sd": 0.2880517624347738,
+       "beta_im": 0.410504464850019,
+       "beta_im_sd": 0.3664933518690953,
+       "noise_var": 0.5088087433867886
+      },
+      "3": {
+       "horizon": 3,
+       "n": 4,
+       "scale": null,
+       "beta_q": 1.0,
+       "beta_q_sd": 0.5,
+       "beta_im": 0.0,
+       "beta_im_sd": 0.5,
+       "noise_var": 1.0
+      },
+      "4": {
+       "horizon": 4,
+       "n": 12,
+       "scale": 1.1991118642696135,
+       "beta_q": 0.6459866474008904,
+       "beta_q_sd": 0.379917561667827,
+       "beta_im": 0.04996503949752325,
+       "beta_im_sd": 0.38347812916595014,
+       "noise_var": 0.9483939031977225
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 255.72090983390808
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": -0.11764705882352942,
+    "expected_adopters_on_minus_off": -0.44363200579224876,
+    "first_divergence": {
+     "lifetime": 1,
+     "decision": 1
+    },
+    "pairing": {
+     "decisions_compared": 31,
+     "first_input_difference": 16,
+     "first_action_difference": 17,
+     "share_tv_at_first_action_difference": 0.125,
+     "first_action_difference_attributable": false,
+     "first_action_difference_via_learning": true,
+     "first_imagination_influence": 0,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.0625,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     0.0,
+     -0.35294117647058826,
+     0.0
+    ]
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 1,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 34,
+    "progress_mean": 0.7051282051282052,
+    "achieved": 1,
+    "expected_adopters": 66.84900589909857,
+    "oracle_expected_adopters": 127.5895455268011,
+    "truth_efficiency_mean": 0.2414549351214817,
+    "imagination_tv_mean": 0.049107142857142856,
+    "imagination_tv_max": 0.125,
+    "decisions_with_tv_over_0.1": 2,
+    "argmax_changed_by_imagination": 1,
+    "n_with_imagination": 28,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.02734375,
+      "weight_mean": 0.15415205542016439,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.046875,
+      "weight_mean": 0.1989366868559369,
+      "calibration_n": 8,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.0625,
+      "weight_mean": 0.14479504482778355,
+      "calibration_n": 4,
+      "beta_im_last": -0.12249498734579614,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "lab.act": 26,
+     "wait": 1,
+     "lab.probe": 3,
+     "lab.noise": 1,
+     "lab.unlock": 3
+    },
+    "unlock": 3,
+    "door_channel_acts": {
+     "after_unlock": 1,
+     "without_unlock": 2,
+     "lifetimes_with_unlock": 1
+    },
+    "progress_by_lifetime": [
+     0.8333333333333334,
+     1.0,
+     0.28205128205128205
+    ],
+    "planner_seconds_per_decision": 0.1494903425439535,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 16,
+       "scale": 7.87131434721614,
+       "beta_q": 0.5454070055523891,
+       "beta_q_sd": 0.3115865318840291,
+       "beta_im": -0.016370157637288114,
+       "beta_im_sd": 0.4925870552551343,
+       "noise_var": 0.8549864279088497
+      },
+      "4": {
+       "horizon": 4,
+       "n": 14,
+       "scale": 7.25121530748772,
+       "beta_q": 0.7614535360231761,
+       "beta_q_sd": 0.40102236628205895,
+       "beta_im": -0.18754643315048894,
+       "beta_im_sd": 0.4374492676799406,
+       "noise_var": 0.8229900100544535
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 263.5126564502716
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 36,
+    "progress_mean": 0.7136752136752137,
+    "achieved": 1,
+    "expected_adopters": 61.190304262548764,
+    "oracle_expected_adopters": 127.5895455268011,
+    "truth_efficiency_mean": 0.20945597036557415,
+    "imagination_tv_mean": 0.05818965517241379,
+    "imagination_tv_max": 0.21875,
+    "decisions_with_tv_over_0.1": 5,
+    "argmax_changed_by_imagination": 1,
+    "n_with_imagination": 29,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.02734375,
+      "weight_mean": 0.15415205542016439,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.0546875,
+      "weight_mean": 0.19088069045905773,
+      "calibration_n": 8,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.07932692307692307,
+      "weight_mean": 0.151497548201202,
+      "calibration_n": 7,
+      "beta_im_last": 0.00015722389021172872,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "lab.act": 29,
+     "wait": 1,
+     "lab.probe": 2,
+     "lab.unlock": 4
+    },
+    "unlock": 4,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 2,
+     "lifetimes_with_unlock": 2
+    },
+    "progress_by_lifetime": [
+     0.8333333333333334,
+     1.0,
+     0.3076923076923077
+    ],
+    "planner_seconds_per_decision": 0.1564388675485841,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 16,
+       "scale": 3.688680353066326,
+       "beta_q": 0.23962710113082325,
+       "beta_q_sd": 0.3433308000879064,
+       "beta_im": 0.013199733123783853,
+       "beta_im_sd": 0.4920013606273136,
+       "noise_var": 0.8667928867925402
+      },
+      "4": {
+       "horizon": 4,
+       "n": 15,
+       "scale": 8.887147291157909,
+       "beta_q": 0.7673637657463678,
+       "beta_q_sd": 0.4155358879525009,
+       "beta_im": 0.013965504354002692,
+       "beta_im_sd": 0.4357427184808689,
+       "noise_var": 0.7906029523011746
+      }
+     },
+     "pending": 5
+    },
+    "wall_seconds": 291.52847385406494
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": 0.008547008547008553,
+    "expected_adopters_on_minus_off": -1.8862338788499369,
+    "first_divergence": {
+     "lifetime": 1,
+     "decision": 2
+    },
+    "pairing": {
+     "decisions_compared": 34,
+     "first_input_difference": 11,
+     "first_action_difference": 13,
+     "share_tv_at_first_action_difference": 0.03125,
+     "first_action_difference_attributable": false,
+     "first_action_difference_via_learning": true,
+     "first_imagination_influence": 2,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.0625,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     0.0,
+     0.0,
+     0.02564102564102566
+    ]
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 2,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 32,
+    "progress_mean": 0.14382355666759336,
+    "achieved": 0,
+    "expected_adopters": 24.524534084980104,
+    "oracle_expected_adopters": 286.19948480887854,
+    "truth_efficiency_mean": 0.26437354045487277,
+    "imagination_tv_mean": 0.05357142857142857,
+    "imagination_tv_max": 0.15625,
+    "decisions_with_tv_over_0.1": 3,
+    "argmax_changed_by_imagination": 4,
+    "n_with_imagination": 28,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.022321428571428572,
+      "weight_mean": 0.1557745970394587,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.08125,
+      "weight_mean": 0.29550387145972146,
+      "calibration_n": 9,
+      "beta_im_last": 0.17755675606469917,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.048295454545454544,
+      "weight_mean": 0.2454085570228455,
+      "calibration_n": 21,
+      "beta_im_last": 0.19812000454680304,
+      "argmax_changed": 3
+     }
+    ],
+    "operations": {
+     "wait": 2,
+     "lab.act": 29,
+     "lab.unlock": 1
+    },
+    "unlock": 1,
+    "door_channel_acts": {
+     "after_unlock": 1,
+     "without_unlock": 12,
+     "lifetimes_with_unlock": 1
+    },
+    "progress_by_lifetime": [
+     0.12844036697247707,
+     0.13636363636363635,
+     0.16666666666666666
+    ],
+    "planner_seconds_per_decision": 0.026673300002585165,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 26,
+       "scale": 2.2835428322371984,
+       "beta_q": 0.41634305049620907,
+       "beta_q_sd": 0.28748954918386227,
+       "beta_im": 0.17598269713071635,
+       "beta_im_sd": 0.42654407964243163,
+       "noise_var": 0.7117582736978688
+      }
+     },
+     "pending": 6
+    },
+    "wall_seconds": 224.8471875190735
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 44,
+    "progress_mean": 0.44273005282179595,
+    "achieved": 0,
+    "expected_adopters": 34.74080305024323,
+    "oracle_expected_adopters": 286.19948480887854,
+    "truth_efficiency_mean": 0.2820845464755051,
+    "imagination_tv_mean": 0.044070512820512824,
+    "imagination_tv_max": 0.1875,
+    "decisions_with_tv_over_0.1": 4,
+    "argmax_changed_by_imagination": 4,
+    "n_with_imagination": 39,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.028409090909090908,
+      "weight_mean": 0.17106252375540465,
+      "calibration_n": 2,
+      "beta_im_last": 0.050389797039586084,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.052884615384615384,
+      "weight_mean": 0.22781997112851074,
+      "calibration_n": 16,
+      "beta_im_last": 0.08290326665128366,
+      "argmax_changed": 3
+     },
+     {
+      "tv_mean": 0.04791666666666667,
+      "weight_mean": 0.19993207384339146,
+      "calibration_n": 32,
+      "beta_im_last": 0.0709758550398927,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "wait": 4,
+     "lab.act": 38,
+     "lab.probe": 1,
+     "lab.unlock": 1
+    },
+    "unlock": 1,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 7,
+     "lifetimes_with_unlock": 1
+    },
+    "progress_by_lifetime": [
+     0.10091743119266056,
+     0.7272727272727273,
+     0.5
+    ],
+    "planner_seconds_per_decision": 0.027370716381648726,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 40,
+       "scale": 2.3008942022672256,
+       "beta_q": 0.33700749365966953,
+       "beta_q_sd": 0.22973571422433683,
+       "beta_im": 0.060791867652279785,
+       "beta_im_sd": 0.43142673687505395,
+       "noise_var": 0.6507359236259301
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 380.76694226264954
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": 0.29890649615420256,
+    "expected_adopters_on_minus_off": 3.405422988421042,
+    "first_divergence": {
+     "lifetime": 0,
+     "decision": 4
+    },
+    "pairing": {
+     "decisions_compared": 32,
+     "first_input_difference": 5,
+     "first_action_difference": 4,
+     "share_tv_at_first_action_difference": 0.03125,
+     "first_action_difference_attributable": true,
+     "first_action_difference_via_learning": false,
+     "first_imagination_influence": 1,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.03125,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     -0.027522935779816515,
+     0.5909090909090909,
+     0.33333333333333337
+    ]
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 3,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 42,
+    "progress_mean": 0.7484276729559749,
+    "achieved": 2,
+    "expected_adopters": 79.18748566964447,
+    "oracle_expected_adopters": 311.9058466648598,
+    "truth_efficiency_mean": 0.49486338255852835,
+    "imagination_tv_mean": 0.03536184210526316,
+    "imagination_tv_max": 0.125,
+    "decisions_with_tv_over_0.1": 1,
+    "argmax_changed_by_imagination": 5,
+    "n_with_imagination": 38,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.04807692307692308,
+      "weight_mean": 0.19760965558578494,
+      "calibration_n": 4,
+      "beta_im_last": 0.049179422867032044,
+      "argmax_changed": 3
+     },
+     {
+      "tv_mean": 0.026041666666666668,
+      "weight_mean": 0.16258883140470862,
+      "calibration_n": 20,
+      "beta_im_last": -0.016051263172961072,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.03125,
+      "weight_mean": 0.15126565424324803,
+      "calibration_n": 33,
+      "beta_im_last": -0.15411673393039732,
+      "argmax_changed": 2
+     }
+    ],
+    "operations": {
+     "lab.probe": 1,
+     "wait": 5,
+     "lab.act": 36
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 1,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.24528301886792453,
+     1.0,
+     1.0
+    ],
+    "planner_seconds_per_decision": 0.02779657042230524,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 41,
+       "scale": 4.969577695958027,
+       "beta_q": 0.1057621750904334,
+       "beta_q_sd": 0.20178595210842282,
+       "beta_im": -0.15304064832623387,
+       "beta_im_sd": 0.32368717050846874,
+       "noise_var": 0.4240015053641961
+      }
+     },
+     "pending": 1
+    },
+    "wall_seconds": 373.65712881088257
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 40,
+    "progress_mean": 0.6209262435677531,
+    "achieved": 1,
+    "expected_adopters": 67.48528424368524,
+    "oracle_expected_adopters": 311.9058466648598,
+    "truth_efficiency_mean": 0.566849592278444,
+    "imagination_tv_mean": 0.034722222222222224,
+    "imagination_tv_max": 0.09375,
+    "decisions_with_tv_over_0.1": 0,
+    "argmax_changed_by_imagination": 1,
+    "n_with_imagination": 36,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.016826923076923076,
+      "weight_mean": 0.18700474867870226,
+      "calibration_n": 3,
+      "beta_im_last": -0.0743925828620314,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.05859375,
+      "weight_mean": 0.18687328755349855,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.0375,
+      "weight_mean": 0.2103667382100971,
+      "calibration_n": 8,
+      "beta_im_last": 0.042118666948136464,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "lab.probe": 2,
+     "wait": 5,
+     "lab.act": 33
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 4,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.22641509433962265,
+     1.0,
+     0.6363636363636364
+    ],
+    "planner_seconds_per_decision": 0.1585019039339386,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 16,
+       "scale": 4.975146780262124,
+       "beta_q": 0.26968869619598435,
+       "beta_q_sd": 0.23972743807762414,
+       "beta_im": -0.044415020828633314,
+       "beta_im_sd": 0.48501778168385856,
+       "noise_var": 0.8228144258421983
+      },
+      "4": {
+       "horizon": 4,
+       "n": 20,
+       "scale": 9.1427042123884,
+       "beta_q": 0.4491266149948023,
+       "beta_q_sd": 0.3009778648830509,
+       "beta_im": 0.06373781521656458,
+       "beta_im_sd": 0.480846663741486,
+       "noise_var": 0.7829515238341592
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 327.1203339099884
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": -0.12750142938822184,
+    "expected_adopters_on_minus_off": -3.900733808653077,
+    "first_divergence": {
+     "lifetime": 0,
+     "decision": 1
+    },
+    "pairing": {
+     "decisions_compared": 40,
+     "first_input_difference": 2,
+     "first_action_difference": 1,
+     "share_tv_at_first_action_difference": 0.0625,
+     "first_action_difference_attributable": true,
+     "first_action_difference_via_learning": false,
+     "first_imagination_influence": 0,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.03125,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     -0.018867924528301883,
+     0.0,
+     -0.36363636363636365
+    ]
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 4,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 45,
+    "progress_mean": 0.695959595959596,
+    "achieved": 1,
+    "expected_adopters": 56.850386528191684,
+    "oracle_expected_adopters": 197.674123018718,
+    "truth_efficiency_mean": 0.4740190148442433,
+    "imagination_tv_mean": 0.07599431818181818,
+    "imagination_tv_max": 0.21875,
+    "decisions_with_tv_over_0.1": 11,
+    "argmax_changed_by_imagination": 5,
+    "n_with_imagination": 44,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.04375,
+      "weight_mean": 0.18060455358220726,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.099609375,
+      "weight_mean": 0.17234633343002795,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.08413461538461539,
+      "weight_mean": 0.10590700161385522,
+      "calibration_n": 16,
+      "beta_im_last": -0.011585322020303851,
+      "argmax_changed": 1
+     }
+    ],
+    "operations": {
+     "lab.act": 45
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 9,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.8333333333333334,
+     1.0,
+     0.2545454545454545
+    ],
+    "planner_seconds_per_decision": 0.17158711832016707,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 12,
+       "scale": 4.03287918906742,
+       "beta_q": 0.7936443407700644,
+       "beta_q_sd": 0.39161529903790315,
+       "beta_im": -0.028658652419001056,
+       "beta_im_sd": 0.4873275415908414,
+       "noise_var": 0.7366386554830257
+      },
+      "3": {
+       "horizon": 3,
+       "n": 4,
+       "scale": null,
+       "beta_q": 1.0,
+       "beta_q_sd": 0.5,
+       "beta_im": 0.0,
+       "beta_im_sd": 0.5,
+       "noise_var": 1.0
+      },
+      "4": {
+       "horizon": 4,
+       "n": 20,
+       "scale": 10.416968076113335,
+       "beta_q": 0.615623196620117,
+       "beta_q_sd": 0.33473017098060076,
+       "beta_im": -0.0027640149709872164,
+       "beta_im_sd": 0.22128621800049741,
+       "noise_var": 0.7980819719283062
+      }
+     },
+     "pending": 9
+    },
+    "wall_seconds": 425.58150935173035
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 36,
+    "progress_mean": 0.6717171717171717,
+    "achieved": 1,
+    "expected_adopters": 55.77556892886199,
+    "oracle_expected_adopters": 197.674123018718,
+    "truth_efficiency_mean": 0.4457670604571569,
+    "imagination_tv_mean": 0.0875,
+    "imagination_tv_max": 0.24999999999999997,
+    "decisions_with_tv_over_0.1": 10,
+    "argmax_changed_by_imagination": 4,
+    "n_with_imagination": 35,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.04375,
+      "weight_mean": 0.18060455358220726,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.09375,
+      "weight_mean": 0.16865815567647557,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.1527777777777778,
+      "weight_mean": 0.22640345383830962,
+      "calibration_n": 11,
+      "beta_im_last": 0.044950290091740994,
+      "argmax_changed": 2
+     }
+    ],
+    "operations": {
+     "lab.act": 34,
+     "wait": 2
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 7,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.8333333333333334,
+     1.0,
+     0.18181818181818182
+    ],
+    "planner_seconds_per_decision": 0.15964487418791073,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 12,
+       "scale": 4.03287918906742,
+       "beta_q": 0.7936443407700644,
+       "beta_q_sd": 0.39161529903790315,
+       "beta_im": -0.028658652419001056,
+       "beta_im_sd": 0.4873275415908414,
+       "noise_var": 0.7366386554830257
+      },
+      "3": {
+       "horizon": 3,
+       "n": 4,
+       "scale": null,
+       "beta_q": 1.0,
+       "beta_q_sd": 0.5,
+       "beta_im": 0.0,
+       "beta_im_sd": 0.5,
+       "noise_var": 1.0
+      },
+      "4": {
+       "horizon": 4,
+       "n": 15,
+       "scale": 12.45460264881415,
+       "beta_q": 0.5414205179829644,
+       "beta_q_sd": 0.3014457758632693,
+       "beta_im": 0.10195477532611658,
+       "beta_im_sd": 0.21875689704663961,
+       "noise_var": 0.7553367679312991
+      }
+     },
+     "pending": 5
+    },
+    "wall_seconds": 299.89174818992615
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": -0.024242424242424232,
+    "expected_adopters_on_minus_off": -0.35827253310989704,
+    "first_divergence": {
+     "lifetime": 1,
+     "decision": 10
+    },
+    "pairing": {
+     "decisions_compared": 36,
+     "first_input_difference": 16,
+     "first_action_difference": 26,
+     "share_tv_at_first_action_difference": 0.15625,
+     "first_action_difference_attributable": false,
+     "first_action_difference_via_learning": true,
+     "first_imagination_influence": 0,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.0625,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     0.0,
+     0.0,
+     -0.0727272727272727
+    ]
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 5,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 43,
+    "progress_mean": 0.5279569892473118,
+    "achieved": 1,
+    "expected_adopters": 48.440850412981504,
+    "oracle_expected_adopters": 174.19793743450506,
+    "truth_efficiency_mean": 0.679754186573899,
+    "imagination_tv_mean": 0.028515625,
+    "imagination_tv_max": 0.109375,
+    "decisions_with_tv_over_0.1": 1,
+    "argmax_changed_by_imagination": 2,
+    "n_with_imagination": 40,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.01875,
+      "weight_mean": 0.18507248827074743,
+      "calibration_n": 2,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.029166666666666667,
+      "weight_mean": 0.20487324393899234,
+      "calibration_n": 11,
+      "beta_im_last": 0.14168033148449558,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.034375,
+      "weight_mean": 0.2255098826657861,
+      "calibration_n": 28,
+      "beta_im_last": 0.12609228782560358,
+      "argmax_changed": 1
+     }
+    ],
+    "operations": {
+     "wait": 2,
+     "lab.probe": 2,
+     "lab.act": 39
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 3,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     1.0,
+     0.1,
+     0.4838709677419355
+    ],
+    "planner_seconds_per_decision": 0.028183970708659915,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 32,
+       "scale": 4.5938191505822425,
+       "beta_q": 0.2703068496163954,
+       "beta_q_sd": 0.20510425213425312,
+       "beta_im": 0.1304581151312991,
+       "beta_im_sd": 0.3310580928756114,
+       "noise_var": 0.7247273842685226
+      }
+     },
+     "pending": 11
+    },
+    "wall_seconds": 338.87955951690674
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 35,
+    "progress_mean": 0.4311827956989247,
+    "achieved": 1,
+    "expected_adopters": 42.26637628452681,
+    "oracle_expected_adopters": 174.19793743450506,
+    "truth_efficiency_mean": 0.6316946775678702,
+    "imagination_tv_mean": 0.0302734375,
+    "imagination_tv_max": 0.09375,
+    "decisions_with_tv_over_0.1": 0,
+    "argmax_changed_by_imagination": 1,
+    "n_with_imagination": 32,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.01875,
+      "weight_mean": 0.18507248827074743,
+      "calibration_n": 2,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.025,
+      "weight_mean": 0.20487324393899234,
+      "calibration_n": 11,
+      "beta_im_last": 0.14168033148449558,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.05803571428571429,
+      "weight_mean": 0.20636479362785345,
+      "calibration_n": 27,
+      "beta_im_last": 0.1735597997094419,
+      "argmax_changed": 1
+     }
+    ],
+    "operations": {
+     "wait": 3,
+     "lab.probe": 1,
+     "lab.act": 31
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 2,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     1.0,
+     0.1,
+     0.1935483870967742
+    ],
+    "planner_seconds_per_decision": 0.02651495522420321,
+    "horizon_final": 1,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 32,
+       "scale": 4.095366625443734,
+       "beta_q": 0.3371512845939831,
+       "beta_q_sd": 0.21858598947945188,
+       "beta_im": 0.20607140759513473,
+       "beta_im_sd": 0.33511123477218835,
+       "noise_var": 0.7910601533526216
+      }
+     },
+     "pending": 3
+    },
+    "wall_seconds": 251.28721809387207
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": -0.09677419354838711,
+    "expected_adopters_on_minus_off": -2.058158042818233,
+    "first_divergence": {
+     "lifetime": 1,
+     "decision": 11
+    },
+    "pairing": {
+     "decisions_compared": 35,
+     "first_input_difference": 11,
+     "first_action_difference": 22,
+     "share_tv_at_first_action_difference": 0.0,
+     "first_action_difference_attributable": false,
+     "first_action_difference_via_learning": true,
+     "first_imagination_influence": 0,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.09375,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     0.0,
+     0.0,
+     -0.2903225806451613
+    ]
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 6,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 30,
+    "progress_mean": 0.3995317156236697,
+    "achieved": 1,
+    "expected_adopters": 43.915694165454724,
+    "oracle_expected_adopters": 197.42601957843948,
+    "truth_efficiency_mean": 0.5659666808084789,
+    "imagination_tv_mean": 0.0625,
+    "imagination_tv_max": 0.15625,
+    "decisions_with_tv_over_0.1": 5,
+    "argmax_changed_by_imagination": 3,
+    "n_with_imagination": 28,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.03571428571428571,
+      "weight_mean": 0.1696195638699858,
+      "calibration_n": 1,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.052083333333333336,
+      "weight_mean": 0.15253646307048271,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.0859375,
+      "weight_mean": 0.17532852116112738,
+      "calibration_n": 3,
+      "beta_im_last": 0.0,
+      "argmax_changed": 3
+     }
+    ],
+    "operations": {
+     "lab.noise": 1,
+     "wait": 1,
+     "lab.act": 28
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 2,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     1.0,
+     0.06896551724137931,
+     0.12962962962962962
+    ],
+    "planner_seconds_per_decision": 0.1948107515151302,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 7,
+       "scale": 11.11238160183305,
+       "beta_q": 0.35238032524320834,
+       "beta_q_sd": 0.20414890711479308,
+       "beta_im": -0.05888845807859669,
+       "beta_im_sd": 0.48551588985009747,
+       "noise_var": 0.5171618525637628
+      },
+      "3": {
+       "horizon": 3,
+       "n": 7,
+       "scale": 1.3059420323224813,
+       "beta_q": 0.8048471481381686,
+       "beta_q_sd": 0.4068324649179951,
+       "beta_im": 0.036944010456989244,
+       "beta_im_sd": 0.49488647945154,
+       "noise_var": 0.7412794995074897
+      },
+      "4": {
+       "horizon": 4,
+       "n": 12,
+       "scale": 2.9750561024891953,
+       "beta_q": 0.736377878862388,
+       "beta_q_sd": 0.3945947948384473,
+       "beta_im": -0.016576630949113824,
+       "beta_im_sd": 0.4421874116184899,
+       "noise_var": 0.8333269980435611
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 214.67631125450134
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 33,
+    "progress_mean": 0.3995317156236697,
+    "achieved": 1,
+    "expected_adopters": 43.12036262870808,
+    "oracle_expected_adopters": 197.42601957843948,
+    "truth_efficiency_mean": 0.545144822739048,
+    "imagination_tv_mean": 0.0625,
+    "imagination_tv_max": 0.15625,
+    "decisions_with_tv_over_0.1": 3,
+    "argmax_changed_by_imagination": 0,
+    "n_with_imagination": 31,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.03571428571428571,
+      "weight_mean": 0.1696195638699858,
+      "calibration_n": 1,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.052083333333333336,
+      "weight_mean": 0.15253646307048271,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.08125,
+      "weight_mean": 0.17172306823472755,
+      "calibration_n": 3,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "lab.noise": 1,
+     "wait": 1,
+     "lab.act": 31
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 4,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     1.0,
+     0.06896551724137931,
+     0.12962962962962962
+    ],
+    "planner_seconds_per_decision": 0.19945579377765005,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 7,
+       "scale": 11.11238160183305,
+       "beta_q": 0.35238032524320834,
+       "beta_q_sd": 0.20414890711479308,
+       "beta_im": -0.05888845807859669,
+       "beta_im_sd": 0.48551588985009747,
+       "noise_var": 0.5171618525637628
+      },
+      "3": {
+       "horizon": 3,
+       "n": 7,
+       "scale": 1.3059420323224813,
+       "beta_q": 0.8048476946332794,
+       "beta_q_sd": 0.406832938726922,
+       "beta_im": 0.036931588686620505,
+       "beta_im_sd": 0.49488677848309603,
+       "noise_var": 0.7412810850547795
+      },
+      "4": {
+       "horizon": 4,
+       "n": 5,
+       "scale": 2.4308443347835262,
+       "beta_q": 0.8752574765106937,
+       "beta_q_sd": 0.4608813510621624,
+       "beta_im": -0.027114826772936557,
+       "beta_im_sd": 0.4834988969879027,
+       "noise_var": 1.0564950789793826
+      }
+     },
+     "pending": 14
+    },
+    "wall_seconds": 248.94446778297424
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": 0.0,
+    "expected_adopters_on_minus_off": -0.2651105122488815,
+    "first_divergence": {
+     "lifetime": 1,
+     "decision": 8
+    },
+    "pairing": {
+     "decisions_compared": 30,
+     "first_input_difference": 7,
+     "first_action_difference": 15,
+     "share_tv_at_first_action_difference": 0.09375,
+     "first_action_difference_attributable": false,
+     "first_action_difference_via_learning": true,
+     "first_imagination_influence": 0,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.03125,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 7,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 30,
+    "progress_mean": 0.8596491228070176,
+    "achieved": 2,
+    "expected_adopters": 94.42921277489901,
+    "oracle_expected_adopters": 183.56848569087435,
+    "truth_efficiency_mean": 0.6039352106508802,
+    "imagination_tv_mean": 0.06018518518518518,
+    "imagination_tv_max": 0.125,
+    "decisions_with_tv_over_0.1": 4,
+    "argmax_changed_by_imagination": 3,
+    "n_with_imagination": 27,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.044642857142857144,
+      "weight_mean": 0.18210388139949557,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.06696428571428571,
+      "weight_mean": 0.16457535585987162,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 3
+     },
+     {
+      "tv_mean": 0.0625,
+      "weight_mean": 0.2033455859572103,
+      "calibration_n": 9,
+      "beta_im_last": 0.007885221116519146,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "lab.unlock": 4,
+     "lab.act": 26
+    },
+    "unlock": 4,
+    "door_channel_acts": {
+     "after_unlock": 12,
+     "without_unlock": 1,
+     "lifetimes_with_unlock": 3
+    },
+    "progress_by_lifetime": [
+     1.0,
+     0.5789473684210527,
+     1.0
+    ],
+    "planner_seconds_per_decision": 0.18956903534320493,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 7,
+       "scale": 16.917033345112625,
+       "beta_q": 0.36058989393318264,
+       "beta_q_sd": 0.32653083807352057,
+       "beta_im": -0.2487225416168234,
+       "beta_im_sd": 0.39142585916287015,
+       "noise_var": 0.7441926162933998
+      },
+      "3": {
+       "horizon": 3,
+       "n": 6,
+       "scale": 6.044242306994532,
+       "beta_q": 0.8474551712195968,
+       "beta_q_sd": 0.41941032927002925,
+       "beta_im": 0.06755166748505173,
+       "beta_im_sd": 0.4679354528627787,
+       "noise_var": 0.6874387877045084
+      },
+      "4": {
+       "horizon": 4,
+       "n": 10,
+       "scale": 6.701180947387509,
+       "beta_q": 0.47939215580113875,
+       "beta_q_sd": 0.37563826251638793,
+       "beta_im": 0.12441952372003427,
+       "beta_im_sd": 0.48496915295822907,
+       "noise_var": 1.347127172067494
+      }
+     },
+     "pending": 7
+    },
+    "wall_seconds": 226.74617052078247
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 42,
+    "progress_mean": 1.0,
+    "achieved": 3,
+    "expected_adopters": 102.02823685150652,
+    "oracle_expected_adopters": 183.56848569087435,
+    "truth_efficiency_mean": 0.30283724123674033,
+    "imagination_tv_mean": 0.078125,
+    "imagination_tv_max": 0.1875,
+    "decisions_with_tv_over_0.1": 9,
+    "argmax_changed_by_imagination": 2,
+    "n_with_imagination": 38,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.056818181818181816,
+      "weight_mean": 0.17510711476027388,
+      "calibration_n": 5,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.08928571428571429,
+      "weight_mean": 0.17733753171668346,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.08413461538461539,
+      "weight_mean": 0.21408854331527566,
+      "calibration_n": 18,
+      "beta_im_last": 0.13805812383939658,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "lab.unlock": 3,
+     "lab.probe": 5,
+     "wait": 8,
+     "lab.act": 25,
+     "lab.noise": 1
+    },
+    "unlock": 3,
+    "door_channel_acts": {
+     "after_unlock": 15,
+     "without_unlock": 0,
+     "lifetimes_with_unlock": 3
+    },
+    "progress_by_lifetime": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "planner_seconds_per_decision": 0.19690113847276994,
+    "horizon_final": 3,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 12,
+       "scale": 14.131160858742392,
+       "beta_q": 0.5892081781909226,
+       "beta_q_sd": 0.2860338677609161,
+       "beta_im": 0.01707782256546149,
+       "beta_im_sd": 0.30024729027842767,
+       "noise_var": 0.6689239334569895
+      },
+      "4": {
+       "horizon": 4,
+       "n": 25,
+       "scale": 12.582419158713831,
+       "beta_q": 0.41923328226481593,
+       "beta_q_sd": 0.3155208229368592,
+       "beta_im": 0.1779547011040066,
+       "beta_im_sd": 0.255917996474052,
+       "noise_var": 0.6454870445616279
+      }
+     },
+     "pending": 5
+    },
+    "wall_seconds": 352.39186692237854
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": 0.14035087719298245,
+    "expected_adopters_on_minus_off": 2.533008025535839,
+    "first_divergence": {
+     "lifetime": 0,
+     "decision": 1
+    },
+    "pairing": {
+     "decisions_compared": 30,
+     "first_input_difference": 2,
+     "first_action_difference": 1,
+     "share_tv_at_first_action_difference": 0.125,
+     "first_action_difference_attributable": true,
+     "first_action_difference_via_learning": false,
+     "first_imagination_influence": 0,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.09375,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     0.0,
+     0.42105263157894735,
+     0.0
+    ]
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 8,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 43,
+    "progress_mean": 0.44999999999999996,
+    "achieved": 0,
+    "expected_adopters": 31.320425457123754,
+    "oracle_expected_adopters": 323.3483378190685,
+    "truth_efficiency_mean": 0.3323291119462052,
+    "imagination_tv_mean": 0.044070512820512824,
+    "imagination_tv_max": 0.15625,
+    "decisions_with_tv_over_0.1": 3,
+    "argmax_changed_by_imagination": 1,
+    "n_with_imagination": 39,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.029296875,
+      "weight_mean": 0.17892755825823975,
+      "calibration_n": 2,
+      "beta_im_last": 0.0,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.058333333333333334,
+      "weight_mean": 0.18161287640147009,
+      "calibration_n": 16,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.046875,
+      "weight_mean": 0.17152480818675137,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "wait": 2,
+     "lab.probe": 1,
+     "lab.act": 39,
+     "lab.unlock": 1
+    },
+    "unlock": 1,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 12,
+     "lifetimes_with_unlock": 1
+    },
+    "progress_by_lifetime": [
+     0.9166666666666666,
+     0.3333333333333333,
+     0.1
+    ],
+    "planner_seconds_per_decision": 0.12158884689601701,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 20,
+       "scale": 2.167944244449994,
+       "beta_q": 0.3401191265913558,
+       "beta_q_sd": 0.23808637000141103,
+       "beta_im": 0.04220136319991344,
+       "beta_im_sd": 0.4516276820747524,
+       "noise_var": 0.6856631926225287
+      },
+      "2": {
+       "horizon": 2,
+       "n": 4,
+       "scale": 7.80359312121528,
+       "beta_q": 0.8292734760705759,
+       "beta_q_sd": 0.42140008523000033,
+       "beta_im": -0.027320816552611107,
+       "beta_im_sd": 0.49879444888674407,
+       "noise_var": 0.7914078040865691
+      },
+      "3": {
+       "horizon": 3,
+       "n": 0,
+       "scale": null,
+       "beta_q": 1.0,
+       "beta_q_sd": 0.5,
+       "beta_im": 0.0,
+       "beta_im_sd": 0.5,
+       "noise_var": 1.0
+      },
+      "4": {
+       "horizon": 4,
+       "n": 12,
+       "scale": 2.9571035043642966,
+       "beta_q": 0.7027183036481406,
+       "beta_q_sd": 0.4042955187743401,
+       "beta_im": -0.021703306583068238,
+       "beta_im_sd": 0.43638227324341944,
+       "noise_var": 0.9964629738195679
+      }
+     },
+     "pending": 7
+    },
+    "wall_seconds": 367.67797327041626
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 32,
+    "progress_mean": 0.49722222222222223,
+    "achieved": 1,
+    "expected_adopters": 32.768565403060386,
+    "oracle_expected_adopters": 323.3483378190685,
+    "truth_efficiency_mean": 0.505663861537227,
+    "imagination_tv_mean": 0.04838709677419355,
+    "imagination_tv_max": 0.21875,
+    "decisions_with_tv_over_0.1": 3,
+    "argmax_changed_by_imagination": 3,
+    "n_with_imagination": 31,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.0390625,
+      "weight_mean": 0.17033096378772566,
+      "calibration_n": 1,
+      "beta_im_last": 0.0,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.02734375,
+      "weight_mean": 0.1298837489524206,
+      "calibration_n": 9,
+      "beta_im_last": -0.11342164133881567,
+      "argmax_changed": 2
+     },
+     {
+      "tv_mean": 0.10714285714285714,
+      "weight_mean": 0.17055881897741232,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     }
+    ],
+    "operations": {
+     "wait": 1,
+     "lab.probe": 1,
+     "lab.act": 30
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 5,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     1.0,
+     0.4666666666666667,
+     0.025
+    ],
+    "planner_seconds_per_decision": 0.08197021897649392,
+    "horizon_final": 3,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 24,
+       "scale": 3.274843608709495,
+       "beta_q": 0.3271552254536569,
+       "beta_q_sd": 0.2845839264022963,
+       "beta_im": -0.09717784149325387,
+       "beta_im_sd": 0.4290771307016355,
+       "noise_var": 0.7062292537227692
+      },
+      "4": {
+       "horizon": 4,
+       "n": 4,
+       "scale": 2.591518346914314,
+       "beta_q": 0.777104591837386,
+       "beta_q_sd": 0.39758287234779466,
+       "beta_im": 0.06568745246024567,
+       "beta_im_sd": 0.4733646651962303,
+       "noise_var": 0.855356276189024
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 248.1559338569641
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": 0.04722222222222224,
+    "expected_adopters_on_minus_off": 0.4827133153122117,
+    "first_divergence": {
+     "lifetime": 0,
+     "decision": 5
+    },
+    "pairing": {
+     "decisions_compared": 32,
+     "first_input_difference": 6,
+     "first_action_difference": 5,
+     "share_tv_at_first_action_difference": 0.03125,
+     "first_action_difference_attributable": true,
+     "first_action_difference_via_learning": false,
+     "first_imagination_influence": 0,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.03125,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     0.08333333333333337,
+     0.13333333333333336,
+     -0.07500000000000001
+    ]
+   }
+  },
+  {
+   "family": "T1",
+   "real": false,
+   "seed": 9,
+   "off": {
+    "lifetimes": 3,
+    "decisions": 32,
+    "progress_mean": 0.14356329249946273,
+    "achieved": 0,
+    "expected_adopters": 15.694588925241248,
+    "oracle_expected_adopters": 340.6459372028044,
+    "truth_efficiency_mean": 0.2681904871129574,
+    "imagination_tv_mean": 0.07112068965517242,
+    "imagination_tv_max": 0.1875,
+    "decisions_with_tv_over_0.1": 6,
+    "argmax_changed_by_imagination": 2,
+    "n_with_imagination": 29,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.06041666666666667,
+      "weight_mean": 0.16206583350178785,
+      "calibration_n": 2,
+      "beta_im_last": 0.0,
+      "argmax_changed": 1
+     },
+     {
+      "tv_mean": 0.11458333333333333,
+      "weight_mean": 0.18756140354790832,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.05859375,
+      "weight_mean": 0.14768392830422566,
+      "calibration_n": 8,
+      "beta_im_last": 0.038739992578772586,
+      "argmax_changed": 1
+     }
+    ],
+    "operations": {
+     "wait": 2,
+     "lab.probe": 1,
+     "lab.act": 29
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 12,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.30303030303030304,
+     0.1276595744680851,
+     0.0
+    ],
+    "planner_seconds_per_decision": 0.15908685178146698,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 12,
+       "scale": 2.232014573992003,
+       "beta_q": 0.405727126412763,
+       "beta_q_sd": 0.266885251578306,
+       "beta_im": -0.09575574858626186,
+       "beta_im_sd": 0.4472831671749358,
+       "noise_var": 0.7248420078494374
+      },
+      "3": {
+       "horizon": 3,
+       "n": 4,
+       "scale": null,
+       "beta_q": 1.0,
+       "beta_q_sd": 0.5,
+       "beta_im": 0.0,
+       "beta_im_sd": 0.5,
+       "noise_var": 1.0
+      },
+      "4": {
+       "horizon": 4,
+       "n": 12,
+       "scale": 4.646205473186259,
+       "beta_q": 0.72927639597814,
+       "beta_q_sd": 0.4040142658080359,
+       "beta_im": -0.02387321955846361,
+       "beta_im_sd": 0.42624594895753354,
+       "noise_var": 0.925330523597396
+      }
+     },
+     "pending": 4
+    },
+    "wall_seconds": 247.73170614242554
+   },
+   "on": {
+    "lifetimes": 3,
+    "decisions": 33,
+    "progress_mean": 0.20191274446593596,
+    "achieved": 0,
+    "expected_adopters": 41.31566385800731,
+    "oracle_expected_adopters": 340.6459372028044,
+    "truth_efficiency_mean": 0.4971415501838842,
+    "imagination_tv_mean": 0.0625,
+    "imagination_tv_max": 0.15625,
+    "decisions_with_tv_over_0.1": 6,
+    "argmax_changed_by_imagination": 1,
+    "n_with_imagination": 30,
+    "imagination_by_lifetime": [
+     {
+      "tv_mean": 0.04791666666666667,
+      "weight_mean": 0.16206583350178785,
+      "calibration_n": 2,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.07589285714285714,
+      "weight_mean": 0.17987271885118788,
+      "calibration_n": 0,
+      "beta_im_last": 0.0,
+      "argmax_changed": 0
+     },
+     {
+      "tv_mean": 0.078125,
+      "weight_mean": 0.14691405616321362,
+      "calibration_n": 9,
+      "beta_im_last": -0.14130475349832555,
+      "argmax_changed": 1
+     }
+    ],
+    "operations": {
+     "wait": 4,
+     "lab.probe": 1,
+     "lab.act": 28
+    },
+    "unlock": 0,
+    "door_channel_acts": {
+     "after_unlock": 0,
+     "without_unlock": 5,
+     "lifetimes_with_unlock": 0
+    },
+    "progress_by_lifetime": [
+     0.21212121212121213,
+     0.39361702127659576,
+     0.0
+    ],
+    "planner_seconds_per_decision": 0.16089839722509636,
+    "horizon_final": 4,
+    "imagination_calibration": {
+     "by_horizon": {
+      "1": {
+       "horizon": 1,
+       "n": 12,
+       "scale": 1.8556097292651212,
+       "beta_q": 0.49031816033311404,
+       "beta_q_sd": 0.29003894419097503,
+       "beta_im": -0.10657348638126658,
+       "beta_im_sd": 0.44875026486384645,
+       "noise_var": 0.7522775344716117
+      },
+      "3": {
+       "horizon": 3,
+       "n": 4,
+       "scale": null,
+       "beta_q": 1.0,
+       "beta_q_sd": 0.5,
+       "beta_im": 0.0,
+       "beta_im_sd": 0.5,
+       "noise_var": 1.0
+      },
+      "4": {
+       "horizon": 4,
+       "n": 12,
+       "scale": 16.497436377997,
+       "beta_q": 0.6222143305205592,
+       "beta_q_sd": 0.37267816139765736,
+       "beta_im": -0.017759861857159776,
+       "beta_im_sd": 0.35724321099921064,
+       "noise_var": 0.853394214250501
+      }
+     },
+     "pending": 5
+    },
+    "wall_seconds": 258.36251854896545
+   },
+   "paired": {
+    "lifetimes": 3,
+    "progress_on_minus_off": 0.05834945196647324,
+    "expected_adopters_on_minus_off": 8.54035831092202,
+    "first_divergence": {
+     "lifetime": 0,
+     "decision": 5
+    },
+    "pairing": {
+     "decisions_compared": 32,
+     "first_input_difference": 6,
+     "first_action_difference": 5,
+     "share_tv_at_first_action_difference": 0.03125,
+     "first_action_difference_attributable": true,
+     "first_action_difference_via_learning": false,
+     "first_imagination_influence": 0,
+     "paired_until_influence": true,
+     "share_tv_at_first_influence": 0.03125,
+     "action_differs_at_first_influence": false,
+     "action_differs_before_influence": false
+    },
+    "by_lifetime_progress_on_minus_off": [
+     -0.09090909090909091,
+     0.26595744680851063,
+     0.0
+    ]
+   }
+  }
+ ],
+ "paired_over_seeds": {
+  "progress_on_minus_off": {
+   "n": 10,
+   "mean": 0.018721095008032644,
+   "sd": 0.129656255356006,
+   "lo": -0.05248516304433737,
+   "hi": 0.09651069231813117
+  },
+  "expected_adopters_on_minus_off": {
+   "n": 10,
+   "mean": 0.6049361858718838,
+   "sd": 3.5107669135357287,
+   "lo": -1.2608021302658732,
+   "hi": 2.828011489305797
+  },
+  "seeds_diverged": 10,
+  "n_pairs": 10,
+  "pairs_paired_until_influence": 10,
+  "pairs_action_differs_before_influence": 0,
+  "actions_changed_at_first_influence": 0,
+  "expected_changes_at_first_influence": 0.53125,
+  "pairs_with_different_actions": 10,
+  "first_action_difference_attributable": 5,
+  "first_action_difference_via_learning": 5
+ },
+ "on_arm": {
+  "imagination_tv_mean": {
+   "n": 10,
+   "mean": 0.0556671150295794,
+   "sd": 0.018000446837757086,
+   "lo": 0.045271040450037076,
+   "hi": 0.06620651032010876
+  },
+  "argmax_changed": 23,
+  "decisions_with_imagination": 332
+ },
+ "pooled": {
+  "on": {
+   "lifetimes": 30,
+   "achieved": 10,
+   "progress_mean_over_seeds": {
+    "n": 10,
+    "mean": 0.5488223841284796,
+    "sd": 0.21679253148904343,
+    "lo": 0.4275508420992991,
+    "hi": 0.6790198042739233
+   },
+   "expected_adopters": 519.3086804996436,
+   "oracle_expected_adopters": 2356.5268643623435,
+   "unlock": 8,
+   "door_acts_after_unlock": 15,
+   "lifetimes_with_unlock": 6,
+   "planner_seconds_per_decision": {
+    "n": 10,
+    "mean": 0.132552549642977,
+    "sd": 0.0640337004877511,
+    "lo": 0.09101146216030215,
+    "hi": 0.16667432340371524
+   }
+  },
+  "off": {
+   "lifetimes": 30,
+   "achieved": 9,
+   "progress_mean_over_seeds": {
+    "n": 10,
+    "mean": 0.530101289120447,
+    "sd": 0.24628055352069164,
+    "lo": 0.37931696795393954,
+    "hi": 0.6666332779190851
+   },
+   "expected_adopters": 501.1605949234871,
+   "oracle_expected_adopters": 2356.5268643623435,
+   "unlock": 9,
+   "door_acts_after_unlock": 14,
+   "lifetimes_with_unlock": 6,
+   "planner_seconds_per_decision": {
+    "n": 10,
+    "mean": 0.12186440618952861,
+    "sd": 0.06830970488922028,
+    "lo": 0.0789404170561148,
+    "hi": 0.15912732309175937
+   }
+  }
+ },
+ "off_arm_counterfactual": {
+  "imagination_tv_mean": {
+   "n": 10,
+   "mean": 0.0521721387233666,
+   "sd": 0.015401813143535243,
+   "lo": 0.043205837778206205,
+   "hi": 0.06127612105925684
+  }
+ }
+}
