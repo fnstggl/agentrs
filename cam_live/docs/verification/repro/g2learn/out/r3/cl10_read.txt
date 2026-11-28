@@ -1,0 +1,12 @@
+[PASS] CL-10 recovery: a fresh agent restores every trainable tensor bit-exactly  0 differ of 305; 240 tensors changed by the load
+[PASS] CL-10 recovery: the fast adaptive state comes back exactly  []
+[PASS] CL-10 recovery: learner counters (schedules) come back  {'frequent': 6, 'slow': 0, 'fast': 25, 'skipped': 2, 'slow_reverted': 0, 'slow_deferred': 2, 'triggers': 6} vs {'frequent': 6, 'slow': 0, 'fast': 25, 'skipped': 2, 'slow_reverted': 0, 'slow_deferred': 2, 'triggers': 6}
+[PASS] CL-10 recovery: the agent's random generator comes back  
+[PASS] CL-10 recovery: the current task comes back  obj_int_12
+[INFO] experience store of the run copy: experiments / pending queries after the load: (2, 2)
+
+5 checks, 0 failed
+
+real	0m4.791s
+user	0m4.353s
+sys	0m0.708s

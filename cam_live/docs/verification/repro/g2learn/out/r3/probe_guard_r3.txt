@@ -1,0 +1,20 @@
+[PASS] (a) held-out evaluation is pure: two evaluations give identical cells  30 cells
+[PASS] (a) held-out evaluation moves no buffer and no target scaler  
+[INFO] (a) running statistics a slow step's loss evaluation moves (restored now): ['heads.world_norm.scale']
+[INFO] (a) held-out shift those moves would cause with unchanged adapters (mean relative, per provider): {'world': '+0.00e+00', 'rudder': '+0.00e+00', 'cocoa': '+0.00e+00', 'bridge_grounding': '+0.00e+00'}
+[PASS] (a) after restoring, the held-out cells are again exactly the pre-step ones  
+[PASS] (a) a slow step leaves every buffer and the target scaler as they were  restored ['heads.world_norm.scale']
+[PASS] (a) the guard's 'after' numbers equal a fresh held-out evaluation of the kept step  
+[INFO] (a) the step's verdict: {'accepted': True, 'by_provider': {'bridge_grounding': ('-7.61e-04', '1.5e-03'), 'cocoa': ('-2.98e-08', '2.2e-04'), 'rudder': ('-1.32e-07', '2.5e-05'), 'world': ('-8.34e-05', '3.2e-04')}}
+[PASS] (a) a harmful adapter perturbation is still refused with the restore in place  relative changes {'bridge_grounding': '+2.66e-03', 'cocoa': '+4.61e-06', 'rudder': '+2.39e-03', 'world': '-8.82e-02'}
+[INFO] (b) consistent rise of 0.9e-4 relative per step (world-model-sized loss 3.5): accepted steps per cycle, cumulative relative rise, first refusal: [(224, 0.0204, ['world_model: summed change since probe-start would be 0.07159 (> 0.07143)']), (224, 0.0411, ['world_model: summed change since promotion-0 would be 0.07305 (> 0.07288)']), (224, 0.0623, ['world_model: summed change since promotion-1 would be 0.07454 (> 0.07436)'])]
+[PASS] (b) the drift bound stops an undetectable per-step creep within one reference cycle (<= 2.1 %)  (224, 0.0204, ['world_model: summed change since probe-start would be 0.07159 (> 0.07143)'])
+[INFO] (b) the agent's promotion gates: max validation drop / max retention drop: (0.5, 0.1)
+[PASS] (b) after three promotions the accumulated creep is still bounded by the promotion gate it passed  cumulative 6.2 % of a 3.5 loss = 0.218 nats < validation-drop gate 0.5: each promotion re-references, so the creep is bounded per cycle only
+[PASS] (b) a rise of 2e-4 relative is refused  ['world_model: held-out loss rose by 0.0007 (> tolerance 0.00035)']
+[PASS] (b) a rise of 1 % is refused  ['world_model: held-out loss rose by 0.035 (> tolerance 0.00035)']
+[INFO] (b) a noisy provider (chunks +-20 %): tolerance and verdict for a +0.009 nats rise (0.26 %): (0.00034125000000000003, False)
+[INFO] (c) random conflicting sets (2-6 providers, 50-d): {'trials': 200, "PCGrad combination raises some provider's loss to first order": 0, 'after the update projection some provider still rises (rel. > 1e-6)': 0, 'worst remaining relative rise': '0.00e+00', 'update norm kept (median / 10th percentile)': (1.0, 1.0)}
+[PASS] (c) after the update projection no protected provider's loss rises to first order (all trials)  0 of 200 violate; worst relative 0.00e+00
+
+11 checks, 0 failed

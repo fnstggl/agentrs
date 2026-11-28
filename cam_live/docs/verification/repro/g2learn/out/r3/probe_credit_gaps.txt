@@ -1,0 +1,26 @@
+[PASS] control: add_outcome refuses an outcome observed before its query was issued  accepted=False reason='observed before the query was issued' (query issued 1015.0)
+[PASS] update() applies the same refusal to an appended outcome dated before its query (RC-07 guard)  refused=True OutcomeTimingError: record e1: refused outcome(s) dated before their query / decision (outcome of query q1 observed at 900, before the query; stored outcomes of the query now []
+[PASS] update() refuses an appended outcome observed before the decision was made  refused=True OutcomeTimingError: record e2: refused outcome(s) dated before their query / decision (outcome of query q2 observed at 520, before the query
+[PASS] update() refuses adding a protected decision diagnostic after the fact (tracked_proposals)  ImmutableHistoryError: record e3: refused to rewrite history (decision.diagnostics.tracked_proposals added after the decision was stored)
+[PASS] update() refuses rewriting behaviour probabilities  ImmutableHistoryError: record e3: refused to rewrite history (decision.probabilities[0]; decision.probabilities[1]; decision.probabilities[2])
+[PASS] a needs_approval placeholder is replaced once by the executed result, then the result is immutable  first replacement refused=False ; second refused=True ImmutableHistoryError: record e4: refused to rewrite history (result.ended; result.status)
+[PASS] a tampered index column (provenance) is detected on read  record e3: index columns disagree with the stored record (provenance: index 'staging' != body 'live')
+[PASS] sample(provenance='live') never returns a record whose stored provenance differs  3 sampled, mismatching []
+[PASS] a stored context item is never rewritten  stored text 'v1'
+[PASS] attribution map (unknown id among valid amounts): weights of one outcome <= 1 and credit <= the outcome  links [('e1', 0.75)], total 0.7500, credited 1.5000, reason ''
+[PASS] attribution map (boolean amount): weights of one outcome <= 1 and credit <= the outcome  links [('e1', 0.5), ('e2', 0.5)], total 1.0000, credited 2.0000, reason ''
+[PASS] attribution map (string amount): weights of one outcome <= 1 and credit <= the outcome  links [('e1', 0.5), ('e2', 0.5)], total 1.0000, credited 2.0000, reason ''
+[PASS] attribution map (amounts that overflow when summed): weights of one outcome <= 1 and credit <= the outcome  links [('e1', 0.5), ('e2', 0.5)], total 1.0000, credited 2.0000, reason ''
+[PASS] attribution map whose amounts overflow when summed still links the outcome to the named decisions  2 links, total weight 1.0000 (both decisions named with equal amounts)
+[PASS] attribution map (one valid positive and one zero amount): weights of one outcome <= 1 and credit <= the outcome  links [('e1', 1.0)], total 1.0000, credited 2.0000, reason ''
+[PASS] control: a slow step that raises the held-out loss is undone  paired change 0.0012493133544921875, tolerance 0.0010039875030517578, reverted True
+[INFO] no held-out records: notes of the slow update: {'guard': None, 'skipped': 'no provider has held-out validation records: the slow step is deferred until held-out evidence exists'}
+[PASS] without held-out records a slow step is not kept unguarded (it is skipped or refused)  adapters changed=False, guard verdict=None, timescale record param_groups=[]
+[INFO] per-provider paired held-out change of the step: {'improves': -0.001194000244140625, 'degrades': 0.0005991458892822266}
+[PASS] a slow step is not kept when one provider's held-out loss rises by more than the tolerance, whatever another provider gains  accepted=True, aggregate paired change 0.0005991458892822266, tolerance 0.00100191148519516, 'degrades' provider change 0.0005991
+
+18 checks, 0 failed
+
+real	0m6.920s
+user	0m5.740s
+sys	0m1.155s

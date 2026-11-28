@@ -1,0 +1,21 @@
+[INFO] agent_cpu_a: lifetimes run (seed, status): [(11, 'completed'), (12, 'completed'), (13, 'exhausted'), (14, 'exhausted'), (15, 'completed'), (16, 'failed'), (17, 'completed'), (18, 'completed')]
+[INFO] agent_cpu_a: records / learner counters: (71, {'frequent': 74, 'slow': 22, 'fast': 219, 'skipped': 2, 'slow_reverted': 0, 'slow_deferred': 2, 'triggers': 53})
+[INFO] agent_cpu_a: held-out losses available at the end (learner.validate): {'world_model': 2.9256, 'fast_prior': 2.7334, 'evaluator': 1.7379, 'world_model_adapters': 2.6719, 'evaluator_adapters': 1.7202, 'rudder': 0.0337, 'cocoa': 0.5678, 'bridge_grounding': 19.171}
+[INFO] agent_cpu_a: promotions (promoted, reasons): [(False, ['no held-out evidence: no provider has a held-out loss (0 held-out provider-records among 2 records)']), (True, []), (True, []), (False, ['retention lab/integration@obj_int_12/neg_world_loss dropped 0.136696 (> 0.1): forgetting']), (False, ['retention lab/integration@obj_int_12/neg_world_loss dropped 0.27042 (> 0.1): forgetting']), (True, []), (True, []), (True, [])]
+[INFO] agent_cpu_a: slow steps in order: ['D', 'D', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A']
+[INFO] agent_cpu_a: slow steps by outcome: {'deferred': 2, 'accepted': 27}
+[INFO] agent_cpu_a: first half: accepted / judged: (12, 12)
+[INFO] agent_cpu_a: second half: accepted / judged: (15, 15)
+[INFO] agent_cpu_a: binding provider of reverted steps: {}
+[INFO] agent_cpu_a: reverted steps where some judged provider had a single validation chunk (float-floor tolerance): (0, 0)
+[INFO] agent_cpu_a: reasons of reverted steps (provider: kind): {}
+[INFO] agent_cpu_a: chunks per provider at the last judged step: {'bridge_grounding': 5, 'cocoa': 1, 'evaluator': 5, 'evaluator_adapters': 5, 'fast_prior': 8, 'rudder': 1, 'world_model': 8, 'world_model_adapters': 8}
+[INFO] agent_cpu_a: net adapter change from the start (L2): 0.1297671494711059
+[PASS] agent_cpu_a: no slow step is applied without a held-out verdict  {'deferred': 2, 'accepted': 27}
+[PASS] agent_cpu_a: adapter learning is not frozen: at least a quarter of the judged slow steps are accepted  accepted 27 of 27 judged (2 deferred, 0 skipped); net adapter change 0.1298
+
+2 checks, 0 failed
+
+real	6m2.794s
+user	14m26.435s
+sys	1m11.833s

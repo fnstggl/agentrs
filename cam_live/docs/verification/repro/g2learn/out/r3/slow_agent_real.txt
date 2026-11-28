@@ -1,0 +1,22 @@
+[INFO] agent_real: lifetimes run (seed, status): [(11, 'completed'), (12, 'failed'), (13, 'failed'), (14, 'completed')]
+[INFO] agent_real: records / learner counters: (62, {'frequent': 36, 'slow': 11, 'fast': 214, 'skipped': 0, 'slow_reverted': 1, 'slow_deferred': 0, 'triggers': 28})
+[INFO] agent_real: held-out losses available at the end (learner.validate): {'world_model': 3.5071, 'fast_prior': 2.7231, 'evaluator': 1.9916, 'world_model_adapters': 4.2211, 'evaluator_adapters': 2.0597, 'rudder': 0.3554, 'cocoa': 0.9918, 'bridge_grounding': 7.2263}
+[INFO] agent_real: promotions (promoted, reasons): [(False, ['no retention metric supplied']), (True, []), (True, [])]
+[INFO] agent_real: GPU lock held (s): 737.0
+[INFO] agent_real: slow steps in order: ['A', 'A', 'A', 'A', 'A', 'A', 'A', 'R', 'A', 'A', 'A', 'A']
+[INFO] agent_real: slow steps by outcome: {'accepted': 11, 'reverted': 1}
+[INFO] agent_real: first half: accepted / judged: (6, 6)
+[INFO] agent_real: second half: accepted / judged: (5, 6)
+[INFO] agent_real: binding provider of reverted steps: {'cocoa': 1}
+[INFO] agent_real: reverted steps where some judged provider had a single validation chunk (float-floor tolerance): (1, 1)
+[INFO] agent_real: reasons of reverted steps (provider: kind): {'cocoa: held-out loss rose by 4.721e-05 ': 1}
+[INFO] agent_real: chunks per provider at the last judged step: {'bridge_grounding': 5, 'cocoa': 4, 'evaluator': 8, 'evaluator_adapters': 8, 'fast_prior': 8, 'rudder': 4, 'world_model': 8, 'world_model_adapters': 8}
+[INFO] agent_real: net adapter change from the start (L2): 0.7593143216882365
+[PASS] agent_real: no slow step is applied without a held-out verdict  {'accepted': 11, 'reverted': 1}
+[PASS] agent_real: adapter learning is not frozen: at least a quarter of the judged slow steps are accepted  accepted 11 of 12 judged (0 deferred, 0 skipped); net adapter change 0.7593
+
+2 checks, 0 failed
+
+real	25m56.986s
+user	16m22.365s
+sys	1m51.222s

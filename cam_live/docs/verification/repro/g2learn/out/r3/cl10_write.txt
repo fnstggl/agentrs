@@ -1,0 +1,25 @@
+[INFO] checkpoint files: ['MANIFEST.json', 'aux.pt', 'fast_state.pt', 'lifetime.pt', 'optim/experiential.pt', 'optim/heads.pt', 'optim/reward_meta.pt', 'optim/semantic_adapters.pt', 'rng.pt', 'state.json', 'weights/buffers.safetensors', 'weights/experiential.safetensors', 'weights/heads.safetensors', 'weights/reward.safetensors', 'weights/semantic_adapters.safetensors']
+[INFO] state.json keys: ['arch_signature', 'auth_config_hash', 'current_task', 'experiments', 'extra', 'model_version', 'pending_outcomes', 'pending_pointer', 'replay_state', 'reward_version', 'schedules']
+[PASS] CL-10: the integrated agent's checkpoint holds: model weights / adapters / reward weights  
+[PASS] CL-10: the integrated agent's checkpoint holds: optimizer state  
+[PASS] CL-10: the integrated agent's checkpoint holds: fast adaptive state  
+[PASS] CL-10: the integrated agent's checkpoint holds: current task  
+[PASS] CL-10: the integrated agent's checkpoint holds: replay indices  
+[PASS] CL-10: the integrated agent's checkpoint holds: experiment records  
+[PASS] CL-10: the integrated agent's checkpoint holds: pending outcomes  
+[PASS] CL-10: the integrated agent's checkpoint holds: learning schedules  
+[PASS] CL-10: the integrated agent's checkpoint holds: random seeds  
+[PASS] CL-10: the integrated agent's checkpoint holds: authorization configuration  
+[PASS] CL-10: the integrated agent's checkpoint holds: model versions  
+[INFO] experiments: agent registry / experience store / checkpoint: (2, 2, 2)
+[PASS] CL-10: the checkpoint's experiment records are the agent's experiments  registry 2, checkpoint 2
+[INFO] pending outcome queries: store / checkpoint: (2, 2)
+[PASS] CL-10: the checkpoint's pending outcomes are the store's unresolved queries (and there are some)  2 vs 2
+[INFO] auth_config_hash recorded: 'sha256:61fb7f2f0bf638ccce678253a99f9f680253a8d67bac7ff1eb834a3ccccdf08a'
+[PASS] CL-10: every tensor in the checkpoint is stored on the CPU  ['cpu']
+
+14 checks, 0 failed
+
+real	0m20.877s
+user	0m24.513s
+sys	0m7.632s

@@ -1,0 +1,12 @@
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2LEARN/r3/work/slow_acceptance/agent_real/agent/learner/learner_updates.jsonl
+  judged 12: accepted 11, refused 1; update projection acted in 8; largest first-order change after projection 7.270354402722396e-14
+  running statistics restored (steps): {'heads.predict_world.normaliser.scale': 12, 'RealScaler': 10}
+  step scale over the run: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.75, 1.0, 1.0]
+  bridge_grounding       accepted steps 11: median rel. change -1.31e-02, rose in 0, largest rise +0.00e+00, sum of changes -1.73e-01
+  cocoa                  accepted steps 10: median rel. change -5.58e-07, rose in 5, largest rise +7.52e-05, sum of changes +9.81e-05
+  evaluator              accepted steps 11: median rel. change -4.71e-07, rose in 5, largest rise +3.50e-06, sum of changes -1.08e-06
+  evaluator_adapters     accepted steps 11: median rel. change -3.23e-07, rose in 5, largest rise +3.50e-06, sum of changes -7.06e-07
+  fast_prior             accepted steps 11: median rel. change -7.67e-09, rose in 4, largest rise +2.36e-07, sum of changes -6.24e-06
+  rudder                 accepted steps 10: median rel. change -1.74e-07, rose in 5, largest rise +3.36e-06, sum of changes -2.26e-06
+  world_model            accepted steps 11: median rel. change -8.85e-06, rose in 3, largest rise +8.18e-05, sum of changes -6.27e-05
+  world_model_adapters   accepted steps 11: median rel. change -8.87e-06, rose in 3, largest rise +8.18e-05, sum of changes -6.35e-05

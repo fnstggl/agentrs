@@ -1,0 +1,16 @@
+[PASS] (a, agent) held-out evaluation is pure in the integrated agent  17 cells over 6 providers
+[INFO] (a, agent) running statistics moved by one slow step's loss evaluation: ['heads.predict_world.normaliser.scale']
+[INFO] (a, agent) held-out change those moves cause with the adapters unchanged (mean relative per provider): {'world_model': '+0.00e+00', 'fast_prior': '+0.00e+00', 'evaluator': '+0.00e+00', 'world_model_adapters': '+0.00e+00', 'evaluator_adapters': '+0.00e+00', 'bridge_grounding': '+0.00e+00'}
+[PASS] (a, agent) the restore returns the held-out cells exactly to the pre-step values  
+[INFO] (b) consistent rise of 0.9e-4 relative per step (world-model-sized loss 3.5): accepted steps per cycle, cumulative relative rise, first refusal: [(224, 0.0204, ['world_model: summed change since probe-start would be 0.07159 (> 0.07143)']), (224, 0.0411, ['world_model: summed change since promotion-0 would be 0.07305 (> 0.07288)']), (224, 0.0623, ['world_model: summed change since promotion-1 would be 0.07454 (> 0.07436)'])]
+[PASS] (b) the drift bound stops an undetectable per-step creep within one reference cycle (<= 2.1 %)  (224, 0.0204, ['world_model: summed change since probe-start would be 0.07159 (> 0.07143)'])
+[INFO] (b) the agent's promotion gates: max validation drop / max retention drop: (0.5, 0.1)
+[PASS] (b) after three promotions the accumulated creep is still bounded by the promotion gate it passed  cumulative 6.2 % of a 3.5 loss = 0.218 nats < validation-drop gate 0.5: each promotion re-references, so the creep is bounded per cycle only
+[PASS] (b) a rise of 2e-4 relative is refused  ['world_model: held-out loss rose by 0.0007 (> tolerance 0.00035)']
+[PASS] (b) a rise of 1 % is refused  ['world_model: held-out loss rose by 0.035 (> tolerance 0.00035)']
+[INFO] (b) a noisy provider (paired differences scatter +-0.015): tolerance and verdict for a mean rise of 0.0105 nats (0.30 %): (0.00786, False)
+[PASS] (b) with a noisy measurement the tolerance is capped at 0.01 absolute  
+[INFO] (c) random conflicting sets (2-6 providers, 50-d): {'trials': 200, "PCGrad combination raises some provider's loss to first order": 0, 'after the update projection some provider still rises (rel. > 1e-6)': 0, 'worst remaining relative rise': '1.98e-09', 'update norm kept (median / 10th percentile)': (1.0, 1.0)}
+[PASS] (c) after the update projection no protected provider's loss rises to first order (all trials)  0 of 200 violate; worst relative 1.98e-09
+
+8 checks, 0 failed

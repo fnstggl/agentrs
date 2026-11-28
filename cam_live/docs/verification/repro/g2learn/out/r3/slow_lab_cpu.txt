@@ -1,0 +1,19 @@
+[INFO] lab_cpu_20: records / learner counters: (48, {'frequent': 60, 'slow': 27, 'fast': 0, 'skipped': 0, 'slow_reverted': 0, 'slow_deferred': 0, 'triggers': 0})
+[INFO] lab_cpu_20: held-out losses (learner.validate): {'world': 2.7738, 'rudder': 0.0644, 'cocoa': 2.0194, 'bridge_grounding': 12.3056}
+[INFO] lab_cpu_20: slow steps in order: ['A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A']
+[INFO] lab_cpu_20: slow steps by outcome: {'accepted': 27}
+[INFO] lab_cpu_20: first half: accepted / judged: (13, 13)
+[INFO] lab_cpu_20: second half: accepted / judged: (14, 14)
+[INFO] lab_cpu_20: binding provider of reverted steps: {}
+[INFO] lab_cpu_20: reverted steps where some judged provider had a single validation chunk (float-floor tolerance): (0, 0)
+[INFO] lab_cpu_20: reasons of reverted steps (provider: kind): {}
+[INFO] lab_cpu_20: chunks per provider at the last judged step: {'bridge_grounding': 8, 'cocoa': 8, 'rudder': 8, 'world': 6}
+[INFO] lab_cpu_20: net adapter change from the start (L2): 0.16550229344494646
+[PASS] lab_cpu_20: no slow step is applied without a held-out verdict  {'accepted': 27}
+[PASS] lab_cpu_20: adapter learning is not frozen: at least a quarter of the judged slow steps are accepted  accepted 27 of 27 judged (0 deferred, 0 skipped); net adapter change 0.1655
+
+2 checks, 0 failed
+
+real	1m34.250s
+user	3m22.395s
+sys	0m1.841s

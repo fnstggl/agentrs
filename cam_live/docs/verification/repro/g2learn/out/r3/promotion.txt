@@ -1,0 +1,12 @@
+[INFO] run 0: records / first promotion (promoted, reasons) / validate() / validation flags: (17, (True, []), {'world_model': 3.365, 'fast_prior': 2.7795, 'evaluator': 2.3164, 'world_model_adapters': 3.365, 'evaluator_adapters': 2.3164, 'rudder': 0.5885, 'cocoa': 0.8271, 'bridge_grounding': 19.6243}, {'val:bridge_grounding': 2, 'val:cocoa': 2, 'val:evaluator': 2, 'val:evaluator_adapters': 2, 'val:fast_prior': 3, 'val:rudder': 2, 'val:world_model': 3, 'val:world_model_adapters': 3})
+[INFO] run 1: records / first promotion (promoted, reasons) / validate() / validation flags: (15, (True, []), {'world_model': 4.3737, 'fast_prior': 2.6132, 'world_model_adapters': 4.3737, 'bridge_grounding': 19.2544}, {'val:bridge_grounding': 3, 'val:fast_prior': 3, 'val:world_model': 3, 'val:world_model_adapters': 3})
+[INFO] run 2: records / first promotion (promoted, reasons) / validate() / validation flags: (17, (True, []), {'world_model': 3.4155, 'fast_prior': 2.6116, 'evaluator': 2.3723, 'world_model_adapters': 3.4155, 'evaluator_adapters': 2.3723, 'rudder': 0.5878, 'cocoa': 0.9225, 'bridge_grounding': 19.2594}, {'val:bridge_grounding': 3, 'val:cocoa': 2, 'val:evaluator': 2, 'val:evaluator_adapters': 2, 'val:fast_prior': 3, 'val:rudder': 2, 'val:world_model': 3, 'val:world_model_adapters': 3})
+[INFO] run 3: records / first promotion (promoted, reasons) / validate() / validation flags: (12, (True, []), {'world_model': 2.8667, 'fast_prior': 2.673, 'evaluator': 2.2193, 'world_model_adapters': 2.8667, 'evaluator_adapters': 2.2193, 'rudder': 0.9462, 'cocoa': 1.4223, 'bridge_grounding': 19.621}, {'val:bridge_grounding': 2, 'val:cocoa': 1, 'val:evaluator': 1, 'val:evaluator_adapters': 1, 'val:fast_prior': 2, 'val:rudder': 1, 'val:world_model': 2, 'val:world_model_adapters': 2})
+[INFO] run 4: records / first promotion (promoted, reasons) / validate() / validation flags: (17, (True, []), {'world_model': 3.638, 'fast_prior': 2.6133, 'evaluator': 2.3602, 'world_model_adapters': 3.638, 'evaluator_adapters': 2.3602, 'rudder': 0.5883, 'cocoa': 0.698, 'bridge_grounding': 19.2499}, {'val:bridge_grounding': 3, 'val:cocoa': 3, 'val:evaluator': 3, 'val:evaluator_adapters': 3, 'val:fast_prior': 3, 'val:rudder': 3, 'val:world_model': 3, 'val:world_model_adapters': 3})
+[PASS] the first promotion after the lifetime is granted on held-out evidence in every run  5 of 5
+
+1 checks, 0 failed
+
+real	3m46.353s
+user	20m50.380s
+sys	1m4.126s

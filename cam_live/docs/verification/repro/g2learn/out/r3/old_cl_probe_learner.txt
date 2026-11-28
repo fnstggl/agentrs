@@ -1,0 +1,289 @@
+[PASS] poll(): a plan exists after matured outcomes, counting independent units  ({"queued_rows": 67, "matured_rows": 36, "independent_units": 36, "threshold": 4})
+[PASS] poll(): no plan without matured outcomes (time / rows alone do not trigger)
+[PASS] frequent update changed experiential and heads  (['experiential', 'heads'])
+[PASS] frequent update left semantic adapters unchanged
+[PASS] reward group unchanged and without .grad
+[PASS] per-group clipping: the experiential optimizer stepped on a gradient of norm <= clip  (pre-clip 0.09089, seen by optimizer [0.000999988871626556])
+[PASS] behaviour probe changed after the frequent update  ({'latent_b': 0.007514113560318947, 'latent_z': 0.012698100879788399, 'world.pred_mean': 0.0008225291967391968, 'policy.action_probs': 2.0916677385685034e-05, 'max_abs': 0.012698100879788399})
+[PASS] slow adapter update runs after every adapter_every (=3) applied frequent updates  (timescales ['frequent', 'frequent', 'slow_adapters', 'frequent', 'frequent', 'frequent', 'slow_adapters'], counters {'frequent': 6, 'slow': 2, 'fast': 0, 'skipped': 0, 'slow_reverted': 0, 'slow_deferred': 0, 'triggers': 1})
+[PASS] slow update changed only semantic_adapters  (['semantic_adapters'])
+[PASS] fast update: no persistent parameter changed
+[PASS] fast update: the fast belief changed
+[PASS] guarded slow update was reverted (setup)  ({"accepted": false, "binding_provider": "bridge_grounding", "by_provider": {"bridge_grounding": {"accepted": false, "drift_after": -0.0036253929138183594, "drift_before": -0.0017635822296142578, "drift_bound": 0.28318764448165895, "min_tolerance": 0.0014159382224082947, "n_chunks": 8, "noise_tolerance": 0.0003730167329990091, "paired_change": -0.0018618106842041016, "paired_se": 0.00018650836649950454, "reasons": ["bridge_grounding: held-out loss rose by -0.001862 (> tolerance -14.16)"], "tolerance": -14.159368064700722, "validation_after": 14.157520413398743, "validation_before": 14.159382224082947}, "cocoa": {"accepted": false, "drift_after": 5.960464477539063e-08, "drift_before": 0.0, "drift_bound": 0.043940940499305726, "min_tolerance": 0.00021970470249652862, "n_chunks": 8, "noise_tolerance": 7.804079898690904e-08, "paired_change": 5.960464477539063e-08, "paired_se": 3.902039949345452e-08, "reasons": ["cocoa: held-out loss rose by 5.96e-08 (> tolerance -2.197)"], "tolerance": -2.197044827918261, "validation_after": 2.197047084569931, "validation_before": 2.1970470249652863}, "rudder": {"accepted": false, "drift_after": -4.842877388000488e-07, "drift_before": 9.313225746154785e-09, "drift_bound": 0.02, "min_tolerance": 2.2731304913759233e-05, "n_chunks": 8, "noise_tolerance": 5.1829945122195515e-08, "paired_change": -4.936009645462036e-07, "paired_se": 2.5914972561097757e-08, "reasons": ["rudder: held-out loss rose by -4.936e-07 (> tolerance -0.2273)"], "tolerance": -0.22731282182454318, "validation_after": 0.22731255553662777, "validation_before": 0.22731304913759232}, "world": {"accepted": false, "drift_after": -9.98377799987793e-07, "drift_before": 2.8327107429504395e-05, "drift_bound": 0.050410767793655394, "min_tolerance": 0.000252053838968277, "n_chunks": 8, "noise_tolerance": 0.00013259426483736865, "paired_change": -2.9325485229492188e-05, "paired_se": 6.629713241868433e-05, "reasons": ["world: held-out loss rose by -2.933e-05 (> tolerance -2.521)"], "tolerance": -2.52053586914438, "validation_after": 2.5205090641975403, "validation_before": 2.5205383896827698}}, "drift_after": -0.0036253929138183594, "drift_before": -0.0017635822296142578, "judged": ["bridge_grounding", "cocoa", "rudder", "world"], "mean_over_cells": {"after": 4.77559727942571, "before": 4.776070171967149, "change": -0.00047289254143834114}, "n_chunks": 8, "noise_tolerance": 0.0003730167329990091, "paired_change": -0.0018618106842041016, "paired_se": 0.00018650836649950454, "reasons": ["bridge_grounding: held-out loss rose by -0.001862 (> tolerance -14.16)", "cocoa: held-out loss rose by 5.96e-08 (> tolerance -2.197)", "rudder: held-out loss rose by -4.936e-07 (> tolerance -0.2273)", "world: held-out loss rose by -2.933e-05 (> tolerance -2.521)"], "reference": "start", "reverted": true, "rule": "per_provider", "tolerance": -14.159368064700722, "unjudged": [], "validation_after": 14.157520413398743, "validation_before": 14.159382224082947})
+[PASS] revert restores the adapter weights bit-exactly
+[PASS] revert also restores the adapter optimizer state (Adam moments / step)  (0 adapter parameters carry Adam state from the rejected step)
+[PASS] first checkpoint with validation + retention is promoted  ([])
+[PASS] a checkpoint that forgot (retention -0.5) is refused  (['retention lab/A/neg_nll dropped 0.5 (> 0.02): forgetting'])
+[PASS] refusal rolls the learner back to the promoted weights
+[PASS] ... and to the promoted optimizer state
+[PASS] no retention metric -> refused  (['no retention metric supplied'])
+[PASS] internal reward alone cannot promote  (['no independent validation metric supplied'])
+       a metric named 'heldout/neg_reward_return' is ignored? []
+[PASS] kill -9 during checkpoint writes (10 kills): newest intact checkpoint >= last acknowledged, loads, verifies  (acked per run [16, 3, 11, 3, 1, 10, 14, 28, 17, 5])
+[PASS] fresh process loads the weights-only export  (OK loaded 232, missing 0 [], unexpected 0 [], mismatched 0 []
+)
+[PASS] fresh-process predictions are bit-exact (belief, decision latent, world NLL, action probs)  ({'b': 0.0, 'z': 0.0, 'nll': 0.0, 'probs': 0.0})
+[PASS] export holds parameters and configuration only  (['config.json', 'weights.safetensors'])
+[PASS] optimizer state restored exactly into a fresh learner (by parameter name)  (0 differ)
+[PASS] weights restored exactly
+{
+ "groups": [
+  "backbone_frozen",
+  "semantic_adapters",
+  "experiential",
+  "reward",
+  "heads"
+ ],
+ "trigger_state": {
+  "queued_rows": 67,
+  "matured_rows": 36,
+  "independent_units": 36,
+  "threshold": 4
+ },
+ "frequent_record": {
+  "param_groups": [
+   "experiential",
+   "heads"
+  ],
+  "grad_norms": {
+   "experiential": 0.09088842570781708,
+   "heads": 5.349038124084473
+  },
+  "weight_delta": {
+   "experiential": 0.013010136783123016,
+   "heads": 0.008528387174010277
+  },
+  "prediction_change": {
+   "latent_b": 0.007514113560318947,
+   "latent_z": 0.012698100879788399,
+   "world.pred_mean": 0.0008225291967391968,
+   "policy.action_probs": 2.0916677385685034e-05,
+   "max_abs": 0.012698100879788399
+  }
+ },
+ "schedule": [
+  "frequent",
+  "frequent",
+  "slow_adapters",
+  "frequent",
+  "frequent",
+  "frequent",
+  "slow_adapters"
+ ],
+ "guard": {
+  "accepted": false,
+  "binding_provider": "bridge_grounding",
+  "by_provider": {
+   "bridge_grounding": {
+    "accepted": false,
+    "drift_after": -0.0036253929138183594,
+    "drift_before": -0.0017635822296142578,
+    "drift_bound": 0.28318764448165895,
+    "min_tolerance": 0.0014159382224082947,
+    "n_chunks": 8,
+    "noise_tolerance": 0.0003730167329990091,
+    "paired_change": -0.0018618106842041016,
+    "paired_se": 0.00018650836649950454,
+    "reasons": [
+     "bridge_grounding: held-out loss rose by -0.001862 (> tolerance -14.16)"
+    ],
+    "tolerance": -14.159368064700722,
+    "validation_after": 14.157520413398743,
+    "validation_before": 14.159382224082947
+   },
+   "cocoa": {
+    "accepted": false,
+    "drift_after": 5.960464477539063e-08,
+    "drift_before": 0.0,
+    "drift_bound": 0.043940940499305726,
+    "min_tolerance": 0.00021970470249652862,
+    "n_chunks": 8,
+    "noise_tolerance": 7.804079898690904e-08,
+    "paired_change": 5.960464477539063e-08,
+    "paired_se": 3.902039949345452e-08,
+    "reasons": [
+     "cocoa: held-out loss rose by 5.96e-08 (> tolerance -2.197)"
+    ],
+    "tolerance": -2.197044827918261,
+    "validation_after": 2.197047084569931,
+    "validation_before": 2.1970470249652863
+   },
+   "rudder": {
+    "accepted": false,
+    "drift_after": -4.842877388000488e-07,
+    "drift_before": 9.313225746154785e-09,
+    "drift_bound": 0.02,
+    "min_tolerance": 2.2731304913759233e-05,
+    "n_chunks": 8,
+    "noise_tolerance": 5.1829945122195515e-08,
+    "paired_change": -4.936009645462036e-07,
+    "paired_se": 2.5914972561097757e-08,
+    "reasons": [
+     "rudder: held-out loss rose by -4.936e-07 (> tolerance -0.2273)"
+    ],
+    "tolerance": -0.22731282182454318,
+    "validation_after": 0.22731255553662777,
+    "validation_before": 0.22731304913759232
+   },
+   "world": {
+    "accepted": false,
+    "drift_after": -9.98377799987793e-07,
+    "drift_before": 2.8327107429504395e-05,
+    "drift_bound": 0.050410767793655394,
+    "min_tolerance": 0.000252053838968277,
+    "n_chunks": 8,
+    "noise_tolerance": 0.00013259426483736865,
+    "paired_change": -2.9325485229492188e-05,
+    "paired_se": 6.629713241868433e-05,
+    "reasons": [
+     "world: held-out loss rose by -2.933e-05 (> tolerance -2.521)"
+    ],
+    "tolerance": -2.52053586914438,
+    "validation_after": 2.5205090641975403,
+    "validation_before": 2.5205383896827698
+   }
+  },
+  "drift_after": -0.0036253929138183594,
+  "drift_before": -0.0017635822296142578,
+  "judged": [
+   "bridge_grounding",
+   "cocoa",
+   "rudder",
+   "world"
+  ],
+  "mean_over_cells": {
+   "after": 4.77559727942571,
+   "before": 4.776070171967149,
+   "change": -0.00047289254143834114
+  },
+  "n_chunks": 8,
+  "noise_tolerance": 0.0003730167329990091,
+  "paired_change": -0.0018618106842041016,
+  "paired_se": 0.00018650836649950454,
+  "reasons": [
+   "bridge_grounding: held-out loss rose by -0.001862 (> tolerance -14.16)",
+   "cocoa: held-out loss rose by 5.96e-08 (> tolerance -2.197)",
+   "rudder: held-out loss rose by -4.936e-07 (> tolerance -0.2273)",
+   "world: held-out loss rose by -2.933e-05 (> tolerance -2.521)"
+  ],
+  "reference": "start",
+  "reverted": true,
+  "rule": "per_provider",
+  "tolerance": -14.159368064700722,
+  "unjudged": [],
+  "validation_after": 14.157520413398743,
+  "validation_before": 14.159382224082947
+ },
+ "guard_optimizer_tensors_changed_after_revert": 0,
+ "promote_metric_named_reward_return": {
+  "promoted": true,
+  "ignored": []
+ },
+ "kill_checkpoint": [
+  {
+   "acked": 16,
+   "latest": "ckpt_000016_a95b08dc",
+   "last_ack": "ckpt_000016_a95b08dc",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 3,
+   "latest": "ckpt_000019_d50efcfc",
+   "last_ack": "ckpt_000019_d50efcfc",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 11,
+   "latest": "ckpt_000030_b6769b3d",
+   "last_ack": "ckpt_000030_b6769b3d",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 3,
+   "latest": "ckpt_000033_0b07e4ac",
+   "last_ack": "ckpt_000033_0b07e4ac",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 1,
+   "latest": "ckpt_000034_77f27568",
+   "last_ack": "ckpt_000034_77f27568",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 10,
+   "latest": "ckpt_000044_5f05ec66",
+   "last_ack": "ckpt_000044_5f05ec66",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 14,
+   "latest": "ckpt_000058_211ed82d",
+   "last_ack": "ckpt_000058_211ed82d",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 28,
+   "latest": "ckpt_000086_38ca6107",
+   "last_ack": "ckpt_000086_38ca6107",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 17,
+   "latest": "ckpt_000103_87d33dd8",
+   "last_ack": "ckpt_000103_87d33dd8",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 5,
+   "latest": "ckpt_000108_cd995312",
+   "last_ack": "ckpt_000108_cd995312",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  }
+ ],
+ "export_max_abs_diff": {
+  "b": 0.0,
+  "z": 0.0,
+  "nll": 0.0,
+  "probs": 0.0
+ },
+ "export_files": [
+  "config.json",
+  "weights.safetensors"
+ ],
+ "export_has_optimizer_or_store": []
+}
+
+real	1m17.986s
+user	7m26.993s
+sys	0m20.229s

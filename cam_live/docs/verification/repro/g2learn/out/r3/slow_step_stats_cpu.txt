@@ -1,0 +1,32 @@
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2LEARN/r3/work/slow_acceptance/agent_cpu_a/agent/learner/learner_updates.jsonl
+  judged 27: accepted 27, refused 0; update projection acted in 11; largest first-order change after projection 1.0952350740337001e-10
+  running statistics restored (steps): {'heads.predict_world.normaliser.scale': 27, 'RealScaler': 22}
+  step scale over the run: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+  bridge_grounding       accepted steps 27: median rel. change -4.96e-04, rose in 0, largest rise +0.00e+00, sum of changes -1.22e-02
+  cocoa                  accepted steps 25: median rel. change -4.61e-06, rose in 3, largest rise +1.59e-05, sum of changes -3.08e-04
+  evaluator              accepted steps 25: median rel. change -6.50e-06, rose in 0, largest rise +0.00e+00, sum of changes -2.00e-04
+  evaluator_adapters     accepted steps 25: median rel. change -6.44e-06, rose in 0, largest rise +0.00e+00, sum of changes -2.00e-04
+  fast_prior             accepted steps 27: median rel. change +0.00e+00, rose in 13, largest rise +3.50e-07, sum of changes +4.51e-08
+  rudder                 accepted steps 25: median rel. change -2.30e-05, rose in 10, largest rise +7.04e-05, sum of changes -1.46e-03
+  world_model            accepted steps 27: median rel. change +7.01e-06, rose in 17, largest rise +5.66e-05, sum of changes -2.90e-04
+  world_model_adapters   accepted steps 27: median rel. change +7.04e-06, rose in 17, largest rise +5.65e-05, sum of changes -2.91e-04
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2LEARN/r3/work/slow_acceptance/agent_cpu_b/agent/learner/learner_updates.jsonl
+  judged 31: accepted 31, refused 0; update projection acted in 11; largest first-order change after projection 5.1323260154852584e-11
+  running statistics restored (steps): {'heads.predict_world.normaliser.scale': 31, 'RealScaler': 30}
+  step scale over the run: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+  bridge_grounding       accepted steps 31: median rel. change -3.05e-04, rose in 5, largest rise +5.96e-05, sum of changes -6.95e-03
+  cocoa                  accepted steps 28: median rel. change -4.04e-07, rose in 2, largest rise +3.90e-06, sum of changes -2.50e-05
+  evaluator              accepted steps 29: median rel. change -2.85e-06, rose in 5, largest rise +2.06e-06, sum of changes -7.45e-05
+  evaluator_adapters     accepted steps 29: median rel. change -2.88e-06, rose in 5, largest rise +2.06e-06, sum of changes -7.44e-05
+  fast_prior             accepted steps 31: median rel. change +4.41e-06, rose in 20, largest rise +2.21e-05, sum of changes +1.45e-04
+  rudder                 accepted steps 28: median rel. change -1.00e-05, rose in 3, largest rise +5.98e-06, sum of changes -2.63e-04
+  world_model            accepted steps 31: median rel. change -4.22e-05, rose in 6, largest rise +4.25e-05, sum of changes -1.18e-03
+  world_model_adapters   accepted steps 31: median rel. change -4.22e-05, rose in 6, largest rise +4.24e-05, sum of changes -1.19e-03
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2LEARN/r3/work/slow_acceptance/lab_cpu_20/learner_updates.jsonl
+  judged 27: accepted 27, refused 0; update projection acted in 25; largest first-order change after projection 2.3527464099991775e-09
+  running statistics restored (steps): {'heads.world_norm.scale': 27}
+  step scale over the run: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+  bridge_grounding       accepted steps 27: median rel. change -3.97e-04, rose in 0, largest rise +0.00e+00, sum of changes -9.76e-03
+  cocoa                  accepted steps 27: median rel. change +6.56e-08, rose in 15, largest rise +1.24e-05, sum of changes +3.42e-05
+  rudder                 accepted steps 27: median rel. change -4.71e-07, rose in 13, largest rise +3.33e-05, sum of changes +8.17e-05
+  world                  accepted steps 27: median rel. change -1.48e-04, rose in 0, largest rise +0.00e+00, sum of changes -3.84e-03

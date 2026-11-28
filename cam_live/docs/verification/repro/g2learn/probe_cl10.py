@@ -28,7 +28,7 @@ import torch  # noqa: E402
 from cam_live.agent import CamLiveAgent  # noqa: E402
 from cam_live.contracts import SimClock  # noqa: E402
 
-mode, D = sys.argv[1], sys.argv[2]
+mode, D = sys.argv[1], sys.argv[2]       # write | read | tamper
 torch.set_num_threads(2)
 
 
@@ -106,6 +106,44 @@ if mode == "write":
                 "gen": agent.gen.get_state(), "n_decisions": agent.n_decisions, "cid": cid}, os.path.join(D, "ref.pt"))
     agent.close()
     shutil.copytree(os.path.join(D, "run"), os.path.join(D, "run_copy"))
+elif mode == "tamper":
+    # DX-2: the authorization hash is "checked on load". A fresh agent whose task's authorization fields differ
+    # (another interface list / limits) loads the checkpoint: is the difference refused, reported, or silent?
+    from cam_live.credit.checkpoint import auth_config_hash, load_checkpoint, restore_learner
+    from cam_live.contracts import TaskSpec
+    st = json.load(open(next(p for p in glob.glob(os.path.join(D, "ckpt", "**", "state.json"), recursive=True))))
+    task = TaskSpec.from_dict(st["current_task"])
+    info("recorded auth_config_hash / hash of the recorded task", (st.get("auth_config_hash"), auth_config_hash(task)))
+    check("CL-10: the agent checkpoint records the authorization hash of its task", bool(st.get("auth_config_hash"))
+          and st.get("auth_config_hash") == auth_config_hash(task))
+    for k in (1, 2):                              # each agent loads into its own copy of the run directory
+        shutil.rmtree(os.path.join(D, f"run_tamper{k}"), ignore_errors=True)
+        shutil.copytree(os.path.join(D, "run"), os.path.join(D, f"run_tamper{k}"))
+    cfg = agent_config(policy_update_every=6)
+    # (1) fresh process, no task yet (what a restart does): is any check made?
+    a1 = CamLiveAgent(cfg, os.path.join(D, "run_tamper1", "agent"), clock=SimClock())
+    info("fresh agent before load: task", None if a1.task is None else a1.task.objective_id)
+    a1.load(os.path.join(D, "ckpt"))
+    info("(1) restart without a task: loaded, task now", a1.task.objective_id if a1.task else None)
+    a1.close()
+    # (2) an agent whose task's authorization fields differ
+    t2 = TaskSpec.from_dict(st["current_task"])
+    t2.limits.max_decisions = int(t2.limits.max_decisions or 0) + 999
+    a2 = CamLiveAgent(cfg, os.path.join(D, "run_tamper2", "agent"), clock=SimClock())
+    a2.set_objective(t2)
+    h2 = auth_config_hash(t2)
+    raised = None
+    try:
+        a2.load(os.path.join(D, "ckpt"))
+    except Exception as e:  # noqa: BLE001
+        raised = f"{type(e).__name__}: {str(e)[:120]}"
+    rep = restore_learner(a2.learner, load_checkpoint(os.path.join(D, "ckpt")), expected_auth_hash=h2) if raised is None else {}
+    info("(2) changed authorization fields: agent.load raised / restore report auth_config_changed / task after load",
+         (raised, rep.get("auth_config_changed"), a2.task.limits.max_decisions if a2.task else None))
+    check("CL-10 (DX-2): loading a checkpoint under a changed authorization configuration is refused or at least "
+          "reported by the agent", raised is not None, "agent.load completed silently; the restore report's "
+          "auth_config_changed is computed but the agent discards the report" if raised is None else raised)
+    a2.close()
 else:
     ref = torch.load(os.path.join(D, "ref.pt"), weights_only=False)
     cfg = agent_config(policy_update_every=6)

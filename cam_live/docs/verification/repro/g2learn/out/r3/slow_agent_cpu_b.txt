@@ -1,0 +1,21 @@
+[INFO] agent_cpu_b: lifetimes run (seed, status): [(21, 'completed'), (22, 'completed'), (23, 'completed'), (24, 'completed'), (25, 'completed'), (26, 'completed'), (27, 'completed'), (28, 'exhausted')]
+[INFO] agent_cpu_b: records / learner counters: (68, {'frequent': 33, 'slow': 11, 'fast': 99, 'skipped': 0, 'slow_reverted': 0, 'slow_deferred': 0, 'triggers': 24})
+[INFO] agent_cpu_b: held-out losses available at the end (learner.validate): {'world_model': 3.2318, 'fast_prior': 2.6911, 'evaluator': 2.0606, 'world_model_adapters': 2.9602, 'evaluator_adapters': 2.0781, 'rudder': 0.0766, 'cocoa': 0.9728, 'bridge_grounding': 16.696}
+[INFO] agent_cpu_b: promotions (promoted, reasons): [(True, []), (False, ['retention lab/integration@obj_int_21/decision_agreement dropped 0.875 (> 0.1): forgetting']), (False, ['retention lab/integration@obj_int_21/decision_agreement dropped 1 (> 0.1): forgetting']), (False, ['retention lab/integration@obj_int_21/decision_agreement dropped 1 (> 0.1): forgetting']), (False, ['retention lab/integration@obj_int_21/decision_agreement dropped 1 (> 0.1): forgetting']), (False, ['retention lab/integration@obj_int_21/decision_agreement dropped 1 (> 0.1): forgetting']), (False, ['retention lab/integration@obj_int_21/decision_agreement dropped 0.75 (> 0.1): forgetting'])]
+[INFO] agent_cpu_b: slow steps in order: ['A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A']
+[INFO] agent_cpu_b: slow steps by outcome: {'accepted': 31}
+[INFO] agent_cpu_b: first half: accepted / judged: (15, 15)
+[INFO] agent_cpu_b: second half: accepted / judged: (16, 16)
+[INFO] agent_cpu_b: binding provider of reverted steps: {}
+[INFO] agent_cpu_b: reverted steps where some judged provider had a single validation chunk (float-floor tolerance): (0, 0)
+[INFO] agent_cpu_b: reasons of reverted steps (provider: kind): {}
+[INFO] agent_cpu_b: chunks per provider at the last judged step: {'bridge_grounding': 7, 'cocoa': 6, 'evaluator': 6, 'evaluator_adapters': 6, 'fast_prior': 8, 'rudder': 6, 'world_model': 8, 'world_model_adapters': 8}
+[INFO] agent_cpu_b: net adapter change from the start (L2): 0.07277522344580355
+[PASS] agent_cpu_b: no slow step is applied without a held-out verdict  {'accepted': 31}
+[PASS] agent_cpu_b: adapter learning is not frozen: at least a quarter of the judged slow steps are accepted  accepted 31 of 31 judged (0 deferred, 0 skipped); net adapter change 0.07278
+
+2 checks, 0 failed
+
+real	6m16.459s
+user	15m30.258s
+sys	1m7.151s

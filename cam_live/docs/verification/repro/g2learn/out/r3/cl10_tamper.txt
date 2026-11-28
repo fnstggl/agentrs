@@ -1,0 +1,8 @@
+[INFO] recorded auth_config_hash / hash of the recorded task: ('sha256:61fb7f2f0bf638ccce678253a99f9f680253a8d67bac7ff1eb834a3ccccdf08a', 'sha256:61fb7f2f0bf638ccce678253a99f9f680253a8d67bac7ff1eb834a3ccccdf08a')
+[PASS] CL-10: the agent checkpoint records the authorization hash of its task  
+[INFO] fresh agent before load: task: None
+[INFO] (1) restart without a task: loaded, task now: obj_int_12
+[INFO] (2) changed authorization fields: agent.load raised / restore report auth_config_changed / task after load: (None, True, 4)
+[FAIL] CL-10 (DX-2): loading a checkpoint under a changed authorization configuration is refused or at least reported by the agent  agent.load completed silently; the restore report's auth_config_changed is computed but the agent discards the report
+
+2 checks, 1 failed

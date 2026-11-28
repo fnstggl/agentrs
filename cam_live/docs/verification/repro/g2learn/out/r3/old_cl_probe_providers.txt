@@ -1,0 +1,86 @@
+[PASS] A: with max_len=3 every decision of a matured 6-decision objective gets RUDDER credit  (present [True, True, True, True, True, True])
+[PASS] A: first window decision's rudder_rtg equals G referenced at its own decision time  (rudder_rtg 0.127257, G at t0 0.127257, G at its time 0.127257 (0 s later))
+[PASS] B: every outcome observed after decision t enters t's COCOA sum (Eq. 4)  (0 (decision, declaring decision, value) pairs left out: [])
+       D: decisions with backbone-generated candidates and no 'open_ended' flag -> COCOA status {'exp_obj_ae20988364b64da0_0': 'unsupported', 'exp_obj_ae20988364b64da0_1': 'unsupported'}
+[PASS] C: randomised experiments used to validate the estimators are held out from their training  (0.00 of the 24 experiment records are in the learner's training split; compare_with_experiment uses all of them)
+{
+ "A_rudder_credit_present_per_decision": [
+  true,
+  true,
+  true,
+  true,
+  true,
+  true
+ ],
+ "A_first_window_decision": {
+  "index": 0,
+  "rudder_rtg": 0.12725715755449843,
+  "G_referenced_at_t0": 0.12725715755449843,
+  "G_re_referenced_at_its_time": 0.12725715755449843,
+  "own_return_to_go": 0.12725715755449843,
+  "seconds_after_t0": 0.0
+ },
+ "B_events_after_t_declared_by_earlier_decisions_excluded": [],
+ "B_pairs_used": [
+  [
+   0,
+   0
+  ],
+  [
+   0,
+   1
+  ],
+  [
+   0,
+   3
+  ],
+  [
+   0,
+   4
+  ],
+  [
+   1,
+   0
+  ],
+  [
+   1,
+   1
+  ],
+  [
+   1,
+   2
+  ],
+  [
+   1,
+   4
+  ],
+  [
+   2,
+   0
+  ],
+  [
+   2,
+   1
+  ],
+  [
+   2,
+   2
+  ],
+  [
+   2,
+   3
+  ]
+ ],
+ "D_backbone_candidates_cocoa_status": {
+  "exp_obj_ae20988364b64da0_0": "unsupported",
+  "exp_obj_ae20988364b64da0_1": "unsupported"
+ },
+ "D_decision_diagnostics_keys": [],
+ "C_experiment_records": 24,
+ "C_fraction_trained_on": 0.0,
+ "C_fraction_rudder_eligible": 1.0
+}
+
+real	0m32.112s
+user	2m45.818s
+sys	0m1.049s

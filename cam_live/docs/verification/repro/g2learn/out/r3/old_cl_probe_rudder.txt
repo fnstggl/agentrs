@@ -1,0 +1,81 @@
+[PASS] beta=0.0: sum_t Gamma_t c_t = G (own Gamma)  (max err 0.00e+00)
+[PASS] beta=0.0: D's Gamma_t equals exp(-beta * seconds since first decision)
+[PASS] beta=0.0: signal = (G - F(H_<t)) / Gamma_t
+[PASS] beta=0.0: return_to_go = sum_{k>=t} Gamma_k c_k / Gamma_t
+[PASS] beta=0.0: unmatured row is NaN in contrib / signal / rtg
+[PASS] beta=0.0: padded positions of matured rows carry exactly 0
+[PASS] beta=0.0: perturbing decisions >= 1 leaves pred[:, :1+1] and signal[:, :1] unchanged  (pred True signal True)
+[PASS] beta=0.0: ... and contributions c_t, t < 1, of rows longer than 1
+[PASS] beta=0.0: perturbing decisions >= 4 leaves pred[:, :4+1] and signal[:, :4] unchanged  (pred True signal True)
+[PASS] beta=0.0: ... and contributions c_t, t < 4, of rows longer than 4
+[PASS] beta=0.0: perturbing decisions >= 8 leaves pred[:, :8+1] and signal[:, :8] unchanged  (pred True signal True)
+[PASS] beta=0.0: ... and contributions c_t, t < 8, of rows longer than 8
+[PASS] beta=0.0: perturbing decisions >= 12 leaves pred[:, :12+1] and signal[:, :12] unchanged  (pred True signal True)
+[PASS] beta=0.0: ... and contributions c_t, t < 12, of rows longer than 12
+[PASS] beta=0.0001: sum_t Gamma_t c_t = G (own Gamma)  (max err 0.00e+00)
+[PASS] beta=0.0001: D's Gamma_t equals exp(-beta * seconds since first decision)
+[PASS] beta=0.0001: signal = (G - F(H_<t)) / Gamma_t
+[PASS] beta=0.0001: return_to_go = sum_{k>=t} Gamma_k c_k / Gamma_t
+[PASS] beta=0.0001: unmatured row is NaN in contrib / signal / rtg
+[PASS] beta=0.0001: padded positions of matured rows carry exactly 0
+[PASS] beta=0.0001: perturbing decisions >= 1 leaves pred[:, :1+1] and signal[:, :1] unchanged  (pred True signal True)
+[PASS] beta=0.0001: ... and contributions c_t, t < 1, of rows longer than 1
+[PASS] beta=0.0001: perturbing decisions >= 4 leaves pred[:, :4+1] and signal[:, :4] unchanged  (pred True signal True)
+[PASS] beta=0.0001: ... and contributions c_t, t < 4, of rows longer than 4
+[PASS] beta=0.0001: perturbing decisions >= 8 leaves pred[:, :8+1] and signal[:, :8] unchanged  (pred True signal True)
+[PASS] beta=0.0001: ... and contributions c_t, t < 8, of rows longer than 8
+[PASS] beta=0.0001: perturbing decisions >= 12 leaves pred[:, :12+1] and signal[:, :12] unchanged  (pred True signal True)
+[PASS] beta=0.0001: ... and contributions c_t, t < 12, of rows longer than 12
+[PASS] beta=0.002: sum_t Gamma_t c_t = G (own Gamma)  (max err 0.00e+00)
+[PASS] beta=0.002: D's Gamma_t equals exp(-beta * seconds since first decision)
+[PASS] beta=0.002: signal = (G - F(H_<t)) / Gamma_t
+[PASS] beta=0.002: return_to_go = sum_{k>=t} Gamma_k c_k / Gamma_t
+[PASS] beta=0.002: unmatured row is NaN in contrib / signal / rtg
+[PASS] beta=0.002: padded positions of matured rows carry exactly 0
+[PASS] beta=0.002: perturbing decisions >= 1 leaves pred[:, :1+1] and signal[:, :1] unchanged  (pred True signal True)
+[PASS] beta=0.002: ... and contributions c_t, t < 1, of rows longer than 1
+[PASS] beta=0.002: perturbing decisions >= 4 leaves pred[:, :4+1] and signal[:, :4] unchanged  (pred True signal True)
+[PASS] beta=0.002: ... and contributions c_t, t < 4, of rows longer than 4
+[PASS] beta=0.002: perturbing decisions >= 8 leaves pred[:, :8+1] and signal[:, :8] unchanged  (pred True signal True)
+[PASS] beta=0.002: ... and contributions c_t, t < 8, of rows longer than 8
+[PASS] beta=0.002: perturbing decisions >= 12 leaves pred[:, :12+1] and signal[:, :12] unchanged  (pred True signal True)
+[PASS] beta=0.002: ... and contributions c_t, t < 12, of rows longer than 12
+[PASS] beta=0.05: sum_t Gamma_t c_t = G (own Gamma)  (max err 0.00e+00)
+[PASS] beta=0.05: D's Gamma_t equals exp(-beta * seconds since first decision)
+[PASS] beta=0.05: signal = (G - F(H_<t)) / Gamma_t
+[PASS] beta=0.05: return_to_go = sum_{k>=t} Gamma_k c_k / Gamma_t
+[PASS] beta=0.05: unmatured row is NaN in contrib / signal / rtg
+[PASS] beta=0.05: padded positions of matured rows carry exactly 0
+[PASS] beta=0.05: perturbing decisions >= 1 leaves pred[:, :1+1] and signal[:, :1] unchanged  (pred True signal True)
+[PASS] beta=0.05: ... and contributions c_t, t < 1, of rows longer than 1
+[PASS] beta=0.05: perturbing decisions >= 4 leaves pred[:, :4+1] and signal[:, :4] unchanged  (pred True signal True)
+[PASS] beta=0.05: ... and contributions c_t, t < 4, of rows longer than 4
+[PASS] beta=0.05: perturbing decisions >= 8 leaves pred[:, :8+1] and signal[:, :8] unchanged  (pred True signal True)
+[PASS] beta=0.05: ... and contributions c_t, t < 8, of rows longer than 8
+[PASS] beta=0.05: perturbing decisions >= 12 leaves pred[:, :12+1] and signal[:, :12] unchanged  (pred True signal True)
+[PASS] beta=0.05: ... and contributions c_t, t < 12, of rows longer than 12
+[PASS] loss is None when nothing matured (no invented target)  ({'n_matured': 0.0})
+[PASS] the G of unmatured rows has no influence on the loss
+[PASS] no gradient flows from unmatured rows
+[PASS] trajectory_return: open objective is not matured  (objective still open)
+[PASS] trajectory_return: G = sum of distinct events discounted to the first decision  (G=3.657944 own=3.657944; events [('k0', 5.0), ('k1', 2.0), ('k2', -1.0)])
+[PASS] trajectory_return: closed objective with all queries answered is matured
+[PASS] trajectory_return: a pending goal-relevant query keeps the return unmatured  (1 goal-relevant measurements pending)
+{
+ "conservation_max_err": {
+  "0.0": 0.0,
+  "0.0001": 0.0,
+  "0.002": 0.0,
+  "0.05": 0.0
+ },
+ "trajectory_return": {
+  "G": 3.6579444649745434,
+  "G_own": 3.6579444649745434,
+  "n_events": 3,
+  "verified_only_default": false
+ }
+}
+
+real	0m3.032s
+user	0m7.209s
+sys	0m0.532s

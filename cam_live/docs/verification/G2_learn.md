@@ -427,3 +427,157 @@ capture with an attached source) pass.
 Counts: 24 verified, 3 partial (RC-08, CL-03, CL-10), 0 failed, 0 unverified; every entry carries `"commit": "f54d8cc…"` and supersedes all earlier verdicts.
 
 **Not checked in round 2:** Qwen3-8B; presets above 50m on the GPU; a long real-configuration run with the backbone proposing (my real agent runs had `use_backbone` off and `adapter_every` 3 to fit the 15-minute lock); DX-1 applied (not in the frozen code); power loss.
+
+---
+
+# Round 3 — re-verification at `cf46eb1c716d6bba8ba75006f2aaf8d4056f6325`
+
+DX round 2 (0745ae4, 9a47d7d, 2672207, 5a59e17, 6159def, 828c71c) changed the slow step: G2L-9 minimum tolerance
+1e-4·|loss|, per-provider drift bound max(0.02, 2 %), restore of the running statistics the step's own loss evaluation
+moves, deterministic COCOA validation, PCGrad + max-share combination, projection of the applied update, trust region,
+and optimizer state only in the newest checkpoint. The master applied DX-1 (agent experiments attached to the credit
+assigner) and DX-2 (authorization hash in agent checkpoints) in cf46eb1. Changed since f54d8cc: `agent.py`,
+`credit/{checkpoint,learner,providers}.py`; `nn/` and `credit/{replay,links,select}.py` are unchanged. Everything
+below ran on a `git archive` export of cf46eb1 with my own work directory. Outputs are in `repro/g2learn/out/r3/`.
+
+## R3.1 Executed
+
+| What | Result |
+|---|---|
+| A's / D's default tests | 107 passed / 13 skipped; **144 passed / 8 skipped** |
+| `-m slow` credit + nn | 7 passed (533 s) |
+| integration: `test_int3a_audit.py`, RC-01 linking, learning, `test_int2_checkpoints.py` | 8 passed |
+| `probe_credit_gaps` / `probe_long_rudder` / G-cl rudder, smdp, providers, learner | 18/18, 5/5, 63, 8, 4, 26 PASS |
+| `probe_promotion_evidence --reps 5` | 5 / 5 first promotions granted |
+| `probe_agent_credit` ×3 (integrated agent) | 13/13 each |
+| `probe_cl10 write / read / tamper` | 14/14, 5/5, 1 of 2 (R3.4) |
+| new `probe_guard_r3.py` (a) / (b) / (c) | 11/11 + 8/8 (R3.2) |
+| new `slow_step_stats.py` (per-provider changes of kept steps, update projection, trust region) | R3.3 |
+| `probe_slow_acceptance` debug agent ×2 (8 lifetimes each), D's lab (20 rounds) | 27/27 (+2 deferred), 31/31, 27/27 kept |
+| D's `diagnose` | learning NLL 2.981 → 2.291, 20 / 20 slow steps kept; RUDDER z² 6.50, COCOA 9.27 (COCOA's held-out loss is now deterministic), nothing promoted; retention 1.768 vs 0.316 |
+| real configuration (GPU): `probe_slow_acceptance --mode agent --real` (queued lease, held 737 s) | 11 of 12 slow steps kept (R3.3); a second run was stopped so that the lock hold stays under 15 min; D's lab and G-cl's real probe were still queued behind another tenant when this was written |
+
+## R3.2 The four questions
+
+**(a) Restoring running statistics: does the guard compare like with like? Could the restore hide a real
+degradation?** (`probe_guard_r3.py --only restore,agent`)
+* Held-out evaluation is pure, both in D's lab and in the integrated agent (17 cells over 6 providers): two
+  evaluations give identical cells, and no buffer or target scaler moves. So "before" and "after" are measured with
+  the same running statistics exactly when the slow step's own loss evaluation is undone.
+* What that evaluation moves: in the agent `heads.predict_world.normaliser.scale` (every slow step) and the
+  `RealScaler` (22 of 27 and 30 of 31 steps); in D's lab `heads.world_norm.scale`. After the restore the cells return
+  bit-exactly to their pre-step values, a slow step leaves every buffer as it was, and the guard's "after" numbers
+  equal a fresh evaluation.
+* In these debug runs the normaliser moves did not change the held-out loss at all: its denominator is
+  max(1, EMA |NLL|). Where the EMA exceeds 1 (real configuration, NLL about 3.5) they rescale the loss. The scaler
+  changes the target units.
+* These buffers are statistics of the training-loss distribution, which the frequent timescale updates. Restoring
+  them after the slow step's gradient evaluation removes a side effect, not learning.
+* The restore cannot hide a real degradation: the comparison is the provider's own loss in fixed units. A harmful
+  adapter perturbation (noise 0.05) is refused with the restore in place (bridge grounding +2.7e-3, rudder +2.4e-3
+  relative).
+* Verdict: **correct, compares like with like**.
+
+**(b) Does the 1e-4 floor let a real degradation through?** Measured through the learner's own `_guard_verdict`:
+* Rises of 2e-4 and 1 % relative are refused at once.
+* With noisy chunks the tolerance stays at or below the 0.01 absolute cap.
+* A *consistent* rise of 0.9e-4 relative per step is undetectable per step. It is accepted for 224 steps until the
+  per-provider drift bound (2.04 % of a 3.5 loss) refuses it.
+* A promotion re-references the bound (`set_slow_reference`). The agent's promotion gate tolerates a validation drop
+  of 0.5, so it would not refuse 2 %. After three promotions the creep reaches 6.2 % (0.22 nats).
+* So the floor admits only rises of < 1e-4 per step, and their sum is bounded per promotion cycle. Across cycles only
+  the promotion gates bound it: the retention gate (0.1 on earlier objectives) and the generous 0.5 validation-drop
+  gate.
+* In the real runs below no kept step raised any provider by more than 7e-5 relative, and the summed changes of kept
+  steps are negative for the world model (R3.3).
+* Verdict: **no real degradation measured passes; a sub-threshold creep is bounded per cycle** (observation, not a
+  defect).
+
+**(c) PCGrad / projection correctness.**
+* On 200 random conflicting gradient sets (2-6 providers, 50-d) with an Adam-like per-coordinate step, the applied
+  update after `_project_update` has ⟨g_k, Δ⟩ ≤ 2e-9·|Δ||g| for every protected provider.
+* In the agent logs the largest first-order change after projection is 1.1e-10 (debug agent) and 2.4e-9 (lab). The
+  projection acted in 11 of 27, 11 of 31 and 25 of 27 steps.
+* The PCGrad combination itself never raised a provider's loss to first order in my sets.
+* The trust region stayed at 1.0 in the debug runs (nothing refused).
+* Verdict: **correct for what it claims** (first-order, on the slow batch's training gradients). The held-out
+  outcome is what the guard then judges.
+
+**(d) RC-08 and CL-10 with DX-1 / DX-2:** R3.4. **(e) real-configuration acceptance:** R3.3.
+
+## R3.3 Slow-step acceptance and what the kept steps do (`slow_step_stats.py`)
+
+| Run (cf46eb1) | judged | kept | net adapter change | kept steps: largest rise of any provider (relative) | world model, sum of changes over kept steps |
+|---|---:|---:|---:|---|---|
+| debug agent, seeds 11-18 (8 lifetimes) | 27 (+2 deferred) | 27 | 0.130 | 7.0e-5 (rudder) | −2.9e-4 |
+| debug agent, seeds 21-28 | 31 | 31 | 0.073 | 6.0e-5 (bridge) | −1.2e-3 |
+| D's lab, 20 rounds | 27 | 27 | 0.166 | 3.3e-5 (rudder) | −3.8e-3 |
+| **integrated agent, real configuration** (Qwen3-4B + 50m, CUDA, 4 lifetimes / 62 records, backbone proposals off, `adapter_every` 3) | 12 | **11** | **0.759** | 8.2e-5 (world model) | −6.3e-5 (grounding −17 %) |
+
+At f54d8cc the debug agent kept 7 / 26 and the real-configuration agent 1 / 13.
+
+The kept steps now improve or leave unchanged every provider's held-out loss. The rises are all below the 1e-4
+floor, and the sums over a run are negative except fast_prior (+4.5e-8 and +1.5e-4 relative). The earlier refusals
+were therefore largely measurement artefacts, as DX found. My round-2 reading that "the slow step degrades the world
+model" was wrong where it rested on those numbers.
+
+## R3.4 RC-08 and CL-10 with DX-1 / DX-2 applied
+
+* **RC-08.** The agent's experiments now reach the store: 7 = 7, 6 = 6 and 8 = 8 (registry = store) in three runs.
+  Every learning update evaluates them, giving 11-15 rows in `credit_selection.jsonl`. Each row says why no
+  comparison ran: "no randomised experiment has 2 or more matured held-out units in each arm", for example "assigned
+  1, lifetime trained on 1". The default stays `simple`.
+  * The comparison can therefore never run in the agent as configured: one unit per experiment, and every experiment
+    objective is trained on (`holdout_experiments=False`). This is an agent experiment-design limitation, now
+    reported honestly at every update.
+  * The selection itself runs on held-out lifetimes in D's lab and tests.
+* **CL-10.** The integrated agent's checkpoint now holds the experiments (2 = registry 2 = store 2), the pending
+  outcomes (2 = 2) and `auth_config_hash` (sha256 of the task's authorization fields, equal to a recomputation). Every
+  tensor is on the CPU and a fresh process restores everything bit-exactly (5 / 5). New minor defect G2L-10 concerns
+  the "checked on load" part:
+
+### G2L-10 — minor — the authorization hash is not checked in effect on load (CL-10, DX-2)
+`agent.py` `load()` passes `expected_auth_hash=auth_config_hash(self.task) if self.task is not None else None` and
+discards `restore_learner`'s report.
+* A restart (fresh agent, no task yet) makes no comparison at all.
+* An agent whose task's authorization fields changed (here `limits.max_decisions` +999) loads silently, although the
+  report computes `auth_config_changed: True`. Its task is then replaced by the checkpoint's task, so the old limits
+  come back.
+* Enforcement of permissions stays with the authorization service, so the effect is limited to the learner's view of
+  its task.
+
+Repro: `probe_cl10.py write D && probe_cl10.py tamper D`.
+
+## R3.5 Verdicts at cf46eb1
+
+| Req. | Verdict | Commit | Basis / remaining limitation |
+|---|---|---|---|
+| NA-01 | verified | f54d8cc | files unchanged since f54d8cc (round 2 verdict stands) |
+| NA-02 | verified | f54d8cc | files unchanged since f54d8cc (round 2 verdict stands) |
+| NA-03 | verified | f54d8cc | files unchanged since f54d8cc (round 2 verdict stands) |
+| NA-04 | verified | f54d8cc | files unchanged since f54d8cc (round 2 verdict stands) |
+| NA-05 | verified | f54d8cc | files unchanged since f54d8cc (round 2 verdict stands) |
+| NA-07 | verified | f54d8cc | files unchanged since f54d8cc (round 2 verdict stands) |
+| NA-09 | verified | f54d8cc | files unchanged since f54d8cc (round 2 verdict stands) |
+| NA-10 | verified | f54d8cc | files unchanged since f54d8cc (round 2 verdict stands) |
+| NA-11 | verified | f54d8cc | files unchanged since f54d8cc (round 2 verdict stands) |
+| NA-12 | verified | f54d8cc | files unchanged since f54d8cc (round 2 verdict stands) |
+| NA-13 | verified | f54d8cc | files unchanged since f54d8cc (round 2 verdict stands) |
+| NA-08 | verified | cf46eb1 | re-checked at cf46eb1 |
+| RC-01 | verified | cf46eb1 | agent.py changed: integrated linking test and 3 runs |
+| RC-02 | verified | cf46eb1 | re-checked at cf46eb1 |
+| RC-03 | verified | cf46eb1 | re-checked at cf46eb1 |
+| RC-05 | verified | cf46eb1 | re-checked at cf46eb1 |
+| RC-06 | verified | cf46eb1 | re-checked at cf46eb1 |
+| RC-07 | verified | cf46eb1 | re-checked at cf46eb1 |
+| RC-08 | verified | cf46eb1 | experiments reach the store, every update evaluates and logs why no comparison can run (one-unit experiments, trained-on lifetimes): live default stays simple by evidence; agent experiment design limits it |
+| CL-01 | verified | f54d8cc | files unchanged since f54d8cc (round 2 verdict stands) |
+| CL-02 | verified | cf46eb1 | re-checked at cf46eb1 |
+| CL-03 | verified | cf46eb1 | slow steps kept: real configuration 11/12, debug agent 58/58, lab 27/27; kept steps raise no provider > 8.2e-5 relative |
+| CL-04 | verified | cf46eb1 | re-checked at cf46eb1 |
+| CL-05 | verified | cf46eb1 | promotion 5/5 first promotions, integration 2/2; optimizer state in newest checkpoint only |
+| CL-08 | verified | cf46eb1 | re-checked at cf46eb1 |
+| CU-20 | verified | cf46eb1 | re-checked at cf46eb1 |
+| CL-10 | verified | cf46eb1 | all 15.2 items in the agent checkpoint (experiments 2 = 2, auth hash); G2L-10: the hash check on load is not acted upon |
+
+Counts: 27 verified, 0 partial, 0 failed. RC-01, RC-02, RC-03, RC-05, RC-06, RC-07, RC-08, NA-08, CL-02, CL-03, CL-04, CL-05, CL-08, CL-10, CU-20 are pinned to `cf46eb1`; the NA-* and CL-01 verdicts of round 2 (`f54d8cc`) stand because their files did not change. Remaining defects: G2L-10 (minor). Not checked in round 3: a second real-configuration agent run, D's lab on the real configuration and G-cl's real probe (GPU lock), backbone proposals on in a real run, Qwen3-8B.
