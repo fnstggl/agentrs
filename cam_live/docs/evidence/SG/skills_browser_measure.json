@@ -2,28 +2,50 @@
  "what": "SG: skills acquired from the agent's own *grounded* browser traces versus primitive-only operation, on the local",
  "n_per_arm": 10,
  "tasks": {
+  "store_entry_layout_b": {
+   "primitive_only": {
+    "n": 10,
+    "success": 10,
+    "decisions_per_task": 5,
+    "primitive_ops_per_task": 5,
+    "latency_s_mean": 0.9320624174550176,
+    "latency_s_median": 0.9271986235398799
+   },
+   "skill_based": null,
+   "acquisition": {
+    "ok": false,
+    "latency_s": 0.4086757027544081,
+    "primitive_ops": 4,
+    "skill_id": null,
+    "source_decisions": 10,
+    "detail": "no skill registered: postconditions_met: "
+   },
+   "every_skill_entry_stored": false,
+   "skill": null,
+   "note": "the layout-A skill is refused here by its precondition; this one was acquired from traces on B"
+  },
   "store_entry": {
    "primitive_only": {
     "n": 10,
     "success": 10,
     "decisions_per_task": 4,
     "primitive_ops_per_task": 4,
-    "latency_s_mean": 1.233397018769756,
-    "latency_s_median": 1.2265501064248383
+    "latency_s_mean": 0.726397834904492,
+    "latency_s_median": 0.6855863768141717
    },
    "skill_based": {
     "n": 10,
     "success": 10,
     "decisions_per_task": 1,
     "primitive_ops_per_task": 3,
-    "latency_s_mean": 1.337326452601701,
-    "latency_s_median": 1.2899664954748005
+    "latency_s_mean": 0.6436141487210989,
+    "latency_s_median": 0.5971262480597943
    },
    "acquisition": {
     "ok": true,
-    "latency_s": 1.593839249573648,
+    "latency_s": 0.5464872801676393,
     "primitive_ops": 3,
-    "skill_id": "skill_028c9f2e7c0848f1",
+    "skill_id": "skill_94fb62371a534b04",
     "source_decisions": 8,
     "detail": ""
    },
@@ -59,9 +81,9 @@
      "label",
      "text"
     ],
-    "applicability_n": 12
+    "applicability_n": 15
    },
-   "rate_limit_waits": 2
+   "rate_limit_waits": 0
   },
   "record_item": {
    "primitive_only": {
@@ -69,26 +91,26 @@
     "success": 10,
     "decisions_per_task": 6,
     "primitive_ops_per_task": 6,
-    "latency_s_mean": 3.15070037539117,
-    "latency_s_median": 3.1917500221170485
+    "latency_s_mean": 1.704693370871246,
+    "latency_s_median": 1.6707095897290856
    },
    "skill_based": {
     "n": 10,
-    "success": 10,
+    "success": 8,
     "decisions_per_task": 1,
-    "primitive_ops_per_task": 6,
-    "latency_s_mean": 3.2598402836360036,
-    "latency_s_median": 3.247539332136512
+    "primitive_ops_per_task": 5.4,
+    "latency_s_mean": 1.3525643920060246,
+    "latency_s_median": 1.5707459894474596
    },
    "acquisition": {
     "ok": true,
-    "latency_s": 3.316593252122402,
+    "latency_s": 1.4124569790437818,
     "primitive_ops": 6,
-    "skill_id": "skill_a613f3579471444b",
+    "skill_id": "skill_d3db920789374a72",
     "source_decisions": 12,
     "detail": ""
    },
-   "every_skill_item_recorded": true,
+   "every_skill_item_recorded": false,
    "skill": {
     "operations": [
      "browser.navigate",
@@ -103,8 +125,23 @@
      "text"
     ]
    },
-   "failures": [],
-   "rate_limit_waits": 4
+   "failures": [
+    {
+     "decisions": 1,
+     "primitive_ops": 3,
+     "latency_s": 0.40789317805320024,
+     "ok": false,
+     "detail": "resource: rate limit for url:127.0.0.1:39047 reached (60 operations per 60 s; 60 used, 1 more requested); retry in 1 s"
+    },
+    {
+     "decisions": 1,
+     "primitive_ops": 3,
+     "latency_s": 0.444337991066277,
+     "ok": false,
+     "detail": "resource: rate limit for url:127.0.0.1:39047 reached (60 operations per 60 s; 60 used, 1 more requested); retry in 1 s"
+    }
+   ],
+   "rate_limit_waits": 8
   }
  }
 }

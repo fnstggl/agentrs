@@ -32,7 +32,7 @@ class Bench:
         self.skills = next(e for e in self.env._executors.values() if isinstance(e, SkillExecutor))
         self.decisions = 0
         self.rate_waits = 0
-        self.pace_s = 1.05
+        self.pace_s = 2.0
 
     def run(self, op, args):
         """One action; a refusal by the authorization service's rate limit (60 operations per 60 s per site) is
