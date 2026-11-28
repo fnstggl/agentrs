@@ -63,6 +63,8 @@ def summarise(rows: List[Dict[str, Any]], n: int) -> Dict[str, Any]:
                      ("last_quarter", slice(3 * len(ea) // 4, len(ea)))):
         part = ea[sl]
         halves[name] = sum(part) / len(part) if part else float("nan")
+    k = len(ea) // 4
+    halves["quarter_totals"] = [sum(ea[i * k:(i + 1) * k if i < 3 else len(ea)]) for i in range(4)] if k else []
     door = [r for r in rows if r.get("operation") == "lab.act"]
     oracle = [float(r.get("oracle_rate", 0.0) or 0.0) for r in rows]
     return {"decisions": len(rows), "expected_adopters_total": sum(ea), "expected_adopters_per_decision": halves,
@@ -119,6 +121,8 @@ def run(condition: str, seed: int, decisions: int, work: str, *, real: bool = Fa
                          "replayed_credit_rows": sum(1 for r, c in zip(recs, srcs) if c is not None and
                                                      r.exp_id not in recent),
                          "estimators": sorted({c[1] for c in srcs if c is not None}),
+                         "rows_by_estimator": {e: sum(1 for c in srcs if c is not None and c[1] == e)
+                                               for e in sorted({c[1] for c in srcs if c is not None})},
                          "return_like_rows": sum(1 for c in srcs if c is not None and c[2]),
                          "applied": out is not None, "n_decisions": int(agent.n_decisions)})
         return out

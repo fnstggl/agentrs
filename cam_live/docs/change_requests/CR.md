@@ -92,3 +92,46 @@ its credit as goal return, a per-decision credit enters as that row's goal rewar
 
 The three requests are independent; CR-1 and CR-3 are the ones the evidence in docs/CR.md was measured with (patched
 copy of agent.py at the commit named there, `PYTHONPATH` pointing at the copy).
+
+## CR-4 (src/cam_live/agent.py, round 2 after G3-core D-CR1 / D-CR2): `_credit_for` delegates to the credit side
+
+**What.** The body of `CamLiveAgent._credit_for` (after its docstring) becomes one call; the credit side
+(`credit.providers.learning_credit`) decides the learning signal of each estimator, whether it is return-like, and
+falls back to the simple per-decision credit on rows the training default has not credited (yet).
+
+```diff
+     def _credit_for(self, rec: ExperienceRecord) -> Optional[Tuple[float, str, bool]]:
+         """...(docstring unchanged)..."""
+-        from .credit.providers import LEARNING_KEY
+-        est = str(getattr(self.assigner, "default", "") or "")
+-        if not est or not isinstance(rec.credit, dict):
+-            return None
+-        v = rec.credit.get(LEARNING_KEY.get(est, est))
+-        try:
+-            v = float(v)
+-        except (TypeError, ValueError):
+-            return None
+-        if not math.isfinite(v):
+-            return None
+-        if est == "simple":
+-            if rec.objective_id not in self.attributing:
+-                return None
+-            return v, est, False
+-        return v, est, True
++        # CR-4 (G3-core D-CR1 / D-CR2): the credit side decides the learning signal of each estimator, whether it is
++        # return-like, and falls back to the simple per-decision credit on rows the default has not credited yet
++        return self.assigner.learning_credit(rec, attributing=rec.objective_id in self.attributing)
+```
+
+(The docstring's bullet "``rudder`` / ``cocoa`` give a *return-like* value" should then read: "``rudder`` gives its
+redistributed contribution as a per-decision goal reward, ``cocoa`` a return-like value; a row without the default's
+credit keeps its simple per-decision credit".)
+
+**Why.** D-CR1: with a learned default, every row whose segment had not matured lost its simple per-decision credit
+(the policy update fell back to predictions), so a promoted RUDDER - and the forced-RUDDER ablation - degraded the
+agent independently of RUDDER's credit (G3-core: quarter 1 already -5.6 +- 3.6). D-CR2: the selection validated
+RUDDER's contribution while the agent would have trained on RUDDER's segment return minus the prefix value; now
+`LEARNING_KEY[rudder] = rudder_contribution` (per-decision, `RETURN_LIKE[rudder] = False`), `VALIDATION_KEY ==
+LEARNING_KEY`, and COCOA is validated on its stored learning credit too. Behaviour with the default `simple` is
+unchanged (same value, same condition). Tests: `tests/credit/test_cr.py::test_learning_credit_falls_back_to_the_simple_per_decision_credit_where_the_default_has_none`,
+`::test_the_selection_validates_exactly_the_signal_the_agent_trains_on`. Measured: docs/CR.md section 3.3.

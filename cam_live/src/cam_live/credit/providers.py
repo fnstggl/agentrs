@@ -49,11 +49,47 @@ from .simple import NAME as SIMPLE, arm_difference, credit_from_links
 
 RUDDER, COCOA = "rudder", "cocoa"
 KEY_RTG, KEY_CONTRIB = "rudder_rtg", "rudder_contribution"
-#: ``record.credit`` key holding the *learning signal* of each selectable estimator
-LEARNING_KEY = {SIMPLE: SIMPLE, RUDDER: RUDDER, COCOA: COCOA}
+#: ``record.credit`` key holding the *learning signal* of each selectable estimator, and whether the agent's policy
+#: update uses it as a return (it replaces the row's discounted goal return) or as the row's per-decision goal reward.
+#: RUDDER's learning signal is its redistributed contribution c_t (RUDDER's redistributed reward: with a calibrated
+#: decomposer the expected future contributions vanish, so c_t is the action's value as an immediate reward); it is
+#: the quantity the selection validates (G3-core D-CR2: before CR round 2 the agent would have trained on the
+#: segment return minus the prefix value, which the selection never tested).
+LEARNING_KEY = {SIMPLE: SIMPLE, RUDDER: KEY_CONTRIB, COCOA: COCOA}
+RETURN_LIKE = {SIMPLE: False, RUDDER: False, COCOA: True}
 #: ``record.credit`` key compared with randomised arm differences (for RUDDER the prediction difference: the
 #: return-to-go signal equals the measured difference by construction and would validate nothing)
-VALIDATION_KEY = {SIMPLE: SIMPLE, RUDDER: KEY_CONTRIB}
+VALIDATION_KEY = dict(LEARNING_KEY)            # the selection validates exactly what training uses (D-CR2)
+
+
+def learning_credit(rec: ExperienceRecord, estimator: str, *, attributing: bool = True, fallback: bool = True
+                    ) -> Optional[Tuple[float, str, bool]]:
+    """(value, estimator, return_like) of the credit the policy update uses for one decision, or None.
+
+    The training default's learning signal (``LEARNING_KEY``) when the record carries it. Otherwise - a learned
+    estimator has not credited this row yet (its segment or lifetime has not matured), or has refused it - the simple
+    attribution's per-decision credit, so changing the default never removes credit the agent already had
+    (G3-core D-CR1: without the fallback a learned default left every pending row without any credit). Simple credit
+    counts only where the environment attributes outcomes to decisions (``attributing``), as before."""
+    def val(key: str) -> Optional[float]:
+        v = rec.credit.get(key) if isinstance(rec.credit, dict) else None
+        try:
+            v = float(v)
+        except (TypeError, ValueError):
+            return None
+        return v if math.isfinite(v) else None
+
+    est = str(estimator or SIMPLE)
+    if est != SIMPLE:
+        v = val(LEARNING_KEY.get(est, est))
+        if v is not None:
+            return v, est, bool(RETURN_LIKE.get(est, True))
+        if not fallback:
+            return None
+    s = val(SIMPLE)
+    if s is None or not attributing:
+        return None
+    return s, SIMPLE, False
 U_DIM = 10
 #: candidate generators whose proposals are open-ended (free-form text of the backbone, random sampling, mutation):
 #: the set of alternatives has no enumerable support unless the proposal probabilities were tracked
@@ -893,6 +929,8 @@ class CreditAssigner:
         self.min_units_per_arm = 2
         #: collect held-out randomised units for the pooled, estimand-matched selection rule (CR)
         self.pooled_units = True
+        #: rows a learned default has not credited keep their simple per-decision credit (D-CR1)
+        self.fallback_simple = True
         #: records whose learning credit (``LEARNING_KEY``) changed, oldest first, with the keys that changed: the
         #: policy update replays them (``pop_revised``; change request CR-3), so revised credit reaches the weights
         self._revised: Dict[str, Set[str]] = {}
@@ -1020,6 +1058,12 @@ class CreditAssigner:
         self.last = up
         return up
 
+    def learning_credit(self, rec: ExperienceRecord, *, attributing: bool = True
+                        ) -> Optional[Tuple[float, str, bool]]:
+        """The credit the policy update uses for ``rec`` under the current training default, with the per-decision
+        fallback (:func:`learning_credit`; change request CR-4 makes ``CamLiveAgent._credit_for`` call this)."""
+        return learning_credit(rec, self.default, attributing=attributing, fallback=self.fallback_simple)
+
     def pop_revised(self, n: int, estimator: Optional[str] = None) -> List[str]:
         """Up to ``n`` records (oldest revision first) whose credit under ``estimator`` (default: the training
         default) changed since they were last popped; they leave the queue. Records revised only under other
@@ -1121,31 +1165,6 @@ class CreditAssigner:
             pc = paired_comparison(units, treatment, control, kind=ARM_DIFFERENCE)
             if pc is not None:
                 pd[name], ps[name], pn[name] = pc
-        if self.cocoa is not None:
-            units_r = arms[treatment] + arms[control]
-            cc = self.cocoa.credit(list(dict.fromkeys(self.unit_of(r) for r in units_r)))
-            diffs, cunits = [], []
-            for r in units_r:
-                c, idx = cc.get(r.exp_id), candidate_arms(r)
-                if c is None or c.per_candidate is None or treatment not in idx or control not in idx:
-                    continue
-                # contrast of the *later* outcomes only: the decision's own outcome belongs to the executed arm
-                per = list(c.per_candidate)
-                per[r.decision.chosen_index] -= c.own
-                d = per[idx[treatment]] - per[idx[control]]
-                own_t = c.own if r.decision.chosen_index == idx[treatment] else 0.0
-                own_c = c.own if r.decision.chosen_index == idx[control] else 0.0
-                p = r.decision.probabilities
-                x = d + own_t / max(p[idx[treatment]], 1e-12) - own_c / max(p[idx[control]], 1e-12)
-                diffs.append(x)
-                cunits.append((record_arm(r), x, G[r.exp_id]))
-            if len(diffs) >= 2:
-                m = sum(diffs) / len(diffs)
-                sd = math.sqrt(sum((x - m) ** 2 for x in diffs) / (len(diffs) - 1))
-                est[COCOA], se[COCOA] = m, sd / math.sqrt(len(diffs))
-                pc = paired_comparison(cunits, treatment, control, kind=UNIT_MEAN)
-                if pc is not None:
-                    pd[COCOA], ps[COCOA], pn[COCOA] = pc
         n_units = len(arms[treatment]) + len(arms[control])
         ev = ExperimentEvidence.from_difference(
             measured, est, se, held_out=True, n_excluded_trained=len(excluded), paired_diff=pd, paired_se=ps,
@@ -1216,9 +1235,6 @@ class CreditAssigner:
             counts["held_out"] += 1
             rows.append((r, arm, pp[0] / (pp[0] + pp[1]), self._return_to_go(r, tr)))
         units: List[UnitContrast] = []
-        coc: Dict[str, CocoaCredit] = {}
-        if self.cocoa is not None and rows:
-            coc = self.cocoa.credit(list(dict.fromkeys(self.unit_of(r) for r, _, _, _ in rows)))
         for r, arm, p, y in rows:
             vals: Dict[str, float] = {}
             kinds: Dict[str, str] = {}
@@ -1233,15 +1249,6 @@ class CreditAssigner:
                 v = r.credit.get(key)
                 if v is not None and math.isfinite(float(v)):
                     vals[name], kinds[name] = float(v), PER_DECISION
-            c, idx = coc.get(r.exp_id), candidate_arms(r)
-            if c is not None and c.per_candidate is not None and treatment in idx and control in idx:
-                # COCOA's counterfactual contrast of the later outcomes plus the executed arm's own outcome weighted
-                # by its inverse propensity (as in compare_with_experiment): a per-unit estimate of the arm contrast
-                per = list(c.per_candidate)
-                per[r.decision.chosen_index] -= c.own
-                x = per[idx[treatment]] - per[idx[control]]
-                x += c.own / max(p, 1e-12) if arm == treatment else -c.own / max(1.0 - p, 1e-12)
-                vals[COCOA], kinds[COCOA] = float(x), PER_UNIT_CONTRAST
             units.append(UnitContrast(experiment_id, r.exp_id, self.unit_of(r), treatment, control, arm, p, float(y),
                                       vals, kinds))
         return units, counts

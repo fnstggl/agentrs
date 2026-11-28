@@ -345,3 +345,57 @@ def test_a_units_last_decision_carries_no_rudder_value_because_its_contribution_
         assert all(RUDDER in x.values for x in others)
     finally:
         lab.close()
+
+
+# ------------------------------------------------------------------------------------------------ CR round 2 (G3-core)
+def _rec_with(credit):
+    from conftest import build_record
+    r = build_record(1)
+    r.credit = dict(credit)
+    return r
+
+
+def test_learning_credit_falls_back_to_the_simple_per_decision_credit_where_the_default_has_none():
+    """D-CR1: a learned default must not remove the per-decision credit of rows it has not credited yet."""
+    from cam_live.credit.providers import RETURN_LIKE, learning_credit
+    pending = _rec_with({"simple": 2.5})
+    assert learning_credit(pending, "simple") == (2.5, "simple", False)
+    assert learning_credit(pending, RUDDER) == (2.5, "simple", False)              # fallback, labelled simple
+    assert learning_credit(pending, COCOA) == (2.5, "simple", False)
+    assert learning_credit(pending, RUDDER, fallback=False) is None                # the behaviour before round 2
+    assert learning_credit(pending, RUDDER, attributing=False) is None             # simple only where attributed
+    matured = _rec_with({"simple": 2.5, KEY_CONTRIB: 0.7, RUDDER: 9.0, COCOA: 3.0})
+    assert learning_credit(matured, RUDDER) == (0.7, RUDDER, False)                # the contribution, per decision
+    assert learning_credit(matured, COCOA) == (3.0, COCOA, True)
+    assert RETURN_LIKE == {"simple": False, RUDDER: False, COCOA: True}
+    assert learning_credit(_rec_with({}), RUDDER) is None
+    assert learning_credit(_rec_with({"simple": float("nan")}), RUDDER) is None
+
+
+def test_the_selection_validates_exactly_the_signal_the_agent_trains_on(tmp_path):
+    """D-CR2: every selectable estimator's validated value is its learning credit (same key, per decision)."""
+    from cam_live.credit.providers import LEARNING_KEY, VALIDATION_KEY
+    assert VALIDATION_KEY == LEARNING_KEY and LEARNING_KEY[RUDDER] == KEY_CONTRIB
+    lab = _long_lab(tmp_path, K=4, val_split="segment", val_fraction=0.5, name="match.sqlite")
+    try:
+        run = _run_open_objective(lab, 24, experiment_every=2)
+        run.mature()
+        recs = lab.store.trajectory(run.task.objective_id)
+        lab.learner.refresh_eligibility(full=True)
+        lab.assigner.assign([r.exp_id for r in recs])
+        units, _ = lab.assigner.experiment_units("x-long", treatment="unlock", control="wait")
+        assert units
+        by_id = {r.exp_id: r for r in lab.store.trajectory(run.task.objective_id)}
+        seen = set()
+        for u in units:
+            for name, v in u.values.items():
+                assert u.kinds[name] == PER_DECISION
+                assert v == by_id[u.exp_id].credit[LEARNING_KEY[name]]
+                seen.add(name)
+        assert RUDDER in seen
+        # the assigner's learning credit is the same number the selection scored
+        lab.assigner.selector.default = RUDDER
+        u = next(x for x in units if RUDDER in x.values)
+        assert lab.assigner.learning_credit(by_id[u.exp_id])[0] == u.values[RUDDER]
+    finally:
+        lab.close()
