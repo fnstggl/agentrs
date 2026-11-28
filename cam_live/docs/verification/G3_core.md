@@ -5,8 +5,9 @@ Verifier G3-core (workstream G, lens `g3core`). I wrote none of the verified cod
 that commit
 (`scratchpad/G3CORE/freeze`, `PYTHONPATH=<freeze>/cam_live/src`). The worktree has one later commit (a52dead, `[S]`,
 `src/cam_live/eval/oe_*.py` and `eval/v3_report.py` only); no verified module is touched by it. CPU rule observed:
-`OMP_NUM_THREADS<=4`, `nice -n 10`, one CPU-heavy job at a time. **No GPU hold was used** (the GPU was at 100 %
-utilisation by other holders during the window, and no finding needed the real model; see "Not checked").
+`OMP_NUM_THREADS<=4`, `nice -n 10`, one CPU-heavy job at a time. **One GPU hold** (725 s, inside the shared lock): the
+gpu-marked acceptance tests. Two of them timed out while waiting for the lock, which another tenant held. No defect
+claim below needed the real model; see "Not checked".
 Probes and their outputs: `docs/verification/repro/g3core/` (`out/` holds every number quoted here).
 
 Levels (operator item 8): (a) implementation correctness, (b) integration into the actual runtime, (c) causal
@@ -387,7 +388,8 @@ means COCOA contributes nothing on the real configuration.
 | `test_int3a_eligibility.py` (whole file) | 2 passed | 52 s |
 | `tests/integration/test_agent_runtime.py` (the 4 acceptance tests: `test_behaviour_changes_and_lives_in_the_weights`, `test_delayed_outcomes_link_to_their_decisions`, `test_internal_rewards_are_stored_per_record`, `test_meta_update_runs_with_a_nonzero_meta_gradient`) | 4 passed | 294 s |
 | `-m slow`: `credit/test_evidence.py` (5 tests, incl. delayed unlock credited retrospectively, stored experience improves held-out prediction, forgetting measured / reduced), `reward/test_reward_experiment.py::test_three_learners_...`, `predict/test_learning_evidence.py::test_value_of_information_fast_path_...`, `credit/test_cr_agent.py` (CR's real agent + runtime test) | 8 passed | 654 s |
-| `-m gpu` acceptance tests | see §7 | - |
+| `-m gpu` (shared lock, `CAM_LIVE_GPU_LOCK`): `credit/test_checkpoint.py::test_checkpoint_of_a_gpu_model_is_stored_on_cpu`, `credit/test_evidence.py::test_real_configuration_one_frequent_and_one_slow_adapter_update` (Qwen3-4B) | 2 passed (the real-configuration test took 725 s) | 2529 s in total, mostly waiting for the lock |
+| `-m gpu`: `reward/test_reward_experiment.py::test_meta_update_cost_at_the_50m_preset_on_the_gpu`, `reward/test_reward_semantic_goals.py::test_reworded_goals_...` | **not run**: pytest-timeout (900 s) while waiting for the lock held by another tenant (`BlockingIOError` in `conftest.gpu_lock`) | - |
 
 The eligibility test is **flaky**. At the freeze it failed in the suite run and once when run alone, then passed when
 run alone later and when its whole file ran. A bisect over the amendment's 40 src commits is meaningless: it "failed"
@@ -400,8 +402,8 @@ eligibility, INT3A), and I report it rather than diagnose it.
 
 | status | ids |
 |---|---|
-| verified | MR-01, MR-02, MR-04, MR-05, MR-06, MR-07, MR-08, MR-09, MR-10, MR-11, PI-11, NA-06, RC-01..RC-07, CL-01, CL-02, CL-04, CL-05 |
-| partial | MR-03 (R_psi has zero weight in every integrated or real run; D-RW1, D-RW2), PI-07 (D-IMP1, no improvement, imagination does not distinguish real candidates), SE-06 (D-IMP2, content IG unused), RC-08 (no evidence-based selection ever ran; D-CR1, D-CR2), CL-03 and CL-10 (their gpu acceptance tests were not re-run; see §7) |
+| verified | MR-01, MR-02, MR-04, MR-05, MR-06, MR-07, MR-08, MR-09, MR-10, MR-11, PI-11, NA-06, RC-01..RC-07, CL-01..CL-05, CL-10 |
+| partial | MR-03 (R_psi has zero weight in every integrated or real run; D-RW1, D-RW2), PI-07 (D-IMP1, no improvement, imagination does not distinguish real candidates), SE-06 (D-IMP2, content IG unused), RC-08 (no evidence-based selection ever ran; D-CR1, D-CR2) |
 
 The verdicts judge the manifest requirement as titled, under the amended evidence standard. "verified" means the
 requirement's mechanism holds on the freeze (acceptance tests re-run, plus my own checks). It does not mean the
@@ -430,10 +432,10 @@ CR's (`scratchpad/CR/agent/abl1`, `abl2`) live only in the shared scratch direct
 
 ## 7. Not checked / limits of this verification
 
-* **No GPU hold.** I did not re-run the gpu-marked acceptance tests (`test_meta_update_cost_at_the_50m_preset_on_the_gpu`,
-  `test_real_configuration_one_frequent_and_one_slow_adapter_update`, `test_checkpoint_of_a_gpu_model_is_stored_on_cpu`,
-  `test_reworded_goals_...`) or any real-model claim: RW §5, IMP §3.2 / §3.5, PS §4.4 full size and CR §5 are taken
-  from the implementers' evidence files. D-IMP2's size at full size (Qwen3-4B rank-r LoRA) was not measured.
+* **Real model.** Only the two gpu acceptance tests in §5 ran. The 50m meta-update cost test and the real-embedding
+  semantic-goal test timed out waiting for the shared lock. I re-ran no real-model claim: RW §5, IMP §3.2 / §3.5,
+  PS §4.4 full size and CR §5 are taken from the implementers' evidence files. D-IMP2's size at full size (Qwen3-4B
+  LoRA) was not measured.
 * I did not re-run the long ablations (CR's integrated runs take ~40 min each, IMP's B2 batch, PS's replays). My
   findings on them come from their raw outputs.
 * The exact cause of the B2 decision-0 differences (D-IMP1) is not pinned down: load and the wall clock, or an

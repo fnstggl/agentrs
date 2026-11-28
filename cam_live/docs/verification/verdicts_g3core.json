@@ -50,7 +50,7 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Differentiable inner update tests pass on the freeze (checkpointed = full unroll, FD on the real adaptable subset, per-group clip). The gpu cost test was not re-run (no GPU hold).",
+  "notes": "Differentiable inner update tests pass on the freeze (checkpointed = full unroll, FD on the real adaptable subset, per-group clip). The gpu cost test timed out waiting for the shared lock (not run).",
   "evidence": [
    "pytest cam_live/tests/reward on git archive 6cba496 (169 passed, 3 skipped)"
   ]
@@ -114,7 +114,7 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Reward-integrity tests exist and execute: 17 of 18 acceptance tests run and pass on the freeze; the gpu-marked semantic-goal embedding test was not re-run (no GPU hold).",
+  "notes": "Reward-integrity tests exist and execute: 17 of 18 acceptance tests run and pass on the freeze; the gpu-marked semantic-goal embedding test timed out waiting for the shared lock (not run).",
   "evidence": [
    "pytest cam_live/tests/reward on git archive 6cba496 (169 passed, 3 skipped)"
   ]
@@ -332,15 +332,16 @@
   ]
  },
  "CL-03": {
-  "status": "partial",
+  "status": "verified",
   "by": "G3-core",
   "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
   "supersedes": [
    "all"
   ],
-  "notes": "CPU adapter-update tests pass; the gpu real-configuration frequent+slow adapter test was not re-run (no GPU hold); in the amendment's real-configuration runs every slow step reported was reverted by the held-out guard (ST, CR).",
+  "notes": "Adapter updates occur: CPU adapter-update tests pass and the real-configuration test (Qwen3-4B, one frequent and one slow adapter update) passes on the freeze (725 s). Note: in the amendment's real-configuration runs every slow step reported was reverted by the held-out guard (ST, CR), so accepted adapter changes in long real runs are not shown.",
   "evidence": [
-   "pytest cam_live/tests/credit on git archive 6cba496 (155 passed, 9 skipped)"
+   "pytest cam_live/tests/credit on git archive 6cba496 (155 passed, 9 skipped)",
+   "pytest -m gpu on git archive 6cba496 (CAM_LIVE_GPU_LOCK shared lock): test_checkpoint_of_a_gpu_model_is_stored_on_cpu passed, test_real_configuration_one_frequent_and_one_slow_adapter_update passed (725 s, Qwen3-4B); test_meta_update_cost_at_the_50m_preset_on_the_gpu and test_reworded_goals_... timed out (pytest-timeout 900 s) while waiting for the lock held by another tenant - not run"
   ]
  },
  "CL-04": {
@@ -369,15 +370,16 @@
   ]
  },
  "CL-10": {
-  "status": "partial",
+  "status": "verified",
   "by": "G3-core",
   "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
   "supersedes": [
    "all"
   ],
-  "notes": "Checkpoint round-trip / crash / replay-index tests pass; the amendment's new state (validity evidence, imagination calibration, persistent-chain bookkeeping, revised-credit queue) round-trips in its owners' tests; transition priors are regenerated deterministically from the seed. The gpu test 'stored on CPU' was not re-run (no GPU hold).",
+  "notes": "Checkpoint round-trip / crash / replay-index tests pass, and the GPU model is stored on the CPU (gpu test passes on the freeze); the amendment's new state (validity evidence, imagination calibration, persistent-chain bookkeeping, revised-credit queue) round-trips in its owners' tests; transition priors are regenerated deterministically from the seed.",
   "evidence": [
    "pytest cam_live/tests/credit on git archive 6cba496 (155 passed, 9 skipped)",
+   "pytest -m gpu on git archive 6cba496 (CAM_LIVE_GPU_LOCK shared lock): test_checkpoint_of_a_gpu_model_is_stored_on_cpu passed, test_real_configuration_one_frequent_and_one_slow_adapter_update passed (725 s, Qwen3-4B); test_meta_update_cost_at_the_50m_preset_on_the_gpu and test_reworded_goals_... timed out (pytest-timeout 900 s) while waiting for the lock held by another tenant - not run",
    "pytest cam_live/tests/nn on git archive 6cba496 (123 passed, 13 skipped)",
    "pytest cam_live/tests/predict on git archive 6cba496 (181 passed, 1 failed: test_int3a_eligibility, 10 skipped)",
    "pytest cam_live/tests/reward on git archive 6cba496 (169 passed, 3 skipped)"
