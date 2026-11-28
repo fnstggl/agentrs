@@ -1,6 +1,6 @@
 {
  "workstream": "SG",
- "commit": "e8383fb",
+ "commit": "3daecde",
  "summary": "Amendment items 6 and 7. Skills CAM acquires from its own executed traces now validate and are reused (before: every induce in every run failed validation - stale observation ids, refs made parameters); learned applicability, composition, discovery of recurring procedures, refinement by experience; no false success. Goal-free mode's expected transferable competence is learned from later assigned objectives (was the constant 1.0). Agent hooks SG-1..3 for ST. See docs/SG.md for the four evidence levels per capability.",
  "requirements": {
   "CU-15": {
@@ -203,10 +203,10 @@
   "real.real_goalfree.2.CU:record_item.skill_runs_ok": "0/0",
   "real.real_goalfree.2.CU:record_item.library": 0,
   "real.real_goalfree.2.CU:record_item.transfer_points": 21,
-  "tests.SG_fix.passed": 179,
+  "tests.SG_fix.passed": 180,
   "tests.SG_fix.failed": 0,
-  "tests.SG_fix.wall_s": 150.2,
-  "tests.SG_fix.tree": "git archive of HEAD 7439936"
+  "tests.SG_fix.wall_s": 137.9,
+  "tests.SG_fix.tree": "git archive of HEAD 3daecde"
  },
  "measured_commands": [
   "PYTHONPATH=<HEAD tree>/cam_live/src .venv/bin/python -m pytest cam_live/tests/harness/skills cam_live/tests/reward/test_sg_transfer.py cam_live/tests/reward/test_sg_agent_transfer.py cam_live/tests/reward/test_reward_goalfree.py cam_live/tests/reward/test_reward_selfgoals.py -m 'browser or not browser' --junitxml=cam_live/docs/evidence/test_results/SG_fix.xml",

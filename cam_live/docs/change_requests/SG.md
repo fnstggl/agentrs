@@ -97,3 +97,8 @@ then not credited; `goal_free.restore_notes` says so). The live planning run's c
              self.rng.setstate(_rng_from(aux["py_rng"]))
          if aux.get("proposer_rng"):
 ```
+
+## Status
+
+Applied by ST in `dde7d2d` (together with IMP, PS-1, RW-1/2). `tests/reward/test_sg_agent_transfer.py` passes on HEAD
+(JUnit `docs/evidence/test_results/SG_fix.xml`).
