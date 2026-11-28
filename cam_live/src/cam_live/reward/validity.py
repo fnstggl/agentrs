@@ -202,6 +202,9 @@ def pair_scores(rb: Tuple[float, float], rl: Tuple[float, float], y: Tuple[float
     return [_sign(m * db + (1.0 - m) * dl, 1e-12) * dy for m in grid]
 
 
+_MIXED = "\x00mixed-versions"           # a unit whose decisions were rewarded by different R_psi versions
+
+
 class _Running:
     """Welford mean / variance of one reward over the decisions registered so far."""
 
@@ -258,8 +261,13 @@ class _Row:
 class ProspectiveValidity:
     """Prospective paired evidence on the learned reward vs the bootstrap reward, and the mix decision it supports."""
 
-    def __init__(self, step: float = 0.25, alpha: float = 0.05, max_pending: int = 8192):
+    def __init__(self, step: float = 0.25, alpha: float = 0.05, max_pending: int = 8192, same_version: bool = True):
         self.grid = mix_grid(step)
+        # pair only units rewarded by the same R_psi version: a meta-update between the two units would otherwise
+        # shift R_psi's output for one of them, and a shift that coincides with a trend in the verified outcomes
+        # (the policy improving) would look like agreement although R_psi ranked nothing
+        self.same_version = bool(same_version)
+        self.n_version_skipped = 0
         self.alpha = float(alpha)
         G = len(self.grid)
         # at grid point k: "R_psi alone agrees better than the mixture" (lowering; fixed sequence) and "the bootstrap
@@ -274,7 +282,7 @@ class ProspectiveValidity:
         self.groups: Dict[str, List[str]] = {}
         self.scored_groups: Deque[str] = collections.deque(maxlen=65536)
         self._scored: set = set()
-        self.slot: Dict[int, Tuple[str, float, float, float]] = {}     # segment -> unit waiting for its partner
+        self.slot: Dict[int, Tuple[str, float, float, float, str]] = {}     # segment -> unit waiting for its partner
         self.s_b, self.s_l = _Running(), _Running()
         self.n_units = 0
         self.n_pairs = 0
@@ -322,8 +330,9 @@ class ProspectiveValidity:
         if len(self._scored) > 65536:
             self._scored = set(self.scored_groups)
         n = len(members)
+        vers = {m.version for m in members}
         unit = (row.group, sum(m.rb for m in members) / n, sum(m.rl for m in members) / n,
-                sum(m.y for m in members))                              # type: ignore[misc]
+                sum(m.y for m in members), vers.pop() if len(vers) == 1 else _MIXED)   # type: ignore[misc]
         for m in members:
             self.versions_scored[m.version] = self.versions_scored.get(m.version, 0) + 1
         self.n_units += 1
@@ -331,6 +340,10 @@ class ProspectiveValidity:
         other = self.slot.pop(seg, None)
         if other is None:
             self.slot[seg] = unit
+            return 0
+        if self.same_version and (unit[4] == _MIXED or other[4] != unit[4]):
+            self.slot[seg] = unit                 # R_psi changed between the two: the older unit is not scored
+            self.n_version_skipped += 1
             return 0
         self._score(other, unit)
         return 1
@@ -354,7 +367,7 @@ class ProspectiveValidity:
             return self.resolve(last, float(y))                       # type: ignore[arg-type]
         return 0
 
-    def _score(self, u: Tuple[str, float, float, float], v: Tuple[str, float, float, float]) -> None:
+    def _score(self, u: Tuple[Any, ...], v: Tuple[Any, ...]) -> None:
         sb, sl = self.s_b.std, self.s_l.std
         c = pair_scores((u[1], v[1]), (u[2], v[2]), (u[3], v[3]), self.grid, sb, sl)
         for k in range(len(self.grid)):
@@ -397,6 +410,7 @@ class ProspectiveValidity:
 
     def summary(self) -> Dict[str, Any]:
         out: Dict[str, Any] = {"units": self.n_units, "pairs": self.n_pairs, "informative_pairs": self.n_informative,
+                               "units_unpaired_across_versions": self.n_version_skipped,
                                "pending_rows": len(self.pending()), "grid": list(self.grid), "alpha": self.alpha}
         for name, cs in self.alone.items():
             lo, hi = cs.bounds()
@@ -418,6 +432,7 @@ class ProspectiveValidity:
                 "scored_groups": list(self.scored_groups),
                 "slot": {str(k): list(v) for k, v in self.slot.items()},
                 "s_b": self.s_b.state(), "s_l": self.s_l.state(), "n_units": self.n_units, "n_pairs": self.n_pairs,
+                "same_version": self.same_version, "n_version_skipped": self.n_version_skipped,
                 "n_informative": self.n_informative, "versions_scored": dict(self.versions_scored)}
 
     def load_state_dict(self, d: Mapping[str, Any]) -> None:
@@ -441,7 +456,10 @@ class ProspectiveValidity:
             self.groups.setdefault(g, []).append(i)
         self.scored_groups = collections.deque(d["scored_groups"], maxlen=65536)
         self._scored = set(self.scored_groups)
-        self.slot = {int(k): (v[0], float(v[1]), float(v[2]), float(v[3])) for k, v in d["slot"].items()}
+        self.slot = {int(k): (v[0], float(v[1]), float(v[2]), float(v[3]), str(v[4]) if len(v) > 4 else "")
+                     for k, v in d["slot"].items()}
+        self.same_version = bool(d.get("same_version", self.same_version))
+        self.n_version_skipped = int(d.get("n_version_skipped", 0))
         self.s_b.load(d["s_b"])
         self.s_l.load(d["s_l"])
         self.n_units, self.n_pairs = int(d["n_units"]), int(d["n_pairs"])

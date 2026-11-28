@@ -407,3 +407,18 @@ def test_realised_information_value_is_a_bounded_bootstrap_input_and_not_an_inpu
     assert not torch.equal(ib0.r_boot, ib1.r_boot)        # it changes the bootstrap reward of the inner update
     assert ib1.signals.shape[-1] == ib0.signals.shape[-1] == N_SIGNALS and torch.equal(ib0.signals, ib1.signals)
     assert {k: tuple(v.shape) for k, v in ml.reward.psi().items()} == shapes
+
+
+def test_units_rewarded_by_different_r_psi_versions_are_not_paired():
+    """A meta-update between two units shifts R_psi's output for one of them; with a trend in the verified outcomes
+    that shift would score as agreement. Such pairs are not formed (the older unit is not scored)."""
+    for same, pairs in ((True, 1), (False, 2)):
+        v = ProspectiveValidity(step=0.5, same_version=same)
+        for i, ver in enumerate(["a", "b", "b", "b"]):
+            v.note(f"e{i}", segment=0, group=f"dec:{i}", r_bootstrap=0.0, r_learned=float(i), version=ver)
+        for i in range(4):
+            v.resolve(f"e{i}", float(i))
+        assert v.n_pairs == pairs and v.n_version_skipped == (1 if same else 0)
+    twin = ProspectiveValidity(step=0.5)
+    twin.load_state_dict(v.state_dict())
+    assert twin.same_version is False and twin.summary() == v.summary()

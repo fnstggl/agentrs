@@ -1,11 +1,11 @@
 {
  "workstream": "RW",
- "commit": "a055332080864f46c35f2720cc1584f54780a2ad",
- "summary": "RW (amendment 2026-11-28 item 1, genuinely learned rewards). Audit: the mix stayed 1 because the promotion test compared single policy steps (power ~0 at realistic rates), existed only at applied meta-updates, and the outer estimator used only the 3-4 decisions between two live updates; defect: level readings were stored as the level. Changed (reward/): prospective anytime-valid validity evidence decides the mix (no margin, no held-out reservation); pooled first-order outer estimator ('auto' default, query-window fallback); outer utility default 'direct'; level readings as changes; ST-3 information value as a bootstrap input. Debug scale, one long LabWorld objective per seed vs a frozen R_psi (same seeds, controlled configuration without goal term): learning raised R_psi's prospective agreement with verified outcomes in 17/18 seed-configurations; the evidence promoted R_psi in 4 of 9 600-decision objectives (frozen: 0 of 12), decisions changed 7-31 decisions later, and in each of the four the chosen actions' true value afterwards exceeded the frozen counterfactual (+2.06 [1.58, 2.54], +2.05 [-0.92, 5.08], +1.01 [0.37, 1.71], +1.71 [0.22, 3.29] adopters per decision; one seed each). Integrated agent (debug, 120 decisions, agent configuration): 9/143 meta-updates applied, 47 pairs, no promotion. Real configuration (Qwen3-4B + 50m, backbone on, one GPU hold): 35 decisions, 4/36 meta-updates applied, 17 pairs, e-value 1.0, mix 1, R_psi weight 0 in all 11 live updates. Not shown: promotion or improvement on the real model; reliable improvement in general.",
+ "commit": "4cc63a48237446d7f908b91a8699304cbb103b0c",
+ "summary": "RW (amendment 2026-11-28 item 1, genuinely learned rewards). Audit: the mix stayed 1 because the promotion test compared single policy steps (power ~0 at realistic rates), existed only at applied meta-updates, and the outer estimator used only the 3-4 decisions between two live updates; defect: level readings were stored as the level. Changed (reward/): prospective anytime-valid validity evidence decides the mix (no margin, no held-out reservation); pooled first-order outer estimator ('auto' default, query-window fallback); outer utility default 'direct'; level readings as changes; ST-3 information value as a bootstrap input. Debug scale, one long LabWorld objective per seed vs a frozen R_psi (same seeds, controlled configuration without goal term): learning raised R_psi's prospective agreement with verified outcomes above the frozen R_psi's in 17/18 seed-configurations; with the final rule (pairs only within one psi) the evidence promoted R_psi in 3/3 600-decision objectives at reward lr 3e-3 and 2/6 at the agent's 1e-4 (frozen: 0 of 12), decisions changed 7-31 decisions later; afterwards the chosen actions' true value over the frozen counterfactual was +2.14 [1.63, 2.64] adopters/decision in the one objective with a long post-promotion period (319 decisions) and inconclusive in the four short ones (-2.89 .. +0.87, all intervals include 0): improvement not established. Integrated agent (debug, 120 decisions, agent configuration): 9/143 meta-updates applied, 47 pairs, no promotion. Real configuration (Qwen3-4B + 50m, backbone on, one GPU hold): 35 decisions, 4/36 meta-updates applied, 17 pairs, e-value 1.0, mix 1, R_psi weight 0 in all 11 live updates. Not shown: promotion or improvement on the real model; reliable improvement in general.",
  "requirements": {
   "AM1-promotion-criterion (bootstrap transition, empirically grounded usefulness)": {
    "state": "implemented",
-   "what_changed": "reward/validity.py ProspectiveValidity + BettingTest + ConfidenceSequence; RewardMixer.apply; MetaLearner.refresh_validity; MetaConfig.promotion_rule='validity' (default; the LRN rule stays as 'value'); heldout_fraction default 0 under 'validity'.",
+   "what_changed": "reward/validity.py ProspectiveValidity + BettingTest + ConfidenceSequence; RewardMixer.apply; MetaLearner.refresh_validity; MetaConfig.promotion_rule='validity' (default; the LRN rule stays as 'value'); heldout_fraction default 0 under 'validity'. Pairs only within one psi (no applied meta-update between the two units: validity_same_version, default on) so a psi shift that coincides with a trend in outcomes cannot score as agreement.",
    "tests": [
     "tests/reward/test_reward_rw.py (sequential statistics, validity, mixer, wiring, compatibility)"
    ],
@@ -36,7 +36,7 @@
   },
   "AM1-pathway experience -> meta-update -> weighted R_psi -> changed live update -> changed decisions, with ablation": {
    "state": "shown at debug scale (controlled configuration); integrated agent and real model: up to the evidence, no promotion",
-   "evidence": "docs/evidence/RW/diag_summary_600.json (promotions at decisions 252/573 (lr 3e-3) and 494/545 (lr 1e-4), first decisions unlike frozen 269/582/525/552); dbg_agent_learned_120.json; real_learned_20261128.json",
+   "evidence": "docs/evidence/RW/diag_summary_600.json (final rule: promotions at decisions 281/537/531 (lr 3e-3) and 533/568 (lr 1e-4); first decisions unlike frozen 301/547/538/564/578); dbg_agent_learned_120.json; real_learned_20261128.json",
    "still_fails": "real model: 35 decisions per hold, 17 pairs, no promotion (needs ~50-130 informative pairs); the agent configuration's pooled estimator starts only after ~28 decisions"
   },
   "ST-3 realised information value as a bootstrap input": {
@@ -65,7 +65,7 @@
  ],
  "extra_packages": [],
  "measured": {
-  "tests_reward": "167 passed, 4 skipped (138 s), isolated copy 07303fe + RW files incl. ST-3",
+  "tests_reward": "168 passed, 4 skipped (135 s), isolated copy 07303fe + RW files incl. ST-3 and the same-psi rule",
   "tests_other_touched_by_defaults": "tests/integration/test_agent_runtime.py 11 passed; tests/integration/test_agent_recovery.py + tests/eval/test_meta_integrity.py 4 passed, 1 skipped (isolated copy 07303fe + RW)",
   "g2decision_probe_meta_path": "21/23 on RW code (the 2 failures are the probe's own analytic vs FD at derivative magnitudes 1.3e-8 / 1.6e-6; the code's gradient equals the probe's analytic one to 3e-15); HEAD: 23/23; the probe is not run-to-run reproducible (HEAD twice: |g| 0.258 / 0.249)",
   "live_checkpoint_compat": "ckpt_00000039 of the live planning run loads; restored_fresh = validity",
@@ -78,8 +78,9 @@
   "agent hooks RW-1/RW-2 pending with ST"
  ],
  "scientific_failures": [
-  "R_psi's agreement with verified outcomes rises but reaches the promotion bar only after ~250-570 decisions in 2 of 3 seeds (debug); at the agent's reward lr 1e-4 not within 300",
-  "no reliable improvement shown: one seed with a long post-promotion period"
+  "R_psi's agreement with verified outcomes rises slowly: promotion after 281-568 decisions (debug), within 300 only 1 of 3 seeds, 2 of 6 at the agent's lr within 600",
+  "improvement after promotion clear in 1 of 5 promoted objectives (+2.14 [1.63, 2.64]); the four short post-promotion periods inconclusive (-2.89 .. +0.87)",
+  "real model: no promotion within one hold (17 pairs)"
  ],
  "measured_commands": {
   "suite": "cd <snapshot> && PYTHONPATH=<snapshot>/cam_live/src .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=.../RW_fix.xml",

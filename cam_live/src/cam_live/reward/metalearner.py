@@ -102,6 +102,7 @@ class MetaConfig:
                                          # verified progress, anytime-valid (reward.validity; RW); "value": the
                                          # held-out importance-weighted value of the two updated policies (LRN)
     validity_alpha: float = 0.05         # error level of the validity evidence's confidence sequences
+    validity_same_version: bool = True   # pair only decisions rewarded by the same R_psi version (no psi-shift confound)
     estimator: str = "auto"              # outer-gradient estimator: "query" (the decisions after each update event,
                                          # exact in the step), "pooled_first_order" (RW: the verified policy
                                          # gradient at the event's snapshot from every matured decision outside its
@@ -244,7 +245,8 @@ class MetaLearner:
                              else (0.25 if mc.promotion_rule == "value" else 0.0))
         # RW: prospective evidence on R_psi vs the bootstrap (collected under both rules; decides the mix under
         # "validity"); fed at reward time and when a decision's verified progress becomes final
-        self.validity = ProspectiveValidity(step=self._grid_step(), alpha=mc.validity_alpha)
+        self.validity = ProspectiveValidity(step=self._grid_step(), alpha=mc.validity_alpha,
+                                            same_version=mc.validity_same_version)
         self._val_reg: Dict[str, int] = {}                         # exp_id -> registration count when noted
         self.restored_fresh: List[str] = []                        # state absent from a loaded checkpoint
         self._life = 0
@@ -405,7 +407,8 @@ class MetaLearner:
                 continue                             # not a prospective test of either reward
             self.validity.note(rec.exp_id, segment=self._life_of.get(rec.exp_id, self._life),
                                group=independence_key(rec), r_bootstrap=float(m.bootstrap[0]),
-                               r_learned=float(m.learned[0]), ts=float(rec.decision.ts), version=m.reward_version)
+                               r_learned=float(m.learned[0]), ts=float(rec.decision.ts),
+                               version=f"psi-step-{self.mixer.meta_updates_applied}")   # psi, not its input statistics
             self._val_reg[rec.exp_id] = self._n_registered
         self.refresh_validity()
         tot = [float(m.total[0]) for m in mixed]
@@ -1231,13 +1234,15 @@ class MetaLearner:
         self.restored_fresh = []
         self._pooled_done = {int(x) for x in sd.get("pooled_done", [])}
         self._goal_metric = {str(k): str(v) for k, v in sd.get("goal_metric", {}).items()}
-        self.validity = ProspectiveValidity(step=self._grid_step(), alpha=self.mc.validity_alpha)
+        self.validity = ProspectiveValidity(step=self._grid_step(), alpha=self.mc.validity_alpha,
+                                            same_version=self.mc.validity_same_version)
         if "validity" in sd:                        # RW: checkpoints from before the validity evidence start empty
             try:
                 self.validity.load_state_dict(sd["validity"])
                 self._val_reg = {k: int(v) for k, v in sd.get("validity_registered", {}).items()}
             except ValueError as e:                 # another mix grid: the evidence does not apply, start afresh
-                self.validity = ProspectiveValidity(step=self._grid_step(), alpha=self.mc.validity_alpha)
+                self.validity = ProspectiveValidity(step=self._grid_step(), alpha=self.mc.validity_alpha,
+                                            same_version=self.mc.validity_same_version)
                 self._val_reg = {}
                 self.restored_fresh.append(f"validity ({e})")
         else:
