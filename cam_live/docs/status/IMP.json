@@ -1,7 +1,7 @@
 {
  "workstream": "IMP",
- "commit": "04cc26d",
- "summary": "Amendment 2026-11-28 item 2 (predictive imagination and multistep planning in decision-making). LatentPlanner searches imagined continuations of every candidate in the learned latent world model (transition + world-model goal values at imagined beliefs, coherent particles), reports information value; HorizonController value criterion; ImaginationCalibration learns the imagination weight of rule thompson_policy from verified multi-step windows; transition ensemble got zero-mean randomised priors (overconfidence defect); the ratio weight's amplification of unsupported imagination fixed. Imagination causally changes decisions on the runtime path (debug B2: share_tv 0.053, argmax changed 22/244); no reliable improvement measured; agent hook is change request IMP (not applied yet).",
+ "commit": "8f15367",
+ "summary": "Amendment 2026-11-28 item 2 (predictive imagination and multistep planning in decision-making). LatentPlanner searches imagined continuations of every candidate in the learned latent world model (transition + world-model goal values at imagined beliefs, coherent particles), reports information value; HorizonController value criterion; ImaginationCalibration learns the imagination weight of rule thompson_policy from verified multi-step windows; transition ensemble got zero-mean randomised priors (overconfidence defect); the ratio weight's amplification of unsupported imagination fixed. Imagination causally changes decisions on the runtime path (debug B2: share_tv 0.053, argmax changed 22/244); no reliable improvement measured; agent hook (change request IMP) applied by ST in dde7d2d.",
  "requirements": {
   "AM2-1 multi-step rollouts of candidate sequences": {
    "state": "implemented",
@@ -51,7 +51,7 @@
    "limitations": "recorded per candidate; exploration uses it only through Thompson sampling over particles; randomised experiments are still designed on one-step outcomes"
   },
   "AM2-4 selection on expected long-term value and uncertainty": {
-   "state": "implemented (agent hook pending: change request IMP)",
+   "state": "implemented and integrated (change request IMP applied by ST in dde7d2d)",
    "files": [
     "src/cam_live/predict/policy.py"
    ],
@@ -68,7 +68,7 @@
    "evidence": [
     "docs/IMP.md \u00a72.4, \u00a73.3"
    ],
-   "limitations": "the worktree agent does not pass the planner's numbers until ST applies change request IMP"
+   "limitations": "IMP's runs used HEAD + the CR diff on exported copies, before the integration commit"
   },
   "AM2-5 calibration gating of imagined values": {
    "state": "implemented",
@@ -203,13 +203,15 @@
   "python -m cam_live.predict.imp_eval run|replay|summarize"
  ],
  "change_requests": [
-  "docs/change_requests/IMP.md (agent.py, for ST: open)"
+  "docs/change_requests/IMP.md (agent.py, for ST: applied in dde7d2d)"
  ],
  "measured": {
-  "suite_command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/IMP_fix.xml"
+  "suite_command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/IMP_fix.xml",
+  "final_run": "tests/predict on a clean export of HEAD 8f15367 (git archive HEAD cam_live): 188 tests, 177 passed, 10 skipped (gpu / browser / slow marks), 1 failed in 250 s; the failure tests/predict/test_int3a_eligibility.py::test_a_record_checked_before_its_verdict_becomes_eligible_for_the_evaluator is pre-existing (fails on a clean export of the start commit d1d06dc and of dde7d2d^, passed once at bb24f96; it depends on whether the lifetime ends with an achieved / failed verdict; run with planner=False, IMP code not exercised)",
+  "junit": "docs/evidence/test_results/IMP_fix.xml",
+  "imp_tests": "12 of 12 passed (tests/predict/test_imp_planning.py 10, tests/predict/test_imp_agent.py 2, the agent test now unskipped since ST's dde7d2d)"
  },
  "not_done": [
-  "agent.py hook not applied (change request IMP)",
   "experiments still designed on one-step outcomes",
   "transition trained on one-step latent NLL only (no value-consistency objective)",
   "no reliable improvement of decisions measured"

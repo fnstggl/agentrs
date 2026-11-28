@@ -1,6 +1,8 @@
 # Change request IMP -> ST (agent.py): imagination in the decision (amendment 2026-11-28 item 2)
 
-Owner of the file: ST. Requested by IMP. Status: **open** (tested on a patched copy; see below).
+Owner of the file: ST. Requested by IMP. Status: **applied by ST in `dde7d2d`** (together with PS-1, RW-1/2,
+SG-1..3; ST tested it on a clean snapshot of HEAD 00f8913 + agent.py: `test_imp_agent` among 33 passed). Before that,
+IMP tested it on a patched copy (see below).
 
 ## What
 

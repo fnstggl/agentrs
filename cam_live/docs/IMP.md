@@ -3,7 +3,7 @@
 Agent IMP, worktree `/workspace/camlive` (branch `feat/cam-live`), start HEAD `d1d06dc`. Owned paths:
 `src/cam_live/predict/**` except `predict/candidates.py`, `tests/predict/**`, this file, `docs/status/IMP.json`,
 `docs/change_requests/IMP.md`. `agent.py` is ST's: the agent-side hook is change request IMP (exact diff, tested on a
-patched copy of the tree).
+patched copy of the tree; applied by ST in `dde7d2d`).
 
 ## 1. Audit: what was there
 
@@ -127,7 +127,8 @@ from the seed): the live run's checkpoints load unchanged (§3.2).
 ### 2.6 Agent hook (change request IMP -> ST)
 
 `docs/change_requests/IMP.md`: `plan(..., predictor=self.predictor, evaluations=evals)`, `ev.extras.update(
-im.extras())`, `planner.state()` / `planner.load_state()` in save / load. No change to `select()`.
+im.extras())`, `planner.state()` / `planner.load_state()` in save / load. No change to `select()`. Applied by ST in
+`dde7d2d`.
 
 ## 3. Evidence
 
@@ -155,7 +156,8 @@ im.extras())`, `planner.state()` / `planner.load_state()` in save / load. No cha
 * goal values at the real latents equal `q_goal - net_cost` (to 1e-6); per-particle path finite and varied;
 * transition priors: ensemble mean and state-dict keys unchanged; spread 0.016 -> 0.57 untrained; trained 0.12 on
   seen vs 0.88 on a never-taken action;
-* agent (patched copy, real runtime path, debug scale, T1 2 x 6 decisions): every candidate carries the planner's
+* agent (patched copy, and in the worktree since `dde7d2d`; real runtime path, debug scale, T1 2 x 6 decisions):
+  every candidate carries the planner's
   numbers, every thompson_policy decision with imagination records both distributions (sum 1), share_tv in [0, 1],
   the horizon equals `planner_horizon`; >= 3 verified windows reached the calibration; a checkpoint restores it
   exactly; the live run's old planner state loads with a fresh calibration (reported).
@@ -295,10 +297,10 @@ of 63 verified windows) on 3 held-out worlds each, 6 replicates (world seeds 820
 
 ## 5. What is not done
 
-* agent.py hook: change request IMP (exact diff, applies to the current worktree agent.py with offsets) — **not yet
-  applied by ST**; until then the worktree's agent records the planner's old three numbers only and its
-  thompson_policy sees no imagination (the agent test is skipped with that reason). CAM's live planning run runs from a
-  frozen snapshot (`runs/cam_live/live/code_a0f3411`) and does not get any of this.
+* agent.py hook: change request IMP was applied by ST in `dde7d2d` (with PS-1's persistent core state, which now
+  also feeds the belief the planner starts from); every IMP run in this document used HEAD + the same diff on an
+  exported copy, before that integration. CAM's live planning run runs from a frozen snapshot
+  (`runs/cam_live/live/code_a0f3411`) and does not get any of this.
 * Randomised experiments are still designed and measured on one-step outcomes (`DecisionMaker.propose_experiment`);
   the planner's information value is recorded per candidate and enters exploration only through Thompson sampling
   over the imagined particles.
