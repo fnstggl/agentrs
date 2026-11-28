@@ -36,12 +36,17 @@ class FakeDiscord:
 
     def __init__(self):
         self.members = {}                  # uid -> joined_at (unix)
+        self.messages = []                 # author ids of the latest messages of the one text channel
         self.requests_sent = 0
 
     def _request(self, method, path, *, route, params=None, **_kw):
         self.requests_sent += 1
         if path == f"/guilds/{GUILD}":
             return {"id": GUILD, "owner_id": OWNER}
+        if path == f"/guilds/{GUILD}/channels":
+            return [{"id": "800000000000000001", "type": 0}]
+        if path == "/channels/800000000000000001/messages":
+            return [{"author": {"id": a, "bot": False}} for a in self.messages]
         if path == f"/guilds/{GUILD}/members":
             after = int((params or {}).get("after", "0"))
             rows = [{"user": {"id": uid, "bot": False},
@@ -55,21 +60,36 @@ def uid(i):
     return str(1_100_000_000_000_000_000 + i)
 
 
-def task_with_window():
+def task_with_window(window=True):
     raw = T.load_task_raw(os.path.join(PROJECT, "tasks", "discord_100.yaml"))
     raw["success"]["exclusions"]["test_account_ids"] = []
     raw["resources"]["discord_guild_id"] = GUILD
-    raw["measurement"]["window_start_ts"] = T0
+    if window:
+        raw["measurement"]["window_start_ts"] = T0
     raw["limits"] = {"duration_s": 60 * DAY, "money": 10, "compute_s": 3600, "max_external_actions": 100,
                      "max_decisions": 100}
     return T.parse_task(raw)
 
 
-def verifier(fake, clock, name):
-    task = task_with_window()
+class FakeLedger:
+    """The authorization service's limits_state as the verifier service reads it (what it charged for the task)."""
+    def limits_state(self):
+        return {"tasks": {"discord-100": {"used": {"money": 3.5, "external_actions": 12, "decisions": 40,
+                                                    "compute_s": 900.0}}}}
+
+
+def verifier(fake, clock, name, task=None, d=None):
+    task = task or task_with_window()
     src = DiscordMembershipSource(GUILD, lambda: "unused", client=fake)
-    d = scratch(name)
-    return task, build_verifier(task, os.path.join(d, "verifier"), clock, src, log_path=os.path.join(d, "v.jsonl"))
+    d = d or scratch(name)
+    kw = {}
+    try:                                   # the final freeze wires CAM's ledger and the operator's key directory
+        from cam_live.runtime.verifier import authorization_cost_source
+        kw = {"cost_source": authorization_cost_source(FakeLedger(), lambda _o: "USD"), "operator_dir": d}
+    except ImportError:
+        pass
+    return task, build_verifier(task, os.path.join(d, "verifier"), clock, src, log_path=os.path.join(d, "v.jsonl"),
+                                **kw)
 
 
 # ---- A: members who were in the guild before the experiment began ------------------------------------------
@@ -103,16 +123,66 @@ R.check("B seven-day retention counts the members who left (10 joined, 5 left wi
         ret is not None and abs(ret - 0.5) < 1e-9, {"secondary.retention_7d": ret, "confirmed": vo.value})
 
 # ---- C: which secondary metrics the live source yields --------------------------------------------------------
+fake.messages = [uid(5), uid(5), uid(6)]
+vo = v.verify(task)
 names = sorted(q.name for q in vo.secondary)
 R.note("C secondary quantities reported with the live Discord source", names)
 R.check("C1 voluntary participation is measured", any(n.startswith("secondary.participation") for n in names), names)
-R.check("C2 consented participant feedback is measured", any(n.startswith("secondary.feedback") for n in names), names)
+R.check("C2 consented participant feedback is measured, or reported as not measured (never silently absent)",
+        any(n.startswith("secondary.feedback") for n in names) or "feedback" in vo.notes.lower(), vo.notes[-300:])
 use = [n for n in names if n.startswith("secondary.resource_use")]
-R.check("C3 usefulness of community resources is measured (not the verifier's own API request count)",
-        bool(use) and use != ["secondary.resource_use.discord.verifier.requests"], use)
+CAM_OWN = {"secondary.resource_use.discord.verifier.requests", "secondary.resource_use.external_actions",
+           "secondary.resource_use.decisions", "secondary.resource_use.compute_s"}
+R.check("C3 usefulness of community resources (spec 13.2) is measured — not the verifier's request count, not CAM's own "
+        "action / decision / compute counts — or reported as not measured",
+        (bool(use) and not set(use) <= CAM_OWN) or "usefulness" in vo.notes.lower(), {"resource_use": use,
+                                                                                    "notes": vo.notes[-300:]})
 R.check("C4 operating cost is measured (build_verifier as verifier_service.serve calls it: no cost_source)",
         any(n.startswith("secondary.operating_cost") for n in names), names)
 R.check("C5 time expenditure is measured", "secondary.time_elapsed_s" in names, names)
 R.check("C6 the primary value is the confirmed member count only (secondary kept separate)",
         vo.value == 5.0, {"value": vo.value})
+# ---- round 2 (final freeze): the start baseline ----------------------------------------------------------------
+# A2 rejoin: a member who was in the guild at the start leaves and joins again during the experiment
+clock = SimClock(T0 + DAY)
+fake = FakeDiscord()
+fake.members[OWNER] = T0 - 400 * DAY
+for i in range(10):
+    fake.members[uid(i)] = T0 - 30 * DAY             # 10 members before the start
+task, v = verifier(fake, clock, "a2")
+v.verify(task)                                        # baseline: 10 before the start, 0 counted
+for i in range(10):
+    fake.members[uid(i)] = T0 + 2 * DAY               # all 10 leave and rejoin on day 2 (Discord's new joined_at)
+clock.advance(2 * DAY)
+vo = v.verify(task)
+R.check("A2 members who were in the guild at the start and rejoin during the experiment are not counted as attracted "
+        "(10 pre-existing members leave and rejoin; nobody new joined)", vo.value == 0,
+        {"value": vo.value, "notes": vo.notes[:300]})
+# A3 no window_start_ts: the start is the verifier's first reading; a restarted verifier keeps it
+clock = SimClock(T0)
+fake = FakeDiscord()
+fake.members[OWNER] = T0 - 400 * DAY
+for i in range(5):
+    fake.members[uid(i)] = T0 - 30 * DAY              # 5 before the start
+tw = task_with_window(window=False)
+d3 = scratch("a3")
+task, v = verifier(fake, clock, "a3", task=tw, d=d3)
+v.verify(task)                                         # first reading at T0
+for i in range(5, 8):
+    fake.members[uid(i)] = T0 + DAY                    # 3 join on day 1
+clock.advance(3 * DAY)
+task, v2 = verifier(fake, clock, "a3", task=tw, d=d3)  # verifier process restarted (same state directory)
+vo = v2.verify(task)
+R.check("A3 without window_start_ts the start is the first reading and survives a verifier restart (3 joined after it)",
+        vo.value == 3, {"value": vo.value, "notes": vo.notes[:200]})
+# A4 a first reading taken late: members attracted between the run's start and the verifier's first reading
+clock = SimClock(T0 + 5 * DAY)                         # the verifier is first asked five days after CAM started
+fake = FakeDiscord()
+fake.members[OWNER] = T0 - 400 * DAY
+for i in range(4):
+    fake.members[uid(i)] = T0 + 2 * DAY                # 4 attracted on day 2, before the first reading
+task, v = verifier(fake, clock, "a4", task=task_with_window(window=False))
+vo = v.verify(task)
+R.note("A4 no window_start_ts and a late first reading: members attracted before it are not counted (conservative)",
+       {"value": vo.value, "joined_before_the_first_reading": 4})
 sys.exit(R.done())

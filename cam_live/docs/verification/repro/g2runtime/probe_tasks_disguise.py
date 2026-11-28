@@ -55,7 +55,8 @@ base = filled()
 t0, p0 = load(base)
 R.check("0 the filled Discord task loads for a run (baseline)", t0 is not None, p0[:3])
 
-PLAN_WORDS = ("meme", "gamer", "reddit", "invite", "giveaway", "daily", "strategy", "marketing", "crosspost", "dm_")
+PLAN_WORDS = ("meme", "gamer", "reddit", "r3ddit", "r e d d i t", "invite", "giveaway", "g1veaway", "daily", "strategy",
+              "marketing", "crosspost", "dm_", "disboard", "top.gg", "bump", "r\u0435ddit")
 
 
 def learner_text(task):
@@ -89,6 +90,37 @@ variants = {
                                       "posting memes on r" + ZW + "eddit e" + ZW + "very day and running "
                                       "give" + ZW + "aways, within the authorized experimental constraints")),
 }
+# ---- round 2 (final freeze): disguises that survive NFKC + invisible-character stripping + separator splitting ----
+CY_E, CY_A = "\u0435", "\u0430"      # Cyrillic small ie / a: letters (category Ll), unchanged by NFKC
+OBJ = "Create and operate a genuinely useful Discord community that attracts 100 distinct real human members who " \
+      "voluntarily choose to join "
+variants.update({
+    "R2 objective with Cyrillic homoglyphs inside the matched words (one sentence)":
+        lambda r: r.update(objective=OBJ + "by posting memes on r" + CY_E + "ddit " + CY_E + "very day and running "
+                           "give" + CY_A + "ways, within the authorized experimental constraints"),
+    "R2 objective in leetspeak":
+        lambda r: r.update(objective=OBJ + "by posting memes on r3ddit 3very d4y and running g1veaways, within the "
+                           "authorized experimental constraints"),
+    "R2 objective naming Discord listing sites the lists do not contain":
+        lambda r: r.update(objective=OBJ + "by listing it on disboard and top.gg and bumping it whenever the cooldown "
+                           "allows, within the authorized experimental constraints"),
+    "R2 objective with the platform name spelled letter by letter":
+        lambda r: r.update(objective=OBJ + "by posting memes on r e d d i t and running g i v e a w a y s, within the "
+                           "authorized experimental constraints"),
+    "R2 secondary_metrics item, words concatenated without separators":
+        lambda r: r["secondary_metrics"].append("secondary.redditmarketingstrategywithdailygiveaways"),
+    "R2 family, words concatenated":
+        lambda r: r.update(family="community/memeserverforgamers/invitefriendspersonally"),
+    "R2 discord.channels labels, words concatenated":
+        lambda r: r["resources"].update(discord={"guild_id": "123456789012345678", "channels": {
+            "postmemesdaily": "223456789012345678", "invitegamerfriends": "323456789012345678",
+            "dmeverynewjoiner": "423456789012345678"}}),
+    "R2 objective_id, words concatenated":
+        lambda r: r.update(objective_id="discord100viaredditmarketingandgiveaways"),
+    "R2 authorized_destinations URL query with Cyrillic homoglyphs":
+        lambda r: r["resources"].update(authorized_destinations=[
+            "example.invalid", "https://example.invalid/?plan=post_memes_on_r" + CY_E + "ddit_d" + CY_A + "ily"]),
+})
 controls = {
     "family with spaces": lambda r: r.update(family="community/meme server for gamers"),
     "secondary_metrics item with spaces": lambda r: r["secondary_metrics"].append("secondary.reddit marketing"),

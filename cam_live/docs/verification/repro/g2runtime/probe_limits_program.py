@@ -59,12 +59,14 @@ class ProgramEnv:
 
 
 class ProgramAgent(StandInAgent):
+    n_steps = 3
+
     def propose(self, tools, k):
         by = {t.name: t for t in tools}
         act = by["lab.act"]
         self.n_select += 0
         steps = [ActionSpec(action_id=new_id("act"), operation="lab.act", modality=act.modality, level=act.level,
-                            arguments={"channel": i % 3, "effort": 1}, est_cost=act.est_cost) for i in range(3)]
+                            arguments={"channel": i % 3, "effort": 1}, est_cost=act.est_cost) for i in range(self.n_steps)]
         prog = ActionSpec(action_id=new_id("act"), operation="program", modality=Modality.INTERNAL,
                           level=Level.PROCEDURE, steps=steps,
                           est_cost=Cost(money=sum(s.est_cost.money for s in steps)), provenance="g2-standin")
@@ -86,4 +88,43 @@ R.check("2 no more external actions are executed than limits.max_external_action
         "one program's steps)", world._n_exec <= 4 + 3, {"world_executed": world._n_exec, "limit": 4})
 R.check("3 the objective ends as exhausted by max_external_actions", "max_external_actions" in rt.status_reason,
         rt.status_reason)
+# ---- round 2: a program larger than what is left; an approved program -------------------------------------------
+clock2 = SimClock()
+world2 = LabWorld(LabConfig(seed=3, target=100000, budget=1000.0), clock2)
+world, clock = world2, clock2                        # ProgramEnv / ProgramAgent use the module globals
+task2 = lab_task(world2, "obj_prog2")
+task2.limits.max_external_actions = 4
+task2.limits.max_decisions = 6
+agent2 = ProgramAgent(clock2, script=["program"], durable=False)
+agent2.n_steps = 10
+rt2 = LiveRuntime(agent2, ProgramEnv(), AllowAllPolicy(), LabVerifier(world2), task2, os.path.join(scratch("prog2"), "run"),
+                  clock2, RuntimeConfig(fsync=False))
+rt2.run(max_iterations=200)
+R.check("4 a program whose external steps exceed what is left of max_external_actions is not started "
+        "(limit 4, programs of 10 external steps)", world2._n_exec <= 4,
+        {"world_executed": world2._n_exec, "runtime_counter": rt2.counters["external_actions"], "limit": 4,
+         "reason": rt2.status_reason})
+from rt_helpers import ApprovalPolicy  # noqa: E402
+clock3 = SimClock()
+world3 = LabWorld(LabConfig(seed=3, target=100000, budget=1000.0), clock3)
+world, clock = world3, clock3
+task3 = lab_task(world3, "obj_prog3")
+task3.limits.max_external_actions = 7
+task3.limits.max_decisions = 8
+pol = ApprovalPolicy(needs=("program",))
+agent3 = ProgramAgent(clock3, script=["program"], durable=False)
+rt3 = LiveRuntime(agent3, ProgramEnv(), pol, LabVerifier(world3), task3, os.path.join(scratch("prog3"), "run"), clock3,
+                  RuntimeConfig(fsync=False))
+rt3.start()
+for _ in range(60):
+    if rt3.status != "running":
+        break
+    rt3.step()
+    for aid, e in list(pol.queue.items()):           # the operator approves each request as soon as it is queued
+        if e["status"] == "pending":
+            pol.resolve_approval(aid, True, "operator")
+R.check("5 approved programs: every external step counted (runtime counter = world executions) and the limit holds",
+        world3._n_exec > 0 and rt3.counters["external_actions"] == world3._n_exec and world3._n_exec <= 7 + 3,
+        {"world_executed": world3._n_exec, "runtime_counter": rt3.counters["external_actions"],
+         "approvals": len(pol.queue), "reason": rt3.status_reason})
 sys.exit(R.done())
