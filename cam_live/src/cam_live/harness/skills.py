@@ -61,7 +61,11 @@ ATTRIBUTABLE = (FailureClass.PAGE_CHANGED, FailureClass.WRONG_SITE_ASSUMPTION, F
 _VOLATILE = re.compile(r"(elapsed_s|_bytes|\.bytes|ratelimit|retry_after)|^d:(headers|truncated|structure_hash|redirects)(/|$)"
                        # observation-relative bookkeeping of a page observation (its diff to the previous observation,
                        # document / state ids, focus, scroll position): not the state of the world
-                       r"|^d:(diff|full|base_obs_id|state_hash|doc|generation|focused|scroll|viewport)(/|$)")
+                       r"|^d:(diff|full|base_obs_id|state_hash|doc|generation|focused|scroll|viewport)(/|$)"
+                       # the presentation of a page (its outline, accessibility tree, control table, forms, links, tabs):
+                       # it changes with where the procedure starts (a dialog already open, a fresh load), its content
+                       # (tables, text, fields) is what a procedure changes
+                       r"|^d:(outline|a11y|elements|elements_total|forms|links|tabs|canvases)(/|$)")
 #: a measure of the size of content (its last name segment), not a count of things: what changes with the arguments
 _SIZE_KEY = re.compile(r"(?:^|[/_.:])(?:text_?len|len|length|size|bytes|n_bytes|chars|n_chars)$")
 #: transport metadata of an observation is not a value "produced by the step" and is never captured; neither is a
@@ -416,7 +420,9 @@ def element_of(action: ActionSpec, obs: Optional[Observation]) -> Optional[Dict[
     if hit is None:
         return None
     same = [e for e in els if e.get("role") == hit.get("role") and e.get("name") == hit.get("name")]
-    return dict(hit, nth=next(i for i, e in enumerate(same) if e is hit), n_same=len(same))
+    peers = [str(e.get("name")) for e in els if e.get("role") == hit.get("role") and e.get("name") not in (None, "")]
+    return dict(hit, nth=next(i for i, e in enumerate(same) if e is hit), n_same=len(same),
+                peers=list(dict.fromkeys(peers)))
 
 
 def stable_arguments(action: ActionSpec, obs: Optional[Observation], tool: Optional[ToolDescriptor]
@@ -944,7 +950,10 @@ class SkillInducer:
                 else:
                     tmpl = ab.abstract(vals, j, path[-1], f"step {j} ({src[0].operation}) {'.'.join(path)}")
                 if isinstance(tmpl, dict) and set(tmpl) == {"$param"}:
-                    opts = [e[j].get("options") for e in segel if e[j] is not None]
+                    # a choice among what the interface offered: a select's options, or (when the element itself
+                    # varied) the names of the elements of that role the observation showed (e.g. radio buttons)
+                    key = "peers" if path == ("name",) else "options"
+                    opts = [e[j].get(key) for e in segel if e[j] is not None]
                     if len(opts) == len(segs) and all(isinstance(o, list) and o for o in opts) and \
                             all(any(_same(v, x) for x in o) for v, o in zip(vals, opts)):
                         common = [x for x in opts[0] if all(any(_same(x, y) for y in o) for o in opts[1:])]

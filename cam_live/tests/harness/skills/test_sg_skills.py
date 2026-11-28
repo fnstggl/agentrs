@@ -416,3 +416,37 @@ def test_the_reusable_portion_of_a_noisy_own_trace_is_found_by_validation(stagin
     # of the detour's page, so the shorter procedure could not be formed)
     assert sk.steps[0].arguments["name"] == "Designation" and sk.steps[1].arguments["name"] == "Group"
     assert any(c.kind == "element_present" and c.spec["name"] == "Designation" for c in sk.preconditions)
+
+
+@pytest.mark.browser
+def test_after_an_interface_change_a_new_skill_is_acquired_from_traces_on_the_new_interface(staging):
+    """Layout B (other labels, a dialog, radio buttons instead of a select). Before SG-round 2 the radio clicked in
+    each trace ('Parts' / 'Misc') became a free-text parameter whose fresh value named no element, and the page's
+    outline count (+1 when the dialog opens) was a postcondition that failed when the dialog was already open."""
+    staging.sc.sites.variants.set_layout("b")
+    base = staging.sc.sites.urls["variants"].rstrip("/")
+
+    def store_b(name, cls):
+        ids = []
+        _, r = staging.run("browser.navigate", {"url": base + "/app/"})
+        o = staging.page(r)
+        for name_, extra in (("Add entry", {}), ("Title", {"text": name}), (cls, {}), ("Commit", {})):
+            e = next(x for x in o.data["elements"] if x.get("name") == name_)
+            op = "browser.fill" if "text" in extra else "browser.click"
+            a, r = staging.run(op, dict({"ref": e["ref"], "obs_id": o.obs_id, "tab": o.data["tab"]}, **extra))
+            assert r.status == ResultStatus.OK, r.failure_detail
+            ids.append(a.action_id)
+            o = staging.page(r) or o
+        return ids
+    t1, t2 = store_b("Bee one", "Parts"), store_b("Bee two", "Misc")
+    _, r = staging.run("skill.induce", {"traces": [t1, t2]})
+    assert r.status == ResultStatus.OK, r.failure_detail
+    sk = staging.skills.library.get(r.artifacts["skill_id"])
+    props = sk.arg_schema["properties"]
+    assert sorted(props) == ["name", "text"] and props["name"]["enum"] == ["Tools", "Parts", "Misc"]
+    assert not any(str(c.spec.get("path", "")).startswith(("outline", "elements", "a11y")) for c in sk.postconditions)
+    for i, cls in enumerate(("Tools", "Misc")):                 # also with the dialog left as validation left it
+        _, r = staging.run("skill.run", {"skill_id": sk.skill_id, "arguments": {"text": f"Bee run {i}", "name": cls}})
+        assert r.status == ResultStatus.OK, r.failure_detail
+    assert [(e["name"], e["category"], e["via"]) for e in staging.entries()[-2:]] == \
+        [("Bee run 0", "tools", "b"), ("Bee run 1", "misc", "b")]
