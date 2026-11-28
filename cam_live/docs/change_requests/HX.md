@@ -72,3 +72,12 @@ selection) and on HX's code (1 failed, 92 passed); HX changed no browser, comput
 **Change (suggested).** The two tests run `sync_playwright()` in a fresh thread (or the test that leaves the event
 loop set closes it / resets `asyncio.set_event_loop(None)` in a fixture finalizer). HX's final run orders the
 directories env, auth, skills, integration, compute.
+
+## Status 2026-11-28 (round 2)
+
+* HX-4 done by HX (`tests/harness/compute/conftest.py` fixture module-scoped, commit 863bdae).
+* HX-2 still open for EA: the hard constraints (now three ids, `X-PLATFORM-ADAPTER` added) are documented in the
+  module docstring of `platform_constraints.py` and in `docs/HX.md`; `docs/EA/SECURITY.md` is not HX's file.
+* HX-1, HX-3 unchanged.
+* New, HX-5 (runtime / operator, owners F / M): a staging run through `cam-live run` must register its staging
+  sites (`opctl local-service add`); nothing in `runtime/` does (G2-harness §2). Not changed by HX.

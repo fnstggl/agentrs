@@ -79,3 +79,43 @@ outside the live-checked path; a fresh live run is needed for fresh evidence (HX
 
 CU-19: the procedure level (skills) records the semi-Markov fields; environment programs keep no per-step
 boundaries and `cam_live.credit.smdp` is not reachable from the runtime. Change request HX-3.
+
+# Round 2 — fixes of the G2-harness findings at 4d6044a (2026-11-28)
+
+Report: `docs/verification/G2_harness.md`; probes `docs/verification/repro/g2harness/g01..g06` (run from
+`/workspace/camlive`, exit 0 = every property HOLDS). Commits `863bdae` (code + tests), `efff208` (docstring). Final run `docs/evidence/test_results/HX_fix2.xml`:
+`tests/harness/{compute,env,auth,skills}` + `tests/integration/test_credentials_membership.py`, compute first, `-m "browser or
+privileged or not (gpu or slow or network)"`, as root — 616 passed, 0 failed, 4 deselected, 263 s at efff208. G-sec
+probes p01–p15 re-run after the fixes: all 0 DEFECT.
+Before → after (HOLDS / DEFECT): g01 19/11 → 30/0, g02 1/1 → 2/0, g03 4/3 → 7/0, g04 0/1 → 1/0, g05 23/1 → 24/0,
+g06 1/1 → 2/0. The new policy tests (`tests/harness/auth/test_hx2_fixes.py`, 8) all fail on 4d6044a.
+
+| Defect | Fix | Tests |
+|---|---|---|
+| D1 (major) Discord message text / member list readable through generic HTTP with the released bot token | `X-PLATFORM-ADAPTER` in `platform_constraints.py`: Discord's API, Gateway and attachment CDN only through `discord.*` operations, by every modality (also named in code); a platform credential (vault scope or known name) named by any other operation is refused, and `PolicyService.secret_get` releases it only to an action that is or contains an operation of its adapter. The adapter's own transport requests realise its operation (`check_primitive` passes the granted action) and stay covered | `test_hx2_fixes.py` (planning task + `tools/authorize_live.py` record), `test_ea_approvals.py` (raw request now refused) |
+| D2 (major) no code sandbox in the separated deployment | `cam_live.harness.sandbox_host`: a root sandbox host the launcher starts with `exec` (it serves only the environment service's uid, SO_PEERCRED, `<run>/sock/sandbox.sock`); the environment service (still `cambrowser`) gets `RemoteSandboxExecutor` (`factories.code`, `$CAM_LIVE_SANDBOX_SOCKET`). Programs run in the unchanged `SandboxExecutor` (camsbx, no_new_privs, Landlock, seccomp, rlimits); every primitive it wants checked is answered by the environment's own `ExecContext.check` over the connection (authorization service, environment log), cancellation is forwarded, the host gets no secrets | `test_hx_sandbox_host_privileged.py` (`-m privileged`, launched like `cam-live run`) |
+| D3 Discord developer portal | `/developers/*` except `/developers/docs*` is Discord's client application (user session) | `test_hx2_fixes.py` |
+| D4 a site's own CAPTCHA | answer keys by substring (`captcha`, `recaptcha`, `human_check`, `turnstile` ...); the browser reports the field names of every submitted form (`form_fields`) and the constraint reads the accessible name of the element an input / click goes to ("CAPTCHA answer", "I am not a robot", "Verify you are human") | `test_hx2_fixes.py`, `tests/harness/env/test_hx2_browser.py` (Chromium: nothing submitted, an ordinary form still works) |
+| D5 `resources.authorized_tools` | enforced at authorization for the action and every program step (`P-TOOL-NOT-AUTHORIZED`; names, globs, modality names); no list = interfaces alone, as before. Primitives an executor reports while realising an authorized action are not matched against it | `test_hx2_fixes.py` |
+| D6 same-origin reads | the browser judges script reads (fetch / XHR / EventSource) per URL, not per origin; page-script reads of Discord (origin-level, client or API paths) are refused | `test_hx2_browser.py`, `test_hx2_fixes.py` |
+| D7 public address | `PUBLIC_IPADDR` in the launcher's `ENV_PASSTHROUGH` | g05, `test_hx2_fixes.py` |
+| HX-4 | `tests/harness/compute/conftest.py` Chromium fixture module-scoped | the final run puts `compute` first |
+| HX-2 / D8 | the hard constraints are documented in the module docstring of `platform_constraints.py` and here (below); `docs/EA/SECURITY.md` is not HX's file (change request HX-2 stays open for EA) | — |
+
+## The hard constraints (not policy data)
+
+`src/cam_live/harness/auth/platform_constraints.py`, called from `Evaluator.node` for `authorize` (every step of a
+program) and `check_primitive` (every primitive an executor reports). No policy file (`configs/authorization.yaml`),
+live record, approval or owned / pre-authorized / interactive entry can permit what they refuse:
+
+* `X-HUMAN-VERIFICATION` — CAPTCHA solvers (services, libraries, operation names), answering or interacting with
+  a challenge (third-party widgets by host, challenge paths, answer keys by substring, element labels, submitted
+  form fields), detection evasion (`navigator.webdriver`, stealth libraries), proxy / IP rotation.
+* `X-USER-ACCOUNT` — the browser on Discord's client application, developer portal, API or invites (the profile
+  may hold a user session), page scripts reading Discord, raw requests to user-only endpoints or with non-bot
+  credentials, self-bot code.
+* `X-PLATFORM-ADAPTER` — Discord data (API, Gateway, attachments) and the Discord credential only through the
+  Discord adapter.
+
+Limits: the lists are finite and need upkeep; code is judged lexically; the constraints know one integrated
+platform (Discord).

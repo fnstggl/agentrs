@@ -70,24 +70,31 @@
     "tests/harness/auth/test_ea_grants.py::test_valid_grant_is_accepted_once",
     "tests/harness/auth/test_ea_service.py::test_every_method_for_every_caller",
     "tests/harness/auth/test_ea_privileged.py::test_rpc_peer_uid_authorization_matrix",
-    "tests/harness/auth/test_ea_fix_policy.py::test_an_emptied_log_without_its_head_fails_verification"
+    "tests/harness/auth/test_ea_fix_policy.py::test_an_emptied_log_without_its_head_fails_verification",
+    "tests/harness/auth/test_hx2_fixes.py::test_the_tasks_authorized_tools_are_enforced",
+    "tests/harness/auth/test_hx2_fixes.py::test_authorized_tools_accept_modality_names_and_an_absent_list_changes_nothing"
    ],
    "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix2.xml   # 616 passed, 0 failed, 4 deselected (gpu/slow/network) in 263 s at efff208, compute first (HX-4 fixed); browser and privileged marks included",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g03_planning_task_raw_api.py   # HOLDS, 0 DEFECT",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not privileged\" --junitxml=cam_live/docs/evidence/test_results/EA.xml",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EA_fix.xml",
     "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p09_audit.py"
    ],
    "evidence": [
-    "docs/evidence/test_results/EA.xml",
+    "docs/EA/FIXES.md",
     "docs/EA/POLICY_SCHEMA.md",
+    "docs/HX.md",
+    "docs/evidence/test_results/EA.xml",
     "docs/evidence/test_results/EA_fix.xml",
-    "docs/EA/FIXES.md"
+    "docs/evidence/test_results/HX_fix2.xml"
    ],
    "limitations": "The tool table (default_policy.yaml) was written before the other workstreams' tool names were final: an operation it does not list is denied until a line is added (data). Tool permissions are enforced where executors call check_grant / check_primitive; that wiring is in other workstreams' code. verify_audit_log requires the head file (or an expect_head anchor) by default since the fix round; require_head=False checks chain consistency only.",
    "fix_round_2026_11_27": {
     "changed": "G-sec m7 fixed: head required by default; p09 12/0.",
     "still_fails": []
-   }
+   },
+   "hx_round2_2026_11_28": "HX round 2 (G2-harness D5): resources.authorized_tools is enforced at authorization for the action and every program step (P-TOOL-NOT-AUTHORIZED; names, globs, modality names); a task without the list is unchanged. Primitives that realise an authorized action are not matched against the list."
   },
   "IH-09": {
    "state": "implemented",
@@ -232,7 +239,9 @@
     "src/cam_live/harness/auth/evaluate.py",
     "src/cam_live/harness/auth/policy.py",
     "src/cam_live/harness/auth/service.py",
-    "src/cam_live/harness/auth/platform_constraints.py"
+    "src/cam_live/harness/auth/platform_constraints.py",
+    "src/cam_live/harness/browser.py",
+    "src/cam_live/harness/auth/launcher.py"
    ],
    "integration_points": [
     "cam_live.harness.auth.PolicyService.authorize",
@@ -268,9 +277,16 @@
     "tests/harness/auth/test_ea_fix_policy.py::test_cross_origin_subresource_checks_are_reads_by_method",
     "tests/harness/auth/test_ea_fix_policy.py::test_the_run_policy_is_the_fixed_default_and_is_what_a_run_loads",
     "tests/harness/auth/test_hx_platform_constraints.py::test_the_constraints_hold_in_staging_and_through_programs_and_skills",
-    "tests/harness/env/test_hx_browser_constraints.py::test_a_challenge_frame_loads_but_its_answer_never_leaves_the_browser"
+    "tests/harness/env/test_hx_browser_constraints.py::test_a_challenge_frame_loads_but_its_answer_never_leaves_the_browser",
+    "tests/harness/auth/test_hx2_fixes.py::test_the_adapters_own_transport_primitives_stay_covered",
+    "tests/harness/env/test_hx2_browser.py::test_a_page_script_cannot_read_a_denied_path_of_its_own_origin",
+    "tests/harness/auth/test_hx2_fixes.py::test_the_launcher_passes_the_public_address_to_the_services"
    ],
    "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix2.xml   # 616 passed, 0 failed, 4 deselected (gpu/slow/network) in 263 s at efff208, compute first (HX-4 fixed); browser and privileged marks included",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g01_policy_bypass.py   # HOLDS, 0 DEFECT",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g05_local_address.py   # HOLDS, 0 DEFECT",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g06_browser_same_origin_reads.py   # HOLDS, 0 DEFECT",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included",
     "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p03_limits.py",
     "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p04_approvals.py",
@@ -293,7 +309,8 @@
     "docs/HX.md",
     "docs/evidence/test_results/EA.xml",
     "docs/evidence/test_results/EA_fix.xml",
-    "docs/evidence/test_results/HX_fix.xml"
+    "docs/evidence/test_results/HX_fix.xml",
+    "docs/evidence/test_results/HX_fix2.xml"
    ],
    "limitations": "One rule set and one evaluator (Evaluator.node) for every modality, applied at authorization (every step of programs and skills) and to every primitive an executor reports (check_primitive). Executors that report primitives: browser (page navigations incl. frames, every write request, first cross-origin read per origin, WebSockets, downloads), visual, http (every redirect hop), sandbox egress broker (net.connect, which the default policy does not list: generated code gets no network under it), jobs, skills (each step), publishing, Discord. Not a kernel egress filter (no CAP_NET_ADMIN): an executor that did not report a request would not be checked; HTTPS / WebSocket tunnels are judged by host:port. Content detectors are lexical (IH-14).",
    "hx_2026_11_27": "Code: hard platform constraints added to the shared evaluator (commit a1cdc0e). Ran the earlier G-sec probes for the CU-25 defects M1-M4 / m6 again: p03 9/0, p04 15/0, p05 3/0, p06 4/0, p15 18/0 (HOLDS / DEFECT), and the G-env executor probes with the real policy: probe_browser 19/0, probe_skills 10/0, probe_api_publish_modality 15/0, probe_programs 2/0, probe_separated 3/1 -- its one DEFECT line (SEP-BROWSER) is the probe's own staging site in the probe process being refused by the local-address rule of EA-9 in the separated deployment (loopback not served by the authorization service and not registered): enforcement working, the probe predates the rule.",
@@ -308,7 +325,8 @@
      "p07 'per-member join/leave events need the member_list / personal-data permission' still reports DEFECT: by instruction discord.get_member_events stays an aggregate read (counts and pseudonymous join times, spec 12.5 'observing permitted membership statistics'); left to the caller.",
      "tests/harness/skills/test_es_discord_live_check.py::test_the_policys_live_mode_with_a_signed_record_and_a_narrower_scope fails until ES registers its in-process staging servers (change request EA-9; verified fix)."
     ]
-   }
+   },
+   "hx_round2_2026_11_28": "Round 2: data-use classes of the Discord modality can no longer be bypassed through the api modality (D1); page-script reads judged per URL (D6); the launched authorization service gets PUBLIC_IPADDR (D7). g05 23/1 -> 24/0, g06 1/1 -> 2/0. Static subresources (images, styles, scripts) are still judged per origin."
   },
   "CU-26": {
    "state": "implemented",
@@ -404,25 +422,34 @@
     "tests/harness/auth/test_ea_policy_rules.py::test_paying_or_rewarding_for_engagement",
     "tests/harness/auth/test_ea_policy_rules.py::test_profiling_and_vulnerable_audiences",
     "tests/harness/auth/test_hx_platform_constraints.py::test_every_prohibited_class_of_12_6_is_refused_without_an_approval_backstop",
-    "tests/harness/auth/test_hx_platform_constraints.py::test_captcha_solving_services_are_never_contacted_whatever_the_record_allows"
+    "tests/harness/auth/test_hx_platform_constraints.py::test_captcha_solving_services_are_never_contacted_whatever_the_record_allows",
+    "tests/harness/auth/test_hx2_fixes.py::test_a_sites_own_captcha_is_recognised_structurally",
+    "tests/harness/auth/test_hx2_fixes.py::test_discord_data_is_reached_only_through_the_adapter_under_the_planning_task"
    ],
    "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix2.xml   # 616 passed, 0 failed, 4 deselected (gpu/slow/network) in 263 s at efff208, compute first (HX-4 fixed); browser and privileged marks included",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g01_policy_bypass.py   # HOLDS, 0 DEFECT",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g03_planning_task_raw_api.py   # HOLDS, 0 DEFECT",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included",
     "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p07_prohibited_classes.py   # 13 HOLDS, 0 DEFECT (exit 0)"
    ],
    "evidence": [
+    "docs/HX.md",
     "docs/evidence/test_results/HX_fix.xml",
-    "docs/HX.md"
+    "docs/evidence/test_results/HX_fix2.xml"
    ],
    "limitations": "All ten classes of spec 12.6 have enforcement: structural rules deny (recipient counts, identity-override fields, membership kinds and fields, incentive fields and payment purposes, credential fields / patterns / vault values, personal-data and member-list data classes, profiling fields, vulnerable audience filters, re-issued denied targets, and since HX the hard constraints of OP-09 for circumvention), content detectors deny or ask the operator. The content detectors are lexical: a novel paraphrase to a destination the signed live record PRE-AUTHORIZES can still pass (without pre-authorization every live publication needs the operator). 'Circumvention of platform restrictions' covers CAPTCHA / human verification, Discord user accounts, proxy rotation and denied-target re-issue; other restriction kinds are only as good as the destination rules. Checked by lexical / structural rules, not by a model.",
-   "hx_2026_11_27": "Before HX the circumvention class had no rule for CAPTCHA solving: an http.post to 2captcha.com that the record owned and pre-authorized was allowed (measured on 40734d6: the new 12.6 test failed only on that class). Fixed by the hard constraints (commit a1cdc0e); the 9 other classes were already refused. G-sec probe p07 re-run: 13 HOLDS / 0 DEFECT."
+   "hx_2026_11_27": "Before HX the circumvention class had no rule for CAPTCHA solving: an http.post to 2captcha.com that the record owned and pre-authorized was allowed (measured on 40734d6: the new 12.6 test failed only on that class). Fixed by the hard constraints (commit a1cdc0e); the 9 other classes were already refused. G-sec probe p07 re-run: 13 HOLDS / 0 DEFECT.",
+   "hx_round2_2026_11_28": "Round 2: unauthorized data collection through raw reads of Discord (D1) and circumvention via a site's own CAPTCHA / unlisted answer keys (D4) are now refused; the earlier statement 'the 9 other classes were already refused' was true for discord.* tools only (G2-harness §4)."
   },
   "IH-15": {
    "state": "implemented",
    "files": [
     "src/cam_live/harness/auth/default_policy.yaml",
     "src/cam_live/harness/auth/policy.py",
-    "src/cam_live/harness/discord.py"
+    "src/cam_live/harness/discord.py",
+    "src/cam_live/harness/auth/platform_constraints.py",
+    "src/cam_live/harness/auth/evaluate.py"
    ],
    "integration_points": [
     "cam_live.harness.auth.PolicyService.authorize",
@@ -433,17 +460,24 @@
     "tests/harness/auth/test_ea_policy_rules.py::test_data_use_permissions",
     "tests/harness/skills/test_es_discord.py::test_message_content_is_dropped_by_default",
     "tests/harness/skills/test_hx_data_use.py::test_read_permission_alone_does_not_let_message_text_into_the_experience_stream",
-    "tests/harness/skills/test_hx_data_use.py::test_store_and_train_permissions_and_the_platform_rule_decide"
+    "tests/harness/skills/test_hx_data_use.py::test_store_and_train_permissions_and_the_platform_rule_decide",
+    "tests/harness/auth/test_hx2_fixes.py::test_discord_data_is_reached_only_through_the_adapter_under_the_planning_task",
+    "tests/harness/auth/test_hx2_fixes.py::test_the_bot_credential_is_released_only_to_discord_operations"
    ],
    "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix2.xml   # 616 passed, 0 failed, 4 deselected (gpu/slow/network) in 263 s at efff208, compute first (HX-4 fixed); browser and privileged marks included",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g03_planning_task_raw_api.py   # HOLDS, 0 DEFECT",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g01_policy_bypass.py   # HOLDS, 0 DEFECT",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included"
    ],
    "evidence": [
+    "docs/HX.md",
     "docs/evidence/test_results/HX_fix.xml",
-    "docs/HX.md"
+    "docs/evidence/test_results/HX_fix2.xml"
    ],
-   "limitations": "Enforced at the source: what the Discord adapter does not put into an observation cannot be stored or trained on. Message text leaves the adapter only with the adapter flag discord_message_content AND the task permissions read_message_content, store_message_content and train_on_message_content AND a policy without the default rule PL-DISCORD-MESSAGE-CONTENT (the operator removes it only after obtaining Discord's express permission). Members leave the client as one-way pseudonyms; personal data / member lists need their own permissions. Once an observation is delivered, the learner stores and trains on it: there is no per-observation data-use label the learner honours (not needed under the default policy, because no message text is delivered). Other platforms: only the generic data classes of the policy apply. Verified against the staging Discord service only.",
-   "hx_2026_11_27": "Defect found and fixed (commit 204e9d4): with read_message_content only (store/train false) the adapter retained message text in its observations because it declared the retention as a read; it now declares read + store + train. tests/harness/skills/test_hx_data_use.py fails on 40734d6 (the three message texts leaked, status ok) and passes now."
+   "limitations": "Enforced at the source and at the modality boundary: (a) the Discord adapter puts message text into an observation only with the adapter flag AND read / store / train permissions AND a policy without PL-DISCORD-MESSAGE-CONTENT; (b) since round 2 no other modality reaches Discord's data (API, Gateway, attachment CDN refused for every non-discord.* operation, X-PLATFORM-ADAPTER) and the bot credential is released only to discord.* actions, so the generic HTTP executor cannot put Discord message text or the member list into an observation. Once delivered, an observation is stored and learned from (no per-observation data-use label). Other platforms: only the policy's generic data classes; only Discord is an integrated platform. Verified against staging Discord and policy-level checks only.",
+   "hx_2026_11_27": "Defect found and fixed (commit 204e9d4): with read_message_content only (store/train false) the adapter retained message text in its observations because it declared the retention as a read; it now declares read + store + train. tests/harness/skills/test_hx_data_use.py fails on 40734d6 (the three message texts leaked, status ok) and passes now.",
+   "hx_round2_2026_11_28": "G2-harness D1 (failed verdict): under the real planning task + record, http.get / api.get of message history and the member list were allowed and the bot token released; fixed in 863bdae (X-PLATFORM-ADAPTER, release only to the adapter). g03 4/3 -> 7/0, g01 section B holds; test_hx2_fixes fails on 4d6044a."
   },
   "IH-16": {
    "state": "implemented",
@@ -504,7 +538,10 @@
    "files": [
     "src/cam_live/harness/auth/landlock.py",
     "src/cam_live/harness/auth/launcher.py",
-    "src/cam_live/harness/auth/service.py"
+    "src/cam_live/harness/auth/service.py",
+    "src/cam_live/harness/sandbox_host.py",
+    "src/cam_live/harness/factories.py",
+    "src/cam_live/harness/__init__.py"
    ],
    "integration_points": [
     "cam_live.harness.auth.launcher.launch"
@@ -514,25 +551,31 @@
     "tests/harness/auth/test_ea_privileged.py::test_learner_and_sandbox_uids_cannot_read_vault_audit_or_verifier_files",
     "tests/harness/auth/test_ea_privileged.py::test_rpc_peer_uid_authorization_matrix",
     "tests/harness/auth/test_ea_privileged.py::test_service_uids_cannot_regain_privileges",
-    "tests/harness/env/test_browser_uid.py::test_chromium_runs_under_the_browser_uid_with_a_private_profile"
+    "tests/harness/env/test_browser_uid.py::test_chromium_runs_under_the_browser_uid_with_a_private_profile",
+    "tests/harness/auth/test_hx_sandbox_host_privileged.py::test_generated_code_runs_as_the_sandbox_uid_in_the_separated_deployment"
    ],
    "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix2.xml   # 616 passed, 0 failed, 4 deselected (gpu/slow/network) in 263 s at efff208, compute first (HX-4 fixed); browser and privileged marks included",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g04_separated_sandbox.py   # HOLDS, 0 DEFECT",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included",
     "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p13_uid_separation.py   # 18 HOLDS, 0 DEFECT (exit 0)"
    ],
    "evidence": [
+    "docs/HX.md",
     "docs/evidence/test_results/HX_fix.xml",
-    "docs/HX.md"
+    "docs/evidence/test_results/HX_fix2.xml"
    ],
-   "limitations": "Process and uid separation inside one unprivileged container (camlearn, cambrowser, camsbx, camauth, camverify), Landlock and no_new_privs; not a VM, no network namespaces, shared kernel. The services must be started by the launcher as root; an in-process deployment (tests, diagnostics) has no separation. Measured as root in this container with the real service users.",
-   "hx_2026_11_27": "No code change. Ran the named tests with -m privileged and -m browser; G-sec probe p13 re-run: 18 HOLDS / 0 DEFECT."
+   "limitations": "Process and uid separation inside one unprivileged container: learner (camlearn), environment service with Chromium (cambrowser), generated code (camsbx, run by the sandbox host, a root process the launcher starts with the environment service; it serves only the environment uid and holds no policy and no secrets), authorization service (camauth), verifier (camverify); Landlock, seccomp, no_new_privs. Not a VM, no network namespaces, shared kernel; the sandbox host is root (its only function is to start sandboxed jobs). Generated code has no network under the default policy (net.connect is not a policy tool). Background jobs started through the host deliver late events only by polling (job.status / job.result), not as pushed events. Measured as root with the real service users.",
+   "hx_2026_11_27": "No code change. Ran the named tests with -m privileged and -m browser; G-sec probe p13 re-run: 18 HOLDS / 0 DEFECT.",
+   "hx_round2_2026_11_28": "G2-harness D2: in the separated deployment sandbox.python was unavailable ('not root'); fixed in 863bdae (sandbox host). g04 0/1 -> 1/0 (code runs as camsbx); privileged test through a cam-live-run-style launch."
   },
   "OP-09": {
    "state": "implemented",
    "files": [
     "src/cam_live/harness/auth/default_policy.yaml",
     "src/cam_live/harness/auth/platform_constraints.py",
-    "src/cam_live/harness/auth/evaluate.py"
+    "src/cam_live/harness/auth/evaluate.py",
+    "src/cam_live/harness/browser.py"
    ],
    "integration_points": [
     "cam_live.harness.auth.PolicyService.authorize",
@@ -547,17 +590,25 @@
     "tests/harness/auth/test_hx_platform_constraints.py::test_raw_requests_and_code_never_act_as_a_discord_user",
     "tests/harness/auth/test_hx_platform_constraints.py::test_the_constraints_hold_in_staging_and_through_programs_and_skills",
     "tests/harness/auth/test_hx_platform_constraints.py::test_the_constraint_module_lists_are_consistent",
-    "tests/harness/env/test_hx_browser_constraints.py::test_a_challenge_frame_loads_but_its_answer_never_leaves_the_browser"
+    "tests/harness/env/test_hx_browser_constraints.py::test_a_challenge_frame_loads_but_its_answer_never_leaves_the_browser",
+    "tests/harness/auth/test_hx2_fixes.py::test_discords_developer_portal_and_page_script_reads_are_refused_in_the_browser",
+    "tests/harness/auth/test_hx2_fixes.py::test_a_sites_own_captcha_is_recognised_structurally",
+    "tests/harness/env/test_hx2_browser.py::test_a_sites_own_captcha_is_neither_answered_nor_submitted"
    ],
    "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix2.xml   # 616 passed, 0 failed, 4 deselected (gpu/slow/network) in 263 s at efff208, compute first (HX-4 fixed); browser and privileged marks included",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g01_policy_bypass.py   # HOLDS, 0 DEFECT",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g02_browser_captcha.py   # HOLDS, 0 DEFECT",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included"
    ],
    "evidence": [
+    "docs/HX.md",
     "docs/evidence/test_results/HX_fix.xml",
-    "docs/HX.md"
+    "docs/evidence/test_results/HX_fix2.xml"
    ],
    "limitations": "Where it is enforced: (1) cam_live.harness.auth.platform_constraints (X-HUMAN-VERIFICATION, X-USER-ACCOUNT), fixed in code and called from Evaluator.node for authorize and check_primitive, so no policy file, record, approval or owned / pre-authorized / interactive entry can permit them; (2) the policy rule PL-DISCORD-NO-USER-AUTOMATION (browser / visual interaction or writes on Discord hosts); (3) the Discord adapter sends only 'Authorization: Bot <token>' and has no user-token code path; (4) the live check of 2026-11-27 showed the stored credential is a bot (bot: true). Limits: the solver-service, challenge-endpoint and Discord user-endpoint lists are finite and need upkeep; detection of solver / evasion use in generated code is lexical; user-account automation is constrained for Discord (the only configured platform) -- other platforms rely on the policy's ordinary rules; a challenge on a staging site is recognised by its path (/cdn-cgi/challenge-platform/...), third-party widgets by their hosts, which staging cannot serve (tested at the policy level). An operator who stores a user token under the bot credential's name is not detected offline (Discord would reject it with the Bot scheme).",
-   "hx_2026_11_27": "Missing before HX (commit a1cdc0e): on 40734d6 a record that owned and pre-authorized the destinations allowed http.post to 2captcha.com, a solved g-recaptcha-response, browser.navigate to discord.com/login and a raw POST to /api/v9/auth/login; 7 of the 8 new policy tests and the Chromium test (the challenge answer reached the server) fail on that code and pass now."
+   "hx_2026_11_27": "Missing before HX (commit a1cdc0e): on 40734d6 a record that owned and pre-authorized the destinations allowed http.post to 2captcha.com, a solved g-recaptcha-response, browser.navigate to discord.com/login and a raw POST to /api/v9/auth/login; 7 of the 8 new policy tests and the Chromium test (the challenge answer reached the server) fail on that code and pass now.",
+   "hx_round2_2026_11_28": "Round 2 (G2-harness D3, D4, D6): developer portal refused, CAPTCHA recognised structurally (substring keys, element labels, submitted form fields), page-script reads of Discord refused. g01 19/11 -> 30/0, g02 1/1 -> 2/0."
   },
   "OP-07": {
    "state": "implemented",
@@ -696,6 +747,17 @@
   ],
   "final_run": "605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included",
   "junit": "docs/evidence/test_results/HX_fix.xml",
-  "notes": "docs/HX.md"
+  "notes": "docs/HX.md",
+  "round2": {
+   "date": "2026-11-28",
+   "fixes": "G2-harness D1-D7, HX-4",
+   "commits": [
+    "863bdae",
+    "efff208"
+   ],
+   "final_run": "616 passed, 0 failed, 4 deselected (gpu/slow/network) in 263 s at efff208, compute first (HX-4 fixed); browser and privileged marks included",
+   "junit": "docs/evidence/test_results/HX_fix2.xml",
+   "probes_after": "g01 30/0, g02 2/0, g03 7/0, g04 1/0, g05 24/0, g06 2/0 (HOLDS/DEFECT)"
+  }
  }
 }
