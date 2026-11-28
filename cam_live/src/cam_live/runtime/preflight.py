@@ -16,6 +16,7 @@ operator's permission scope held), the bot credential in the vault and the verif
 from __future__ import annotations
 
 import os
+import re
 from typing import Any, Dict, List, Optional, Sequence
 from urllib.parse import urlsplit
 
@@ -111,22 +112,45 @@ def authorization_items(task: TaskSpec, raw: Dict[str, Any], policy: Any) -> Lis
     return out
 
 
+def _not_live_label(key: str, v: str) -> bool:
+    """G2R-10: a component label read as a word, not a spelling: ``environment`` / ``provenance`` must say exactly
+    ``live`` (case and surrounding space ignored); other labels are not live when any of their words is."""
+    norm = v.strip().lower()
+    if key in ("environment", "provenance"):
+        return norm != "live"
+    words = set(re.split(r"[^a-z0-9]+", norm)) - {""}
+    return bool(words & set(_NOT_LIVE))
+
+
+def _local_address(v: str) -> str:
+    """'' or the kind (loopback / private / link-local ...) of the host of a URL-like value, canonicalised (0.0.0.0,
+    ``localhost.``, ``[::ffff:127.0.0.1]``, private networks) by the authorization service's own rules."""
+    from ..harness.auth import destinations as D
+    from ..harness.auth import localnet
+    if "://" not in v:
+        return ""
+    try:
+        return localnet.local_kind(D.normalise_url(v.strip()).host)
+    except Exception:  # noqa: BLE001 — not an address
+        return ""
+
+
 def _labels(caps: Any, path: str = "capabilities") -> List[str]:
     """Every component inside the environment's capabilities that says it is not live (recursively)."""
     out: List[str] = []
     if isinstance(caps, dict):
         for k, v in caps.items():
             p = f"{path}.{k}"
-            if k in ("environment", "provenance", "mode") and isinstance(v, str) and v.lower() in _NOT_LIVE:
+            key = str(k).lower()
+            if key in ("environment", "provenance", "mode") and isinstance(v, str) and _not_live_label(key, v):
                 out.append(f"{p} = {v!r}")
-            elif k in ("live",) and v is False and path != "capabilities":
+            elif key in ("live",) and v is False and path != "capabilities":
                 out.append(f"{p} = False")
-            elif k in ("staging", "simulated", "simulated_time") and v is True and path != "capabilities":
+            elif key in ("staging", "simulated", "simulated_time") and v is True and path != "capabilities":
                 out.append(f"{p} = True")
-            elif k in ("base_url", "url", "endpoint") and isinstance(v, str):
-                host = (urlsplit(v).hostname or "").lower()
-                if host in ("localhost", "::1") or host.startswith("127.") or host.endswith(".local"):
-                    out.append(f"{p} = {v!r} (a local service)")
+            elif isinstance(v, str) and _local_address(v):
+                # any value that is a URL, whatever its key (base_url, api_base, endpoint, ...)
+                out.append(f"{p} = {v!r} (a {_local_address(v)} address: a local service)")
             else:
                 out += _labels(v, p)
     elif isinstance(caps, list):

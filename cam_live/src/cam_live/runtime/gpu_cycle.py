@@ -157,12 +157,10 @@ def _wait_for_lock(rt: Any, lease: GpuLease, why: str) -> bool:
     rt._save_state()
 
     def abort() -> bool:
-        if rt._interrupted():
-            rt._apply_commands()
-            if rt._stop_requested and rt.status != "stopped":
-                rt._halt("stopped", rt._stop_requested)
+        # an operator command or a stop ends the wait; it is applied by the next step (its checkpoint then waits for
+        # the lock in the learner-call guard: nothing here may itself need the lock)
         rt.gpu = lease.status()
-        return rt.status != RUNNING
+        return bool(rt._stop_requested) or rt._interrupted() or rt.status != RUNNING
 
     waited = lease.acquire(abort)
     if waited is None:
@@ -208,6 +206,37 @@ def attach(rt: Any, lease: GpuLease) -> None:
 
     rt.hooks.setdefault("before_cycle", []).append(before_cycle)
     rt.hooks.setdefault("after_cycle", []).append(after_cycle)
+    longest: Dict[str, float] = {}
+
+    def guard(name: str) -> None:
+        """G2R-9: before every learner call (also the checkpoint of a pause / stop / export applied after a sleep,
+        which used to run without the lock): hold the lock, and yield first when this call — at its longest
+        measured duration — would take the hold past ``hold_s``. A hold is therefore bounded by ``hold_s`` plus at
+        most one learner call longer than any of its kind before (each call is bounded by its own budget)."""
+        if lease.held and lease.hold_s > 0 and lease.held_for() + longest.get(name, 0.0) > lease.hold_s:
+            held = lease.release()
+            lease.stats["yields"] += 1
+            _event(rt, "released", {"why": f"the bounded hold would be exceeded by the next learner call ({name})",
+                                    "held_s": round(held, 1), "hold_s": lease.hold_s})
+            time.sleep(max(0.0, lease.yield_s))
+        if not lease.held:
+            prev = dict(getattr(rt, "_activity", {}) or {})
+            try:
+                rt._set_activity("waiting_for_gpu_lock", f"before the learner call {name}")
+                rt.gpu = {**lease.status(), "waiting_for_s": 0.0}
+                rt._save_state()
+            except Exception:  # noqa: BLE001 — before the runtime has a state: just wait
+                pass
+            waited = lease.acquire()          # not abandoned: this learner work (e.g. a stop's checkpoint) needs it
+            if prev:
+                rt._activity = prev
+            _event(rt, "acquired", {"why": f"before the learner call {name}", "waited_s": round(waited or 0.0, 1)})
+
+    def timing(name: str, dt: float) -> None:
+        longest[name] = max(longest.get(name, 0.0) * 0.98, dt)       # slowly forgets an outlier
+
+    rt.learner_guard = guard
+    rt.learner_timing = timing
 
 
 def lease_settings(cfg: Any) -> Dict[str, float]:

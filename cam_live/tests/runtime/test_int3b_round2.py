@@ -483,3 +483,45 @@ def test_redaction_covers_more_secret_shapes_and_leaves_prose_readable(tmp_path)
                   "sha256 " + "0f" * 32):
         assert red.text(prose) == prose, prose                                   # a5ab772: over-redacted
     assert "[REDACTED" in red.text("password: hunter22") and "[REDACTED" in red.text("from 203.0.113.9")
+
+
+# ---------------------------------------------------------------------------------------------------------- G2R-10
+def test_preflight_names_local_components_whatever_their_spelling():
+    from cam_live.runtime.preflight import _labels
+    caps = {"executors": {"a": {"environment": "staging-discord"}, "b": {"environment": "Staging "},
+                          "c": {"base_url": "http://0.0.0.0:18471"}, "d": {"base_url": "http://localhost.:18471"},
+                          "e": {"base_url": "http://[::ffff:127.0.0.1]:18471"}, "f": {"base_url": "http://10.1.2.3:1"},
+                          "g": {"api_base": "http://127.0.0.1:18471"}}}
+    found = " ".join(_labels(caps))
+    for k in "abcdefg":
+        assert f"executors.{k}." in found, k                                   # a5ab772: 7 not recognised
+    live = {"live": True, "executors": {"discord": {"environment": "live", "base_url": "https://discord.com/api/v10"}}}
+    assert _labels(live) == []
+
+
+# ---------------------------------------------------------------------------------------------------------- G2R-9
+def test_a_hold_is_bounded_between_learner_calls_not_only_between_cycles(tmp_path):
+    import time as _t
+    from cam_live.diagnostics.world import LabConfig
+    from cam_live.runtime.gpu_cycle import GpuLease, attach
+    from cam_live.runtime.loop import RuntimeConfig
+    from rt_helpers import make_lab
+    lab = make_lab(str(tmp_path / "run"), lab_cfg=LabConfig(seed=3, target=100000), rt_cfg=RuntimeConfig(fsync=False))
+    lease = GpuLease(str(tmp_path / "gpu.lock"), hold_s=0.5, yield_s=0.05, poll_s=0.02, release_sleep_s=1e9)
+    lease.acquire()
+    attach(lab.rt, lease)
+    for name in ("learn", "meta_learn"):                     # each call 0.3 s: a cycle (0.6 s) is longer than the bound
+        orig = getattr(lab.agent, name)
+        setattr(lab.agent, name, (lambda f: (lambda budget: (_t.sleep(0.3), f(budget))[1]))(orig))
+    lab.rt.start()
+    t0 = _t.time()
+    while _t.time() - t0 < 4.0 and lab.rt.status == "running":
+        lab.rt.step()
+    lease.release()
+    from cam_live.runtime.logs import RunReader
+    holds = [e["data"]["held_s"] for e in RunReader(lab.run_dir).records(RunFiles.EVENTS, types=["gpu_lock"])
+             if e["data"]["what"] == "released"]
+    assert len(holds) >= 3
+    # once each call's duration is known, no hold reaches a whole cycle (0.6 s); only the very first may
+    assert len([h for h in holds if h > 0.55]) <= 1, holds                  # a5ab772: every hold is a whole cycle
+    lab.rt.close()

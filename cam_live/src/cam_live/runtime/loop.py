@@ -73,6 +73,8 @@ _LIMIT_COUNTER = {"money": "money", "compute_s": "compute_s", "max_external_acti
 #: the parts of a task the learner never receives (``tasks.learner_view``); named in ``run_started``
 WITHHELD_FROM_LEARNER = ("success (except metric and target)", "measurement", "resources: credential names, test "
                          "accounts, operator authorization record, evidence settings")
+#: learner calls that do no heavy (GPU) work: no shared-lock guard around them
+_NO_GPU_CALLS = ("status", "next_wake", "drain_experiments", "set_action_validator")
 MAX_LEARNER_QUERIES_PER_DECISION = 16
 MAX_LEARNER_QUERIES_PENDING = 2000
 MAX_LEARNER_HORIZON_S = 10 * 365 * 86400.0
@@ -207,6 +209,8 @@ class LiveRuntime:
         self._draining = False
         self._settle: Optional[Dict[str, Any]] = None          # the ended objective whose outcomes are being measured
         self._cmd_in_progress: Optional[Dict[str, Any]] = None
+        self.learner_guard: Optional[Callable[[str], None]] = None    # called before every learner call (G2R-9)
+        self.learner_timing: Optional[Callable[[str, float], None]] = None
         self.box = PrivateBox(self.run_dir)
         self.log = RunLog(self.run_dir, clock, provenance=task.mode, durable=self._durable,
                           redactor=Redactor.from_config(self.cfg.redaction, load_salt(self.run_dir),
@@ -757,11 +761,18 @@ class LiveRuntime:
     # learner calls (timed for compute accounting)
     # ==========================================================================================================
     def _agent(self, name: str, *args: Any) -> Any:
+        guard = self.learner_guard
+        if guard is not None and name not in _NO_GPU_CALLS:
+            guard(name)                 # G2R-9: e.g. runtime.gpu_cycle: the shared GPU lock is held for every
+                                        # learner call; waiting for it is not charged to the compute limit
         t0 = time.perf_counter()
         try:
             return getattr(self.agent, name)(*args)
         finally:
-            self._compute_unbooked += time.perf_counter() - t0
+            dt = time.perf_counter() - t0
+            self._compute_unbooked += dt
+            if self.learner_timing is not None:
+                self.learner_timing(name, dt)
 
     def _agent_try(self, name: str, *args: Any, default: Any = None) -> Any:
         try:

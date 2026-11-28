@@ -107,9 +107,19 @@ def test_waiting_for_the_lock_is_visible_and_a_stop_ends_the_wait(tmp_path):
     lab = make_lab(str(tmp_path / "run"), lab_cfg=LabConfig(seed=3, target=100000), rt_cfg=RuntimeConfig(fsync=False))
     lease = GpuLease(lock, hold_s=0.0, yield_s=0.0, poll_s=0.05)
     rt = lab.rt
-    attach(rt, lease)                                                   # not held: the first cycle must wait
-    holder = _holder(tmp_path, lock, 60.0)
+    lease.acquire()
+    attach(rt, lease)
+    rt.start()
+    lease.release()                                                     # as after a sleep: not held
+    holder = _holder(tmp_path, lock, 3.0)                               # another tenant holds it for 3 s
     seen = {}
+    calls = []
+    orig = lab.agent.save
+
+    def save(path):                                                     # every checkpoint runs under the lock
+        calls.append(lease.held)
+        return orig(path)
+    lab.agent.save = save
 
     def watch():
         end = time.time() + 20
@@ -123,15 +133,19 @@ def test_waiting_for_the_lock_is_visible_and_a_stop_ends_the_wait(tmp_path):
     th = threading.Thread(target=watch)
     th.start()
     t0 = time.time()
-    rt.step()                                                          # blocks in the lease until the stop
+    for _ in range(3):                                                  # the wait is visible; the stop is applied
+        rt.step()                                                       # and its checkpoint taken under the lock
+        if rt.status == "stopped":
+            break
     th.join()
     try:
         assert seen and seen["state"]["gpu"]["held"] is False
-        assert rt.status == "stopped" and time.time() - t0 < 20
-        assert rt.counters["decisions"] == 0 and not lease.held
-        assert any(e["what"] == "wait_abandoned" for e in _gpu_events(rt.run_dir))
+        assert rt.status == "stopped" and time.time() - t0 < 30
+        assert rt.counters["decisions"] == 0
+        assert calls and all(calls)                                     # G2R-9: no save without the lock
     finally:
         holder.kill()
+        lease.release()
         rt.close()
 
 
