@@ -141,7 +141,7 @@ work now works", measured on the harness, not on CAM's competence.
 
 | Capability | (a) correctness | (b) integration into the real code path | (c) causal influence | (d) measured improvement |
 |---|---|---|---|---|
-| Standing profile + retained approvals | `test_au_standing.py` 25 tests, `test_au_operator_tools.py` 12 | composed environment (`all_executors`) on the real `PolicyService`, record built by the operator tool (`test_au_e2e_standing.py`, 3); launcher-started service under its own uid over AuthRPC (`test_au_separated.py`, privileged) | same record without the profile: the same writes ask (`::test_the_same_writes_without_a_standing_profile_still_ask`); revoking the profile record: back to approval | approvals needed: 0 for 2 Discord writes, 2 deployments and 1 reused skill run (3 deployment steps) under the profile; without it each write asks (tested for a Discord message and a deployment); retained operations: 1 approval each, with or without the profile |
+| Standing profile + retained approvals | `test_au_standing.py` 25 tests, `test_au_operator_tools.py` 12 | composed environment (`all_executors`) on the real `PolicyService`, record built by the operator tool (`test_au_e2e_standing.py`, 5, incl. publishing to an owned site with / without the profile); launcher-started service under its own uid over AuthRPC (`test_au_separated.py`, privileged) | same record without the profile: the same writes ask (`::test_the_same_writes_without_a_standing_profile_still_ask`); revoking the profile record: back to approval | approvals needed: 0 for 2 Discord writes, 2 deployments and 1 reused skill run (3 deployment steps) under the profile; without it each write asks (tested for a Discord message and a deployment); retained operations: 1 approval each, with or without the profile |
 | Scoped network for generated code, package installation | `test_au_standing.py` (connections, jobs) | privileged `test_au_sandbox_packages.py` (real sandbox uid, real egress broker, real service); `test_au_capabilities.py` | without `code_network` hosts the job waits for the operator; an undeclared host is refused per connection | before AU no scoped-network run could execute in the integrated system (0 of any); after: install + import + unit test pass |
 | Scoped credentials | `test_au_operator_tools.py` (binding, lifetime, generation, live pick-up) | `test_au_e2e_standing.py` (CLI-entered credential used by the HTTP executor and by a skill), browser registration test | revocation / expiry / operation binding refuse the release | — |
 | Account / verification requests | `test_au_operator_tools.py` | `test_au_capabilities.py` (through the environment, answer as an operator event) | — | — |
@@ -172,3 +172,16 @@ planning run is CAM's; AU added no prompt, hint or default that would steer it.
   `min_age` is sent to the operator by the vulnerable-audience detector (existing detector, not changed).
 * No live run with a standing record has been made; the planning run of 2026-11-28 uses the record signed before
   this work (no profile) and is unaffected (its policy copy and record are read once at start).
+
+## 7. Final run
+
+* `cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness -q --rootdir=cam_live -m "(privileged or
+  browser or not privileged) and not network and not gpu" --junitxml=cam_live/docs/evidence/test_results/AU_fix.xml`
+  at `a571dd1` (as root, Chromium present): **690 passed, 0 failed, 0 skipped, 4 deselected (network) in 884 s**
+  (machine load average 60-90). The 54 AU tests (`tests/harness/autonomy/`) are among them: standing 25, operator
+  tools 12, capabilities 6, end to end 5, sandbox packages 3 (privileged), browser registration 2, separated 1
+  (privileged).
+* An earlier full run of the same command at `e59e9b0` had 2 failures that pass alone: the browser test
+  `test_research_sessions_are_isolated_and_read_only` (a wall-clock bound of 1.3 s under load; EB's test, not
+  changed) and the sandbox-host peer-refusal probe (`BrokenPipeError` when the host closed the refused connection
+  before the request was written; the probe now counts that as refused, `a571dd1`).

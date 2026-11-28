@@ -1,0 +1,200 @@
+{
+ "workstream": "AU",
+ "commit": "a571dd1 (final run); commits 6890c15 433fe07 663401a 6c6acb9 973512f 605f2bf a571dd1 and docs",
+ "summary": "Operational autonomy (operator amendment 2026-11-28): capability audit of the nine 'verify that CAM can' bullets with executed checks; standing authorization (signed-record standing profile, policy standing section with retained-approval rules, code-network hosts) and its operator tool; scoped, revocable, expiring, operation-bound credentials entered by the operator, generated passwords never shown; credential-shaped API response fields redacted; generated code's scoped network made usable (hosts argument, T-CODE-CONNECT, per-connection declared-host check, job grant), pip in the sandbox and the host's unreadable site-packages pruned; request kinds account / verification; docs/AUTONOMY.md. No strategy, no agent-side change.",
+ "requirements": {
+  "AU-AUDIT": {
+   "state": "implemented",
+   "files": [
+    "docs/AUTONOMY.md",
+    "tests/harness/autonomy/test_au_capabilities.py"
+   ],
+   "integration_points": [],
+   "tests": [
+    "tests/harness/autonomy/test_au_capabilities.py",
+    "tests/harness/autonomy/test_au_e2e_standing.py",
+    "tests/harness/autonomy/test_au_sandbox_packages.py",
+    "tests/harness/autonomy/test_au_browser_registration.py",
+    "tests/harness/autonomy/test_au_operator_tools.py"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness -q --rootdir=cam_live -m \"(privileged or browser or not privileged) and not network and not gpu\" --junitxml=cam_live/docs/evidence/test_results/AU_fix.xml"
+   ],
+   "evidence": [
+    "docs/AUTONOMY.md",
+    "docs/evidence/test_results/AU_fix.xml"
+   ],
+   "limitations": "Bullet 9 (learning from consequences) is a property of the runtime / learner (other workstreams), checked by running their integration tests at the AU HEAD on CPU debug scale; bullets 2 and 6 contain judgements (suitability; whether a service explicitly permits automated registration) that the harness does not make."
+  },
+  "AU-STANDING": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/auth/liveauth.py",
+    "src/cam_live/harness/auth/schema.py",
+    "src/cam_live/harness/auth/evaluate.py",
+    "src/cam_live/harness/auth/policy.py",
+    "src/cam_live/harness/auth/default_policy.yaml",
+    "configs/authorization.yaml",
+    "tools/authorize_live.py"
+   ],
+   "integration_points": [
+    "liveauth.validate_shape (record.standing)",
+    "PolicyService.register_live_authorization",
+    "PolicyService._task_ctx (standing_profile, code_network_hosts, retained)",
+    "Evaluator._retained",
+    "Evaluator.node (code network)",
+    "authorize_live.build_record(standing=...)"
+   ],
+   "tests": [
+    "tests/harness/autonomy/test_au_standing.py",
+    "tests/harness/autonomy/test_au_e2e_standing.py",
+    "tests/harness/autonomy/test_au_separated.py",
+    "tests/harness/autonomy/test_au_operator_tools.py"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness -q --rootdir=cam_live -m \"(privileged or browser or not privileged) and not network and not gpu\" --junitxml=cam_live/docs/evidence/test_results/AU_fix.xml"
+   ],
+   "evidence": [
+    "docs/AUTONOMY.md",
+    "docs/evidence/test_results/AU_fix.xml"
+   ],
+   "limitations": "Retained classes are lexical (operation names, HTTP methods, URL paths, argument keys); an irreversible effect behind an innocuous name is not recognised. No live run with a standing record was made (the operator signs it). Records without a profile keep their old meaning (no retained rules)."
+  },
+  "AU-CREDENTIALS": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/credentials.py",
+    "src/cam_live/harness/auth/vault.py",
+    "src/cam_live/harness/http_api.py"
+   ],
+   "integration_points": [
+    "SecretBroker.release(now=, operation=)",
+    "PolicyService.secret_get",
+    "credentials.store",
+    "http_api.redact_credentials"
+   ],
+   "tests": [
+    "tests/harness/autonomy/test_au_operator_tools.py",
+    "tests/harness/autonomy/test_au_e2e_standing.py",
+    "tests/harness/autonomy/test_au_browser_registration.py"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness -q --rootdir=cam_live -m \"(privileged or browser or not privileged) and not network and not gpu\" --junitxml=cam_live/docs/evidence/test_results/AU_fix.xml"
+   ],
+   "evidence": [
+    "docs/AUTONOMY.md",
+    "docs/evidence/test_results/AU_fix.xml"
+   ],
+   "limitations": "Operation binding is checked against the granted action (skill.run / program), not the step; response redaction is by JSON key only (a token on a web page is not recognised); opctl put-secret has no --op / --expires-hours."
+  },
+  "AU-SANDBOX-NETWORK": {
+   "state": "implemented (foreground runs); background jobs need change request AU-1",
+   "files": [
+    "src/cam_live/harness/sandbox.py",
+    "src/cam_live/harness/auth/policy.py",
+    "src/cam_live/harness/auth/default_policy.yaml"
+   ],
+   "integration_points": [
+    "SandboxExecutor tools hosts argument",
+    "T-CODE-CONNECT",
+    "PolicyService._declared_hosts_check",
+    "PolicyService.record (job grant)",
+    "sandbox _SHIM site-packages pruning"
+   ],
+   "tests": [
+    "tests/harness/autonomy/test_au_sandbox_packages.py",
+    "tests/harness/autonomy/test_au_standing.py",
+    "tests/harness/autonomy/test_au_capabilities.py",
+    "tests/harness/compute/test_ec_sandbox.py"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness -q --rootdir=cam_live -m \"(privileged or browser or not privileged) and not network and not gpu\" --junitxml=cam_live/docs/evidence/test_results/AU_fix.xml"
+   ],
+   "evidence": [
+    "docs/AUTONOMY.md",
+    "docs/evidence/AU/job_probe_output.txt",
+    "docs/evidence/test_results/AU_fix.xml"
+   ],
+   "limitations": "jobs.py (EC) does not put hosts on the job primitive (CR AU-1, tested on a patched copy); a job's network lasts at most the grant's execution window; Python packages only (no Node toolchain)."
+  },
+  "AU-REQUESTS": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/operator_requests.py",
+    "src/cam_live/harness/internal.py"
+   ],
+   "integration_points": [],
+   "tests": [
+    "tests/harness/autonomy/test_au_operator_tools.py",
+    "tests/harness/autonomy/test_au_capabilities.py"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness -q --rootdir=cam_live -m \"(privileged or browser or not privileged) and not network and not gpu\" --junitxml=cam_live/docs/evidence/test_results/AU_fix.xml"
+   ],
+   "evidence": [
+    "docs/AUTONOMY.md",
+    "docs/evidence/test_results/AU_fix.xml"
+   ],
+   "limitations": "Asking grants nothing; the operator provides through credentials / a new signed record / the task file."
+  },
+  "AU-HARD-CONSTRAINTS": {
+   "state": "verified unchanged",
+   "files": [
+    "src/cam_live/harness/auth/platform_constraints.py (not changed)"
+   ],
+   "integration_points": [],
+   "tests": [
+    "tests/harness/autonomy/test_au_standing.py::test_registration_and_input_elsewhere_keep_approval_and_the_hard_constraints_hold",
+    "tests/harness/autonomy/test_au_capabilities.py::test_registration_through_an_api_needs_the_service_approved_and_then_each_registration_approved",
+    "tests/harness/auth/test_hx_platform_constraints.py"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness -q --rootdir=cam_live -m \"(privileged or browser or not privileged) and not network and not gpu\" --junitxml=cam_live/docs/evidence/test_results/AU_fix.xml"
+   ],
+   "evidence": [
+    "docs/AUTONOMY.md",
+    "docs/evidence/test_results/AU_fix.xml"
+   ],
+   "limitations": "X-HUMAN-VERIFICATION, X-USER-ACCOUNT, X-PLATFORM-ADAPTER deny under a standing profile exactly as before."
+  }
+ },
+ "public_api": [
+  "tools/authorize_live.py --standing PROFILE [--hosting P] [--integration P] [--code-host H]",
+  "authorize_live.build_record(task, ..., standing='', hosting=(), integrations=(), code_hosts=())",
+  "liveauth record key 'standing': {profile, code_network, note}",
+  "policy section 'standing': {profiles, retained_approval: {modes, rules: [{id, class, reason, ops, methods, paths, fields}]}}",
+  "policy tool flag 'declared_hosts'",
+  "python -m cam_live.harness.credentials set NAME --run-dir R --dest P [--op GLOB] [--expires-hours H] [--generate]",
+  "SecretBroker.put(..., expires_at=None, operations=())",
+  "SecretBroker.release(name, dest, *, now=None, operation='')",
+  "sandbox.python / sandbox.shell / sandbox.job_start argument 'hosts' (with network='scoped')",
+  "operator request kinds 'account', 'verification'"
+ ],
+ "change_requests": [
+  "docs/change_requests/AU.md: AU-1 (jobs.py, EC): hosts on the job primitive"
+ ],
+ "packages_installed": [],
+ "packages_used_not_declared": [],
+ "measured": {
+  "final_run_tests": 690,
+  "final_run_failures": 0,
+  "final_run_errors": 0,
+  "final_run_skipped": 0,
+  "final_run_seconds": 881.0,
+  "au_tests": 54,
+  "au_failures": 0,
+  "au_skipped": 0,
+  "final_run_failed_ids": []
+ },
+ "measured_commands": {
+  "final_run_*": "see requirements.*.commands (JUnit docs/evidence/test_results/AU_fix.xml)",
+  "job_probe": "docs/evidence/AU/job_probe.py (unpatched / patched jobs.py)"
+ },
+ "not_done": [
+  "CR AU-1 (jobs.py) not applied (EC-owned file).",
+  "No e-mail adapter (IMAP / SMTP); e-mail only through a provider's HTTP API as an approved integration.",
+  "No live run with a standing record; the 2026-11-28 planning run is unaffected (record without a profile, policy copy read at its start).",
+  "Disclosure text for website publications is an operator policy setting, empty by default; AU did not add one."
+ ],
+ "scientific_failures": []
+}
