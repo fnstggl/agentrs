@@ -854,6 +854,7 @@ class CamLiveAgent:
             self.lifetime += 1
         self.learner.reset_fast()
         self.predictor.set_fast_state(self.learner.fast_state)
+        self.predictor.forget_goal_views()
         self.task = task
         reg = getattr(self.meta, "register_objective", None)
         if callable(reg):                                  # the ledger admits outcomes of registered objectives only
@@ -1328,9 +1329,9 @@ class CamLiveAgent:
     def _fitted_digest(self, ptools: Sequence[ToolDescriptor]) -> Tuple[str, Dict[str, Any]]:
         """The observation digest for the proposer's prompt. The backbone keeps the END of a prompt longer than its
         window (``nn_cfg.max_prompt_tokens``), which would cut the instructions, the objective and the tool list
-        first; so the digest's character budget is reduced (oldest observations go first; the success definition
-        and the current interface stay) until the prompt fits. Only for a pretrained backbone (the debug LM's
-        prompts are left as they were)."""
+        first; so the digest's character budget is reduced until the prompt fits (the oldest observations go first,
+        the interface digest gets 60 % of the budget, the success definition always stays; tools and objective are
+        never shortened). Only for a pretrained backbone (the debug LM's prompts are left as they were)."""
         s = self.settings
         budget = int(s.proposer_max_obs_chars)
         digest = self._digest(budget)

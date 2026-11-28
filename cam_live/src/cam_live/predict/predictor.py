@@ -623,6 +623,11 @@ class Predictor:
     def forget_goal_view(self, decision_id: str) -> None:
         self._goal_views.pop(decision_id, None)
 
+    def forget_goal_views(self) -> None:
+        """A new objective: the fast state returns to the prior, so a pending decision of the previous objective
+        would be judged against beliefs it did not inform; its ``epistemic_after`` stays unwritten (masked)."""
+        self._goal_views.clear()
+
     def goal_views_state(self) -> List[Dict[str, Any]]:
         """Checkpointable goal views of executed decisions (a restored agent writes the same ``epistemic_after``).
         Views of decisions not yet committed are left out (they are re-made by the next evaluation)."""
