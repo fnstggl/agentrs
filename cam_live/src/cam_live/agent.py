@@ -109,8 +109,10 @@ class AgentSettings:
     proposer_expected: bool = False          # the output format has the action contract's "expected" field (the
                                              # observable result the action is expected to produce)
     proposer_raw_chars: int = 3000           # characters of each raw sample kept in the decision's diagnostics
-    id_salt: str = ""                        # G3A-3: mixed with the seed into the agent's id prefix (default: ids are
-                                             # a function of the seed alone, so same-seed agents are paired)
+    id_salt: Optional[str] = None            # G3A-3: mixed with the seed into the agent's id prefix. Not configured:
+                                             # the absolute run directory (separate runs never share id prefixes or
+                                             # the Discord nonces derived from action ids); paired evaluation arms
+                                             # that must draw identical ids set the same explicit salt
     information_value: bool = True           # ST: measure each executed decision's realised information value (the
                                              # world model's prediction loss on the next decisions' matured outcomes
                                              # without minus with the items the decision added to the context;
@@ -860,12 +862,14 @@ class CamLiveAgent:
         # ---- randomness (all checkpointed) ----
         self.gen = torch.Generator().manual_seed(int(cfg.seed) + 17)
         self.rng = random.Random(int(cfg.seed) + 23)
-        # G3A-3: the agent's id prefix is a function of the configured seed (and the optional ``agent.id_salt``), not of
-        # os.urandom: action / decision / experience ids feed id-keyed steps (sampling, hashing), so two fresh agents
-        # with the same seed must draw the same ids to be the same experiment. Within one run directory ids stay
-        # unique through the decision counter (``_reserve_decision_number`` skips numbers already stored); runs that
-        # must not share ids with another run of the same seed set ``agent.id_salt`` (checkpointed with the agent).
-        self.uid = hashlib.sha256(f"cam-live-agent-uid|{int(cfg.seed)}|{s.id_salt}".encode()).hexdigest()[:6]
+        # G3A-3: the agent's id prefix is a function of the configured seed and a salt, not of os.urandom: action /
+        # decision / experience ids feed id-keyed steps (sampling, hashing), so two fresh agents with the same seed
+        # and salt draw the same ids and are the same experiment. Salt: ``agent.id_salt`` when configured (paired
+        # arms set the same one), else the absolute run directory, so separate runs never share id prefixes (nor the
+        # Discord nonces derived from action ids). Within one run directory ids stay unique through the decision
+        # counter (``_reserve_decision_number``); the uid is checkpointed with the agent.
+        salt = s.id_salt if s.id_salt is not None else self.run_dir
+        self.uid = hashlib.sha256(f"cam-live-agent-uid|{int(cfg.seed)}|{salt}".encode()).hexdigest()[:6]
         self.max_context = int(s.max_context or cfg.core.max_context)
         # ---- per-lifetime state ----
         self.task: Optional[TaskSpec] = None
@@ -1489,7 +1493,8 @@ class CamLiveAgent:
                 cands = [a for a in cands if a not in out]
         unauth = [a for a in cands if not all(self._tool_authorized(x.operation, x.modality)
                                               for x in [a] + list(a.steps))]
-        if unauth and len(unauth) < len(cands):            # the authorization service refuses them (ST)
+        if unauth:                                         # the authorization service refuses them (ST); fail
+            # closed (G3A-5): also when no authorized candidate is left (the runtime handles an empty candidate set)
             invalid["tool_not_authorized"] = invalid.get("tool_not_authorized", 0) + len(unauth)
             cands = [a for a in cands if a not in unauth]
         deadline = self._deadline()

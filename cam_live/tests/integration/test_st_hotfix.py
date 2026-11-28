@@ -151,3 +151,17 @@ def test_default_budget_per_alternative(tmp_path):
         assert agent.proposer.samples == agent.settings.proposer_samples
     finally:
         agent.close()
+
+
+def test_an_all_unauthorized_batch_is_dropped_fail_closed(tmp_path):
+    """G3A-5: the filter dropped unauthorized candidates only while an authorized one remained."""
+    from cam_live.contracts import ActionSpec
+    agent = _agent(tmp_path)
+    try:
+        cands = [ActionSpec(action_id="x1", operation="http.request", modality=Modality.API,
+                            arguments={"url": "https://x.example/"})]
+        invalid = {}
+        assert agent._feasible(cands, _tools(), agent.clock.now(), invalid) == []
+        assert invalid.get("tool_not_authorized") == 1
+    finally:
+        agent.close()
