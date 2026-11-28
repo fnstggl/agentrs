@@ -176,8 +176,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         t_acq = time.time()
         base_gb = gpu_used_gb()
         k = min(conc, len(ready))
-        batch = [ready[(rr + i) % len(ready)] for i in range(k)]
-        rr += k
+        batch = ready[:k]                                 # protocol order: X0, X1, X2, X3, X4
         procs = []
         child_hold = a.hold_s - 120.0
         for j in batch:
