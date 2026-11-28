@@ -165,6 +165,19 @@ utilities 0, 5, 0). On the old code the first test fails (no `level_key`; the st
 agent registers every assigned task with the meta-learner, so its success metric is the level metric. (c)/(d) not
 measured: no objective with a moving level metric was run (the live planning run's readings are all 0).
 
+### 3.3b The integrated agent through the runtime (debug scale)
+
+`docs/evidence/RW/rw_pathway.py --debug --arm learned --decisions 120` (`CamLiveAgent` + `LiveRuntime`, tiny backbone
+with backbone proposals on, `thompson_policy`, the agent's own configuration: trust-region live step, matured replay,
+goal term, reward step 1e-4; one long LabWorld staging objective; `dbg_agent_learned_120.json`): 120 decisions, 143
+meta-update calls, **9 applied** (3 pooled first-order, 6 query-window importance-weighted through the `auto`
+fallback; 111 `insufficient_independent_outcomes`, 21 ESS below the floor — the pool is empty while the support
+covers the newest ~28 decisions, §6), first applied at decision 33; **47 scored validity pairs**; R_psi's agreement
+0.02 [-0.48, 0.53], the bootstrap's -0.32 [-0.80, 0.17]; e-value of "R_psi alone agrees better than mix 1" 0.37
+(threshold 40): the mix stayed 1, so R_psi had weight 0 in all 37 live updates (recomputing each at mix 1 changes the
+policy by TV 0.0). Every link up to the evidence runs in the integrated agent; the weight never moved because the
+evidence did not support it.
+
 ### 3.4 The pathway inside one long objective, with the ablation (debug scale)
 
 `docs/evidence/RW/rw_meta_diag.py` (debug model; `MetaLearner` acting with its own live policy in ONE LabWorld

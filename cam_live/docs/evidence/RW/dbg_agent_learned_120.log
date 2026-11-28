@@ -1,0 +1,186 @@
+decision 1 mix 1.00 meta applied 0 pairs 0 wall 5s
+decision 2 mix 1.00 meta applied 0 pairs 0 wall 10s
+decision 3 mix 1.00 meta applied 0 pairs 1 wall 16s
+decision 4 mix 1.00 meta applied 0 pairs 1 wall 23s
+decision 5 mix 1.00 meta applied 0 pairs 1 wall 28s
+decision 6 mix 1.00 meta applied 0 pairs 1 wall 34s
+decision 7 mix 1.00 meta applied 0 pairs 1 wall 41s
+decision 8 mix 1.00 meta applied 0 pairs 1 wall 47s
+decision 9 mix 1.00 meta applied 0 pairs 1 wall 55s
+decision 10 mix 1.00 meta applied 0 pairs 1 wall 62s
+decision 11 mix 1.00 meta applied 0 pairs 2 wall 69s
+decision 12 mix 1.00 meta applied 0 pairs 2 wall 77s
+decision 13 mix 1.00 meta applied 0 pairs 3 wall 85s
+decision 14 mix 1.00 meta applied 0 pairs 3 wall 93s
+decision 15 mix 1.00 meta applied 0 pairs 4 wall 100s
+decision 16 mix 1.00 meta applied 0 pairs 4 wall 110s
+decision 17 mix 1.00 meta applied 0 pairs 5 wall 118s
+decision 18 mix 1.00 meta applied 0 pairs 5 wall 126s
+decision 19 mix 1.00 meta applied 0 pairs 6 wall 135s
+decision 20 mix 1.00 meta applied 0 pairs 6 wall 144s
+decision 21 mix 1.00 meta applied 0 pairs 7 wall 154s
+decision 22 mix 1.00 meta applied 0 pairs 7 wall 163s
+decision 23 mix 1.00 meta applied 0 pairs 8 wall 176s
+decision 24 mix 1.00 meta applied 0 pairs 8 wall 190s
+decision 25 mix 1.00 meta applied 0 pairs 9 wall 198s
+decision 26 mix 1.00 meta applied 0 pairs 9 wall 212s
+decision 27 mix 1.00 meta applied 0 pairs 10 wall 225s
+decision 28 mix 1.00 meta applied 0 pairs 10 wall 236s
+decision 29 mix 1.00 meta applied 0 pairs 11 wall 248s
+decision 30 mix 1.00 meta applied 0 pairs 11 wall 260s
+decision 31 mix 1.00 meta applied 0 pairs 12 wall 273s
+decision 32 mix 1.00 meta applied 0 pairs 12 wall 279s
+decision 33 mix 1.00 meta applied 1 pairs 12 wall 287s
+decision 34 mix 1.00 meta applied 1 pairs 12 wall 299s
+decision 35 mix 1.00 meta applied 1 pairs 13 wall 307s
+decision 36 mix 1.00 meta applied 1 pairs 13 wall 319s
+decision 37 mix 1.00 meta applied 2 pairs 14 wall 335s
+decision 38 mix 1.00 meta applied 2 pairs 14 wall 346s
+decision 39 mix 1.00 meta applied 2 pairs 14 wall 358s
+decision 40 mix 1.00 meta applied 2 pairs 14 wall 368s
+decision 41 mix 1.00 meta applied 2 pairs 15 wall 384s
+decision 42 mix 1.00 meta applied 2 pairs 15 wall 397s
+decision 43 mix 1.00 meta applied 2 pairs 15 wall 410s
+decision 44 mix 1.00 meta applied 2 pairs 16 wall 426s
+decision 45 mix 1.00 meta applied 2 pairs 16 wall 443s
+decision 46 mix 1.00 meta applied 2 pairs 16 wall 454s
+decision 47 mix 1.00 meta applied 3 pairs 17 wall 470s
+decision 48 mix 1.00 meta applied 3 pairs 17 wall 488s
+decision 49 mix 1.00 meta applied 3 pairs 18 wall 501s
+decision 50 mix 1.00 meta applied 3 pairs 18 wall 516s
+decision 51 mix 1.00 meta applied 3 pairs 19 wall 536s
+decision 52 mix 1.00 meta applied 3 pairs 19 wall 556s
+decision 53 mix 1.00 meta applied 3 pairs 19 wall 562s
+decision 54 mix 1.00 meta applied 3 pairs 19 wall 572s
+decision 55 mix 1.00 meta applied 3 pairs 19 wall 589s
+decision 56 mix 1.00 meta applied 3 pairs 20 wall 600s
+decision 57 mix 1.00 meta applied 3 pairs 20 wall 619s
+decision 58 mix 1.00 meta applied 3 pairs 20 wall 630s
+decision 59 mix 1.00 meta applied 3 pairs 20 wall 650s
+decision 60 mix 1.00 meta applied 3 pairs 20 wall 663s
+decision 61 mix 1.00 meta applied 3 pairs 20 wall 685s
+decision 62 mix 1.00 meta applied 3 pairs 20 wall 705s
+decision 63 mix 1.00 meta applied 3 pairs 21 wall 726s
+decision 64 mix 1.00 meta applied 3 pairs 21 wall 750s
+decision 65 mix 1.00 meta applied 3 pairs 22 wall 776s
+decision 66 mix 1.00 meta applied 3 pairs 22 wall 795s
+decision 67 mix 1.00 meta applied 3 pairs 23 wall 818s
+decision 68 mix 1.00 meta applied 3 pairs 23 wall 830s
+decision 69 mix 1.00 meta applied 3 pairs 24 wall 850s
+decision 70 mix 1.00 meta applied 3 pairs 24 wall 862s
+decision 71 mix 1.00 meta applied 3 pairs 25 wall 888s
+decision 72 mix 1.00 meta applied 3 pairs 25 wall 907s
+decision 73 mix 1.00 meta applied 3 pairs 25 wall 928s
+decision 74 mix 1.00 meta applied 3 pairs 26 wall 942s
+decision 75 mix 1.00 meta applied 3 pairs 26 wall 970s
+decision 76 mix 1.00 meta applied 3 pairs 26 wall 987s
+decision 77 mix 1.00 meta applied 3 pairs 27 wall 1014s
+decision 78 mix 1.00 meta applied 3 pairs 27 wall 1046s
+decision 79 mix 1.00 meta applied 3 pairs 28 wall 1073s
+decision 80 mix 1.00 meta applied 3 pairs 28 wall 1101s
+decision 81 mix 1.00 meta applied 3 pairs 28 wall 1127s
+decision 82 mix 1.00 meta applied 3 pairs 28 wall 1154s
+decision 83 mix 1.00 meta applied 4 pairs 29 wall 1181s
+decision 84 mix 1.00 meta applied 4 pairs 29 wall 1209s
+decision 85 mix 1.00 meta applied 4 pairs 30 wall 1235s
+decision 86 mix 1.00 meta applied 4 pairs 30 wall 1250s
+decision 87 mix 1.00 meta applied 4 pairs 31 wall 1274s
+decision 88 mix 1.00 meta applied 4 pairs 31 wall 1302s
+decision 89 mix 1.00 meta applied 4 pairs 32 wall 1324s
+decision 90 mix 1.00 meta applied 4 pairs 32 wall 1347s
+decision 91 mix 1.00 meta applied 4 pairs 32 wall 1373s
+decision 92 mix 1.00 meta applied 4 pairs 33 wall 1400s
+decision 93 mix 1.00 meta applied 4 pairs 33 wall 1414s
+decision 94 mix 1.00 meta applied 5 pairs 34 wall 1440s
+decision 95 mix 1.00 meta applied 5 pairs 34 wall 1466s
+decision 96 mix 1.00 meta applied 5 pairs 35 wall 1490s
+decision 97 mix 1.00 meta applied 5 pairs 35 wall 1517s
+decision 98 mix 1.00 meta applied 5 pairs 35 wall 1546s
+decision 99 mix 1.00 meta applied 6 pairs 36 wall 1571s
+decision 100 mix 1.00 meta applied 6 pairs 36 wall 1598s
+decision 101 mix 1.00 meta applied 6 pairs 36 wall 1611s
+decision 102 mix 1.00 meta applied 6 pairs 36 wall 1618s
+decision 103 mix 1.00 meta applied 6 pairs 36 wall 1640s
+decision 104 mix 1.00 meta applied 6 pairs 37 wall 1658s
+decision 105 mix 1.00 meta applied 6 pairs 37 wall 1684s
+decision 106 mix 1.00 meta applied 6 pairs 38 wall 1709s
+decision 107 mix 1.00 meta applied 6 pairs 38 wall 1737s
+decision 108 mix 1.00 meta applied 6 pairs 39 wall 1752s
+decision 109 mix 1.00 meta applied 6 pairs 39 wall 1779s
+decision 110 mix 1.00 meta applied 6 pairs 39 wall 1791s
+decision 111 mix 1.00 meta applied 6 pairs 40 wall 1818s
+decision 112 mix 1.00 meta applied 6 pairs 40 wall 1850s
+decision 113 mix 1.00 meta applied 6 pairs 41 wall 1876s
+decision 114 mix 1.00 meta applied 6 pairs 41 wall 1908s
+decision 115 mix 1.00 meta applied 6 pairs 42 wall 1925s
+decision 116 mix 1.00 meta applied 6 pairs 42 wall 1953s
+decision 117 mix 1.00 meta applied 6 pairs 43 wall 1982s
+decision 118 mix 1.00 meta applied 6 pairs 43 wall 2005s
+decision 119 mix 1.00 meta applied 6 pairs 44 wall 2038s
+decision 120 mix 1.00 meta applied 7 pairs 44 wall 2069s
+{
+ "decisions": 120,
+ "meta_update_calls": 143,
+ "meta_applied": 9,
+ "skipped": {
+  "insufficient_independent_outcomes": 111,
+  "no_policy_update_recorded": 2,
+  "no_supported_episode": 21
+ },
+ "mix_trajectory": [],
+ "mix_end": 1.0,
+ "validity_pairs": 47,
+ "concordance_learned": {
+  "mean": 0.02127659574468085,
+  "lower": -0.47973217202361307,
+  "upper": 0.5279283574630753
+ },
+ "concordance_bootstrap": {
+  "mean": -0.3191489361702128,
+  "lower": -0.8022042442346964,
+  "upper": 0.16603987318172275
+ },
+ "live_updates": 37,
+ "live_updates_changed_by_R_psi": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "deciding_policy_vs_bootstrap_trained": [],
+ "verified_adopters": 967.0,
+ "truth_chosen_mean": 7.89401607497473
+}
