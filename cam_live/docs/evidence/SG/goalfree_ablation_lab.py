@@ -58,7 +58,9 @@ def main(argv=None):
         if True:
             _determinism(s)
             clock = SimClock()
-            agent = CamLiveAgent(agent_config(seed=s), tempfile.mkdtemp(prefix="sg_gfab_"), clock=clock)
+            cfg = agent_config(seed=s)
+            cfg.sections["agent"]["id_salt"] = f"pair-{s}"         # both arms draw identical ids (b74b312, G3A-3)
+            agent = CamLiveAgent(cfg, tempfile.mkdtemp(prefix="sg_gfab_"), clock=clock)
             try:
                 free_ops = []
                 if arm == "goalfree":
@@ -86,6 +88,8 @@ def main(argv=None):
                 drive(agent, world, clock, verifier, st, 1)           # collect what matured
                 v = verifier.verify(task)
                 rows.append({"seed": s, "arm": arm, "repeat_check": check, "uid": getattr(agent, "uid", ""),
+                             "first_objective_actions": [json.dumps(d["arguments"], sort_keys=True, default=str)[:120]
+                                                         for d in out[:4]],
                              "free_decisions": len(free_ops), "free_ops": free_ops,
                              "adopters_before": before, "adopters_after": float(v.value),
                              "gain": float(v.value) - before, "objective_ops": [d["operation"] for d in out],
