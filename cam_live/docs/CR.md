@@ -34,6 +34,10 @@ Every number below comes from a command named next to it; raw outputs are listed
   seeds): forcing RUDDER as training default *lowered* competence (-66.8 +- 26.0 expected adopters per run, p ~ 0.03);
   the evidence-based selection keeps `simple`, which tracks the true value of the agent's own actions best at this
   amount of experience. Negative result for the learned estimators in the agent, with its diagnosis in section 3.
+* **Real configuration** (section 5, one GPU hold, Qwen3-4B + 50m, backbone candidates on): RUDDER credit on 28 of 39
+  records inside the open objective and 41 CR-3-replayed credited rows in the real policy update; COCOA credits
+  nothing there (open-ended backbone candidates without tracked proposal probabilities are refused, as spec 9.3
+  requires); no randomised experiment occurred, so no selection evidence; no paired control run.
 
 ## 1. Why RUDDER and COCOA failed the held-out selection (KF-X15, KF-R14)
 
@@ -237,7 +241,12 @@ True effect of unlock per mechanism seed (forced-arm simulation, 150 lifetimes p
 
 ## 5. Real configuration (Qwen3-4B + 50m core, backbone-written candidates on)
 
-PENDING
+`cr_agent_eval --condition rudder --real --seed 0 --decisions 40 --segment 4 --max-wall-s 720` inside the shared GPU lock (one hold, 12:57-13:10 UTC, no other CPU job of CR running): Qwen3-4B (frozen, bf16) + 50m core on CUDA, backbone-written candidates on, the same patched snapshot as section 3.1 (credit/ learner.py and segments.py of e8dee3f, providers.py of f937ce6; CR-1 and CR-3 applied; nn/gpu.py of 9656770), RUDDER forced as training default, one open LabWorld key-door objective.
+
+* (b) Integration on the full-size agent: 39 decisions in 720 s (35 executed actions, 4 waits); RUDDER credit on 28 of 39 records - the 7 matured segments of 4 decisions - while the objective was open; credit revised up to 67 credit-history entries per record. **No COCOA credit at all**: the backbone-written candidate sets are open-ended and their proposal probabilities are not tracked, so COCOA refuses them (spec 9.3: no counterfactual claim without support) - on the real configuration COCOA is not a usable estimator for open-ended actions.
+* (c) The real policy update consumed RUDDER credit on 80 of 179 rows over 13 updates; 41 of them were earlier decisions replayed by CR-3 after their segment matured (updates 7-13: 5-6 replayed rows each).
+* The run contained no randomised experiment ('no experiment is recorded in the experience store'), so the selection had no evidence at all on the real configuration; 5 records were held out by the segment split. All 6 slow steps were refused by the held-out guard.
+* Behaviour: the agent unlocked the door at decision 20; expected adopters per executed action 0.96 in the first half, 7.47 in the second (one run, no paired control: the matching `simple` run was not taken - the coordinator asked for no further GPU holds during ST's / PS's turns). Not evidence of a credit effect.
 
 ## 6. Tests and runs
 

@@ -1,0 +1,57 @@
+{
+ "rudder": {
+  "decisions": 39,
+  "executed": 35,
+  "waits": 4,
+  "stopped_by_wall": true,
+  "wall_s": 731.3523871898651,
+  "use_backbone": true,
+  "segment": 4,
+  "credit_keys": {
+   "rudder": 28,
+   "rudder_contribution": 28,
+   "rudder_rtg": 28,
+   "simple": 33
+  },
+  "policy_updates": 13,
+  "rows": 179,
+  "credited_rows": 80,
+  "replayed": 41,
+  "replayed_credited": 41,
+  "default_at_end": "rudder",
+  "held_out_records": 5,
+  "selection_rows": 1,
+  "last_selection": {
+   "default_after": "rudder",
+   "mode": null,
+   "n_units": 0,
+   "ran": false,
+   "reason": "no experiment is recorded in the experience store"
+  },
+  "expected_adopters": 150.87283093714734,
+  "ops": {
+   "lab.act": 31,
+   "lab.probe": 3,
+   "lab.unlock": 1
+  },
+  "learner_counters": {
+   "fast": 115,
+   "frequent": 38,
+   "skipped": 0,
+   "slow": 6,
+   "slow_deferred": 0,
+   "slow_reverted": 6,
+   "triggers": 24
+  },
+  "compute": {
+   "seconds": {
+    "inference": 300.7842622785829,
+    "save": 4.902145285625011,
+    "training": 412.92281189607456
+   }
+  },
+  "replay_cr3": true,
+  "max_credit_versions": 67,
+  "errors": []
+ }
+}
