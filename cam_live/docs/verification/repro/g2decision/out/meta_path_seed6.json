@@ -1,0 +1,733 @@
+[
+ {
+  "info": "config",
+  "value": {
+   "target_kl": 0.05,
+   "replay_matured": 16,
+   "goal_coef": 1.0,
+   "model_coef": 1.0,
+   "component_norm": true,
+   "meta_mix": 0.0,
+   "inner_lr(lo)": 0.1,
+   "max_inner_lr": 2.0,
+   "K": 2
+  }
+ },
+ {
+  "info": "lifetime 0: meta-update skipped",
+  "value": "insufficient_independent_outcomes:0<3"
+ },
+ {
+  "info": "lifetime 1: meta-update skipped",
+  "value": "insufficient_independent_outcomes:1<3"
+ },
+ {
+  "info": "lifetime 2: meta-update skipped",
+  "value": "insufficient_independent_outcomes:2<3"
+ },
+ {
+  "info": "lifetime 3: code per-episode (estimator, supported, reason, rows, ess)",
+  "value": [
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ]
+  ]
+ },
+ {
+  "info": "lifetime 3: mine per-episode",
+  "value": [
+   [
+    0,
+    true,
+    0.0,
+    8
+   ],
+   [
+    1,
+    true,
+    0.0,
+    8
+   ],
+   [
+    2,
+    true,
+    0.0,
+    8
+   ],
+   [
+    3,
+    true,
+    0.0,
+    8
+   ],
+   [
+    4,
+    true,
+    0.0,
+    8
+   ],
+   [
+    5,
+    true,
+    0.0,
+    8
+   ]
+  ]
+ },
+ {
+  "check": "lifetime 3: applied meta-gradient == my recomputation (current loss incl. goal / credit / model terms, trust-region step)",
+  "ok": true,
+  "detail": "rel_err=5.29e-07 |g|=1.357e+00 code estimator=on_policy_query mine=['on', 'on', 'on', 'on', 'on', 'on']"
+ },
+ {
+  "check": "lifetime 3: psi changed by the applied step",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "lifetime 3: my analytic directional derivative == central FD (float64)",
+  "ok": true,
+  "detail": "analytic=4.895704e-03 fd=4.895704e-03"
+ },
+ {
+  "check": "lifetime 3: code's gradient along the same direction == FD (float32 code vs float64 FD)",
+  "ok": true,
+  "detail": "code=4.895698e-03 fd=4.895704e-03"
+ },
+ {
+  "info": "lifetime 4: meta-update skipped",
+  "value": "insufficient_independent_outcomes:1<3"
+ },
+ {
+  "info": "lifetime 5: meta-update skipped",
+  "value": "insufficient_independent_outcomes:2<3"
+ },
+ {
+  "info": "lifetime 6: code per-episode (estimator, supported, reason, rows, ess)",
+  "value": [
+   [
+    "importance",
+    true,
+    "",
+    8,
+    7.922101020812988
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ]
+  ]
+ },
+ {
+  "info": "lifetime 6: mine per-episode",
+  "value": [
+   [
+    6,
+    false,
+    0.0547,
+    8
+   ],
+   [
+    7,
+    true,
+    0.0,
+    8
+   ],
+   [
+    8,
+    true,
+    0.0,
+    8
+   ],
+   [
+    9,
+    true,
+    0.0,
+    8
+   ],
+   [
+    10,
+    true,
+    0.0,
+    8
+   ],
+   [
+    11,
+    true,
+    0.0,
+    8
+   ]
+  ]
+ },
+ {
+  "info": "lifetime 6: meta-update not applied",
+  "value": "zero_advantage: all 48 query utilities equal their baselines (1 distinct utility value(s), utility in [1, 1])"
+ },
+ {
+  "info": "lifetime 7: code per-episode (estimator, supported, reason, rows, ess)",
+  "value": [
+   [
+    "importance",
+    true,
+    "",
+    8,
+    7.922101020812988
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ]
+  ]
+ },
+ {
+  "info": "lifetime 7: mine per-episode",
+  "value": [
+   [
+    6,
+    false,
+    0.0547,
+    8
+   ],
+   [
+    7,
+    true,
+    0.0,
+    8
+   ],
+   [
+    8,
+    true,
+    0.0,
+    8
+   ],
+   [
+    9,
+    true,
+    0.0,
+    8
+   ],
+   [
+    10,
+    true,
+    0.0,
+    8
+   ],
+   [
+    11,
+    true,
+    0.0,
+    8
+   ],
+   [
+    12,
+    true,
+    0.0,
+    8
+   ],
+   [
+    13,
+    true,
+    0.0,
+    8
+   ]
+  ]
+ },
+ {
+  "info": "lifetime 7: meta-update not applied",
+  "value": "zero_advantage: all 64 query utilities equal their baselines (1 distinct utility value(s), utility in [1, 1])"
+ },
+ {
+  "info": "live updates checked",
+  "value": 15
+ },
+ {
+  "info": "event 0",
+  "value": {
+   "event": 0,
+   "n": 7,
+   "lr": 1.375312,
+   "kl": 0.0335,
+   "at_bound": false,
+   "in_region": true,
+   "mine_vs_live": 1e-06,
+   "update": 0.173788,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "verified": 2,
+    "predicted": 2,
+    "credit:simple": 2,
+    "credit:rudder": 1
+   },
+   "replayed": 0
+  }
+ },
+ {
+  "info": "event 1",
+  "value": {
+   "event": 1,
+   "n": 10,
+   "lr": 0.232648,
+   "kl": 0.055108,
+   "at_bound": false,
+   "in_region": true,
+   "mine_vs_live": 2e-06,
+   "update": 0.029873,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "verified": 5,
+    "predicted": 4,
+    "credit:rudder": 1
+   },
+   "replayed": 2
+  }
+ },
+ {
+  "info": "event 2",
+  "value": {
+   "event": 2,
+   "n": 14,
+   "lr": 0.459364,
+   "kl": 0.034162,
+   "at_bound": false,
+   "in_region": true,
+   "mine_vs_live": 1e-06,
+   "update": 0.102056,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "verified": 9,
+    "credit:rudder": 2,
+    "credit:simple": 3
+   },
+   "replayed": 6
+  }
+ },
+ {
+  "info": "event 3",
+  "value": {
+   "event": 3,
+   "n": 19,
+   "lr": 0.596612,
+   "kl": 0.03758,
+   "at_bound": false,
+   "in_region": true,
+   "mine_vs_live": 0.0,
+   "update": 0.073724,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "verified": 12,
+    "credit:rudder": 5,
+    "credit:simple": 2
+   },
+   "replayed": 11
+  }
+ },
+ {
+  "info": "event 4",
+  "value": {
+   "event": 4,
+   "n": 24,
+   "lr": 0.440443,
+   "kl": 0.07212,
+   "at_bound": false,
+   "in_region": true,
+   "mine_vs_live": 2e-06,
+   "update": 0.069039,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "verified": 16,
+    "predicted": 1,
+    "credit:rudder": 7
+   },
+   "replayed": 16
+  }
+ },
+ {
+  "info": "event 5",
+  "value": {
+   "event": 5,
+   "n": 24,
+   "lr": 0.331102,
+   "kl": 0.035901,
+   "at_bound": false,
+   "in_region": true,
+   "mine_vs_live": 1e-06,
+   "update": 0.079648,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "verified": 16,
+    "predicted": 1,
+    "credit:rudder": 5,
+    "credit:simple": 2
+   },
+   "replayed": 16
+  }
+ },
+ {
+  "info": "event 6",
+  "value": {
+   "event": 6,
+   "n": 24,
+   "lr": 0.145037,
+   "kl": 0.041939,
+   "at_bound": false,
+   "in_region": true,
+   "mine_vs_live": 1e-06,
+   "update": 0.056711,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "verified": 13,
+    "predicted": 3,
+    "credit:rudder": 5,
+    "credit:simple": 3
+   },
+   "replayed": 16
+  }
+ },
+ {
+  "info": "event 7",
+  "value": {
+   "event": 7,
+   "n": 24,
+   "lr": 0.156535,
+   "kl": 0.072479,
+   "at_bound": false,
+   "in_region": true,
+   "mine_vs_live": 2e-06,
+   "update": 0.05607,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "verified": 15,
+    "predicted": 2,
+    "credit:rudder": 7
+   },
+   "replayed": 16
+  }
+ },
+ {
+  "info": "event 8",
+  "value": {
+   "event": 8,
+   "n": 24,
+   "lr": 0.1,
+   "kl": 0.37745,
+   "at_bound": true,
+   "in_region": false,
+   "mine_vs_live": 3e-06,
+   "update": 0.022683,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "verified": 16,
+    "predicted": 2,
+    "credit:rudder": 4,
+    "credit:simple": 2
+   },
+   "replayed": 16
+  }
+ },
+ {
+  "info": "event 9",
+  "value": {
+   "event": 9,
+   "n": 24,
+   "lr": 0.1,
+   "kl": 0.060746,
+   "at_bound": true,
+   "in_region": true,
+   "mine_vs_live": 3e-06,
+   "update": 0.019777,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "verified": 16,
+    "predicted": 1,
+    "credit:rudder": 5,
+    "credit:simple": 2
+   },
+   "replayed": 16
+  }
+ },
+ {
+  "info": "event 10",
+  "value": {
+   "event": 10,
+   "n": 24,
+   "lr": 0.1,
+   "kl": 0.095788,
+   "at_bound": true,
+   "in_region": false,
+   "mine_vs_live": 1e-06,
+   "update": 0.02133,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "verified": 16,
+    "predicted": 2,
+    "credit:rudder": 4,
+    "credit:simple": 2
+   },
+   "replayed": 16
+  }
+ },
+ {
+  "info": "event 11",
+  "value": {
+   "event": 11,
+   "n": 24,
+   "lr": 0.1,
+   "kl": 0.781817,
+   "at_bound": true,
+   "in_region": false,
+   "mine_vs_live": 1e-06,
+   "update": 0.023995,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "verified": 15,
+    "predicted": 1,
+    "credit:rudder": 6,
+    "credit:simple": 2
+   },
+   "replayed": 16
+  }
+ },
+ {
+  "info": "event 12",
+  "value": {
+   "event": 12,
+   "n": 24,
+   "lr": 0.1,
+   "kl": 0.411042,
+   "at_bound": true,
+   "in_region": false,
+   "mine_vs_live": 2e-06,
+   "update": 0.028642,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "verified": 16,
+    "predicted": 1,
+    "credit:rudder": 6,
+    "credit:simple": 1
+   },
+   "replayed": 16
+  }
+ },
+ {
+  "info": "event 13",
+  "value": {
+   "event": 13,
+   "n": 24,
+   "lr": 0.1,
+   "kl": 0.232843,
+   "at_bound": true,
+   "in_region": false,
+   "mine_vs_live": 1e-06,
+   "update": 0.020861,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "verified": 15,
+    "predicted": 3,
+    "credit:rudder": 5,
+    "credit:simple": 1
+   },
+   "replayed": 16
+  }
+ },
+ {
+  "info": "event 14",
+  "value": {
+   "event": 14,
+   "n": 24,
+   "lr": 0.1,
+   "kl": 0.162612,
+   "at_bound": true,
+   "in_region": false,
+   "mine_vs_live": 2e-06,
+   "update": 0.015416,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "verified": 14,
+    "predicted": 2,
+    "credit:rudder": 7,
+    "credit:simple": 1
+   },
+   "replayed": 16
+  }
+ },
+ {
+  "check": "every live policy update equals MY K-step SGD on the documented loss (float32, rel. to the update)",
+  "ok": true,
+  "detail": "[7e-07, 2e-06, 6e-07, 4e-07, 1.7e-06, 1.5e-06, 1.1e-06, 2.1e-06, 2.6e-06, 3e-06, 1.4e-06, 1.2e-06, 2.1e-06, 1.4e-06, 1.9e-06]"
+ },
+ {
+  "check": "every live update is replayed bit-identically by the engine (what the meta-gradient differentiates)",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "goal-term inputs (u, sources incl. credit:<est>) of every support batch equal my recomputation",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "model-term inputs (standardised candidate values, beta_q^+) and credited returns equal my recomputation",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "trust region: each live step reaches KL in [target/1.5, 1.5 target] or sits at a step bound",
+  "ok": true,
+  "detail": "[(0.0335, 1.3753, False), (0.0551, 0.2326, False), (0.0342, 0.4594, False), (0.0376, 0.5966, False), (0.0721, 0.4404, False), (0.0359, 0.3311, False), (0.0419, 0.145, False), (0.0725, 0.1565, False), (0.3775, 0.1, True), (0.0607, 0.1, True), (0.0958, 0.1, True), (0.7818, 0.1, True), (0.411, 0.1, True), (0.2328, 0.1, True), (0.1626, 0.1, True)]"
+ },
+ {
+  "check": "the goal term saw all three sources and return-like credit (KF-E01) in the support batches",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "at least one applied meta-update was checked",
+  "ok": true,
+  "detail": "1"
+ }
+]

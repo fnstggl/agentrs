@@ -1,0 +1,26 @@
+[
+ {
+  "info": "detector fired / still 'changed' after 2000 calibrated residuals / label of a confident miss / same miss with a fresh detector",
+  "value": [
+   true,
+   true,
+   "changed_conditions",
+   "model_wrong"
+  ]
+ },
+ {
+  "check": "PI-11: after a detected change and 2000 calibrated residuals a confident miss can again be model_wrong",
+  "ok": false,
+  "detail": "label=changed_conditions (the detector is never reset by the Predictor; detected_at=4)"
+ },
+ {
+  "check": "D1: the outer baseline of a row does not depend on its own measured outcome (return-to-go chains, 200 random lifetimes with and without a second lifetime)",
+  "ok": true,
+  "detail": "max |db| = 3.55e-15"
+ },
+ {
+  "check": "promotion decisions == my one-sided 95 % t non-inferiority rule (300 random buffers)",
+  "ok": true,
+  "detail": "300/300"
+ }
+]

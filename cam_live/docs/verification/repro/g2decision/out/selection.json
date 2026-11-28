@@ -1,0 +1,76 @@
+[
+ {
+  "info": "calibration summary",
+  "value": {
+   "n": 60,
+   "scale": 0.9745732199222251,
+   "beta_q": 0.5347192425000589,
+   "beta_q_sd": 0.12430854589698836,
+   "beta_pi": 0.5492760355132452,
+   "beta_pi_sd": 0.12445305360355592,
+   "noise_var": 0.5606782628639617
+  }
+ },
+ {
+  "check": "select draws its index from exactly the recorded vector (generator replay)",
+  "ok": true,
+  "detail": "chosen 0 / 0"
+ },
+ {
+  "check": "chosen-index frequencies == mean recorded probabilities over 20,000 decisions (|z| < 4)",
+  "ok": true,
+  "detail": "freq=[0.7533, 0.0943, 0.1151, 0.0334, 0.0, 0.0039] mean_p=[0.7543, 0.095, 0.1144, 0.0323, 0.0, 0.004] max|z|=0.90"
+ },
+ {
+  "check": "infeasible candidate has probability exactly 0; feasible >= eps/n_feasible",
+  "ok": true,
+  "detail": "[0.8615, 0.0653, 0.0653, 0.004, 0.0, 0.004]"
+ },
+ {
+  "check": "q -> a q + b (a = 37, b = -1234.5) on means and samples leaves the distribution unchanged",
+  "ok": true,
+  "detail": "max diff 0.00e+00"
+ },
+ {
+  "check": "logits + k * standardised predicted value (k = 3.7) leaves the distribution unchanged",
+  "ok": true,
+  "detail": "max diff 0.00e+00"
+ },
+ {
+  "check": "a uniform policy gives exactly the value-only (Thompson over the world model) distribution",
+  "ok": true,
+  "detail": "max diff 0.00e+00"
+ },
+ {
+  "check": "my Thompson-with-policy reference (own z, c, lambda) == the code's vector",
+  "ok": true,
+  "detail": "max diff 0.00e+00"
+ },
+ {
+  "check": "SelectionCalibration posterior == my weighted Bayesian linear regression",
+  "ok": true,
+  "detail": "mine [-0.2067, 0.5347, 0.5493] code [-0.2067, 0.5347, 0.5493]"
+ },
+ {
+  "check": "calibration recovers the ratio beta_pi / beta_q of synthetic data (true 1.75)",
+  "ok": true,
+  "detail": "posterior [-0.009, 0.485, 0.821] ratio 1.691"
+ },
+ {
+  "check": "a preference that does not predict verified progress ends with a negligible weight (mean lambda < 0.05)",
+  "ok": true,
+  "detail": "mean lambda 0.0030, share > 0 0.28"
+ },
+ {
+  "info": "prior only (no verified outcome): lambda mean / share > 0 / P(lambda > 1)",
+  "value": [
+   0.357,
+   0.499,
+   0.076
+  ]
+ },
+ {
+  "info": "prior only: mean total variation the policy's preference adds to the decision (peaked policy, 6 cands)",
+  "value": 0.1675
+ }
+]
