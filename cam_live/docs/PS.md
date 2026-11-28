@@ -82,10 +82,11 @@ with `K = 1` the state is trained to carry a fact for up to 7 decisions.
 **Retention `ρ` and compatibility** (`nn/core.py:ExperientialCore.persist_rho`, `retention()`). A carried-in state is
 read as `init + ρ ⊙ (S − init)` per slot (the elapsed-time conditioning mixed the same way), `ρ ∈ [0, 1]` with a
 straight-through clamp. A fresh state is unaffected by `ρ`; `ρ = 0` reproduces the fresh computation bit for bit
-(tested against the pre-PS core: `check_bitident.py`). New models start at `ρ = 1`. A checkpoint written before PS
-has no `persist_rho`: the tolerant loader keeps the initial value and reports it missing; the agent's chain then sets
-`ρ = 0` (`PersistentStateChain.load_state_dict(None)`, reported as `legacy_checkpoint`), so the restored live run
-computes exactly what it computed before, and learning opens `ρ` where carrying the state lowers the losses. 8 new
+(tested against the pre-PS core: `check_bitident.py`). New models start at `ρ = 1`. An agent checkpoint without the chain's bookkeeping —
+written before PS, or by code that has the PS model but no chain (agent.py without PS-1, as the live run's) — is
+restored with `ρ = 0` (`PersistentStateChain.load_state_dict(None)`, reported as `legacy_checkpoint`; a missing
+`persist_rho` is additionally reported by the tolerant weight loader), so the restored model computes exactly what
+it computed before, and learning opens `ρ` where carrying the state lowers the losses. 8 new
 parameters (n_slots) in the `experiential` group: 50m 50,953,773 (was 50,953,765); `arch_signature` unchanged.
 
 **Other change in the core.** The elapsed time between calls now runs from the previous call's newest event to this
@@ -159,12 +160,12 @@ run. This is an engineering diagnostic (debug model, synthetic stream), not evid
   stored and decision-time belief bit-identical to the old agent's. Both pass in the final `tests/nn` run (JUnit
   `docs/evidence/test_results/PS_fix.xml`: 119 passed, 13 skipped (`-m gpu` / `-m slow`), 0 failed, 79 s).
   `tests/integration/test_agent_recovery.py` (kill -9 mid-run and restart without duplicate actions; save → fresh
-  process → load gives identical decisions to 1e-6) passes with the chain on, in the repository and on the patched
-  copy. (An earlier failure of the kill -9 test on the patched copy was my artefact: that copy had
+  process → load gives identical decisions to 1e-6) passes with the chain on: both tests on the patched copy, the
+  kill -9 test also in the repository (ST reports the whole file passing on its integration snapshot). (An earlier failure of the kill -9 test on the patched copy was my artefact: that copy had
   `configs/authorization.yaml` of a later commit, whose `standing` key the older policy code rejects, so every action
   was denied; with the matching configuration both tests pass.)
-* **Debug ablation runs through the runtime** (§4.4): over 7 runs with the chain, 280 decisions, every learner
-  re-encoding resolved to a stored position (`rows_fresh` = 0); e.g. `on_s0`: 40 commits, 314 decision-time rows,
+* **Debug ablation runs through the runtime** (§4.4): over the 5 runs with the chain, 189 decisions committed, every
+  learner re-encoding resolved to a stored position (`rows_fresh` = 0; 34,770 context and 8,785 post windows); e.g. `on_s0`: 40 commits, 314 decision-time rows,
   7,606 context and 1,879 post windows re-encoded by the learner with their carried state, 17,898 refresh windows.
 * **Substantive protocol on CPU (plumbing only, tiny backbone)**: `scripts/ps_oe_paired.py --cpu` (`eval.oe_runner`'s
   `substantive_config` / `run_objective`, generation on, SW then MECH, the agent rebuilt and restored from its
@@ -176,11 +177,11 @@ run. This is an engineering diagnostic (debug model, synthetic stream), not evid
 Within-decision counterfactual (`scripts/ps_eval.py` `CausalProbe`, `scripts/ps_oe.py` `measure`): at every
 `select`, the trainable policy's distribution over the offered candidates and the belief `b` are computed twice
 with the same weights and context — with the carried state and with the chain switched off. Debug runs with the
-chain on (`ρ` from 1): mean total variation 0.0079 per decision (max 0.0135 per lifetime, max 0.024 per decision),
-relative change of `b` 0.24 (11 lifetimes, 88 decisions). With `ρ` started at 0 (`on_rho0_s0`, the legacy-restore
+chain on (`ρ` from 1, seeds 0–3): mean total variation 0.0094 per decision (max 0.019 per lifetime, max 0.036 per
+decision), relative change of `b` 0.265 (20 lifetimes, 149 decisions with ≥ 2 candidates). With `ρ` started at 0 (`on_rho0_s0`, the legacy-restore
 setting) the effect is 1e-5–5e-4 TV and 0.1–0.2 % of `b`: the retention opened only to 0.002–0.004 in 40 decisions.
 So the carried state changes what the agent believes by a quarter of the belief's norm and changes the policy's
-distribution measurably but little at debug scale (the untrained policy head is flat). Full size: §4.4.
+distribution measurably but little at debug scale. Full size: §4.4 (paired substantive objectives).
 
 **Methodological finding.** On-line on / off runs diverge chaotically: `on_rho0_s0`, whose beliefs differ from the
 fresh ones by 0.1 %, reached verified progress 0.41 / 0.20 / 0.35 / 0.06 on the four LabWorld objectives where
