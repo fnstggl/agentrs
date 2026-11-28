@@ -5,7 +5,8 @@ Owner of the file: ST. Requested by IMP. Status: **open** (tested on a patched c
 ## What
 
 `CamLiveAgent.evaluate` already calls `LatentPlanner.plan` and records three imagined numbers that no rule reads.
-After IMP (`predict/planner.py`, `predict/policy.py`, `predict/predictor.py`, commits `bb24f96`, `f4c44e6`):
+After IMP (`predict/planner.py`, `predict/policy.py`, `predict/predictor.py`, `predict/imagination.py`,
+`predict/world.py`, `predict/heads.py`; commits `bb24f96` .. `00f8913`, see docs/IMP.md §6):
 
 1. `plan(...)` gets the predictor of the same decision (`predictor=self.predictor`, `evaluations=evals`): the planner
    reuses its belief / latents / world view and values imagined continuations in the same goal units as the real
