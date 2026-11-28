@@ -170,6 +170,30 @@ Before any later evidence every candidate's estimate is 0.5 (the constant 1.0 is
 estimator on the debug model: it shows the estimate measures what it should (goal-free knowledge helps predict a later
 objective exactly when what was learned still holds), not that goal-free learning helps CAM on real objectives.
 
+### 5.5 Goal-free ablation, debug scale (`docs/evidence/SG/goalfree_ablation_lab.{py,json}`; LabWorld, agent API)
+
+Pairs with the same world seed and agent seed: arm "goalfree" spends 8 decisions without an objective (goal-free mode
+chooses its own learning goals), then gets the objective "reach 30 adopters" for 16 decisions; arm "none" gets the
+objective at once. Measured: verified adopters gained during the objective (after 12 h of drain).
+
+* **First design (one world for both phases; `goalfree_ablation_lab_shared_world.json`, 10 pairs)**: goal-free arm
+  9.2 adopters on average vs 20.4 without; paired difference -11.2 (bootstrap 95 % interval [-19.8, -3.5]),
+  positive in 2 of 10 pairs. Diagnosis: a design
+  confound and an architectural weakness. The goal-free period consumed the world the objective then had to work in
+  (its `wait`s used up the objective's time, its interventions the shared budget), and goal-free mode spent its 8
+  decisions mostly on `wait` (47 of 80) and the static gauge (`lab.noise`, the noisy TV; 22 of 80), probing a
+  channel twice and intervening 9 times in 80 decisions: in a period this short the repeat discount and the noisy-TV gate have not yet
+  learned that these teach nothing, and "does a wait execute" is genuinely uncertain at the start.
+* **Second design (the goal-free period on its own instance of the same world, the objective on a fresh one)**:
+  goal-free arm 17.3 adopters vs 21.9 without; paired difference
+  -4.6 (bootstrap 95 % interval [-10.6, +1.9]), positive in 3 of 10 pairs — **no improvement**, a slight harm that the
+  interval does not separate from zero. The goal-free periods were again mostly `wait` (45 of 80 decisions) and the
+  static gauge (20), with 4 probes and 11 interventions, and the objectives' outcomes produced 5-14 transfer evidence
+  points per pair. Diagnosis: with 8 decisions the period yields almost no informative experience (the discount and
+  the noisy-TV gate need repetitions to learn what teaches nothing, and the learned transfer estimate needs later
+  objectives before it can redirect goal choice), while the experience it does yield is trained into the shared
+  weights; an empirical result about short goal-free periods at debug scale, not evidence about the full model.
+
 ## 6. Real configuration (Qwen3-4B + 50m core, open-ended generation on)
 
 Runs: `scratchpad/SG/sg_runner.py` — one agent, several objectives inside ONE hold of the queued GPU lock (<= 820 s),
@@ -205,9 +229,28 @@ defect**: the clicks named elements of the observations the runtime takes of the
 skill executor did not index. Fixed in `1da315a` (pinned by a test); the second run (with the fix) found nothing
 recurring.
 
-### 6.3 Goal-free arm
+### 6.3 Goal-free arm (`real/real_goalfree.json`; one hold, 710 s, after 55 min in the lock queue)
 
-Queued for the GPU lock at the time of this version.
+Plan: a goal-free period of 8 decisions on the same staging computer (no success criterion, nothing checked), then
+"store two more entries" and "record one more item". Comparison arm: the skills arm's first objective (the same
+objective from a fresh agent, same seed, no goal-free period) and its record objective.
+
+| | goal-free arm | without goal-free period (6.1) |
+|---|---|---|
+| goal-free period | 24 learning goals proposed, 6 resolved (2 achieved), 8 decisions | — |
+| store two more entries | 0 of 2 in 12 decisions | 0 of 2 in 12 decisions |
+| record one more item | 3 -> 3 of 4 in 12 decisions | 3 -> 3 of 4 in 8 decisions |
+| transfer evidence from the objectives' outcomes | 21 outcomes scored (SG-2 in the real runtime) | — |
+
+What goal-free mode chose to learn: every resolved goal was a prediction of the environment's *own execution
+statistics* (`observed.exec.modality.visual_heavy.n`, `...recovery_s`, `...expected_cost`) after an action — the only
+declared measurements with epistemic uncertainty and achievable progress on this computer; the sites' content offered
+it nothing measurable before an objective names a metric. The measured transfer of that knowledge to the objectives'
+outcomes (`staging.entries.count`, `staging.items.count` after each action) was small: per key mean gains from
+-0.03 nats (`browser.scroll`, 0 of 5 positive) to +0.10 nats (`internal.inspect`, 3 of 3), estimates 0.46-0.62 (the
+prior is 0.50). **Usefulness: not measurable here** — neither arm achieved either objective (floor), so the
+comparison says nothing about improvement; the pathway (goal-free goals -> later assigned outcomes -> measured gains ->
+learned estimates that now weight goal selection) ran in the real configuration.
 
 
 ## 7. Negative results, limitations, diagnosis
@@ -220,6 +263,16 @@ Queued for the GPU lock at the time of this version.
   inducer — the environment's own `observe()` after the last step showed it in some debug runs and not in others (timing); a procedure would need an
   explicit wait for the effect, which only a trace that contains such a wait gives). Transfer to unfamiliar
   interfaces has to come from the neural policy (which chooses the primitive actions there) or from re-acquisition.
+* **What goal-free mode finds to learn is limited by what is measured.** On the staging computer every goal it chose
+  was a prediction of the environment's own execution statistics (the only declared measurements with epistemic
+  uncertainty); in LabWorld's short periods it chose `wait` and the noisy gauge most of the time. Its candidates
+  come from the agent's candidate generators and the questions the environment declares; nothing in it seeks out
+  the content of an unfamiliar site before an objective names a metric. The learned transfer estimate is the
+  mechanism that can redirect it once later objectives have shown which knowledge paid off — in one real goal-free
+  period it had no such evidence yet (it accumulates across periods).
+* **Real configuration: no improvement could be measured for either item** — the agent achieved none of its five
+  objectives in the two holds (floor), so neither skills (nothing to acquire) nor goal-free experience (no success to
+  improve on) had a measurable effect there. One seed per arm, 32 resp. 32 decisions.
 * **Postconditions are inferred heuristically.** What counts as an effect (a count changing by one, a parameter
   appearing in the result) versus a hypothesis (any other size, anything derived against a removed prefix) versus not
   a condition at all (observation bookkeeping, page presentation) is a rule over the observation format; validation
@@ -237,9 +290,9 @@ Queued for the GPU lock at the time of this version.
   transfer, honestly, but it is a limitation of using the cached features (no extra model call).
 * **The agent hooks are not applied** (agent.py belongs to ST); the integration evidence uses a patched copy
   (`git archive` of SG's commit + `docs/change_requests/SG.md`).
-* **Statistics**: the real-configuration comparison has one seed per arm and few objectives (GPU budget: four holds of
-  at most 14 min, shared with four other workstreams and CAM's live run); it shows the pathway and its direction, not
-  an effect size with an interval.
+* **Statistics**: two real-configuration holds (skills arm, goal-free arm; the primitive-only and second
+  no-goal-free arms were not run: the shared GPU lock queue gave one hold per ~50 min, and the master asked to queue
+  no further holds); they show the pathways ran, not an effect size.
 * Shared worktree: other workstreams' uncommitted changes to the authorization service made two Discord live-check
   tests of `tests/harness/skills` fail in the working tree; with SG's files on `git archive HEAD` (no foreign
   changes) every test passes. SG's test runs therefore use that isolated tree.
@@ -258,6 +311,18 @@ Queued for the GPU lock at the time of this version.
 | 6.5 composition | tests: rules, composite navigate + skill run from another site (4 primitives) | SG-1 (agent traces may contain `skill.run`); executor nesting through the environment's dispatch | a composite runs where its part alone is refused (precondition) | not measured in the real configuration |
 | 6.6 reuse in unfamiliar situations | tests: unseen path (`/app/`), unseen arguments (fresh, enum) | as 6.1 | the skill runs on a page it never saw; refused on a different interface | negative: no transfer to a different interface (layout B); re-acquisition there was refused by validation (asynchronous effect) |
 | 6.7 procedural vs neural | — | the policy chooses `skill.run` among all candidates like any action | real runs: no skill existed, so `skill.run` was never offered; the policy's own `skill.discover` choices: 1 of 32 (real), 7 of 90 (debug) | not measurable here (no skill in the real configuration); controlled: the procedural gain is 4 -> 1 / 6 -> 1 decisions, which is not neural learning — it does not change what the policy prefers |
-| 7.1 gaps, informative experiences, unfamiliar mechanisms | existing `GoalFreeMode` tests (uncertainty x achievable progress, noisy-TV gate, budget) | the runtime's goal-free mode (no success criterion); real run §6 | __C71__ | — |
-| 7.2 learned transfer estimate (was 1.0) | `test_sg_transfer.py` (4) | SG-2 / SG-3 hooks (ST); patched copy: agent-level test passes on HEAD (`tests/reward/test_sg_agent_transfer.py`) | the estimate scales the selection score (test: the higher-transfer goal is selected; score ratio = transfer ratio) | LabWorld diagnostic: same mechanism +1.11 nats, 5/5 seeds, estimate 0.80; re-drawn -0.57 nats, 1/5, estimate 0.46; real run §6: __D72__ |
-| 7.3 usefulness on later unfamiliar objectives (ablation) | — | `CUFREE` period before assigned objectives in the same runtime | __C73__ | __D73__ |
+| 7.1 gaps, informative experiences, unfamiliar mechanisms | existing `GoalFreeMode` tests (uncertainty x achievable progress, noisy-TV gate, budget) | the runtime's goal-free mode (no success criterion); real run §6 | real: 24 goals proposed, 6 resolved, all about the environment's own execution statistics; LabWorld: the chosen goal-free actions were mostly `wait` (92 of 160) and the noisy gauge (42 of 160) | — |
+| 7.2 learned transfer estimate (was 1.0) | `test_sg_transfer.py` (4) | SG-2 / SG-3 hooks (ST); patched copy: agent-level test passes on HEAD (`tests/reward/test_sg_agent_transfer.py`) | the estimate scales the selection score (test: the higher-transfer goal is selected; score ratio = transfer ratio) | LabWorld diagnostic: same mechanism +1.11 nats, 5/5 seeds, estimate 0.80; re-drawn -0.57 nats, 1/5, estimate 0.46; real run §6: 21 later outcomes scored, per-key mean gains -0.03..+0.10 nats, estimates 0.46-0.62 (small transfer) |
+| 7.3 usefulness on later unfamiliar objectives (ablation) | — | `CUFREE` period before assigned objectives in the same runtime | the goal-free period changes the later objective's behaviour and result (LabWorld pairs differ; real: same floor) | negative: LabWorld second design paired difference -4.6 adopters [-10.6, +1.9], 3 of 10 positive (first, confounded design -11.2 [-19.8, -3.5]); real: not measurable (neither arm achieved anything) |
+
+## 9. Reproduce
+
+* tests: `PYTHONPATH=<git archive of HEAD>/cam_live/src .venv/bin/python -m pytest <tree>/cam_live/tests/harness/skills
+  <tree>/cam_live/tests/reward/test_sg_transfer.py <tree>/cam_live/tests/reward/test_sg_agent_transfer.py
+  <tree>/cam_live/tests/reward/test_reward_goalfree.py <tree>/cam_live/tests/reward/test_reward_selfgoals.py
+  -m "browser or not browser" --rootdir=<tree>/cam_live` (JUnit `docs/evidence/test_results/SG_fix.xml`)
+* controlled measurement: `PYTHONPATH=cam_live/src .venv/bin/python cam_live/docs/evidence/SG/skills_browser_measure.py --out OUT.json --n 10`
+* transfer diagnostic: `... cam_live/docs/evidence/SG/transfer_labworld.py --seeds 0,1,2,3,4 --out OUT.json`
+* goal-free ablation: `... cam_live/docs/evidence/SG/goalfree_ablation_lab.py --seeds 0,...,9 --free 8 --decisions 16 --out OUT.json`
+* real configuration: `docs/evidence/SG/real/sg_runner.py` (copied run script; `real_queue.sh` / `real_queue2.sh` show
+  the exact plans), analysed with `docs/evidence/SG/analyse_real.py`.

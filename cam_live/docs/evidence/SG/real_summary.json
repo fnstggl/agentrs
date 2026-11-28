@@ -1,0 +1,521 @@
+[
+ {
+  "file": "runs/real_skills.json",
+  "plan": "CU2:store_entry,CU2:store_entry,CU:record_item",
+  "skills": true,
+  "real": true,
+  "hold_s": 825.9008178710938,
+  "lock_wait_s": 1920.7000694274902,
+  "gpu_peak_gb": 11.28171443939209,
+  "not_started": null,
+  "objectives": [
+   {
+    "index": 0,
+    "family": "CU2",
+    "problem": "store_entry",
+    "verified": "pending",
+    "achieved": false,
+    "decisions": 12,
+    "reason": "limit max_decisions exhausted",
+    "wall_s": 235.0,
+    "primitive_ops_total": 11,
+    "chosen_ops": [
+     "browser.select_option",
+     "browser.scroll",
+     "browser.click",
+     "browser.fill",
+     "browser.navigate",
+     "browser.navigate",
+     "browser.click",
+     "browser.select_tab",
+     "browser.download",
+     "browser.select_tab",
+     "browser.select_tab",
+     "browser.select_tab"
+    ],
+    "chosen_status": [
+     "ok",
+     "ok",
+     "failed",
+     "failed",
+     "ok",
+     "ok",
+     "failed",
+     "failed",
+     "denied",
+     "failed",
+     "failed",
+     "failed"
+    ],
+    "skill_runs": 0,
+    "skill_runs_ok": 0,
+    "induce": [],
+    "discover": [],
+    "library": [],
+    "rejected": 0,
+    "rejected_reasons": [],
+    "goal_free": {
+     "goals": 0,
+     "resolved": 0,
+     "achieved": 0
+    },
+    "transfer_points": 0,
+    "transfer_by_key": {},
+    "counters": {},
+    "backbone_chosen_fraction": 0.5833333333333334,
+    "executable_fraction": 0.3333333333333333
+   },
+   {
+    "index": 1,
+    "family": "CU2",
+    "problem": "store_entry",
+    "verified": "pending",
+    "achieved": false,
+    "decisions": 12,
+    "reason": "limit max_decisions exhausted",
+    "wall_s": 317.6,
+    "primitive_ops_total": 9,
+    "chosen_ops": [
+     "browser.scroll",
+     "browser.download",
+     "browser.navigate",
+     "browser.download",
+     "wait",
+     "browser.fill",
+     "browser.navigate",
+     "browser.fill",
+     "browser.wait_for",
+     "http.request",
+     "browser.fill",
+     "internal.inspect"
+    ],
+    "chosen_status": [
+     "ok",
+     "denied",
+     "ok",
+     "denied",
+     "ok",
+     "ok",
+     "ok",
+     "ok",
+     "ok",
+     "ok",
+     "ok",
+     "ok"
+    ],
+    "skill_runs": 0,
+    "skill_runs_ok": 0,
+    "induce": [],
+    "discover": [],
+    "library": [],
+    "rejected": 0,
+    "rejected_reasons": [],
+    "goal_free": {
+     "goals": 0,
+     "resolved": 0,
+     "achieved": 0
+    },
+    "transfer_points": 0,
+    "transfer_by_key": {},
+    "counters": {},
+    "backbone_chosen_fraction": 0.08333333333333333,
+    "executable_fraction": 0.8333333333333334
+   },
+   {
+    "index": 2,
+    "family": "CU",
+    "problem": "record_item",
+    "verified": "pending",
+    "achieved": false,
+    "decisions": 8,
+    "reason": "wall budget 226 s of this lock hold reached",
+    "wall_s": 261.4,
+    "primitive_ops_total": 7,
+    "chosen_ops": [
+     "browser.fill",
+     "browser.open_tab",
+     "browser.read",
+     "skill.discover",
+     "browser.scroll",
+     "browser.scroll",
+     "browser.scroll",
+     "browser.inspect"
+    ],
+    "chosen_status": [
+     "failed",
+     "ok",
+     "ok",
+     "ok",
+     "ok",
+     "ok",
+     "ok",
+     "ok"
+    ],
+    "skill_runs": 0,
+    "skill_runs_ok": 0,
+    "induce": [],
+    "discover": [
+     [
+      "ok",
+      ""
+     ]
+    ],
+    "library": [],
+    "rejected": 0,
+    "rejected_reasons": [],
+    "goal_free": {
+     "goals": 0,
+     "resolved": 0,
+     "achieved": 0
+    },
+    "transfer_points": 0,
+    "transfer_by_key": {},
+    "counters": {},
+    "backbone_chosen_fraction": 0.375,
+    "executable_fraction": 0.875
+   }
+  ],
+  "selection": []
+ },
+ {
+  "file": "runs/real_goalfree.json",
+  "plan": "CUFREE:8,CU2:store_entry,CU:record_item",
+  "skills": true,
+  "real": true,
+  "hold_s": 709.7179501056671,
+  "lock_wait_s": 3316.7881524562836,
+  "gpu_peak_gb": 11.286338806152344,
+  "not_started": null,
+  "objectives": [
+   {
+    "index": 0,
+    "family": "CUFREE",
+    "problem": "free",
+    "verified": "pending",
+    "achieved": false,
+    "decisions": 8,
+    "reason": "limit max_decisions exhausted",
+    "wall_s": 96.2,
+    "primitive_ops_total": 6,
+    "chosen_ops": [
+     "browser.select_tab",
+     "skill.discover",
+     "internal.inspect",
+     "browser.wait_for",
+     "browser.fill",
+     "browser.select_tab",
+     "browser.close_tab",
+     "http.request"
+    ],
+    "chosen_status": [
+     "failed",
+     "ok",
+     "ok",
+     "timeout",
+     "failed",
+     "failed",
+     "ok",
+     "denied"
+    ],
+    "skill_runs": 0,
+    "skill_runs_ok": 0,
+    "induce": [],
+    "discover": [
+     [
+      "ok",
+      ""
+     ]
+    ],
+    "library": [],
+    "rejected": 0,
+    "rejected_reasons": [],
+    "goal_free": {
+     "goals": 24,
+     "resolved": 6,
+     "achieved": 2
+    },
+    "transfer_points": 0,
+    "transfer_by_key": {},
+    "counters": {},
+    "backbone_chosen_fraction": 0.75,
+    "executable_fraction": 0.375
+   },
+   {
+    "index": 1,
+    "family": "CU2",
+    "problem": "store_entry",
+    "verified": "pending",
+    "achieved": false,
+    "decisions": 12,
+    "reason": "limit max_decisions exhausted",
+    "wall_s": 273.5,
+    "primitive_ops_total": 8,
+    "chosen_ops": [
+     "browser.scroll",
+     "internal.inspect",
+     "browser.scroll",
+     "browser.download",
+     "browser.download",
+     "browser.scroll",
+     "wait",
+     "internal.inspect",
+     "wait",
+     "browser.scroll",
+     "browser.scroll",
+     "internal.inspect"
+    ],
+    "chosen_status": [
+     "ok",
+     "ok",
+     "ok",
+     "denied",
+     "denied",
+     "ok",
+     "ok",
+     "ok",
+     "ok",
+     "ok",
+     "ok",
+     "ok"
+    ],
+    "skill_runs": 0,
+    "skill_runs_ok": 0,
+    "induce": [],
+    "discover": [],
+    "library": [],
+    "rejected": 0,
+    "rejected_reasons": [],
+    "goal_free": {
+     "goals": 24,
+     "resolved": 6,
+     "achieved": 2
+    },
+    "transfer_points": 10,
+    "transfer_by_key": {
+     "browser.scroll|staging.entries.count": {
+      "n": 5,
+      "gain_sum": -0.15495207229083718,
+      "positive": 0,
+      "mean_gain": -0.030990414458167435,
+      "estimate": 0.455727979345475
+     },
+     "internal.inspect|staging.entries.count": {
+      "n": 3,
+      "gain_sum": 0.30499888114786766,
+      "positive": 3,
+      "mean_gain": 0.10166629371595588,
+      "estimate": 0.6219995524591472
+     },
+     "wait|staging.entries.count": {
+      "n": 2,
+      "gain_sum": 0.17748252256855623,
+      "positive": 2,
+      "mean_gain": 0.08874126128427812,
+      "estimate": 0.5887412612842782
+     }
+    },
+    "counters": {
+     "transfer_evidence": 10
+    },
+    "backbone_chosen_fraction": 0.0,
+    "executable_fraction": 0.8333333333333334
+   },
+   {
+    "index": 2,
+    "family": "CU",
+    "problem": "record_item",
+    "verified": "pending",
+    "achieved": false,
+    "decisions": 12,
+    "reason": "limit max_decisions exhausted",
+    "wall_s": 328.3,
+    "primitive_ops_total": 11,
+    "chosen_ops": [
+     "browser.navigate",
+     "internal.inspect",
+     "browser.fill",
+     "browser.navigate",
+     "internal.inspect",
+     "browser.navigate",
+     "internal.inspect",
+     "browser.screenshot",
+     "browser.open_tab",
+     "browser.open_tab",
+     "browser.scroll",
+     "browser.navigate"
+    ],
+    "chosen_status": [
+     "ok",
+     "ok",
+     "ok",
+     "failed",
+     "ok",
+     "failed",
+     "ok",
+     "ok",
+     "ok",
+     "ok",
+     "ok",
+     "denied"
+    ],
+    "skill_runs": 0,
+    "skill_runs_ok": 0,
+    "induce": [],
+    "discover": [],
+    "library": [],
+    "rejected": 0,
+    "rejected_reasons": [],
+    "goal_free": {
+     "goals": 24,
+     "resolved": 6,
+     "achieved": 2
+    },
+    "transfer_points": 21,
+    "transfer_by_key": {
+     "browser.scroll|staging.entries.count": {
+      "n": 5,
+      "gain_sum": -0.15495207229083718,
+      "positive": 0,
+      "mean_gain": -0.030990414458167435,
+      "estimate": 0.455727979345475
+     },
+     "internal.inspect|staging.entries.count": {
+      "n": 3,
+      "gain_sum": 0.30499888114786766,
+      "positive": 3,
+      "mean_gain": 0.10166629371595588,
+      "estimate": 0.6219995524591472
+     },
+     "wait|staging.entries.count": {
+      "n": 2,
+      "gain_sum": 0.17748252256855623,
+      "positive": 2,
+      "mean_gain": 0.08874126128427812,
+      "estimate": 0.5887412612842782
+     },
+     "browser.navigate|staging.items.count": {
+      "n": 3,
+      "gain_sum": 0.04132579316490981,
+      "positive": 2,
+      "mean_gain": 0.013775264388303269,
+      "estimate": 0.5165303172659639
+     },
+     "internal.inspect|staging.items.count": {
+      "n": 3,
+      "gain_sum": 0.0011387431002298776,
+      "positive": 1,
+      "mean_gain": 0.0003795810334099592,
+      "estimate": 0.500455497240092
+     },
+     "browser.fill|staging.items.count": {
+      "n": 1,
+      "gain_sum": 0.013664966663282652,
+      "positive": 1,
+      "mean_gain": 0.013664966663282652,
+      "estimate": 0.5091099777755218
+     },
+     "browser.screenshot|staging.items.count": {
+      "n": 1,
+      "gain_sum": 0.0015319759342409256,
+      "positive": 1,
+      "mean_gain": 0.0015319759342409256,
+      "estimate": 0.501021317289494
+     },
+     "browser.open_tab|staging.items.count": {
+      "n": 2,
+      "gain_sum": -0.011770040981967878,
+      "positive": 1,
+      "mean_gain": -0.005885020490983939,
+      "estimate": 0.49411497950901606
+     },
+     "browser.scroll|staging.items.count": {
+      "n": 1,
+      "gain_sum": 0.04409650593221004,
+      "positive": 1,
+      "mean_gain": 0.04409650593221004,
+      "estimate": 0.5293976706214734
+     }
+    },
+    "counters": {
+     "transfer_evidence": 21
+    },
+    "backbone_chosen_fraction": 0.5,
+    "executable_fraction": 0.75
+   }
+  ],
+  "selection": [
+   {
+    "objective_id": "obj_CUFREE_8_0_s0",
+    "chosen": "browser.select_tab",
+    "n_candidates": 3,
+    "n_skill_run": 0,
+    "p_skill.run": 0,
+    "p_skill.induce": 0,
+    "p_skill.discover": 0
+   },
+   {
+    "objective_id": "obj_CUFREE_8_0_s0",
+    "chosen": "skill.discover",
+    "n_candidates": 3,
+    "n_skill_run": 0,
+    "p_skill.run": 0,
+    "p_skill.induce": 0,
+    "p_skill.discover": 0.3334146957968425
+   },
+   {
+    "objective_id": "obj_CUFREE_8_0_s0",
+    "chosen": "internal.inspect",
+    "n_candidates": 3,
+    "n_skill_run": 0,
+    "p_skill.run": 0,
+    "p_skill.induce": 0,
+    "p_skill.discover": 0
+   },
+   {
+    "objective_id": "obj_CUFREE_8_0_s0",
+    "chosen": "browser.wait_for",
+    "n_candidates": 3,
+    "n_skill_run": 0,
+    "p_skill.run": 0,
+    "p_skill.induce": 0,
+    "p_skill.discover": 0.33283128975156145
+   },
+   {
+    "objective_id": "obj_CUFREE_8_0_s0",
+    "chosen": "browser.fill",
+    "n_candidates": 3,
+    "n_skill_run": 0,
+    "p_skill.run": 0,
+    "p_skill.induce": 0,
+    "p_skill.discover": 0
+   },
+   {
+    "objective_id": "obj_CUFREE_8_0_s0",
+    "chosen": "browser.select_tab",
+    "n_candidates": 2,
+    "n_skill_run": 0,
+    "p_skill.run": 0,
+    "p_skill.induce": 0,
+    "p_skill.discover": 0
+   },
+   {
+    "objective_id": "obj_CUFREE_8_0_s0",
+    "chosen": "browser.close_tab",
+    "n_candidates": 2,
+    "n_skill_run": 0,
+    "p_skill.run": 0,
+    "p_skill.induce": 0,
+    "p_skill.discover": 0
+   },
+   {
+    "objective_id": "obj_CUFREE_8_0_s0",
+    "chosen": "http.request",
+    "n_candidates": 3,
+    "n_skill_run": 0,
+    "p_skill.run": 0,
+    "p_skill.induce": 0,
+    "p_skill.discover": 0
+   }
+  ]
+ }
+]
