@@ -88,9 +88,12 @@ def decision_row(agent: Any, row: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-def build_config(arm: str, seed: int, *, real: bool, backbone: bool, extra_predict: Dict[str, Any]) -> Any:
+def build_config(arm: str, seed: int, *, real: bool, backbone: bool, extra_predict: Dict[str, Any],
+                 paired: bool = True) -> Any:
     from ..eval.conditions import base_config, eval_config
     cfg = eval_config(base_config(real=real, seed=seed), "E", seed=seed)
+    if paired:                       # b74b312: an unset salt is the run directory; both arms of a pair share this one
+        cfg.sections["agent"] = {**cfg.sections["agent"], "id_salt": f"pair-{int(seed)}"}
     pred = dict(cfg.sections.get("predict", {}))
     pred["imagination_select"] = arm == "on"
     pred.update(extra_predict)
@@ -101,7 +104,8 @@ def build_config(arm: str, seed: int, *, real: bool, backbone: bool, extra_predi
 
 
 def make_deterministic(seed: int) -> Dict[str, Any]:
-    """Everything outside the arm switch that made two same-seed runs differ (G3-core D-IMP1): identifiers from
+    """Everything outside the arm switch that made two same-seed runs differ (G3-core D-IMP1; the agent's own id
+    prefix is seeded by the agent since ST's 831cc85, G3A-3): identifiers from
     ``uuid.uuid4`` (record, query, observation ids; bootstrap memberships are hashed from them) are drawn from a
     seeded generator; the runtime's per-call learning budgets (wall-clock seconds) are lifted so every call runs its
     planned steps (the steps themselves are bounded by the learner's plan); string hashing is fixed by the caller
@@ -148,7 +152,7 @@ def run(arm: str, seed: int, *, family: str, lifetimes: int, decisions: int, rea
     if os.path.exists(root):
         shutil.rmtree(root)
     os.makedirs(root)
-    cfg = build_config(arm, seed, real=real, backbone=backbone, extra_predict=extra_predict)
+    cfg = build_config(arm, seed, real=real, backbone=backbone, extra_predict=extra_predict, paired=paired)
     clock: Any = SimClock() if paired else OffsetClock()
     restored = None
     if from_dir:                                  # continue from an earlier run's experience and checkpoint
@@ -156,8 +160,9 @@ def run(arm: str, seed: int, *, family: str, lifetimes: int, decisions: int, rea
         meta = json.load(open(os.path.join(from_dir, "saved.json")))
         clock.advance(max(0.0, float(meta["clock_now"]) - float(clock.now()) + 1.0))
     agent = CamLiveAgent(cfg, os.path.join(root, "agent"), clock=clock)
-    if paired and not from_dir:
-        agent.uid = f"{(int(seed) * 2654435761 + 12345) % 16 ** 6:06x}"    # os.urandom per agent otherwise
+    # since ST's 831cc85 the agent's id prefix is a function of the configured seed (and agent.id_salt, default ''),
+    # so both arms of a pair get the same ids from the agent itself; recorded for the pairing check
+    determinism["agent_uid"] = getattr(agent, "uid", None)
     if from_dir:
         agent.load(os.path.join(from_dir, "ckpt"))
         restored = {"from": from_dir, "checkpoint_id": agent.checkpoint_id, "planner": agent.planner.restore_info,
