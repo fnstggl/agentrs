@@ -42,3 +42,20 @@ def svc(tmp_path, clock):
     s = PolicyService(str(d), clock=clock, fsync=False)
     yield s
     s.close()
+
+
+@pytest.fixture
+def shared_dir():
+    """A directory other uids can reach (pytest's tmp_path lives under a 0700 directory)."""
+    import shutil
+    import tempfile
+    d = tempfile.mkdtemp(prefix="camlive-au-", dir="/tmp")
+    os.chmod(d, 0o755)
+    yield d
+    shutil.rmtree(d, ignore_errors=True)
+
+
+@pytest.fixture(scope="session")
+def service_users():
+    from cam_live.harness.auth.launcher import _ensure_users
+    return _ensure_users()
