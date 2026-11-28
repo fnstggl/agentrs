@@ -11,7 +11,11 @@ Pre-norm transformer over experience tokens:
 * a **gated** slot update after the tokens are read (convex mix of the old slot and a normalised candidate attended
   from the tokens; gate bias negative at init, small init std) — the state stays input-dependent and bounded, it
   neither freezes to a constant nor decays;
-* a **direct path** from the newest event's token embedding into ``b`` in addition to the attention-mixed stream.
+* a **direct path** from the newest event's token embedding into ``b`` in addition to the attention-mixed stream;
+* a learned per-slot **retention** ``rho`` in [0, 1] (``persist_rho``) of the state carried in from the previous call:
+  the call reads ``init + rho * (S - init)`` (and the elapsed-time conditioning mixed the same way), so ``rho = 0`` is
+  bit-identically the fresh-state computation and a fresh state (``last_time`` NaN) is unaffected by ``rho``. The
+  carried state itself is threaded across decisions and trained by ``cam_live.nn.persist`` (PS, amendment item 3).
 
 Attention is written out explicitly (matmul + softmax) so every operation supports double backward.
 """
@@ -171,6 +175,11 @@ class ExperientialCore(nn.Module):
         self.cand_norm = RMSNorm(d)
         self.gate_slot = nn.Linear(d, d, bias=False)
         self.gate_cand = nn.Linear(d, d, bias=True)
+        #: learned retention of the carried-in state per slot (PS); 1 = read the carried state as it is, 0 = read the
+        #: learned initial slots (the fresh-state computation). Clamped to [0, 1] in the forward with a straight-through
+        #: gradient, so it can always move back into the range. A checkpoint written before PS lacks it: the agent's
+        #: persistent-state chain then closes it (0) so the restored model computes exactly what it computed before.
+        self.persist_rho = nn.Parameter(torch.ones(n_slots))
         # readout
         self.direct_norm = RMSNorm(d, affine=False)
         self.direct = nn.Linear(d, d, bias=False)
@@ -200,6 +209,11 @@ class ExperientialCore(nn.Module):
             nn.init.normal_(self.state_read.weight, std=1.0 / math.sqrt(self.d_model))
 
     # ---- state ---------------------------------------------------------------------------------------------------
+    def retention(self) -> Tensor:
+        """rho [K] in [0, 1]; straight-through clamp (the raw parameter keeps its gradient outside the range)."""
+        r = self.persist_rho
+        return r + (r.clamp(0.0, 1.0) - r).detach()
+
     def init_state(self, batch: int, device: Optional[torch.device] = None) -> CoreState:
         """Fresh state: the learned initial slots; ``last_time`` = NaN marks "no previous call"."""
         device = device or self.slot_init.device
@@ -218,14 +232,23 @@ class ExperientialCore(nn.Module):
         ar = torch.arange(T, device=dev)
         has_any = pad.any(1)
         last = (pad.long() * ar).max(1).values                                    # index of the newest real token
-        first = torch.where(pad, ar, torch.full_like(ar, T)).min(1).values.clamp(max=T - 1)
         rows = torch.arange(B, device=dev)
 
-        # slots as read by the tokens: previous state + time elapsed since the previous call
+        # slots as read by the tokens: previous state + time elapsed since the previous call. The elapsed time runs
+        # from the previous call's newest event to this call's newest event (re-encoded context windows overlap, so
+        # this call's *first* event usually predates the previous call's last one). A carried-in state is read
+        # through the learned retention rho: init + rho * (S - init); a fresh state is init itself, so it is
+        # unaffected by rho, and rho = 0 reproduces the fresh-state computation bit for bit.
         fresh = torch.isnan(state.last_time)
-        dt_call = torch.where(fresh, torch.zeros_like(state.last_time), time[rows, first] - state.last_time)
-        cond = self.elapsed_proj(elapsed_features(dt_call)) + fresh.to(x.dtype).unsqueeze(-1) * self.fresh_emb
-        slots_read = self.slot_read_norm(state.slots) + cond.unsqueeze(1)
+        dt_call = torch.where(fresh, torch.zeros_like(state.last_time), time[rows, last] - state.last_time)
+        cond_row = self.elapsed_proj(elapsed_features(dt_call)) + fresh.to(x.dtype).unsqueeze(-1) * self.fresh_emb
+        # the fresh-state conditioning, computed on the same batch shape (a fresh row's cond_row equals it exactly)
+        cond_fresh = self.elapsed_proj(elapsed_features(torch.zeros_like(dt_call))) + self.fresh_emb      # [B, D]
+        rho = self.retention().view(1, -1, 1).to(x.dtype)                                 # [1, K, 1]
+        init = self.slot_init.unsqueeze(0).to(x.dtype)
+        slots_in = init + rho * (state.slots - init)                                      # [B, K, D]
+        cond = cond_fresh.unsqueeze(1) + rho * (cond_row - cond_fresh).unsqueeze(1)       # [B, K, D]
+        slots_read = self.slot_read_norm(slots_in) + cond
 
         # causal mask (+ padded keys hidden, self always visible so no row is empty), elapsed-time basis
         causal = ar[None, :] <= ar[:, None]
@@ -242,11 +265,13 @@ class ExperientialCore(nn.Module):
         # gated slot update from the tokens of this call
         key_mask = torch.zeros(B, 1, 1, T, device=dev, dtype=x.dtype).masked_fill(~pad[:, None, None, :], float("-inf"))
         key_mask = torch.where(has_any[:, None, None, None], key_mask, torch.zeros_like(key_mask))
-        u = self.write_attn(self.write_q_norm(state.slots) + cond.unsqueeze(1), h, key_mask)
+        u = self.write_attn(self.write_q_norm(slots_in) + cond, h, key_mask)
         cand = self.cand_norm(u)
-        gate = torch.sigmoid(self.gate_slot(self.slot_read_norm(state.slots)) + self.gate_cand(cand))
+        gate = torch.sigmoid(self.gate_slot(self.slot_read_norm(slots_in)) + self.gate_cand(cand))
         gate = gate * has_any[:, None, None].to(x.dtype)
-        slots = state.slots + gate * (cand - state.slots)
+        slots = slots_in + gate * (cand - slots_in)
+        # an empty call leaves the carried state as it was (not its retention-mixed reading)
+        slots = torch.where(has_any[:, None, None], slots, state.slots)
         new_time = torch.where(has_any, time[rows, last], state.last_time)
         new_state = CoreState(slots=slots, last_time=new_time, step=state.step + 1)
 
@@ -255,5 +280,5 @@ class ExperientialCore(nn.Module):
         b = self.out_norm(h_last + self.direct(self.direct_norm(x_last))
                           + self.state_read(self.slot_read_norm(slots).mean(1)))
         aux = {"gate_mean": gate.mean().detach(), "slot_rms": slots.detach().pow(2).mean().sqrt(),
-               "last_index": last}
+               "last_index": last, "carried_rows": (~fresh).sum().detach()}
         return CoreOutput(h=h, b=b, state=new_state, aux=aux)

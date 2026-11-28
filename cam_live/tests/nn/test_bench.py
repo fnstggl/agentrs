@@ -31,7 +31,10 @@ def test_recorded_parameter_evidence_matches_the_code():
         core = CoreConfig().apply_scale(scale)
         with torch.device("meta"):
             net = ExperientialNet(resolve_core(core), NNConfig(**preset_nn(core)), res["d_sem"], 3)
-        assert sum(p.numel() for p in net.parameters()) == entry["experiential_params"], scale
+        # A's recorded counts predate PS's per-slot retention of the carried core state (n_slots parameters)
+        n = sum(p.numel() for p in net.parameters())
+        assert n - net.core.persist_rho.numel() == entry["experiential_params"], scale
+        assert net.core.persist_rho.numel() == net.core.n_slots
         assert abs(entry["ratio_to_target"] - 1.0) < 0.05
     real = res["real_configuration"]
     if real.get("status") == "measured":

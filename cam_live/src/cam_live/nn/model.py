@@ -99,6 +99,9 @@ class CamLiveModel(LatentModelAPI):
         self.d_model = self.core_cfg.d_model
         self.n_features = self.core_cfg.n_features
         self.d_sem = backbone.d_sem
+        #: the persistent-state chain that resolves ``core_forward(tokens, None)`` (``nn.persist``; attached by the
+        #: agent). Not a module: it holds no parameters and is not part of the state dict.
+        self.persistent: Any = None
 
     @property
     def device(self) -> torch.device:
@@ -159,6 +162,12 @@ class CamLiveModel(LatentModelAPI):
                           values=batch["values"], value_mask=batch["value_mask"], refs=batch["refs"])
 
     def core_forward(self, tokens: TokenBatch, state: Optional[CoreState] = None) -> CoreOutput:
+        """``state=None`` is resolved through the attached persistent-state chain when there is one
+        (``nn.persist.PersistentStateChain.resolve``: a stored window gets its decision's carried state, a window
+        inside a decision-time block the state of the next decision, anything else the fresh state); without a
+        chain it is the fresh state."""
+        if state is None and self.persistent is not None:
+            state = self.persistent.resolve(tokens)
         return self.exp.core(tokens, state)
 
     def init_state(self, batch: int) -> CoreState:

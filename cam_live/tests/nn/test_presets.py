@@ -30,7 +30,9 @@ def test_fifty_million_preset_is_the_default_and_near_768_by_6():
     assert cfg.core.scale == "50m" and core.d_model == 768 and core.n_layers == 6 and core.n_heads == 12
     n = _count("50m")
     assert 47.5e6 < n < 52.5e6, n
-    assert n == 50_953_765                      # the measured count recorded in docs/evidence/A/params.json
+    # the measured count recorded in docs/evidence/A/params.json (50,953,765) predates PS's per-slot retention of the
+    # carried core state (ExperientialCore.persist_rho, n_slots = 8 parameters)
+    assert n == 50_953_765 + 8
 
 
 def test_real_instantiation_matches_the_shape_only_count():
