@@ -202,13 +202,13 @@ Backbone proposals over each run (offered candidates; `<scratch>/ST/reprop.py`):
 | OWN RECORDS section | `test_st_strategy` (content, order, budget priority, ablation, persistence, compatibility with old entries) | staging 'after' (section 300-2,300 characters, prompts 5.0-6.0 k tokens) | after vs after_nomem (same code, one seed): different proposal mix (create_channel / get_member_events vs modify_guild 65 of 169); no note in either | none established (no reduction of repeats or re-proposals; one seed) |
 | `expected` in the output format | `test_st_strategy` (format, ablation) | staging after / after_nomem | 6/30 and 10/30 chosen actions carry the generator's own prediction (0 without the field) | not measured (no learned component scores the text) |
 | proposal learning (LoRA + bridge from CAM's own reward) | `test_st_strategy`: positive advantages only, gradient reaches LoRA and bridge, an SGD step raises the rewarded line's log-likelihood more than an unrelated line's; runs in the learner's slow step on a runtime lifetime (`-m slow`) | real model, 'long': in the first slow step its gradient dominated (norm 34.1) and its held-out loss fell 11.320 -> 11.139 nats/word | none on behaviour: the guard reverted the step (bridge_grounding held-out +0.0174 > tol. 0.0021) | not established |
-| realised information value (+ ST-3 bootstrap input, RW a055332) | `test_st_iv` (measured once from later predictions; reaches the bootstrap component) | real model, 'long': 23 records measured | IV within ±5e-4 nats for every action type: no differential value reaches the reward | none: the world model's targets do not depend on content (5.5) |
+| realised information value (+ ST-3 bootstrap input, RW a055332) | `test_st_iv` (measured once from later predictions; reaches the bootstrap component) | real model, 'long': 33 records measured | IV within ±5e-4 nats for every action type: no differential value reaches the reward | none: the world model's targets do not depend on content (5.5) |
 | agent.py integration (IMP, PS-1, RW-1/2, SG-1..3; CR-1..3) | snapshot tests (section 4) | each workstream's own runtime evidence | — | — |
 
 ### 5.4 Negative results and their diagnosis
 
 * **No note, plan or written hypothesis emerged in any condition** (0 notes executed, 0 `internal.note` proposed by
-  the backbone in 165 staging decisions over six conditions and in 75 live decisions). Diagnosis — an empirical limitation of the
+  the backbone in 174 staging decisions over six conditions and in 75 live decisions). Diagnosis — an empirical limitation of the
   current generator, not a defect of the plumbing: (1) the frozen Qwen3-4B (thinking off, temperature 0.7) proposes the
   actions its prior associates with the objective text (Discord reads, `modify_guild`, `create_channel`,
   operator requests) whatever the OWN RECORDS section shows; its 4 samples are mostly identical (3.9-4.6 distinct
@@ -233,7 +233,7 @@ Backbone proposals over each run (offered candidates; `<scratch>/ST/reprop.py`):
   held-out loss rose (+0.0174, one validation chunk). Effect on behaviour: none yet. Diagnosis: interference between
   two adapter objectives judged on very little held-out evidence (the guard is doing its job; whether the conflict is
   real or noise cannot be decided from one chunk).
-* **Realised information value is ~0 on the real model** (23 measurements, |IV| <= 5e-4 nats) — architectural cause in
+* **Realised information value is ~0 on the real model** (33 measurements, |IV| <= 5e-4 nats) — architectural cause in
   5.5: nothing CAM predicts in this phase depends on content; the master forwarded a request to IMP for a
   content-dependent self-supervised predictive target.
 
@@ -242,20 +242,21 @@ Backbone proposals over each run (offered candidates; `<scratch>/ST/reprop.py`):
 Condition **long** (scratch copy of a0f3411 + rotation + the agent-side information value + the ST-3 bootstrap
 patch, i.e. the pathway RW committed in a055332; settings of after_rot + `information_value`; one runtime process
 over two lease holds of <= 820 s; the staging task copy's decision limit raised to 90 and external-action limit to
-120 in the scratch copy only). First lease hold 13:23-13:37 UTC: 43 decisions (the second hold had not been granted by 14:20: SG, IMP and CR
-holds came first). From `analyse-run` / `reprop.py` / `learning_updates.jsonl` / the experience store (copy):
+120 in the scratch copy only). Two lease holds, 13:23-13:37 and 14:27-14:30 UTC (the second came after SG, IMP and CR holds; the run was stopped at
+its 4,000 s budget after the first decision): **52 decisions**. From `analyse-run` / `reprop.py` /
+`learning_updates.jsonl` / a copy of the experience store (`<scratch>/ST/iv_report.py`):
 
-| measure | long (43 decisions) |
+| measure | long (52 decisions) |
 |---|---|
-| chosen backbone / walker | 14 / 29 |
-| valid backbone proposals per decision | 5.49 (192 offered, 14 distinct operations, 1 re-proposal of an executed action) |
+| chosen backbone / walker | 14 / 38 |
+| valid backbone proposals per decision | 5.5 (14 distinct operations) |
 | notes executed / proposed | 0 / 0 |
 | operator requests / chosen with `expected` | 2 / 14 |
-| identical repeats / experiments registered | 10 / 7 |
-| results ok / queued / denied | 23 / 17 / 3 |
-| learning updates | 26 fast, 18 frequent, **1 slow (adapter) step** |
-| realised information value measured | 23 records; every value within ±5e-4 nats (mean 0.0000): get_audit_summary +0.0005, browser.read -0.0000 (max +0.0003), internal.inspect -0.0002, request_operator -0.0001, others 0.0000 |
-| median s per decision | 20.0 |
+| identical repeats / experiments registered | 16 / 7 |
+| results ok / queued / denied | 32 / 17 / 3 |
+| learning updates | 35 fast, 24 frequent, **1 slow (adapter) step** |
+| realised information value measured | 33 records; every value within ±5e-4 nats (mean 0.0000): get_audit_summary +0.0005, browser.read (10) -0.0000 (max +0.0003), internal.inspect (3) -0.0002, request_operator (2) -0.0001, the rest 0.0000 |
+| median s per decision | 21.4 |
 
 **The first real-model slow step with proposal learning** (`learning_updates.jsonl`, trigger "8 frequent updates"):
 the adapter step was computed from bridge_grounding, fast_prior, world_model, world_model_adapters and
@@ -280,7 +281,7 @@ predictable" becomes measurable. Not built (predict/ is IMP's; the bridge is a n
 
 ## 6. What is not done
 
-* The long run's second lease hold was not granted before the deadline (43 of the planned ~70 decisions); repeated
+* The long run reached 52 of the planned ~70 decisions (its second lease hold came late and lasted 3 minutes); repeated
   seeds of the staging comparisons were not run — every staging difference above is one sample path.
 * A content-dependent self-supervised predictive target (so that information value, VOI and imagination can value
   what a document or a note contains) — the architectural cause of 5.5; forwarded to IMP by the master.

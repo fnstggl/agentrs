@@ -64,7 +64,7 @@
   },
   "AMEND-5-emergent-research-notes-plans": {
    "state": "not achieved",
-   "evidence": "0 notes executed or proposed in 2 live runs (75 decisions) and 6 staging conditions (165 decisions, incl. the 43-decision long run)",
+   "evidence": "0 notes executed or proposed in 2 live runs (75 decisions) and 6 staging conditions (174 decisions, incl. the 52-decision long run)",
    "diagnosis": "frozen generator prior + no learned path into the generator at this experience volume + selection without outcome variation (docs/ST.md 5.4)"
   },
   "AGENT-INTEGRATION": {
@@ -83,7 +83,7 @@
     "tests/integration/test_st_iv.py (3; the ST-3 test is skipped until RW applies it, passes on a patched copy)"
    ],
    "what_changed": "realised information value IV_t = NLL(next 2 decisions' matured outcomes | context without t's items) - NLL(... | recorded context), written once as reward_signals.information_value",
-   "evidence": "real model, long staging run: 23 records measured, |IV| <= 5e-4 nats for every action type; diagnosis: the world model's targets (action.succeeded, executor bookkeeping metrics, membership.confirmed=0) do not depend on content; ST-3 applied by RW in a055332"
+   "evidence": "real model, long staging run: 33 records measured, |IV| <= 5e-4 nats for every action type; diagnosis: the world model's targets (action.succeeded, executor bookkeeping metrics, membership.confirmed=0) do not depend on content; ST-3 applied by RW in a055332"
   }
  },
  "change_requests": [
@@ -92,7 +92,7 @@
   "ST-3 applied by RW in a055332"
  ],
  "not_done": [
-  "a second long-run hold (not granted before the deadline)",
+  "the long run reached 52 of the planned ~70 decisions",
   "repeated seeds of the staging ablations",
   "a content-dependent self-supervised predictive target (forwarded to IMP by the master)",
   "learned operation-level steering of the generator (designed, not built)",
