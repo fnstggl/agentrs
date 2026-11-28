@@ -327,7 +327,8 @@ and goal returns of every live policy update and was therefore not changed (§3.
 frozen bf16 + LoRA + bridge + 50m core on the GPU under the shared lock; backbone proposals on, `thompson_policy`,
 the agent's configuration with the RW defaults `auto` / `direct` / `validity`, reward step 1e-4); one long LabWorld
 staging objective (target never reached; budget and deadline beyond the run); code = isolated copy of dc1753c + RW's
-`reward/` of 2dfa6db (ST-3 not included) + the fixed `nn/gpu.py` of 9656770. The first attempt waited 30 min and
+`reward/` of 2dfa6db (ST-3 and the same-psi pairing rule not yet included; at e-value 1.0 neither could have moved the
+mix) + the fixed `nn/gpu.py` of 9656770. The first attempt waited 30 min and
 timed out (`real_learned_try1_lock_timeout.log`; the old lock poller); the second got the lock at 12:24 UTC after
 ~16 min in the queue. Output `docs/evidence/RW/real_learned_20261128.json` / `.log`.
 
