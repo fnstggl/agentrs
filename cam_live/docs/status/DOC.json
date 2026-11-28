@@ -1,68 +1,113 @@
 {
  "workstream": "M-DOC",
- "commit": "see git log 'cam live [DOC]' (documents describe 55a0f4c / d3ce519 for the model and mathematics, 204e9d4 for operator resources and known failures)",
- "summary": "Documentation deliverables written from the code, not from the design documents. MODEL_ARCHITECTURE.md gives the as-built model with file:function citations, parameter counts measured by building the integrated agent on CPU, the data flow of one decision, and the design differences. MATH_NOTES.md gives the mathematics as implemented, with the code location of each equation, five formulas re-evaluated numerically, and the numerical caveats with their state at HEAD. OPERATOR_RESOURCES.md lists everything the runtime refuses to start or act without, from the preflight / doctor / task-loader code, with the offline preflight of both Discord tasks executed. REPRODUCE.md has dependencies and commands in one place: 83 commands checked (59 with --help, 24 executed offline). KNOWN_FAILURES.md is an append-only register of deployment blockers, negative results and open defects with evidence paths. No code was edited.",
+ "commit": "documents describe fdab7d3 (code final); see git log 'cam live [DOC]' for the commits that wrote them",
+ "summary": "Final refresh: all five documentation deliverables are written from the code at fdab7d3, cite file:function and correct every statement that G2-integration (rounds 1-2, probes d01-d05) and G2-runtime (G2R-12) listed as stale. MODEL_ARCHITECTURE.md: parameter counts were re-measured on CPU at fdab7d3 and are identical (74,672,079 trainable; 4,022,468,096 frozen). MATH_NOTES.md: math_check.py was re-run with identical output. OPERATOR_RESOURCES.md: the exact planning-phase launch procedure (tools/launch_live.sh --accept-ephemeral-storage, the operator signs by typing the objective id), CAM's request channel and what CAM requested in the recorded staging rehearsals (no request invented), and the offline preflight and doctor at fdab7d3. REPRODUCE.md: 73 --help checks and 49 offline executions. KNOWN_FAILURES.md: append-only sections at fdab7d3 recording the state of every older row, every partial or failed G2 verdict, every G2 defect id, and the G2-final items G2F-1..4. Probes at fdab7d3: d01 397/397 hold. The BROKEN lines of d02-d05 encode claims of the old documents that the refreshed documents no longer make, except d04 part 1, an append-only row whose evidence is written path:symbol. No code was edited.",
  "requirements": {
   "DL-02": {
    "state": "implemented",
-   "files": ["docs/MODEL_ARCHITECTURE.md"],
+   "files": [
+    "docs/MODEL_ARCHITECTURE.md"
+   ],
    "integration_points": [],
    "tests": [],
    "commands": [
-    "CAM_LIVE_HOME=<scratch>/DOC/arch/home /workspace/camlive/.venv/bin/python -I cam_live/docs/evidence/DOC/scripts/count_params.py <out.json>",
-    "/workspace/camlive/.venv/bin/python -I cam_live/docs/evidence/DOC/scripts/extra_counts.py"
+    "cd <scratch> && CUDA_VISIBLE_DEVICES= CAM_LIVE_HOME=<scratch>/home HF_HUB_OFFLINE=1 /workspace/camlive/.venv/bin/python /workspace/camlive/cam_live/docs/evidence/DOC/scripts/count_params.py <scratch>/pc.json  (fdab7d3: identical counts)",
+    ".venv/bin/python -I cam_live/docs/verification/repro/g2integration/docs/d01_citations.py /workspace/camlive  (397/397 hold)",
+    ".venv/bin/python -I cam_live/docs/verification/repro/g2integration/docs/d05_model_math_claims.py /workspace/camlive <pc.json> <math.txt>"
    ],
-   "evidence": ["docs/evidence/DOC/param_counts.json", "docs/evidence/DOC/scripts/count_params.py"],
-   "limitations": "Describes the committed code at d3ce519 (src/ and configs/ identical at 55a0f4c). Later commits by INT3A / INT3B / HX (prompt tool list, settle, platform constraints, IH-15) are not described. Counts were measured on CPU (backbone loaded in float32; counts do not depend on dtype). Presets 150m-1b are quoted from A's measurement, not re-run."
+   "evidence": [
+    "docs/evidence/DOC/param_counts.json",
+    "docs/evidence/DOC/g2_doc_probes_fdab7d3.txt"
+   ],
+   "limitations": "Describes fdab7d3. Counts measured on CPU (float32; counts do not depend on dtype); presets 150m-1b quoted from A's measurement. d05's line 'set_objective calls MetaLearner.new_lifetime' prints BROKEN because the probe encodes the old claim; the document states the opposite."
   },
   "DL-04": {
    "state": "implemented",
-   "files": ["docs/MATH_NOTES.md"],
-   "integration_points": [],
-   "tests": [],
-   "commands": ["cd cam_live && ../.venv/bin/python -I docs/evidence/DOC/scripts/math_check.py"],
-   "evidence": ["docs/evidence/DOC/math_check.txt", "docs/evidence/DOC/scripts/math_check.py"],
-   "limitations": "Equations come from reading the code at 55a0f4c. Five formulas were re-evaluated numerically (NIG predictive variance, selection-calibration prior, exploration floor, discount rate, scale invariance of the reward normalisation); the rest were not executed. Caveats marked 'not re-checked' (G_nn D3, D8; G_cl m3) were not confirmed against the code."
-  },
-  "DL-20": {
-   "state": "implemented",
-   "files": ["docs/OPERATOR_RESOURCES.md"],
+   "files": [
+    "docs/MATH_NOTES.md"
+   ],
    "integration_points": [],
    "tests": [],
    "commands": [
-    "CAM_LIVE_HOME=<scratch>/DOC/oper/home .venv/bin/cam-live preflight --task cam_live/tasks/discord_100_planning.yaml  (exit 3: 9 live items)",
-    "CAM_LIVE_HOME=<scratch>/DOC/oper/home .venv/bin/cam-live preflight --task cam_live/tasks/discord_100.yaml  (exit 3: 25 live items)",
-    "CAM_LIVE_HOME=<scratch>/DOC/oper/home .venv/bin/cam-live doctor --json  (blocking_live = [persistent_storage])"
+    "cd cam_live && CUDA_VISIBLE_DEVICES= ../.venv/bin/python -I docs/evidence/DOC/scripts/math_check.py  (fdab7d3: identical to math_check.txt)",
+    ".venv/bin/python -I cam_live/docs/verification/repro/g2integration/docs/d05_model_math_claims.py /workspace/camlive <pc.json> <math.txt>"
    ],
-   "evidence": ["docs/evidence/DOC/preflight_offline.txt"],
-   "limitations": "Offline preflight only: no services were started, so the authorization, environment, Discord and verifier items are reported as unconfirmed. The Discord facts (intents, bot membership, token file) are taken from the ledger and docs/evidence/discord/, not re-checked; /root/.config/camlive was not read. The list covers what the code enforces plus infrastructure, and nothing CAM may request itself."
+   "evidence": [
+    "docs/evidence/DOC/math_check.txt",
+    "docs/evidence/DOC/scripts/math_check.py",
+    "docs/evidence/DOC/g2_doc_probes_fdab7d3.txt"
+   ],
+   "limitations": "Equations from reading the code at fdab7d3; five formulas re-evaluated numerically. d05's five MN BROKEN lines encode old claims (credit unread, info_gain / epistemic_after / learning_progress without producer, one-mean slow guard, right-only G-step) that the document now records as fixed."
+  },
+  "DL-20": {
+   "state": "implemented",
+   "files": [
+    "docs/OPERATOR_RESOURCES.md"
+   ],
+   "integration_points": [],
+   "tests": [],
+   "commands": [
+    "CAM_LIVE_HOME=<scratch>/r3_or/home .venv/bin/cam-live preflight --task cam_live/tasks/{discord_100_planning,discord_launch_check,discord_100}.yaml [--accept-ephemeral-storage]  (exit 3: 9/8, 9/8, 25/24 live items)",
+    "CAM_LIVE_HOME=<scratch>/r3_or/home .venv/bin/cam-live doctor --json  (52 checks, 49 ok, blocking_live [persistent_storage])",
+    "PYTHONPATH=cam_live/src CAM_LIVE_HOME=<scratch>/home CAM_LIVE_GPU_LOCK=<scratch>/gpu.lock CUDA_VISIBLE_DEVICES= .venv/bin/python cam_live/docs/verification/repro/g2integration/docs/d02_operator_resources.py /workspace/camlive"
+   ],
+   "evidence": [
+    "docs/evidence/DOC/preflight_offline.txt",
+    "docs/evidence/DOC/g2_doc_probes_fdab7d3.txt"
+   ],
+   "limitations": "Offline preflight only: no services started, so the 8 service / Discord items are 'not confirmed'; no preflight against running live services exists. The Discord facts come from the ledger and earlier evidence, not re-checked; /root/.config/camlive was not read. CAM's requests are quoted only from recorded staging rehearsals; the live run's requests are unknown. The path for changing a task value during a live run (new signed record + operator-signed assignment) was not exercised by DOC. d02 BROKEN lines encode old claims (no override, no GPU-hold keys, four services, 'cannot be accepted'); its preflight counts include a gpu_lock item because the probe points CAM_LIVE_GPU_LOCK at an absent file."
   },
   "IN-05": {
    "state": "implemented",
-   "files": ["docs/REPRODUCE.md"],
+   "files": [
+    "docs/REPRODUCE.md"
+   ],
    "integration_points": [],
    "tests": [],
-   "commands": ["bash cam_live/docs/evidence/DOC/scripts/check_help.sh", "bash cam_live/docs/evidence/DOC/scripts/check_exec.sh"],
-   "evidence": ["docs/evidence/DOC/command_check.txt"],
-   "limitations": "Checked at d3ce519; tools/launch_live.sh and tasks/discord_launch_check.yaml at 55a0f4c. No live run, push, service start as root, or external contact. The whole test suite was not re-run: the newest recorded result is cited (INT2_full.xml, 1039a6f). Documented-but-missing commands and command defects are listed in REPRODUCE.md section 13 and KNOWN_FAILURES.md KF-E10..E12."
+   "commands": [
+    "bash cam_live/docs/evidence/DOC/scripts/check_help.sh",
+    "bash cam_live/docs/evidence/DOC/scripts/check_exec.sh",
+    "PYTHONPATH=/workspace/camlive/cam_live/src .venv/bin/python cam_live/docs/verification/repro/g2integration/docs/d03_reproduce_commands.py /workspace/camlive <empty scratch>"
+   ],
+   "evidence": [
+    "docs/evidence/DOC/command_check.txt",
+    "docs/evidence/DOC/g2_doc_probes_fdab7d3.txt"
+   ],
+   "limitations": "Checked at fdab7d3: 73 --help (71 exit 0; secret_scan.py and launch_live.sh without arguments exit 2 by design), 49 offline executions. No live run, push, root service start or external contact; the full suite was not re-run (newest recorded: FINAL_suite_257267c.xml). d03 BROKEN lines encode the old document's claims."
   },
   "CM-13": {
    "state": "implemented",
-   "files": ["docs/REPRODUCE.md"],
+   "files": [
+    "docs/REPRODUCE.md"
+   ],
    "integration_points": [],
    "tests": [],
-   "commands": ["bash cam_live/docs/evidence/DOC/scripts/check_help.sh", "bash cam_live/docs/evidence/DOC/scripts/check_exec.sh"],
-   "evidence": ["docs/evidence/DOC/command_check.txt"],
-   "limitations": "Dependencies are the installed versions of this venv (layered over the agentrs venv) and pyproject.toml; a fresh-machine install (REPRODUCE.md section 2.2) was not executed. CM-13 is owned by F: this file (workstream M-DOC) is a claim by another workstream for it."
+   "commands": [
+    "bash cam_live/docs/evidence/DOC/scripts/check_help.sh",
+    "bash cam_live/docs/evidence/DOC/scripts/check_exec.sh",
+    "PYTHONPATH=/workspace/camlive/cam_live/src .venv/bin/python cam_live/docs/verification/repro/g2integration/docs/d03_reproduce_commands.py /workspace/camlive <empty scratch>"
+   ],
+   "evidence": [
+    "docs/evidence/DOC/command_check.txt",
+    "docs/evidence/DOC/g2_doc_probes_fdab7d3.txt"
+   ],
+   "limitations": "Dependencies are the installed versions of this venv (layered over /workspace/agentrs/.venv) and pyproject.toml; a fresh-machine install was not executed. CM-13 is owned by F: this file (workstream M-DOC) is a claim by another workstream for it."
   },
   "IN-06": {
    "state": "implemented",
-   "files": ["docs/KNOWN_FAILURES.md"],
+   "files": [
+    "docs/KNOWN_FAILURES.md"
+   ],
    "integration_points": [],
    "tests": [],
-   "commands": [],
-   "evidence": ["docs/KNOWN_FAILURES.md"],
-   "limitations": "Initial register at 204e9d4 built from the status files, DIAGNOSIS.md, INTEGRATION.md sections 7-9, change requests, verdicts and COMPLETION.md (generated at 799f032). Entries marked 'not re-checked' come from the record. Results of runs in progress (INT3A, INT3B, HX, G2-learn, S queue) are not included; they have to be appended."
+   "commands": [
+    ".venv/bin/python -I cam_live/docs/verification/repro/g2integration/docs/d04_known_failures.py /workspace/camlive"
+   ],
+   "evidence": [
+    "docs/KNOWN_FAILURES.md",
+    "docs/evidence/DOC/g2_doc_probes_fdab7d3.txt"
+   ],
+   "limitations": "Append-only register; final sections at fdab7d3 (G2 reports through G2_final.md). d04 part 2 BROKEN lines are older rows whose claims are no longer true, each recorded as fixed in the fdab7d3 section; part 1 reports one older row's evidence written as path:symbol (KF-E05), left unchanged (erratum KF-V36). Results of evaluation runs after fdab7d3 (S X1..) are not included."
   }
  },
  "public_api": [],
@@ -76,16 +121,23 @@
   "heads": 6055337,
   "inner_update_subset": 5422467,
   "trainable_parameters_debug_total": 1181515,
-  "commands_checked": 83,
-  "commands_help_exit0": 59,
-  "commands_executed_offline": 24,
+  "commands_help_exit0": 71,
+  "commands_executed_offline": 49,
   "preflight_live_items_planning": 9,
-  "preflight_live_items_discord_100": 25
+  "preflight_live_items_discord_100": 25,
+  "remeasured_at_commit": "fdab7d3",
+  "preflight_live_items_planning_accept_ephemeral": 8,
+  "preflight_live_items_discord_100_accept_ephemeral": 24,
+  "doctor_checks": 52,
+  "doctor_ok": 49,
+  "commands_help": 73,
+  "suite_collected_one_process": 1679,
+  "d01_citations_hold": 397
  },
  "not_done": [
   "No JUnit: DOC wrote documents and edited no code, so there is no test run of its own to record.",
-  "The documents describe the code at the commits named in each; changes committed later by INT3A / INT3B / HX are not covered.",
-  "No preflight against running live services (needs root launch and the operator's signed record)."
+  "No preflight against running live services (needs the operator's launch and signed record).",
+  "DL-19 (research report) is the master's, not written here."
  ],
  "scientific_failures": []
 }

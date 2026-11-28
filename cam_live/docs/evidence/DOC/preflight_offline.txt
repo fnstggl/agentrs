@@ -1,5 +1,5 @@
-# CAM_LIVE_HOME=<DOC scratch>/oper/home .venv/bin/cam-live preflight --task cam_live/tasks/<file>  (commit 204e9d4, 2026-11-27 23:28 UTC; offline, no services running)
-=== discord_100_planning
+# CAM_LIVE_HOME=<DOC scratch>/r3_or/home .venv/bin/cam-live preflight --task cam_live/tasks/<file> [--accept-ephemeral-storage]  (commit fdab7d3, 2026-11-28 07:55 UTC; offline, no services running)
+=== discord_100_planning 
 preflight for cam_live/tasks/discord_100_planning.yaml (objective discord-100-planning, mode live)
 LIVE: BLOCKED — 9 item(s) missing
   - [authorization] authorization service: not reachable / not started: the operator authorization record and credentials cannot be confirmed
@@ -14,7 +14,52 @@ LIVE: BLOCKED — 9 item(s) missing
 STAGING: ready
 warning: no CAP_NET_ADMIN: per-destination network filtering cannot be enforced by the kernel here; destinations are enforced by the authorization layer only. A VM is recommended for live operation.
 exit 3
-=== discord_100
+=== discord_100_planning --accept-ephemeral-storage
+preflight for cam_live/tasks/discord_100_planning.yaml (objective discord-100-planning, mode live)
+LIVE: BLOCKED — 8 item(s) missing
+  - [authorization] authorization service: not reachable / not started: the operator authorization record and credentials cannot be confirmed
+  - [credential] discord_bot_token: presence in the vault not confirmed (no authorization service)
+  - [integration] computer environment: not reachable / not started: tools and platform integrations cannot be confirmed
+  - [discord] verifier credential copy: not confirmed (no run directory of the running services)
+  - [discord] bot membership in the authorized guild: not confirmed: needs the running computer environment and the operator's handle on the authorization service (checked by the supervisor of `cam-live run`)
+  - [discord] privileged intents GUILD_MEMBERS: not confirmed: needs the running computer environment and the operator's handle on the authorization service (checked by the supervisor of `cam-live run`)
+  - [discord] the bot's permissions against the operator's scope: not confirmed: needs the running computer environment and the operator's handle on the authorization service (checked by the supervisor of `cam-live run`)
+  - [verification] independent verifier: not reachable / not started
+  ! ACCEPTED RISK [system] persistent_storage (operator (command line --accept-ephemeral-storage)): the instance manifest reports workspace_is_volume=False; state root is outside /workspace. State on this machine is lost on recycle/destroy: checkpoints and logs must be synced off-box (git, object storage) to be durable.
+STAGING: ready
+warning: no CAP_NET_ADMIN: per-destination network filtering cannot be enforced by the kernel here; destinations are enforced by the authorization layer only. A VM is recommended for live operation.
+exit 3
+=== discord_launch_check 
+preflight for cam_live/tasks/discord_launch_check.yaml (objective discord-100-planning-launch-check, mode live)
+LIVE: BLOCKED — 9 item(s) missing
+  - [authorization] authorization service: not reachable / not started: the operator authorization record and credentials cannot be confirmed
+  - [credential] discord_bot_token: presence in the vault not confirmed (no authorization service)
+  - [integration] computer environment: not reachable / not started: tools and platform integrations cannot be confirmed
+  - [discord] verifier credential copy: not confirmed (no run directory of the running services)
+  - [discord] bot membership in the authorized guild: not confirmed: needs the running computer environment and the operator's handle on the authorization service (checked by the supervisor of `cam-live run`)
+  - [discord] privileged intents GUILD_MEMBERS: not confirmed: needs the running computer environment and the operator's handle on the authorization service (checked by the supervisor of `cam-live run`)
+  - [discord] the bot's permissions against the operator's scope: not confirmed: needs the running computer environment and the operator's handle on the authorization service (checked by the supervisor of `cam-live run`)
+  - [verification] independent verifier: not reachable / not started
+  - [system] persistent_storage: the instance manifest reports workspace_is_volume=False; state root is outside /workspace. State on this machine is lost on recycle/destroy: checkpoints and logs must be synced off-box (git, object storage) to be durable.
+STAGING: ready
+warning: no CAP_NET_ADMIN: per-destination network filtering cannot be enforced by the kernel here; destinations are enforced by the authorization layer only. A VM is recommended for live operation.
+exit 3
+=== discord_launch_check --accept-ephemeral-storage
+preflight for cam_live/tasks/discord_launch_check.yaml (objective discord-100-planning-launch-check, mode live)
+LIVE: BLOCKED — 8 item(s) missing
+  - [authorization] authorization service: not reachable / not started: the operator authorization record and credentials cannot be confirmed
+  - [credential] discord_bot_token: presence in the vault not confirmed (no authorization service)
+  - [integration] computer environment: not reachable / not started: tools and platform integrations cannot be confirmed
+  - [discord] verifier credential copy: not confirmed (no run directory of the running services)
+  - [discord] bot membership in the authorized guild: not confirmed: needs the running computer environment and the operator's handle on the authorization service (checked by the supervisor of `cam-live run`)
+  - [discord] privileged intents GUILD_MEMBERS: not confirmed: needs the running computer environment and the operator's handle on the authorization service (checked by the supervisor of `cam-live run`)
+  - [discord] the bot's permissions against the operator's scope: not confirmed: needs the running computer environment and the operator's handle on the authorization service (checked by the supervisor of `cam-live run`)
+  - [verification] independent verifier: not reachable / not started
+  ! ACCEPTED RISK [system] persistent_storage (operator (command line --accept-ephemeral-storage)): the instance manifest reports workspace_is_volume=False; state root is outside /workspace. State on this machine is lost on recycle/destroy: checkpoints and logs must be synced off-box (git, object storage) to be durable.
+STAGING: ready
+warning: no CAP_NET_ADMIN: per-destination network filtering cannot be enforced by the kernel here; destinations are enforced by the authorization layer only. A VM is recommended for live operation.
+exit 3
+=== discord_100 
 preflight for cam_live/tasks/discord_100.yaml (objective discord-100, mode live)
 LIVE: BLOCKED — 25 item(s) missing
   - [limit] limits.duration_s: must be an explicit positive finite number; resources are never assumed unlimited
@@ -45,3 +90,44 @@ LIVE: BLOCKED — 25 item(s) missing
 STAGING: ready
 warning: no CAP_NET_ADMIN: per-destination network filtering cannot be enforced by the kernel here; destinations are enforced by the authorization layer only. A VM is recommended for live operation.
 exit 3
+=== discord_100 --accept-ephemeral-storage
+preflight for cam_live/tasks/discord_100.yaml (objective discord-100, mode live)
+LIVE: BLOCKED — 24 item(s) missing
+  - [limit] limits.duration_s: must be an explicit positive finite number; resources are never assumed unlimited
+  - [limit] limits.money: must be an explicit positive finite number; resources are never assumed unlimited
+  - [limit] limits.compute_s: must be an explicit positive finite number; resources are never assumed unlimited
+  - [limit] limits.max_external_actions: must be an explicit positive finite number; resources are never assumed unlimited
+  - [limit] limits.max_decisions: must be an explicit positive finite number; resources are never assumed unlimited
+  - [authorization] resources.authorized_tools: explicit list of authorized tools / tool families
+  - [authorization] resources.publishing.authorized: publishing authorization must be stated (true or false)
+  - [data_permission] data_permissions.collect_feedback_with_consent: must be stated explicitly (true or false)
+  - [resource] success.exclusions.test_account_ids: unset (marked REQUIRED in the task file)
+  - [resource] resources.discord_guild_id: unset (marked REQUIRED in the task file)
+  - [credential] resources.discord_bot_credential_name: unset (marked REQUIRED in the task file)
+  - [resource] resources.owned_site: unset (marked REQUIRED in the task file)
+  - [resource] resources.operator_authorization_record: unset (marked REQUIRED in the task file)
+  - [resource] resources.authorized_destinations: unset (marked REQUIRED in the task file)
+  - [resource] resources.currency: unset (marked REQUIRED in the task file)
+  - [resource] resources.publishing.destinations: unset (marked REQUIRED in the task file)
+  - [authorization] authorization service: not reachable / not started: the operator authorization record and credentials cannot be confirmed
+  - [integration] computer environment: not reachable / not started: tools and platform integrations cannot be confirmed
+  - [discord] guild: no authorized guild is configured (resources.discord_guild_id)
+  - [discord] verifier credential copy: not confirmed (no run directory of the running services)
+  - [discord] bot membership in the authorized guild: not confirmed: needs the running computer environment and the operator's handle on the authorization service (checked by the supervisor of `cam-live run`)
+  - [discord] privileged intents GUILD_MEMBERS: not confirmed: needs the running computer environment and the operator's handle on the authorization service (checked by the supervisor of `cam-live run`)
+  - [discord] the bot's permissions against the operator's scope: not confirmed: needs the running computer environment and the operator's handle on the authorization service (checked by the supervisor of `cam-live run`)
+  - [verification] independent verifier: not reachable / not started
+  ! ACCEPTED RISK [system] persistent_storage (operator (command line --accept-ephemeral-storage)): the instance manifest reports workspace_is_volume=False; state root is outside /workspace. State on this machine is lost on recycle/destroy: checkpoints and logs must be synced off-box (git, object storage) to be durable.
+STAGING: ready
+warning: no CAP_NET_ADMIN: per-destination network filtering cannot be enforced by the kernel here; destinations are enforced by the authorization layer only. A VM is recommended for live operation.
+exit 3
+
+# CAM_LIVE_HOME=<DOC scratch>/r3_or/home .venv/bin/cam-live doctor --json (summary; commit fdab7d3, 2026-11-28 07:56 UTC)
+checks 52 ok 49 failed ['persistent_storage', 'kernel_network_filtering', 'user_namespaces'] unknown [] blocking_live ['persistent_storage'] blocking_staging []
+  gpu True NVIDIA RTX A6000; 47.4 GB total, 16.9 GB free now (shared: heavy jobs take /workspace/camlive/runs/gpu_heavy.lock)
+  memory True 126 GB RAM total, 87 GB available
+  gpu_lock True shared GPU lock file /workspace/camlive/runs/gpu_heavy.lock
+  backbone True Qwen/Qwen3-4B@1cfa9a720891: 3 weight file(s), 7.5 GB at /workspace/.hf_home/hub/models--Qwen--Qwen3-4B/snapshots/1cfa9a7208912126459214e8b04321603b3df60c
+  grounding_models True {"goclick-base": {"repo": "HongxinLi/GoClick-Base", "revision": "05633a495f9d2ce823372d0c7fd9b0b4bb67c6fa", "license": "MIT", "role": "lightweight", "needs_gpu_lock": false, "noncommercial": false, "b
+  disk True 30 GB free of 300 GB at <DOC scratch>/r3_or/home (minimum 20 GB, warning below 50 GB; below the warning level) (state root /tmp/claude-0/
+  persistent_storage False the instance manifest reports workspace_is_volume=False; state root is outside /workspace. State on this machine is lost on recycle/destroy: checkpoints and logs must be synced off-box (git, object st
