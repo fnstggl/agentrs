@@ -62,16 +62,25 @@ def _fit(cal, h, beta_im, n=200, seed=0):
 def test_imagination_weight_is_learned_from_verified_windows_per_horizon():
     cal = P.ImaginationCalibration()
     g = torch.Generator().manual_seed(0)
-    prior = P.policy_weight(cal.sample(1, 4000, g))
+    prior = P.imagination_weight(cal.sample(1, 4000, g))
     assert float(prior.mean()) < 0.5 and 0.3 < float((prior > 0).double().mean()) < 0.7     # exploratory prior only
     _fit(cal, 1, beta_im=0.0)                       # imagined differences do not predict verified progress
     _fit(cal, 2, beta_im=1.5, seed=1)               # ... they do, at horizon 2
-    lam1 = P.policy_weight(cal.sample(1, 4000, g))
-    lam2 = P.policy_weight(cal.sample(2, 4000, g))
+    lam1 = P.imagination_weight(cal.sample(1, 4000, g))
+    lam2 = P.imagination_weight(cal.sample(2, 4000, g))
     s1, s2 = cal.summary(1), cal.summary(2)
     # coefficients are in units of the verified scale; their ratio is the imagination weight of the rule
     assert abs(s1["beta_im"]) < 0.1 and s2["beta_im"] / s2["beta_q"] == pytest.approx(1.5, abs=0.15)
-    assert float(lam1.mean()) < 0.1 and float(lam2.mean()) > 1.0
+    # the weight is the imagination coefficient itself (never amplified by a weak one-step coefficient): 0.82 here
+    assert float(lam1.mean()) < 0.1 and abs(float(lam2.mean()) - s2["beta_im"] / max(s2["beta_q"], 1.0)) < 0.1
+    # a weak one-step coefficient does not hand unsupported imagination the decision
+    weak = P.ImaginationCalibration()
+    rng = random.Random(3)
+    for i in range(200):
+        z, m = rng.gauss(0, 1), rng.gauss(0, 1)
+        weak.observe(f"w{i}", 1, z, m, rng.gauss(0, 1.0))                  # neither predicts the outcome
+    assert float(P.imagination_weight(weak.sample(1, 4000, g)).mean()) < 0.1
+    assert float(P.policy_weight(weak.sample(1, 4000, g)).mean()) > 0.3   # the ratio rule would amplify it
     assert cal.summary(3)["n"] == 0 and cal.summary(3)["beta_im"] == 0.0           # a new horizon starts at the prior
     assert not cal.observe("d1_0", 1, 0.0, 0.0, 5.0)                                # each decision once
     st = cal.state_dict()
@@ -117,7 +126,7 @@ def test_rule_uses_imagination_only_through_the_learned_weight_and_records_both_
     _fit(dm.imagination, 1, beta_im=2.0)
     p_trust, sc = dm.probabilities(_evals(q, cont), mode=P.RULE_THOMPSON_POLICY)
     im_t = sc["selection"]["imagination"]
-    assert im_t["weight"]["mean"] > 1.0 and im_t["share_tv"] > 0.5
+    assert im_t["weight"]["mean"] > 0.6 and im_t["share_tv"] > 0.5
     assert float(p_trust[2]) > 0.5 > float(p_prior[2])
     # discredited imagination has no say however large the imagined differences
     heads2 = _Heads(select=True)

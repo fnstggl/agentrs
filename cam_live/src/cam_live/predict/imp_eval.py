@@ -341,6 +341,11 @@ def _mean_ci(xs: Sequence[float], n_boot: int = 4000, seed: int = 0) -> Dict[str
     return {"n": len(xs), "mean": m, "sd": sd, "lo": boots[int(0.025 * n_boot)], "hi": boots[int(0.975 * n_boot) - 1]}
 
 
+def _avg(xs: Sequence[Any]) -> Optional[float]:
+    xs = [float(x) for x in xs if x is not None]
+    return sum(xs) / len(xs) if xs else None
+
+
 def _arm_stats(r: Dict[str, Any]) -> Dict[str, Any]:
     lts = r["lifetimes"]
     rows = [row for lt in lts for row in lt["decision_rows"]]
@@ -380,6 +385,18 @@ def _arm_stats(r: Dict[str, Any]) -> Dict[str, Any]:
             "imagination_tv_max": max(tvs) if tvs else None,
             "decisions_with_tv_over_0.1": sum(1 for t in tvs if t > 0.1),
             "argmax_changed_by_imagination": len(flips), "n_with_imagination": len(tvs),
+            "imagination_by_lifetime": [{
+                "tv_mean": _avg([row["imagination"]["share_tv"] for row in lt["decision_rows"]
+                                 if row.get("imagination") and row["imagination"].get("share_tv") is not None]),
+                "weight_mean": _avg([row["imagination"]["weight_mean"] for row in lt["decision_rows"]
+                                     if row.get("imagination") and row["imagination"].get("weight_mean") is not None]),
+                "calibration_n": max([((row.get("imagination") or {}).get("calibration") or {}).get("n") or 0
+                                      for row in lt["decision_rows"]] or [0]),
+                "beta_im_last": next((((row.get("imagination") or {}).get("calibration") or {}).get("beta_im")
+                                      for row in reversed(lt["decision_rows"]) if row.get("imagination")), None),
+                "argmax_changed": sum(1 for row in lt["decision_rows"] if row.get("imagination")
+                                      and row["imagination"]["argmax_with"] != row["imagination"]["argmax_without"])}
+                for lt in lts],
             "operations": ops, "unlock": ops.get("lab.unlock", 0), "door_channel_acts": door,
             "progress_by_lifetime": [lt["progress"] for lt in lts],
             "planner_seconds_per_decision": (sum(lt["planner_seconds"] for lt in lts)

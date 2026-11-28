@@ -235,6 +235,7 @@ def standardised_values(q_samples: Tensor, q_mean: Tensor, a_mask: Tensor) -> Te
 
 
 BETA_Q_MIN, LAMBDA_MAX = 0.05, 10.0
+BETA_Q_FLOOR_IM = 1.0                # imagination: never amplified beyond its own coefficient (the prior mean of beta_q)
 
 
 def policy_weight(coef_samples: Tensor) -> Tensor:
@@ -246,6 +247,19 @@ def policy_weight(coef_samples: Tensor) -> Tensor:
     bq = coef_samples[:, 0].to(torch.float64).clamp_min(BETA_Q_MIN)
     bp = coef_samples[:, 1].to(torch.float64).clamp_min(0.0)
     return (bp / bq).clamp(0.0, LAMBDA_MAX)
+
+
+def imagination_weight(coef_samples: Tensor) -> Tensor:
+    """[S] weight of the imagined preference in each Thompson sample: beta_im^+ / max(beta_q, 1), clipped at
+    LAMBDA_MAX. Unlike the policy's weight (:func:`policy_weight`, numeraire floor 0.05) the denominator is floored at
+    the prior mean of beta_q: imagination keeps the weight its own coefficient earns and is never amplified because
+    the one-step world model also predicts the verified multi-step progress weakly (measured in the first ablation:
+    with beta_im ~ 0 and beta_q near the 0.05 floor, mean weights 0.8-1.2 let unsupported imagined differences
+    decide). Both coefficients are in units of the verified scale, so beta_im ~ 1 means the imagined preference
+    explains the verified progress as well as a fully predictive one-step value would."""
+    bq = coef_samples[:, 0].to(torch.float64).clamp_min(BETA_Q_FLOOR_IM)
+    bi = coef_samples[:, 1].to(torch.float64).clamp_min(0.0)
+    return (bi / bq).clamp(0.0, LAMBDA_MAX)
 
 
 def thompson_policy_scores(z_samples: Tensor, coef_samples: Tensor, log_policy: Tensor) -> Tensor:
@@ -523,8 +537,8 @@ class ImaginationCalibration:
 
         y_h / s = beta_0 + beta_q * z + beta_im * m + noise
 
-    gives the imagination weight of the rule, lambda_im = beta_im^+ / beta_q (:func:`policy_weight`), drawn per
-    Thompson sample. Imagination therefore starts with no systematic weight (prior mean 0, the exploratory spread
+    gives the imagination weight of the rule, lambda_im = beta_im^+ / max(beta_q, 1) (:func:`imagination_weight`),
+    drawn per Thompson sample. Imagination therefore starts with no systematic weight (prior mean 0, the exploratory spread
     of its prior), gains weight only where its imagined differences predicted verified multi-step progress beyond the
     one-step model, and loses it again when they stop doing so. A new horizon starts from the prior: what was learned
     about h-step imagination says nothing about (h+1)-step imagination. No observation is invented: a window enters
@@ -823,7 +837,7 @@ class DecisionMaker:
             m_s, m_mean = imagined_preference(im["cont"], sc["q"], a_mask)
             P = m_s.shape[0]
             im_coef = self.imagination.sample(im["horizon"], S, self.generator)
-            lam_im = policy_weight(im_coef)
+            lam_im = imagination_weight(im_coef)
             with_im = _tie_share(base + lam_im.view(S, 1, 1) * m_s[torch.arange(S) % P], a_mask)
             on = bool(getattr(self.cfg, "imagination_select", True))
             diag["imagination"] = {
