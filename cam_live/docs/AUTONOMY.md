@@ -157,6 +157,9 @@ planning run is CAM's; AU added no prompt, hint or default that would steer it.
   routine use is acceptable without per-item review.
 * **Form submission on a site CAM does not own is a click** (navigation class, allowed); the data it sends was
   approved field by field. A form whose fields the site pre-filled itself would therefore submit without an approval.
+* A **code-network host receives whatever the program sends** to it: the broker sees host and port, not the content
+  of a TLS stream (stated in the sandbox's capabilities). Name only hosts whose receipt of arbitrary data from
+  CAM's code is acceptable (package registries hold no credential of CAM's: uploads there are not possible).
 * Background jobs with network need **CR AU-1** (EC's `jobs.py`); after it, a job's connections are allowed only
   within the grant's execution window (900 s + slack).
 * A credential bound to operations is checked against the *granted* action (`skill.run`, `program`), not the step
