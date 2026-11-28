@@ -7,6 +7,30 @@
  "scripts_note": "<scratch> = /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad; the counting script only calls cam_live.config.CamLiveConfig.load/debug, cam_live.nn.model.build_model, cam_live.agent.CamLiveAgent(cfg, run_dir, model=model) and CamLiveModel.count_parameters / param_groups",
  "commit_read": "d3ce5197121e0a5d3a0795d27f1a6f421f22dde7",
  "measured_at_utc": "2026-11-27T23:14:15Z",
+ "remeasured_at_commit": "fdab7d3",
+ "remeasured_at_utc": "2026-11-28T07:17:01Z",
+ "remeasurement": {
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "run_utc": "2026-11-28T07:16:59Z..2026-11-28T07:18:24Z",
+  "commands": [
+   "cd <scratch>/DOC/r3_ma && CUDA_VISIBLE_DEVICES= CAM_LIVE_HOME=<scratch>/DOC/r3_ma/home HF_HUB_OFFLINE=1 HF_HOME=/workspace/.hf_home /workspace/camlive/.venv/bin/python /workspace/camlive/cam_live/docs/evidence/DOC/scripts/count_params.py <scratch>/DOC/r3_ma/pc.json",
+   "cd <scratch>/DOC/r3_ma && CUDA_VISIBLE_DEVICES= CAM_LIVE_HOME=<scratch>/DOC/r3_ma/home /workspace/camlive/.venv/bin/python /workspace/camlive/cam_live/docs/evidence/DOC/scripts/extra_counts.py"
+  ],
+  "device": "cpu (no GPU used)",
+  "torch": "2.15.0+cu132",
+  "result": "identical to the measurement at d3ce519 in every count: debug and default count_parameters, requires_grad_per_group, heads, counts_model_only_before_agent, and world_model_frozen_prior_buffers",
+  "differing_recorded_values": {
+   "default.backbone_info.max_prompt_tokens": {
+    "d3ce519": 2048,
+    "fdab7d3": 6144,
+    "cause": "configs/cam_live.yaml nn.max_prompt_tokens 6144 (commit a7b8fa4); not a parameter count"
+   },
+   "build_s": "timing only (debug 1.5 -> 1.6, default 90.7 -> 78.3); the d3ce519 values are kept below"
+  },
+  "updated_fields": [
+   "default.backbone_info.max_prompt_tokens (now the fdab7d3 value)"
+  ]
+ },
  "torch": "2.15.0+cu132",
  "default_summary": {
   "backbone_frozen": 4022468096,
@@ -145,7 +169,7 @@
     35
    ],
    "max_text_tokens": 384,
-   "max_prompt_tokens": 2048,
+   "max_prompt_tokens": 6144,
    "lora": {
     "rank": 32,
     "alpha": 32.0,
