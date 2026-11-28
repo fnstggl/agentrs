@@ -1,0 +1,607 @@
+{
+ "AE-04": {
+  "status": "partial",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Only the agent.export_weights storage-guard line changed since ef0f3ff; reward/selfgoals.py and integrity.py are unchanged, so G2-decision's basis stands: budget counts pending goals (D4 fixed), goals are abandoned (C-11), but transferable competence is a constant 1.0. Tests 10 passed.",
+  "evidence": [
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "CM-01": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "runtime/cli.py changed only in gpu_lock (open_lock_file); cam-live doctor (gpu_lock check now needs the file, blocks live; run on the extract). probe_cli_p10copy 34/35 (0c: other agents' files in the worktree's runs/, not written by these commands); tests 2 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "CM-02": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "cli.py changed only in gpu_lock. probe_cli_p10copy (init held); tests 2 passed. (The status file claims it partial.)",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "CM-03": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "runtime/cli.py changed only in gpu_lock (open_lock_file); cam-live test. probe_cli_p10copy 34/35 (0c: other agents' files in the worktree's runs/, not written by these commands); tests 1 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "CM-04": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "cli.py changed only in gpu_lock. cam-live validate --mode staging --debug on the extract ran to the end (exit 1, 443 s, GPU peak 0.0 GB, within its 840 s box): 13 of 16 checks hold; fail approvals_exercised (one approval request, approved and executed with its grant, none rejected), meta_update_applied / meta_step_changes_policy (0 applied: 50 skips for insufficient independent outcomes) — behaviour of the run, not the command. Tests 7 passed. (Status file claims it partial; LX-11, the validation passing on the real configuration, is not in scope.)",
+  "evidence": [
+   "cam-live validate --mode staging --debug (extract)",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "CM-05": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "runtime/cli.py changed only in gpu_lock (open_lock_file); cam-live inspect-harness. probe_cli_p10copy 34/35 (0c: other agents' files in the worktree's runs/, not written by these commands); tests 2 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "CM-06": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "runtime/cli.py changed only in gpu_lock (open_lock_file); cam-live run (refusals and starts). probe_cli_p10copy 34/35 (0c: other agents' files in the worktree's runs/, not written by these commands); tests 3 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "CM-07": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "runtime/cli.py changed only in gpu_lock (open_lock_file); cam-live status (+ dashboard storage level). probe_cli_p10copy 34/35 (0c: other agents' files in the worktree's runs/, not written by these commands); tests 1 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "CM-08": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "runtime/cli.py changed only in gpu_lock (open_lock_file); cam-live pause. probe_cli_p10copy 34/35 (0c: other agents' files in the worktree's runs/, not written by these commands); tests 2 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "CM-09": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "runtime/cli.py changed only in gpu_lock (open_lock_file); cam-live resume incl. separated restart after SIGKILL (separated_resume 0/8). probe_cli_p10copy 34/35 (0c: other agents' files in the worktree's runs/, not written by these commands); tests 4 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "CM-10": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "cli.py changed only in gpu_lock. On a debug weights-only export of build_agent (T1, seed 0, 1 lifetime, 2 decisions): exit 0 in 44 s with the per-domain summary; tests 2 passed. (Status file claims it partial.)",
+  "evidence": [
+   "cam-live evaluate-transfer --checkpoint <debug export> --baseline <same> --domains T1 --seeds 0 --lifetimes 1 --decisions 2 (extract)",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "CM-11": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "runtime/cli.py changed only in gpu_lock (open_lock_file); cam-live export-checkpoint (alive / offline, root on a learner-writable run dir: g15, g18). probe_cli_p10copy 34/35 (0c: other agents' files in the worktree's runs/, not written by these commands); tests 4 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "CM-12": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "runtime/cli.py changed only in gpu_lock (open_lock_file); cam-live verify-completion. probe_cli_p10copy 34/35 (0c: other agents' files in the worktree's runs/, not written by these commands); tests 2 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "CU-06": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Only harness/visual.py's model lock open changed (open_lock_file). Acceptance tests 5 passed (incl. browser).",
+  "evidence": [
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')",
+   "cam_live/docs/verification/repro/g2final/probe_gpu_lock_final.py"
+  ]
+ },
+ "CU-09": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Only the visual executor's lock open changed. Acceptance tests 16 passed (canvas clicks, typing, drag, scroll, stale screenshots, out-of-bounds, cancel / deadline).",
+  "evidence": [
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "CU-24": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "loop.py changes (single-read assignment, program-fit check, storage_guard in state) do not touch waiting / reconciliation. Acceptance tests 8 passed; G-rt p02 0/477 (kill -9 at every point), p01 0/36, settle_crash 0/15.",
+  "evidence": [
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')",
+   "cam_live/docs/verification/repro/rt/p02_crash.py",
+   "cam_live/docs/verification/repro/g2runtime/probe_settle_crash.py"
+  ]
+ },
+ "CU-34": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "harness/grounding/bench.py: only the lock open (fails closed without the file, probe_gpu_lock_final A). Acceptance tests 4 passed. Benchmark numbers not re-run (executed evidence predates the one-line change; the benchmarked models / pages / scoring are unchanged).",
+  "evidence": [
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')",
+   "cam_live/docs/verification/repro/g2final/probe_gpu_lock_final.py"
+  ]
+ },
+ "CU-37": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Files changed since 8f6c615: runtime/cli.py, logs.py, plan_report.py (INT3B rounds 1-3). Acceptance tests 13 passed (the privileged ones from the worktree) (launcher, uid matrix, no privilege regain, chromium under cambrowser, sandbox host); G2-harness g15 2/0, g16 3/0, g18 7/0 (root CLI on a learner-writable run dir: export, plan-report, MANIFEST, FIFO, symlink races) from the worktree (= fdab7d3).",
+  "evidence": [
+   "pytest <privileged named tests> + tests/runtime/test_m_gpu_lock_service_uid.py in the worktree (= fdab7d3), -m 'privileged or browser': 18 passed",
+   "cam_live/docs/verification/repro/g2harness/g15_operator_cli_root.py",
+   "cam_live/docs/verification/repro/g2harness/g18_round5_operator_cli.py"
+  ]
+ },
+ "CU-38": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Only the visual lock open changed. Acceptance tests 3 passed.",
+  "evidence": [
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "IN-01": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "loop.py changes do not touch the agent calls. test_every_runtime_step_calls_the_agent and the other acceptance tests 4 passed; test_meta_update_runs_with_a_nonzero_meta_gradient failed in my one-process run after the other named tests and passed alone (order-dependent); probe_agent_credit 13/13 (agent's own store and logs after integrated lifetimes).",
+  "evidence": [
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')",
+   "cam_live/docs/verification/repro/g2learn/probe_agent_credit.py"
+  ]
+ },
+ "LX-01": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "tasks.py changed (scan variants, single-read loader); the shipped Discord task files load / stay non-runnable until filled and give no strategy finding (probe_tasks_disguise_r3 S rows 5/5). Acceptance tests 5 passed.",
+  "evidence": [
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')",
+   "cam_live/docs/verification/repro/g2final/probe_tasks_disguise_r3.py"
+  ]
+ },
+ "LX-02": {
+  "status": "partial",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Round-3 scan (confusable skeleton, leetspeak, spelled letters, concatenation split, listing / bump sites, outreach moves): G2-runtime's probe_tasks_disguise 0/23 on the extract. G2F-1: probe_tasks_disguise_r3 — 9 of 9 new variants accepted by load_task(for_run=True) and present in learner_view while each plain control is refused: Latin diacritics (réddit), combining marks, Latin small capitals, letters joined by * / _, a word split once, percent-encoded URL letters, leetspeak outside the folded set, unlisted platforms (imgur, 9gag, lemmy, vk), synonyms (raffles, prize draws, flyers). Shipped task files clean; tests 12 passed. A deny-list over the objective text CAM receives verbatim cannot be completed spelling by spelling (suggestion in G2_final.md).",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2final/probe_tasks_disguise_r3.py",
+   "cam_live/docs/verification/repro/g2runtime/probe_tasks_disguise.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "LX-03": {
+  "status": "partial",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Members present at the start who leave and rejoin are excluded, also after a verifier restart; the baseline is verifier state (0600), the log holds counts; newcomers count (probe_baseline_rejoin 0/4, probe_verifier_live_source 0/10, rules after start 0/9, G-rt p06 14/38 by construction). Inherent: a member who left before the verifier's first reading is unknown to it. G2F-2: assign_objective over the verifier socket accepts an older operator-signed amendment after a newer one, so an earlier, easier signed target (40 instead of 100000) or deadline is what the verifier judges (probe_assign_order 1, 1b). Tests 13 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2final/probe_baseline_rejoin.py",
+   "cam_live/docs/verification/repro/g2final/probe_assign_order.py",
+   "cam_live/docs/verification/repro/g2runtime/probe_verifier_live_source.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "LX-07": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "logs.py (snowflake plausibility), loop.py, plan_report.py (redaction) changed. Acceptance tests 5 passed; G-rt p01 0/36, p07 0/62, p13 0/8; probe_plan_report 0/10.",
+  "evidence": [
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')",
+   "cam_live/docs/verification/repro/rt/p01_loop_steps.py"
+  ]
+ },
+ "LX-08": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Acceptance tests 4 passed; G-rt p01 0/36; probe_agent_credit (learning log present and parsed).",
+  "evidence": [
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "LX-10": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "dashboard.py: storage level in health. probe_dashboard 0/19 (credentials, CSRF, origin, DNS rebinding, CSP on 200 / 401 / 403 / 404 / 422 / 500); privileged test: a camlearn process cannot approve; tests 11 passed. Observation G2F-3: malformed thresholds in the learner-written state.json give /api/health 500 (with headers) or 'ok' for NaN.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2runtime/probe_dashboard.py",
+   "cam_live/docs/verification/repro/g2final/probe_dashboard_storage.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')",
+   "pytest <privileged named tests> + tests/runtime/test_m_gpu_lock_service_uid.py in the worktree (= fdab7d3), -m 'privileged or browser': 18 passed"
+  ]
+ },
+ "LX-12": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "doctor's gpu_lock check now needs the file and blocks live when it is absent (doctor run on the extract: blocking_live [persistent_storage, gpu_lock] without CAM_LIVE_GPU_LOCK, [persistent_storage] with it). probe_preflight 0/7, G-rt p09 1/28 (1b, design: 16 REQUIRED items); tests 9 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2runtime/probe_preflight.py",
+   "cam-live doctor --json --strict (extract)",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "LX-13": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Acceptance tests 2 passed; G-rt p01 0/36, p02 0/477.",
+  "evidence": [
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "LX-14": {
+  "status": "partial",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Programs that do not fit what is left of max_external_actions are refused (probe_limits_program 4, 5 hold; check 3 is obsolete: its scenario now ends by max_decisions with 1 action left, correctly); G-rt p04 0/11; the operator's signed extension of the running objective is what the verifier judges (probe_next_objective E1). G2F-2: the verifier accepts an older signed amendment after a newer one (no issued_at / sequence check) — handed over its socket in the order Y (10 days) then X (1 day), X is in force and the verifier signs FAILED on day 2 (probe_assign_order 1, 1b). Tests 15 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2final/probe_assign_order.py",
+   "cam_live/docs/verification/repro/g2runtime/probe_limits_program.py",
+   "cam_live/docs/verification/repro/g2runtime/probe_next_objective.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "LX-15": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Acceptance tests 23 passed; G-rt p01 0/36, p02 0/477, p03 0/15, p14 0/11, p15 0/3; settle_crash 0/15.",
+  "evidence": [
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')",
+   "cam_live/docs/verification/repro/rt/p02_crash.py"
+  ]
+ },
+ "LX-16": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "G2R-16 fixed: camlearn's GpuLease / nn.gpu.gpu_lock and cambrowser's visual lock wait on root's flock of a root:root 0664 lock and get it after the release (probe_gpu_lock_final B1-B4; probe_gpu_lock_path 3; test_m_gpu_lock_service_uid passes). G2R-17 fixed by failing closed: in an extract every lock path refuses and creates no file (A rows); probe_gpu_lock_path 2 still reports the copy's default path is not the machine lock (the hazard is gone). Separated run through the CLI passes; separated_resume 0/8; p11 copy 1/39 (check 14, design). Tests 2 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2final/probe_gpu_lock_final.py",
+   "cam_live/docs/verification/repro/g2runtime/probe_gpu_lock_path.py",
+   "pytest <privileged named tests> + tests/runtime/test_m_gpu_lock_service_uid.py in the worktree (= fdab7d3), -m 'privileged or browser': 18 passed",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "LX-17": {
+  "status": "partial",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Retention, participation, consented feedback (when permitted), operating cost and time are measured apart from the primary value (probe_verifier_live_source B, C1, C2, C4-C6 hold). G2R-3b: usefulness of community resources (spec 13.2 'track') is now named under not_measured in every verdict — honest, but the metric is not tracked; nothing in the verifier measures it. Tests 6 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2runtime/probe_verifier_live_source.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "LX-19": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "probe_next_objective 0/7 (objective B verified after A; forged / foreign / altered / replayed assignments refused; E1); settle_crash 0/15; tests 7 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2runtime/probe_next_objective.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "LX-20": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "G2R-7b fixed: the plan report passes every text through the run logs' redactor with the run's salt (probe_plan_report R2d holds, structure / control / JSON checks 10/10); probe_redaction 0/13; G-rt p07 0/62; the new snowflake rule keeps a 17-digit count and still hashes real ids from 2015-05 on (spot check). Tests 6 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2runtime/probe_plan_report.py",
+   "cam_live/docs/verification/repro/g2runtime/probe_redaction.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "MR-01": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Only the agent.export_weights storage-guard line changed since ef0f3ff. Acceptance tests 12 passed; G2-learn probe_agent_credit 13/13 on the extract (rewards written, stored credit reaches the policy update).",
+  "evidence": [
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')",
+   "cam_live/docs/verification/repro/g2learn/probe_agent_credit.py"
+  ]
+ },
+ "MR-05": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Only the agent.export_weights storage-guard line changed since ef0f3ff (reward/meta code unchanged). Its integration acceptance test passed alone on the extract (265 s) but FAILED in my one-process run after the credit / harness tests (no meta-update applied in the 22-decision lifetimes; INT3B reported the same order dependence), and my CPU debug staging validation applied none (50 skips: insufficient independent outcomes) — whether an outer step is applied in short runs depends on the run, the gate itself is by design. G2-decision's recomputation of the applied meta-gradient (<= 7.2e-7) stands on unchanged code; an applied outer step on the real configuration was still not reached (G2-decision: 0/58 in 3 real lifetimes).",
+  "evidence": [
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')",
+   "pytest tests/integration/test_agent_runtime.py::test_meta_update_runs_with_a_nonzero_meta_gradient (alone)"
+  ]
+ },
+ "NA-01": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Only nn/gpu.py changed since f54d8cc (open_lock_file: never creates the lock, read-only fallback, fails closed). Its three GPU tests could not run: another tenant's evaluation batches held the shared lock the whole time (two queued blocking holders; the tests' non-blocking poll never got it) and they ERRORED at pytest-timeout's 900 s while the fixture would wait 1800 s (test-configuration mismatch, not a code result). Instead, on the extract, the real Qwen/Qwen3-4B through the same code path in float32 on the CPU: build_model(CamLiveConfig(device='cpu')) has 4,022,468,096 frozen backbone parameters (+16,713,856 trainable adapter parameters); embed_texts gives 7680-d embeddings with cos(a red apple, a crimson fruit) 0.676 vs cos(a red apple, quarterly tax filing) 0.078; G2-learn's probe_real_cpu_grads 6/6 PASS (embedding / generation gradients = finite differences, greedy generation 'Red.' identical with and without a latent at init). bf16 / CUDA behaviour not re-run by me.. The backbone / model / bridge code is unchanged; probe_gpu_lock_final shows every lock path fails closed without the file and that camlearn / cambrowser wait on root's flock (12/12). G2-learn's earlier GPU result (4,022,468,096 frozen bf16 parameters, generation, embeddings) rests on unchanged code. Qwen3-8B never loaded.",
+  "evidence": [
+   "tests/nn/test_gpu_qwen.py (-m gpu)",
+   "cam_live/docs/verification/repro/g2final/probe_gpu_lock_final.py"
+  ]
+ },
+ "OB-02": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "loop.py changes outside obstacle handling. G2-integration p04 0/12, p07 0/4 (limit refusals are resource obstacles); tests 1 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2integration/p04_obstacles.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "OP-01": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "loop.py changed (storage_guard thresholds recorded in state). G2-integration p03 0/11 on the extract (save / promote / export refused below the minimum, nothing written, runtime pauses); tests 3 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2integration/p03_storage.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "OP-02": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "p03 0/11 (newest kept, optimizer state only in the newest keep_optim, protected kept, symlinks not followed); tests 3 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2integration/p03_storage.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "OP-03": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "G2I-7 remainder fixed: /api/health shows level warning / low / ok against the run's thresholds and marks defaults (probe_dashboard_storage 1-4 hold); doctor's disk check (extract run); runtime guard (p03). Observation G2F-3: the thresholds are read from the learner-written state.json (string / null -> 500, NaN -> 'ok'). Tests 2 passed.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2final/probe_dashboard_storage.py",
+   "cam_live/docs/verification/repro/g2integration/p03_storage.py",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "OP-07": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "credentials.py / safefs unchanged; cli.py / plan_report.py changed (INT3B). HX's privileged credential test passes; g15 / g16 / g18 hold (root CLI on a learner-writable run dir); tests 5 passed.",
+  "evidence": [
+   "pytest <privileged named tests> + tests/runtime/test_m_gpu_lock_service_uid.py in the worktree (= fdab7d3), -m 'privileged or browser': 18 passed",
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "PI-02": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Only change since ef0f3ff: one line in agent.export_weights (storage guard), outside the prediction path. Acceptance tests 10 passed; G2-decision probe_misc 4/4 on the extract (PI-11 re-arm, D1, promotion rule).",
+  "evidence": [
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')",
+   "cam_live/docs/verification/repro/g2decision/probe_misc.py"
+  ]
+ },
+ "RC-01": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "agent.py changed since G2-learn's cf46eb1 only by G2L-10 (restore keeps the authorization configuration) and the export storage guard. Acceptance tests 13 passed; G2-learn probe_agent_credit 13/13 on the extract: 37 matured outcomes all linked, link weights <= 1, no link to a later decision, leakage audit empty.",
+  "evidence": [
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')",
+   "cam_live/docs/verification/repro/g2learn/probe_agent_credit.py"
+  ]
+ },
+ "SE-01": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Since G-pr's verdict (2026-11-27): providers._permitted no longer reads the learner's own eligibility flags (G2L-8, confirmed fixed by G2-learn: probe_promotion_evidence 5/5) and predictor keeps goal views / reuses VOI means. The success forecast path (evaluator head, signed-resolved-outcome requirement) is unchanged in substance. Acceptance tests 4 passed.",
+  "evidence": [
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ },
+ "SE-02": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fdab7d3033e98082bd213015063cfca6c35d8a12",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Evaluator loss still needs a signed resolved outcome; pending objective gives zero loss / gradient; prefix targets and corrective gradients under over-confidence pass (6 passed). The G2L-8 eligibility change lets held-out / late-matured records stay eligible (the evaluator trains once the verdict exists).",
+  "evidence": [
+   "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
+  ]
+ }
+}
