@@ -32,7 +32,7 @@ is used: the planner is a latent search over the learned heads, with no `generat
 Re-run test suites (freeze copy, CPU): `tests/reward` **169 passed, 3 skipped** (191 s). `tests/credit` **155 passed,
 9 skipped** (181 s). `tests/nn` **123 passed, 13 skipped** (102 s). `tests/predict` **181 passed, 1 failed, 10
 skipped** (228 s). The failure is `test_int3a_eligibility.py::test_a_record_checked_before_its_verdict_becomes_eligible_for_the_evaluator`
-(0 of 12 records eligible for the evaluator). It also fails when run alone, but passes when its whole file runs (2 passed): an order- or RNG-state-dependent test, not attributable to the amendment by these runs (§5). The 4 integration acceptance tests pass, and so do 8 slow acceptance tests (§5). JUnit and logs are in
+(0 of 12 records eligible for the evaluator). It is flaky: it failed once alone, passed alone on a re-run and passed with its file. It depends on load or timing and is not attributable to the amendment (§5). The 4 integration acceptance tests pass, and so do 8 slow acceptance tests (§5). JUnit and logs are in
 `scratchpad/G3CORE/tests/`.
 
 ## 1. RW — genuinely learned rewards (amendment item 1)
@@ -231,6 +231,9 @@ continuations already differed by 4.69.
 * The cross-arm divergence is not evidence.
 * The B2 outcome CIs are effectively unpaired comparisons. The direction of IMP's (d) conclusion (no reliable
   improvement) is unaffected.
+* IMP's checkpoint-continuation diagnostic (§3.6, `ablation_P_..._raw.tar.xz`) is consistent with pairing at decision
+  0: 1 of 6 replicates diverged there (expected 0.34), with inputs within 1e-3. Its "no improvement" stands as a
+  paired result.
 
 **Cause, partly isolated** (`probe_imp_same_arm_twice.sh`, `out/imp_same_arm_twice.txt`, `out/imp_same_seed_off.json`).
 I ran on the freeze code, on a lightly loaded CPU, with `PYTHONHASHSEED=0`, seed 1, 1 lifetime of 3 decisions. Two
@@ -243,224 +246,6 @@ the recorded B2 runs therefore come from the run environment, not from imaginati
 `validation.py:47-57`, used at `predict/imp_eval.py:117`), so timing enters elapsed-time features and deadlines.
 The B2 runs also did not record `PYTHONHASHSEED`. Small float differences also grow with learning, so long paired
 runs diverge in any case. That growth is PS's "trajectory noise" point, and it applies here too.
-
-**D-IMP2**. No gradient path into it, so it cannot collapse. | trained and recorded | none: no selection rule reads it, which IMP states | not claimed |
-| PS: persistent core-state chain | **holds**. nn suite 123 passed: decision-time equals replay to 1e-6, and the FD gradient crosses K = 2. | **holds when enabled**. The default is off (`persist.py:76`), so the default runtime has **no** persistent state. | small, measured by PS (TV 0.004 at full size) | **none**. "Default off" is consistent with that evidence. No defect found. |
-| CR: segment credit inside one objective; estimand-matched selection; CR-3 replay | **holds**. credit suite 155 passed; the IPW bias identity was checked by derivation. | **holds**. CR-1 / CR-3 are in `agent.py:805, 2486`. | Selection never had 8 units, so no promotion is possible yet. | The forced-RUDDER result of -66.8 adopters is **confounded**, **D-CR1**. Validation and training use different quantities, **D-CR2**. |
-
-Binding prohibitions: I found no hardcoded strategy, tool name, niche or plan-instructing prompt in the new code. I
-grepped `reward/validity.py`, `reward/metalearner.py`, `predict/planner.py`, `predict/policy.py`,
-`predict/content.py`, `nn/persist.py`, `credit/segments.py`, `credit/select.py` and `credit/providers.py`. No mix is
-forced (`configs/` sets no `mix`, `promotion_rule`, `imagination_select` or `segment_decisions`), and no LLM planner
-is used: the planner is a latent search over the learned heads, with no `generate` call.
-
-Re-run test suites (freeze copy, CPU): `tests/reward` **169 passed, 3 skipped** (191 s). `tests/credit` **155 passed,
-9 skipped** (181 s). `tests/nn` **123 passed, 13 skipped** (102 s). `tests/predict` **181 passed, 1 failed, 10
-skipped** (228 s). The failure is `test_int3a_eligibility.py::test_a_record_checked_before_its_verdict_becomes_eligible_for_the_evaluator`
-(0 of 12 records eligible for the evaluator). It also fails when run alone, but passes when its whole file runs (2 passed): an order- or RNG-state-dependent test, not attributable to the amendment by these runs (§5). The 4 integration acceptance tests pass, and so do 8 slow acceptance tests (§5). JUnit and logs are in
-`scratchpad/G3CORE/tests/`.
-
-## 1. RW — genuinely learned rewards (amendment item 1)
-
-### 1.1 What I re-ran and checked
-
-* **(a) Tests.** `tests/reward` 169 passed and 3 skipped on the freeze. This covers `test_reward_rw.py`: sequential
-  statistics, validity wiring, FD of the pooled estimator, the `auto` fallback, level readings and checkpoint
-  compatibility.
-* **(a) RW's power simulation** (`docs/evidence/RW/promotion_power_sim.py`) re-run on the freeze is **bit-identical**
-  to `promotion_power.json`: 1.75 % ever promoted at p = 0.5, and median 129 / 52 / 24 / 18 pairs at 70 / 80 / 90 / 100 %
-  (`repro/g3core/out/rw_promotion_power_rerun.json`). Its bootstrap orders every pair at random, but in RW's own
-  LabWorld data the bootstrap **ties** at reward time: `concordance_bootstrap` is exactly 0.000 in all 24 diagnostic
-  runs. The power numbers therefore describe a different score distribution than the one realised. With ties the
-  simulation is conservative (x in {+-0.5}, smaller variance).
-* **(a) The whole procedure under optional stopping** (`probe_rw_validity_procedure.py`). I ran note -> resolve ->
-  disjoint pairing -> `decide()` after every scored pair -> mix walk, 200 runs x 1000 pairs.
-  * iid null: lowered in **1.0 %** of runs.
-  * null with a tied bootstrap: **0.5 %**.
-  * Both are within the nominal alpha/2 = 2.5 %. The fixed-sequence / Ville argument
-    (`validity.py:391-412`) is correct: it needs E[x | past] <= 0, not independence, so dependent consecutive pairs
-    do not invalidate it.
-* **(a) Pooled estimator.** Read `metalearner.py:915-1084`.
-  * The pool excludes the support rows and every independent-outcome group of the support (`_pool`).
-  * The IS weights use logged propensities: self-normalised, clipped, with an ESS floor and leave-group-out baselines.
-  * The surrogate is `<g, theta_K(psi)>`, matching RW §2.2. Its FD test passes.
-* **(a) Per-decision verified credit.** `agent.py:1207-1262` writes `verified_progress_delta` once and only from
-  readings that pass `_check_measurement`. `inner.verified_progress` reads only that annotation. ST-3's information
-  value lives in its own key, `reward_signals.information_value` (`assemble.annotation_key`), so it cannot clobber
-  the verified annotation.
-* **(a) Level->delta (A5).** The level key is `"<objective>|<metric>"` (`metalearner.py:616-619`), so a new objective
-  re-anchors and does not inherit the previous one's level. The regression tests pass.
-* **(b)** `MetaConfig` defaults are `promotion_rule="validity"`, `estimator="auto"` and `utility="direct"`, and
-  `configs/cam_live.yaml` overrides none of them. The RW-1 / RW-2 hooks are in `agent.py:2709, 2891`.
-
-### 1.2 Defects and refutations
-
-**D-RW1 — an *unlearned* R_psi is promoted as often as a learned one at the agent's reward step. The claims "an
-uninformative one (random init, frozen psi) is not promoted" (`reward/validity.py:53`, RW.md §2.1) and "only learning
-lets R_psi act / no frozen arm ever moved the mix" (RW.md §3.4 (c)) are refuted.**
-
-A random initialisation is not uninformative. It is a fixed random function of the signals and latents. RW's own
-frozen arms (R_psi never trained) show prospective concordances whose anytime 95 % CS **excludes 0** in 3 of 9
-distinct runs: -0.20 [-0.35, -0.07], -0.21 [-0.37, -0.07] and -0.22 [-0.42, -0.02]
-(`docs/evidence/RW/diag_summary_{300,600}.json`). R_psi's output layer is N(0, 0.02) with zero bias and an odd bound
-(`bound * tanh`), so the **negated output layer is an equally likely initialisation**. RW's frozen control used
-only one sign of each initialisation, and 7 of its 9 runs had concordance <= 0.
-
-`probe_rw_flipped_frozen.py` re-runs RW's controlled 600-decision configuration (`rw_meta_diag.run`, the same seeds
-and worlds, reward step 0) with the output layer negated. Its frozen arms reproduce RW's numbers exactly; seed 0, for
-example, is -0.0669 [-0.2595, 0.0743]. Learned columns are from RW's `diag_summary_600.json`
-(`out/rw_learned_vs_random_init.txt`):
-
-| seed | unlearned R_psi: init / negated init | negated init promoted? | true adopters per decision after promotion, negated minus bootstrap-only (same decisions before) | learned, lr 3e-3 | learned, lr 1e-4 (agent's) |
-|---|---|---|---|---|---|
-| 0 | -0.067 / +0.074 | no | - | +0.388 promoted | +0.173 promoted |
-| 1 | +0.040 / -0.003 | no | - | +0.191 promoted | +0.185 promoted |
-| 2 | -0.204 / **+0.248** [0.088, 0.392] | **yes, decision 151** (e-value 3.0e5) | -0.77 [-2.10, +0.60], 449 decisions | +0.145 promoted | +0.029 |
-| 3 | -0.057 / +0.057 | no | - | - | +0.055 |
-| 4 | -0.207 / **+0.222** [0.093, 0.396] | **yes, decision 99** (e-value 1.4e4) | +1.04 [+0.71, +1.39], 501 decisions | - | -0.052 |
-| 5 | -0.154 / +0.182 | yes, decision 566 (e-value 293) | 0.00 (34 decisions, not yet diverged) | - | -0.190 |
-
-* **Unlearned rewards, both signs (n = 12):** mean concordance +0.011, mean |concordance| 0.126, **promoted 3 of 12**.
-* **Learned at the agent's reward step 1e-4 (n = 6):** mean concordance +0.033, **promoted 2 of 6**.
-* Only at the 30x larger reference step (3e-3) do learned rewards clearly exceed the random-init range: 3 of 3
-  promoted, and +0.39 in seed 0, beyond any unlearned value.
-
-Consequences:
-
-1. At the agent's own reward step, the promotion evidence does not distinguish a meta-learned R_psi from a random
-   one. RW's "gain over the frozen R_psi on the same pairs" (17 of 18 positive) is measured against a baseline that
-   was mostly negative by chance. Moving a negatively concordant initialisation towards 0 is what any perturbation of
-   psi can do (regression to the mean), so the positive gains alone do not show learning.
-2. After promotion, an unlearned reward produced both a clear gain (seed 4, +1.04 [0.71, 1.39]) and a loss pointing
-   the other way (seed 2). That is the same range as RW's learned promotions (+2.14, -0.14, -2.89, +0.70, +0.87), so
-   RW's one clear post-promotion gain is not attributable to meta-learning.
-   * Promoting seed 4's lucky random reward was *useful*, so this is not a statistical error of the test.
-   * What is refuted is that the evidence certifies a *learned* reward.
-   * The promotion in seed 2 brought no measurable benefit.
-3. The procedure is statistically valid for its own H0. My checks give 1.0 % and 0.5 % false lowering under exact
-   nulls. That H0 is "R_psi's concordance over consecutive matured units is no better than the mixture's", not
-   "R_psi learned something useful". The first-order argument (`validity.py:7-14`: concordance = within-state
-   covariance) assumes the two units of a pair share their state. A reward that ranks the states it passes through
-   (`success_before`, the lifetime context) the way outcomes happen to vary between consecutive decisions earns
-   concordance without a useful within-state ranking (seed 2).
-4. The same holds relative to the bootstrap. Against an anti-concordant bootstrap, an R_psi independent of outcomes
-   is lowered in **100 %** of runs (`rw_validity_procedure.json`, `boot_anti`). That is correct under the rule's H0,
-   but it contradicts the documented claim.
-
-Severity: **moderate-high** for item 1's central claim ("an empirically grounded mechanism for determining when
-learned rewards are useful"). The mechanism decides when R_psi's *ranking agrees*, whether or not anything was
-learned. Fix directions (not mine to make):
-
-* control with a sign-symmetric population of unlearned rewards;
-* require the learned reward to beat the agreement of its own frozen initialisation on the same pairs (a paired
-  "learning helped" test);
-* score within-state comparisons (candidates of the same decision, e.g. via the logged propensities) instead of
-  consecutive units.
-
-Reproduce:
-
-    OMP_NUM_THREADS=4 nice -n 10 env PYTHONPATH=<freeze>/cam_live/src .venv/bin/python \
-      cam_live/docs/verification/repro/g3core/probe_rw_flipped_frozen.py \
-      --rw-dir <freeze>/cam_live/docs/evidence/RW --seeds 0 1 2 3 4 5 --out out/rw_flipped_frozen.json   # ~22 min CPU
-    python analyse_rw_learned_vs_random_init.py --rw-summary <freeze>/cam_live/docs/evidence/RW/diag_summary_600.json \
-      --flipped out/rw_flipped_frozen.json
-
-Note: decisions are identical in both arms until the mix moves (`identical_before_first_change` true in all three
-promoted seeds). The *pairing* of units can differ between processes in some seeds (unit ids are random), so a
-negated arm's concordance is not always the exact negative of its frozen arm's. That reproducibility weakness has no
-validity consequence, because the pairing never reads outcomes.
-
-**D-RW2 — where the bootstrap ties at reward time, R_psi's weight can never exceed 0.25, whatever its quality.**
-
-With `r_bootstrap` equal for every decision at reward time, `pair_scores` gives c_m = c_0 (R_psi alone) for every
-m < 1. The lowering increment at every m_k < 1 is then `x+ = (c_0 - c_mk)/2 = 0` for every pair
-(`validity.py:374`), so its e-value stays exactly 1. The raising increment is `-c_0/2 < 0` for a concordant R_psi.
-
-Probe (`tied_boot_perfect_R_psi_300_pairs`): a **perfect** R_psi with a tied bootstrap ends at mix 0.75 in 50 of 50
-runs, with e-value 1.0 at 0.75. In RW's diagnostics the bootstrap ties in every run: `concordance_bootstrap` is 0.000 in all 24 summaries, and every reward-time bootstrap value was exactly 0.0 in a traced run of the same configuration, and **all 7 promotions ended at
-0.75** (RW.md §3.4 table). RW reports the 0.75 as a result and does not recognise it as structural.
-
-The underlying design gap: the score is computed on the *reward-time* bootstrap. The mix weighs the *update-time*
-bootstrap, which contains components that mature later, e.g. ST-3's information value (RW.md §2.4: "absent from the
-bootstrap reward at reward time ... present in the live updates"). The evidence therefore cannot speak about what
-lowering the mix further does to the live update. At full size the bootstrap does not tie (real run: bootstrap
-concordance -0.06 over 17 pairs), so the cap is environment-dependent.
-
-Severity: **moderate** (limits item 1's "learned rewards influence ordinary updates" to 25 % in such worlds).
-
-### 1.3 Levels
-
-* (a) holds (statistics, estimator, annotation, level fix).
-* (b) holds.
-* (c) In the integrated agent R_psi never had weight: mix 1 throughout the debug 120-decision run and the real
-  35-decision run, with TV 0.0 on 11 real live updates, as RW reports. In the controlled diagnostic a promotion
-  changes decisions 7-31 decisions later. For the promoted unlearned rewards the delay was 27 and 68 decisions
-  (seeds 2 and 4: promotion at 151 / 99, first different decision 178 / 167). That meta-learning
-  improved R_psi's agreement is shown only at the 30x reference step (D-RW1).
-* (d) Improvement is not established (RW says so). Beyond RW's own caveats, D-RW1 shows that at the agent's step
-  neither promotion nor post-promotion gains can be attributed to learning: an equally likely unlearned R_psi was
-  promoted in 3 of 12 cases, with post-promotion effects of -0.77 to +1.04.
-
-RW's negative-result diagnoses (return half-life smearing credit, evidence rate of tens of informative pairs) are
-measured and plausible. I did not re-run `rw_credit_probe.py`.
-
-## 2. IMP — predictive imagination and multistep planning (amendment item 2)
-
-### 2.1 Checked
-
-* **(a)** `tests/predict` 181 passed; all 16 IMP tests pass on the freeze.
-* **(a) Transition priors** (`world.py:532-562`).
-  * Fixed, seeded generator (`seed*7919+104729`, independent of the global RNG), zero-mean over members, added only
-    to the residual mean, not trainable (non-persistent buffers).
-  * Regenerated identically after a restore, so the members' learned cancellation stays valid.
-  * Minor overstatement: "a transition trained without them predicts the same mean" holds at initialisation and on
-    the training data, not off-data after training (the members learned to cancel their own offsets).
-* **(a) Value-consistency horizon** (`imagination.HorizonController`, `planner.measure`). The criterion compares the
-  candidates' values at the imagined and at the real belief, relative to how much the values differ between
-  candidates. If the world model's values barely depend on the belief, the criterion admits the full horizon even
-  though imagination carries nothing. That is what happened at full size: value error 0.040 against a persistence
-  baseline of 0.038, giving horizon 4. The criterion therefore certifies that imagination is harmless, not that it
-  is accurate about consequences. IMP states this ("harmless ... not informative") and records the baseline, so this
-  is not a defect, but "the horizon grows only as measured accuracy supports it" overstates it.
-* **(b)** `agent.py:1959-1969`: `planner.plan(..., predictor, evaluations)` -> `ev.extras.update(im.extras())` ->
-  `select` -> `DecisionMaker.thompson_policy`. Calibration is fed by `_measure_planner` -> `refresh_calibration`.
-* **(c) Can poorly calibrated imagination dominate?** Prior draws give a mean weight of 0.174. Over 20,000 draws,
-  lambda_im = beta_im^+ / max(beta_q, 1) with beta_im ~ N(0, 0.5^2) and m winsorised at +-4, so under the prior an
-  imagined preference can move a score by at most ~0.7 one-step sd on average, in half the Thompson samples.
-  In B2 this changed the argmax in 9 % of decisions: exploratory, not dominant.
-  With evidence that m carries nothing, the posterior pulls the weight *below* the prior (0.06-0.13 in my
-  simulation), so discredited imagination loses influence as designed. The exception is D-IMP3.
-* **(d)** No improvement. IMP reports this honestly (B2 +0.237 in lifetime 0, not surviving lifetime 1; §3.6 none;
-  full-size pair: on worse, n = 1).
-
-### 2.2 Defects and refutations
-
-**D-IMP1 — the "paired" B2 ablation is not paired; the inference "the arms diverge, therefore imagination causally
-changes decisions" (IMP.md §3.3) is refuted.**
-
-`predict/imp_eval.py:10-15` says the arms "draw the same random numbers, so with the same seed they are identical
-until behaviour differs". In the raw B2 rows (`docs/evidence/IMP/ablation_B2_final_code_raw.tar.xz`, lifetime 0,
-**decision 0**: identical context, no learning yet) the arms' recorded inputs already differ. The one-step values
-are up to 0.16 apart and the imagined continuations up to 4.69 apart (seed 7). The executed action differs at
-decision 0 in **5 of 10** pairs.
-
-If only imagination caused divergence, the expected count would be sum share_tv = 0.53, and
-P(>= 5) = 5e-5 (Poisson-binomial). Seed 1 diverged at a decision where the on arm's distributions with and without
-imagination were identical (share_tv = 0.000), which no coupling can attribute to imagination. Seed 7, IMP's example
-("unlocked at its first decision ... achieved the objective in 7 decisions"), diverged where the two arms' imagined
-continuations already differed by 4.69.
-
-`repro/g3core/out/imp_b2_pairing.txt` (regenerate with `analyse_imp_b2_pairing.py`, §6). Consequences:
-
-* The within-decision counterfactual (share_tv 0.053, argmax changed 9 %) remains valid causal evidence.
-* The cross-arm divergence is not evidence.
-* The B2 outcome CIs are effectively unpaired comparisons. The direction of IMP's (d) conclusion (no reliable
-  improvement) is unaffected.
-
-Likely cause: `imp_eval.run` builds the agent on `validation.OffsetClock` (`predict/imp_eval.py:117`;
-`validation.py:47-57`: `time.time() + offset`), i.e. **wall-clock time**. Decision timestamps, elapsed-time features
-(core, transition `time_features(dt)`, the `elapsed_s` signal) and deadline-dependent imagined sequences therefore
-differ between the two processes. I did not run a same-arm-twice test to confirm this.
 
 **D-IMP2 — the content target is not fixed: it moves with the LoRA adapters (refutes `predict/content.py:11-13` "a
 fixed target, not one the learner can move" and IMP.md §6).**
@@ -598,15 +383,17 @@ means COCOA contributes nothing on the real configuration.
 | `tests/predict` | 181 passed, **1 failed**, 10 skipped | 228 s |
 | `tests/credit` | 155 passed, 9 skipped | 181 s |
 | `tests/nn` | 123 passed, 13 skipped | 102 s |
-| `test_int3a_eligibility.py::test_a_record_checked_before_its_verdict_becomes_eligible_for_the_evaluator` alone | **1 failed** (0 of 12 records eligible) | 32 s |
+| `test_int3a_eligibility.py::test_a_record_checked_before_its_verdict_becomes_eligible_for_the_evaluator` alone | **1 failed** (0 of 12 records eligible); a later re-run alone: 1 passed | 32 s / 40 s |
 | `test_int3a_eligibility.py` (whole file) | 2 passed | 52 s |
 | `tests/integration/test_agent_runtime.py` (the 4 acceptance tests: `test_behaviour_changes_and_lives_in_the_weights`, `test_delayed_outcomes_link_to_their_decisions`, `test_internal_rewards_are_stored_per_record`, `test_meta_update_runs_with_a_nonzero_meta_gradient`) | 4 passed | 294 s |
 | `-m slow`: `credit/test_evidence.py` (5 tests, incl. delayed unlock credited retrospectively, stored experience improves held-out prediction, forgetting measured / reduced), `reward/test_reward_experiment.py::test_three_learners_...`, `predict/test_learning_evidence.py::test_value_of_information_fast_path_...`, `credit/test_cr_agent.py` (CR's real agent + runtime test) | 8 passed | 654 s |
 | `-m gpu` acceptance tests | see §7 | - |
 
-The eligibility test fails deterministically when run alone and passes when its file runs whole, so its outcome
-depends on what ran before it in the process (RNG or global state). It was in `tests/predict` before the amendment
-(INT3A, G2L-8). These runs do not show whether the amendment changed it. It is outside items 1-4 (evaluator
+The eligibility test is **flaky**. At the freeze it failed in the suite run and once when run alone, then passed when
+run alone later and when its whole file ran. A bisect over the amendment's 40 src commits is meaningless: it "failed"
+first at c5a81ed, whose only change is 4 lines in `predict/imp_eval.py`, which the test does not import, and it
+passed at the freeze on a re-run. The outcome depends on load or timing. The agent's learning steps run under
+wall-clock budgets (`agent.py` `time.perf_counter() - t0 < budget_s`), which is plausibly the reason. The test predates the amendment (INT3A, G2L-8). It is outside items 1-4 (evaluator
 eligibility, INT3A), and I report it rather than diagnose it.
 
 ## 5b. Verdicts (`docs/verification/verdicts_g3core.json`, commit 6cba496, supersedes all)
@@ -634,7 +421,12 @@ python probe_imp_overlapping_windows.py --reps 200 --out out/imp_overlapping_win
 python probe_imp_content_target.py --out out/imp_content_target.json
 python analyse_imp_b2_pairing.py --raw <dir with B2/*.pjson extracted from docs/evidence/IMP/ablation_B2_final_code_raw.tar.xz>
 python analyse_cr_forced_rudder.py --cr-agent <scratch>/CR/agent
+./probe_imp_same_arm_twice.sh $F <workdir> out
 ```
+
+The CR and IMP analyses read the implementers' raw outputs. IMP's are committed as `docs/evidence/IMP/*_raw.tar.xz`.
+CR's (`scratchpad/CR/agent/abl1`, `abl2`) live only in the shared scratch directory; the derived numbers are in
+`out/cr_forced_rudder_by_quarter.txt`.
 
 ## 7. Not checked / limits of this verification
 
