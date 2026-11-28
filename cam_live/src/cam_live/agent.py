@@ -422,7 +422,7 @@ def short_description(text: str, limit: int = TOOL_DESCRIPTION_CHARS) -> str:
     return (head[:head.rfind(" ")] if " " in head else head).rstrip(" ,;") + " ..."
 
 
-def compact_tool(t: ToolDescriptor) -> Dict[str, Any]:
+def compact_tool(t: ToolDescriptor, desc_chars: int = TOOL_DESCRIPTION_CHARS) -> Dict[str, Any]:
     """A tool as the backbone reads it: name, what it does (its own description, whole sentences), and one line per
     argument (type, range / options, required marked with *). Same argument information as the JSON Schema the
     environment validates against, in a tenth of the characters."""
@@ -433,7 +433,10 @@ def compact_tool(t: ToolDescriptor) -> Dict[str, Any]:
     args = {k: _type_of(v) + (", required" if k in req else "") for k, v in (schema.get("properties") or {}).items()}
     if t.name == "program":
         args = {"steps": "array of actions, each {operation, arguments}, required"}
-    return {"name": t.name, "does": short_description(t.description), "args": args}
+    out: Dict[str, Any] = {"name": t.name, "args": args}
+    if desc_chars > 0:                                  # 0: name and arguments only (a prompt that must fit a window)
+        out["does"] = short_description(t.description, desc_chars)
+    return out
 
 
 def normalise_proposal(obj: Any, tools: Dict[str, ToolDescriptor], notes: Dict[str, int]) -> Any:
@@ -535,6 +538,9 @@ def _joined_object(lines: Sequence[str], start: int) -> Tuple[Any, int]:
 
 
 class AgentProposer(BackboneProposer):
+    #: characters of each tool description in the prompt (shortened, never dropped tools, when a prompt must fit)
+    desc_chars: int = TOOL_DESCRIPTION_CHARS
+
     """``predict.candidates.BackboneProposer`` with the agent's prompt and normalisation (change request S-6):
     compact per-tool argument lists instead of full JSON Schemas, a request for several *single* alternative actions
     (programs still possible), and :func:`normalise_proposal` before the strict parser. Generation is conditioned on
@@ -545,7 +551,7 @@ class AgentProposer(BackboneProposer):
                k: Optional[int] = None) -> str:
         from .predict.candidates import H_ANSWER, H_END, H_OBJECTIVE, H_OBSERVATION, H_TOOLS
         enc = lambda v: json.dumps(v, ensure_ascii=True, sort_keys=True, separators=(",", ":"), default=str)  # noqa
-        listed = [compact_tool(t) for t in tools if t.available]       # every tool given, in the order given
+        listed = [compact_tool(t, self.desc_chars) for t in tools if t.available]   # every tool given, in order
         obs = observation_digest if isinstance(observation_digest, str) else str(observation_digest)
         text = "\n".join([PROPOSAL_INSTRUCTIONS.format(k=int(k or self.k)), H_OBJECTIVE, enc(objective), "", H_TOOLS,
                           enc(listed), "", H_OBSERVATION, enc(obs[:6000]), "", H_END, H_ANSWER, ""])
@@ -1300,8 +1306,11 @@ class CamLiveAgent:
             if s.proposer_tools > 0:                       # ablation only: a bounded list (recorded below)
                 ptools = ptools[:s.proposer_tools]
             digest, fit = self._fitted_digest(ptools)
-            res = self.proposer.propose(ptools, digest, objective=self._goal_text(), latent=b, vocab=vocab,
-                                        k=s.proposer_k, id_prefix=prefix, seed=self.rng.randrange(1 << 30))
+            try:
+                res = self.proposer.propose(ptools, digest, objective=self._goal_text(), latent=b, vocab=vocab,
+                                            k=s.proposer_k, id_prefix=prefix, seed=self.rng.randrange(1 << 30))
+            finally:
+                self.proposer.desc_chars = TOOL_DESCRIPTION_CHARS
             stats = dict(res.stats)
             stats["prompt_fit"] = fit
             stats["tools_permitted"] = len(permitted)
@@ -1403,8 +1412,16 @@ class CamLiveAgent:
             digest = self._digest(budget)
             n = prompt_tokens(self.model, self.proposer.prompt(ptools, digest, goal, s.proposer_k))
             info.update(fitted=True, obs_budget=budget)
+        for chars in (100, 0):                          # then shorter tool descriptions; every tool stays listed
+            if n is None or n <= limit - margin:
+                break
+            self.proposer.desc_chars = chars
+            n = prompt_tokens(self.model, self.proposer.prompt(ptools, digest, goal, s.proposer_k))
+            info.update(fitted=True, description_chars=chars)
         info["tokens"] = n
         info["over_window"] = bool(n is not None and n > limit)
+        if info["over_window"]:                         # the backbone will cut the prompt's beginning (recorded)
+            self.counters["decisions_prompt_over_window"] += 1
         return digest, info
 
     def set_action_validator(self, fn: Any) -> None:

@@ -214,3 +214,39 @@ def test_a_marker_in_an_argument_name_and_a_multiline_string_are_repaired_and_lo
         assert res.stats["normalised"].get("multiline_joined") == 1
     finally:
         agent.close()
+
+
+def test_when_the_tools_alone_exceed_the_window_descriptions_are_shortened_never_tools(tmp_path):
+    """INT3B's planning rehearsal measured 4112 prompt tokens against the 2048-token window after the digest fit:
+    the tool list alone was too long. Descriptions are then shortened (first to 100 characters, then left out);
+    every permitted tool stays listed by name with its arguments; a prompt that still does not fit is recorded."""
+    agent = _agent(tmp_path)
+    sent = _capture(agent)
+    tools = _tools()
+    bb = agent.model.backbone
+    try:
+        agent.ingest([Observation(obs_id="obs_1", ts=agent.clock.now(), kind="metric", text="x")])
+        listed = [t for t in tools if t.available and t.modality != "api"]
+        agent.proposer.desc_chars = 0
+        bare = len(bb._encode(agent.proposer.prompt(listed, agent._digest(120), agent.task.objective,
+                                                    agent.settings.proposer_k)))
+        agent.proposer.desc_chars = 200
+        old, bb.pretrained = bb.nn_cfg.max_prompt_tokens, True
+        bb.nn_cfg.max_prompt_tokens = bare + 12
+        try:
+            d = _decide(agent, tools)
+            fit = d.diagnostics["generation"]["prompt_fit"]
+            assert fit["description_chars"] == 0 and not fit["over_window"], fit
+            names = [t["name"] for t in _data(sent[0], C.H_TOOLS)]
+            assert sorted(names) == sorted(t.name for t in listed)                  # nothing hidden
+            assert all("does" not in t for t in _data(sent[0], C.H_TOOLS))
+            assert agent.proposer.desc_chars == 200                                  # restored after the call
+            sent.clear()
+            bb.nn_cfg.max_prompt_tokens = bare // 2                                  # cannot fit: recorded
+            d = _decide(agent, tools)
+            assert d.diagnostics["generation"]["prompt_fit"]["over_window"]
+            assert agent.counters["decisions_prompt_over_window"] == 1
+        finally:
+            bb.nn_cfg.max_prompt_tokens, bb.pretrained = old, False
+    finally:
+        agent.close()

@@ -79,3 +79,16 @@ test: assert the success line is present and decodes to `task.success`.
 * `tests/integration/test_int2_planning.py::test_planning_task_file` fails at HEAD independently of INT3A: the task
   file was filled with the operator's values by M (d3ce519), so the "unset items" problem it expects is gone
   (owner of the test: INT3B).
+
+## INT3A-4 (configs/cam_live.yaml or nn/presets.py `NNConfig.max_prompt_tokens`, owner A / M): a prompt window that fits the authorized action space
+
+**What / why (measured).** The backbone keeps the END of a prompt longer than `nn.max_prompt_tokens` (2048), so the
+instruction block, the objective and the tool list are cut first. INT3B's planning-phase rehearsal measured 4112
+prompt tokens after the agent's digest fit (`docs/evidence/INT3B/rehearsal_summary.json`, segment A: 12 of 12
+decisions over the window, no backbone proposal); with `nn.max_prompt_tokens: 6144` (segment B) 4369-4757 tokens
+fitted and 8 backbone-written actions were chosen. The open-ended families (14-16 tools) are close to 2048 too.
+**Proposed diff** (`configs/cam_live.yaml`, section `nn`): `max_prompt_tokens: 6144` (Qwen3-4B's context is 32k;
+generation cost grows with the prompt: measure before / after on the real configuration).
+**Meanwhile (agent).** `_fitted_digest` shortens the observation digest, then the tool descriptions (100 characters,
+then none) — never the tool list, the objective or the instructions — and records `prompt_fit` (tokens, window,
+`over_window`) per decision and the counter `decisions_prompt_over_window`.
