@@ -252,9 +252,9 @@ To ask whether imagination helps once the world model has experience, one agent 
 of 63 verified windows) on 3 held-out worlds each, 6 replicates (world seeds 82000 + 10 r), code 00f8913 + CR
 (evidence `docs/evidence/IMP/ablation_P_from_exploration_checkpoint_summary.json`).
 
-* The exploration did **not** give the world model the delayed dependency: `lab.unlock` was executed once in 64
-  exploratory decisions (the offered candidate set rarely contained it) and never followed by an intervention on the
-  last channel. The diagnostic therefore tests imagination with an experienced-but-ignorant world model, not one that
+* The exploration did **not** give the world model the delayed dependency: `lab.unlock` was offered in 36 of the 64
+  exploratory decisions but, as one of 16 candidates under near-uniform choice (about 5.6 % per offer, 2 expected),
+  executed once, and never followed by an intervention on the last channel. The diagnostic therefore tests imagination with an experienced-but-ignorant world model, not one that
   knows the mechanism.
 * Causal: share_tv 0.048 (CI 0.035-0.062), argmax changed in 22 of 187 decisions (11.8 %).
 * Calibration: after 88-101 verified windows per replicate, `beta_im` = -0.18 .. +0.31 (posterior sd 0.18-0.40):
@@ -289,9 +289,10 @@ of 63 verified windows) on 3 held-out worlds each, 6 replicates (world seeds 820
    lifetimes across both arms; the world model cannot predict, and imagination therefore cannot imagine, a
    consequence that was almost never observed. **Empirical limitation** (exploration of enabling actions and the
    amount of experience), not demonstrated to be architectural. The exploration-checkpoint diagnostic (§3.6) did not
-   separate the two either: near-uniform exploration executed `lab.unlock` once in 64 decisions, because the
-   candidate set offered per decision rarely contained it (candidate generation is ST's / B's machinery); with 88-101
-   verified windows the calibration still found no predictive value in imagination (|beta_im| <= 0.31, sd 0.18-0.40).
+   separate the two either: near-uniform exploration executed `lab.unlock` once in 64 decisions (offered in 36, one
+   of 16 candidates each time), so even 64 exploratory decisions are too few to experience a one-action enabling
+   dependency followed by its pay-off; with 88-101 verified windows the calibration still found no predictive value
+   in imagination (|beta_im| <= 0.31, sd 0.18-0.40).
 5. Selection-calibration data at full size: none yet (the live run's checkpoint predates the imagination calibration;
    its decisions carry no imagination numbers), so the full-size weight is the prior's.
 
