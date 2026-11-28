@@ -212,8 +212,17 @@ def integration_items(task: TaskSpec, env: Any) -> List[Dict[str, str]]:
     for lab in _labels(caps):
         out.append(_item("integration", "environment component", f"{lab}: a component of the environment is not "
                          "live, whatever the environment's own label says"))
+    # only a tool the task authorizes can block: anything outside resources.authorized_tools is refused by the
+    # authorization service whatever its availability (IH-08), so its being unavailable is not a missing item
+    res = task.resources if isinstance(getattr(task, "resources", None), dict) else {}
+    authorized = [str(p) for p in (res.get("authorized_tools") or []) if isinstance(p, str)]
+
+    def permitted(name: str) -> bool:
+        import fnmatch
+        return not authorized or any(fnmatch.fnmatchcase(name, p) for p in authorized)
+
     for t in tools:
-        if not t.available:
+        if not t.available and permitted(t.name):
             out.append(_item("integration", t.name, t.unavailable_reason or "listed as unavailable"))
     for m in missing_integrations(task, tools):
         out.append(_item("integration", m["tool"], m["reason"]))
