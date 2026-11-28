@@ -938,7 +938,11 @@ class SkillInducer:
                 vals = [_arg_leaves(a.arguments).get(path, _MISSING) for a in src]
                 if any(v is _MISSING for v in vals):
                     raise SkillInductionError(f"step {j}: argument {'.'.join(path)} is not present in every trace")
-                tmpl = ab.abstract(vals, j, path[-1], f"step {j} ({src[0].operation}) {'.'.join(path)}")
+                if path in (("role",), ("name",), ("nth",)) and all(e[j] is not None for e in segel) and \
+                        all(_same(v, vals[0]) for v in vals):
+                    tmpl = vals[0]          # the element's identity: never a capture of some equal text elsewhere
+                else:
+                    tmpl = ab.abstract(vals, j, path[-1], f"step {j} ({src[0].operation}) {'.'.join(path)}")
                 if isinstance(tmpl, dict) and set(tmpl) == {"$param"}:
                     opts = [e[j].get("options") for e in segel if e[j] is not None]
                     if len(opts) == len(segs) and all(isinstance(o, list) and o for o in opts) and \
@@ -1175,6 +1179,28 @@ def without_step(skill: Skill, j: int) -> Skill:
     new.status, new.status_reason, new.validation_history = STATUS_CANDIDATE, "", []
     new.provenance = dict(new.provenance, dropped_steps=list(new.provenance.get("dropped_steps", []))
                           + [{"operation": gone.operation, "index": j}])
+    return new
+
+
+def restart_at(skill: Skill, k: int) -> Skill:
+    """A candidate copy of ``skill`` that starts at step ``k`` (its first ``k`` steps removed; refused when a kept step
+    uses what a removed one returned). The precondition on the starting element is re-derived from the new first
+    step's locator."""
+    new = skill
+    for _ in range(k):
+        new = without_step(new, 0)
+    new.preconditions = [c for c in new.preconditions if c.kind != "element_present"]
+    a = new.steps[0].arguments if new.steps else {}
+    if isinstance(a.get("role"), str) and isinstance(a.get("name"), str):
+        new.preconditions.insert(1, VerificationCondition(
+            description=f"the {a['role']} \"{a['name']}\" the procedure starts on is present", kind="element_present",
+            spec={"role": a["role"], "name": a["name"]}))
+    # the conditions were derived against the state before the removed steps: what they claim about the change is
+    # now a hypothesis for validation to test (e.g. a detour's navigation added a form to the page)
+    for c in new.postconditions:
+        if c.kind == "metric":
+            c.spec = dict(c.spec, tentative=True)
+    new.provenance["restarted_at"] = int(k) + int(skill.provenance.get("restarted_at", 0))
     return new
 
 
@@ -1915,18 +1941,47 @@ class SkillExecutor:
             self.library.log_rejected(skill, report)
             j = next((int(r["termination"].split(":")[1]) for r in report["runs"]
                       if str(r.get("termination", "")).startswith("step_failed:")), None)
-            if j is None or j >= len(skill.steps) or not self.read_only(skill.steps[j]):
+            if j is None and any(r.get("termination") == "precondition_failed" for r in report["runs"]):
+                k = self._first_present_step(skill)            # where the recorded sequence meets the current state
+                if k is not None and k > 0 and len(skill.steps) - k >= max(2, self.inducer.min_steps):
+                    try:
+                        skill = restart_at(skill, k)
+                    except SkillInductionError:
+                        return skill, report
+                    dropped += 1
+                    report = self.validate_candidate(skill, ctx, validation_arguments, environment=environment,
+                                                     action=action)
+                    report["reduced"] = dropped
+                    continue
+            if j is None or j >= len(skill.steps):
                 return skill, report
             try:
-                skill = without_step(skill, j)
+                if self.read_only(skill.steps[j]):
+                    skill = without_step(skill, j)
+                elif len(skill.steps) - (j + 1) >= max(2, self.inducer.min_steps):
+                    # the recorded sequence is not reproducible up to step j (an earlier detour of the trace, a step
+                    # that depended on the moment): the reusable portion is what follows it, if that reproduces
+                    skill = restart_at(skill, j + 1)
+                else:
+                    return skill, report
             except SkillInductionError:
                 return skill, report
             dropped += 1
             report = self.validate_candidate(skill, ctx, validation_arguments, environment=environment, action=action)
-            report["dropped_observation_steps"] = dropped
+            report["reduced"] = dropped
         if not report["passed"]:
             self.library.log_rejected(skill, report)
         return skill, report
+
+    def _first_present_step(self, skill: Skill) -> Optional[int]:
+        """Index of the first step addressing (by a constant role and name) an element the current state shows."""
+        els = _elements(self._state)
+        have = {(e.get("role"), e.get("name")) for e in els}
+        for k, st in enumerate(skill.steps):
+            a = st.arguments if isinstance(st.arguments, dict) else {}
+            if isinstance(a.get("role"), str) and isinstance(a.get("name"), str) and (a["role"], a["name"]) in have:
+                return k
+        return None
 
     # ---- discovery of recurring procedures and refinement by experience ----------------------------------
     def changes_world(self, step: ActionSpec) -> bool:

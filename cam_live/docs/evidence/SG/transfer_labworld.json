@@ -1,0 +1,205 @@
+{
+ "what": "SG diagnostic (debug model, LabWorld): does goal-free learning improve the prediction of a later assigned objective's",
+ "rows": [
+  {
+   "seed": 0,
+   "later": "same",
+   "goal_free_goals": 24,
+   "mean_gain_nats": 1.5847736795743306,
+   "positive": 10,
+   "n": 12,
+   "transfer_before": [
+    0.5,
+    0.5,
+    0.5
+   ],
+   "transfer_after": [
+    0.8112763047218323,
+    0.8112763047218323,
+    0.7225526094436645
+   ]
+  },
+  {
+   "seed": 0,
+   "later": "redrawn",
+   "goal_free_goals": 24,
+   "mean_gain_nats": -1.8332442839940388,
+   "positive": 1,
+   "n": 12,
+   "transfer_before": [
+    0.5,
+    0.5,
+    0.5
+   ],
+   "transfer_after": [
+    0.1555723190307617,
+    0.1555723190307617,
+    0.21114463806152345
+   ]
+  },
+  {
+   "seed": 1,
+   "later": "same",
+   "goal_free_goals": 24,
+   "mean_gain_nats": 0.9878711253404617,
+   "positive": 11,
+   "n": 12,
+   "transfer_before": [
+    0.5,
+    0.5,
+    0.5
+   ],
+   "transfer_after": [
+    0.7831215262413025,
+    0.8302919745445252,
+    0.807754397392273
+   ]
+  },
+  {
+   "seed": 1,
+   "later": "redrawn",
+   "goal_free_goals": 24,
+   "mean_gain_nats": -0.055196233093738556,
+   "positive": 8,
+   "n": 12,
+   "transfer_before": [
+    0.5,
+    0.5,
+    0.5
+   ],
+   "transfer_after": [
+    0.5478362202644348,
+    0.6478362202644348,
+    0.6956724405288697
+   ]
+  },
+  {
+   "seed": 2,
+   "later": "same",
+   "goal_free_goals": 24,
+   "mean_gain_nats": 1.54610076546669,
+   "positive": 10,
+   "n": 12,
+   "transfer_before": [
+    0.5,
+    0.5,
+    0.5
+   ],
+   "transfer_after": [
+    0.8120283365249634,
+    0.8120283365249634,
+    0.7240566730499267
+   ]
+  },
+  {
+   "seed": 2,
+   "later": "redrawn",
+   "goal_free_goals": 24,
+   "mean_gain_nats": -0.6637187351783117,
+   "positive": 4,
+   "n": 12,
+   "transfer_before": [
+    0.5,
+    0.5,
+    0.5
+   ],
+   "transfer_after": [
+    0.5179036021232605,
+    0.3179036021232605,
+    0.335807204246521
+   ]
+  },
+  {
+   "seed": 3,
+   "later": "same",
+   "goal_free_goals": 24,
+   "mean_gain_nats": 0.7248090406258901,
+   "positive": 11,
+   "n": 12,
+   "transfer_before": [
+    0.5,
+    0.5,
+    0.5
+   ],
+   "transfer_after": [
+    0.8063735532531223,
+    0.7831613063812256,
+    0.7413306152428548
+   ]
+  },
+  {
+   "seed": 3,
+   "later": "redrawn",
+   "goal_free_goals": 24,
+   "mean_gain_nats": 0.3539733638366063,
+   "positive": 9,
+   "n": 12,
+   "transfer_before": [
+    0.5,
+    0.5,
+    0.5
+   ],
+   "transfer_after": [
+    0.651825184087086,
+    0.7745770454406739,
+    0.7715187947624663
+   ]
+  },
+  {
+   "seed": 4,
+   "later": "same",
+   "goal_free_goals": 24,
+   "mean_gain_nats": 0.6844878097375234,
+   "positive": 11,
+   "n": 12,
+   "transfer_before": [
+    0.5,
+    0.5,
+    0.5
+   ],
+   "transfer_after": [
+    0.8425539216409114,
+    0.85,
+    0.8148921584075486
+   ]
+  },
+  {
+   "seed": 4,
+   "later": "redrawn",
+   "goal_free_goals": 24,
+   "mean_gain_nats": -0.6699671645959219,
+   "positive": 4,
+   "n": 12,
+   "transfer_before": [
+    0.5,
+    0.5,
+    0.5
+   ],
+   "transfer_after": [
+    0.3148921567181772,
+    0.4,
+    0.3702156831849028
+   ]
+  }
+ ],
+ "summary": {
+  "same": {
+   "mean_gain_nats": 1.1056084841489793,
+   "seeds_with_positive_mean_gain": 5,
+   "seeds": 5,
+   "mean_transfer_after": 0.7968465345393964,
+   "transfer_before_values": [
+    0.5
+   ]
+  },
+  "redrawn": {
+   "mean_gain_nats": -0.5736306106050809,
+   "seeds_with_positive_mean_gain": 1,
+   "seeds": 5,
+   "mean_transfer_after": 0.45788516199114226,
+   "transfer_before_values": [
+    0.5
+   ]
+  }
+ }
+}

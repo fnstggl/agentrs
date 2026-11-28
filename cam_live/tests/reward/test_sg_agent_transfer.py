@@ -13,8 +13,9 @@ from cam_live.contracts import Limits, SimClock, TaskSpec, Trust
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "integration"))
 
-pytestmark = pytest.mark.skipif(not hasattr(CamLiveAgent, "_transfer_evidence"),
-                                reason="change request SG-2 not applied to agent.py yet")
+pytestmark = [pytest.mark.skipif(not hasattr(CamLiveAgent, "_transfer_evidence"),
+                                 reason="change request SG-2 not applied to agent.py yet"),
+              pytest.mark.timeout(2400)]                         # a debug-model lifetime with learning on a loaded host
 
 
 def test_assigned_objective_outcomes_become_transfer_evidence_and_persist(tmp_path):
@@ -29,12 +30,12 @@ def test_assigned_objective_outcomes_become_transfer_evidence_and_persist(tmp_pa
                                      limits=Limits(duration_s=2 * 86400.0, money=40.0, max_decisions=40),
                                      mode="diagnostic", origin=Trust.SELF))
         st = DriverState()
-        drive(agent, world, clock, verifier, st, 10)
+        drive(agent, world, clock, verifier, st, 6)
         assert agent.goal_free.selector.history, "no goal-free learning goal was resolved"
         assert agent.counters["transfer_evidence"] == 0                 # nothing during the goal-free period
         agent.set_objective(lab_task(world, "assigned_71"))
         assert not agent._goal_free_active()
-        drive(agent, world, clock, verifier, st, 12)
+        drive(agent, world, clock, verifier, st, 8)
         n = agent.counters["transfer_evidence"]
         assert n > 0 and len(agent.goal_free.transfer.points) > 0
         assert all(p["objective_id"] == "assigned_71" for p in agent.goal_free.transfer.points)

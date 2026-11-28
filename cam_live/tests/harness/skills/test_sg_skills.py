@@ -392,3 +392,27 @@ def test_discover_registers_a_recurring_procedure_and_refines_it_with_experience
     assert ops_per_run == [5, 5, 5, 4, 4, 4, 3, 3, 3]                 # efficiency improved with experience
     assert staging.skills.library.versions(sk.skill_id) == [1, 2, 3]
     assert staging.entries()[-1]["name"] == "Use 3.2"
+
+
+@pytest.mark.browser
+def test_the_reusable_portion_of_a_noisy_own_trace_is_found_by_validation(staging):
+    """The agent's verified-progress trace starts with a detour (from the entry book's index it followed a link to the
+    form). Replayed from where validation runs (the form itself) the first step's element is absent: the procedure
+    is validated from the first step the current state supports — the part that reproduces."""
+    base = staging.sc.sites.urls["variants"].rstrip("/")
+    _, r = staging.run("browser.navigate", {"url": base + "/"})
+    o = staging.page(r)
+    link = next(e for e in o.data["elements"] if e.get("name") == "Layout A")
+    a0, r0 = staging.run("browser.click", {"ref": link["ref"], "obs_id": o.obs_id, "tab": o.data["tab"]})
+    assert r0.status == ResultStatus.OK
+    ids = [a0.action_id] + staging.store("After a detour", "Parts")
+    n = len(staging.entries())
+    _, r = staging.run("skill.induce", {"traces": [ids]})
+    assert r.status == ResultStatus.OK, r.failure_detail
+    sk = staging.skills.library.get(r.artifacts["skill_id"])
+    assert sk.operations() == ["browser.fill", "browser.select_option", "browser.click"]
+    assert sk.provenance["restarted_at"] == 1 and len(staging.entries()) == n + 1
+    # the element's identity stays a constant (before: the label was 'captured' from the equal table header text
+    # of the detour's page, so the shorter procedure could not be formed)
+    assert sk.steps[0].arguments["name"] == "Designation" and sk.steps[1].arguments["name"] == "Group"
+    assert any(c.kind == "element_present" and c.spec["name"] == "Designation" for c in sk.preconditions)
