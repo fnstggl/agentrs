@@ -51,18 +51,20 @@
    "evidence": "6/30 and 10/30 chosen actions carry the generator's own prediction (0 without)"
   },
   "AMEND-5-proposal-learning": {
-   "state": "implemented and tested at debug scale; registered in the real agent; not exercised on the real model (0 slow steps in 30 decisions)",
+   "state": "implemented, integrated; exercised once on the real model; no behavioural effect",
    "files": [
     "src/cam_live/predict/candidates.py",
     "src/cam_live/agent.py"
    ],
    "tests": [
-    "tests/integration/test_st_strategy.py (incl. -m slow slow-step test)"
-   ]
+    "tests/integration/test_st_strategy.py (incl. -m slow slow-step test, passed)"
+   ],
+   "evidence": "long staging run (real model): first slow step, proposal_learning gradient norm 34.1 (dominant), its held-out loss 11.320 -> 11.139 nats/word, step reverted by the slow-step guard (bridge_grounding held-out +0.0174 > tolerance 0.0021, one validation chunk)",
+   "still_fails": "no accepted generator update yet; interference with bridge_grounding in the shared adapters"
   },
   "AMEND-5-emergent-research-notes-plans": {
    "state": "not achieved",
-   "evidence": "0 notes executed or proposed in 2 live runs (75 decisions) and 4 staging conditions (92 decisions)",
+   "evidence": "0 notes executed or proposed in 2 live runs (75 decisions) and 6 staging conditions (165 decisions, incl. the 43-decision long run)",
    "diagnosis": "frozen generator prior + no learned path into the generator at this experience volume + selection without outcome variation (docs/ST.md 5.4)"
   },
   "AGENT-INTEGRATION": {
@@ -73,7 +75,7 @@
    "still_fails": "tests/integration/test_agent_runtime.py::test_behaviour_changes_and_lives_in_the_weights, tests/integration/test_int2_checkpoints.py::test_export_weights_reads_in_a_fresh_process (PS's carried state is not in the weights; reported to the master)"
   },
   "AMEND-5-information-value": {
-   "state": "implemented and integrated in the agent (annotation); bootstrap input = change request ST-3 to RW (not applied by ST)",
+   "state": "implemented and integrated (agent annotation f983cea; bootstrap input RW a055332); measured ~0 on the real model (architectural cause documented)",
    "files": [
     "src/cam_live/agent.py"
    ],
@@ -81,17 +83,19 @@
     "tests/integration/test_st_iv.py (3; the ST-3 test is skipped until RW applies it, passes on a patched copy)"
    ],
    "what_changed": "realised information value IV_t = NLL(next 2 decisions' matured outcomes | context without t's items) - NLL(... | recorded context), written once as reward_signals.information_value",
-   "evidence": "debug-scale tests; real-model measurement in the long staging run (docs/ST.md 5.2)"
+   "evidence": "real model, long staging run: 23 records measured, |IV| <= 5e-4 nats for every action type; diagnosis: the world model's targets (action.succeeded, executor bookkeeping metrics, membership.confirmed=0) do not depend on content; ST-3 applied by RW in a055332"
   }
  },
  "change_requests": [
-  "docs/change_requests/ST.md ST-1 (nn.max_prompt_tokens 8192, owner M)",
+  "ST-1 (nn.max_prompt_tokens 8192, owner M) open",
   "ST-2 informational (IMP)",
-  "ST-3 (RW: realised information value as a bootstrap input; exact diff)"
+  "ST-3 applied by RW in a055332"
  ],
  "not_done": [
-  "a real-model run long enough for slow steps with proposal learning",
-  "repeated seeds of the staging ablation",
-  "learned operation-level steering of the generator (designed, not built)"
+  "a second long-run hold (not granted before the deadline)",
+  "repeated seeds of the staging ablations",
+  "a content-dependent self-supervised predictive target (forwarded to IMP by the master)",
+  "learned operation-level steering of the generator (designed, not built)",
+  "item-5 mechanisms switched on in the live run (master's decision)"
  ]
 }
