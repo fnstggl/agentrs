@@ -346,7 +346,8 @@ class LatentPlanner:
         f_scale = max(float(objective_scale), 1.0)
         feas_idx = torch.nonzero(feas).squeeze(-1)
         n_feas = int(feas_idx.numel())
-        max_rows = max(int(cfg.imagination_max_rows), n)
+        max_rows = int(cfg.imagination_max_rows) or (32768 if dev.type == "cuda" else 8192)
+        max_rows = max(max_rows, n)
         if evaluations is not None and len(evaluations) == n:
             cost = torch.tensor([float((e.extras or {}).get("net_cost", 0.0) or 0.0) for e in evaluations],
                                 dtype=F64, device=dev)

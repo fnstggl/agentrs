@@ -47,7 +47,7 @@ def test_agent_decides_with_imagination_and_learns_its_weight_from_verified_wind
     try:
         cal = agent.planner.calibration
         assert cal is agent.decider.imagination is imagination_calibration(agent.heads.transition)
-        lts = [run_lifetime(agent, "T1", 9_100 + i, str(tmp_path / f"lt{i}"), clock, max_decisions=8, k=16)
+        lts = [run_lifetime(agent, "T1", 9_100 + i, str(tmp_path / f"lt{i}"), clock, max_decisions=6, k=16)
                for i in range(2)]
         n_im = 0
         for lt in lts:

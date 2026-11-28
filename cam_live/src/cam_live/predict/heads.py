@@ -96,7 +96,9 @@ class PredictConfig:
                                              # best-valued one plus a random subset; the best sequence counts),
                                              # "greedy" (best value at each imagined belief) or "policy" (the
                                              # policy's most probable action)
-    imagination_max_rows: int = 32768        # world-model rows per imagined level (bounds the search's breadth)
+    imagination_max_rows: int = 0            # world-model rows per imagined level (bounds the search's breadth);
+                                             # 0: 32768 on a GPU, 8192 on the CPU (measured at debug scale on one
+                                             # CPU thread: 32768 rows ~4 s per level, 8192 ~0.5 s)
     imagination_aleatoric: bool = False      # add the transition's aleatoric noise to imagined beliefs
     imagination_prior_sd: float = 0.5        # prior sd of beta_im (and beta_q) of the ImaginationCalibration
     seed: int = 0

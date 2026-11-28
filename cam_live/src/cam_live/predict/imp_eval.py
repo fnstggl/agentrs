@@ -71,7 +71,10 @@ def decision_row(agent: Any, row: Dict[str, Any]) -> Dict[str, Any]:
            "truth_chosen": _f(ch.get("truth")), "truth_best": max((_f(t) or 0.0 for t in truth), default=0.0),
            "planner_horizon": diag.get("planner_horizon"), "im_info_value": _f(ex.get("im_info_value")),
            "im_next": ex.get("im_next"), "im_cont": _f(ex.get("im_cont")),
-           "ops_offered": sorted({c.get("operation") for c in cands})}
+           "ops_offered": sorted({c.get("operation") for c in cands}),
+           "cands": [[c.get("operation"), c.get("arguments"), _f(c.get("goal_mean")), _f(c.get("truth")),
+                      _f(((d.candidates[j].extras or {}) if d is not None and j < len(d.candidates) else {})
+                         .get("im_cont"))] for j, c in enumerate(cands)]}
     if im is not None:
         w, wo = im.get("with_probabilities") or [], im.get("without_probabilities") or []
         out["imagination"] = {
@@ -203,12 +206,26 @@ def copy_live_learner(src_run_dir: str, ckpt_dir: str, work: str) -> Dict[str, s
     con.close()
     out.close()
     ck = os.path.join(work, "ckpt")
-    shutil.copytree(ckpt_dir, ck, dirs_exist_ok=True)
-    return {"learner": dst, "ckpt": ck}
+    name = ""
+    for _ in range(5):                            # the owner rotates its checkpoints (keep_checkpoints): retry
+        src_ck = ckpt_dir
+        if os.path.basename(ckpt_dir.rstrip("/")) == "LATEST":
+            name = open(ckpt_dir).read().strip()
+            src_ck = os.path.join(os.path.dirname(ckpt_dir), name)
+        try:
+            if os.path.exists(ck):
+                shutil.rmtree(ck)
+            shutil.copytree(src_ck, ck)
+            break
+        except FileNotFoundError:
+            time.sleep(2.0)
+    else:
+        raise FileNotFoundError(f"no stable checkpoint under {ckpt_dir}")
+    return {"learner": dst, "ckpt": ck, "checkpoint_name": name or os.path.basename(ckpt_dir.rstrip("/"))}
 
 
-def replay(src_run_dir: str, ckpt_dir: str, work: str, *, n_last: int, out: str, measure_len: int = 12
-           ) -> Dict[str, Any]:
+def replay(src_run_dir: str, ckpt_dir: str, work: str, *, n_last: int, out: str, measure_len: int = 12,
+           paths: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     """Full-size, real experience: restore CAM's own checkpoint with this code into a copy of its run, measure the
     accuracy of imagination on its real decision sequences (latent and value errors, persistence baseline), and
     re-evaluate its latest real decisions in their recorded contexts with the planner: the distribution of rule
@@ -218,15 +235,16 @@ def replay(src_run_dir: str, ckpt_dir: str, work: str, *, n_last: int, out: str,
     from ..config import CamLiveConfig
     from ..credit.checkpoint import load_checkpoint
     t0 = time.time()
-    if os.path.exists(work):
-        shutil.rmtree(work)
-    paths = copy_live_learner(src_run_dir, ckpt_dir, work)
+    if paths is None:
+        if os.path.exists(work):
+            shutil.rmtree(work)
+        paths = copy_live_learner(src_run_dir, ckpt_dir, work)
     st = load_checkpoint(paths["ckpt"], map_location="cpu")
     cfg = CamLiveConfig.from_dict((st.extra or {})["config"])
     cfg.device = "cuda" if torch.cuda.is_available() else "cpu"
     del st
     agent = CamLiveAgent(cfg, work)
-    res: Dict[str, Any] = {"source_run": src_run_dir, "checkpoint": ckpt_dir, "code": _code(),
+    res: Dict[str, Any] = {"source_run": src_run_dir, "checkpoint": paths["checkpoint_name"], "code": _code(),
                            "backbone": cfg.backbone.name, "scale": cfg.core.scale, "device": cfg.device}
     try:
         old_planner = None
@@ -431,9 +449,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 0
     if a.cmd == "replay":
         from ..nn.gpu import free_gpu_memory, gpu_lock
+        if os.path.exists(a.work):
+            shutil.rmtree(a.work)
+        paths = copy_live_learner(a.run_dir, a.ckpt, a.work)            # the copy needs no GPU: before the lock
         with gpu_lock(timeout_s=3 * 3600.0):
             try:
-                replay(a.run_dir, a.ckpt, a.work, n_last=a.n_last, out=a.out)
+                replay(a.run_dir, a.ckpt, a.work, n_last=a.n_last, out=a.out, paths=paths)
             finally:
                 free_gpu_memory()
         return 0
