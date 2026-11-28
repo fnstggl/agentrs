@@ -33,25 +33,39 @@ LOG_FILES: Dict[str, str] = {
 }
 
 #: secret-looking strings (label -> regex). Extended / replaced through ``runtime.redaction.patterns`` in the config.
-_SECRET_NAME = (r"[A-Za-z0-9_.-]*?(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|access[_-]?key|"
-                r"authorization|credential|cookie|session[_-]?id)[A-Za-z0-9_.-]*")
+_SECRET_NAME = (r"[A-Za-z0-9_.-]*?(?:password|passwd|pwd|secret|api[_-]?key|apikey|access[_-]?key|"
+                r"credential|session[_-]?id)[A-Za-z0-9_.-]*")
+#: G2R-6: names that are also ordinary words in prose ("token: GUILD_MEMBERS intent ...", "authorization_revoked:
+#: access for ..."): their value is redacted only when it looks like a secret
+_WEAK_SECRET_NAME = r"[A-Za-z0-9_.-]*?(?:token|authorization|cookie)[A-Za-z0-9_.-]*"
 DEFAULT_SECRET_PATTERNS: Dict[str, str] = {
     "bot_token": r"\b[A-Za-z0-9_-]{23,28}\.[A-Za-z0-9_-]{6,7}\.[A-Za-z0-9_-]{27,}\b",
     "bearer": r"(?i)\b(?:bearer|bot)\s+[A-Za-z0-9._~+/=-]{16,}",
+    # G2R-6: HTTP Basic credentials, JSON Web Tokens, Google OAuth access tokens
+    "basic_auth": r"(?i)\bbasic\s+[A-Za-z0-9+/]{8,}={0,2}",
+    "jwt": r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}",
+    "oauth_token": r"\bya29\.[A-Za-z0-9_-]{20,}",
     "api_key": r"\b(?:sk|pk|rk|ghp|gho|github_pat|hf|xox[abprs])[-_][A-Za-z0-9_-]{16,}\b",
     "aws_key": r"\bAKIA[0-9A-Z]{16}\b",
     "private_key": r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----",
     # NAME=value, NAME: value, "name": "value", ?name=value — the name only has to contain a secret word
     # (DISCORD_BOT_TOKEN=, access_token=, client_secret:, "password": ...)
     "assignment": r"(?i)(?<![A-Za-z0-9])([\"']?)(" + _SECRET_NAME + r")\1(\s*[=:]\s*)(?!\[REDACTED)(\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'|[^\s,;&\"'}\]]+)",
+    # (G2R-6) after a weak name an unquoted value must look like a secret — a digit and at least 6 characters, or at
+    # least 16 — so that prose stays readable
+    "assignment_weak": r"(?i)(?<![A-Za-z0-9])(?P<wq>[\"']?)(" + _WEAK_SECRET_NAME + r")(?P=wq)(\s*[=:]\s*)(?!\[REDACTED)"
+                       r"(\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'|(?=[^\s,;&\"'}\]]*\d)[^\s,;&\"'}\]]{6,}|[^\s,;&\"'}\]]{16,})",
     "url_credentials": r"(?i)\b([a-z][a-z0-9+.-]*://[^\s:/@]+):([^\s@/]+)@",
     "webhook": r"https://(?:discord|discordapp)\.com/api/webhooks/\d+/[A-Za-z0-9_-]+",
 }
 #: prohibited personal information (label -> regex)
 DEFAULT_PII_PATTERNS: Dict[str, str] = {
     "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b",
-    "phone": r"(?<![\w.])\+?\d{1,3}[\s.-]?\(?\d{2,4}\)?[\s.-]\d{3,4}[\s.-]\d{3,4}(?![\w.])",
+    "phone": r"(?<![\w.])\+?\d{1,3}[\s.-]?\(?\d{2,4}\)?[\s.-]\d{3,4}[\s.-]\d{3,4}(?![\w.])"
+             r"|(?<![\w.+])\+\d{10,15}(?![\w.])",                                  # E.164 without separators
     "ipv4": r"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b",
+    "ipv6": r"(?i)(?<![\w:])(?:(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}|(?:[0-9a-f]{1,4}:){1,6}:(?:[0-9a-f]{1,4}"
+            r"(?::[0-9a-f]{1,4}){0,5})?|::[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,6})(?![\w:])",
 }
 #: member identifiers inside free text -> keyed hash: platform account ids (Discord snowflakes are 17-20 digits),
 #: ``name#1234`` tags and ``<@id>`` mentions
@@ -59,6 +73,8 @@ _MENTION = re.compile(r"<@!?(\d{5,})>")
 # a free-standing 17-20 digit run, not digits of a number: not the fraction after "<digit>." or a sign, not
 # followed by a fraction or an exponent (``0.12345678901234567``, ``1.2345678901234567e-05`` and
 # ``12345678901234567.5`` are numbers, not identifiers; INT3B, found by G2-learn in learning_updates.jsonl notes)
+_VALUE_KEYS = ("value", "val", "key", "auth", "pass", "pw", "pin", "code", "header")
+_HEX_SECRET = re.compile(r"^(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{40}|[0-9a-fA-F]{48})$")
 _SNOWFLAKE = re.compile(r"(?<![\w+-])(?<!\d\.)(\d{17,20})(?![\w-]|\.\d)")   # "member.<id>.x" is still an id
 _USER_TAG = re.compile(r"(?<![\w#])([A-Za-z0-9_.]{2,32}#\d{4})(?![\w#])")
 #: mapping keys whose values identify a person -> replaced by a keyed hash (stable inside one run)
@@ -80,6 +96,20 @@ DEFAULT_PERMISSION_KEYS: Dict[str, str] = {"message_content": "store_message_con
 @functools.lru_cache(maxsize=4096)
 def _norm_key(k: str) -> str:
     return re.sub(r"[^a-z0-9]", "", k.lower())
+
+
+_VERSION_CONTEXT = re.compile(r"(?i)(?:\bv(?:ersion)?|\brelease|\blibrary|\bpackage|\blib|\bpython|==|>=|<=|~=|@)"
+                              r"\s*[:=]?\s*$")
+
+
+def _not_personal_ipv4(m: "re.Match[str]") -> bool:
+    """G2R-6: a dotted quad that is a version number (after "version", "v", "library", "==", "@", ...) or a loopback /
+    unspecified address of this machine is not a person's address and stays readable."""
+    ip = m.group(0)
+    if ip.startswith("127.") or ip == "0.0.0.0":
+        return True
+    before = m.string[max(0, m.start() - 16):m.start()]
+    return bool(_VERSION_CONTEXT.search(before))
 
 
 def _group(rx: str) -> str:
@@ -169,13 +199,23 @@ class Redactor:
         if not self._any.search(s):
             return s
         for label, rx in self._patterns:
-            if label == "assignment":
+            if label in ("assignment", "assignment_weak"):
                 s, n = rx.subn(lambda m: (f"{m.group(1)}{m.group(2)}{m.group(1)}{m.group(3)}"
                                           + ('"[REDACTED:secret]"' if m.group(4).startswith('"') else
                                              "'[REDACTED:secret]'" if m.group(4).startswith("'") else
                                              "[REDACTED:secret]")), s)
             elif label == "url_credentials":
                 s, n = rx.subn(lambda m: f"{m.group(1)}:[REDACTED:secret]@", s)
+            elif label == "ipv4":
+                hits = [0]
+
+                def ip(m: "re.Match[str]") -> str:
+                    if _not_personal_ipv4(m):
+                        return m.group(0)
+                    hits[0] += 1
+                    return "[REDACTED:ipv4]"
+                s = rx.sub(ip, s)
+                n = hits[0]
             else:
                 s, n = rx.subn(f"[REDACTED:{label}]", s)
             if n:
@@ -205,6 +245,15 @@ class Redactor:
             if isinstance(obj, str) and obj != "" and self._is_secret_key(_key):
                 self._hit("secret")
                 return "[REDACTED:secret]"
+            # G2R-6: a bare high-entropy value under a generic key ("value", "key", ...): a hex key / token
+            if isinstance(obj, str) and key in _VALUE_KEYS and _HEX_SECRET.match(obj):
+                self._hit("secret")
+                return "[REDACTED:secret]"
+            # G2R-6: a platform account id written as an integer under any *_id key
+            if isinstance(obj, int) and not isinstance(obj, bool) and 10 ** 16 <= obj < 10 ** 20 \
+                    and (key == "id" or key.endswith("_id")) and str(obj) not in self._keep:
+                self._hit("member")
+                return self.hash_member(obj)
             if key in self._member_keys and obj != "" and not isinstance(obj, (bool, float)):
                 if str(obj) in self._keep:
                     return obj

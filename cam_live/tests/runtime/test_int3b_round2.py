@@ -453,3 +453,33 @@ def test_a_server_error_carries_the_security_headers(tmp_path):
     assert r.status_code == 500
     for k, v in SECURITY_HEADERS.items():
         assert r.headers.get(k) == v, k                       # a5ab772: no CSP / nosniff / DENY on a 500
+
+
+# ---------------------------------------------------------------------------------------------------------- G2R-6
+def test_redaction_covers_more_secret_shapes_and_leaves_prose_readable(tmp_path):
+    import base64
+    from cam_live.runtime.logs import Redactor, RunLog, load_salt
+
+    def b64(x):
+        return base64.urlsafe_b64encode(x.encode()).decode().rstrip("=")
+    jwt = ".".join([b64('{"alg":"HS256"}'), b64('{"sub":"someone-x"}'), b64("s" * 32)])
+    basic = base64.b64encode(b"user:" + b"q" * 12).decode()
+    oauth = "ya29." + "B" * 30
+    run = str(tmp_path / "run")
+    red = Redactor.from_config({}, load_salt(run), {"store_member_identifiers": False})
+    log = RunLog(run, SimClock(), durable=False, redactor=red)
+    planted = {"t1": {"text": f"session {jwt}"}, "t2": {"data": {"value": jwt}}, "t3": {"text": f"Authorization: Basic {basic}"},
+               "t4": {"text": f"got {oauth}"}, "t5": {"data": {"value": "ab" * 20}},
+               "t6": {"data": {"owner_id": 1_100_000_000_000_000_123}}, "t7": {"text": "sms +15551234567"},
+               "t8": {"text": "from 2001:db8:85a3::8a2e:370:7334"}}
+    for k, v in planted.items():
+        log.event("planted", {"k": k, **v})
+    log.close()
+    blob = open(os.path.join(run, "events.jsonl")).read()
+    for value in (jwt, basic, oauth, "ab" * 20, "1100000000000000123", "5551234567", "2001:db8:85a3::8a2e:370:7334"):
+        assert value not in blob, value                                          # a5ab772: all present
+    for prose in ("stop condition authorization_revoked: access for this task has been revoked by the operator",
+                  "client library 2.10.3.1", "the token: GUILD_MEMBERS intent is missing", "at 12:30:45 today",
+                  "sha256 " + "0f" * 32):
+        assert red.text(prose) == prose, prose                                   # a5ab772: over-redacted
+    assert "[REDACTED" in red.text("password: hunter22") and "[REDACTED" in red.text("from 203.0.113.9")
