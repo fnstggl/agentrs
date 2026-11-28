@@ -1,0 +1,8 @@
+{
+ "fresh_b_bit_identical": true,
+ "fresh_h_bit_identical": true,
+ "fresh_slots_bit_identical": true,
+ "rho0_carried_equals_fresh_b": true,
+ "rho0_carried_equals_fresh_h": true,
+ "rho1_carried_vs_old_core_max_abs_b": 0.006708979606628418
+}
