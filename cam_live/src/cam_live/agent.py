@@ -2300,6 +2300,7 @@ class CamLiveAgent:
         configuration that rebuilds it: readable in a fresh process by ``credit.checkpoint.load_exported_model``
         with ``register_heads=cam_live.agent.register_agent_heads``. No experience, optimizer or task state."""
         from .credit.checkpoint import export_learner_weights
+        self.guard.check(0, "weights export")              # INT3B-8: storage.DiskSpaceLow: nothing is written
         cfg = export_learner_weights(self.learner, dest)
         cfg["promoted_checkpoint"] = (self.ckpts.promoted().checkpoint_id
                                       if self.ckpts is not None and self.ckpts.promoted() is not None else "")
