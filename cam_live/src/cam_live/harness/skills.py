@@ -1473,8 +1473,25 @@ class SkillExecutor:
     # ---- wiring --------------------------------------------------------------------------------------------
     def bind(self, env: Any) -> None:
         """Hook called by ``ComputerEnvironment.register``: steps are then dispatched through the environment
-        (``ExecContext.dispatch``) and induction knows every tool the environment offers."""
+        (``ExecContext.dispatch``) and induction knows every tool the environment offers. The environment's own
+        observations of its surfaces (``observe()``, taken by the runtime every cycle) are indexed too: the agent's
+        grounded actions name elements of *those* observations as often as of action results (measured in a runtime
+        run: 'observation obs_... is not known here' refused every recurring procedure ``skill.discover`` found)."""
         self._env = env
+        orig = getattr(env, "observe", None)
+        if callable(orig) and not getattr(orig, "_skills_indexed", False):
+            def observe(*a: Any, **k: Any) -> Any:
+                out = orig(*a, **k)
+                try:
+                    self._note_observations(list(out or []))
+                except Exception:  # noqa: BLE001 — indexing is an aid; the observation goes to the runtime anyway
+                    pass
+                return out
+            observe._skills_indexed = True                 # type: ignore[attr-defined]
+            try:
+                env.observe = observe
+            except Exception:  # noqa: BLE001 — an environment that does not allow it: action results only
+                pass
 
     def _refresh_tools(self) -> None:
         env = getattr(self, "_env", None)
@@ -1510,8 +1527,9 @@ class SkillExecutor:
                 continue
             self._obs.pop(o.obs_id, None)
             self._obs[o.obs_id] = o
-            if isinstance(o.data, dict) and o.data and o.provenance.source != "skill_library":
-                self._state = o
+            if isinstance(o.data, dict) and o.data and o.provenance.source != "skill_library" and \
+                    o.kind not in ("metric", "metrics", "event") and "resources" not in o.data:
+                self._state = o                            # a surface the environment shows, not its metrics
         while len(self._obs) > self._obs_size:
             self._obs.pop(next(iter(self._obs)))
 

@@ -470,3 +470,30 @@ def test_text_typed_into_a_control_is_not_content():
                                                                 {"role": "textbox", "value": "Typed only"}]}})
     t = _content_text([o])
     assert "Stored one" in t and "Typed only" not in t
+
+
+def test_observations_the_environment_shows_by_itself_are_indexed(tmp_path):
+    """The runtime observes the environment every cycle (``observe()``); grounded actions name elements of those
+    observations. Measured in a runtime run before this: every recurring procedure skill.discover found was refused
+    with 'observation ... is not known here'."""
+    shown = form_page("obs_shown")
+
+    class Env:
+        def observe(self):
+            from cam_live.contracts import Observation as O
+            return [shown, O(obs_id="m1", ts=1.0, kind="metric", data={"resources": {"actions": 3}})]
+
+        def discover_tools(self):
+            return list(browser_tools().values())
+
+    env = Env()
+    ex = SkillExecutor(SkillLibrary(str(tmp_path), WallClock()), [])
+    ex.bind(env)
+    env.observe()
+    assert ex._obs.get("obs_shown") is shown and ex._state is shown      # the metrics record is not the state
+    a, r = step("browser.click", {"ref": "e3", "obs_id": "obs_shown", "tab": "t1"}, form_page("after", rows=1))
+    ex.observe_execution(a, r)
+    t = ex.trace_of([a.action_id])
+    assert t.context[0] is shown and t.before == [shown]
+    ex.bind(env)                                                          # binding twice does not wrap twice
+    assert getattr(env.observe, "_skills_indexed", False)
