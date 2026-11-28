@@ -1,12 +1,12 @@
 {
  "AE-03": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
-   "pytest cam_live/tests/integration cam_live/tests/storage ... -q --rootdir=cam_live on git archive a5ab772: 138 passed, 1 skipped",
-   "cam-live validate --mode staging --real-model (run A: 10/16; evidence cam_live/docs/verification/repro/g2integration/out/runA_staging_20261128T030744Z.json)"
+   "pytest tests/integration/test_agent_runtime.py test_operator_requests.py test_int2_storage.py tests/runtime/{test_rt_logs_journal,test_int2_storage_drain,test_int3b_round2,test_rt_dashboard,test_rt_doctor_cli}.py tests/harness/skills/{test_es_failures,test_es_modality}.py on git archive 257267c: 119 passed",
+   "cam-live validate --mode staging --real-model (new defaults; CAM_LIVE_GPU_LOCK = the shared lock; round 2: 13/16; evidence cam_live/docs/verification/repro/g2integration/out/round2_staging_20261128T055027Z.json)"
   ],
-  "notes": "Self-directed randomised experiments are registered and run in the loop (run A: 1 of 4 decisions by rule 'randomized'; experiments.jsonl written); fails: no evidence that self-directed learning improves anything - usefulness not evaluated (as claimed).",
+  "notes": "Round 2 at 257267c: self-directed randomised experiments run (round-2 run: 2 of 28 decisions by rule 'randomized') and now reach the credit store (DX-1: agent.py:721 attach_experiments); fails: their usefulness is not evaluated, and the credit default stays 'simple' (no held-out experiment lifetimes yet).",
   "status": "partial",
   "supersedes": [
    "all"
@@ -14,12 +14,12 @@
  },
  "AE-05": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
-   "pytest cam_live/tests/integration cam_live/tests/storage ... -q --rootdir=cam_live on git archive a5ab772: 138 passed, 1 skipped",
-   "cam-live validate --mode staging --real-model (run A: 10/16; evidence cam_live/docs/verification/repro/g2integration/out/runA_staging_20261128T030744Z.json)"
+   "pytest tests/integration/test_agent_runtime.py test_operator_requests.py test_int2_storage.py tests/runtime/{test_rt_logs_journal,test_int2_storage_drain,test_int3b_round2,test_rt_dashboard,test_rt_doctor_cli}.py tests/harness/skills/{test_es_failures,test_es_modality}.py on git archive 257267c: 119 passed",
+   "cam-live validate --mode staging --real-model (new defaults; CAM_LIVE_GPU_LOCK = the shared lock; round 2: 13/16; evidence cam_live/docs/verification/repro/g2integration/out/round2_staging_20261128T055027Z.json)"
   ],
-  "notes": "One agent lifetime spans several objectives (tests; run A: staging computer task then LabWorld, learning continued on the second). Supports = plumbing; performance on an unfamiliar objective is not established (not claimed).",
+  "notes": "Round 2 at 257267c: one agent lifetime spans the approvals, limit and four LabWorld objectives of the round-2 run with learning continuing; tests pass. Performance on an unfamiliar objective not established (not claimed).",
   "status": "verified",
   "supersedes": [
    "all"
@@ -27,13 +27,13 @@
  },
  "AE-08": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
    "cam_live/docs/verification/repro/g2integration/p04_obstacles.py",
-   "pytest cam_live/tests/integration cam_live/tests/storage ... -q --rootdir=cam_live on git archive a5ab772: 138 passed, 1 skipped",
-   "cam_live/docs/verification/repro/g2integration/out/probe_results_a5ab772.txt"
+   "cam_live/docs/verification/repro/g2integration/p07_limit_refusal_class.py",
+   "cam_live/docs/verification/repro/g2integration/out/round2_probe_results_257267c.txt"
   ],
-  "notes": "Obstacle records are written and linked by the runtime (runtime/obstacles.py) with explain_obstacle explanations (p04 3-6 hold). Fails: explanations are only a Dirichlet(1) over failure-class labels counted per operation (a policy refusal gets p=0.167); strategy changes are a flag, not measured; resource-limit refusals are recorded as permission obstacles (G2I-14, p07); learning updates are linked temporally to every open obstacle (G2I-9, p04 check 7).",
+  "notes": "Round 2 at 257267c: obstacle records, linkage and classification now hold (p04 12/12, p07 4/4: limit refusals are resource obstacles; learning linked only by use of the obstacle's experience); fails: strategy changes remain a flag, not measured, and explanations are failure-class priors per operation, not derived from the failure's content - learned obstacle resolution is not demonstrated.",
   "status": "partial",
   "supersedes": [
    "all"
@@ -41,12 +41,12 @@
  },
  "CL-09": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
-   "pytest cam_live/tests/integration cam_live/tests/storage ... -q --rootdir=cam_live on git archive a5ab772: 138 passed, 1 skipped",
-   "cam-live validate --mode staging --real-model (run A: 10/16; evidence cam_live/docs/verification/repro/g2integration/out/runA_staging_20261128T030744Z.json)"
+   "pytest tests/integration/test_agent_runtime.py test_operator_requests.py test_int2_storage.py tests/runtime/{test_rt_logs_journal,test_int2_storage_drain,test_int3b_round2,test_rt_dashboard,test_rt_doctor_cli}.py tests/harness/skills/{test_es_failures,test_es_modality}.py on git archive 257267c: 119 passed",
+   "cam-live validate --mode staging --real-model (new defaults; CAM_LIVE_GPU_LOCK = the shared lock; round 2: 13/16; evidence cam_live/docs/verification/repro/g2integration/out/round2_staging_20261128T055027Z.json)"
   ],
-  "notes": "set_objective (agent.py:893-933): weights, reward version and learned prior kept, fast state reset to the learned prior, meta.new_objective (lifetime context kept, KF-E05). test_new_objective_keeps_weights_and_resets_fast_beliefs passes (group hashes and reward version equal, fast state == prior). Run A: one agent, staging computer objective then LabWorld objective, learning continued. Transfer not measured (not claimed).",
+  "notes": "Round 2 at 257267c: set_objective unchanged in substance (checkpoint auth-hash comparison added, G2L-10); test_new_objective_keeps_weights_and_resets_fast_beliefs passes; one agent runs 2 computer objectives and 4 LabWorld objectives in the round-2 run, learning continues.",
   "status": "verified",
   "supersedes": [
    "all"
@@ -54,13 +54,12 @@
  },
  "CU-22": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
-   "pytest cam_live/tests/integration cam_live/tests/storage ... -q --rootdir=cam_live on git archive a5ab772: 138 passed, 1 skipped",
-   "cam-live validate --mode staging --real-model (run A: 10/16; evidence cam_live/docs/verification/repro/g2integration/out/runA_staging_20261128T030744Z.json)",
-   "cam-live validate --mode staging --real-model --decisions 40 --budget-s 840 --meta-min-independent 3 --computer-share 0.2 (run B: 13/16; evidence cam_live/docs/verification/repro/g2integration/out/runB_staging_20261128T033952Z.json)"
+   "pytest tests/integration/test_agent_runtime.py test_operator_requests.py test_int2_storage.py tests/runtime/{test_rt_logs_journal,test_int2_storage_drain,test_int3b_round2,test_rt_dashboard,test_rt_doctor_cli}.py tests/harness/skills/{test_es_failures,test_es_modality}.py on git archive 257267c: 119 passed",
+   "cam-live validate --mode staging --real-model (new defaults; CAM_LIVE_GPU_LOCK = the shared lock; round 2: 13/16; evidence cam_live/docs/verification/repro/g2integration/out/round2_staging_20261128T055027Z.json)"
   ],
-  "notes": "Neural learning from interaction experience happens on the real configuration: run A 4 frequent updates with non-zero experiential deltas (1.05/1.47/0.33/1.27), one of them the R_psi policy-improvement update. Adapter weights: unchanged in run A (its one slow step was deferred: no held-out validation records), changed in run B by 5 of 18 slow steps. Fails: no improvement with repetition shown at the real configuration; no comparison with the skill library (as claimed). Run B (INT3B run-1 flags, 5 computer + 28 LabWorld decisions, 4 lifetimes): 13 of 16 hold (approvals_exercised, meta_update_applied, meta_step_changes_policy fail); held-out TV 0.276 -> 0.0 after restoring the weights; 68 frequent updates, 4 policy-improvement updates (KL 0.041-0.057), 5 of 18 slow-adapter steps changed the adapters; no reward meta-update applied (38 skips: fewer than 3 independent verified groups).",
+  "notes": "Round 2 at 257267c: neural learning from interaction experience on the real configuration now includes the slow adapters: round-2 run 50 frequent updates (all non-zero experiential deltas), 4 policy-improvement updates, 12 of 13 slow-adapter steps changed the adapters (group delta 1.25). Fails: spec 12A.10 asks to verify that neural learning improves behaviour independently of the skill library - no improvement with repetition and no comparison with the skill library is shown.",
   "status": "partial",
   "supersedes": [
    "all"
@@ -68,12 +67,11 @@
  },
  "CU-30": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
-   "pytest cam_live/tests/integration/test_int2_grounding.py -m browser",
-   "cam-live validate --mode staging --real-model (run A: 10/16; evidence cam_live/docs/verification/repro/g2integration/out/runA_staging_20261128T030744Z.json)"
+   "cam-live validate --mode staging --real-model (new defaults; CAM_LIVE_GPU_LOCK = the shared lock; round 2: 13/16; evidence cam_live/docs/verification/repro/g2integration/out/round2_staging_20261128T055027Z.json)"
   ],
-  "notes": "Grounded actions execute on the staging sites (test_grounded_actions_execute_on_the_staging_sites -m browser: 1 passed, 108 s; run A executed browser.screenshot on the staging store site, 80 tools from every executor). Fails: task success on an unfamiliar interface is not established (run A computer objective: 1 decision, verified status pending; as claimed).",
+  "notes": "Round 2 at 257267c: grounded browser actions execute on the staging sites (round-2 run: 8 computer decisions, the approved browser.click executed with the approval's grant); fails: task success on an unfamiliar interface not established (computer objectives' verified status pending).",
   "status": "partial",
   "supersedes": [
    "all"
@@ -81,12 +79,13 @@
  },
  "DL-02": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
    "cam_live/docs/verification/repro/g2integration/docs/d01_citations.py",
-   "cam_live/docs/verification/repro/g2integration/docs/d05_model_math_claims.py"
+   "cam_live/docs/verification/repro/g2integration/docs/d05_model_math_claims.py",
+   "cam_live/docs/verification/repro/g2integration/out/round2_docs_probes_257267c.txt"
   ],
-  "notes": "Holds: parameter counts re-measured at a5ab772 equal param_counts.json (74,672,079 trainable, 4,022,468,096 frozen; also equal to run A), 187 file:Symbol citations exist. Fails: MODEL_ARCHITECTURE.md:284/:302/:312-314 say set_objective calls MetaLearner.new_lifetime (it calls meta.new_objective, agent.py:913); the policy update's use of stored credit (agent.py:741) is not described; :249-250/:329-331 describe estimator selection that the agent never wires (G2L-6).",
+  "notes": "Round 2 at 257267c: MODEL_ARCHITECTURE.md unchanged since round 1. Still stale at 257267c: :284 / :302 / :312-314 set_objective -> MetaLearner.new_lifetime (code: meta.new_objective); \u00a77 omits the stored-credit use of the policy update. No longer misleading: :249-250 / :329-331 estimator selection from experiments (now wired, agent.py:721). Counts and citations still hold (184 resolved + 3 attribute/field citations checked by hand).",
   "status": "partial",
   "supersedes": [
    "all"
@@ -94,11 +93,12 @@
  },
  "DL-04": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
-   "cam_live/docs/verification/repro/g2integration/docs/d05_model_math_claims.py"
+   "cam_live/docs/verification/repro/g2integration/docs/d05_model_math_claims.py",
+   "cam_live/docs/verification/repro/g2integration/out/round2_docs_probes_257267c.txt"
   ],
-  "notes": "Holds: math_check.py output identical to math_check.txt; 7 sampled equations match the code. Fails: stale at a5ab772 - MATH_NOTES.md:359-360/:666/:669/:693-694 (info_gain, epistemic_after, learning_progress now produced), :413-421 (credited goal return missing from L_inner), :611-612/:677-679 ('no training loss reads the stored credit'), :623-626 (slow guard per provider), :116-121 (Poisson mode search); :609-610 estimator selection not wired.",
+  "notes": "Round 2 at 257267c: MATH_NOTES.md unchanged. Still stale at 257267c: :359-360 / :666 / :669 / :693-694 (info_gain, epistemic_after, learning_progress have producers), :413-421 (credited goal return missing from L_inner), :611-612 / :677-679 ('no training loss reads the stored credit'), :623-626 (slow guard per provider), :116-121 (Poisson mode search) - d05 6 broken. No longer misleading: :609-610 estimator selection (now wired).",
   "status": "partial",
   "supersedes": [
    "all"
@@ -106,11 +106,12 @@
  },
  "DL-20": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
-   "cam_live/docs/verification/repro/g2integration/docs/d02_operator_resources.py"
+   "cam_live/docs/verification/repro/g2integration/docs/d02_operator_resources.py",
+   "cam_live/docs/verification/repro/g2integration/out/round2_docs_probes_257267c.txt"
   ],
-  "notes": "Holds: offline preflight reproduces exactly (planning exit 3 / 9 items, discord_100 exit 3 / 25 items, same names); scopes, credential bindings, limits, service users correct. Fails: OPERATOR_RESOURCES.md:32-35/:70 'the code has no override' for persistent_storage (preflight.py:300 ACCEPTABLE_RISKS, --accept-ephemeral-storage); :156-158 GPU-hold keys absent (configs/cam_live.yaml sets them); :103-108 the by-hand launch fails at step 2 (auth/keys missing); :29 GPU item imprecise.",
+  "notes": "Round 2 at 257267c: OPERATOR_RESOURCES.md unchanged. Still stale at 257267c (d02 7 broken): :32-35 / :70 'no override' for persistent_storage; :156-158 GPU-hold keys absent; :103-108 by-hand launch fails at step 2; plus the services list (sandbox host is a fifth service). New: the GPU-lock prerequisite is now the <repo>/runs/gpu_heavy.lock symlink (G2I-18), which the document does not name.",
   "status": "partial",
   "supersedes": [
    "all"
@@ -118,25 +119,24 @@
  },
  "IN-01": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
-   "pytest cam_live/tests/integration cam_live/tests/storage ... -q --rootdir=cam_live on git archive a5ab772: 138 passed, 1 skipped",
-   "cam-live validate --mode staging --real-model (run A: 10/16; evidence cam_live/docs/verification/repro/g2integration/out/runA_staging_20261128T030744Z.json)"
+   "pytest tests/integration/test_agent_runtime.py test_operator_requests.py test_int2_storage.py tests/runtime/{test_rt_logs_journal,test_int2_storage_drain,test_int3b_round2,test_rt_dashboard,test_rt_doctor_cli}.py tests/harness/skills/{test_es_failures,test_es_modality}.py on git archive 257267c: 119 passed",
+   "cam-live validate --mode staging --real-model (new defaults; CAM_LIVE_GPU_LOCK = the shared lock; round 2: 13/16; evidence cam_live/docs/verification/repro/g2integration/out/round2_staging_20261128T055027Z.json)"
   ],
-  "notes": "The runtime calls the integrated agent at every step (test_every_runtime_step_calls_the_agent passes); the staging computer environment registers every executor (all_executors: 80 tools), cam-live run composes 'all'; promotion is called (run A: refused, 'no retention metric supplied'). Fails: the credit estimator selection is not wired (agent.py:716 EstimatorSelector, never attach_experiments / evaluate_experiments: default stays 'simple', G2L-6); M-int's limitation text (sandbox/visual/skills not registered, promotion not called) is outdated.",
-  "status": "partial",
+  "notes": "Round 2 at 257267c: the runtime calls the integrated agent at every step (tests pass), the staging computer registers every executor, promotion is called (round-2 run: 2 promotions refused / tried), and credit-estimator selection is now wired (agent.py:721 attach_experiments, DX-1) - the gap of round 1 is closed. Default credit estimator stays 'simple' until held-out experiment lifetimes exist (by design).",
+  "status": "verified",
   "supersedes": [
    "all"
   ]
  },
  "IN-04": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
-   "pytest cam_live/tests/test_verify_completion.py",
-   "python -m cam_live.verify_completion --json <scratch> --quiet"
+   "pytest cam_live/tests/test_secret_scan.py cam_live/tests/test_verify_completion.py cam_live/tests/storage on git archive 257267c"
   ],
-  "notes": "tests/test_verify_completion.py 27 passed on the export; the checker runs read-only on the worktree (198 requirements; groups and levels computed; stale evidence reported, e.g. IN-07 evidence predating changes). Limits as claimed: reachability static, tests not run by the checker.",
+  "notes": "Round 2 at 257267c: verify_completion.py unchanged since a5ab772; tests/test_verify_completion.py passes at 257267c (with tests/test_secret_scan.py and tests/storage: 35 passed).",
   "status": "verified",
   "supersedes": [
    "all"
@@ -144,11 +144,12 @@
  },
  "IN-05": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
-   "cam_live/docs/verification/repro/g2integration/docs/d03_reproduce_commands.py"
+   "cam_live/docs/verification/repro/g2integration/docs/d03_reproduce_commands.py",
+   "cam_live/docs/verification/repro/g2integration/out/round2_docs_probes_257267c.txt"
   ],
-  "notes": "Holds: 66/66 documented --help commands exit 0; dependencies match. Fails: 5 of 21 executed claims wrong (REPRODUCE.md:456-457 staging preflight exits 0 not 3; :156-159/:171-172/:428 suite is collectable in one process (1593); :207-211/:425-427 validate --debug fixed; :154/:188/:411 result values); \u00a79.1 launch lacks --accept-ephemeral-storage; :345-347/:445-450 GPU lock text stale; new validate options undocumented.",
+  "notes": "Round 2 at 257267c: REPRODUCE.md unchanged. Still stale at 257267c (d03 7 of 88 broken): :456-457 staging preflight exits 0; :156-159 / :171-172 / :428 one-process collection works (1649 collected); :154 runtime tests (282 collected); :188 doctor 52 checks; storage test count; \u00a79.1 launch lacks --accept-ephemeral-storage; :345-347 / :445-450 GPU-lock text. New stale: :29 lock path (now <repo>/runs/gpu_heavy.lock), :198 validate default and options (48 decisions; --budget-s, --meta-min-independent, --lab-lifetimes, --compute-limit-s, --computer-share undocumented). 66/66 --help still exit 0.",
   "status": "partial",
   "supersedes": [
    "all"
@@ -156,12 +157,12 @@
  },
  "IN-06": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
    "cam_live/docs/verification/repro/g2integration/docs/d04_known_failures.py",
-   "docs/KNOWN_FAILURES.md"
+   "cam_live/docs/verification/repro/g2integration/out/round2_docs_probes_257267c.txt"
   ],
-  "notes": "Holds: KNOWN_FAILURES.md is append-only and its rows were true at 204e9d4; evidence paths exist. Fails at a5ab772: nine rows still open are fixed (KF-D01, D07, E01, E02, E03, E05, E10, E11, E12); KF-R02 cites no later validation; missing: staging validation not passing (13/16, 15/16), INT3B-4, INT3B-5, no notes in the rehearsal, GPU-hold over-run, G2L-6/DX-1, INT3A-5, G2-harness R2-C1/R3-M1/R3-m1/R3-m2 (d04: 1 hold, 18 broken).",
+  "notes": "Round 2 at 257267c: KNOWN_FAILURES.md unchanged (d04: 18 of 19 broken). Still open-but-fixed rows: KF-D01, D07, E01, E02, E03, E05, E10, E11, E12; KF-R02 cites none of the four later validations (13/16, 15/16, 13/16, 13/16 in round 2). Still missing: staging validation not passing, INT3B-4, INT3B-5, no notes in the rehearsal, GPU-hold over-run, INT3A-5, G2-harness R2-C1 / R3-M1 / R3-m1 / R3-m2, round-2 items (INT3B-6 / INT3B-7, G2I-16..18). G2L-6 / DX-1 are now fixed and only need recording as such.",
   "status": "partial",
   "supersedes": [
    "all"
@@ -169,13 +170,12 @@
  },
  "IN-07": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
-   "cam-live validate --mode staging --real-model (run A: 10/16; evidence cam_live/docs/verification/repro/g2integration/out/runA_staging_20261128T030744Z.json)",
-   "cam-live validate --mode staging --real-model --decisions 40 --budget-s 840 --meta-min-independent 3 --computer-share 0.2 (run B: 13/16; evidence cam_live/docs/verification/repro/g2integration/out/runB_staging_20261128T033952Z.json)",
-   "pytest cam_live/tests/integration cam_live/tests/storage ... -q --rootdir=cam_live on git archive a5ab772: 138 passed, 1 skipped"
+   "cam-live validate --mode staging --real-model (new defaults; CAM_LIVE_GPU_LOCK = the shared lock; round 2: 13/16; evidence cam_live/docs/verification/repro/g2integration/out/round2_staging_20261128T055027Z.json)",
+   "pytest tests/integration/test_agent_runtime.py test_operator_requests.py test_int2_storage.py tests/runtime/{test_rt_logs_journal,test_int2_storage_drain,test_int3b_round2,test_rt_dashboard,test_rt_doctor_cli}.py tests/harness/skills/{test_es_failures,test_es_modality}.py on git archive 257267c: 119 passed"
   ],
-  "notes": "Pathway on the real configuration in staging (run A): observation -> latent change (latent_b 0.62/0.42/0.25) -> prediction registered before outcome (21 resolved) -> action -> consequence (3 delayed outcomes linked) -> R_psi internal reward (4/4 records) -> neural update (experiential + heads; R_psi policy-improvement update, policy KL 0.062) -> changed behaviour on a held-out context (TV 0.128, 0.0 after restoring the weights). Reward meta-update (outer loop) not applied in run A. Run B (INT3B run-1 flags, 5 computer + 28 LabWorld decisions, 4 lifetimes): 13 of 16 hold (approvals_exercised, meta_update_applied, meta_step_changes_policy fail); held-out TV 0.276 -> 0.0 after restoring the weights; 68 frequent updates, 4 policy-improvement updates (KL 0.041-0.057), 5 of 18 slow-adapter steps changed the adapters; no reward meta-update applied (38 skips: fewer than 3 independent verified groups). Staging only; no live service.",
+  "notes": "Round 2 at 257267c: pathway on the real configuration in staging again: 150 predictions resolved after registration, 40 delayed-outcome links, internal rewards on every record, frequent + policy + slow-adapter updates, held-out TV 0.198 -> 0.0 after restoring the weights. The reward meta-update (outer loop) did not apply in this run either. Staging only.",
   "status": "verified",
   "supersedes": [
    "all"
@@ -183,13 +183,12 @@
  },
  "IN-09": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
    "cam_live/docs/verification/repro/g2integration/p05_standalone.py",
-   "pytest cam_live/tests/test_verify_completion.py -k standalone",
-   "cam_live/docs/verification/repro/g2integration/out/probe_results_a5ab772.txt"
+   "cam_live/docs/verification/repro/g2integration/out/round2_probe_results_257267c.txt"
   ],
-  "notes": "Code is standalone: importing all 176 cam_live modules loads no module of CAM Unified / Crucible / AgentRS and no file of their source trees; tools/ and tests/ import none (p05 1, 2, 5); test_the_cam_live_source_is_standalone passes. Fails at run time: 1126 of 1233 third-party modules load from /workspace/agentrs/.venv (layered .pth), and config.GPU_LOCK_PATH defaults to /workspace/agentrs/runs/cam_unified/gpu_heavy.lock (G2I-10, p05 3, 4).",
+  "notes": "Round 2 at 257267c: code standalone (p05 1, 2, 5 hold) and the lock default no longer names CAM Unified's directory (p05 4 holds). Fails: (1) the venv is still layered over /workspace/agentrs/.venv (p05 3); (2) new G2I-18: the default lock <repo>/runs/gpu_heavy.lock is shared with the other tenant only through an untracked symlink in a git-ignored directory of this worktree; in any other checkout or archive copy nn.gpu.gpu_lock / GpuLease create a private lock file silently (makedirs + open 'a+') and a real-model job runs uncoordinated - the doctor's gpu_lock check only tests that the directory exists. Not acceptable as a silent default; safer: fail closed (refuse real-model GPU work when the configured lock file does not already exist, never create it), name the machine's lock in configs/cam_live.yaml or a machine-wide path outside any checkout, and have doctor/preflight block when the lock is not the shared one.",
   "status": "partial",
   "supersedes": [
    "all"
@@ -197,16 +196,13 @@
  },
  "LX-11": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
-   "cam-live validate --mode staging --real-model (run A: 10/16; evidence cam_live/docs/verification/repro/g2integration/out/runA_staging_20261128T030744Z.json)",
-   "cam-live validate --mode staging --real-model --decisions 40 --budget-s 840 --meta-min-independent 3 --computer-share 0.2 (run B: 13/16; evidence cam_live/docs/verification/repro/g2integration/out/runB_staging_20261128T033952Z.json)",
-   "cam_live/docs/verification/repro/g2integration/p08_approval_trace.py <run B out dir> (output: cam_live/docs/verification/repro/g2integration/out/p08_approval_trace_runB.txt)",
-   "docs/evidence/validation/staging_20261128T005844Z.json",
-   "docs/evidence/validation/staging_20261128T004747Z.json",
-   "cam_live/docs/verification/repro/g2integration/out/probe_results_a5ab772.txt"
+   "cam-live validate --mode staging --real-model (new defaults; CAM_LIVE_GPU_LOCK = the shared lock; round 2: 13/16; evidence cam_live/docs/verification/repro/g2integration/out/round2_staging_20261128T055027Z.json)",
+   "cam_live/docs/verification/repro/g2integration/p08_approval_trace.py (output cam_live/docs/verification/repro/g2integration/out/round2_p08_approval_trace.txt)",
+   "docs/evidence/validation/staging_20261128T051702Z.json"
   ],
-  "notes": "Staging validation does not pass. Run A (default command): 10 of 16 hold; fail approvals_exercised, adapter_weights_changed, lab_lifetimes_verified, meta_update_applied, meta_step_changes_policy, recovery_exercised (under load only 1 computer + 3 LabWorld decisions). Run B (INT3B run-1 flags, 5 computer + 28 LabWorld decisions, 4 lifetimes): 13 of 16 hold (approvals_exercised, meta_update_applied, meta_step_changes_policy fail); held-out TV 0.276 -> 0.0 after restoring the weights; 68 frequent updates, 4 policy-improvement updates (KL 0.041-0.057), 5 of 18 slow-adapter steps changed the adapters; no reward meta-update applied (38 skips: fewer than 3 independent verified groups). In run B the one approval was approved by the validation operator, then reported to the learner as rejected by the operator and never executed (G2I-15, p08); an external-action limit refusal was recorded as missing_permission (G2I-14). approvals_exercised does not hold with the validation's own defaults (G2I-3: a rejection comes only at the 3rd approval request, the compute limit of 8 s per budgeted decision ends the phase after 1-5 real-configuration decisions; no run made more than one approval request); the lock was held 1095 s with budget_s 780 (G2I-11). INT3B run 2's 15/16 configuration (six lifetimes) is not reachable through cam-live validate. M-int's numbers of its runs reproduce from the evidence files.",
+  "notes": "Round 2 at 257267c: staging validation does not pass. Round-2 run with the new defaults (48 decisions, 6 lifetimes, meta_min 3, budget 840 s; load 12.8 at the start, 46.7 at the end): 13 of 16 hold; fail approvals_exercised (one approval request, approved and executed with its own grant - G2I-15 fixed, p08 0 broken - but CAM chose no second approval-requiring action in the 6 decisions of the approvals objective, so nothing was rejected), meta_update_applied / meta_step_changes_policy (4 of 6 lifetimes ran before the time box, 3 closed by signed verdicts, 0 meta-updates applied: 34 skips for fewer than 3 independent groups). Lock 812 s <= 840 (G2I-11 fixed). G2I-3 is fixed structurally (approvals objective first, rejection at the 2nd request, navigation charged correctly) and the CPU debug run holds 16/16, so a pass is possible without steering CAM, but it depends on CAM requesting >= 2 approvals within its few decisions and on >= 3 verified lifetimes before the box closes; neither happened in INT3B's or my default real-configuration run.",
   "status": "failed",
   "supersedes": [
    "all"
@@ -214,13 +210,12 @@
  },
  "NA-06": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
-   "pytest cam_live/tests/integration cam_live/tests/storage ... -q --rootdir=cam_live on git archive a5ab772: 138 passed, 1 skipped",
-   "cam-live validate --mode staging --real-model (run A: 10/16; evidence cam_live/docs/verification/repro/g2integration/out/runA_staging_20261128T030744Z.json)",
-   "cam-live validate --mode staging --real-model --decisions 40 --budget-s 840 --meta-min-independent 3 --computer-share 0.2 (run B: 13/16; evidence cam_live/docs/verification/repro/g2integration/out/runB_staging_20261128T033952Z.json)"
+   "pytest tests/integration/test_agent_runtime.py test_operator_requests.py test_int2_storage.py tests/runtime/{test_rt_logs_journal,test_int2_storage_drain,test_int3b_round2,test_rt_dashboard,test_rt_doctor_cli}.py tests/harness/skills/{test_es_failures,test_es_modality}.py on git archive 257267c: 119 passed",
+   "cam-live validate --mode staging --real-model (new defaults; CAM_LIVE_GPU_LOCK = the shared lock; round 2: 13/16; evidence cam_live/docs/verification/repro/g2integration/out/round2_staging_20261128T055027Z.json)"
   ],
-  "notes": "test_behaviour_changes_and_lives_in_the_weights passes (debug). Real configuration (run A): the policy distribution on a held-out LabWorld context moved TV 0.128 after 4 decisions of learning; restoring all trainable groups gives TV 0.0 (store, fast state, registries untouched); restoring only the experiential group leaves TV 0.035 / 0.100. The chosen actions come from the trainable policy (rule thompson_policy, 3 of 4) and world predictions of the experiential core. Run B: held-out TV 0.276 after 33 decisions, 0.0 after restoring the trainable groups; experiential only 0.056 / 0.239.",
+  "notes": "Round 2 at 257267c: round-2 run: held-out policy TV 0.198 after 28 decisions of learning, 0.0 after restoring the trainable groups (experiential only 0.043 / 0.166); test_behaviour_changes_and_lives_in_the_weights passes. Round 1: TV 0.128 / 0.276, same restoration result.",
   "status": "verified",
   "supersedes": [
    "all"
@@ -228,29 +223,28 @@
  },
  "OB-01": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
    "cam_live/docs/verification/repro/g2integration/p04_obstacles.py",
    "cam_live/docs/verification/repro/g2integration/p07_limit_refusal_class.py",
-   "pytest cam_live/tests/integration cam_live/tests/storage ... -q --rootdir=cam_live on git archive a5ab772: 138 passed, 1 skipped",
-   "cam-live validate --mode staging --real-model --decisions 40 --budget-s 840 --meta-min-independent 3 --computer-share 0.2 (run B: 13/16; evidence cam_live/docs/verification/repro/g2integration/out/runB_staging_20261128T033952Z.json)",
-   "cam_live/docs/verification/repro/g2integration/out/probe_results_a5ab772.txt"
+   "cam_live/docs/verification/repro/g2integration/out/round2_probe_results_257267c.txt",
+   "pytest tests/integration/test_agent_runtime.py test_operator_requests.py test_int2_storage.py tests/runtime/{test_rt_logs_journal,test_int2_storage_drain,test_int3b_round2,test_rt_dashboard,test_rt_doctor_cli}.py tests/harness/skills/{test_es_failures,test_es_modality}.py on git archive 257267c: 119 passed"
   ],
-  "notes": "Failure observed and characterised (class, detail) in an ObstacleRecord with probabilistic explanations (p04 3, 4 hold; test_obstacle_records_link... and test_every_failure_class_is_reachable_and_categorised pass). Fails: (1) the runtime records every authorization-service refusal as missing_permission (runtime/loop.py:1294-1298, harness refusal_class unused), so a resource-limit refusal ('resource: max_external_actions exhausted ...') becomes a permission obstacle - seen on the real configuration in run B and reproduced by p07 checks 2, 3 (G2I-14); (2) FailureClass.UNKNOWN gets category '' in obstacle records (runtime/obstacles.py:23; harness/failures.py:40 says informational) - not one of the five categories (G2I-8, p04 checks 1, 2). Explanations do not use the failure's content.",
-  "status": "partial",
+  "notes": "Round 2 at 257267c: G2I-14 fixed (an L- refusal is resource_limit, p07 4/4) and G2I-8 fixed (unknown -> informational, p04 1, 2 hold); every obstacle gets one of the five categories and probabilistic explanations (p04 3, 4). Note: explanations are counts per operation, not content-derived.",
+  "status": "verified",
   "supersedes": [
    "all"
   ]
  },
  "OB-02": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
    "cam_live/docs/verification/repro/g2integration/p04_obstacles.py",
-   "pytest cam_live/tests/integration cam_live/tests/storage ... -q --rootdir=cam_live on git archive a5ab772: 138 passed, 1 skipped",
-   "cam_live/docs/verification/repro/g2integration/out/probe_results_a5ab772.txt"
+   "cam_live/docs/verification/repro/g2integration/out/round2_probe_results_257267c.txt",
+   "pytest tests/integration/test_agent_runtime.py test_operator_requests.py test_int2_storage.py tests/runtime/{test_rt_logs_journal,test_int2_storage_drain,test_int3b_round2,test_rt_dashboard,test_rt_doctor_cli}.py tests/harness/skills/{test_es_failures,test_es_modality}.py on git archive 257267c: 119 passed"
   ],
-  "notes": "The next decision's candidates (with their predictions and costs in the decision record) and the chosen alternative are recorded on the obstacle, the alternative is authorized and executed by the ordinary loop, its result recorded (p04 checks 5, 6; test_obstacle_records_link_failure_alternatives_and_learning passes). No recovery logic: the learner decides.",
+  "notes": "Round 2 at 257267c: unchanged result: alternatives considered / chosen and the alternative's result recorded (p04 5, 6); test_obstacle_records_link_failure_alternatives_and_learning passes.",
   "status": "verified",
   "supersedes": [
    "all"
@@ -258,27 +252,27 @@
  },
  "OB-03": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
    "cam_live/docs/verification/repro/g2integration/p04_obstacles.py",
-   "cam-live validate --mode staging --real-model (run A: 10/16; evidence cam_live/docs/verification/repro/g2integration/out/runA_staging_20261128T030744Z.json)",
-   "cam_live/docs/verification/repro/g2integration/out/probe_results_a5ab772.txt"
+   "cam_live/docs/verification/repro/g2integration/out/round2_probe_results_257267c.txt",
+   "cam-live validate --mode staging --real-model (new defaults; CAM_LIVE_GPU_LOCK = the shared lock; round 2: 13/16; evidence cam_live/docs/verification/repro/g2integration/out/round2_staging_20261128T055027Z.json)"
   ],
-  "notes": "A failed action is an experience record like any other: fast beliefs, R_psi internal rewards and frequent updates use it (run A: records rewarded and learned from). Fails: the obstacle record's learning_update_ids are every later update (runtime/obstacles.py:85-98), not updates shown to use the obstacle's experience (G2I-9, p04 check 7).",
-  "status": "partial",
+  "notes": "Round 2 at 257267c: G2I-9 fixed: an obstacle links only learning updates that used its experience (p04 7 holds); failed actions are experience records rewarded and learned from (round-2 run).",
+  "status": "verified",
   "supersedes": [
    "all"
   ]
  },
  "OB-04": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
    "cam_live/docs/verification/repro/g2integration/p04_obstacles.py",
-   "pytest cam_live/tests/integration cam_live/tests/storage ... -q --rootdir=cam_live on git archive a5ab772: 138 passed, 1 skipped",
-   "cam_live/docs/verification/repro/g2integration/out/probe_results_a5ab772.txt"
+   "cam_live/docs/verification/repro/g2integration/out/round2_probe_results_257267c.txt",
+   "pytest tests/integration/test_agent_runtime.py test_operator_requests.py test_int2_storage.py tests/runtime/{test_rt_logs_journal,test_int2_storage_drain,test_int3b_round2,test_rt_dashboard,test_rt_doctor_cli}.py tests/harness/skills/{test_es_failures,test_es_modality}.py on git archive 257267c: 119 passed"
   ],
-  "notes": "No failure-conditioned recovery branch in the decision path (p04 check 10: the only failure-class branch in agent/runtime/predict/credit/reward abandons a self-generated goal); RetryPolicy retries only three transient classes, bounded (<=5), and refuses any rule for missing_permission / platform_restriction (p04 8, 9); a refusal never switches modality (test_a_refusal_never_causes_a_modality_switch x4, test_hard_classes_are_never_retried_and_cannot_be_configured pass).",
+  "notes": "Round 2 at 257267c: unchanged: no failure-class recovery branch in the decision path, hard classes never retried / not configurable (p04 8-10; tests pass).",
   "status": "verified",
   "supersedes": [
    "all"
@@ -286,55 +280,54 @@
  },
  "OP-01": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
    "cam_live/docs/verification/repro/g2integration/p03_storage.py",
-   "pytest cam_live/tests/integration cam_live/tests/storage ... -q --rootdir=cam_live on git archive a5ab772: 138 passed, 1 skipped",
-   "cam_live/docs/verification/repro/g2integration/out/probe_results_a5ab772.txt"
+   "cam_live/docs/verification/repro/g2integration/out/round2_probe_results_257267c.txt",
+   "pytest tests/integration/test_agent_runtime.py test_operator_requests.py test_int2_storage.py tests/runtime/{test_rt_logs_journal,test_int2_storage_drain,test_int3b_round2,test_rt_dashboard,test_rt_doctor_cli}.py tests/harness/skills/{test_es_failures,test_es_modality}.py on git archive 257267c: 119 passed"
   ],
-  "notes": "DiskGuard refuses before writing; agent.save and agent.promote are refused below the minimum and write nothing (p03 1-3); the runtime pauses instead of checkpointing (test_runtime_pauses_instead_of_checkpointing_when_disk_is_low, test_agent_promotion_checks_the_guard_and_the_runtime_pauses pass). Fails: weights-only exports (agent.export_weights, cam-live export-checkpoint of a stopped run) write below the minimum (G2I-4, p03 4, 5).",
-  "status": "partial",
+  "notes": "Round 2 at 257267c: G2I-4 fixed: agent.export_weights and cam-live export-checkpoint are refused below the minimum and write nothing (p03 4, 5); save / promote refused, runtime pauses (p03 1-3; tests pass).",
+  "status": "verified",
   "supersedes": [
    "all"
   ]
  },
  "OP-02": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
    "cam_live/docs/verification/repro/g2integration/p03_storage.py",
-   "pytest cam_live/tests/integration cam_live/tests/storage ... -q --rootdir=cam_live on git archive a5ab772: 138 passed, 1 skipped",
-   "cam_live/docs/verification/repro/g2integration/out/probe_results_a5ab772.txt"
+   "cam_live/docs/verification/repro/g2integration/out/round2_probe_results_257267c.txt",
+   "pytest tests/integration/test_agent_runtime.py test_operator_requests.py test_int2_storage.py tests/runtime/{test_rt_logs_journal,test_int2_storage_drain,test_int3b_round2,test_rt_dashboard,test_rt_doctor_cli}.py tests/harness/skills/{test_es_failures,test_es_modality}.py on git archive 257267c: 119 passed"
   ],
-  "notes": "Runtime checkpoints: newest 2 kept, optimizer state only in the newest (test passes); prune_runs/apply_retention keep the newest, protected checkpoints and records (p03 6-8). Fails: a symlinked checkpoint makes retention delete optim/ outside the tree (G2I-5, p03 9); learner promotions keep optimizer state in every kept checkpoint (G2I-6, p03 10).",
-  "status": "partial",
+  "notes": "Round 2 at 257267c: G2I-5 fixed (a symlinked checkpoint is not followed: nothing outside the tree is deleted, p03 9) and G2I-6 fixed (CheckpointManager.prune strips optimizer state from all but the newest keep_optim, p03 10); newest kept, protected and records kept (p03 6-8).",
+  "status": "verified",
   "supersedes": [
    "all"
   ]
  },
  "OP-03": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
    "cam_live/docs/verification/repro/g2integration/p03_storage.py",
-   "pytest cam_live/tests/integration cam_live/tests/storage ... -q --rootdir=cam_live on git archive a5ab772: 138 passed, 1 skipped",
-   "cam_live/docs/verification/repro/g2integration/out/probe_results_a5ab772.txt"
+   "cam_live/docs/verification/repro/g2integration/out/round2_probe_results_257267c.txt",
+   "pytest tests/integration/test_agent_runtime.py test_operator_requests.py test_int2_storage.py tests/runtime/{test_rt_logs_journal,test_int2_storage_drain,test_int3b_round2,test_rt_dashboard,test_rt_doctor_cli}.py tests/harness/skills/{test_es_failures,test_es_modality}.py on git archive 257267c: 119 passed"
   ],
-  "notes": "Doctor disk check, dashboard health disk_free_gb, runtime guard with storage_warning / storage_low events exist and are tested (test_read_endpoints_show_the_run, test_doctor_reports_what_is_on_this_machine pass). Fails: the doctor's disk check uses a fixed 20 GB, not storage.min_free_gb (reports ok while the runtime would refuse every checkpoint), and the dashboard shows no guard level (G2I-7, p03 11).",
-  "status": "partial",
+  "notes": "Round 2 at 257267c: doctor's disk check now uses storage.min_free_gb (p03 11 holds); runtime guard with warnings; dashboard health shows free GB. Remaining cosmetic gap: the dashboard shows no guard level (runtime/dashboard.py:345).",
+  "status": "verified",
   "supersedes": [
    "all"
   ]
  },
  "OP-05": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
    "cam_live/docs/verification/repro/g2integration/p06_discord_observations.py",
-   "docs/evidence/INT3B/rehearsal_segmentB_check.json",
-   "cam_live/docs/verification/repro/g2integration/out/probe_results_a5ab772.txt"
+   "cam_live/docs/verification/repro/g2integration/out/round2_probe_results_257267c.txt"
   ],
-  "notes": "Staging: real DiscordExecutor against the local staging Discord, integrated agent choosing read-only Discord tools: 6 of 6 observations become store items, 5 of 6 are in the context of later decisions (model input), every Discord action is an experience record pointing at its observations, frequent updates with non-zero deltas ran on that store (p06 6/6); INT3B rehearsal evidence agrees. Fails / not shown: no observation from the live Discord (not permitted to test).",
+  "notes": "Round 2 at 257267c: staging: p06 6/6 again at 257267c (Discord observations are store items, in later decision contexts, records point at them, frequent updates run on that store); not shown for the live Discord (not permitted to test).",
   "status": "partial",
   "supersedes": [
    "all"
@@ -342,13 +335,13 @@
  },
  "OP-06": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
    "cam_live/docs/verification/repro/g2integration/p02_operator_requests.py",
-   "pytest cam_live/tests/integration cam_live/tests/storage ... -q --rootdir=cam_live on git archive a5ab772: 138 passed, 1 skipped",
-   "cam_live/docs/verification/repro/g2integration/out/probe_results_a5ab772.txt"
+   "cam_live/docs/verification/repro/g2integration/out/round2_probe_results_257267c.txt",
+   "pytest tests/integration/test_agent_runtime.py test_operator_requests.py test_int2_storage.py tests/runtime/{test_rt_logs_journal,test_int2_storage_drain,test_int3b_round2,test_rt_dashboard,test_rt_doctor_cli}.py tests/harness/skills/{test_es_failures,test_es_modality}.py on git archive 257267c: 119 passed"
   ],
-  "notes": "internal.request_operator is offered, records one deduplicated request, the operator CLI grants it, the answer returns once as an event with operator trust and the learner's own text separately under self trust, the authorization service's state is byte-identical before / after the grant and the same action stays denied, the answer is a store item in the next decision's context (p02 14/14; both acceptance tests pass).",
+  "notes": "Round 2 at 257267c: p02 14/14 again at 257267c (request recorded and deduplicated, answer delivered once with operator trust, authorization state byte-identical, the action stays denied, answer in the next decision's context); both acceptance tests pass.",
   "status": "verified",
   "supersedes": [
    "all"
@@ -356,12 +349,12 @@
  },
  "OP-08": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
    "cam_live/docs/verification/repro/g2integration/p01_push_scan.py",
-   "cam_live/docs/verification/repro/g2integration/out/probe_results_a5ab772.txt"
+   "cam_live/docs/verification/repro/g2integration/out/round2_probe_results_257267c.txt"
   ],
-  "notes": "Source is pushed (the local remote-tracking ref equals the branch head; no network check) and the checker records unpushed / uncommitted / ignored paths (test_durability_reports_unpushed_commits_and_uncommitted_files passes). Fails: tools/push_milestone.sh scans only the net diff, so a credential added and removed inside the unpushed commits is pushed (G2I-1, p01 B, E), and binary / compressed files are not scanned (G2I-2, p01 C, F); the committed durability record in docs/COMPLETION.md is from 799f032 (G2I-12). No leak found in the real history.",
+  "notes": "Round 2 at 257267c: G2I-1 / G2I-2 fixed: tools/secret_scan.py scans every blob each commit introduces, decompressing gzip / xz / bz2 (p01 A-F hold; tests/test_secret_scan.py passes). Fails: new G2I-16 a credential inside a zip archive (deflate) is pushed (p01 G; secret_scan.py expansions handles gzip/xz/bz2 only); new G2I-17 a blob is scanned once by id, so identical content at an ordinary path after an allow-listed path is never pattern-checked (p01 H; secret_scan.py:117-120); G2I-12 the durability record in docs/COMPLETION.md is still from 799f032. Latent: no zip or duplicated allow-listed blob in the history.",
   "status": "partial",
   "supersedes": [
    "all"
@@ -369,12 +362,12 @@
  },
  "SV-11": {
   "by": "G2-integration",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "evidence": [
-   "docs/evidence/validation/staging_20261128T005844Z.json",
-   "docs/evidence/validation/staging_20261128T004747Z.json"
+   "docs/evidence/validation/staging_20261128T051702Z.json",
+   "docs/evidence/validation/staging_20261128T051613Z_cpu.json"
   ],
-  "notes": "No live or real-world result is reported anywhere in M-int.json / INT3B.md; the staging numbers I checked reproduce from the cited evidence files (15/16, 13/16, meta-gradient norms 40.7/15.4, psi deltas 0.097/0.062, TV 0.221/0.011). One label is wrong: the '5 ESS too small' skips are 'no_supported_episode' in the evidence.",
+  "notes": "Round 2 at 257267c: INT3B round-2 numbers reproduce from staging_20261128T051702Z.json (13/16, lock 685 s, peak 18.0 GB, held-out TV 0.33, 6 adapter changes, 2 lifetimes) and the CPU file holds 16/16; nothing live is reported.",
   "status": "verified",
   "supersedes": [
    "all"

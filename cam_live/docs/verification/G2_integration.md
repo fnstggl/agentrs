@@ -285,3 +285,109 @@ Counts: **9 verified, 18 partial, 1 failed, 0 unverified** (28).
 * Learning quality (improvement with repetition, transfer, usefulness of self-directed experiments): not measured
   by anyone at the real configuration; not claimed.
 
+
+
+## Round 2 — re-verification at the final freeze 257267c
+
+**Code verified: commit `257267c1c31568b693adf0cbcd0e9f9b547e62e1`** (read-only export `git archive 257267c` in
+`<scratch>/r2/src`, `PYTHONPATH` pointing there). The verdicts in `verdicts_g2integration.json` are replaced in place
+(commit 257267c). Every real-model GPU job ran with `CAM_LIVE_GPU_LOCK=/workspace/camlive/runs/gpu_heavy.lock` (the
+worktree's symlink to the shared lock: my job was seen queued on the shared lock's inode behind another tenant's);
+CPU-only probes used a private lock. Documents under review did not change between a5ab772 and 257267c.
+
+**Result: 15 verified, 12 partial, 1 failed (LX-11), 0 unverified.** Fixed and confirmed by
+my probes: G2I-1, G2I-2, G2I-4, G2I-5, G2I-6, G2I-7 (doctor), G2I-8, G2I-9, G2I-11, G2I-14, G2I-15; G2I-3 fixed
+structurally; G2I-10 half fixed; G2I-12 and G2I-13 open. New: G2I-16, G2I-17 (secret scanner), G2I-18 (GPU-lock default).
+
+### R2.1 Executed
+
+| What | Command (from `/workspace/camlive` or the export) | Result |
+|---|---|---|
+| Acceptance tests touched by the fixes | `pytest .../integration/test_agent_runtime.py test_operator_requests.py test_int2_storage.py .../runtime/test_rt_logs_journal.py test_int2_storage_drain.py test_int3b_round2.py test_rt_dashboard.py test_rt_doctor_cli.py .../harness/skills/test_es_failures.py test_es_modality.py` | 119 passed, 393 s |
+| Secret scanner, completion checker, storage tests | `pytest cam_live/tests/test_secret_scan.py cam_live/tests/test_verify_completion.py cam_live/tests/storage` | 35 passed |
+| **Staging validation, new defaults** | `CAM_LIVE_GPU_LOCK=<shared> CAM_LIVE_HOME=<scratch>/r2/home cam-live validate --mode staging --real-model --out <scratch>/r2/staging` (load 12.8 at the start, 46.7 at the end from other tenants; my 119-test run overlapped its first 4 minutes) | **13 of 16 hold, not passed**; lock 812 s (budget 840) |
+| p01 push scan (extended: G zip archive, H allow-listed duplicate) | `p01_push_scan.py --script <export>/cam_live/tools/push_milestone.sh` | A-F hold; **G, H broken** (G2I-16, G2I-17) |
+| p02 / p03 / p04 / p06 / p07 | as in section 1, on the export | 14/14, **11/11**, **12/12**, 6/6, **4/4** |
+| p05 standalone | as in section 1 | 4/5 (venv layering) |
+| p08 approval trace of my round-2 run | `.venv/bin/python -I $P/p08_approval_trace.py <scratch>/r2/staging` | **0 broken**: approved by the operator, executed with the approval's own grant |
+| Documentation probes on the export | `$P/docs/d01..d05` | d01 184 + 3 by hand; d02 7 broken; d03 7 of 88 broken (66/66 --help exit 0); d04 18 of 19 broken; d05 6 broken |
+
+Recorded outputs: `$P/out/round2_staging_20261128T055027Z.json`, `$P/out/round2_p08_approval_trace.txt`,
+`$P/out/round2_probe_results_257267c.txt`, `$P/out/round2_docs_probes_257267c.txt`.
+
+### R2.2 Staging validation (LX-11): is a pass achievable without steering CAM?
+
+Round-2 run (`staging_20261128T055027Z.json`): approvals objective 6 decisions in 106 s (scroll, read, navigate,
+**click -> queued -> approved -> executed with its grant**, skill.list, download refused as a local address), stopped
+by its share of the time box; limit objective ended by `limit compute_s exhausted` (32 s); LabWorld 4 of 6 lifetimes
+before the box (three closed by signed verdicts, all `failed`; the fourth pending), interruption + restart in
+lifetime 2 resumed; 150 predictions resolved after registration, 40 delayed links, 50 frequent updates, 4 policy
+updates, **12 of 13 slow-adapter steps changed the adapters**, held-out TV 0.198 -> 0.0 after restoring the weights.
+Failing: `approvals_exercised` (one request, so no rejection: CAM chose only one approval-requiring interaction),
+`meta_update_applied` and `meta_step_changes_policy` (0 applied; 34 skips for fewer than 3 independent groups, 3 no
+supported episode). INT3B's own default run (`staging_20261128T051702Z.json`) has the same three failures (one
+http.request approval; 2 lifetimes at load ~41); the CPU debug run holds 16/16.
+
+Judgement: the validation no longer fails by construction (G2I-3: approvals objective first, rejection at the 2nd
+request, the harness's navigation charged correctly; G2I-15: the approved action executes with its grant; G2I-11:
+the hold stayed within `budget_s`), and nothing steers CAM's choices. A pass is possible in principle, but on the
+real configuration it depends on CAM itself requesting at least two approval-requiring interactions within the ~6
+decisions its approvals objective gets, and on three verified lifetimes completing before a meta-update call inside
+the 840 s box. Neither happened in the two default real-configuration runs. **LX-11 stays failed**: "staging
+validation passes" is not met; the remaining failures are behavioural / time-budget, not wiring.
+
+### R2.3 New defects
+
+| id | sev. | where (257267c) | defect | reproduction |
+|---|---|---|---|---|
+| G2I-16 | minor | `tools/secret_scan.py:78-89` (`expansions`) | Only gzip / xz / bzip2 are expanded; a credential inside a zip archive (deflate, also .docx / .xlsx / wheels) is pushed. Latent: no zip in the history. | `p01_push_scan.py` check G |
+| G2I-17 | minor | `tools/secret_scan.py:117-120` | Blobs are de-duplicated by id before the allow list is applied per path: identical content at an ordinary path, seen after the same blob at an allow-listed path, is never pattern-checked (the real-credential check is not affected). | `p01_push_scan.py` check H |
+| G2I-18 | minor (coordination hazard) | `config.py:29`, `nn/gpu.py:26-27`, `runtime/gpu_cycle.py:61-62`, `runtime/doctor.py:241-242` | The default lock `<repo>/runs/gpu_heavy.lock` is the shared tenant's lock only through an untracked symlink in a git-ignored directory of this worktree. In any other checkout or archive copy the lock code creates a private file silently and a real-model job holds a lock nobody else waits on; the doctor checks only that the directory exists. Not acceptable as a silent default. Safer: fail closed — refuse real-model GPU work when the configured lock file does not already exist (never create it), name the machine's lock explicitly in `configs/cam_live.yaml` or a machine-wide path outside any checkout, and make doctor / preflight block (with the path) when the lock is absent or not the shared one. | `ls <export>/runs` (absent); `nn/gpu.py:26-27` |
+
+### R2.4 Earlier defects — state at 257267c
+
+| id | state | evidence |
+|---|---|---|
+| G2I-1, G2I-2 | fixed | p01 B, C, E, F hold; `tests/test_secret_scan.py` |
+| G2I-3 | fixed structurally; the check still fails on the real configuration for behavioural reasons | R2.2 |
+| G2I-4 | fixed | p03 4, 5 |
+| G2I-5, G2I-6 | fixed | p03 9, 10 |
+| G2I-7 | fixed for the doctor; the dashboard still shows free GB without the guard level (cosmetic) | p03 11; `runtime/dashboard.py:345` |
+| G2I-8, G2I-9 | fixed | p04 1, 2, 7 |
+| G2I-10 | half fixed: lock default no longer in CAM Unified's directory, venv still layered over AgentRS's; see G2I-18 | p05 3, 4 |
+| G2I-11 | fixed (812 s with budget 840; INT3B 685 s) | round-2 run |
+| G2I-12 | open: `docs/COMPLETION.md` durability section still from 799f032 | `grep -n Durability -A3 docs/COMPLETION.md` |
+| G2I-13 | open (documents not refreshed yet; see the verdicts below for what is still stale) | `$P/docs/d0*.py` |
+| G2I-14 | fixed | p07 4/4 |
+| G2I-15 | fixed | p08 0 broken on my round-2 run |
+
+### R2.5 Verdicts at 257267c
+
+* **NA-06 — verified.** round-2 run: held-out policy TV 0.198 after 28 decisions of learning, 0.0 after restoring the trainable groups (experiential only 0.043 / 0.166); test_behaviour_changes_and_lives_in_the_weights passes. Round 1: TV 0.128 / 0.276, same restoration result.
+* **CL-09 — verified.** set_objective unchanged in substance (checkpoint auth-hash comparison added, G2L-10); test_new_objective_keeps_weights_and_resets_fast_beliefs passes; one agent runs 2 computer objectives and 4 LabWorld objectives in the round-2 run, learning continues.
+* **AE-03 — partial.** self-directed randomised experiments run (round-2 run: 2 of 28 decisions by rule 'randomized') and now reach the credit store (DX-1: agent.py:721 attach_experiments); fails: their usefulness is not evaluated, and the credit default stays 'simple' (no held-out experiment lifetimes yet).
+* **AE-05 — verified.** one agent lifetime spans the approvals, limit and four LabWorld objectives of the round-2 run with learning continuing; tests pass. Performance on an unfamiliar objective not established (not claimed).
+* **AE-08 — partial.** obstacle records, linkage and classification now hold (p04 12/12, p07 4/4: limit refusals are resource obstacles; learning linked only by use of the obstacle's experience); fails: strategy changes remain a flag, not measured, and explanations are failure-class priors per operation, not derived from the failure's content - learned obstacle resolution is not demonstrated.
+* **OB-01 — verified.** G2I-14 fixed (an L- refusal is resource_limit, p07 4/4) and G2I-8 fixed (unknown -> informational, p04 1, 2 hold); every obstacle gets one of the five categories and probabilistic explanations (p04 3, 4). Note: explanations are counts per operation, not content-derived.
+* **OB-02 — verified.** unchanged result: alternatives considered / chosen and the alternative's result recorded (p04 5, 6); test_obstacle_records_link_failure_alternatives_and_learning passes.
+* **OB-03 — verified.** G2I-9 fixed: an obstacle links only learning updates that used its experience (p04 7 holds); failed actions are experience records rewarded and learned from (round-2 run).
+* **OB-04 — verified.** unchanged: no failure-class recovery branch in the decision path, hard classes never retried / not configurable (p04 8-10; tests pass).
+* **CU-22 — partial.** neural learning from interaction experience on the real configuration now includes the slow adapters: round-2 run 50 frequent updates (all non-zero experiential deltas), 4 policy-improvement updates, 12 of 13 slow-adapter steps changed the adapters (group delta 1.25). Fails: spec 12A.10 asks to verify that neural learning improves behaviour independently of the skill library - no improvement with repetition and no comparison with the skill library is shown.
+* **CU-30 — partial.** grounded browser actions execute on the staging sites (round-2 run: 8 computer decisions, the approved browser.click executed with the approval's grant); fails: task success on an unfamiliar interface not established (computer objectives' verified status pending).
+* **LX-11 — failed.** staging validation does not pass. Round-2 run with the new defaults (48 decisions, 6 lifetimes, meta_min 3, budget 840 s; load 12.8 at the start, 46.7 at the end): 13 of 16 hold; fail approvals_exercised (one approval request, approved and executed with its own grant - G2I-15 fixed, p08 0 broken - but CAM chose no second approval-requiring action in the 6 decisions of the approvals objective, so nothing was rejected), meta_update_applied / meta_step_changes_policy (4 of 6 lifetimes ran before the time box, 3 closed by signed verdicts, 0 meta-updates applied: 34 skips for fewer than 3 independent groups). Lock 812 s <= 840 (G2I-11 fixed). G2I-3 is fixed structurally (approvals objective first, rejection at the 2nd request, navigation charged correctly) and the CPU debug run holds 16/16, so a pass is possible without steering CAM, but it depends on CAM requesting >= 2 approvals within its few decisions and on >= 3 verified lifetimes before the box closes; neither happened in INT3B's or my default real-configuration run.
+* **SV-11 — verified.** INT3B round-2 numbers reproduce from staging_20261128T051702Z.json (13/16, lock 685 s, peak 18.0 GB, held-out TV 0.33, 6 adapter changes, 2 lifetimes) and the CPU file holds 16/16; nothing live is reported.
+* **IN-01 — verified.** the runtime calls the integrated agent at every step (tests pass), the staging computer registers every executor, promotion is called (round-2 run: 2 promotions refused / tried), and credit-estimator selection is now wired (agent.py:721 attach_experiments, DX-1) - the gap of round 1 is closed. Default credit estimator stays 'simple' until held-out experiment lifetimes exist (by design).
+* **IN-04 — verified.** verify_completion.py unchanged since a5ab772; tests/test_verify_completion.py passes at 257267c (with tests/test_secret_scan.py and tests/storage: 35 passed).
+* **IN-07 — verified.** pathway on the real configuration in staging again: 150 predictions resolved after registration, 40 delayed-outcome links, internal rewards on every record, frequent + policy + slow-adapter updates, held-out TV 0.198 -> 0.0 after restoring the weights. The reward meta-update (outer loop) did not apply in this run either. Staging only.
+* **IN-09 — partial.** code standalone (p05 1, 2, 5 hold) and the lock default no longer names CAM Unified's directory (p05 4 holds). Fails: (1) the venv is still layered over /workspace/agentrs/.venv (p05 3); (2) new G2I-18: the default lock <repo>/runs/gpu_heavy.lock is shared with the other tenant only through an untracked symlink in a git-ignored directory of this worktree; in any other checkout or archive copy nn.gpu.gpu_lock / GpuLease create a private lock file silently (makedirs + open 'a+') and a real-model job runs uncoordinated - the doctor's gpu_lock check only tests that the directory exists. Not acceptable as a silent default; safer: fail closed (refuse real-model GPU work when the configured lock file does not already exist, never create it), name the machine's lock in configs/cam_live.yaml or a machine-wide path outside any checkout, and have doctor/preflight block when the lock is not the shared one.
+* **OP-01 — verified.** G2I-4 fixed: agent.export_weights and cam-live export-checkpoint are refused below the minimum and write nothing (p03 4, 5); save / promote refused, runtime pauses (p03 1-3; tests pass).
+* **OP-02 — verified.** G2I-5 fixed (a symlinked checkpoint is not followed: nothing outside the tree is deleted, p03 9) and G2I-6 fixed (CheckpointManager.prune strips optimizer state from all but the newest keep_optim, p03 10); newest kept, protected and records kept (p03 6-8).
+* **OP-03 — verified.** doctor's disk check now uses storage.min_free_gb (p03 11 holds); runtime guard with warnings; dashboard health shows free GB. Remaining cosmetic gap: the dashboard shows no guard level (runtime/dashboard.py:345).
+* **OP-05 — partial.** staging: p06 6/6 again at 257267c (Discord observations are store items, in later decision contexts, records point at them, frequent updates run on that store); not shown for the live Discord (not permitted to test).
+* **OP-06 — verified.** p02 14/14 again at 257267c (request recorded and deduplicated, answer delivered once with operator trust, authorization state byte-identical, the action stays denied, answer in the next decision's context); both acceptance tests pass.
+* **OP-08 — partial.** G2I-1 / G2I-2 fixed: tools/secret_scan.py scans every blob each commit introduces, decompressing gzip / xz / bz2 (p01 A-F hold; tests/test_secret_scan.py passes). Fails: new G2I-16 a credential inside a zip archive (deflate) is pushed (p01 G; secret_scan.py expansions handles gzip/xz/bz2 only); new G2I-17 a blob is scanned once by id, so identical content at an ordinary path after an allow-listed path is never pattern-checked (p01 H; secret_scan.py:117-120); G2I-12 the durability record in docs/COMPLETION.md is still from 799f032. Latent: no zip or duplicated allow-listed blob in the history.
+* **DL-02 — partial.** MODEL_ARCHITECTURE.md unchanged since round 1. Still stale at 257267c: :284 / :302 / :312-314 set_objective -> MetaLearner.new_lifetime (code: meta.new_objective); §7 omits the stored-credit use of the policy update. No longer misleading: :249-250 / :329-331 estimator selection from experiments (now wired, agent.py:721). Counts and citations still hold (184 resolved + 3 attribute/field citations checked by hand).
+* **DL-04 — partial.** MATH_NOTES.md unchanged. Still stale at 257267c: :359-360 / :666 / :669 / :693-694 (info_gain, epistemic_after, learning_progress have producers), :413-421 (credited goal return missing from L_inner), :611-612 / :677-679 ('no training loss reads the stored credit'), :623-626 (slow guard per provider), :116-121 (Poisson mode search) - d05 6 broken. No longer misleading: :609-610 estimator selection (now wired).
+* **DL-20 — partial.** OPERATOR_RESOURCES.md unchanged. Still stale at 257267c (d02 7 broken): :32-35 / :70 'no override' for persistent_storage; :156-158 GPU-hold keys absent; :103-108 by-hand launch fails at step 2; plus the services list (sandbox host is a fifth service). New: the GPU-lock prerequisite is now the <repo>/runs/gpu_heavy.lock symlink (G2I-18), which the document does not name.
+* **IN-05 — partial.** REPRODUCE.md unchanged. Still stale at 257267c (d03 7 of 88 broken): :456-457 staging preflight exits 0; :156-159 / :171-172 / :428 one-process collection works (1649 collected); :154 runtime tests (282 collected); :188 doctor 52 checks; storage test count; §9.1 launch lacks --accept-ephemeral-storage; :345-347 / :445-450 GPU-lock text. New stale: :29 lock path (now <repo>/runs/gpu_heavy.lock), :198 validate default and options (48 decisions; --budget-s, --meta-min-independent, --lab-lifetimes, --compute-limit-s, --computer-share undocumented). 66/66 --help still exit 0.
+* **IN-06 — partial.** KNOWN_FAILURES.md unchanged (d04: 18 of 19 broken). Still open-but-fixed rows: KF-D01, D07, E01, E02, E03, E05, E10, E11, E12; KF-R02 cites none of the four later validations (13/16, 15/16, 13/16, 13/16 in round 2). Still missing: staging validation not passing, INT3B-4, INT3B-5, no notes in the rehearsal, GPU-hold over-run, INT3A-5, G2-harness R2-C1 / R3-M1 / R3-m1 / R3-m2, round-2 items (INT3B-6 / INT3B-7, G2I-16..18). G2L-6 / DX-1 are now fixed and only need recording as such.

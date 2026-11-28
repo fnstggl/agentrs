@@ -1,0 +1,36 @@
+approvals at the authorization service: [('apr_550b7405257d4d63', 'approved')]
+task usage at the authorization service: {'decisions': 2.0, 'external_actions': 1.0, 'primitive_ops': 2.0, 'seconds': 0.25627636909484863}
+grants: [('closed', '', '{"compute_s":0.0,"external_actions":1.0,"money":0.0}'), ('closed', '', '{"compute_s":0.0,"external_actions":0.0,"money":0.0}'), ('closed', '', '{"compute_s":0.0,"external_actions":0.0,"money":0.0}'), ('closed', '', '{"compute_s":0.0,"external_actions":1.0,"money":0.0}'), ('closed', 'apr_550b7405257d4d63', '{"compute_s":0.0,"external_actions":1.0,"money":0.0}'), ('closed', '', '{"compute_s":0.0,"external_actions":0.0,"money":0.0}'), ('closed', '', '{"compute_s":0.0,"external_actions":1.0,"money":0.0}'), ('closed', '', '{"compute_s":0.0,"external_actions":0.0,"money":0.0}')]
+authorization trail:
+  authorize          browser.navigate   allow                                  permitted by policy default-2
+  grant_use                                                                    
+  authorize          browser.scroll     allow                                  permitted by policy default-2
+  grant_use                                                                    
+  authorize          browser.read       allow                                  permitted by policy default-2
+  grant_use                                                                    
+  authorize          browser.navigate   allow                                  permitted by policy default-2
+  grant_use                                                                    
+  approval_requested                                    apr_550b7405257d4d63   
+  authorize          browser.click      needs_approval  apr_550b7405257d4d63   interaction with owned page url:127.0.0.1:35169/a needs the operator's approval (not pre-authorized)
+  approval_resolved                     approved        apr_550b7405257d4d63   
+  authorize          browser.click      allow           apr_550b7405257d4d63   permitted by policy default-2; approved by the operator (apr_550b7405257d4d63)
+  grant_use                                                                    
+  authorize          skill.list         allow                                  permitted by policy default-2
+  grant_use                                                                    
+  authorize          browser.download   deny                                   url:designation/ is an address of this machine or its network (private_name) and not a registered local servic
+  authorize          browser.navigate   allow                                  permitted by policy default-2
+  grant_use                                                                    
+  authorize          browser.inspect    allow                                  permitted by policy default-2
+  grant_use                                                                    
+  authorize          browser.download   deny                                   url:designation/ is an address of this machine or its network (private_name) and not a registered local servic
+runtime action results:
+  browser.scroll     execute   ok             none                                        
+  browser.read       execute   ok             none                                        
+  browser.navigate   execute   ok             none                                        
+  browser.click      queued    needs_approval none                 apr_550b7405257d4d63   queued for operator approval: interaction with owned page url:127.0.0.1:35169/a needs the 
+  browser.click      execute   ok             none                 apr_550b7405257d4d63   
+  skill.list         execute   ok             none                                        
+  browser.download   denied    denied         missing_permission                          url:designation/ is an address of this machine or its network (private_name) and not a reg
+[HOLDS ] approval apr_550b7405257d4d63 (approved by staging validation operator) is not reported to the learner as rejected by the operator
+[HOLDS ] approval apr_550b7405257d4d63: the approved action was executed, or not executed with the true reason :: executed 1, reported ['execute']
+== p08_approval_trace: 0 broken

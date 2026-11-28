@@ -1,0 +1,77 @@
+script under test: /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2INTEGRATION/r2/src/cam_live/tools/push_milestone.sh
+[HOLDS ] A control: credential-shaped text added in the range is refused (non-zero exit) and not pushed :: exit 3; ry commit, decompressed)
+[HOLDS ] B a credential added and removed again inside the unpushed commits is not pushed :: exit 3; pushed history contains it: False; edential-like text in: cam_live/src/x.py @a71334184c4e — not pushing
+[HOLDS ] C a credential inside a compressed / binary file is not pushed :: exit 3; sed)
+[HOLDS ] D control: the machine's own credential in the range is refused (non-zero exit) and not pushed :: exit 3
+[HOLDS ] E the machine's own credential added and removed inside the unpushed commits is not pushed :: exit 3
+[HOLDS ] F the machine's own credential inside a compressed file is not pushed :: exit 3
+[BROKEN] G a credential inside a zip archive is not pushed :: exit 0
+[BROKEN] H a credential at an ordinary path is refused although the same content is also at an allow-listed path :: exit 0; 46/origin.git
+== p01_push_scan: 2 broken of 8 checks (throwaway repositories under /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2INTEGRATION/r2/p01b)
+[HOLDS ] 1 internal.request_operator is offered by the computer environment
+[HOLDS ] 2 baseline: the action outside the task's interfaces is not allowed :: : deny ["the task does not permit 'http.get' (modality 'api') among its interfaces", "url:127.0.0.1:9/g2i-probe is an address of this machine or its network (loopback) and not a registered local service; the instance's own services are never reachable"]
+[HOLDS ] 3 the request executes and is recorded
+[HOLDS ] 4 one open request with the learner's text and action id
+[HOLDS ] 5 the operator CLI grants it
+[HOLDS ] 6 the answer returns once as an event observation with operator trust
+[HOLDS ] 7 the learner's own request text comes back separately under self trust, never under the operator label :: operator granted request req_cc234466ea41 (permission); operator note: granted: you may now use http
+[HOLDS ] 8 delivered exactly once
+[HOLDS ] 9 after the grant the same action is still not allowed (an answer grants nothing by itself) :: deny -> deny
+[HOLDS ] 10 the authorization service's state (R/auth: keys, sqlite state, audit head) is byte-identical before and after the grant and its delivery
+[HOLDS ] 11 executing with that decision does not run the action :: denied ops=0
+[HOLDS ] 12 the answer is an item of the learner's experience store with operator trust :: 'operator'
+[HOLDS ] 13 the request context is stored with self trust :: 'self'
+[HOLDS ] 14 the answer is in the context window of the next decision
+== p02_operator_requests: 0 broken of 14 checks (/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2INTEGRATION/r2/p02_operator_requests/p02_50pqu4jw)
+free space at the scratch directory: 57.1 GB; minimum used by the probe: 1571 GB
+[HOLDS ] 1 DiskGuard.check raises DiskSpaceLow below the minimum
+[HOLDS ] 2 agent.save is refused below the minimum and writes nothing
+[HOLDS ] 3 agent.promote (learner checkpoint) is refused below the minimum
+[HOLDS ] 4 agent.export_weights (weights-only export, what `export-checkpoint` of a running run calls) is refused below the minimum :: export written: False only 57.1 GB free at /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2INTEGRATION/r2/p03_storage/p03_8d3z_3by/agent/learner; 0.0 GB needed for this write and 1570.8 GB must stay free — not writing
+[HOLDS ] 5 `cam-live export-checkpoint` (stopped run) writes nothing below the minimum (CAM_LIVE_MIN_FREE_GB) :: exit 1; export written: False (0 files)
+[HOLDS ] 6 newest 2 kept, older removed :: ['ckpt_00000003', 'ckpt_00000004']
+[HOLDS ] 7 optimizer state only in the newest
+[HOLDS ] 8 protected checkpoints and records are kept
+[HOLDS ] 9 retention never deletes anything outside the tree it is applied to (symlinked checkpoint) :: outside optim exists: True; actions: []
+[HOLDS ] 10 learner promotions (CheckpointManager.prune) drop optimizer state from all but the newest
+[HOLDS ] 11 doctor's disk check reports the configured minimum (storage.min_free_gb) as not met :: {"name": "disk", "ok": false, "detail": "57 GB free of 300 GB at /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2INTEGRATION/r2/p03_storage/p03_8d3z_3by (minimum 1570.77 GB, warning below 3141.55 GB; below the warning level) (state root /tmp/claude-0/-workspace/8e531f56-63
+== p03_storage: 0 broken of 11 checks (/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2INTEGRATION/r2/p03_storage/p03_8d3z_3by)
+[HOLDS ] 1 every failure class of an obstacle record gets one of the five categories (runtime/obstacles.py) :: unclassified: {}
+[HOLDS ] 2 the runtime's obstacle categories agree with the harness's failure taxonomy (harness/failures.py) :: (runtime, harness): {}
+[HOLDS ] 3 the obstacle record carries explanations with probabilities :: [('missing_permission', 0.167), ('invalid_arguments', 0.083), ('stale_observation', 0.083), ('visual_grounding', 0.083)]
+[NOTE  ] the class the authorization service reported (missing_permission, a refusal by policy) gets p = 0.167 as top explanation; explanations are failure-class labels only, from counts per operation, not from the failure's content
+[HOLDS ] 4 the obstacle is categorised as permission-related :: permission
+[HOLDS ] 5 the next decision's candidates and chosen alternative are recorded :: 3 alternatives
+[HOLDS ] 6 the alternative's result is recorded :: alternative wait finished with status ok
+[HOLDS ] 7 only learning updates that used the obstacle's experience are linked to it (not every later update) :: linked: []
+[HOLDS ] 8 a retry rule for the hard class missing_permission cannot be configured
+[HOLDS ] 9 RetryPolicy.decide never retries missing_permission
+[HOLDS ] 8 a retry rule for the hard class platform_restriction cannot be configured
+[HOLDS ] 9 RetryPolicy.decide never retries platform_restriction
+[NOTE  ] failure-class-conditioned branches in the decision path:
+[HOLDS ] 10 no branch in the decision path picks a recovery action from the failure class :: the one branch abandons a self-generated goal (agent.py), it does not choose an action
+== p04_obstacles: 0 broken of 12 checks (/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2INTEGRATION/r2/p04_obstacles/p04_u22wz2u9)
+cam_live loaded from /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2INTEGRATION/r2/src/cam_live/src/cam_live
+imported 176 cam_live modules; import failures: 0 {}
+[HOLDS ] 1 no module of CAM Unified / Crucible / AgentRS is loaded by importing all of cam_live
+[HOLDS ] 2 no loaded module file lies in another project's source tree
+[NOTE  ] sys.path entries inside /workspace/agentrs: ['/workspace/agentrs/.venv/lib/python3.12/site-packages']
+[NOTE  ] third-party modules loaded per site-packages directory: {'/workspace/agentrs/.venv/lib/python3.12/site-packages': 1126, '/workspace/camlive/.venv/lib/python3.12/site-packages': 107}
+[BROKEN] 3 the run-time Python environment does not live inside another project's directory :: torch, transformers, ... are loaded from /workspace/agentrs/.venv (camlive/.venv is layered over it by _shared_base.pth)
+[HOLDS ] 4 no configuration default points into another project's directory :: config.GPU_LOCK_PATH = /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2INTEGRATION/r2/private.lock (CAM Unified's run directory)
+[HOLDS ] 5 tools/ and tests/ import none of those projects
+[NOTE  ] shell tools that refer to another project's paths: []
+== p05_standalone: 1 broken of 5 checks
+[HOLDS ] 0 control: the harness classifies this refusal as resource_limit :: resource_limit
+[HOLDS ] 1 the refused action was recorded :: 7 results
+[HOLDS ] 2 the runtime records the limit refusal as resource_limit (spec obstacle item 3: resource-related) :: recorded failure_class = 'resource_limit'
+[HOLDS ] 3 the obstacle record of the limit refusal is categorised as resource :: category = 'resource', failure_class = 'resource_limit'
+== p07_limit_refusal_class: 0 broken of 4 checks (/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2INTEGRATION/r2/p07_limit_refusal_class/p07_koxjb5z8/run)
+[NOTE  ] chosen operations: ['discord.list_events', 'discord.get_guild_stats', 'discord.list_channels', 'discord.get_guild_stats', 'discord.list_channels', 'discord.get_guild_stats']; last observation provenance: ['discord:staging|']
+[HOLDS ] 1 Discord actions executed against the staging service returned observations :: 6 observations, 9 requests at the staging service
+[HOLDS ] 2 every Discord observation is an item of the experience store :: 6 of 6
+[HOLDS ] 3 Discord observations are in the context the next decisions are built from (model input) :: 5 of 6 in later contexts
+[HOLDS ] 4 every Discord action is an experience record of the store (replay)
+[HOLDS ] 5 the records point at the Discord observations they produced
+[HOLDS ] 6 learning updates ran on this store with non-zero weight change :: timescales ['frequent']; 6 of 6 with non-zero deltas
+== p06_discord_observations: 0 broken of 6 checks (/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2INTEGRATION/r2/p06/p06_epte89bz)

@@ -1,0 +1,51 @@
+== d01
+BROKEN  MODEL_ARCHITECTURE.md:26  credit/learner.py:ContinualLearner.fast_state
+BROKEN  MATH_NOTES.md:52  predict/heads.py:time_weight
+BROKEN  MATH_NOTES.md:64  agent.py:AgentSettings.promotion_
+summary: 187 distinct citations, 184 HOLD, 3 BROKEN (root /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2INTEGRATION/r2/src)
+== d02
+BROKEN  OR-0/KF-D01 no override for persistent_storage: preflight.ACCEPTABLE_RISKS = {'persistent_storage': '--accept-ephemeral-storage'}; cam-live run/preflight/resume flag '--accept-ephemeral-storage'
+BROKEN  OR-0 item 1 'no operator command fixes it': cam-live run accepts --accept-ephemeral-storage
+BROKEN  OR-2.5/KF-D07 default config sets neither runtime.gpu_lock nor gpu_hold_s: configs/cam_live.yaml runtime = {'keep_checkpoints': 2, 'gpu_lock': 'auto', 'gpu_hold_s': 840, 'gpu_yield_s': 15}
+BROKEN  OR-2.5 runtime holds the lock for the whole process lifetime (unbounded hold by default): gpu_hold_s = 840 (lease cycled per hold, runtime/gpu_cycle.py)
+BROKEN  RE-1.1/OR (info) services = auth, exec, verifier, learner only: SERVICE_MODULES = ['auth', 'exec', 'learner', 'sandbox', 'verifier'] (the root sandbox host is a fifth service)
+BROKEN  OR-0 discord_100_planning: persistent_storage cannot be accepted by the operator: with accept_risks=[persistent_storage]: still listed = False; accepted = ['persistent_storage']
+BROKEN  OR-0 discord_100: persistent_storage cannot be accepted by the operator: with accept_risks=[persistent_storage]: still listed = False; accepted = ['persistent_storage']
+summary: 13 HOLD, 7 BROKEN
+== d03
+help summary: 66/66 exit 0
+BROKEN  doctor: REPRODUCE 4: '48/51 ok' -> got: ['48/52 checks ok; failed: gpu, persistent_storage, kernel_network_filtering, user_namespaces; unknown: none']
+BROKEN  preflight_staging_planning: REPRODUCE 14: exit 3, 9 live items, mode staging (exit 0; ['LIVE: BLOCKED — 9 item(s) missing'])
+BROKEN  docstrings_name_missing_commands: REPRODUCE 13 / KF-E12: the eval docstrings still name the missing commands
+BROKEN  collect_runtime: REPRODUCE 3: runtime 215 tests (exit 0: ['282 tests collected in 2.53s'])
+BROKEN  collect_storage: REPRODUCE 3: storage 3 tests (exit 0)
+BROKEN  collect_all_fails: REPRODUCE 3 / KF-E10: one-process collection fails, exit 2 (exit 0: ['tests/runtime/test_rt_fix_tasks.py::test_invalid_yaml_is_a_task_validation_error', '1649 tests collected in 16.50s'])
+BROKEN  cam-live_test_storage: REPRODUCE 3: exit 0, 3 passed (exit 0)
+== d04
+BROKEN  evidence paths of KF rows exist: 120 checked, missing: ['KF-E05 src/cam_live/agent.py:set_objective']
+BROKEN  KF-D01 (register: open): 'no override for persistent_storage' is no longer true in the code
+BROKEN  KF-D07 (register: open, re-stated later): 'default config does not bound the GPU-lock hold' is no longer true in the code
+BROKEN  KF-E01 (register: open): 'no loss reads ExperienceRecord.credit (policy update)' is no longer true in the code
+BROKEN  KF-E02 (register: open): 'info_gain never produced (assembler reads only extras['info_gain'])' is no longer true in the code
+BROKEN  KF-E03 (register: open): 'epistemic_after / learning_progress never written' is no longer true in the code
+BROKEN  KF-E05 (register: open): 'R_psi lifetime context reset at every objective change' is no longer true in the code
+BROKEN  KF-E10 (register: open): 'whole suite cannot be collected in one process' is no longer true in the code
+BROKEN  KF-E11 (register: open): 'validate --debug keeps the given (real) configuration' is no longer true in the code
+BROKEN  KF-E12 (register: open, re-stated later): 'eval docstrings name missing commands' is no longer true in the code
+BROKEN  KF-R02 cites the latest real-configuration staging validation: newer evidence files not in the register: ['staging_20261128T004747Z.json', 'staging_20261128T005844Z.json', 'staging_20261128T051613Z_cpu.json', 'staging_20261128T051702Z.json']
+BROKEN  register mentions INT3B-4: prompt window (12 of 12 decisions over the window)
+BROKEN  register mentions INT3B-5: one-process suite failure (tolerance test)
+BROKEN  register mentions INT3A-5: promotion without held-out evidence
+BROKEN  register mentions G2L-6: estimator selection not connected
+BROKEN  register mentions DX-1: agent hook for estimator selection not applied
+BROKEN  register mentions R3-M1: root follows learner symlinks
+BROKEN  register mentions R3-m2: OP-09 false refusals
+summary: 1 HOLD, 18 BROKEN
+== d05
+BROKEN  MA 8 step 1 / 9 / 10.2: set_objective calls MetaLearner.new_lifetime (R_psi context reset): set_objective calls new_objective (context kept)
+BROKEN  MN 11.3 / 14 / KF-E01: no training loss reads ExperienceRecord.credit: reward/inner.py credit_fn / credited_goal_return and agent.py sets meta.inner.credit_fn
+BROKEN  MN 7.1 / 13 / 14: info_gain has no producer (assembler reads extras['info_gain'] only): assembler falls back to extras['info_gain_nats']
+BROKEN  MN 7.1 / 13: epistemic_after and learning_progress are never written: agent.py annotates both (LRN-3)
+BROKEN  MN 12: slow guard = one mean paired change over all providers: per-provider verdicts and deferral without held-out evidence (G2L-4/5)
+BROKEN  MN 2.3: Poisson mode search takes the G-step only from the right: G-step on either side, convergence also requires the root condition (G2L-1)
+summary: 2 HOLD, 6 BROKEN
