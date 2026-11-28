@@ -22,8 +22,9 @@ backbone:
 # backbone runtime (nn section, read by nn.presets.NNConfig): the proposer prompt lists every tool the task permits
 # (S-6b); on the planning task it is 4.1-5.3 k tokens, so the 2048-token preset window cut the instructions, the
 # objective and most tools (INT3B-4: 12 of 12 decisions without a backbone proposal). Qwen3-4B's context is 32 k.
+# 8192 (ST-1, 2026-11-28): the OWN RECORDS section of the proposer prompt (CAM sees its own recent records) needs room.
 nn:
-  max_prompt_tokens: 6144
+  max_prompt_tokens: 8192
 
 core:
   scale: 50m                  # debug | 5m | 20m | 50m | 150m | 500m | 1b
