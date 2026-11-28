@@ -178,6 +178,21 @@ Read at the start of every session, after `CAM_LIVE_SPEC.md` (operator specifica
   cam_live/tasks/discord_100_planning.yaml 8 --read 'https://*' --read 'http://*'`; read the report with
   `cam-live plan-report --run-dir R --out <root-only dir>/plan.md`.
 
+### 2026-11-28 — session 4 (continued, ~08:30-09:00 UTC): LIVE planning run; core-intelligence amendment
+
+- Operator: "I GIVE FULL APPROVAL TO BEGIN ANY LIVE RUN ... CAM HAS MY FULL AUTHORIZATION TO DO ANYTHING IT NEEDS".
+  Signed on that instruction: record for tasks/discord_100_planning.yaml (window 08:34-16:34 UTC; read https/http;
+  writes to the operator's own server pre-authorized; everything else queued; hard constraints unchanged).
+  First launch blocked by the preflight on publish.* tools the task does not authorize (fixed d1d06dc); relaunch:
+  LIVE: READY, bot identity / membership / intents / permissions confirmed live; run dir
+  runs/cam_live/live/discord-100-planning-20261128T083454Z (learner camlearn, shared GPU lease).
+- Amendments (verbatim: docs/amendments/2026-11-28_autonomy_and_core_intelligence.md): operational autonomy
+  (standing authorization for routine reversible operations, capability audit, infrastructure list) and seven core
+  capabilities (learned rewards, imagination / multistep planning, persistent latent state, retrospective credit,
+  strategic invention, skills, goal-free learning) with four evidence levels each.
+- Agents from ~08:55 UTC (report by ~16:30): RW, IMP, PS, CR, ST (agent.py owner + integrator), SG, AU. S2 finishes X0 / X1
+  on 257267c as the pre-amendment baseline, then waits for the amended snapshot.
+
 ## Active jobs
 
 | Started (UTC) | Job | Resume |
