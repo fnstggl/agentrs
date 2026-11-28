@@ -76,7 +76,7 @@ def summarise(rows: List[Dict[str, Any]], n: int) -> Dict[str, Any]:
 
 def run(condition: str, seed: int, decisions: int, work: str, *, real: bool = False, world_seed: Optional[int] = None,
         segment: int = 16, split: str = "segment", backbone: Optional[bool] = None, replay: bool = True,
-        max_wall_s: float = 0.0) -> Dict[str, Any]:
+        max_wall_s: float = 0.0, learn_budget_s: float = 30.0) -> Dict[str, Any]:
     from ..contracts import SimClock
     from ..diagnostics.world import AllowAllPolicy
     from ..eval.conditions import Timed, base_config
@@ -127,7 +127,11 @@ def run(condition: str, seed: int, decisions: int, work: str, *, real: bool = Fa
                          "applied": out is not None, "n_decisions": int(agent.n_decisions)})
         return out
     agent.meta.policy_update = logged
-    rt = LiveRuntime(dtap, tap, AllowAllPolicy(), verifier, task, os.path.join(work, "rt"), clock, runtime_config(16))
+    rcfg = runtime_config(16)
+    # exact pairing: the runtime's per-step learning budgets are wall-clock; an unbounded budget keeps two same-seed
+    # runs identical under any machine load (ST, G3A-3)
+    rcfg.learn_budget_s = rcfg.meta_budget_s = float(learn_budget_s)
+    rt = LiveRuntime(dtap, tap, AllowAllPolicy(), verifier, task, os.path.join(work, "rt"), clock, rcfg)
     rt.start()
     steps = 0
     stopped_by_wall = False
@@ -170,7 +174,8 @@ def run(condition: str, seed: int, decisions: int, work: str, *, real: bool = Fa
     out = {"condition": condition, "seed": seed, "world_seed": seed if world_seed is None else world_seed,
            "real": real, "use_backbone": agent_sec["use_backbone"], "segment_decisions": segment, "split": split,
            "replay_cr3": bool(replay and has_replay), "agent_source": __import__("inspect").getsourcefile(type(agent)),
-           "runtime_status": status, "steps": steps, "stopped_by_wall": stopped_by_wall, "counters": counters, "errors": errors,
+           "runtime_status": status, "steps": steps, "stopped_by_wall": stopped_by_wall,
+           "learn_budget_s": float(learn_budget_s), "agent_uid": getattr(agent, "uid", None), "counters": counters, "errors": errors,
            "summary": summarise(tap.rows, decisions), "truth_rows": tap.rows,
            "decision_rows": [{"i": i, "chosen": (row["candidates"][row["chosen_index"]]["operation"],
                                                  json.dumps(row["candidates"][row["chosen_index"]]["arguments"],
@@ -192,7 +197,7 @@ def run(condition: str, seed: int, decisions: int, work: str, *, real: bool = Fa
 def _run_main(a: Any, work: str) -> Dict[str, Any]:
     return run(a.condition, a.seed, a.decisions, work, real=a.real, world_seed=a.world_seed, segment=a.segment,
                split=a.split, backbone=False if a.no_backbone else None, replay=not a.no_replay,
-               max_wall_s=a.max_wall_s)
+               max_wall_s=a.max_wall_s, learn_budget_s=a.learn_budget_s)
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -211,6 +216,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--threads", type=int, default=2)
     ap.add_argument("--max-wall-s", type=float, default=0.0, help="stop the run after this many seconds (GPU hold)")
     ap.add_argument("--gpu-timeout-s", type=float, default=3600.0, help="how long to wait for the shared GPU lock")
+    ap.add_argument("--learn-budget-s", type=float, default=30.0, help="runtime learning budget per step (wall clock); "
+                    "1e9 for exactly paired arms")
     ap.add_argument("--work", default="")
     ap.add_argument("--out", required=True)
     a = ap.parse_args(argv)
