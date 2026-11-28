@@ -8,7 +8,7 @@ IMP tested it on a patched copy (see below).
 
 `CamLiveAgent.evaluate` already calls `LatentPlanner.plan` and records three imagined numbers that no rule reads.
 After IMP (`predict/planner.py`, `predict/policy.py`, `predict/predictor.py`, `predict/imagination.py`,
-`predict/world.py`, `predict/heads.py`; commits `bb24f96` .. `00f8913`, see docs/IMP.md §6):
+`predict/world.py`, `predict/heads.py`; commits `bb24f96` .. `00f8913`, see docs/IMP.md §7):
 
 1. `plan(...)` gets the predictor of the same decision (`predictor=self.predictor`, `evaluations=evals`): the planner
    reuses its belief / latents / world view and values imagined continuations in the same goal units as the real
@@ -93,3 +93,11 @@ multi-step windows) is lost at every restart.
 
 The rest of the test suite does not depend on it (the old keys `imagined_value_mean / _std / _horizon_steps` are
 still written).
+
+## Content-prediction target (docs/IMP.md §6)
+
+No agent.py change is needed: `attach_heads` registers the head `predict_content` and `default_providers` adds
+`ContentLoss`, both of which the agent already calls; `Predictor.evaluate_candidates` records `content_ig` /
+`content_epistemic` per candidate. For ST's realised information value: `cam_live.predict.content.record_content_nll(
+model, store, records)` (a record's content NLL under the current weights; pass a copy of the record with a context
+item removed for the "without" side). Switch off with `predict.content = false`.

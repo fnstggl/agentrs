@@ -25,7 +25,7 @@ patched copy of the tree; applied by ST in `dde7d2d`).
 
 ## 2. What changed (design)
 
-All in `src/cam_live/predict/` (commits listed in §6). Nothing names an action, a tool, a task or a strategy; every
+All in `src/cam_live/predict/` (commits listed in §7). Nothing names an action, a tool, a task or a strategy; every
 number a decision uses comes from CAM's learned heads, its fast posterior and its verified outcomes.
 
 ### 2.1 Multi-step imagination of candidate sequences (`planner.LatentPlanner.plan`)
@@ -244,6 +244,14 @@ exploratory perturbation. Under the earlier ratio weight (A, B) the drawn weight
   (sd 0.0012 against particle sd 0.26), the value error of imagination equals that of not imagining (0.040 vs 0.038 at
   k = 1), and there is no verified multi-step window yet for the calibration (the live checkpoint predates it).
 
+* **Paired full-size T1 lifetime** (Qwen3-4B + 50m core, backbone proposals on, code f7415f2 = HEAD with change
+  request IMP integrated, one GPU hold per arm of 227 s and 259 s; evidence `docs/evidence/IMP/fullsize_T1_*.json`):
+  on arm progress 0.024 (3.5 ground-truth adopters), off arm 0.11 (13.1); both objectives failed. share_tv 0.024 / 0.021
+  (counterfactual in the off arm), argmax changed in 0 of 13 decisions; the arms were identical for 4 decisions, then
+  both intervened mostly on the still locked delayed-dependency channel (the on arm in all of its last 11 decisions,
+  the off arm in 8 of them; neither unlocked it). The imagination calibration of the on arm after 7 windows: beta_im = -0.47 +- 0.27. n = 1 pair: no
+  claim beyond "imagination did not change the full-size agent's choices here".
+
 ### 3.6 Diagnostic: both arms continuing from one experienced checkpoint
 
 To ask whether imagination helps once the world model has experience, one agent first explored 4 T1 lifetimes with
@@ -313,15 +321,61 @@ of 63 verified windows) on 3 held-out worlds each, 6 replicates (world seeds 820
   random subset deeper.
 * Substantive full-size evidence is limited to the replay of CAM's live decisions (§3.2) and one paired T1 lifetime
   (§3.5); the debug batch was stopped at 42 of 120 lifetimes by the CPU rule.
+* The content-prediction target (§6) is integrated and trained but its information gain is not yet calibrated and is
+  not used by selection.
 
-## 6. Commits (prefix `cam live [IMP]`)
+## 6. Content-dependent self-supervised predictive target (ST's request, 14:05 UTC)
+
+ST measured on the real model a realised information value |IV| <= 5e-4 nats for every action type: the world
+model's targets (action.succeeded, executor bookkeeping metrics, membership.confirmed) do not depend on what an
+observation *says*, so information had no measurable value and imagination nothing content-dependent to predict.
+`predict/content.py` (commits 8d598fa, 6a18485, 1cb4bda) adds a generic target and its predictor:
+
+* **Target** of an executed decision: the items its result added to the context (result line + returned
+  observations; outcome readings of earlier questions excluded) mapped to K = 16 dims: a fixed seeded projection of
+  the frozen backbone's standardised semantic embedding of the item texts (`model.embed_texts`: a target the learner
+  cannot move or collapse) plus `sum_q symlog(value_q) h(name_q)` with a fixed pseudo-random unit vector per quantity
+  name (exact numbers enter). Nothing names a task, a tool or a metric.
+* **`ContentHead`** (registered as head `predict_content` by `attach_heads`, `PredictConfig.content = True`): an
+  ensemble of 5 Gaussian members on the decision latent with zero-mean randomised priors: predictive NLL (mixture),
+  epistemic variance, information gain `0.5 sum_d log(1 + epi_d / alea_d)` nats.
+* **`ContentLoss`** (added by `default_providers`, so the agent's continual learner trains it with no agent change):
+  per-member NLL with bootstrap weights; gradients reach the decision trunk (the shared representation learns what
+  actions return).
+* `Predictor.evaluate_candidates` records `content_ig` and `content_epistemic` on every candidate;
+  `record_content_nll(model, store, records)` gives a record's content NLL under the current weights — ST's realised
+  IV is that NLL with and without a piece of context.
+* Compatibility: older checkpoints have no weights for the head; the non-strict restore reports them missing and the
+  head starts from its initialisation (test).
+
+Evidence (debug scale, LabWorld; `tests/predict/test_imp_content.py` 4 tests; `docs/evidence/IMP/content_*.json`):
+
+* (a) target depends on text and exact numbers, fixed; on a synthetic map the head's NLL falls by > 2 nats and its IG
+  on unseen inputs is > 2x that on seen ones; on pure noise it learns a large aleatoric variance (IG lower than on
+  unseen inputs); registered, trained (gradients reach head and trunk), recorded, readable; old checkpoints load.
+* (b)-(c) runtime: the loss is in the agent's provider list and the per-candidate numbers are recorded; **no selection
+  rule reads `content_ig` yet** (decision-relevant VOI still uses goal-relevant questions).
+* (d) prequential run (records in time order, measured before training on each; 120 records): content NLL falls for
+  every action type (intervention 6.6 -> 2.6, probe 6.8 -> 3.4, wait 12.7 -> 5.7; the noise gauge 18.8 -> 9.8 stays
+  the least predictable); information gain is non-zero and in the last third lowest for the noise gauge (3.3 vs
+  4.3-5.2), but it **rises** with experience for learnable actions and tracks the actual NLL drop on the same action's
+  next record only weakly (Spearman 0.10, n = 116). Held-out batch training (300-400 steps on 84 records) overfits
+  (train NLL -2.3, held-out 1.5-2.4) and IG rises with it; realised IV (next decision's content NLL without vs with
+  the decision's returned items in context) is non-zero but noisy and of the wrong sign for probes (-0.4 nats) in that
+  run. An out-of-bag variance calibration was tried and did not help (Spearman 0.07; kept as evidence, not in the code).
+* **What remains**: calibrated epistemic estimates that shrink with experience (the members' disagreement grows while
+  the trunk the head reads keeps moving and the aleatoric variances become overconfident — diagnosis, not yet
+  verified), a content information value that ranks information-bearing actions above uninformative ones, its use
+  in exploration / goal-free learning and in the planner, and a real-model run. No agent.py hook is needed.
+
+## 7. Commits (prefix `cam live [IMP]`)
 
 `bb24f96` planner search, goal values at imagined beliefs, value criterion, ImaginationCalibration, rule integration ·
 `f4c44e6` paired ablation driver · `f259f44` change request IMP, agent-path / compatibility tests, replay ·
 `a88f5fe` device row budget · `c5a81ed` partial results · `88a9f68` transition randomised priors · `404a366` goal
 columns + per-particle fast draws (30 s -> sub-second plans), full-size replay evidence · `6415b45` lifetime wall cap
 · `6e06869` summary · `00f8913` imagination weight floored at the prior mean · `cb1daf7` ablation evidence; later
-commits: §3.5-3.6 evidence, this document, status, JUnit.
+commits: c3c6c7d full-size pair, 8d598fa / 6a18485 / 1cb4bda content target, this document, status, JUnit.
 
 Reproduce: `scratchpad/IMP/export.sh <dir>` = `git archive HEAD cam_live/src` + `patch agent.py <
 docs/change_requests/IMP.md's diff`; `PYTHONPATH=<dir> python -m cam_live.predict.imp_eval run --arm on|off --seed S
