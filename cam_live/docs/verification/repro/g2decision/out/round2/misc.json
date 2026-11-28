@@ -1,0 +1,64 @@
+[
+ {
+  "info": "detector fired / still 'changed' after 2000 calibrated residuals / label of a confident miss / same miss with a fresh detector",
+  "value": [
+   true,
+   false,
+   "model_wrong",
+   "model_wrong"
+  ]
+ },
+ {
+  "check": "PI-11: after a detected change and 2000 calibrated residuals a confident miss can again be model_wrong",
+  "ok": true,
+  "detail": "label=model_wrong; detected_at=None"
+ },
+ {
+  "check": "PI-11: during a sustained 2-sigma / 1-sigma shift the detector fires and stays 'changed' (no re-arm mid-shift)",
+  "ok": true,
+  "detail": "[(2.0, 2, 1.0), (1.0, 21, 1.0)]"
+ },
+ {
+  "info": "PI-11: weak sustained shift (0.75 sigma, slack 0.5): share of steps flagged after the first detection, 20 runs",
+  "value": [
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ]
+ },
+ {
+  "info": "PI-11: well-calibrated residuals needed to re-arm after a 3-sigma shift lasting L observations {L: n}",
+  "value": {
+   "40": 223,
+   "200": 960,
+   "1000": 4918
+  }
+ },
+ {
+  "check": "D1: the outer baseline of a row does not depend on its own measured outcome (return-to-go chains, 200 random lifetimes with and without a second lifetime)",
+  "ok": true,
+  "detail": "max |db| = 3.55e-15"
+ },
+ {
+  "check": "promotion decisions == my one-sided 95 % t non-inferiority rule (300 random buffers)",
+  "ok": true,
+  "detail": "300/300"
+ }
+]

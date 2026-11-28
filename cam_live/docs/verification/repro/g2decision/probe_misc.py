@@ -34,7 +34,38 @@ fresh = E.classify_error(OutcomeStatus.OBSERVED, 5.0, 0.0, 1.0, 0.1, E.ChangeDet
 C.info("detector fired / still 'changed' after 2000 calibrated residuals / label of a confident miss / same "
        "miss with a fresh detector", (fired, det.changed, lab, fresh))
 C.check("PI-11: after a detected change and 2000 calibrated residuals a confident miss can again be model_wrong",
-        lab == E.WRONG, f"label={lab} (the detector is never reset by the Predictor; detected_at={det.detected_at})")
+        lab == E.WRONG, f"label={lab}; detected_at={det.detected_at}")
+# round 2 (after the re-arm fix): the detector must NOT re-arm while a clear shift persists
+held = []
+for shift in (2.0, 1.0):
+    d2 = E.ChangeDetector()
+    for r in rng.normal(size=300):
+        d2.update(float(r))
+    states = [d2.update(float(r) + shift) for r in rng.normal(size=800)]
+    first = states.index(True) if True in states else None
+    held.append((shift, first, None if first is None else sum(states[first:]) / len(states[first:])))
+C.check("PI-11: during a sustained 2-sigma / 1-sigma shift the detector fires and stays 'changed' (no re-arm mid-shift)",
+        all(f is not None and frac == 1.0 for _, f, frac in held), held)
+wk = []
+for rep in range(20):
+    d3 = E.ChangeDetector()
+    st = [d3.update(float(r) + 0.75) for r in np.random.default_rng(100 + rep).normal(size=2000)]
+    f = st.index(True) if True in st else None
+    wk.append(None if f is None else sum(st[f:]) / len(st[f:]))
+C.info("PI-11: weak sustained shift (0.75 sigma, slack 0.5): share of steps flagged after the first detection, 20 runs",
+       [None if x is None else round(x, 3) for x in wk])
+lat = {}
+for L in (40, 200, 1000):
+    d4 = E.ChangeDetector()
+    for _ in range(L):
+        d4.update(3.0)
+    k = 0
+    for r in np.random.default_rng(L).normal(size=20000):
+        k += 1
+        if not d4.update(float(r)):
+            break
+    lat[L] = k
+C.info("PI-11: well-calibrated residuals needed to re-arm after a 3-sigma shift lasting L observations {L: n}", lat)
 
 
 # 2 ----------------------------------------------------------------------------------------------- D1 re-check

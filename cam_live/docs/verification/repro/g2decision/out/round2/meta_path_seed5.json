@@ -1,0 +1,613 @@
+[
+ {
+  "info": "config",
+  "value": {
+   "target_kl": 0.05,
+   "replay_matured": 16,
+   "goal_coef": 1.0,
+   "model_coef": 1.0,
+   "component_norm": true,
+   "meta_mix": 0.0,
+   "inner_lr(lo)": 0.1,
+   "max_inner_lr": 2.0,
+   "K": 2
+  }
+ },
+ {
+  "info": "lifetime 0: meta-update skipped",
+  "value": "insufficient_independent_outcomes:1<3"
+ },
+ {
+  "info": "lifetime 1: meta-update skipped",
+  "value": "insufficient_independent_outcomes:2<3"
+ },
+ {
+  "info": "lifetime 2: code per-episode (estimator, supported, reason, rows, ess)",
+  "value": [
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ]
+  ]
+ },
+ {
+  "info": "lifetime 2: mine per-episode",
+  "value": [
+   [
+    0,
+    true,
+    0.0,
+    8
+   ],
+   [
+    1,
+    true,
+    0.0,
+    8
+   ],
+   [
+    2,
+    true,
+    0.0,
+    8
+   ],
+   [
+    3,
+    true,
+    0.0,
+    8
+   ],
+   [
+    4,
+    true,
+    0.0,
+    8
+   ]
+  ]
+ },
+ {
+  "check": "lifetime 2: applied meta-gradient == my recomputation (current loss incl. goal / credit / model terms, trust-region step)",
+  "ok": true,
+  "detail": "rel_err=6.31e-07 |g|=1.845e-01 code estimator=on_policy_query mine=['on', 'on', 'on', 'on', 'on']"
+ },
+ {
+  "check": "lifetime 2: psi changed by the applied step",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "lifetime 2: my analytic directional derivative == central FD (float64)",
+  "ok": true,
+  "detail": "analytic=-1.354778e-03 fd=-1.354778e-03"
+ },
+ {
+  "check": "lifetime 2: code's gradient along the same direction == FD (float32 code vs float64 FD)",
+  "ok": true,
+  "detail": "code=-1.354778e-03 fd=-1.354778e-03"
+ },
+ {
+  "info": "lifetime 3: meta-update skipped",
+  "value": "insufficient_independent_outcomes:1<3"
+ },
+ {
+  "info": "lifetime 4: meta-update skipped",
+  "value": "insufficient_independent_outcomes:2<3"
+ },
+ {
+  "info": "lifetime 5: code per-episode (estimator, supported, reason, rows, ess)",
+  "value": [
+   [
+    "importance",
+    true,
+    "",
+    8,
+    7.965835094451904
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    2,
+    2.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ],
+   [
+    "on_policy",
+    true,
+    "",
+    8,
+    8.0
+   ]
+  ]
+ },
+ {
+  "info": "lifetime 5: mine per-episode",
+  "value": [
+   [
+    5,
+    false,
+    0.06263,
+    8
+   ],
+   [
+    6,
+    true,
+    0.0,
+    8
+   ],
+   [
+    7,
+    true,
+    0.0,
+    8
+   ],
+   [
+    8,
+    true,
+    0.0,
+    2
+   ],
+   [
+    9,
+    true,
+    0.0,
+    8
+   ],
+   [
+    10,
+    true,
+    0.0,
+    8
+   ]
+  ]
+ },
+ {
+  "check": "lifetime 5: applied meta-gradient == my recomputation (current loss incl. goal / credit / model terms, trust-region step)",
+  "ok": true,
+  "detail": "rel_err=7.93e-07 |g|=3.066e-01 code estimator=mixed_on_policy_and_importance mine=['iw', 'on', 'on', 'on', 'on', 'on']"
+ },
+ {
+  "check": "lifetime 5: psi changed by the applied step",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "lifetime 5: my analytic directional derivative == central FD (float64)",
+  "ok": true,
+  "detail": "analytic=-3.740699e-04 fd=-3.740699e-04"
+ },
+ {
+  "check": "lifetime 5: code's gradient along the same direction == FD (float32 code vs float64 FD)",
+  "ok": true,
+  "detail": "code=-3.740711e-04 fd=-3.740699e-04"
+ },
+ {
+  "check": "K=1: my analytic d/dpsi == central FD (float64, real subset, current loss)",
+  "ok": true,
+  "detail": "analytic=-6.32849011e-03 fd=-6.32849011e-03"
+ },
+ {
+  "check": "K=1: the code's engine gradient == mine (all psi tensors, float64)",
+  "ok": true,
+  "detail": "rel=1.80e-15 code_dir=-6.32849011e-03"
+ },
+ {
+  "check": "K=2: my analytic d/dpsi == central FD (float64, real subset, current loss)",
+  "ok": true,
+  "detail": "analytic=-1.83938979e-02 fd=-1.83938980e-02"
+ },
+ {
+  "check": "K=2: the code's engine gradient == mine (all psi tensors, float64)",
+  "ok": true,
+  "detail": "rel=3.46e-15 code_dir=-1.83938979e-02"
+ },
+ {
+  "check": "K=4: my analytic d/dpsi == central FD (float64, real subset, current loss)",
+  "ok": true,
+  "detail": "analytic=-4.15622556e-02 fd=-4.15622556e-02"
+ },
+ {
+  "check": "K=4: the code's engine gradient == mine (all psi tensors, float64)",
+  "ok": true,
+  "detail": "rel=7.83e-15 code_dir=-4.15622556e-02"
+ },
+ {
+  "check": "K=8: my analytic d/dpsi == central FD (float64, real subset, current loss)",
+  "ok": true,
+  "detail": "analytic=-3.34934791e-01 fd=-3.34934791e-01"
+ },
+ {
+  "check": "K=8: the code's engine gradient == mine (all psi tensors, float64)",
+  "ok": true,
+  "detail": "rel=2.75e-14 code_dir=-3.34934791e-01"
+ },
+ {
+  "info": "K sweep",
+  "value": {
+   "1": {
+    "fd": -0.0063284901069549085,
+    "mine": -0.00632849011264413,
+    "code": -0.006328490112644134,
+    "rel_code_vs_mine": 1.7975048701744215e-15
+   },
+   "2": {
+    "fd": -0.018393897954771532,
+    "mine": -0.0183938979343867,
+    "code": -0.018393897934386668,
+    "rel_code_vs_mine": 3.4641443675159905e-15
+   },
+   "4": {
+    "fd": -0.04156225563156646,
+    "mine": -0.04156225561722176,
+    "code": -0.041562255617221426,
+    "rel_code_vs_mine": 7.828643173589377e-15
+   },
+   "8": {
+    "fd": -0.334934791046404,
+    "mine": -0.3349347911885062,
+    "code": -0.334934791188513,
+    "rel_code_vs_mine": 2.7509390915412474e-14
+   }
+  }
+ },
+ {
+  "info": "live updates checked",
+  "value": 12
+ },
+ {
+  "info": "event 0",
+  "value": {
+   "event": 0,
+   "n": 8,
+   "lr": 1.140478,
+   "kl": 0.036242,
+   "at_bound": false,
+   "in_region": true,
+   "mine_vs_live": 1e-06,
+   "update": 0.157837,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "credit:simple": 1,
+    "verified": 2,
+    "credit:rudder": 2,
+    "predicted": 3
+   },
+   "replayed": 0
+  }
+ },
+ {
+  "info": "event 1",
+  "value": {
+   "event": 1,
+   "n": 12,
+   "lr": 0.245466,
+   "kl": 0.065669,
+   "at_bound": false,
+   "in_region": true,
+   "mine_vs_live": 1e-06,
+   "update": 0.068809,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "credit:simple": 1,
+    "verified": 4,
+    "credit:rudder": 5,
+    "predicted": 2
+   },
+   "replayed": 4
+  }
+ },
+ {
+  "info": "event 2",
+  "value": {
+   "event": 2,
+   "n": 15,
+   "lr": 0.511167,
+   "kl": 0.03346,
+   "at_bound": false,
+   "in_region": true,
+   "mine_vs_live": 3e-06,
+   "update": 0.039923,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "credit:simple": 3,
+    "verified": 6,
+    "credit:rudder": 6
+   },
+   "replayed": 7
+  }
+ },
+ {
+  "info": "event 3",
+  "value": {
+   "event": 3,
+   "n": 18,
+   "lr": 0.595636,
+   "kl": 0.037249,
+   "at_bound": false,
+   "in_region": true,
+   "mine_vs_live": 1e-06,
+   "update": 0.085179,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "credit:simple": 6,
+    "verified": 6,
+    "credit:rudder": 6
+   },
+   "replayed": 10
+  }
+ },
+ {
+  "info": "event 4",
+  "value": {
+   "event": 4,
+   "n": 20,
+   "lr": 0.14365,
+   "kl": 0.05201,
+   "at_bound": false,
+   "in_region": true,
+   "mine_vs_live": 2e-06,
+   "update": 0.070268,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "credit:simple": 1,
+    "verified": 10,
+    "credit:rudder": 8,
+    "predicted": 1
+   },
+   "replayed": 12
+  }
+ },
+ {
+  "info": "event 5",
+  "value": {
+   "event": 5,
+   "n": 24,
+   "lr": 0.131459,
+   "kl": 0.038329,
+   "at_bound": false,
+   "in_region": true,
+   "mine_vs_live": 0.0,
+   "update": 0.064861,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "credit:simple": 4,
+    "verified": 9,
+    "credit:rudder": 10,
+    "predicted": 1
+   },
+   "replayed": 16
+  }
+ },
+ {
+  "info": "event 6",
+  "value": {
+   "event": 6,
+   "n": 24,
+   "lr": 0.1,
+   "kl": 0.077108,
+   "at_bound": true,
+   "in_region": false,
+   "mine_vs_live": 4e-06,
+   "update": 0.014774,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "credit:simple": 1,
+    "verified": 12,
+    "credit:rudder": 11
+   },
+   "replayed": 16
+  }
+ },
+ {
+  "info": "event 7",
+  "value": {
+   "event": 7,
+   "n": 24,
+   "lr": 0.1,
+   "kl": 0.079282,
+   "at_bound": true,
+   "in_region": false,
+   "mine_vs_live": 1e-06,
+   "update": 0.021588,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "credit:simple": 1,
+    "verified": 9,
+    "credit:rudder": 11,
+    "predicted": 3
+   },
+   "replayed": 16
+  }
+ },
+ {
+  "info": "event 8",
+  "value": {
+   "event": 8,
+   "n": 24,
+   "lr": 0.707764,
+   "kl": 0.050497,
+   "at_bound": false,
+   "in_region": true,
+   "mine_vs_live": 2e-06,
+   "update": 0.054083,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "credit:simple": 2,
+    "verified": 11,
+    "credit:rudder": 10,
+    "predicted": 1
+   },
+   "replayed": 16
+  }
+ },
+ {
+  "info": "event 9",
+  "value": {
+   "event": 9,
+   "n": 18,
+   "lr": 0.295505,
+   "kl": 0.039416,
+   "at_bound": false,
+   "in_region": true,
+   "mine_vs_live": 3e-06,
+   "update": 0.046924,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "credit:simple": 1,
+    "verified": 8,
+    "credit:rudder": 9
+   },
+   "replayed": 16
+  }
+ },
+ {
+  "info": "event 10",
+  "value": {
+   "event": 10,
+   "n": 24,
+   "lr": 0.196253,
+   "kl": 0.06796,
+   "at_bound": false,
+   "in_region": true,
+   "mine_vs_live": 2e-06,
+   "update": 0.051643,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "verified": 10,
+    "credit:rudder": 13,
+    "predicted": 1
+   },
+   "replayed": 16
+  }
+ },
+ {
+  "info": "event 11",
+  "value": {
+   "event": 11,
+   "n": 24,
+   "lr": 0.1,
+   "kl": 0.072878,
+   "at_bound": true,
+   "in_region": true,
+   "mine_vs_live": 3e-06,
+   "update": 0.023117,
+   "replay_bit_identical": true,
+   "goal_inputs_equal": true,
+   "model_inputs_equal": true,
+   "sources": {
+    "verified": 12,
+    "credit:rudder": 11,
+    "predicted": 1
+   },
+   "replayed": 16
+  }
+ },
+ {
+  "check": "every live policy update equals MY K-step SGD on the documented loss (float32, rel. to the update)",
+  "ok": true,
+  "detail": "[8e-07, 9e-07, 3e-06, 1.4e-06, 1.7e-06, 5e-07, 4e-06, 1.4e-06, 2.2e-06, 2.5e-06, 2.3e-06, 2.6e-06]"
+ },
+ {
+  "check": "every live update is replayed bit-identically by the engine (what the meta-gradient differentiates)",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "goal-term inputs (u, sources incl. credit:<est>) of every support batch equal my recomputation",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "model-term inputs (standardised candidate values, beta_q^+) and credited returns equal my recomputation",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "trust region: each live step reaches KL in [target/1.5, 1.5 target] or sits at a step bound",
+  "ok": true,
+  "detail": "[(0.0362, 1.1405, False), (0.0657, 0.2455, False), (0.0335, 0.5112, False), (0.0372, 0.5956, False), (0.052, 0.1436, False), (0.0383, 0.1315, False), (0.0771, 0.1, True), (0.0793, 0.1, True), (0.0505, 0.7078, False), (0.0394, 0.2955, False), (0.068, 0.1963, False), (0.0729, 0.1, True)]"
+ },
+ {
+  "check": "the goal term saw all three sources and return-like credit (KF-E01) in the support batches",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "at least one applied meta-update was checked",
+  "ok": true,
+  "detail": "2"
+ }
+]

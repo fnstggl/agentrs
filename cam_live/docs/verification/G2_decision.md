@@ -206,3 +206,43 @@ proposer's prompt and normalisation.
   held it): `tests/predict/test_proposer.py -m gpu` (covered by my own real-model proposer run) and
   `tests/reward/test_reward_experiment.py -m gpu` (50m meta-update cost). An applied outer step on the real
   configuration was not reached in the one hold I got (2 lifetimes); C's evidence for it is from b6006a2.
+
+## Round 2 — re-judgement at `ef0f3ffcebcf95d0eeb7390f78b3366d678dc214`
+
+**Correction to the header.** My statement that no file of my scope changed after f54d8cc was wrong: I diffed against
+the HEAD of that moment (6945e2a). Later commits changed `agent.py` (cf46eb1: DX-1 `attach_experiments`, DX-2
+`auth_config_hash` in save / load; a3844c8: G2L-10), `credit/` (DX round 2, 0745ae4..6159def) and `predict/errors.py`
+(ef0f3ff: G2D-1). Stale ids, re-judged here on a `git archive ef0f3ff` snapshot (`CAM_LIVE_GPU_LOCK` set to the shared
+lock, because the snapshot's default lock path `<snapshot>/runs/gpu_heavy.lock` would be a private file): PI-02,
+PI-11, MR-01, MR-05, AE-04, RC-01, RC-02, RC-08. All other verdicts stay at f54d8cc (their files are unchanged).
+
+| run (snapshot of ef0f3ff) | result |
+|---|---|
+| `pytest tests/predict -m "not gpu and not slow"` / `tests/reward` / `tests/credit` / `tests/integration` | 166 passed / 143 passed, 3 skipped / 144 passed, 8 skipped / 66 passed, 2 skipped |
+| `probe_meta_path.py` (seed 5) | **23/23**: applied meta-gradient == my recomputation (6.3e-7, 7.9e-7), FD agreement, K = 1, 2, 4, 8 engine == mine (<= 2.8e-14) == FD, live updates == my SGD, KF-E01 inputs equal |
+| `probe_selection.py` | **10/10** |
+| `probe_misc.py` (two checks added for the fix) | **4/4** — G2D-1 fixed; see PI-11 |
+| G2-learn's `probe_agent_credit.py` (snapshot copy) | **13/13**; experiments in the store 7 / 7 (DX-1 effective), 14 estimator-selection log rows, no comparison run, default `simple`; credit hook 17 / 17 records |
+| real Qwen3-4B + LoRA + bridge + 50m pathway, `real_pathway.py --lifetimes 5 --budget-s 840 --meta '{"mix": 0.5, "mixer_step": 0.0}' --agent '{"selection_rule": "thompson_policy", "use_backbone": false, "promotion": false}'` (lock obtained 05:45 UTC, held 791 s) | 3 lifetimes (36 decisions); 11 live updates, KL 0.036-0.063, each depending on R_psi's shape (TV 0.0014-0.062); 58 meta-update calls, **0 applied** (51 insufficient independent outcomes; 5 "no supported episode: effective sample size too small" once 4 groups existed; 2 before the first policy update) |
+
+* **PI-11 — verified.** The detector re-arms once both CUSUM statistics fall below `rearm x threshold`
+  (`predict/errors.py:53-57`). After a detected shift and 2000 calibrated residuals, a confident miss is `model_wrong`
+  again. My attack on the fix failed: the detector does not re-arm while a shift continues (2-sigma and 1-sigma shifts
+  are flagged on 100 % of the steps after detection; a 0.75-sigma shift, just above the 0.5 slack, was flagged 100 % in
+  20 of 20 runs). The regression test `tests/predict/test_m_change_detector_rearm.py` passes. Residual observation: the
+  statistic is not capped, so re-arming lags in proportion to the shift's duration. After a 3-sigma shift of 40 / 200 /
+  1000 observations it needs 223 / 960 / 4918 calibrated residuals. The labels remain diagnostics only.
+* **RC-08 — still partial.** With DX-1, the agent's experiments reach the store and are evaluated at every learning
+  update. No comparison can run, though: each experiment has one assigned unit, and `holdout_experiments=False` makes
+  its lifetime trained-on ("0 matured held-out units (< 2; assigned 1, ... lifetime trained on 1)"). So the default is
+  `simple` by construction and never by evidence. RUDDER and COCOA are exercised (credit for 17 / 17 records of closed
+  objectives).
+* **MR-05 — verified (mechanism).** An applied outer step on the real configuration was not reproduced at the current
+  code: 0 of 98 calls over my two real-model runs (5 lifetimes). When enough groups existed, the importance-weighted
+  episodes fell below the ESS floor. C's real-configuration evidence for an applied step (4 of 55 calls) is from b6006a2.
+  Each lifetime takes 160-340 s on the real configuration, so a 15-minute hold fits only 3 lifetimes.
+* PI-02, MR-01, RC-01, RC-02: verified again (bases above). AE-04: still partial (transferable competence is the
+  constant 1.0; the goal-free code is untouched).
+
+Counts after round 2: **26 verified, 6 partial, 0 failed, 0 unverified** (8 ids now carry commit ef0f3ff). Outputs:
+`repro/g2decision/out/round2/`.

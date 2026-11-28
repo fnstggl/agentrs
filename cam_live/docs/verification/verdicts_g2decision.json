@@ -17,15 +17,17 @@
  "PI-02": {
   "status": "verified",
   "by": "G2-decision",
-  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "commit": "ef0f3ffcebcf95d0eeb7390f78b3366d678dc214",
   "supersedes": [
    "all"
   ],
-  "notes": "Registry refuses edits / future-dated predictions / resolutions at or before registration (G-pr checks re-run, 31/31); predictions registered before evaluate_candidates returns (tests pass at f54d8cc); integration suite 64/64.",
+  "notes": "Round 2 (ef0f3ff; files changed after f54d8cc: agent.py). Registration before outcomes unchanged by the agent changes (DX-1 / DX-2 / G2L-10 touch credit wiring and checkpoint authorization only); predict and integration suites pass on the snapshot; probe_selection 10/10.",
   "evidence": [
-   "cam_live/docs/verification/repro/g2decision/../pr/probe_predict_numerics.py",
    "pytest cam_live/tests/predict",
-   "pytest cam_live/tests/integration"
+   "pytest cam_live/tests/integration",
+   "cam_live/docs/verification/repro/g2decision/probe_selection.py",
+   "cam_live/docs/verification/repro/g2decision/out/round2/selection.json",
+   "snapshot of ef0f3ff: tests/predict 166 passed, tests/reward 143 passed 3 skipped, tests/credit 144 passed 8 skipped, tests/integration 66 passed 2 skipped"
   ]
  },
  "PI-03": {
@@ -133,16 +135,18 @@
   ]
  },
  "PI-11": {
-  "status": "partial",
+  "status": "verified",
   "by": "G2-decision",
-  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "commit": "ef0f3ffcebcf95d0eeb7390f78b3366d678dc214",
   "supersedes": [
    "all"
   ],
-  "notes": "Unclaimed in every status file; judged on code and test. classify_error labels noise / model_uncertain / model_wrong / changed_conditions / missing and its test passes. DEFECT G2D-1 (minor): Predictor.observe_outcomes keeps one ChangeDetector per metric (predict/predictor.py:694-697) that nothing ever resets (no reset() call in predict/ or agent.py); detected_at latches (predict/errors.py:51), so after the first detected shift every later confident miss of that metric is labelled changed_conditions and never model_wrong again, even after 2000 well-calibrated residuals. The labels feed no learning signal (diagnostics only).",
+  "notes": "Round 2 (ef0f3ff; files changed after f54d8cc: predict/errors.py). Unclaimed in every status file; judged on code and tests. G2D-1 FIXED: ChangeDetector re-arms once both statistics fall below rearm x threshold (predict/errors.py:53-57); probe_misc 4/4: after a detected shift and 2000 calibrated residuals a confident miss is model_wrong again, and the detector does NOT re-arm while a 2-sigma or 1-sigma shift persists (flagged on 100 % of the steps after detection; a 0.75-sigma shift also 100 % in 20 runs); regression test tests/predict/test_m_change_detector_rearm.py passes. Residual observation: the CUSUM statistic is not capped, so the re-arm latency grows with the shift's length (calibrated residuals needed after a 3-sigma shift of 40 / 200 / 1000 observations: 223 / 960 / 4918); the labels feed no learning signal.",
   "evidence": [
-   "cam_live/docs/verification/repro/g2decision/probe_misc.py (check 1 FAILS)",
-   "pytest cam_live/tests/predict/test_imagination.py"
+   "cam_live/docs/verification/repro/g2decision/probe_misc.py (4/4 at ef0f3ff)",
+   "cam_live/docs/verification/repro/g2decision/out/round2/misc.json",
+   "pytest cam_live/tests/predict/test_m_change_detector_rearm.py",
+   "snapshot of ef0f3ff: tests/predict 166 passed, tests/reward 143 passed 3 skipped, tests/credit 144 passed 8 skipped, tests/integration 66 passed 2 skipped"
   ]
  },
  "SE-03": {
@@ -223,14 +227,15 @@
  "MR-01": {
   "status": "verified",
   "by": "G2-decision",
-  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "commit": "ef0f3ffcebcf95d0eeb7390f78b3366d678dc214",
   "supersedes": [
    "all"
   ],
-  "notes": "R_psi rewards every real decision; intrinsic / bootstrap reward and reward_version stored (tests pass); LRN-3 / KF-E02 inputs now produced (tests/integration/test_int3a_bootstrap_inputs.py, test_int3a_audit.py pass).",
+  "notes": "Round 2 (ef0f3ff; files changed after f54d8cc: agent.py). Intrinsic / bootstrap rewards written per decision; reward and integration suites pass at ef0f3ff; the agent changes do not touch the reward path.",
   "evidence": [
    "pytest cam_live/tests/reward",
-   "pytest cam_live/tests/integration"
+   "pytest cam_live/tests/integration",
+   "snapshot of ef0f3ff: tests/predict 166 passed, tests/reward 143 passed 3 skipped, tests/credit 144 passed 8 skipped, tests/integration 66 passed 2 skipped"
   ]
  },
  "MR-02": {
@@ -276,16 +281,17 @@
  "MR-05": {
   "status": "verified",
   "by": "G2-decision",
-  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "commit": "ef0f3ffcebcf95d0eeb7390f78b3366d678dc214",
   "supersedes": [
    "all"
   ],
-  "notes": "The applied meta-gradient on the real MetaLearner path (trust-region step, matured replay, goal / credit / model terms on) equals my independent recomputation (own loss, own unroll with sibling-node baseline, own estimator choice and leave-group-out baselines) to 2.4e-7 .. 7.2e-7 in 5 applied updates (3 seeds); my surrogate's derivative == central FD (float64) to 1e-6 and the code's gradient along a random direction == FD to <= 2e-5. G-pr D1 FIXED (baseline independent of the row's own outcome, 200 random chains, |db| 3.6e-15); D7 fixed (shadow update importance-weighted). Approximation noted: the trust-region step is held constant (exact at the default live mix 1 where the step does not depend on psi). Real Qwen3-4B + 50m at f54d8cc (pathway script, mix 0.5, 2 lifetimes in one GPU hold): 0 of 40 meta-updates applied (insufficient independent outcomes), so an applied outer step on the real configuration rests on C's b6006a2 evidence and was not reproduced at the freeze.",
+  "notes": "Round 2 (ef0f3ff; files changed after f54d8cc: agent.py). probe_meta_path re-run at ef0f3ff 23/23: applied meta-gradient == my recomputation (6.3e-7, 7.9e-7), FD agreement, K = 1, 2, 4, 8 engine == mine (<= 2.8e-14) == FD; live updates == my SGD. Real Qwen3-4B + LoRA + bridge + 50m at ef0f3ff (pathway script, mix 0.5, one 791 s GPU hold, 3 lifetimes / 36 decisions): 11 live updates, KL 0.036-0.063, each depending on R_psi's shape (TV 0.0014-0.062); 58 meta-update calls, 0 applied (51 insufficient independent outcomes, 5 no supported episode: effective sample size too small once 4 groups existed, 2 no policy update yet). Together with my f54d8cc run: 0 of 98 calls applied in 5 lifetimes; an applied outer step on the real configuration rests on C's b6006a2 evidence (4 of 55 there) and was not reproduced at the current code within a 15-minute hold.",
   "evidence": [
    "cam_live/docs/verification/repro/g2decision/probe_meta_path.py",
-   "cam_live/docs/verification/repro/g2decision/probe_misc.py (check 2)",
-   "cam_live/docs/verification/repro/g2decision/../pr/probe_metalearner_path.py (D7 info line)",
-   "cam_live/docs/verification/repro/g2decision/out/real_pathway_check_f54d8cc.json"
+   "cam_live/docs/verification/repro/g2decision/out/round2/meta_path_seed5.json",
+   "cam_live/docs/evidence/C/real_pathway.py --lifetimes 5 --budget-s 840 --meta '{\"mix\": 0.5, \"mixer_step\": 0.0}' (real configuration, GPU lock)",
+   "cam_live/docs/verification/repro/g2decision/out/round2/real_pathway_check_ef0f3ff.json",
+   "snapshot of ef0f3ff: tests/predict 166 passed, tests/reward 143 passed 3 skipped, tests/credit 144 passed 8 skipped, tests/integration 66 passed 2 skipped"
   ]
  },
  "MR-06": {
@@ -369,54 +375,56 @@
  "AE-04": {
   "status": "partial",
   "by": "G2-decision",
-  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "commit": "ef0f3ffcebcf95d0eeb7390f78b3366d678dc214",
   "supersedes": [
    "all"
   ],
-  "notes": "D4 FIXED (G-pr probe_extras 4/4: select(k=5) under a 2-decision budget returns 2; pending goals stay within budget) and C-11 is applied in agent.py:1933-1938 (C.json still lists it as not done: stale). Still partial: expected transferable competence is the constant 1.0 (reward/selfgoals.py:339), spec 11.4 asks for an estimate; usefulness against later objectives only in LabWorld.",
+  "notes": "Round 2 (ef0f3ff; files changed after f54d8cc: agent.py). Unchanged by the round-2 agent edits (goal-free code untouched): D4 fixed and C-11 applied; still partial because expected transferable competence is the constant 1.0 (reward/selfgoals.py:339) and usefulness against later objectives is shown in LabWorld only.",
   "evidence": [
-   "cam_live/docs/verification/repro/g2decision/../pr/probe_extras.py (4/4)"
+   "cam_live/docs/verification/repro/g2decision/../pr/probe_extras.py",
+   "snapshot of ef0f3ff: tests/predict 166 passed, tests/reward 143 passed 3 skipped, tests/credit 144 passed 8 skipped, tests/integration 66 passed 2 skipped"
   ]
  },
  "RC-01": {
   "status": "verified",
   "by": "G2-decision",
-  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "commit": "ef0f3ffcebcf95d0eeb7390f78b3366d678dc214",
   "supersedes": [
    "all"
   ],
-  "notes": "Re-checked after INT3A / DX at f54d8cc: G2-learn's integrated-agent probe re-run on the snapshot 13/13 (30 matured declared outcomes all linked, weights <= 1 per outcome, no link to a later decision, no leakage); credit 135 passed, integration 64 passed incl. tests/integration/test_agent_runtime.py::test_delayed_outcomes_link_to_their_decisions; G2-learn's link checks stand (agent.py and credit/links.py unchanged in what they verified except DX's overflow fix).",
+  "notes": "Round 2 (ef0f3ff; files changed after f54d8cc: agent.py). G2-learn's integrated-agent probe re-run on the ef0f3ff snapshot 13/13: 20 matured declared outcomes all linked, link weights <= 1 per outcome, no link to a later decision, no leakage, 3 of 3 objectives closed with verdicts in the store.",
   "evidence": [
-   "pytest cam_live/tests/credit",
-   "pytest cam_live/tests/integration",
-   "cam_live/docs/verification/repro/g2learn/probe_agent_credit.py (snapshot copy; cam_live/docs/verification/repro/g2decision/out/g2learn_probe_agent_credit_f54d8cc.txt)"
+   "cam_live/docs/verification/repro/g2learn/probe_agent_credit.py (snapshot)",
+   "cam_live/docs/verification/repro/g2decision/out/round2/g2learn_probe_agent_credit_ef0f3ff.txt",
+   "snapshot of ef0f3ff: tests/predict 166 passed, tests/reward 143 passed 3 skipped, tests/credit 144 passed 8 skipped, tests/integration 66 passed 2 skipped"
   ]
  },
  "RC-02": {
   "status": "verified",
   "by": "G2-decision",
-  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "commit": "ef0f3ffcebcf95d0eeb7390f78b3366d678dc214",
   "supersedes": [
    "all"
   ],
-  "notes": "Decomposer and full-trajectory credit verified by G-cl / G2-learn; KF-E01 re-verified here: return-like (RUDDER-like) credit replaces the row's goal return exactly as documented and per-decision credit enters only rows without a final verified annotation, inside the live update and the differentiated one (my recomputation equal to 1e-7, gradients equal); in the integrated agent the hook returns stored credit for 26 of 27 records (simple, per decision; G2-learn's probe re-run). RUDDER's credit reaches training only once evidence selects RUDDER, which never happens in the agent (RC-08).",
+  "notes": "Round 2 (ef0f3ff; files changed after f54d8cc: credit/providers.py). RUDDER / COCOA credit written retrospectively for 17 of 17 records of closed objectives; the KF-E01 hook returns stored credit for 17 of 17 agent records (simple, per decision); probe_meta_path's KF-E01 checks (return-like credit replacing the goal return, per-decision credit, live == differentiated update) pass at ef0f3ff. RUDDER's credit reaches training only if evidence selects RUDDER, which cannot happen in the agent as configured (RC-08).",
   "evidence": [
+   "cam_live/docs/verification/repro/g2decision/out/round2/g2learn_probe_agent_credit_ef0f3ff.txt",
    "cam_live/docs/verification/repro/g2decision/probe_meta_path.py",
-   "pytest cam_live/tests/integration/test_int3a_audit.py"
+   "snapshot of ef0f3ff: tests/predict 166 passed, tests/reward 143 passed 3 skipped, tests/credit 144 passed 8 skipped, tests/integration 66 passed 2 skipped"
   ]
  },
  "RC-08": {
   "status": "partial",
   "by": "G2-decision",
-  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "commit": "ef0f3ffcebcf95d0eeb7390f78b3366d678dc214",
   "supersedes": [
    "all"
   ],
-  "notes": "In D's lab the selection is held out by lifetime with paired SE (G2-learn). FAILS in the integrated agent at f54d8cc: change request DX-1 was not applied (agent.py:717 builds the CreditAssigner without attach_experiments), so ContinualLearner.learn never runs evaluate_experiments / selector.select and the default stays 'simple' by construction; DX measured that even with DX-1 the agent's one-unit experiments and holdout_experiments=False would not allow a comparison. G2-learn's probe re-run at f54d8cc: 0 selection log rows, 0 experiments in the store against 6 experiment ids on the agent's decisions, default 'simple'.",
+  "notes": "Round 2 (ef0f3ff; files changed after f54d8cc: credit/providers.py). DX-1 is applied (agent.py:721 attach_experiments): the agent's randomised experiments reach the experience store (7 of 7) and every learning update evaluates them (14 rows in credit_selection.jsonl). FAILS still in the integrated agent: no comparison is possible, so the default stays 'simple' by construction, never by evidence: each experiment has one assigned unit ('0 matured held-out units (< 2; assigned 1, ... lifetime trained on 1)') and holdout_experiments=False makes every experiment lifetime trained-on. In D's lab the held-out selection works (G2-learn). RUDDER and COCOA are exercised (credit written for 17 / 17 closed-objective records).",
   "evidence": [
-   "grep attach_experiments cam_live/src/cam_live/agent.py (no match)",
-   "cam_live/docs/change_requests/DX.md DX-1",
-   "cam_live/docs/verification/repro/g2decision/out/g2learn_probe_agent_credit_f54d8cc.txt"
+   "cam_live/docs/verification/repro/g2decision/out/round2/g2learn_probe_agent_credit_ef0f3ff.txt",
+   "cam_live/docs/verification/repro/g2decision/out/round2/agent_credit_selection_last_row_ef0f3ff.json",
+   "snapshot of ef0f3ff: tests/predict 166 passed, tests/reward 143 passed 3 skipped, tests/credit 144 passed 8 skipped, tests/integration 66 passed 2 skipped"
   ]
  }
 }
