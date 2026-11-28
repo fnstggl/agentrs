@@ -1,0 +1,721 @@
+[
+ {
+  "source": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/PS/runs/abl/on_s0/agent/learner/experience.sqlite",
+  "cond": "on",
+  "seed": 3,
+  "real": false,
+  "steps": 2,
+  "batch": 8,
+  "unroll": 2,
+  "rho_init": null,
+  "n_records": 40,
+  "prequential_nll": 5.176634282902297,
+  "n_scored": 40,
+  "by_block": [
+   {
+    "block": 0,
+    "family": "lab/first",
+    "n_records": 16,
+    "n_scored": 16,
+    "prequential_nll": 7.175465614245169
+   },
+   {
+    "block": 1,
+    "family": "lab/door",
+    "n_records": 8,
+    "n_scored": 8,
+    "prequential_nll": 5.07129430104461
+   },
+   {
+    "block": 2,
+    "family": "lab/first",
+    "n_records": 8,
+    "n_scored": 8,
+    "prequential_nll": 1.9662863448883097
+   },
+   {
+    "block": 3,
+    "family": "codec",
+    "n_records": 8,
+    "n_scored": 8,
+    "prequential_nll": 4.494659540088226
+   }
+  ],
+  "retention": [
+   {
+    "after_block": 0,
+    "family": "lab/first",
+    "first_block_nll": 2.3185138075922924,
+    "n": 16
+   },
+   {
+    "after_block": 1,
+    "family": "lab/door",
+    "first_block_nll": 2.2062528421895373,
+    "n": 16
+   },
+   {
+    "after_block": 2,
+    "family": "lab/first",
+    "first_block_nll": 2.02534086075094,
+    "n": 16
+   },
+   {
+    "after_block": 3,
+    "family": "codec",
+    "first_block_nll": 1.8581748850333193,
+    "n": 16
+   }
+  ],
+  "records": [
+   {
+    "i": 0,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1000",
+    "nll": 20.733333911498388
+   },
+   {
+    "i": 1,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1000",
+    "nll": 45.26833067337672
+   },
+   {
+    "i": 2,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1000",
+    "nll": 1.7719540198644002
+   },
+   {
+    "i": 3,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1000",
+    "nll": 6.72445518374443
+   },
+   {
+    "i": 4,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1000",
+    "nll": 2.782890988720788
+   },
+   {
+    "i": 5,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1000",
+    "nll": 3.81939360499382
+   },
+   {
+    "i": 6,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1000",
+    "nll": 3.615120397011439
+   },
+   {
+    "i": 7,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1000",
+    "nll": 4.891529510418574
+   },
+   {
+    "i": 8,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1001",
+    "nll": 1.3588183571894963
+   },
+   {
+    "i": 9,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1001",
+    "nll": 1.6426803747812906
+   },
+   {
+    "i": 10,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1001",
+    "nll": 2.2165983339150745
+   },
+   {
+    "i": 11,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1001",
+    "nll": 4.238990076382955
+   },
+   {
+    "i": 12,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1001",
+    "nll": 3.33694345553716
+   },
+   {
+    "i": 13,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1001",
+    "nll": 4.931319306294124
+   },
+   {
+    "i": 14,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1001",
+    "nll": 1.59220290184021
+   },
+   {
+    "i": 15,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1001",
+    "nll": 5.882888732353846
+   },
+   {
+    "i": 16,
+    "block": 1,
+    "family": "lab/door",
+    "objective": "obj_T1_2000",
+    "nll": 1.3872823549641504
+   },
+   {
+    "i": 17,
+    "block": 1,
+    "family": "lab/door",
+    "objective": "obj_T1_2000",
+    "nll": 1.3313165704409282
+   },
+   {
+    "i": 18,
+    "block": 1,
+    "family": "lab/door",
+    "objective": "obj_T1_2000",
+    "nll": 2.5419395844141643
+   },
+   {
+    "i": 19,
+    "block": 1,
+    "family": "lab/door",
+    "objective": "obj_T1_2000",
+    "nll": 9.823625365893045
+   },
+   {
+    "i": 20,
+    "block": 1,
+    "family": "lab/door",
+    "objective": "obj_T1_2000",
+    "nll": 9.294487421711287
+   },
+   {
+    "i": 21,
+    "block": 1,
+    "family": "lab/door",
+    "objective": "obj_T1_2000",
+    "nll": 3.9998102029164633
+   },
+   {
+    "i": 22,
+    "block": 1,
+    "family": "lab/door",
+    "objective": "obj_T1_2000",
+    "nll": 5.467391725381216
+   },
+   {
+    "i": 23,
+    "block": 1,
+    "family": "lab/door",
+    "objective": "obj_T1_2000",
+    "nll": 6.724501182635625
+   },
+   {
+    "i": 24,
+    "block": 2,
+    "family": "lab/first",
+    "objective": "obj_F1_7000",
+    "nll": 1.2551112016042074
+   },
+   {
+    "i": 25,
+    "block": 2,
+    "family": "lab/first",
+    "objective": "obj_F1_7000",
+    "nll": 3.7711333433787027
+   },
+   {
+    "i": 26,
+    "block": 2,
+    "family": "lab/first",
+    "objective": "obj_F1_7000",
+    "nll": 1.499678984284401
+   },
+   {
+    "i": 27,
+    "block": 2,
+    "family": "lab/first",
+    "objective": "obj_F1_7000",
+    "nll": 1.336755875746409
+   },
+   {
+    "i": 28,
+    "block": 2,
+    "family": "lab/first",
+    "objective": "obj_F1_7000",
+    "nll": 1.279892442623774
+   },
+   {
+    "i": 29,
+    "block": 2,
+    "family": "lab/first",
+    "objective": "obj_F1_7000",
+    "nll": 1.4123182753721872
+   },
+   {
+    "i": 30,
+    "block": 2,
+    "family": "lab/first",
+    "objective": "obj_F1_7000",
+    "nll": 2.672694021463394
+   },
+   {
+    "i": 31,
+    "block": 2,
+    "family": "lab/first",
+    "objective": "obj_F1_7000",
+    "nll": 2.5027066146334014
+   },
+   {
+    "i": 32,
+    "block": 3,
+    "family": "codec",
+    "objective": "obj_T2_4000",
+    "nll": 5.769095686574777
+   },
+   {
+    "i": 33,
+    "block": 3,
+    "family": "codec",
+    "objective": "obj_T2_4000",
+    "nll": 21.675210600097973
+   },
+   {
+    "i": 34,
+    "block": 3,
+    "family": "codec",
+    "objective": "obj_T2_4000",
+    "nll": 1.596962404747804
+   },
+   {
+    "i": 35,
+    "block": 3,
+    "family": "codec",
+    "objective": "obj_T2_4000",
+    "nll": 1.5821454835434754
+   },
+   {
+    "i": 36,
+    "block": 3,
+    "family": "codec",
+    "objective": "obj_T2_4000",
+    "nll": 1.405900377780199
+   },
+   {
+    "i": 37,
+    "block": 3,
+    "family": "codec",
+    "objective": "obj_T2_4000",
+    "nll": 1.3585199875136216
+   },
+   {
+    "i": 38,
+    "block": 3,
+    "family": "codec",
+    "objective": "obj_T2_4000",
+    "nll": 1.2839014939963818
+   },
+   {
+    "i": 39,
+    "block": 3,
+    "family": "codec",
+    "objective": "obj_T2_4000",
+    "nll": 1.2855402864515781
+   }
+  ],
+  "rho": [
+   0.9820292592048645,
+   0.982191264629364,
+   0.9815003275871277,
+   0.9858347773551941
+  ],
+  "chain_counters": {
+   "commit_recomputed_anchor": 40,
+   "commits": 40,
+   "rows_context": 744,
+   "rows_post": 640,
+   "refresh_windows": 2117
+  },
+  "seconds": 23.542234182357788
+ },
+ {
+  "source": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/PS/runs/abl/on_s0/agent/learner/experience.sqlite",
+  "cond": "off",
+  "seed": 3,
+  "real": false,
+  "steps": 2,
+  "batch": 8,
+  "unroll": 2,
+  "rho_init": null,
+  "n_records": 40,
+  "prequential_nll": 5.196197660612977,
+  "n_scored": 40,
+  "by_block": [
+   {
+    "block": 0,
+    "family": "lab/first",
+    "n_records": 16,
+    "n_scored": 16,
+    "prequential_nll": 7.225356887425813
+   },
+   {
+    "block": 1,
+    "family": "lab/door",
+    "n_records": 8,
+    "n_scored": 8,
+    "prequential_nll": 5.054264184501436
+   },
+   {
+    "block": 2,
+    "family": "lab/first",
+    "n_records": 8,
+    "n_scored": 8,
+    "prequential_nll": 1.9629338565592964
+   },
+   {
+    "block": 3,
+    "family": "codec",
+    "n_records": 8,
+    "n_scored": 8,
+    "prequential_nll": 4.513076487152527
+   }
+  ],
+  "retention": [
+   {
+    "after_block": 0,
+    "family": "lab/first",
+    "first_block_nll": 2.306323058054679,
+    "n": 16
+   },
+   {
+    "after_block": 1,
+    "family": "lab/door",
+    "first_block_nll": 2.1955117190256717,
+    "n": 16
+   },
+   {
+    "after_block": 2,
+    "family": "lab/first",
+    "first_block_nll": 2.0096731226684317,
+    "n": 16
+   },
+   {
+    "after_block": 3,
+    "family": "codec",
+    "first_block_nll": 1.8503023534702758,
+    "n": 16
+   }
+  ],
+  "records": [
+   {
+    "i": 0,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1000",
+    "nll": 20.733333911498388
+   },
+   {
+    "i": 1,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1000",
+    "nll": 45.60611283779144
+   },
+   {
+    "i": 2,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1000",
+    "nll": 1.8529207428296408
+   },
+   {
+    "i": 3,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1000",
+    "nll": 6.778471507628759
+   },
+   {
+    "i": 4,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1000",
+    "nll": 2.81474432349205
+   },
+   {
+    "i": 5,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1000",
+    "nll": 3.9770913263161978
+   },
+   {
+    "i": 6,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1000",
+    "nll": 3.7223802665869394
+   },
+   {
+    "i": 7,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1000",
+    "nll": 4.980453576644262
+   },
+   {
+    "i": 8,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1001",
+    "nll": 1.3609732174211078
+   },
+   {
+    "i": 9,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1001",
+    "nll": 1.6435712297757468
+   },
+   {
+    "i": 10,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1001",
+    "nll": 2.2233383774757387
+   },
+   {
+    "i": 11,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1001",
+    "nll": 4.225981936852137
+   },
+   {
+    "i": 12,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1001",
+    "nll": 3.3260318795839945
+   },
+   {
+    "i": 13,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1001",
+    "nll": 4.901995966831843
+   },
+   {
+    "i": 14,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1001",
+    "nll": 1.58425439397494
+   },
+   {
+    "i": 15,
+    "block": 0,
+    "family": "lab/first",
+    "objective": "obj_F1_1001",
+    "nll": 5.874054704109827
+   },
+   {
+    "i": 16,
+    "block": 1,
+    "family": "lab/door",
+    "objective": "obj_T1_2000",
+    "nll": 1.378891396853659
+   },
+   {
+    "i": 17,
+    "block": 1,
+    "family": "lab/door",
+    "objective": "obj_T1_2000",
+    "nll": 1.3229994376500447
+   },
+   {
+    "i": 18,
+    "block": 1,
+    "family": "lab/door",
+    "objective": "obj_T1_2000",
+    "nll": 2.535856960217158
+   },
+   {
+    "i": 19,
+    "block": 1,
+    "family": "lab/door",
+    "objective": "obj_T1_2000",
+    "nll": 9.80844443043073
+   },
+   {
+    "i": 20,
+    "block": 1,
+    "family": "lab/door",
+    "objective": "obj_T1_2000",
+    "nll": 9.23638886710008
+   },
+   {
+    "i": 21,
+    "block": 1,
+    "family": "lab/door",
+    "objective": "obj_T1_2000",
+    "nll": 4.00177965760231
+   },
+   {
+    "i": 22,
+    "block": 1,
+    "family": "lab/door",
+    "objective": "obj_T1_2000",
+    "nll": 5.440545990069707
+   },
+   {
+    "i": 23,
+    "block": 1,
+    "family": "lab/door",
+    "objective": "obj_T1_2000",
+    "nll": 6.709206736087799
+   },
+   {
+    "i": 24,
+    "block": 2,
+    "family": "lab/first",
+    "objective": "obj_F1_7000",
+    "nll": 1.2393944581349692
+   },
+   {
+    "i": 25,
+    "block": 2,
+    "family": "lab/first",
+    "objective": "obj_F1_7000",
+    "nll": 3.801784646511078
+   },
+   {
+    "i": 26,
+    "block": 2,
+    "family": "lab/first",
+    "objective": "obj_F1_7000",
+    "nll": 1.4846514960130055
+   },
+   {
+    "i": 27,
+    "block": 2,
+    "family": "lab/first",
+    "objective": "obj_F1_7000",
+    "nll": 1.3245868861675263
+   },
+   {
+    "i": 28,
+    "block": 2,
+    "family": "lab/first",
+    "objective": "obj_F1_7000",
+    "nll": 1.2744901100794475
+   },
+   {
+    "i": 29,
+    "block": 2,
+    "family": "lab/first",
+    "objective": "obj_F1_7000",
+    "nll": 1.4203520218531291
+   },
+   {
+    "i": 30,
+    "block": 2,
+    "family": "lab/first",
+    "objective": "obj_F1_7000",
+    "nll": 2.6641942063967385
+   },
+   {
+    "i": 31,
+    "block": 2,
+    "family": "lab/first",
+    "objective": "obj_F1_7000",
+    "nll": 2.4940170273184776
+   },
+   {
+    "i": 32,
+    "block": 3,
+    "family": "codec",
+    "objective": "obj_T2_4000",
+    "nll": 5.821718526383241
+   },
+   {
+    "i": 33,
+    "block": 3,
+    "family": "codec",
+    "objective": "obj_T2_4000",
+    "nll": 21.77494640648365
+   },
+   {
+    "i": 34,
+    "block": 3,
+    "family": "codec",
+    "objective": "obj_T2_4000",
+    "nll": 1.5988645156224568
+   },
+   {
+    "i": 35,
+    "block": 3,
+    "family": "codec",
+    "objective": "obj_T2_4000",
+    "nll": 1.593751994272073
+   },
+   {
+    "i": 36,
+    "block": 3,
+    "family": "codec",
+    "objective": "obj_T2_4000",
+    "nll": 1.414578205595414
+   },
+   {
+    "i": 37,
+    "block": 3,
+    "family": "codec",
+    "objective": "obj_T2_4000",
+    "nll": 1.349437949558099
+   },
+   {
+    "i": 38,
+    "block": 3,
+    "family": "codec",
+    "objective": "obj_T2_4000",
+    "nll": 1.273046010484298
+   },
+   {
+    "i": 39,
+    "block": 3,
+    "family": "codec",
+    "objective": "obj_T2_4000",
+    "nll": 1.278268288820982
+   }
+  ],
+  "rho": null,
+  "chain_counters": null,
+  "seconds": 13.165224552154541
+ }
+]

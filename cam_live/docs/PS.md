@@ -271,36 +271,63 @@ differences are dominated by trajectory divergence (the near-zero-effect run `on
 
 **Debug scale, paired on a fixed experience stream** (`scripts/ps_replay.py`: prequential world-model NLL of every
 stored decision before training on it, then 2 AdamW steps of the agent's own world-model loss provider on a replay
-batch of 8; the same decisions, observations and outcomes for both arms; 4 streams (the stores of `off_s0`, `off_s1`,
-`on_s0`, `on_s1`) × 3 model seeds; `docs/evidence/PS/replay_debug/`):
+batch of 8; the same decisions, observations and outcomes for both arms; the 8 stores of the on-line runs
+`on_s0..3`, `off_s0..3` as streams, model seeds 0–2 (first four) and 3–4 (all eight): 28 pairs;
+`docs/evidence/PS/replay_debug/`):
 
 | stream | model seed | scored | NLL on | NLL off | on - off | per block on/off | retention on | retention off | rho (on, end) |
 |---|---:|---:|---:|---:|---:|---|---|---|---|
 | off_s0 | 0 | 36 | 4.933 | 4.942 | -0.009 | lab/first 5.688/5.693; lab/door 1.349/1.347; lab/first 0.902/0.888; codec 17.144/17.236 | 1.381 -> 1.322 | 1.383 -> 1.325 | rho 0.9829 |
 | off_s0 | 1 | 36 | 5.135 | 5.133 | +0.003 | lab/first 5.961/5.959; lab/door 1.369/1.370; lab/first 0.955/0.958; codec 17.729/17.703 | 1.414 -> 1.398 | 1.417 -> 1.401 | rho 0.983 |
 | off_s0 | 2 | 36 | 5.024 | 5.031 | -0.008 | lab/first 5.835/5.828; lab/door 1.369/1.371; lab/first 0.942/0.944; codec 17.252/17.341 | 1.432 -> 1.349 | 1.438 -> 1.349 | rho 0.9838 |
+| off_s0 | 3 | 36 | 5.235 | 5.257 | -0.023 | lab/first 6.190/6.237; lab/door 1.385/1.371; lab/first 0.989/0.979; codec 17.608/17.667 | 1.465 -> 1.374 | 1.454 -> 1.370 | rho 0.986 |
+| off_s0 | 4 | 36 | 5.049 | 5.057 | -0.008 | lab/first 5.879/5.884; lab/door 1.399/1.401; lab/first 0.869/0.874; codec 17.393/17.427 | 1.501 -> 1.435 | 1.495 -> 1.427 | rho 0.9857 |
 | off_s1 | 0 | 33 | 4.250 | 4.264 | -0.013 | lab/first 5.751/5.758; lab/door 3.912/3.943; lab/first 1.406/1.412; codec 5.702/5.731 | 1.737 -> 1.562 | 1.741 -> 1.570 | rho 0.9862 |
 | off_s1 | 1 | 33 | 4.282 | 4.281 | +0.001 | lab/first 5.848/5.855; lab/door 3.758/3.754; lab/first 1.516/1.500; codec 5.542/5.568 | 1.720 -> 1.566 | 1.725 -> 1.570 | rho 0.9847 |
 | off_s1 | 2 | 33 | 4.306 | 4.293 | +0.013 | lab/first 5.867/5.859; lab/door 3.918/3.880; lab/first 1.468/1.465; codec 5.128/5.151 | 1.763 -> 1.539 | 1.758 -> 1.542 | rho 0.9881 |
+| off_s1 | 3 | 33 | 4.423 | 4.449 | -0.026 | lab/first 6.061/6.098; lab/door 3.971/3.975; lab/first 1.420/1.432; codec 5.849/6.009 | 1.792 -> 1.573 | 1.797 -> 1.571 | rho 0.9888 |
+| off_s1 | 4 | 33 | 4.434 | 4.402 | +0.032 | lab/first 5.964/5.955; lab/door 4.183/4.050; lab/first 1.467/1.492; codec 5.702/5.649 | 1.850 -> 1.637 | 1.830 -> 1.617 | rho 0.9887 |
+| off_s2 | 3 | 40 | 5.163 | 5.165 | -0.002 | lab/first 6.532/6.559; lab/door 3.999/3.959; lab/first 1.440/1.444; codec 7.310/7.303 | 2.273 -> 1.870 | 2.263 -> 1.876 | rho 0.9906 |
+| off_s2 | 4 | 40 | 5.244 | 5.232 | +0.012 | lab/first 6.447/6.432; lab/door 4.429/4.400; lab/first 1.380/1.392; codec 7.518/7.504 | 2.339 -> 1.960 | 2.337 -> 1.952 | rho 0.986 |
+| off_s3 | 3 | 40 | 3.758 | 3.766 | -0.008 | lab/first 5.855/5.872; lab/door 1.697/1.696; lab/first 0.901/0.897; codec 4.482/4.492 | 1.332 -> 1.232 | 1.322 -> 1.232 | rho 0.9908 |
+| off_s3 | 4 | 40 | 3.642 | 3.642 | +0.000 | lab/first 5.575/5.574; lab/door 1.641/1.637; lab/first 0.869/0.870; codec 4.548/4.552 | 1.259 -> 1.195 | 1.262 -> 1.196 | rho 0.9849 |
 | on_s0 | 0 | 40 | 4.845 | 4.877 | -0.032 | lab/first 6.609/6.616; lab/door 4.683/4.816; lab/first 1.907/1.911; codec 4.417/4.425 | 2.252 -> 1.936 | 2.268 -> 1.949 | rho 0.9822 |
 | on_s0 | 1 | 40 | 5.007 | 5.001 | +0.006 | lab/first 6.901/6.900; lab/door 4.672/4.656; lab/first 1.897/1.892; codec 4.664/4.655 | 2.334 -> 1.867 | 2.332 -> 1.864 | rho 0.9806 |
 | on_s0 | 2 | 40 | 4.931 | 4.924 | +0.007 | lab/first 6.751/6.734; lab/door 4.687/4.676; lab/first 2.005/2.000; codec 4.461/4.479 | 2.264 -> 1.910 | 2.263 -> 1.919 | rho 0.9827 |
+| on_s0 | 3 | 40 | 5.177 | 5.196 | -0.020 | lab/first 7.175/7.225; lab/door 5.071/5.054; lab/first 1.966/1.963; codec 4.495/4.513 | 2.319 -> 1.858 | 2.306 -> 1.850 | rho 0.9829 |
+| on_s0 | 4 | 40 | 5.232 | 5.202 | +0.030 | lab/first 6.923/6.910; lab/door 5.881/5.741; lab/first 1.938/1.926; codec 4.497/4.523 | 2.451 -> 1.980 | 2.428 -> 1.981 | rho 0.9825 |
 | on_s1 | 0 | 39 | 5.597 | 5.603 | -0.007 | lab/first 7.132/7.127; lab/door 3.669/3.696; lab/first 1.244/1.244; codec 8.566/8.583 | 2.964 -> 2.299 | 2.959 -> 2.307 | rho 0.9843 |
 | on_s1 | 1 | 39 | 5.766 | 5.760 | +0.006 | lab/first 7.432/7.443; lab/door 3.710/3.708; lab/first 1.301/1.287; codec 8.698/8.663 | 3.028 -> 2.192 | 3.029 -> 2.187 | rho 0.9848 |
 | on_s1 | 2 | 39 | 5.605 | 5.615 | -0.009 | lab/first 7.376/7.383; lab/door 3.604/3.613; lab/first 1.289/1.294; codec 8.132/8.151 | 3.073 -> 2.308 | 3.091 -> 2.311 | rho 0.9853 |
+| on_s1 | 3 | 39 | 5.774 | 5.821 | -0.047 | lab/first 7.494/7.565; lab/door 3.755/3.802; lab/first 1.366/1.352; codec 8.511/8.569 | 3.014 -> 2.220 | 3.056 -> 2.232 | rho 0.9891 |
+| on_s1 | 4 | 39 | 5.770 | 5.759 | +0.011 | lab/first 7.484/7.457; lab/door 3.812/3.797; lab/first 1.277/1.281; codec 8.551/8.557 | 3.183 -> 2.192 | 3.157 -> 2.188 | rho 0.9844 |
+| on_s2 | 3 | 37 | 6.428 | 6.461 | -0.033 | lab/first 7.591/7.633; lab/door 2.488/2.486; lab/first 1.357/1.359; codec 17.125/17.236 | 3.064 -> 2.280 | 3.059 -> 2.270 | rho 0.987 |
+| on_s2 | 4 | 37 | 6.341 | 6.353 | -0.012 | lab/first 7.517/7.511; lab/door 2.655/2.640; lab/first 1.365/1.393; codec 16.436/16.526 | 3.312 -> 2.641 | 3.307 -> 2.609 | rho 0.9861 |
+| on_s3 | 3 | 33 | 4.600 | 4.625 | -0.025 | lab/first 6.614/6.655; lab/door 3.548/3.565; lab/first 1.441/1.441; codec 6.064/6.108 | 2.354 -> 1.875 | 2.358 -> 1.872 | rho 0.9895 |
+| on_s3 | 4 | 33 | 4.591 | 4.580 | +0.011 | lab/first 6.530/6.517; lab/door 3.779/3.769; lab/first 1.385/1.382; codec 5.717/5.667 | 2.465 -> 2.152 | 2.441 -> 2.144 | rho 0.9863 |
 
-prequential NLL on - off: mean -0.004 (SE 0.003) over 12 pairs; on better in 6 of 12
-  block 0:lab/first: mean -0.000 over 12 (on better in 6)
-  block 1:lab/door: mean -0.011 over 12 (on better in 6)
-  block 2:lab/first: mean +0.003 over 12 (on better in 6)
-  block 3:codec: mean -0.021 over 12 (on better in 9)
-forgetting of the first block (on minus off, NLL change first->last block): mean -0.001 over 12 (on forgets less in 5)
+prequential NLL on - off: mean -0.005 (SE 0.003) over 28 pairs; on better in 16 of 28
+  block 0:lab/first: mean -0.009 over 28 (on better in 15)
+  block 1:lab/door: mean +0.008 over 28 (on better in 10)
+  block 2:lab/first: mean -0.000 over 28 (on better in 15)
+  block 3:codec: mean -0.027 over 28 (on better in 21)
+forgetting of the first block (on minus off, NLL change first->last block): mean -0.001 over 28 (on forgets less in 12)
 
-Retention columns: NLL of
-the first block's records after the first -> last block; rho: mean retention at the end. **No measurable effect
-on learning to predict** (on − off −0.004, SE 0.003, on better in 6 of 12), **none on retention** after the
-interfering block (−0.001), and a small, not significant advantage on the held-out codec block (−0.021, on better in
-9 of 12). The learner closed the retention slightly in every run (`ρ` 1 → 0.98).
+Retention columns: NLL of the first block's records after the first -> last block; rho: mean retention at the end.
+
+| block (family) | pairs | on − off (nats) | SE | on better | sign test p (two-sided) |
+|---|---:|---:|---:|---:|---:|
+| 0 LabWorld F1 (first exposure) | 28 | −0.009 | 0.004 | 15 | 0.85 |
+| 1 LabWorld T1 (interfering mechanism) | 28 | +0.008 | 0.009 | 10 | 0.18 |
+| 2 LabWorld F1 again (retention) | 28 | −0.000 | 0.002 | 15 | 0.85 |
+| 3 codec T2 (held-out domain) | 28 | −0.027 | 0.009 | 21 | 0.012 |
+
+**No measurable effect on learning to predict overall** (on − off −0.005, SE 0.003, on better in 16 of 28), **none
+on retention** of the first block after the interfering one (−0.001; on forgets less in 12 of 28), and one small,
+nominally significant effect: on the held-out codec domain the chain predicts better in 21 of 28 pairs (−0.027 nats,
+p = 0.012; 0.05 after a Bonferroni correction over the four blocks) — about 0.2–0.5 % of that block's NLL (4–17
+nats). The interfering block points the other way (not significant). The learner closed the retention slightly in
+every run (`ρ` 1 → 0.98).
 
 **Debug scale, long objectives as fixed streams** (`docs/evidence/PS/replay_long/`): two streams with a 40- and a
 16-decision LabWorld objective (F1) followed by a 20- / 11-decision interfering one (T1) — longer than the 48-item
@@ -384,10 +411,11 @@ evaluated objectives the information the predictions need is already carried by 
 numeric mechanism is stationary and is accumulated over the whole objective by the fast Bayesian posterior, which is
 never truncated within an objective; across objectives LabWorld draws a new hidden mechanism per world, so what the
 state carries over is at best family-level knowledge, which the weights also learn. On identical experience the two arms
-then learn to predict equally well (debug replay: −0.004 ± 0.003 over 12 pairs; long objectives −0.008 ± 0.006;
+then learn to predict equally well (debug replay: −0.005 ± 0.003 over 28 pairs; long objectives −0.008 ± 0.006;
 full size on three real streams −0.019 / +0.009 / −0.004) and the learner slightly closes the retention. (iii) The
 held-out codec block, a different domain after four LabWorld objectives, is the one place with a consistent sign in
-favour of the carried state (9 of 12 pairs) but the effect is small (−0.02 nats) and not significant. Where the
+favour of the carried state (21 of 28 pairs, p = 0.012 / 0.05 Bonferroni) but the effect is tiny (−0.027 nats,
+0.2–0.5 % of the block's NLL); the interfering LabWorld block leans the other way (10 of 28, n.s.). Where the
 long-horizon structure that the state exists for occurs — long objectives (the 100-member planning objective will
 run for hundreds of decisions, more than the window holds) and information that is observed once and needed much
 later — the synthetic result says the mechanism can learn it; it has not been shown on such real experience yet.
