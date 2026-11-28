@@ -278,3 +278,152 @@ Qwen3-8B; presets above 50m on the GPU; that trained representations / a trained
 anything (no learning curve on the real configuration exists — A and D say so); power-loss durability; the
 integrated agent on the real configuration (INT2's evidence, not re-run here); seed 1 of the fast-adaptation run;
 CL-10 (unclaimed).
+
+---
+
+# Round 2 — re-verification at the freeze `f54d8cc056722f2ba373ba70627bfc52e2500332`
+
+DX fixed G2L-1 … G2L-5 and the credit side of G2L-6 in `nn/fast.py` and `credit/` (commits 9680ea7, e4186c8,
+715417e, 78139c9, c9fd652, f5bc413; `docs/DX.md`), claimed CL-10, implemented INT3A-5 (stratified record split);
+INT3A fixed the provider-side eligibility cause of G2L-8; change request DX-1 (one line in `agent.py`) was **not**
+applied at the freeze. Everything below ran on a `git archive` export of `f54d8cc` (PYTHONPATH there), with my own work
+directory (`$G2_WORK` in my scratch). Outputs: `repro/g2learn/out/r2/`.
+
+## R2.1 What was executed (all at f54d8cc)
+
+| What | Result |
+|---|---|
+| A's default tests / A's `-m gpu` (the shared GPU was free at 02:39) | 107 passed, 13 skipped / **12 passed** |
+| D's default tests / D's `-m gpu` | 135 passed, 8 skipped / **2 passed** |
+| `-m slow` (credit + nn, incl. D's `test_evidence.py` and DX's integrated-agent selection test) | 7 passed, 580 s |
+| integration: `test_int3a_audit.py`, RC-01 linking, learning, `test_int2_checkpoints.py` | 8 passed; `test_int2_checkpoints.py` again 4 times: 4 / 4 passed (G2L-8 at 3e29595: 1 of 4) |
+| my probes: `probe_fast_stress.py` / `probe_credit_gaps.py` / `probe_long_rudder.py` | **46/46** (was 42/46) / **18/18** (was 13/18) / 5/5 |
+| new: `probe_fast_random.py` (60 000 random count / time-to-event / binary problems, eta0 ±60, s 1e-10..1e7, counts to 1e12, exposures 1e-15..1e15) | 6/6: every mode equals the float64 bisection root (worst 3.2e-15), none reported unconverged |
+| G-cl probes rudder / smdp / providers / learner / store_links (12 kills); G-nn `probe_fast.py` | 63, 8, 4, 26, 37 PASS; 43/44 (the NIG check invalidated by A's D4 fix, as before) |
+| `probe_real_learn.py` on CUDA | 13/13 |
+| `probe_real_cl.py --part write|read` on CUDA | 8/8 — **but the slow step is now reverted** (see R2.3); fresh-process CUDA reload bit-exact |
+| `probe_agent_credit.py` ×3 (integrated agent, tiny, CPU) | 13/13 each; 0 slow steps without a verdict; selection log empty |
+| `probe_promotion_evidence.py --reps 5` | 5 / 5 first promotions granted (G2L-8 fixed for this scenario) |
+| D's `diagnose --only learning,credit,retention` | learning NLL 2.981 → 2.291, 19 of 20 slow steps kept (1 reverted); RUDDER z² 6.61, COCOA 13.84 (nothing promoted); retention 1.768 vs 0.316 |
+| new: `probe_slow_acceptance.py` (slow-step acceptance by run type), `guard_vetoes.py` (rejection classes), `probe_cl10.py` (integrated agent checkpoint vs spec 15.2) | R2.3, R2.4 |
+| A's fast-adaptation seed 0, full length (fast.py changed) | 352 recorded numbers reproduced, largest difference 0.0001 (one RMSE at the 4th decimal), 25 min |
+
+## R2.2 The fixes, attacked
+
+* **G2L-1 fixed.** The count grid is exact (2625 / 2625, both stateful counterexamples reach 48.354 with
+  `converged=True`), and on 60 000 random problems far outside the grid no mode is wrong and none is reported
+  unconverged. Implicit gradients and `online_nll` are unchanged.
+* **G2L-2 fixed.** `update()` / `append()` raise `OutcomeTimingError` for a newly attached matured outcome dated
+  before its query or decision (9/9 store checks). In 3 integrated runs nothing raised: the agent's own path checks the
+  timing first.
+* **G2L-3 fixed.** Overflowing amounts become shares relative to the largest amount (two links, total 1.0).
+* **G2L-4 fixed.** With no held-out records the step is deferred, not taken. Across every integrated run at f54d8cc
+  (3 probe runs, 8-lifetime run, real-configuration run) no slow step was applied without a verdict; 2 of 28 were
+  deferred in the 8-lifetime run.
+* **G2L-5 fixed.** Each provider is judged on its own; the masking case is refused.
+* **G2L-6 (RC-08): credit side done, agent unchanged.** Without DX-1 nothing in the agent calls the new
+  `attach_experiments`: in 3 runs the selection log is empty, the store holds 0 experiments while the agent's
+  decisions carry 7-11 experiment ids, and 3 of 3 experiment objectives were trained on.
+* **G2L-8 fixed for this scenario** (INT3A-5 split + INT3A's eligibility fix): 5 / 5 first promotions granted, the
+  INT2 test 5 / 5 green at f54d8cc.
+
+## R2.3 Does the fail-closed guard freeze slow learning? (asked by the coordinator)
+
+`probe_slow_acceptance.py` counts every slow step of a run from the learner's own log; `guard_vetoes.py` classifies
+the rejections. A *micro veto* is a rejection where every failing provider rose by less than 1e-4 of its own loss:
+its tolerance had collapsed to the float floor (1e-7·|loss|) because its chunks moved together (SE ≈ 0) or it had one
+chunk.
+
+| Run (f54d8cc) | slow steps judged | kept | net adapter change (L2) | rejections: micro vetoes / substantive |
+|---|---:|---:|---:|---|
+| D's lab, debug, 20 rounds of 3 frequent + 1 slow (`--mode lab`) | 27 | 20 (74 %) | 0.114 | 0 / 7 (cocoa +1-12 %) |
+| D's `diagnose` learning experiment (objective split) | 20 | 19 | — | — |
+| D's lab, **real configuration** (CUDA, 10 rounds) | 13 | 7 (54 %) | 0.529 | 2 / 4 |
+| integrated agent, debug, 8 lifetimes / 62 records (`--mode agent`) | 26 (+2 deferred) | 7 (27 %; first half 5/12, second half 2/14) | 0.037 | 2 / 17 |
+| integrated agent, **real configuration** (Qwen3-4B + 50m, CUDA, 4 lifetimes / 37 records, `use_backbone` off, `adapter_every` 3) | 6 | **0** | **0.0** | 1 / 5 |
+| integrated agent, **real configuration**, second run (seeds 21-25, 5 lifetimes / 41 records) | 7 | **1** (the first; then 0 / 6) | 0.017 | 2 / 4 |
+| G-cl's `probe_real_cl.py` (real configuration, one forced slow step) | 1 | 0 | 0 | 1 / 0 (rudder +2.0e-6 vs tolerance 1e-7) |
+
+Reading:
+
+1. **Learning in the lab is not frozen.** Over 3-4 rounds per run, half to three quarters of the slow steps are kept,
+   and the adapters move.
+2. **In the integrated agent it nearly is.** In the debug agent the share of kept steps falls as the run grows
+   (5/12 → 2/14). On the real configuration no slow step in 37 decisions was kept, and the adapters ended
+   bit-identical to the start. In the second real run 1 of 7 steps was kept. Over both, 1 of 13 slow steps in
+   78 decisions survived the guard.
+3. **Most rejections are substantive.** 37 of 44 classified rejections are real degradations of another provider's
+   held-out loss: the world model typically rose 0.5-4 %, cocoa 1-22 %, the grounding loss above the 0.01 absolute
+   cap. The slow step is driven almost entirely by the bridge-grounding loss (by-loss adapter gradient 7.0 vs world
+   0.026 on the real configuration), and on held-out data it usually hurts the world model. On these runs the guard is
+   right to stop it.
+4. **The micro vetoes are a new defect.** 7 of 44 rejections (G2L-9 below; 3 of the 12 on the real configuration) rejected steps over rises of 1e-6 to 5e-5
+   relative, for example evaluator +6.8e-6 vetoing a step that improved the world model's held-out NLL by 14 % on the
+   real configuration.
+
+**Does this still satisfy the continual-learning requirements?** It satisfies CL-08 (scheduling, triggers, deferral)
+and NA-09 (the adapters receive real gradients; steps are computed and judged). It does **not** satisfy CL-03's
+"adapter updates occur" on the real configuration in the integrated agent: in the measured runs the adapters do not
+change at all. The cause is partly the guard's float-floor tolerance (G2L-9) and mostly that the slow-step objective
+as wired degrades the other held-out losses. Neither a looser guard nor the old averaged rule is the fix, since the
+old rule kept these degrading steps. The slow objective needs re-balancing (e.g. the world-model loss's share of the
+adapter gradient) together with a tolerance that is not the float floor for providers whose chunks agree.
+
+### G2L-9 — minor (contributes to the CL-03 failure) — float-floor tolerance lets a provider insensitive to the adapters veto a slow step
+`credit/learner.py:599-630` (`_provider_verdict`): tol = min(abs 0.01, 5 %·|loss|, max(2·SE, 1e-7·max(1, |loss|))).
+A provider whose held-out chunks all move by the same tiny amount (RUDDER's decomposer and the evaluator read latents
+the adapters barely move) has SE ≈ 0, so its tolerance is the float floor, and a consistent rise of 1e-6 rejects the
+step whatever the other providers gain. The same holds for any provider with a single chunk. Measured: 7 of 44
+rejections, including the only slow step of G-cl's real-configuration probe (rudder +2.0e-6 vs 1e-7) and a real-agent
+step that improved the world model by 14 %. Repro: `guard_vetoes.py <learner log>` on the logs of
+`probe_slow_acceptance.py`.
+
+## R2.4 CL-10 (claimed by D) on the integrated agent
+
+`probe_cl10.py write DIR` / `read DIR` (tiny integrated agent, two lifetimes, the second stopped with outcomes
+pending; `agent.save`, then a fresh process loads it into a copy of the run directory). The checkpoint holds model /
+adapter / reward weights, the 4 optimizers (incl. `reward_meta`), the fast state, the current task, replay state,
+pending outcomes (2 = the store's 2 unresolved queries), schedules, RNG states and model versions; every tensor is on
+the CPU. The fresh process restores all 305 trainable tensors, the fast state, counters, RNG and task bit-exactly
+(5 / 5). **Fails:** (a) *experiment records*: the agent's 2 experiments (in `predict.registry`) are not in the checkpoint
+(`experiments: []`), because the agent never copies them into the store (DX-1 not applied); (b) *authorization
+configuration*: recorded as `auth_config_hash: ""` because the agent passes no hash (DX-2). Both live durably
+elsewhere (the registry's hash-chained log in the run directory; the authorization service's own state), so a
+restart does not lose them, but the checkpoint neither holds nor checks them. D's own CL-10 tests (credit-side
+capture with an attached source) pass.
+
+## R2.5 Verdicts at f54d8cc (verdicts_g2learn.json, every id re-judged, supersedes all)
+
+| Req. | Verdict | What fails / basis |
+|---|---|---|
+| NA-01 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| NA-02 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| NA-03 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| NA-04 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| NA-05 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| NA-07 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| NA-09 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| NA-10 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| NA-11 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| NA-12 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| NA-13 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| NA-08 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| RC-01 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| RC-02 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| RC-03 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| RC-05 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| RC-06 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| RC-07 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| RC-08 | partial | agent as at the freeze: no experiment reaches the store, selection never runs (G2L-6; DX-1 not applied) |
+| CL-01 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| CL-02 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| CL-03 | partial | real configuration, integrated agent: 1 of 13 slow steps kept in 2 runs (adapters effectively frozen; 37 of 44 rejections substantive, 7 micro vetoes, G2L-9) |
+| CL-04 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| CL-05 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| CL-08 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| CU-20 | verified | re-checked at the freeze; see the notes in verdicts_g2learn.json |
+| CL-10 | partial | integrated agent's checkpoint: experiment records empty (agent has 2), authorization configuration recorded as '' |
+
+Counts: 24 verified, 3 partial (RC-08, CL-03, CL-10), 0 failed, 0 unverified; every entry carries `"commit": "f54d8cc…"` and supersedes all earlier verdicts.
+
+**Not checked in round 2:** Qwen3-8B; presets above 50m on the GPU; a long real-configuration run with the backbone proposing (my real agent runs had `use_backbone` off and `adapter_every` 3 to fit the 15-minute lock); DX-1 applied (not in the frozen code); power loss.

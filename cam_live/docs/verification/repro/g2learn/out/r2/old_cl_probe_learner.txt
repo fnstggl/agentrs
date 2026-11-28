@@ -1,0 +1,281 @@
+[PASS] poll(): a plan exists after matured outcomes, counting independent units  ({"queued_rows": 67, "matured_rows": 36, "independent_units": 36, "threshold": 4})
+[PASS] poll(): no plan without matured outcomes (time / rows alone do not trigger)
+[PASS] frequent update changed experiential and heads  (['experiential', 'heads'])
+[PASS] frequent update left semantic adapters unchanged
+[PASS] reward group unchanged and without .grad
+[PASS] per-group clipping: the experiential optimizer stepped on a gradient of norm <= clip  (pre-clip 0.09089, seen by optimizer [0.000999988871626556])
+[PASS] behaviour probe changed after the frequent update  ({'latent_b': 0.007514113560318947, 'latent_z': 0.012698100879788399, 'world.pred_mean': 0.0008225291967391968, 'policy.action_probs': 2.0916677385685034e-05, 'max_abs': 0.012698100879788399})
+[PASS] slow adapter update runs after every adapter_every (=3) applied frequent updates  (timescales ['frequent', 'frequent', 'slow_adapters', 'frequent', 'frequent', 'frequent', 'slow_adapters'], counters {'frequent': 6, 'slow': 2, 'fast': 0, 'skipped': 0, 'slow_reverted': 0, 'slow_deferred': 0, 'triggers': 1})
+[PASS] slow update changed only semantic_adapters  (['semantic_adapters'])
+[PASS] fast update: no persistent parameter changed
+[PASS] fast update: the fast belief changed
+[PASS] guarded slow update was reverted (setup)  ({"accepted": false, "binding_provider": "bridge_grounding", "by_provider": {"bridge_grounding": {"accepted": false, "drift_after": -0.004065513610839844, "drift_before": -0.0019948482513427734, "n_chunks": 8, "noise_tolerance": 0.00042550729244416154, "paired_change": -0.0020706653594970703, "paired_se": 0.00021275364622208077, "reasons": ["bridge_grounding: held-out loss rose by -0.002071 (> tolerance -14.16)"], "tolerance": -14.1591370373286, "validation_after": 14.1570805311203, "validation_before": 14.159151196479797}, "cocoa": {"accepted": false, "drift_after": -0.00010973215103149414, "drift_before": -1.9222497940063477e-05, "n_chunks": 8, "noise_tolerance": 7.451415355785697e-05, "paired_change": -9.050965309143066e-05, "paired_se": 3.725707677892848e-05, "reasons": ["cocoa: held-out loss rose by -9.051e-05 (> tolerance -2.197)"], "tolerance": -2.1970952533973156, "validation_after": 2.197006940841675, "validation_before": 2.1970974504947662}, "rudder": {"accepted": false, "drift_after": -1.5133991837501526e-06, "drift_before": -6.398186087608337e-07, "n_chunks": 8, "noise_tolerance": 1.4236403275671602e-07, "paired_change": -8.735805749893188e-07, "paired_se": 7.118201637835801e-08, "reasons": ["rudder: held-out loss rose by -8.736e-07 (> tolerance -0.2273)"], "tolerance": -0.22731259085677563, "validation_after": 0.22731194458901882, "validation_before": 0.2273128181695938}, "world": {"accepted": false, "drift_after": -3.5122036933898926e-05, "drift_before": -2.3245811462402344e-06, "n_chunks": 8, "noise_tolerance": 0.0002614407511485725, "paired_change": -3.279745578765869e-05, "paired_se": 0.00013072037557428624, "reasons": ["world: held-out loss rose by -3.28e-05 (> tolerance -2.521)"], "tolerance": -2.520512906477943, "validation_after": 2.5204826295375824, "validation_before": 2.52051542699337}}, "drift_after": -0.004065513610839844, "drift_before": -0.0019948482513427734, "judged": ["bridge_grounding", "cocoa", "rudder", "world"], "mean_over_cells": {"after": 4.775470511522144, "before": 4.776019223034382, "change": -0.0005487115122377872}, "n_chunks": 8, "noise_tolerance": 0.00042550729244416154, "paired_change": -0.0020706653594970703, "paired_se": 0.00021275364622208077, "reasons": ["bridge_grounding: held-out loss rose by -0.002071 (> tolerance -14.16)", "cocoa: held-out loss rose by -9.051e-05 (> tolerance -2.197)", "rudder: held-out loss rose by -8.736e-07 (> tolerance -0.2273)", "world: held-out loss rose by -3.28e-05 (> tolerance -2.521)"], "reference": "start", "reverted": true, "rule": "per_provider", "tolerance": -14.1591370373286, "unjudged": [], "validation_after": 14.1570805311203, "validation_before": 14.159151196479797})
+[PASS] revert restores the adapter weights bit-exactly
+[PASS] revert also restores the adapter optimizer state (Adam moments / step)  (0 adapter parameters carry Adam state from the rejected step)
+[PASS] first checkpoint with validation + retention is promoted  ([])
+[PASS] a checkpoint that forgot (retention -0.5) is refused  (['retention lab/A/neg_nll dropped 0.5 (> 0.02): forgetting'])
+[PASS] refusal rolls the learner back to the promoted weights
+[PASS] ... and to the promoted optimizer state
+[PASS] no retention metric -> refused  (['no retention metric supplied'])
+[PASS] internal reward alone cannot promote  (['no independent validation metric supplied'])
+       a metric named 'heldout/neg_reward_return' is ignored? []
+[PASS] kill -9 during checkpoint writes (10 kills): newest intact checkpoint >= last acknowledged, loads, verifies  (acked per run [17, 21, 18, 23, 23, 14, 13, 7, 13, 6])
+[PASS] fresh process loads the weights-only export  (OK loaded 232, missing 0 [], unexpected 0 [], mismatched 0 []
+)
+[PASS] fresh-process predictions are bit-exact (belief, decision latent, world NLL, action probs)  ({'b': 0.0, 'z': 0.0, 'nll': 0.0, 'probs': 0.0})
+[PASS] export holds parameters and configuration only  (['config.json', 'weights.safetensors'])
+[PASS] optimizer state restored exactly into a fresh learner (by parameter name)  (0 differ)
+[PASS] weights restored exactly
+{
+ "groups": [
+  "backbone_frozen",
+  "semantic_adapters",
+  "experiential",
+  "reward",
+  "heads"
+ ],
+ "trigger_state": {
+  "queued_rows": 67,
+  "matured_rows": 36,
+  "independent_units": 36,
+  "threshold": 4
+ },
+ "frequent_record": {
+  "param_groups": [
+   "experiential",
+   "heads"
+  ],
+  "grad_norms": {
+   "experiential": 0.09088842570781708,
+   "heads": 5.349038124084473
+  },
+  "weight_delta": {
+   "experiential": 0.013010136783123016,
+   "heads": 0.008528387174010277
+  },
+  "prediction_change": {
+   "latent_b": 0.007514113560318947,
+   "latent_z": 0.012698100879788399,
+   "world.pred_mean": 0.0008225291967391968,
+   "policy.action_probs": 2.0916677385685034e-05,
+   "max_abs": 0.012698100879788399
+  }
+ },
+ "schedule": [
+  "frequent",
+  "frequent",
+  "slow_adapters",
+  "frequent",
+  "frequent",
+  "frequent",
+  "slow_adapters"
+ ],
+ "guard": {
+  "accepted": false,
+  "binding_provider": "bridge_grounding",
+  "by_provider": {
+   "bridge_grounding": {
+    "accepted": false,
+    "drift_after": -0.004065513610839844,
+    "drift_before": -0.0019948482513427734,
+    "n_chunks": 8,
+    "noise_tolerance": 0.00042550729244416154,
+    "paired_change": -0.0020706653594970703,
+    "paired_se": 0.00021275364622208077,
+    "reasons": [
+     "bridge_grounding: held-out loss rose by -0.002071 (> tolerance -14.16)"
+    ],
+    "tolerance": -14.1591370373286,
+    "validation_after": 14.1570805311203,
+    "validation_before": 14.159151196479797
+   },
+   "cocoa": {
+    "accepted": false,
+    "drift_after": -0.00010973215103149414,
+    "drift_before": -1.9222497940063477e-05,
+    "n_chunks": 8,
+    "noise_tolerance": 7.451415355785697e-05,
+    "paired_change": -9.050965309143066e-05,
+    "paired_se": 3.725707677892848e-05,
+    "reasons": [
+     "cocoa: held-out loss rose by -9.051e-05 (> tolerance -2.197)"
+    ],
+    "tolerance": -2.1970952533973156,
+    "validation_after": 2.197006940841675,
+    "validation_before": 2.1970974504947662
+   },
+   "rudder": {
+    "accepted": false,
+    "drift_after": -1.5133991837501526e-06,
+    "drift_before": -6.398186087608337e-07,
+    "n_chunks": 8,
+    "noise_tolerance": 1.4236403275671602e-07,
+    "paired_change": -8.735805749893188e-07,
+    "paired_se": 7.118201637835801e-08,
+    "reasons": [
+     "rudder: held-out loss rose by -8.736e-07 (> tolerance -0.2273)"
+    ],
+    "tolerance": -0.22731259085677563,
+    "validation_after": 0.22731194458901882,
+    "validation_before": 0.2273128181695938
+   },
+   "world": {
+    "accepted": false,
+    "drift_after": -3.5122036933898926e-05,
+    "drift_before": -2.3245811462402344e-06,
+    "n_chunks": 8,
+    "noise_tolerance": 0.0002614407511485725,
+    "paired_change": -3.279745578765869e-05,
+    "paired_se": 0.00013072037557428624,
+    "reasons": [
+     "world: held-out loss rose by -3.28e-05 (> tolerance -2.521)"
+    ],
+    "tolerance": -2.520512906477943,
+    "validation_after": 2.5204826295375824,
+    "validation_before": 2.52051542699337
+   }
+  },
+  "drift_after": -0.004065513610839844,
+  "drift_before": -0.0019948482513427734,
+  "judged": [
+   "bridge_grounding",
+   "cocoa",
+   "rudder",
+   "world"
+  ],
+  "mean_over_cells": {
+   "after": 4.775470511522144,
+   "before": 4.776019223034382,
+   "change": -0.0005487115122377872
+  },
+  "n_chunks": 8,
+  "noise_tolerance": 0.00042550729244416154,
+  "paired_change": -0.0020706653594970703,
+  "paired_se": 0.00021275364622208077,
+  "reasons": [
+   "bridge_grounding: held-out loss rose by -0.002071 (> tolerance -14.16)",
+   "cocoa: held-out loss rose by -9.051e-05 (> tolerance -2.197)",
+   "rudder: held-out loss rose by -8.736e-07 (> tolerance -0.2273)",
+   "world: held-out loss rose by -3.28e-05 (> tolerance -2.521)"
+  ],
+  "reference": "start",
+  "reverted": true,
+  "rule": "per_provider",
+  "tolerance": -14.1591370373286,
+  "unjudged": [],
+  "validation_after": 14.1570805311203,
+  "validation_before": 14.159151196479797
+ },
+ "guard_optimizer_tensors_changed_after_revert": 0,
+ "promote_metric_named_reward_return": {
+  "promoted": true,
+  "ignored": []
+ },
+ "kill_checkpoint": [
+  {
+   "acked": 17,
+   "latest": "ckpt_000017_2ba22561",
+   "last_ack": "ckpt_000017_2ba22561",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 21,
+   "latest": "ckpt_000038_432a3cd5",
+   "last_ack": "ckpt_000038_432a3cd5",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 18,
+   "latest": "ckpt_000056_ca9efcbf",
+   "last_ack": "ckpt_000056_ca9efcbf",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 23,
+   "latest": "ckpt_000079_77455314",
+   "last_ack": "ckpt_000079_77455314",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 23,
+   "latest": "ckpt_000102_8431e178",
+   "last_ack": "ckpt_000102_8431e178",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 14,
+   "latest": "ckpt_000116_469c9cae",
+   "last_ack": "ckpt_000116_469c9cae",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 13,
+   "latest": "ckpt_000129_66dfe5f6",
+   "last_ack": "ckpt_000129_66dfe5f6",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 7,
+   "latest": "ckpt_000136_20e22422",
+   "last_ack": "ckpt_000136_20e22422",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 13,
+   "latest": "ckpt_000149_a9f92f8f",
+   "last_ack": "ckpt_000149_a9f92f8f",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 6,
+   "latest": "ckpt_000155_b626e37a",
+   "last_ack": "ckpt_000155_b626e37a",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  }
+ ],
+ "export_max_abs_diff": {
+  "b": 0.0,
+  "z": 0.0,
+  "nll": 0.0,
+  "probs": 0.0
+ },
+ "export_files": [
+  "config.json",
+  "weights.safetensors"
+ ],
+ "export_has_optimizer_or_store": []
+}
+
+real	1m18.401s
+user	4m3.363s
+sys	0m22.166s

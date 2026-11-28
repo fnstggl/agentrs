@@ -1,0 +1,7 @@
+[learning] done in 204.8s
+[credit] done in 155.4s
+[retention] done in 84.8s
+
+real	7m28.150s
+user	6m10.968s
+sys	0m11.333s

@@ -1,0 +1,21 @@
+[INFO] agent_cpu_8lt: lifetimes run (seed, status): [(11, 'completed'), (12, 'completed'), (13, 'completed'), (14, 'completed'), (15, 'completed'), (16, 'failed'), (17, 'completed'), (18, 'completed')]
+[INFO] agent_cpu_8lt: records / learner counters: (62, {'frequent': 39, 'slow': 6, 'fast': 140, 'skipped': 2, 'slow_reverted': 5, 'slow_deferred': 2, 'triggers': 31})
+[INFO] agent_cpu_8lt: held-out losses available at the end (learner.validate): {'world_model': 3.2736, 'fast_prior': 2.7091, 'evaluator': 2.0145, 'world_model_adapters': 3.5416, 'evaluator_adapters': 2.2291, 'rudder': 0.0673, 'cocoa': 1.1273, 'bridge_grounding': 19.3063}
+[INFO] agent_cpu_8lt: promotions (promoted, reasons): [(False, ['no held-out evidence: no provider has a held-out loss (0 held-out provider-records among 2 records)']), (False, ['no retention metric supplied']), (True, []), (False, ['retention lab/integration@obj_int_13/neg_world_loss dropped 0.135238 (> 0.1): forgetting']), (False, ['validation heldout/neg_world_model dropped 0.602491 (> 0.5)']), (False, ['retention lab/integration@obj_int_13/neg_world_loss dropped 0.346303 (> 0.1): forgetting']), (True, []), (True, [])]
+[INFO] agent_cpu_8lt: slow steps in order: ['D', 'D', 'A', 'A', 'R', 'R', 'A', 'A', 'R', 'R', 'R', 'R', 'A', 'R', 'R', 'R', 'R', 'R', 'R', 'R', 'R', 'R', 'R', 'A', 'R', 'R', 'R', 'A']
+[INFO] agent_cpu_8lt: slow steps by outcome: {'deferred': 2, 'accepted': 7, 'reverted': 19}
+[INFO] agent_cpu_8lt: first half: accepted / judged: (5, 12)
+[INFO] agent_cpu_8lt: second half: accepted / judged: (2, 14)
+[INFO] agent_cpu_8lt: binding provider of reverted steps: {'world_model': 7, 'cocoa': 7, 'rudder': 2, 'fast_prior': 3}
+[INFO] agent_cpu_8lt: reverted steps where some judged provider had a single validation chunk (float-floor tolerance): (2, 19)
+[INFO] agent_cpu_8lt: reasons of reverted steps (provider: kind): {'world_model: summed change since ckpt_000003_2e1f271': 7, 'cocoa: summed change since ckpt_000003_2e1f271': 4, 'world_model: summed change since ckpt_000011_2dc5a62': 2, 'world_model: held-out loss rose by 0.08767 ': 1, 'world_model_adapters: held-out loss rose by 0.08766 ': 1, 'cocoa: held-out loss rose by 0.109 ': 1, 'world_model: held-out loss rose by 0.03236 ': 1, 'world_model_adapters: held-out loss rose by 0.03236 ': 1}
+[INFO] agent_cpu_8lt: chunks per provider at the last judged step: {'bridge_grounding': 6, 'cocoa': 7, 'evaluator': 8, 'evaluator_adapters': 8, 'fast_prior': 8, 'rudder': 7, 'world_model': 8, 'world_model_adapters': 8}
+[INFO] agent_cpu_8lt: net adapter change from the start (L2): 0.0369264313888513
+[PASS] agent_cpu_8lt: no slow step is applied without a held-out verdict  {'deferred': 2, 'accepted': 7, 'reverted': 19}
+[PASS] agent_cpu_8lt: adapter learning is not frozen: at least a quarter of the judged slow steps are accepted  accepted 7 of 26 judged (2 deferred, 0 skipped); net adapter change 0.03693
+
+2 checks, 0 failed
+
+real	7m41.085s
+user	17m54.254s
+sys	1m16.246s

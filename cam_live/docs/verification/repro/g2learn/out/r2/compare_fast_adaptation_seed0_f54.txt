@@ -1,0 +1,10 @@
+gaussian learned_prior_bayes  held-out NLL recorded 0.8907 re-run 0.8907 | in-distribution recorded 0.2206 re-run 0.2206
+gaussian blr_raw              held-out NLL recorded 1.1123 re-run 1.1123 | in-distribution recorded 0.8028 re-run 0.8028
+gaussian gru                  held-out NLL recorded 1.1238 re-run 1.1238 | in-distribution recorded 0.5762 re-run 0.5762
+gaussian running_stats        held-out NLL recorded 1.4472 re-run 1.4472 | in-distribution recorded 1.4458 re-run 1.4458
+count    learned_prior_bayes  held-out NLL recorded 2.6166 re-run 2.6166 | in-distribution recorded 2.2573 re-run 2.2573
+count    blr_raw              held-out NLL recorded 2.8938 re-run 2.8938 | in-distribution recorded 2.7406 re-run 2.7406
+count    gru                  held-out NLL recorded 2.6317 re-run 2.6317 | in-distribution recorded 2.3684 re-run 2.3684
+count    running_stats        held-out NLL recorded 5.7402 re-run 5.7402 | in-distribution recorded 5.5037 re-run 5.5037
+seed 0: 352 recorded numbers compared, largest absolute difference 0.0001 at ('count', 'learned_prior_bayes', 'held_out_families', '16', 'rmse')
+verdicts (re-run): {"gaussian": "held-out families: winner = learned_prior_bayes; ranking = ['learned_prior_bayes', 'blr_raw', 'gru', 'running_stats']; learned prior WINS", "count": "held-out families: winner = learned_prior_bayes; ranking = ['learned_prior_bayes', 'gru', 'blr_raw', 'running_stats']; learned prior WINS"}

@@ -1,0 +1,11 @@
+[INFO] count: problems / reported unconverged / of those actually at the root / max iterations: (20000, 0, 0, 7)
+[PASS] count: every mode reported converged equals the float64 bisection root (rel. 1e-9) on 20000 random problems  0 wrong; worst converged rel. error 3.18e-15 (eta0 -12.6, s 0.0656, true -0.0382216, reported -0.0382216)
+[PASS] count: at most 0.1 % of the random problems are reported unconverged  0.000 %
+[INFO] time_to_event: problems / reported unconverged / of those actually at the root / max iterations: (20000, 0, 0, 7)
+[PASS] time_to_event: every mode reported converged equals the float64 bisection root (rel. 1e-9) on 20000 random problems  0 wrong; worst converged rel. error 1.92e-15 (eta0 16.9, s 1.3e-06, true -0.129839, reported -0.129839)
+[PASS] time_to_event: at most 0.1 % of the random problems are reported unconverged  0.000 %
+[INFO] binary: problems / reported unconverged / of those actually at the root / max iterations: (20000, 0, 0, 18)
+[PASS] binary: every mode reported converged equals the float64 bisection root (rel. 1e-9) on 20000 random problems  0 wrong; worst converged rel. error 7.56e-16 (eta0 -31.5, s 1.41e+05, true -0.137871, reported -0.137871)
+[PASS] binary: at most 0.1 % of the random problems are reported unconverged  0.000 %
+
+6 checks, 0 failed

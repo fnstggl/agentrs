@@ -1,0 +1,26 @@
+[INFO] waited for the GPU lock (s): 0.2
+[INFO] load (s): 7.9
+[PASS] parameter counts recomputed from the module tree equal the claimed ones  {'frozen': 4022468096, 'lora': 11796480, 'bridge': 4917376, 'experiential': 50953765}
+[PASS] parameter groups are disjoint and cover every parameter  704 grouped, 704 parameters
+[PASS] frozen backbone: no parameter requires grad, bf16 (CPU runs load float32: dtype not judged there)  0 requiring grad; dtypes ['torch.bfloat16']
+[INFO] LoRA modules / rank / targets: (72, 32, ['q_proj', 'v_proj'])
+[PASS] LoRA adapters alone are within 10-20 M and the adapter group within 10-20 M  lora 11,796,480, adapters 16,713,856
+[PASS] latent bridge is an exact no-op at initialisation (logits bit-identical for latent norms 1e-3..1e3)  
+[PASS] after one Adam step on the bridge alone the next-token distribution depends on the latent (TV > 0.01)  TV(latent, -latent) = 1.0000
+[INFO] token lengths of the probe texts: [1, 7, 8, 9, 63, 64, 65, 127, 128, 129, 255, 256, 257, 300, 434]
+[PASS] D8: every text's embedding is bit-identical alone and in any call (bucket edges, > max_text_tokens, more rows than one forward)  max |diff| 0 over 90 comparisons
+[PASS] D8: embed(with_grad=True) returns the canonical value bit-exactly and carries a graph  max |diff| 0
+[PASS] D8: belief b of a context alone vs inside a padded batch (cold cache) agrees to 1e-5 relative (the embeddings are bit-exact; the float32 core reduces padded batches in another order)  relative difference 2.3e-07, max |diff| 9.54e-07
+[PASS] D10: after `lora_B.data = new tensor` the embedding equals a cold recomputation (and differs from before)  |after - cold| 0, |after - before| 0.191
+[PASS] D10: after `lora_B.data = new tensor` the no-grad logits equal a cold recomputation  |after - cold| 0
+[PASS] D10: after load_trainable_state the embedding and logits return bit-exactly to the original ones  |emb| 0 |logits| 0
+[INFO] cos(z): click e3 vs e4 / api rows 100 vs 101: (0.7376, 0.9122)
+[PASS] D7: a candidate that differs only in one argument has a different decision latent (cos(z) < 0.99)  cos 0.7376 (rows 100 vs 101: 0.9122)
+[INFO] peak GPU memory (GB): 9.28
+[INFO] GPU lock held (s): 24.0
+
+13 checks, 0 failed
+
+real	0m28.636s
+user	0m22.578s
+sys	0m5.193s

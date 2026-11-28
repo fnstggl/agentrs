@@ -1,0 +1,9 @@
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2LEARN/r2/work/slow_acceptance/agent_real_b/agent/learner/learner_updates.jsonl
+  judged 7, accepted 1, rejected 6, of which micro vetoes 2
+    rejected: failing providers (rel. rise) {'fast_prior': '+3.5e-07'}; best relative change elsewhere -1.02e-01 (world_model_adapters)  [micro veto]
+    rejected: failing providers (rel. rise) {'evaluator': '+1.5e-06', 'evaluator_adapters': '+1.5e-06', 'fast_prior': '+3.5e-07', 'rudder': '+6.0e-06'}; best relative change elsewhere -9.14e-02 (cocoa)  [micro veto]
+    rejected: failing providers (rel. rise) {'cocoa': '+2.2e-01'}; best relative change elsewhere -1.11e-01 (world_model)
+    rejected: failing providers (rel. rise) {'cocoa': '+1.8e-01', 'fast_prior': '+1.4e-07'}; best relative change elsewhere -3.41e-02 (world_model_adapters)
+    rejected: failing providers (rel. rise) {'world_model': '+2.6e-02', 'world_model_adapters': '+2.6e-02'}; best relative change elsewhere -1.71e-01 (cocoa)
+    rejected: failing providers (rel. rise) {'cocoa': '+9.1e-02'}; best relative change elsewhere -4.11e-03 (bridge_grounding)
+total {'judged': 7, 'accepted': 1, 'rejected': 6, 'micro': 2}

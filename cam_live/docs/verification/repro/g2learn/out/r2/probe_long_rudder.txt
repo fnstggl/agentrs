@@ -1,0 +1,13 @@
+[INFO] decisions / matured / G: (11, True, 0.2089842865698158)
+[PASS] every top-level decision of an 11-decision trajectory gets RUDDER credit with max_len = 3  present [True, True, True, True, True, True, True, True, True, True, True]
+[PASS] conservation over the whole trajectory: sum_t Gamma_t c_t = G (|err| <= 1e-6 max(1, |G|))  sum 0.208984287, G 0.208984287, span 36000 s
+[INFO] contributions (first 3 inside / outside the newest window): [-0.1171, -0.4707, -0.1935, 0.0324, 0.0576, -0.0053, -0.0131, -0.0161, -0.0141, -0.0067, 1.8399]
+[PASS] the random decomposer gives non-trivial contributions (the conservation check is not vacuous)  10 non-zero
+[PASS] return-to-go at the first decision equals G  rtg 0.208984287, G 0.208984287
+[PASS] stored rudder_rtg is finite for every decision  
+
+5 checks, 0 failed
+
+real	0m4.326s
+user	0m3.743s
+sys	0m0.742s

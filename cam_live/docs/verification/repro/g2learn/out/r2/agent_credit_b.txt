@@ -1,0 +1,41 @@
+[INFO] lifetimes (status): ['completed', 'failed', 'failed']
+[INFO] records: 46
+[INFO] matured declared outcomes / links / distinct linked outcomes: (42, 54, 54)
+[PASS] RC-01: every matured declared outcome of the agent's records is linked  42 matured, unlinked records []
+[PASS] RC-01: per outcome the link weights sum to at most 1  0 outcomes over 1: []
+[PASS] RC-07: no link to a decision made after its outcome  0
+[PASS] RC-07: no stored outcome is dated before the decision it is attached to  []
+[PASS] RC-07: the linker's leakage audit finds no context item dated after its decision  []
+[INFO] objectives / closed in the store: (3, 3)
+[PASS] RC-06: verified objective verdicts reach the store (put_objective_outcome by the agent)  3 of 3 closed
+[INFO] credit history entries by estimator: {'simple': 42, 'cocoa': 1, 'rudder': 2, 'rudder_contribution': 2, 'rudder_rtg': 2}
+[PASS] RC-06: learned (RUDDER / COCOA) credit is written retrospectively for decisions of closed objectives  2 of 46 records of closed objectives (0.04)
+[INFO] records whose credit was re-versioned (more than one version): 3
+[INFO] retrain queue entries left at the end: 0
+[INFO] decisions: open-ended candidate sets / tracked proposals / COCOA-supportable (closed or tracked): (0, 46, 46)
+[PASS] RC-05: no COCOA credit value for a decision with an open-ended untracked candidate set  0 such records carry COCOA credit: []
+[INFO] estimator selection log rows: 0
+[INFO] randomised experiments: registered in the experience store / experiment ids on the agent's decisions: (0, 11)
+[INFO] compare_with_experiment on the agent's own experiments (None = fewer than two matured held-out units per arm): [('exp_6b4715bb76', 'arms on the decisions: [\'lab.act({"channel": 3, "effort": 3})\']'), ('exp_974de51518', "arms on the decisions: ['lab.noise({})']"), ('exp_0f8c5b42f0', 'arms on the decisions: [\'lab.act({"channel": 0, "effort": 3})\']'), ('exp_34390555a3', 'arms on the decisions: [\'lab.act({"channel": 2, "effort": 3})\']'), ('exp_d20e9dce75', 'arms on the decisions: [\'lab.act({"channel": 0, "effort": 2})\']'), ('exp_494af43a76', 'arms on the decisions: [\'lab.act({"channel": 0, "effort": 3})\']')]
+[INFO] objectives with randomised decisions / of them trained on by the learner (holdout_experiments=False): (3, 3)
+[INFO] records whose stored credit the policy update's goal term would use (agent.meta.inner.credit_fn): {'simple:per_decision': 39, 'none': 7}
+[PASS] RC-02: stored credit reaches the policy update for some decisions (credit_fn returns a value)  {'simple:per_decision': 39, 'none': 7}
+[INFO] credit default used by the agent's assigner: simple
+[INFO] learning updates by timescale (learner log): {'frequent': 59, 'slow_adapters': 19}
+[INFO] slow updates: attempted / applied-or-reverted / without a guard verdict / reverted: (19, 17, 0, 8)
+[INFO] guard verdicts of the guarded slow steps: [{'accepted': True, 'n_chunks': 1, 'paired_se': nan, 'tolerance': 2.6902525424957276e-07, 'paired_change': -2.384185791015625e-07}, {'accepted': True, 'n_chunks': 2, 'paired_se': 4.76837158203125e-07, 'tolerance': 9.5367431640625e-07, 'paired_change': 4.76837158203125e-07}, {'accepted': True, 'n_chunks': 2, 'paired_se': 1.4901161193847656e-07, 'tolerance': 2.980232238769531e-07, 'paired_change': -6.258487701416016e-07}, {'accepted': True, 'n_chunks': 3, 'paired_se': 4.057204297515181e-07, 'tolerance': 8.114408595030362e-07, 'paired_change': -4.172325134277344e-07}, {'accepted': True, 'n_chunks': 3, 'paired_se': 3.389263572142915e-07, 'tolerance': 6.77852714428583e-07, 'paired_change': -2.980232238769531e-07}, {'accepted': False, 'n_chunks': 3, 'paired_se': 0.012974114729143182, 'tolerance': 0.01, 'paired_change': 0.023553013801574707}, {'accepted': True, 'n_chunks': 3, 'paired_se': 2.417072665809878e-07, 'tolerance': 4.834145331619756e-07, 'paired_change': -6.755193074544271e-07}, {'accepted': False, 'n_chunks': 3, 'paired_se': 0.013766080882978973, 'tolerance': 0.01, 'paired_change': 0.02444616953531901}, {'accepted': False, 'n_chunks': 3, 'paired_se': 0.02250299654678296, 'tolerance': 0.01, 'paired_change': 0.03710293769836426}, {'accepted': False, 'n_chunks': 4, 'paired_se': 0.023194997729090013, 'tolerance': 0.01, 'paired_change': 0.05699890851974487}, {'accepted': False, 'n_chunks': 4, 'paired_se': 0.019735508527368786, 'tolerance': 0.01, 'paired_change': 0.04860788583755493}, {'accepted': True, 'n_chunks': 5, 'paired_se': 8.383727537401791e-07, 'tolerance': 1.6767455074803583e-06, 'paired_change': 6.079673767089843e-07}, {'accepted': True, 'n_chunks': 6, 'paired_se': 5.761953603456963e-07, 'tolerance': 1.1523907206913925e-06, 'paired_change': 2.086162567138672e-07}, {'accepted': False, 'n_chunks': 6, 'paired_se': 0.005942133620985346, 'tolerance': 0.01, 'paired_change': 0.024431705474853516}, {'accepted': False, 'n_chunks': 6, 'paired_se': 2.5025276669393014e-07, 'tolerance': 5.005055333878603e-07, 'paired_change': 6.457169850667318e-07}, {'accepted': False, 'n_chunks': 6, 'paired_se': 0.005194749942402461, 'tolerance': 0.01, 'paired_change': 0.02237023909886678}, {'accepted': True, 'n_chunks': 6, 'paired_se': 6.453500830142477e-07, 'tolerance': 1.2907001660284954e-06, 'paired_change': 5.265076955159506e-07}]
+[PASS] CL-03: adapter (slow) updates occur in the integrated agent  17
+[PASS] CL-03: every applied slow step in the integrated agent carries a held-out guard verdict  0 of 17 applied slow steps ran without any held-out check (no validation cells)
+[PASS] CL-02: frequent updates change experiential weights in the integrated agent  59
+[INFO] frequent updates whose behavioural probe changed: (59, 59)
+[PASS] CL-02: frequent updates of the integrated agent change predictions or behaviour (probe)  59 of 59
+[INFO] frequent update triggers: {'matured_outcomes:2_independent/2_rows': 19, 'matured_outcomes:22_independent/22_rows': 16, 'matured_outcomes:3_independent/3_rows': 14, 'matured_outcomes:12_independent/12_rows': 6, 'matured_outcomes:9_independent/9_rows': 4}
+[INFO] learner.validate() at the end (held-out losses available to the slow guard and to promotion): {'world_model': 2.7655396461486816, 'fast_prior': 2.7463064193725586, 'evaluator': 1.7585976123809814, 'world_model_adapters': 2.8234174251556396, 'evaluator_adapters': 1.7174708843231201, 'bridge_grounding': 19.10030746459961}
+[INFO] runtime learning log (RunFiles.LEARNING): records whose notes JSON no longer parses: (7, 113)
+[INFO] promotions (decision, reasons): [(False, ['no held-out evidence: no provider has a held-out loss (0 held-out provider-records among 2 records)', 'no independent validation metric supplied']), (True, []), (True, []), (True, [])]
+
+13 checks, 0 failed
+
+real	4m33.773s
+user	11m20.971s
+sys	1m4.026s

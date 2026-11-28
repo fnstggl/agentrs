@@ -1,0 +1,20 @@
+...............................s........................................ [ 60%]
+...................ssssssssssss.................                         [100%]
+=============================== warnings summary ===============================
+tests/nn/test_api.py::test_api_shapes_and_dtypes
+  /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2LEARN/r2/tree/cam_live/tests/nn/test_api.py:62: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+  Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+    assert torch.allclose(phi.norm(dim=-1), torch.ones(2, 3, 2), atol=1e-4) and float(phi.abs().max()) < 1.0
+
+tests/nn/test_fast.py::test_glm_surprise_matches_accurate_quadrature_for_extreme_observations
+  /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2LEARN/r2/tree/cam_live/tests/nn/test_fast.py:330: IntegrationWarning: The occurrence of roundoff error is detected, which prevents 
+    the requested tolerance from being achieved.  The error may be 
+    underestimated.
+    val, _ = integrate.quad(lambda e: math.exp(lp(e) - top), peak - 40 * width, peak + 40 * width,
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+107 passed, 13 skipped, 2 warnings in 61.40s (0:01:01)
+
+real	1m5.321s
+user	1m43.232s
+sys	0m3.260s

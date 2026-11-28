@@ -1,0 +1,12 @@
+............                                                             [100%]
+=============================== warnings summary ===============================
+tests/nn/test_gpu_qwen.py::test_one_argument_changes_the_decision_latent_on_the_real_backbone
+  /workspace/agentrs/.venv/lib/python3.12/site-packages/triton/knobs.py:504: UserWarning: TRITON_DEFAULT_FP_FUSION is unset: defaulting to FP fusion ENABLED for backward compatibility in Triton 3.9. The default will change to DISABLED in Triton 3.10; set TRITON_DEFAULT_FP_FUSION=1 to keep fusion enabled or =0 to adopt the new default early and silence this warning.
+    warn_once(FP_FUSION_DEFAULT_WARNING)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+12 passed, 108 deselected, 1 warning in 44.81s
+
+real	0m49.765s
+user	0m44.234s
+sys	0m36.019s

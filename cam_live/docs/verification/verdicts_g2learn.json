@@ -2,410 +2,411 @@
  "NA-01": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Qwen/Qwen3-4B is the backbone of the real configuration: recomputed from the module tree, 4,022,468,096 frozen parameters, none requires grad; embeddings, next-token logits, generation_logprob and greedy generation run through the same code path (real weights, CPU float32 run while the shared GPU was held: probe_real_learn --cpu 10/10, probe_real_cpu_grads). On the GPU (bf16, probe_real_learn on CUDA via the queued GPU lease, 13/13): frozen parameters bf16 without grad, the same counts, bridge / cache / batch-invariance checks pass. Qwen3-8B never loaded (disclosed). D3: the float32 head removed the head error; the bf16 trunk still differs from float32 by up to 0.36 nats per one-token completion (disclosed as a scientific failure).",
+  "notes": "Round 2 at f54d8cc. Qwen/Qwen3-4B integrated: A's GPU tests 12/12 at f54d8cc (generation, embeddings, parameter counts, bridge no-op, adapter gradients incl. the float32-reference finite-difference test); own probe on CUDA 13/13 (4,022,468,096 frozen bf16 parameters without grad); CPU float32 runs of the same code. Qwen3-8B never loaded.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
-   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m gpu --timeout=7200",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py --cpu",
+   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m gpu (on a git-archive export of f54d8cc)",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cpu_grads.py",
-   "cam_live/docs/verification/G2_learn.md"
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "NA-02": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Experiential group = 50,953,765 parameters on the real configuration (recomputed from the module tree, equals A.json); default tests (causality with a live time bias, gradients to every experiential parameter, 8-step recall, presets) pass; G-nn probe_invariants 23/23 at debug and 50m scale on the current code.",
+  "notes": "Round 2 at f54d8cc. Experiential group 50,953,765 on the real configuration (module tree, CUDA); default tests 107 passed; fast.py's change (G2L-1) leaves every other fast-layer property intact (probe_fast_stress 46/46).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py --cpu",
-   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_invariants.py --scale 50m",
-   "cam_live/docs/verification/G2_learn.md"
+   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
+   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m gpu (on a git-archive export of f54d8cc)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "NA-03": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "LoRA rank 32 on q_proj/v_proj of all 36 layers = 11,796,480 (72 modules) + latent bridge 4,917,376 = adapters 16,713,856: LoRA alone and the group both inside 10-20 M (recomputed from the module tree of the real configuration).",
+  "notes": "Round 2 at f54d8cc. LoRA 11,796,480 (rank 32, q/v, 72 modules) + bridge 4,917,376 = 16,713,856 on the real configuration (module tree on CUDA; A's parameter-count GPU test passes).",
   "evidence": [
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py --cpu",
-   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m gpu --timeout=7200",
-   "cam_live/docs/verification/G2_learn.md"
+   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m gpu (on a git-archive export of f54d8cc)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "NA-04": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Groups are disjoint and cover all 704 parameters of the real configuration; frozen / LoRA / bridge / experiential counts equal A.json exactly; default tests incl. fresh-process trainable-state round trip, group hashes and the recorded-evidence check pass; G-nn probe_saveload_cpu 2/2 + 8/8 (D9 fixed: max_text_tokens in arch_signature).",
+  "notes": "Round 2 at f54d8cc. Groups disjoint over all 704 parameters, counts = A.json (CUDA); A's count / hash / fresh-process round-trip tests pass.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py --cpu",
-   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_saveload_cpu.py save DIR && ... load DIR",
-   "cam_live/docs/verification/G2_learn.md"
+   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
+   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m gpu (on a git-archive export of f54d8cc)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "NA-05": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "One decision latent z / feature map phi shared by world model, evaluator, policy and reward (default tests); D7 fixed: an argument change moves z (cos 0.639 debug, 0.752 on the real configuration for click e3 vs e4, was 0.9997; 0.738 on the GPU); D8: bit-exact also on the bf16 GPU backbone: 90 comparisons of texts at every bucket edge (1-300 tokens and 434 > max_text_tokens), with other texts and more rows than one forward, max |diff| 0; embed(with_grad=True) returns the canonical value bit-exactly; belief b alone vs in a padded batch rel. 2.3e-7. Remaining, disclosed: phi is ill-conditioned on real inputs at initialisation (D6, Gram eigenvalue ratio 2.3e4; the float64 fast layer stays exact on it), and usefulness of the representation after training is a scientific question not shown here.",
+  "notes": "Round 2 at f54d8cc. Shared z / phi; D7 fixed (cos(z) one-argument change 0.738 on CUDA, was 0.9997); D8 fixed (90 comparisons bit-exact on the bf16 GPU backbone, A's batch-composition GPU test passes). D6 (phi ill-conditioned at init) and usefulness after training remain disclosed limitations.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py --cpu",
+   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
+   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m gpu (on a git-archive export of f54d8cc)",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py",
-   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m gpu --timeout=7200",
-   "cam_live/docs/verification/G2_learn.md"
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "NA-07": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "All 17 acceptance tests pass; G-nn's D1 / D2 / D4 / D5 are fixed (probe_fast: every 'Laplace mode reached' row, dispersion, NIG variance, impossible observations PASS; its NIG calibration check is invalidated by the D4 fix itself). Own probe on 3750 extreme scalar problems: time-to-event and binary modes equal a float64 bisection to <= 9e-16 with implicit-function gradients equal to the closed form; online_nll gradients equal 4th-order finite differences (<= 1.5e-7) on extreme sequences; stateful and functional surprises identical; NIG predict() = Student-t variance, Student-t intervals cover 0.9000. Minor defect G2L-1 (fast.py:318-354): 4 of 2625 count problems whose prior predictor is >= 16 orders below the count (e.g. prior eta -30, variance 100, dispersion 0.3, count 1e9 at exposure 1e-12) end at eta 3.3e11-1e15 instead of 48.35 with converged=True \u2014 outside what the predictor produces (exposure = predicted count >= 1e-9).",
+  "notes": "Round 2 at f54d8cc. G2L-1 fixed: count mode search exact on the 2625-problem grid and on 60,000 random count / time-to-event / binary problems far outside it (worst rel. error 3.2e-15, none wrongly 'converged', none reported unconverged); probe_fast_stress 46/46 (implicit gradients, online_nll finite differences, NIG Student-t variance and coverage, dispersion, impossible observations). G-nn probe_fast 43/44 (its NIG check is invalidated by the D4 fix).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
+   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_fast_stress.py",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_fast_random.py",
    ".venv/bin/python cam_live/docs/verification/repro/nn/probe_fast.py",
-   "cam_live/docs/verification/G2_learn.md"
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "NA-09": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Real backbone in float32 (CPU, same code path): embedding path -> LoRA-B gradient equals central finite differences, embed(with_grad=True) returns the canonical cached value with exactly that gradient, all 72 LoRA modules get gradient, generation_logprob gives non-zero gradient to LoRA-B and the zero-initialised bridge output and equals finite differences (probe_real_cpu_grads; FD / analytic 1.0001 / 0.9997 (embedding), 0.9994 / 0.9999 (generation)). Caches follow the adapter content after `lora_B.data = new tensor` and load_trainable_state (D10 fixed, real configuration). Adapters are updated by experience: slow steps of D's learner in the integrated agent (5-15 per run, gradients from world-model, fast-prior and bridge-grounding losses) and on Qwen3-4B (on the real configuration (Qwen3-4B + 50m core, CUDA and CPU, own snapshots): one slow step changed 144/144 LoRA and 26/28 bridge tensors and nothing else, frozen hash unchanged, guard verdicts with 6 chunks (CUDA: paired change +0.00025 accepted under tolerance 0.0019; CPU: -0.0063); by-loss adapter gradient bridge grounding 7.0 vs world 0.026). On the GPU (bf16): the caches follow `lora_B.data = new tensor` and load_trainable_state bit-exactly (probe_real_learn).",
+  "notes": "Round 2 at f54d8cc. A's GPU tests 12/12 incl. adapter gradients through both paths, float32-head, batch-composition and cache-follows-.data tests; CPU float32 finite differences of both gradient paths (1.0001 / 0.9994); adapters receive gradients from experience in every slow step (whether a step is KEPT is CL-03).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
+   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m gpu (on a git-archive export of f54d8cc)",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cpu_grads.py",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py --cpu",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR --cpu",
-   "cam_live/docs/verification/G2_learn.md"
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_slow_acceptance.py --mode lab --real",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "NA-10": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Presets 5m/20m/50m/150m/500m/1b instantiated with real weights on CPU (G-nn probe_presets 12/12 on the current code): counts equal the claims, forward finite, backward <= 150m; default preset tests pass. Only 50m was run on the GPU; no learning comparison across scales (disclosed).",
+  "notes": "Round 2 at f54d8cc. Presets 5m..1b instantiated and counted (G-nn probe_presets, default and slow tests pass).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
-   ".venv/bin/python cam_live/docs/verification/repro/nn/probe_presets.py",
-   "cam_live/docs/verification/G2_learn.md"
+   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
+   ".venv/bin/python -m pytest cam_live/tests/credit cam_live/tests/nn -q --rootdir=cam_live -m slow (on a git-archive export of f54d8cc)",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "NA-11": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Default token tests pass (every record type / item kind, exact float64 values in TokenBatch.values, value channel separates +1/-1, time encoding, stable hashes); argument leaves now go through the value channel (D7: cos(z) 0.752 on the real configuration for a one-argument change). A's GPU token test was not re-run (the pytest GPU fixtures poll the shared lock and never got a turn); argument-leaf sensitivity confirmed on the GPU (cos(z) 0.738).",
+  "notes": "Round 2 at f54d8cc. Token tests incl. A's GPU test test_real_tokens_keep_numbers_and_the_latent_drives_decisions pass; argument leaves reach z (0.738 on CUDA).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py --cpu",
-   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m gpu --timeout=7200",
-   "cam_live/docs/verification/G2_learn.md"
+   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
+   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m gpu (on a git-archive export of f54d8cc)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "NA-12": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Latent bridge on Qwen3-4B (real weights): next-token logits bit-identical with and without latents of norm 1e-3..1e3 at initialisation and greedy generation identical; generation_logprob gives non-zero gradient to the zero-initialised bridge output projections (equal to finite differences); one Adam step on the bridge alone makes the next-token distribution depend on the latent (TV(latent, -latent) 0.9997). On the GPU (bf16): logits bit-identical at init, TV(latent, -latent) 1.0000 after one bridge step. Not shown: that a trained bridge improves candidate actions (disclosed).",
+  "notes": "Round 2 at f54d8cc. Bridge on Qwen3-4B (CUDA): logits bit-identical with / without latents at init, TV 1.0 after one bridge step; A's bridge GPU tests pass; generation path gradient = finite differences (CPU float32).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py --cpu",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cpu_grads.py",
+   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m gpu (on a git-archive export of f54d8cc)",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py",
-   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m gpu --timeout=7200",
-   "cam_live/docs/verification/G2_learn.md"
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cpu_grads.py",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "NA-13": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Full-length re-run of seed 0 on the current code reproduces all 352 recorded per-seed numbers of docs/evidence/A/fast_adaptation.json (mean and per-support NLL / RMSE, 4 methods x 2 targets x 2 splits) with difference 0, including the converged-GLM count numbers; the scientific failures listed by A are what the file shows. Synthetic tasks; seed 1 not re-run.",
+  "notes": "Round 2 at f54d8cc. fast.py changed (G2L-1 fix): a full-length re-run of seed 0 on the freeze reproduces all 352 recorded per-seed numbers of docs/evidence/A/fast_adaptation.json (largest difference 0.0001, one count RMSE at the recorded 4th decimal); verdicts unchanged (learned prior first on held-out families for both targets; the count margin over the GRU stays marginal, as A states). Synthetic tasks; seed 1 not re-run.",
   "evidence": [
    "cd cam_live && PYTHONPATH=src ../.venv/bin/python -m cam_live.nn.fast_compare --steps 2000 --seeds 0 --threads 8 --out X; .venv/bin/python cam_live/docs/verification/repro/g2learn/compare_evidence.py fast X",
-   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
-   "cam_live/docs/verification/G2_learn.md"
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "NA-08": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Experiential weights receive real gradients through D's ContinualLearner: default tests and G-cl probe_learner 26/26 (debug); integrated agent (clean export, 5 runs): every frequent update changed experiential weights and the behaviour probe; diagnose learning experiment on the current tree reproduces held-out NLL 2.981 -> 2.291 (1e-6). Real configuration (Qwen3-4B + 50m core) on CUDA and on the CPU (G-cl's probe_real copy, own parameter snapshots): one frequent update changed 127 experiential and 56 head tensors, 0 adapter / reward tensors, predictions moved (CUDA: max |db| 1.11, |dz| 1.92, |dNLL| 0.214), predictions independent of inference caches afterwards; a weights-only export reloads in a fresh CUDA process with bit-identical predictions. No learning curve on the real configuration (disclosed).",
+  "notes": "Round 2 at f54d8cc. Frequent updates change experiential weights: default + slow tests, D's GPU tests 2/2, G-cl probe_learner 26/26; real configuration on CUDA (probe_real_cl): 127 experiential + 56 head tensors changed, predictions moved; integrated agent: every frequent update changes weights and the behaviour probe.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
-   "PYTHONHASHSEED=0 .venv/bin/python -m cam_live.credit.diagnose --only learning,credit,retention --threads 1 --out X --work W; .venv/bin/python cam_live/docs/verification/repro/g2learn/compare_evidence.py diagnose X",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR --cpu",
-   "cam_live/docs/verification/G2_learn.md"
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu (on a git-archive export of f54d8cc)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write --dir D",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "RC-01": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "3e29595461c5d5d160e82717af77490b90bbc9a9",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Pinned to 3e29595 (agent.py, one of RC-01's files, changed after 5562e65): acceptance tests pass on exports of both commits, incl. tests/integration/test_agent_runtime.py::test_delayed_outcomes_link_to_their_decisions. G-cl M3 fixed (probe_store_links --only links PASS; own attacks with unknown ids, booleans, strings, zeros: weights <= 1, credit <= outcome). Integrated agent, 5 clean runs: every matured declared outcome linked, per-outcome link weights <= 1, none to a later decision (5 runs at 5562e65, 2 at 3e29595). Observation G2L-3: amounts that overflow when summed (1e308 + 1e308) drop the outcome (artificial input).",
+  "notes": "Round 2 at f54d8cc. Acceptance tests pass incl. the integrated linking test; G2L-3 fixed (overflowing amounts become shares, total 1.0; probe_credit_gaps 18/18); 3 integrated runs: every matured outcome linked, weights <= 1, none to a later decision.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-   ".venv/bin/python -m pytest cam_live/tests/integration/test_agent_runtime.py::test_delayed_outcomes_link_to_their_decisions cam_live/tests/integration/test_agent_runtime.py::test_learning_changes_experiential_and_adapter_weights cam_live/tests/integration/test_int2_checkpoints.py -q --rootdir=cam_live  (on a git-archive export of the commit)",
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
+   ".venv/bin/python -m pytest cam_live/tests/integration/test_int3a_audit.py cam_live/tests/integration/test_agent_runtime.py::test_delayed_outcomes_link_to_their_decisions cam_live/tests/integration/test_agent_runtime.py::test_learning_changes_experiential_and_adapter_weights cam_live/tests/integration/test_int2_checkpoints.py -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_credit_gaps.py",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
-   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_store_links.py --kills 12",
-   "cam_live/docs/verification/G2_learn.md"
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "RC-02": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "3e29595461c5d5d160e82717af77490b90bbc9a9",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Verified at 3e29595 (agent.py / reward/inner.py changed after 5562e65; credit/ unchanged): return decomposer (G-cl probe_rudder 63/63), full-trajectory credit (m3 fixed: every one of 11 decisions credited with max_len 3, sum Gamma c = G with a random non-zero decomposer), retrospective credit when objectives close (integrated agent). The gap of G-cl / G2L-7 ('redistributed credit feeds no training update', open at 5562e65) is closed by INT3A's KF-E01 (4476c27): the evidence-selected estimator's stored credit is the goal term of the policy update (agent._credit_for -> reward.inner credit_fn); tests/integration/test_int3a_audit.py KF-E01 tests pass on an export of 3e29595 (with the default set to rudder the credited return-to-go replaces the goal return and changes the gradient; without credit the update is unchanged) and in two integrated runs the hook returns stored (simple) credit for 20/20 and 34/34 records. RUDDER credit reaches training only once RUDDER is the evidence-selected default, which the integrated agent never evaluates (G2L-6, RC-08).",
+  "notes": "Round 2 at f54d8cc. RUDDER decomposition, full-trajectory credit and conservation (probe_rudder 63/63, own 11-decision max_len-3 probe 5/5); stored credit reaches the policy update (test_int3a_audit 4/4; integrated hook returns stored credit for 14-39 records per run). RUDDER credit is used only once evidence selects it, which the agent never evaluates (RC-08).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
+   ".venv/bin/python -m pytest cam_live/tests/integration/test_int3a_audit.py cam_live/tests/integration/test_agent_runtime.py::test_delayed_outcomes_link_to_their_decisions cam_live/tests/integration/test_agent_runtime.py::test_learning_changes_experiential_and_adapter_weights cam_live/tests/integration/test_int2_checkpoints.py -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_long_rudder.py",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
-   ".venv/bin/python -m pytest cam_live/tests/integration/test_int3a_audit.py -q --rootdir=cam_live",
    ".venv/bin/python cam_live/docs/verification/repro/cl/probe_rudder.py",
-   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_providers.py",
-   "cam_live/docs/verification/G2_learn.md"
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "RC-03": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "sum_t Gamma_t c_t = G with an independently computed Gamma_t = exp(-beta (t_t - t_0)): G-cl probe_rudder (error 0.0 for beta 0..0.05) and own probe over a whole 11-decision trajectory longer than max_len with random non-zero decomposer weights (|err| < 1e-9, 10 non-zero contributions, 36 000 s). Acceptance tests pass.",
+  "notes": "Round 2 at f54d8cc. Conservation sum Gamma c = G with an own Gamma (probe_rudder; own long-trajectory probe, |err| < 1e-9).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_long_rudder.py",
-   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_rudder.py",
-   "cam_live/docs/verification/G2_learn.md"
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "RC-05": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Acceptance tests pass; G-cl probe_cocoa 47/47 (refusals, untrained model claims w = 0); m1 fixed (backbone provenance -> open-ended -> 'unsupported' unless proposals tracked: G-cl probe_providers D), m2 fixed (Eq. 4 pairs, probe B). The integrated agent records inclusion probabilities only for offered sets without backbone proposals; no COCOA value on an open-ended untracked set in 5 integrated runs (the tiny backbone produced only tracked sets, so the agent-side refusal path itself was not exercised there).",
+  "notes": "Round 2 at f54d8cc. COCOA reference and refusals (G-cl probe_cocoa / providers B, D pass; acceptance tests pass); no COCOA value on an open-ended untracked set in the integrated runs.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_cocoa.py --seeds 200 --n 400",
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
    ".venv/bin/python cam_live/docs/verification/repro/cl/probe_providers.py",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
-   "cam_live/docs/verification/G2_learn.md"
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "RC-06": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Acceptance tests pass. In the integrated agent (clean export) signed verdicts reach put_objective_outcome (1-3 of 3 objectives per run; the others ended exhausted or failed without a verdict), the trajectory is queued for retraining, and RUDDER / COCOA credit is written and re-versioned for earlier decisions of closed objectives; D.json's 'nothing outside credit/ does so yet' is stale.",
+  "notes": "Round 2 at f54d8cc. Retrospective credit when objectives close, re-versioned, retrain queue fed (integrated runs; acceptance and slow tests pass).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
-   ".venv/bin/python -m pytest cam_live/tests/integration/test_agent_runtime.py::test_delayed_outcomes_link_to_their_decisions cam_live/tests/integration/test_agent_runtime.py::test_learning_changes_experiential_and_adapter_weights cam_live/tests/integration/test_int2_checkpoints.py -q --rootdir=cam_live  (on a git-archive export of the commit)",
-   "cam_live/docs/verification/G2_learn.md"
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
+   ".venv/bin/python -m pytest cam_live/tests/credit cam_live/tests/nn -q --rootdir=cam_live -m slow (on a git-archive export of f54d8cc)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "RC-07": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Acceptance tests pass; G-cl M2 fixed (update() refuses rewriting decisions, probabilities, protected diagnostics, results; a tampered index column raises StoreIntegrityError); 5 integrated runs: leakage audit empty, no link to a later decision, no outcome dated before its decision. Minor defect G2L-2 (credit/replay.py:705 vs :727): outcomes appended through update() are not checked against the query's issue time or the decision time (one dated before the decision is stored); the agent's own update() path (_attach_self_outcome) checks the timing first.",
+  "notes": "Round 2 at f54d8cc. G2L-2 fixed: append / update raise OutcomeTimingError for a matured outcome dated before its query or decision (probe_credit_gaps store 9/9); leakage audit empty, no link to a later decision, no outcome before its decision in 3 integrated runs; history immutable (G-cl store probe 37/37).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_credit_gaps.py",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
-   "cam_live/docs/verification/G2_learn.md"
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py",
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_store_links.py --kills 12",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "RC-08": {
   "status": "partial",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Verified in D's lab: estimators validated only on held-out lifetimes with paired standard errors, zero SE refused (G-cl M1 fixed: probe_providers C PASS; re-run on the current tree: 0 of 288 experiment lifetimes trained on, RUDDER mean z^2 6.54, COCOA 11.32, nothing promoted, default 'simple'); RUDDER and COCOA are exercised in the agent. FAILS in the integrated agent (G2L-6): nothing outside credit/ calls compare_with_experiment or select (credit_selection.jsonl empty in all 7 runs at 5562e65 and 3e29595; 5-9 randomised decisions per run); the agent's experiments are not in the experience store (store.experiments() == []) and each is a single randomised decision (one unit per experiment), and holdout_experiments=False (agent.py:611-615 at 5562e65) makes every experiment objective a trained-on one \u2014 so the default stays 'simple' by construction and estimates are never compared with the agent's experiments.",
+  "notes": "Round 2 at f54d8cc. Credit side verified: held-out-by-lifetime comparison with paired SE, nothing promoted in D's lab (diagnose: RUDDER z^2 6.61, COCOA 13.84, default simple), DX's attach / record / evaluate path runs in D's tests incl. the slow integrated-agent test WITH the DX-1 line. FAILS in the agent as it is at the freeze (DX-1 not applied): nothing attaches the agent's experiment registry, so the store holds 0 experiments while the decisions carry 7-11 experiment ids, credit_selection.jsonl stays empty in 3 integrated runs, each agent experiment has one unit and every experiment objective is trained on (holdout_experiments=False): estimates are never compared with the agent's experiments and the default is 'simple' by construction (G2L-6).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
+   ".venv/bin/python -m pytest cam_live/tests/credit cam_live/tests/nn -q --rootdir=cam_live -m slow (on a git-archive export of f54d8cc)",
    "PYTHONHASHSEED=0 .venv/bin/python -m cam_live.credit.diagnose --only learning,credit,retention --threads 1 --out X --work W; .venv/bin/python cam_live/docs/verification/repro/g2learn/compare_evidence.py diagnose X",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
-   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_providers.py",
-   "cam_live/docs/verification/G2_learn.md"
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "CL-01": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "19 acceptance tests pass (kill -9 included); G-cl probe_store_links --kills 12: 37/37 on the current code (no acknowledged record or outcome lost over 12 SIGKILLs, single writer, strata quotas exact, provenance never mixed, M2 fixed); own checks: protected diagnostics / probabilities / second result replacement refused, tampered index detected on read, items immutable. G2L-2 (outcome timing on update()) see RC-07.",
+  "notes": "Round 2 at f54d8cc. Store: kill -9 x12 without loss, strata, provenance, append-only history with index checks (G-cl probe 37/37), outcome timing checks on update / append (G2L-2 fixed).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
    ".venv/bin/python cam_live/docs/verification/repro/cl/probe_store_links.py --kills 12",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_credit_gaps.py",
-   "cam_live/docs/verification/G2_learn.md"
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "CL-02": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Updates change weights and behaviour: default tests, G-cl probe_learner 26/26; integrated agent (clean export): all frequent updates changed experiential weights and flagged a behaviour change (16-34 per run, every one); held-out NLL 2.981 -> 2.291 reproduced on the current tree (median not improved, disclosed). Real configuration (Qwen3-4B + 50m core) on CUDA and on the CPU (G-cl's probe_real copy, own parameter snapshots): one frequent update changed 127 experiential and 56 head tensors, 0 adapter / reward tensors, predictions moved (CUDA: max |db| 1.11, |dz| 1.92, |dNLL| 0.214), predictions independent of inference caches afterwards; a weights-only export reloads in a fresh CUDA process with bit-identical predictions.",
+  "notes": "Round 2 at f54d8cc. Real neural updates change predictions: real configuration on CUDA (127 + 56 tensors, |db| 1.11, |dNLL| 0.214), D's lab learning experiment (held-out NLL 2.981 -> 2.291), integrated agent (every frequent update flags a behaviour change).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu (on a git-archive export of f54d8cc)",
    "PYTHONHASHSEED=0 .venv/bin/python -m cam_live.credit.diagnose --only learning,credit,retention --threads 1 --out X --work W; .venv/bin/python cam_live/docs/verification/repro/g2learn/compare_evidence.py diagnose X",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR --cpu",
-   "cam_live/docs/verification/G2_learn.md"
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write --dir D",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "CL-03": {
   "status": "partial",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Adapter updates occur: every adapter_every frequent updates in D's lab, 5-15 slow steps per integrated run changing LoRA and bridge, on the real configuration (Qwen3-4B + 50m core, CUDA and CPU, own snapshots): one slow step changed 144/144 LoRA and 26/28 bridge tensors and nothing else, frozen hash unchanged, guard verdicts with 6 chunks (CUDA: paired change +0.00025 accepted under tolerance 0.0019; CPU: -0.0063); by-loss adapter gradient bridge grounding 7.0 vs world 0.026. M4's scenario is fixed (a slow step with a measurable held-out rise is undone with weights, Adam state, lr, schedule and counters). FAILS as claimed ('a slow step is kept only if the held-out loss rises by at most min(0.01, 5 %, 2 SE)'): (a) G2L-4, with no validation cells the guard is skipped and the step kept (credit/learner.py:741/778/798; a degrading step is applied in D's lab with val_fraction 0; 8 of 61 slow steps in 7 clean integrated runs (5562e65 and 3e29595) had no verdict); (b) G2L-5, the bound is on the provider-averaged loss (learner.py:543): a provider whose held-out loss rose 10x above the tolerance was kept because another improved.",
+  "notes": "Round 2 at f54d8cc. Fixed: no slow step is ever applied without a held-out verdict (G2L-4: deferred when no held-out records), each provider judged on its own (G2L-5). Adapter updates are kept in D's lab (74 % of 27 debug, 54 % of 13 on the real configuration; diagnose 19 / 20). FAILS on the real configuration in the integrated agent: two runs (9 lifetimes, 78 records): 1 of 13 slow steps kept, net adapter change 0.0 and 0.017; G-cl's real probe's slow step is now reverted; in the debug agent the kept share falls with run length (5/12 then 2/14 in 8 lifetimes). Of 44 classified rejections 37 are real held-out degradations of another provider (world model +0.5-4 %, cocoa +1-22 %: the grounding-driven slow step hurts them) and 7 are micro vetoes (G2L-9: a provider whose chunks agree, SE ~ 0, or a single chunk gets the float-floor tolerance 1e-7 |loss|; e.g. evaluator +6.8e-6 rel. vetoed a step that improved the world model by 14 %). Adapter learning on the real configuration is effectively frozen as wired.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu (on a git-archive export of f54d8cc)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_slow_acceptance.py --mode agent --real",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_slow_acceptance.py --mode lab --real",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/guard_vetoes.py LOG",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_credit_gaps.py",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR --cpu",
-   "cam_live/docs/verification/G2_learn.md"
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "CL-04": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Retention test functions and measures forgetting: re-run of D's experiment on the current tree: NLL increase on the old family 1.768 +- 0.426 naive vs 0.316 +- 0.129 with replay + functional regulariser, decision agreement 0.34 vs 0.83 (recorded from e6f51c7: 1.768 / 0.357 / 0.86 \u2014 nn/backbone.py changed since; conclusion unchanged). One family pair, one seed, debug scale, components not ablated (disclosed).",
+  "notes": "Round 2 at f54d8cc. Retention test functions: D's experiment on the freeze: NLL increase on the old family 1.768 naive vs 0.316 with retention, decision agreement 0.34 vs 0.83 (one pair, one seed, debug scale; disclosed).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
    "PYTHONHASHSEED=0 .venv/bin/python -m cam_live.credit.diagnose --only learning,credit,retention --threads 1 --out X --work W; .venv/bin/python cam_live/docs/verification/repro/g2learn/compare_evidence.py diagnose X",
-   "cam_live/docs/verification/G2_learn.md"
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "CL-05": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Acceptance tests pass; tests/integration/test_int2_checkpoints.py 2/2 on a clean export (the agent promotes only on independent evidence, a refusal rolls the learner back); G-cl promote checks PASS; m6 fixed (provenance-based filter; no provider registered by the agent is trained on the internal reward). Short integrated runs: the first attempts are refused for missing validation / retention metrics (fail-closed), later ones promote. Caveat at the newer commit 3e29595 (agent.py changed; CL-05's files did not): the same INT2 test fails 3 of 4 runs and probe_promotion_evidence refuses 1 of 3 first promotions with 'no independent validation metric supplied' (0 of 6 at 5562e65): whether a short lifetime leaves any eligible held-out record is chance (record-hash split, ids carry os.urandom bytes) \u2014 see G2L-4 / G2L-8 in G2_learn.md.",
+  "notes": "Round 2 at f54d8cc. Promotion / rollback: acceptance tests pass; integrated test_int2_checkpoints 5/5 at the freeze (G2L-8 fixed for it: INT3A-5 stratified split + eligibility fix); probe_promotion_evidence 5/5 first promotions granted; explicit 'no held-out evidence' refusals when none exists; real-configuration integrated runs promote and refuse on measured forgetting.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-   ".venv/bin/python -m pytest cam_live/tests/integration/test_agent_runtime.py::test_delayed_outcomes_link_to_their_decisions cam_live/tests/integration/test_agent_runtime.py::test_learning_changes_experiential_and_adapter_weights cam_live/tests/integration/test_int2_checkpoints.py -q --rootdir=cam_live  (on a git-archive export of the commit)",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
-   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_learner.py --only promote",
-   "cam_live/docs/verification/G2_learn.md"
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
+   ".venv/bin/python -m pytest cam_live/tests/integration/test_int3a_audit.py cam_live/tests/integration/test_agent_runtime.py::test_delayed_outcomes_link_to_their_decisions cam_live/tests/integration/test_agent_runtime.py::test_learning_changes_experiential_and_adapter_weights cam_live/tests/integration/test_int2_checkpoints.py -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_promotion_evidence.py --reps 5",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_slow_acceptance.py --mode agent --real",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "CL-08": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Acceptance tests pass; G-cl probe_learner: poll() counts independent units, slow steps after every adapter_every applied frequent updates, fast update changes no parameter; integrated agent: every frequent update is triggered by matured independent outcomes ('matured_outcomes:k_independent/k_rows'). The slow-step guard gap (G2L-4) is listed under CL-03.",
+  "notes": "Round 2 at f54d8cc. Three timescales scheduled on events: frequent updates triggered by matured independent outcomes, slow steps every adapter_every and deferred without held-out evidence, fast updates without parameter change (G-cl learner probe 26/26; integrated runs). Whether slow steps are KEPT is CL-03.",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_learner.py --only learn",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
-   "cam_live/docs/verification/G2_learn.md"
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
+   ".venv/bin/python cam_live/docs/verification/repro/cl/probe_learner.py",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_slow_acceptance.py --mode agent",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  },
  "CU-20": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
   "supersedes": [
    "all"
   ],
-  "notes": "Acceptance tests pass; G-cl probe_smdp 8/8 on the current code (duration discount composes across levels, one event credited once over the hierarchy and entering the return once, one learning unit, CreditLedger refuses double counting); per-outcome link weights <= 1 in the integrated agent. CreditLedger is not wired into CreditAssigner (disclosed).",
+  "notes": "Round 2 at f54d8cc. Duration-aware credit and credit-once across levels (G-cl probe_smdp 8/8; per-outcome link weights <= 1 in the integrated agent).",
   "evidence": [
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
    ".venv/bin/python cam_live/docs/verification/repro/cl/probe_smdp.py",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
-   "cam_live/docs/verification/G2_learn.md"
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
+  ]
+ },
+ "CL-10": {
+  "status": "partial",
+  "by": "G2-learn",
+  "commit": "f54d8cc056722f2ba373ba70627bfc52e2500332",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Round 2 at f54d8cc. Credit side verified: checkpoints carry weights of every group, optimizers, fast state, task, replay state, pending outcomes, schedules, RNG, versions; every tensor on the CPU; atomic (D's crash / kill -9 tests pass); a fresh process restores the integrated agent's 305 trainable tensors, fast state, counters, RNG and task bit-exactly (probe_cl10 read 5/5). FAILS for the integrated agent's checkpoint: experiment records empty although the agent has 2 experiments (they stay in predict.registry; DX-1 not applied), and the authorization configuration recorded as auth_config_hash '' (the agent passes none, DX-2). Both are persisted elsewhere (registry log, authorization service state) but neither is in or checked by the checkpoint.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live (on a git-archive export of f54d8cc)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_cl10.py write D && ... read D",
+   "cam_live/docs/verification/G2_learn.md (Round 2)"
   ]
  }
 }

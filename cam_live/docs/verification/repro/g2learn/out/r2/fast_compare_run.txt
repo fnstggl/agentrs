@@ -1,0 +1,5 @@
+[gaussian seed 0] learned_prior_bayes: held-out NLL 0.8907 in-dist NLL 0.2206 (274 s)
+[gaussian seed 0] blr_raw: held-out NLL 1.1123 in-dist NLL 0.8028 (70 s)
+[gaussian seed 0] gru: held-out NLL 1.1238 in-dist NLL 0.5762 (141 s)
+[gaussian seed 0] running_stats: held-out NLL 1.4472 in-dist NLL 1.4458 (63 s)
+[count seed 0] learned_prior_bayes: held-out NLL 2.6166 in-dist NLL 2.2573 (374 s)

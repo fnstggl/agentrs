@@ -1,0 +1,12 @@
+[INFO] run 0: records / first promotion (promoted, reasons) / validate() / validation flags: (17, (True, []), {'world_model': 3.4874, 'fast_prior': 2.7571, 'evaluator': 2.1175, 'world_model_adapters': 3.4874, 'evaluator_adapters': 2.1175, 'bridge_grounding': 19.6198}, {'val:bridge_grounding': 2, 'val:evaluator': 2, 'val:evaluator_adapters': 2, 'val:fast_prior': 3, 'val:world_model': 3, 'val:world_model_adapters': 3})
+[INFO] run 1: records / first promotion (promoted, reasons) / validate() / validation flags: (17, (True, []), {'world_model': 3.2012, 'fast_prior': 2.6103, 'evaluator': 2.3756, 'world_model_adapters': 3.2012, 'evaluator_adapters': 2.3756, 'rudder': 0.5868, 'cocoa': 1.0445, 'bridge_grounding': 19.0789}, {'val:bridge_grounding': 3, 'val:cocoa': 2, 'val:evaluator': 2, 'val:evaluator_adapters': 2, 'val:fast_prior': 3, 'val:rudder': 2, 'val:world_model': 3, 'val:world_model_adapters': 3})
+[INFO] run 2: records / first promotion (promoted, reasons) / validate() / validation flags: (17, (True, []), {'world_model': 3.0755, 'fast_prior': 2.6145, 'evaluator': 2.3683, 'world_model_adapters': 3.0755, 'evaluator_adapters': 2.3683, 'rudder': 0.5887, 'cocoa': 1.0, 'bridge_grounding': 19.289}, {'val:bridge_grounding': 3, 'val:cocoa': 2, 'val:evaluator': 2, 'val:evaluator_adapters': 2, 'val:fast_prior': 3, 'val:rudder': 2, 'val:world_model': 3, 'val:world_model_adapters': 3})
+[INFO] run 3: records / first promotion (promoted, reasons) / validate() / validation flags: (15, (True, []), {'world_model': 3.8099, 'fast_prior': 2.6128, 'world_model_adapters': 3.8099, 'bridge_grounding': 19.2629}, {'val:bridge_grounding': 3, 'val:fast_prior': 3, 'val:world_model': 3, 'val:world_model_adapters': 3})
+[INFO] run 4: records / first promotion (promoted, reasons) / validate() / validation flags: (15, (True, []), {'world_model': 3.9066, 'fast_prior': 2.6128, 'world_model_adapters': 3.9066, 'bridge_grounding': 19.283}, {'val:bridge_grounding': 3, 'val:fast_prior': 3, 'val:world_model': 3, 'val:world_model_adapters': 3})
+[PASS] the first promotion after the lifetime is granted on held-out evidence in every run  5 of 5
+
+1 checks, 0 failed
+
+real	5m11.688s
+user	6m7.839s
+sys	0m10.446s

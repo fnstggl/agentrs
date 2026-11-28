@@ -1,0 +1,47 @@
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2LEARN/r2/work/slow_acceptance/agent_real/agent/learner/learner_updates.jsonl
+  judged 6, accepted 0, rejected 6, of which micro vetoes 1
+    rejected: failing providers (rel. rise) {'evaluator': '+6.8e-06', 'evaluator_adapters': '+6.8e-06'}; best relative change elsewhere -1.44e-01 (world_model)  [micro veto]
+    rejected: failing providers (rel. rise) {'bridge_grounding': '+2.7e-03', 'fast_prior': '+4.1e-07', 'rudder': '+5.4e-06', 'world_model': '+3.9e-02', 'world_model_adapters': '+3.9e-02'}; best relative change elsewhere -2.35e-02 (cocoa)
+    rejected: failing providers (rel. rise) {'bridge_grounding': '+3.3e-03', 'fast_prior': '+1.8e-07'}; best relative change elsewhere -4.14e-02 (world_model)
+    rejected: failing providers (rel. rise) {'bridge_grounding': '+2.5e-03', 'cocoa': '+2.1e-02'}; best relative change elsewhere -1.33e-02 (world_model)
+    rejected: failing providers (rel. rise) {'cocoa': '+1.8e-02', 'fast_prior': '+1.3e-07', 'world_model': '+2.4e-02', 'world_model_adapters': '+2.4e-02'}; best relative change elsewhere -1.94e-06 (evaluator_adapters)
+    rejected: failing providers (rel. rise) {'cocoa': '+2.4e-02', 'evaluator': '+1.1e-06', 'evaluator_adapters': '+1.2e-06', 'world_model': '+1.1e-02', 'world_model_adapters': '+1.1e-02'}; best relative change elsewhere -2.03e-06 (rudder)
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2LEARN/r2/work/slow_acceptance/agent_cpu_8lt/agent/learner/learner_updates.jsonl
+  judged 26, accepted 7, rejected 19, of which micro vetoes 2
+    rejected: failing providers (rel. rise) {'world_model': '+2.2e-02', 'world_model_adapters': '+2.2e-02'}; best relative change elsewhere -1.34e-01 (cocoa)
+    rejected: failing providers (rel. rise) {'cocoa': '+1.2e-01'}; best relative change elsewhere -4.68e-02 (world_model_adapters)
+    rejected: failing providers (rel. rise) {'world_model': '+9.1e-03', 'world_model_adapters': '+9.1e-03'}; best relative change elsewhere -4.43e-02 (cocoa)
+    rejected: failing providers (rel. rise) {'world_model': '+8.1e-03', 'world_model_adapters': '+8.1e-03'}; best relative change elsewhere -1.32e-02 (cocoa)
+    rejected: failing providers (rel. rise) {'cocoa': '+2.5e-02', 'rudder': '+2.6e-05', 'world_model': '+3.2e-02', 'world_model_adapters': '+3.2e-02'}; best relative change elsewhere -5.03e-04 (bridge_grounding)
+    rejected: failing providers (rel. rise) {'world_model': '+3.9e-02', 'world_model_adapters': '+3.9e-02'}; best relative change elsewhere -8.81e-02 (cocoa)
+    rejected: failing providers (rel. rise) {'cocoa': '+1.1e-02', 'world_model': '+1.7e-02', 'world_model_adapters': '+1.7e-02'}; best relative change elsewhere -4.97e-04 (bridge_grounding)
+    rejected: failing providers (rel. rise) {'rudder': '+2.3e-05'}; best relative change elsewhere -1.22e-01 (cocoa)  [micro veto]
+    rejected: failing providers (rel. rise) {'cocoa': '+5.6e-02', 'rudder': '+3.8e-05', 'world_model': '+1.2e-02', 'world_model_adapters': '+1.2e-02'}; best relative change elsewhere -5.15e-04 (bridge_grounding)
+    rejected: failing providers (rel. rise) {'rudder': '+5.4e-05'}; best relative change elsewhere -5.40e-02 (cocoa)  [micro veto]
+    rejected: failing providers (rel. rise) {'cocoa': '+2.9e-02'}; best relative change elsewhere -4.52e-03 (world_model)
+    rejected: failing providers (rel. rise) {'fast_prior': '+3.4e-07', 'world_model': '+2.6e-02', 'world_model_adapters': '+2.6e-02'}; best relative change elsewhere -1.65e-01 (cocoa)
+    rejected: failing providers (rel. rise) {'fast_prior': '+2.8e-07', 'world_model': '+5.5e-03', 'world_model_adapters': '+5.5e-03'}; best relative change elsewhere -6.34e-02 (cocoa)
+    rejected: failing providers (rel. rise) {'cocoa': '+2.1e-02', 'fast_prior': '+1.1e-07', 'world_model': '+1.1e-02', 'world_model_adapters': '+1.1e-02'}; best relative change elsewhere -1.49e-04 (bridge_grounding)
+    rejected: failing providers (rel. rise) {'world_model': '+9.7e-03', 'world_model_adapters': '+9.7e-03'}; best relative change elsewhere -8.95e-03 (cocoa)
+    rejected: failing providers (rel. rise) {'fast_prior': '+2.1e-07', 'world_model': '+8.5e-03', 'world_model_adapters': '+8.5e-03'}; best relative change elsewhere -1.50e-04 (bridge_grounding)
+    rejected: failing providers (rel. rise) {'world_model': '+1.4e-02', 'world_model_adapters': '+1.4e-02'}; best relative change elsewhere -1.25e-02 (cocoa)
+    rejected: failing providers (rel. rise) {'world_model': '+2.9e-02', 'world_model_adapters': '+2.9e-02'}; best relative change elsewhere -1.65e-02 (cocoa)
+    rejected: failing providers (rel. rise) {'cocoa': '+1.1e-02'}; best relative change elsewhere -1.73e-03 (world_model)
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2LEARN/r2/work/slow_acceptance/lab_real/learner_updates.jsonl
+  judged 13, accepted 7, rejected 6, of which micro vetoes 2
+    rejected: failing providers (rel. rise) {'rudder': '+4.8e-06', 'world': '+4.6e-04'}; best relative change elsewhere +4.08e-06 (cocoa)
+    rejected: failing providers (rel. rise) {'world': '+3.2e-04'}; best relative change elsewhere -2.33e-05 (cocoa)
+    rejected: failing providers (rel. rise) {'rudder': '+2.0e-06', 'world': '+8.3e-05'}; best relative change elsewhere -2.70e-04 (cocoa)  [micro veto]
+    rejected: failing providers (rel. rise) {'world': '+9.9e-05'}; best relative change elsewhere -2.86e-04 (bridge_grounding)  [micro veto]
+    rejected: failing providers (rel. rise) {'cocoa': '+3.4e-03'}; best relative change elsewhere -2.06e-02 (bridge_grounding)
+    rejected: failing providers (rel. rise) {'cocoa': '+2.4e-02'}; best relative change elsewhere -3.22e-02 (bridge_grounding)
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2LEARN/r2/work/slow_acceptance/lab_cpu_20/learner_updates.jsonl
+  judged 27, accepted 20, rejected 7, of which micro vetoes 0
+    rejected: failing providers (rel. rise) {'cocoa': '+4.4e-04'}; best relative change elsewhere -3.04e-04 (bridge_grounding)
+    rejected: failing providers (rel. rise) {'cocoa': '+5.5e-03'}; best relative change elsewhere -4.40e-04 (bridge_grounding)
+    rejected: failing providers (rel. rise) {'cocoa': '+5.6e-03'}; best relative change elsewhere -4.34e-04 (bridge_grounding)
+    rejected: failing providers (rel. rise) {'cocoa': '+5.7e-03'}; best relative change elsewhere -4.28e-04 (bridge_grounding)
+    rejected: failing providers (rel. rise) {'cocoa': '+9.6e-03'}; best relative change elsewhere -4.27e-04 (bridge_grounding)
+    rejected: failing providers (rel. rise) {'cocoa': '+1.4e-02'}; best relative change elsewhere -4.26e-04 (bridge_grounding)
+    rejected: failing providers (rel. rise) {'cocoa': '+2.9e-02', 'rudder': '+2.2e-05'}; best relative change elsewhere -4.28e-04 (bridge_grounding)
+total {'judged': 72, 'accepted': 34, 'rejected': 38, 'micro': 5}

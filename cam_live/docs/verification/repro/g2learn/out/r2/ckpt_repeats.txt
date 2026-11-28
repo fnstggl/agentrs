@@ -1,0 +1,4 @@
+2 passed in 47.65s
+2 passed in 63.07s (0:01:03)
+2 passed in 60.75s (0:01:00)
+2 passed in 65.25s (0:01:05)

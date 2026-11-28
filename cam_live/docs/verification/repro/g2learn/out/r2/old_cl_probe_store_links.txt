@@ -1,0 +1,138 @@
+[PASS] kill -9 x12: every acknowledged append survives  (1100 acked, 0 missing)
+[PASS] kill -9 x12: every acknowledged add_outcome survives  (547 acked, 0 lost)
+[PASS] kill -9: integrity_check ok, blob-backed records decode
+[PASS] kill -9: seq strictly increasing, no duplicates
+[PASS] second writer in the same process is refused
+[PASS] second writer in another process is refused  (LOCKED)
+[PASS] read-only reader sees the committed record while the writer is open
+[PASS] read-only reader cannot write
+[PASS] a symlinked path to the same store is refused as a second writer
+[PASS] put_item does not replace a stored item
+[PASS] update() refuses to rewrite the stored decision / context / provenance of a record  (accepted=False; stored probabilities now [0.3333333333333333, 0.3333333333333333, 0.3333333333333333], ts 1010.0, context ['it1'], provenance live)
+[PASS] sample(provenance='live') never returns a record whose stored provenance is not 'live'  (ids ['e1'] have provenance ['live'])
+[PASS] default provenance (newest record = diagnostic) gives a pure diagnostic sample  (('diagnostic',))
+[PASS] no repeated record inside a sample (3000 samples of 32)  (0 samples with repeats)
+[PASS] provenance='live' samples never contain diagnostic records  (0 mixed samples)
+[PASS] per-stratum draw counts equal the configured quotas  (max deviation 0.0000; {'recent': 0.3125, 'informative': 0.1875, 'success': 0.125, 'failure': 0.125, 'delayed': 0.15625, 'family': 0.09375, 'fill': 0.0})
+[PASS] batches over-represent failures and delayed consequences relative to the population  (batch {'recent': 0.35361458333333334, 'success': 0.42675, 'failure': 0.22260416666666666, 'delayed': 0.26886458333333335} vs pool {'recent': 0.1, 'success': 0.278, 'failure': 0.144, 'delayed': 0.108})
+[PASS] recent records are not more than recent quota + their share elsewhere (no recency collapse)  (0.354)
+[PASS] family stratum is balanced across imbalanced families (chi2, 3 dof, p>0.001)  (counts {'f3': 3964, 'f2': 3978, 'f0': 3936, 'f1': 4122}, chi2=5.2)
+[PASS] informative stratum draws follow the configured priority (chi2 over 10 bins, p>0.001)  (chi2=6.2, obs/exp=[1.012, 0.999, 1.008, 1.014, 0.997, 1.014, 0.999, 0.986, 0.986, 0.998])
+[PASS] strata={'success': 1} returns only success records  (0/400 not success)
+[PASS] strata={'failure': 1} returns only failure records  (0/400 not failure)
+[PASS] strata={'delayed': 1} returns only delayed records  (0/400 not delayed)
+[PASS] strata={'recent': 1} returns only recent records  (0/400 not recent)
+[PASS] naming two provenances explicitly is the only way to mix
+[PASS] same event twice is de-duplicated  (AddOutcomeResult(accepted=False, exp_id='e0', duplicate=True, upgraded=False, final=False, reason='duplicate event', dedup_key='ev-1'))
+[PASS] a second unverified answer to an answered query is dropped
+[PASS] a verified copy replaces the unverified one  (outcomes [(5.0, True)])
+[PASS] an outcome dated before its query is refused  (observed before the query was issued)
+[PASS] a decision made after the outcome is refused and its share stays unattributed  (weights {'e0': 0.3333333333333333, 'e1': 0.3333333333333333}, refused [{'exp_id': 'e3', 'reason': 'decision_after_outcome', 'weight': 0.3333333333333333, 'decision_ts': 1300.0, 'outcome_ts': 1150.0}])
+[PASS] ambiguous (window) evidence -> equal fractional weights, recency ignored  ([('e20', 0.5, 0.5, 'attribution_window'), ('e21', 0.5, 0.5, 'attribution_window')])
+[PASS] ambiguous attribution carries a non-zero uncertainty  ([('e20', 0.5, 0.5, 'attribution_window'), ('e21', 0.5, 0.5, 'attribution_window')])
+[PASS] simple credit of an ambiguous outcome keeps its uncertainty  ({'e20': (0.5, 0.5), 'e21': (0.5, 0.5)})
+[PASS] the weights of one outcome never sum to more than 1 (negative attribution amounts)  (links {'e4': (0.5, 1.0), 'e5': (0.5, 1.0)}: total weight 1.0; credited 2.0 for an event of value 2.0)
+[PASS] audit_leakage reports exactly the planted leak  ([{"exp_id": "e50", "decision_ts": 2000.0, "leak_refs": ["future"]}])
+[PASS] a matured declared outcome links to its decision and queues it
+[PASS] no evidence -> no link (never the latest action)
+{
+ "kill9": {
+  "kills": 12,
+  "acknowledged_records": 1100,
+  "missing": 0,
+  "acknowledged_outcomes": 547,
+  "lost_outcomes": 0,
+  "integrity_ok": true
+ },
+ "update_rewrite": {
+  "accepted": false,
+  "sample(provenance='live') returned": [
+   "e1"
+  ],
+  "their body provenance": [
+   "live"
+  ]
+ },
+ "sampling_origin_share": {
+  "recent": 0.3125,
+  "informative": 0.1875,
+  "success": 0.125,
+  "failure": 0.125,
+  "delayed": 0.15625,
+  "family": 0.09375,
+  "fill": 0.0
+ },
+ "sampling_quota_share": {
+  "recent": 0.3125,
+  "informative": 0.1875,
+  "success": 0.125,
+  "failure": 0.125,
+  "delayed": 0.15625,
+  "family": 0.09375
+ },
+ "sampling_population_share": {
+  "recent": 0.1,
+  "success": 0.278,
+  "failure": 0.144,
+  "delayed": 0.108
+ },
+ "sampling_batch_share": {
+  "recent": 0.35361458333333334,
+  "success": 0.42675,
+  "failure": 0.22260416666666666,
+  "delayed": 0.26886458333333335
+ },
+ "family_stratum_counts": {
+  "f3": 3964,
+  "f2": 3978,
+  "f0": 3936,
+  "f1": 4122
+ },
+ "informative_bins_obs_over_exp": [
+  1.012,
+  0.999,
+  1.008,
+  1.014,
+  0.997,
+  1.014,
+  0.999,
+  0.986,
+  0.986,
+  0.998
+ ],
+ "ambiguous_window_links": [
+  [
+   "e20",
+   0.5,
+   0.5,
+   "attribution_window"
+  ],
+  [
+   "e21",
+   0.5,
+   0.5,
+   "attribution_window"
+  ]
+ ],
+ "negative_amount_links": {
+  "links": {
+   "e4": [
+    0.5,
+    1.0
+   ],
+   "e5": [
+    0.5,
+    1.0
+   ]
+  },
+  "credit": {
+   "e4": 1.0,
+   "e5": 1.0
+  },
+  "event_value": 2.0
+ }
+}
+
+real	0m34.005s
+user	0m39.349s
+sys	0m1.704s

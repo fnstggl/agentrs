@@ -1,0 +1,22 @@
+[INFO] agent_real: lifetimes run (seed, status): [(11, 'completed'), (12, 'completed'), (13, 'completed'), (14, 'exhausted')]
+[INFO] agent_real: records / learner counters: (37, {'frequent': 9, 'slow': 0, 'fast': 99, 'skipped': 0, 'slow_reverted': 3, 'slow_deferred': 0, 'triggers': 8})
+[INFO] agent_real: held-out losses available at the end (learner.validate): {'world_model': 3.6918, 'fast_prior': 2.6609, 'evaluator': 1.9548, 'world_model_adapters': 3.4224, 'evaluator_adapters': 1.9548, 'rudder': 0.3447, 'cocoa': 1.1281, 'bridge_grounding': 7.1786}
+[INFO] agent_real: promotions (promoted, reasons): [(True, []), (False, ['retention lab/integration@obj_int_11/decision_agreement dropped 0.5 (> 0.1): forgetting']), (False, ['retention lab/integration@obj_int_11/decision_agreement dropped 0.625 (> 0.1): forgetting'])]
+[INFO] agent_real: GPU lock held (s): 435.1
+[INFO] agent_real: slow steps in order: ['R', 'R', 'R', 'R', 'R', 'R']
+[INFO] agent_real: slow steps by outcome: {'reverted': 6}
+[INFO] agent_real: first half: accepted / judged: (0, 3)
+[INFO] agent_real: second half: accepted / judged: (0, 3)
+[INFO] agent_real: binding provider of reverted steps: {'evaluator': 1, 'bridge_grounding': 3, 'cocoa': 2}
+[INFO] agent_real: reverted steps where some judged provider had a single validation chunk (float-floor tolerance): (3, 6)
+[INFO] agent_real: reasons of reverted steps (provider: kind): {'bridge_grounding: summed change since ckpt_000001_e58a1aa': 3, 'evaluator: held-out loss rose by 1.431e-05 ': 1, 'evaluator_adapters: held-out loss rose by 1.431e-05 ': 1, 'bridge_grounding: held-out loss rose by 0.0236 ': 1, 'fast_prior: held-out loss rose by 6.855e-07 ': 1, 'bridge_grounding: held-out loss rose by 0.0285 ': 1, 'fast_prior: held-out loss rose by 4.768e-07 ': 1, 'bridge_grounding: held-out loss rose by 0.02207 ': 1}
+[INFO] agent_real: chunks per provider at the last judged step: {'bridge_grounding': 5, 'cocoa': 3, 'evaluator': 3, 'evaluator_adapters': 3, 'fast_prior': 5, 'rudder': 3, 'world_model': 5, 'world_model_adapters': 5}
+[INFO] agent_real: net adapter change from the start (L2): 0.0
+[PASS] agent_real: no slow step is applied without a held-out verdict  {'reverted': 6}
+[FAIL] agent_real: adapter learning is not frozen: at least a quarter of the judged slow steps are accepted  accepted 0 of 6 judged (0 deferred, 0 skipped); net adapter change 0
+
+2 checks, 1 failed
+
+real	7m22.161s
+user	9m26.290s
+sys	1m16.587s
