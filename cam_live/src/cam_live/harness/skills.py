@@ -269,6 +269,31 @@ def _obs_text(observations: Sequence[Observation]) -> str:
     return "\n".join(parts)
 
 
+_CONTROL_VALUE = re.compile(r' = "(?:[^"\\]|\\.)*"')
+
+
+def _without_control_values(v: Any) -> Any:
+    """A copy without the current values of controls (any record that has a role / ref / tag and a value)."""
+    if isinstance(v, dict):
+        drop = "value" in v and any(k in v for k in ("role", "ref", "tag"))
+        return {k: _without_control_values(x) for k, x in v.items() if not (drop and k == "value")}
+    if isinstance(v, list):
+        return [_without_control_values(x) for x in v]
+    return v
+
+
+def _content_text(observations: Sequence[Observation]) -> str:
+    """What the observed state *shows*: the text and data of each observation without the current values of its
+    controls. A text typed into a field is not evidence that the procedure put it into the world (measured: a commit
+    the site refused left the typed title in the field, and 'the argument appears in the resulting state' held)."""
+    parts = []
+    for o in observations:
+        parts.append(_CONTROL_VALUE.sub("", o.text or ""))
+        if isinstance(o.data, dict) and o.data:
+            parts.append(json.dumps(_without_control_values(o.data), sort_keys=True, default=str, ensure_ascii=False))
+    return "\n".join(parts)
+
+
 def state_leaves(observations: Sequence[Observation]) -> Dict[str, Any]:
     """Flat view of observed state: ``q:<quantity name>`` and ``d:<path>`` leaves (later observations win)."""
     out: Dict[str, Any] = {}
@@ -317,7 +342,7 @@ def evaluate_condition(cond: VerificationCondition, observations: Sequence[Obser
     if kind == "text_present":
         if not observations:
             return None
-        found = str(spec.get("text", "")) in cached(_obs_text, observations)
+        found = str(spec.get("text", "")) in cached(_content_text, observations)
         return (not found) if spec.get("absent") else found
     if kind == "url_matches":
         urls = [u for o in observations for u in (o.data.get("url"), o.provenance.uri) if u]
@@ -930,7 +955,7 @@ class SkillInducer:
         before_obs = [t.before or [c for c in t.context[:1] if c is not None] for t in traces]
         after_obs = [t.after or seg[-1].result.observations for t, seg in zip(traces, segs)]
         ab = _Abstraction(segs, [t.inputs for t in traces],
-                          flow=([_obs_text(b) for b in before_obs], [_obs_text(a) for a in after_obs]))
+                          flow=([_content_text(b) for b in before_obs], [_content_text(a) for a in after_obs]))
         steps: List[ActionSpec] = []
         fingerprints: List[str] = []
         sub_scopes: List[str] = []
@@ -993,7 +1018,7 @@ class SkillInducer:
             elif all(isinstance(v, str) and re.fullmatch(r"-?\d+", v) for v in vals):
                 props[n]["pattern"] = r"^-?\d+$"                   # typed as a number into a text field
         schema = {"type": "object", "properties": props, "required": sorted(props), "additionalProperties": False}
-        pre, post = self._conditions(traces, segs, bindings, steps, before_obs, after_obs)
+        pre, post = self._conditions(traces, segs, bindings, steps, before_obs, after_obs, choices=list(ab.domains))
         first = segel[0][0] if segel and segel[0] else None
         if first is not None and all(e[0] is not None and e[0].get("role") == first.get("role")
                                      and e[0].get("name") == first.get("name") for e in segel):
@@ -1039,7 +1064,7 @@ class SkillInducer:
     # ---- conditions from the observed before / after states --------------------------------------------------
     def _conditions(self, traces: List[Trace], segs: List[List[TraceStep]], bindings: List[Dict[str, Any]],
                     steps: List[ActionSpec], before: Optional[List[List[Observation]]] = None,
-                    after: Optional[List[List[Observation]]] = None
+                    after: Optional[List[List[Observation]]] = None, choices: Sequence[str] = ()
                     ) -> Tuple[List[VerificationCondition], List[VerificationCondition]]:
         T = len(traces)
         before = before if before is not None else [t.before for t in traces]
@@ -1090,13 +1115,21 @@ class SkillInducer:
                 if have_before and all(_same(B[0][k], B[t][k]) for t in range(1, T)):
                     pre.append(VerificationCondition(description=f"{k[2:]} is {B[0][k]!r} beforehand", kind="metric",
                                                      spec=dict(target, op="eq", value=B[0][k])))
-        texts_b, texts_a = [_obs_text(b) for b in before], [_obs_text(a) for a in after]
+        texts_b, texts_a = [_content_text(b) for b in before], [_content_text(a) for a in after]
         for n in sorted(bindings[0]):
+            if n in choices:        # a choice among displayed options is shown whenever the options are: no evidence
+                continue
             vals = [bindings[t].get(n) for t in range(T)]
-            if all(isinstance(v, (str, int)) and not isinstance(v, bool) and len(str(v)) >= 3 for v in vals) and \
-                    all(str(vals[t]) in texts_a[t] and (not before[t] or str(vals[t]) not in texts_b[t]) for t in range(T)):
+            if not all(isinstance(v, (str, int)) and not isinstance(v, bool) and len(str(v)) >= 3 for v in vals):
+                continue
+            if all(str(vals[t]) in texts_a[t] and (not before[t] or str(vals[t]) not in texts_b[t]) for t in range(T)):
                 post.append(VerificationCondition(description=f"the argument {n} appears in the resulting state",
                                                   kind="text_present", spec={"text": {"$param": n}}))
+            elif isinstance(vals[0], str) and all(not before[t] or str(vals[t]) not in texts_b[t] for t in range(T)):
+                # not yet visible when the last step returned (an effect that appears asynchronously): a hypothesis
+                # that validation tests on the state observed after the procedure, with a fresh value
+                post.append(VerificationCondition(description=f"the argument {n} appears in the resulting state",
+                                                  kind="text_present", spec={"text": {"$param": n}, "tentative": True}))
         post = sorted(post, key=lambda c: bool(c.spec.get("tentative")))[:12]     # well-supported ones first
         post.append(VerificationCondition(description="every step reported success", kind="program",
                                           spec={"check": "steps_ok"}))
@@ -1828,7 +1861,9 @@ class SkillExecutor:
                                     observations=[o for o in sub.observations if o.kind == "error"])
                 return finish(base, st, cls, detail, False if sub.verified is False else None)
 
-        # 4. inspect the resulting state; never assume success
+        # 4. inspect the resulting state; never assume success. Without a probe, the environment's own side-effect
+        # free observation of its surfaces (``observe()``) is taken after the last step, so an effect that appears
+        # after the step returned (an asynchronous page update) is seen
         after = last
         if skill.probe is not None:
             sub, terminal = run_step(skill.probe, "probe1", [])
@@ -1836,6 +1871,11 @@ class SkillExecutor:
                 return terminal
             if sub.status == ResultStatus.OK:
                 after = [o for o in sub.observations if o.kind != "error"]
+        else:
+            settled = self._settle_observations()
+            if settled:
+                after = last + settled
+                self._note_observations(settled)
         state["end_obs"] = after[-1].obs_id if after else ""
         info["steps_ok"] = True
         results = [(c, evaluate_condition(c, after, args, before=before, info=info)) for c in skill.postconditions]
@@ -1981,6 +2021,20 @@ class SkillExecutor:
         if not report["passed"]:
             self.library.log_rejected(skill, report)
         return skill, report
+
+    def _settle_observations(self) -> List[Observation]:
+        """The environment's current observation of its surfaces (no action, no side effect), without its metrics
+        and error records; [] when the executor is not bound to an environment that offers it."""
+        env = getattr(self, "_env", None)
+        fn = getattr(env, "observe", None)
+        if not callable(fn):
+            return []
+        try:
+            obs = list(fn() or [])
+        except Exception:  # noqa: BLE001 — no second look; the last step's observation stands
+            return []
+        return [o for o in obs if o.kind not in ("error", "metric", "metrics") and isinstance(o.data, dict)
+                and "resources" not in o.data]
 
     def _first_present_step(self, skill: Skill) -> Optional[int]:
         """Index of the first step addressing (by a constant role and name) an element the current state shows."""

@@ -32,6 +32,7 @@ class Bench:
         self.skills = next(e for e in self.env._executors.values() if isinstance(e, SkillExecutor))
         self.decisions = 0
         self.rate_waits = 0
+        self.pace_s = 1.05
 
     def run(self, op, args):
         """One action; a refusal by the authorization service's rate limit (60 operations per 60 s per site) is
@@ -43,6 +44,7 @@ class Bench:
             t0 = time.perf_counter()
             r = self.env.execute(a, self.policy.authorize(a, self.task, {}))
             dt = time.perf_counter() - t0
+            time.sleep(self.pace_s)             # keep below the site rate limit, which also covers in-page requests
             m = re.search(r"rate limit .* retry in (\d+) s", r.failure_detail or "")
             if r.status == ResultStatus.DENIED and m:
                 self.rate_waits += 1
@@ -155,6 +157,41 @@ def main(argv=None):
         _, r, _ = b.run("skill.run", {"skill_id": sid, "arguments": {"text": f"After change {i}", "label": "Tools"}})
         changed.append({"status": r.status, "termination": r.artifacts.get("termination"),
                         "skill_status": b.skills.library.get(sid).status})
+    # a skill for the changed interface, acquired from two own traces there, then reused
+    def store_b(name, cls):
+        ids, ops, secs, ok = [], 0, 0.0, True
+        a, r, s = b.run("browser.navigate", {"url": base + "/app/"})
+        o = b.page(r)
+        ops, secs = ops + len(r.ops), secs + s
+        for op, el, extra in (("browser.click", "Add entry", {}), ("browser.fill", "Title", {"text": name}),
+                              ("browser.click", cls, {}), ("browser.click", "Commit", {})):
+            a, r, s = b.grounded(op, o, el, **extra)
+            ids.append(a.action_id)
+            ops, secs, ok = ops + len(r.ops), secs + s, ok and r.status == ResultStatus.OK
+            o = b.page(r) or o
+        return ids, {"decisions": 5, "primitive_ops": ops, "latency_s": secs, "ok": ok}
+    prim_b = [store_b(f"Primitive B {i}", labels[i % 3])[1] for i in range(a.n)]
+    tb1, _ = store_b("Bee source one", "Parts")
+    tb2, _ = store_b("Bee source two", "Misc")
+    _, r, s = b.run("skill.induce", {"traces": [tb1, tb2]})
+    sid_b = r.artifacts.get("skill_id")
+    acq_b = {"ok": r.status == ResultStatus.OK, "latency_s": s, "primitive_ops": r.cost.primitive_ops,
+             "skill_id": sid_b, "source_decisions": 10, "detail": r.failure_detail[:300]}
+    sk_b = []
+    if sid_b:
+        names = sorted(b.skills.library.get(sid_b).arg_schema["properties"])
+        for i in range(a.n):
+            args = {n: (f"Bee skill {i}" if n == "text" else labels[i % 3]) for n in names}
+            _, r, s = b.run("skill.run", {"skill_id": sid_b, "arguments": args})
+            sk_b.append({"decisions": 1, "primitive_ops": len(r.ops), "latency_s": s,
+                         "ok": r.status == ResultStatus.OK and r.verified is True})
+    b_names = [e["name"] for e in b.sc.sites.variants.entries]
+    out["tasks"]["store_entry_layout_b"] = {
+        "primitive_only": summary(prim_b), "skill_based": summary(sk_b) if sk_b else None, "acquisition": acq_b,
+        "every_skill_entry_stored": bool(sk_b) and all(f"Bee skill {i}" in b_names for i in range(a.n)),
+        "skill": {"operations": b.skills.library.get(sid_b).operations(),
+                  "params": b.skills.library.get(sid_b).arg_schema["properties"]} if sid_b else None,
+        "note": "the layout-A skill is refused here by its precondition; this one was acquired from traces on B"}
     out["tasks"]["store_entry"] = {"primitive_only": summary(prim), "skill_based": summary(sk), "acquisition": acq,
                                    "every_skill_entry_stored": stored_ok,
                                    "unfamiliar_path_same_layout": app_path, "interface_changed_to_layout_b": changed,

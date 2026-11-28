@@ -419,10 +419,15 @@ def test_the_reusable_portion_of_a_noisy_own_trace_is_found_by_validation(stagin
 
 
 @pytest.mark.browser
-def test_after_an_interface_change_a_new_skill_is_acquired_from_traces_on_the_new_interface(staging):
-    """Layout B (other labels, a dialog, radio buttons instead of a select). Before SG-round 2 the radio clicked in
-    each trace ('Parts' / 'Misc') became a free-text parameter whose fresh value named no element, and the page's
-    outline count (+1 when the dialog opens) was a postcondition that failed when the dialog was already open."""
+def test_after_an_interface_change_traces_on_the_new_interface_give_a_choice_parameter_and_no_false_success(staging):
+    """Layout B (other labels, a dialog, radio buttons; the entry is committed by an in-page request). Measured before
+    this test: (1) the radio clicked in each trace ('Parts' / 'Misc') became a free-text parameter whose fresh value
+    named no element; (2) 'the argument appears in the resulting state' held because the typed title was still the
+    value of the text field — runs reported verified success while the site stored nothing (its rate limit refused
+    the in-page request). Now the choice is an enum over the observed radio names, control values are not content,
+    and every run reported verified corresponds to a stored entry (on this layout the effect often appears only after
+    the last observation: the skill may then be refused for want of a confirmed postcondition — a negative result
+    recorded in docs/SG.md, not hidden)."""
     staging.sc.sites.variants.set_layout("b")
     base = staging.sc.sites.urls["variants"].rstrip("/")
 
@@ -439,14 +444,29 @@ def test_after_an_interface_change_a_new_skill_is_acquired_from_traces_on_the_ne
             o = staging.page(r) or o
         return ids
     t1, t2 = store_b("Bee one", "Parts"), store_b("Bee two", "Misc")
-    _, r = staging.run("skill.induce", {"traces": [t1, t2]})
-    assert r.status == ResultStatus.OK, r.failure_detail
-    sk = staging.skills.library.get(r.artifacts["skill_id"])
-    props = sk.arg_schema["properties"]
+    ex = staging.skills
+    ex._refresh_tools()
+    cand = ex.inducer.induce([ex.trace_of(t1), ex.trace_of(t2)])
+    props = cand.arg_schema["properties"]
     assert sorted(props) == ["name", "text"] and props["name"]["enum"] == ["Tools", "Parts", "Misc"]
-    assert not any(str(c.spec.get("path", "")).startswith(("outline", "elements", "a11y")) for c in sk.postconditions)
-    for i, cls in enumerate(("Tools", "Misc")):                 # also with the dialog left as validation left it
-        _, r = staging.run("skill.run", {"skill_id": sk.skill_id, "arguments": {"text": f"Bee run {i}", "name": cls}})
-        assert r.status == ResultStatus.OK, r.failure_detail
-    assert [(e["name"], e["category"], e["via"]) for e in staging.entries()[-2:]] == \
-        [("Bee run 0", "tools", "b"), ("Bee run 1", "misc", "b")]
+    assert not any(str(c.spec.get("path", "")).startswith(("outline", "elements", "a11y")) for c in cand.postconditions)
+    _, r = staging.run("skill.induce", {"traces": [t1, t2]})
+    if r.status != ResultStatus.OK:
+        assert "no observable postcondition was confirmed" in r.failure_detail or "postcondition" in r.failure_detail
+        return
+    sid = r.artifacts["skill_id"]
+    for i, cls in enumerate(("Tools", "Misc")):
+        _, r = staging.run("skill.run", {"skill_id": sid, "arguments": {"text": f"Bee run {i}", "name": cls}})
+        stored = any(e["name"] == f"Bee run {i}" for e in staging.entries())
+        assert not (r.status == ResultStatus.OK and r.verified is True) or stored     # no false success
+
+
+def test_text_typed_into_a_control_is_not_content():
+    from cam_live.harness.skills import _content_text
+    o = Observation(obs_id="o", ts=0.0, kind="page",
+                    text='Ledger\n-- controls --\n[e1] textbox "Title" = "Typed only"\nCommitted: Stored one',
+                    data={"elements": [{"ref": "e1", "role": "textbox", "name": "Title", "value": "Typed only"}],
+                          "a11y": {"role": "list", "children": [{"role": "listitem", "name": "Stored one"},
+                                                                {"role": "textbox", "value": "Typed only"}]}})
+    t = _content_text([o])
+    assert "Stored one" in t and "Typed only" not in t
