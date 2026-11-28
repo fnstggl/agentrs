@@ -1,0 +1,155 @@
+{
+ "frozen": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/RW/diag/long300hl_frozen_direct.json",
+ "arms": {
+  "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/RW/diag/long300hl_pooled_direct.json": {
+   "arm": "pooled",
+   "utility": "direct",
+   "half_life_s": 600.0,
+   "lr_reward": 0.003,
+   "runs": [
+    {
+     "seed": 0,
+     "decisions": 300,
+     "meta_applied": 49,
+     "mix_changes": [
+      [
+       221,
+       1.0,
+       0.75
+      ]
+     ],
+     "mix_end": 0.75,
+     "label_end": "mixed",
+     "first_mix_change_decision": 221,
+     "first_divergence_from_frozen": 229,
+     "identical_to_frozen_before_first_mix_change": true,
+     "pairs": 149,
+     "informative_pairs": 120,
+     "concordance_learned": {
+      "mean": 0.1476510067114094,
+      "lower": -0.07044954419603888,
+      "upper": 0.4070751130024899
+     },
+     "frozen_concordance_learned": {
+      "mean": 0.03355704697986577,
+      "lower": -0.24801036866452564,
+      "upper": 0.24063757204675107
+     },
+     "agreement_gain_over_frozen_init": 0.11409395973154363,
+     "concordance_bootstrap": {
+      "mean": 0.0,
+      "lower": -0.09903032091581032,
+      "upper": 0.09903032091581032
+     },
+     "learned_concordance_by_third_of_pairs": [
+      0.061224489795918366,
+      0.3877551020408163,
+      0.0
+     ],
+     "e_values_at_mix_1": {
+      "e_learned_vs_mix": 3.3450728479674545,
+      "e_bootstrap_vs_mix": 1.0
+     },
+     "truth_chosen_mean_after_first_change": 8.022527424213232,
+     "frozen_truth_chosen_mean_same_decisions": 8.07427702816169,
+     "truth_difference_after_first_change": -0.05174960394845804,
+     "truth_difference_ci95_decisions": [
+      -0.7879929204701713,
+      0.7450364250269716
+     ]
+    },
+    {
+     "seed": 1,
+     "decisions": 300,
+     "meta_applied": 48,
+     "mix_changes": [],
+     "mix_end": 1.0,
+     "label_end": "bootstrap",
+     "first_mix_change_decision": null,
+     "first_divergence_from_frozen": null,
+     "identical_to_frozen_before_first_mix_change": true,
+     "pairs": 149,
+     "informative_pairs": 123,
+     "concordance_learned": {
+      "mean": 0.18120805369127516,
+      "lower": -0.12851161129038446,
+      "upper": 0.36334930455092107
+     },
+     "frozen_concordance_learned": {
+      "mean": -0.020134228187919462,
+      "lower": -0.28247924161269566,
+      "upper": 0.21133920914614812
+     },
+     "agreement_gain_over_frozen_init": 0.20134228187919462,
+     "concordance_bootstrap": {
+      "mean": 0.0,
+      "lower": -0.09903032091581032,
+      "upper": 0.09903032091581032
+     },
+     "learned_concordance_by_third_of_pairs": [
+      -0.10204081632653061,
+      0.1836734693877551,
+      0.45098039215686275
+     ],
+     "e_values_at_mix_1": {
+      "e_learned_vs_mix": 7.113442613400831,
+      "e_bootstrap_vs_mix": 1.0
+     },
+     "truth_chosen_mean_after_first_change": null,
+     "frozen_truth_chosen_mean_same_decisions": null,
+     "truth_difference_after_first_change": null,
+     "truth_difference_ci95_decisions": null
+    },
+    {
+     "seed": 2,
+     "decisions": 300,
+     "meta_applied": 49,
+     "mix_changes": [],
+     "mix_end": 1.0,
+     "label_end": "bootstrap",
+     "first_mix_change_decision": null,
+     "first_divergence_from_frozen": null,
+     "identical_to_frozen_before_first_mix_change": true,
+     "pairs": 150,
+     "informative_pairs": 96,
+     "concordance_learned": {
+      "mean": 0.16,
+      "lower": -0.07402769478904558,
+      "upper": 0.3638669580910874
+     },
+     "frozen_concordance_learned": {
+      "mean": -0.2,
+      "lower": -0.407360372495877,
+      "upper": 0.025225828226230096
+     },
+     "agreement_gain_over_frozen_init": 0.36,
+     "concordance_bootstrap": {
+      "mean": 0.0,
+      "lower": -0.0983701187763717,
+      "upper": 0.0983701187763717
+     },
+     "learned_concordance_by_third_of_pairs": [
+      0.1,
+      0.14,
+      0.24
+     ],
+     "e_values_at_mix_1": {
+      "e_learned_vs_mix": 8.109609206737918,
+      "e_bootstrap_vs_mix": 1.0
+     },
+     "truth_chosen_mean_after_first_change": null,
+     "frozen_truth_chosen_mean_same_decisions": null,
+     "truth_difference_after_first_change": null,
+     "truth_difference_ci95_decisions": null
+    }
+   ],
+   "agreement_gain_over_frozen_init": [
+    0.11409395973154363,
+    0.20134228187919462,
+    0.36
+   ],
+   "seeds_with_positive_gain": 3,
+   "seeds_with_a_promotion": 1
+  }
+ }
+}

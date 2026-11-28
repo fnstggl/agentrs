@@ -60,6 +60,7 @@ from .integrity import (SUPERVISING_ORIGINS, AdmitResult, IntegrityError, Outcom
                         assert_optimizers_disjoint, assert_reward_optimizer_exclusive, params_hash, screen_verified)
 from .intrinsic import IntrinsicReward
 from .meta import ESTIMATOR_IMPORTANCE, ESTIMATOR_ON_POLICY, MetaGradient, MetaGradResult, Params, QueryData
+from .validity import ProspectiveValidity, ValidityDecision
 from .windows import WindowBuilder, held_out_groups, independence_key
 
 __all__ = ["MetaConfig", "UpdateEvent", "MetaLearner"]
@@ -83,9 +84,12 @@ class MetaConfig:
     min_ess: float = 2.0
     min_ess_fraction: float = 0.05
     min_propensity: float = 1e-6
-    heldout_fraction: float = 0.25       # independent groups reserved for promotion evidence
+    heldout_fraction: Optional[float] = None   # independent groups reserved for promotion evidence (None: 0.25 under
+                                         # promotion_rule "value", 0 under "validity", whose evidence is prospective)
     meta_mix: Optional[float] = 0.0      # bootstrap weight inside the differentiated update (None: the live mix)
-    utility: str = "return_to_go"        # "return_to_go" | "direct" credit of verified measurements
+    utility: str = "direct"              # "direct" | "return_to_go" credit of verified measurements (RW: "direct" — a
+                                         # decision's own signed outcomes; the return-to-go of a long objective is
+                                         # dominated by later decisions' outcomes, docs/RW.md section 4)
     max_events: int = 32
     provenance: Optional[str] = None     # None: provenance of the query rows (never mixed)
     min_gap_s: float = 0.0
@@ -94,6 +98,16 @@ class MetaConfig:
     mixer_min_independent: int = 4       # held-out independent groups per promotion decision (Student-t bound)
     mixer_tolerance: float = 0.0
     mixer_rel_margin: float = 0.05       # non-inferiority margin, in units of the held-out verified utility RMS
+    promotion_rule: str = "validity"     # "validity": prospective agreement of each reward with the decisions' later
+                                         # verified progress, anytime-valid (reward.validity; RW); "value": the
+                                         # held-out importance-weighted value of the two updated policies (LRN)
+    validity_alpha: float = 0.05         # error level of the validity evidence's confidence sequences
+    estimator: str = "auto"              # outer-gradient estimator: "query" (the decisions after each update event,
+                                         # exact in the step), "pooled_first_order" (RW: the verified policy
+                                         # gradient at the event's snapshot from every matured decision outside its
+                                         # support, through the exact differentiable inner update) or "auto" (RW:
+                                         # pooled for the newest event; the query estimator when that has no evidence)
+    pool_size: int = 64                  # most recent matured decisions the pooled estimator uses
     reward_hidden: int = 256
     reward_life: int = 64
     reward_bound: float = 1.0
@@ -224,6 +238,15 @@ class MetaLearner:
                 assembler = SignalAssembler()
         self.mixer = mixer or RewardMixer(mix=mc.mix, step=mc.mixer_step, min_independent=mc.mixer_min_independent,
                                           tolerance=mc.mixer_tolerance, rel_margin=mc.mixer_rel_margin)
+        if mc.promotion_rule not in ("validity", "value"):
+            raise ValueError(f"unknown promotion_rule {mc.promotion_rule!r}")
+        self.heldout = float(mc.heldout_fraction if mc.heldout_fraction is not None
+                             else (0.25 if mc.promotion_rule == "value" else 0.0))
+        # RW: prospective evidence on R_psi vs the bootstrap (collected under both rules; decides the mix under
+        # "validity"); fed at reward time and when a decision's verified progress becomes final
+        self.validity = ProspectiveValidity(step=self._grid_step(), alpha=mc.validity_alpha)
+        self._val_reg: Dict[str, int] = {}                         # exp_id -> registration count when noted
+        self.restored_fresh: List[str] = []                        # state absent from a loaded checkpoint
         self._life = 0
         self._life_of: Dict[str, int] = {}
         self._life_states: Dict[str, Tensor] = {}
@@ -255,10 +278,17 @@ class MetaLearner:
         self._u_ema: Optional[float] = None
         self._base_at: Dict[str, float] = {}                         # exp_id -> prefix baseline at registration
         self.records: List[MetaUpdateRecord] = []
+        self._pooled_done: Set[int] = set()                         # update events the pooled estimator stepped
+        self._goal_metric: Dict[str, str] = {}                       # objective -> its level (success) metric
         self.stats: Dict[str, float] = {"evicted_query_rows": 0.0, "discarded_rows": 0.0, "policy_updates": 0.0,
                                         "meta_applied": 0.0, "meta_skipped": 0.0}
 
     # ------------------------------------------------------------------------------------------- bookkeeping
+    def _grid_step(self) -> float:
+        """Mix grid of the validity evidence: the mixer's step (a fixed mix, step 0, still collects the evidence on
+        the two ends, bootstrap vs learned, but never moves)."""
+        return float(self.mixer.step) if 0.0 < float(self.mixer.step) <= 1.0 else 1.0
+
     def _now(self, fallback: float = 0.0) -> float:
         return float(self.clock.now()) if self.clock is not None else float(fallback)
 
@@ -335,13 +365,52 @@ class MetaLearner:
         self._sel_pending = keep
         return n
 
+    def refresh_validity(self) -> Optional[ValidityDecision]:
+        """RW: resolve the noted decisions whose verified progress became final (``reward.validity``), and — under
+        ``promotion_rule="validity"`` — move the bootstrap mix by the decision the evidence supports. Returns that
+        decision when at least one new pair was scored, else None. A decision whose goal-relevant answers are all
+        final but that carries no verified annotation 64 registrations later is dropped from its group."""
+        pend = self.validity.pending()
+        if not pend:
+            return None
+        many = getattr(self.store, "get_many", None)
+        recs = many(pend) if many is not None else [self.store.get(i) for i in pend]
+        by_id = {r.exp_id: r for r in recs if r is not None}
+        scored = 0
+        for i in pend:
+            rec = by_id.get(i)
+            if rec is None:
+                continue
+            y = verified_progress(rec)
+            if y is not None:
+                scored += self.validity.resolve(i, y)
+                self._val_reg.pop(i, None)
+            elif self._resolved(rec) and self._n_registered - self._val_reg.get(i, self._n_registered) > 64:
+                scored += self.validity.drop(i)
+                self._val_reg.pop(i, None)
+        if not scored:
+            return None
+        dec = self.validity.decide(self.mixer.mix)
+        if self.mc.promotion_rule == "validity":
+            self.mixer.apply(dec)
+        return dec
+
     def internal_rewards(self, records: Sequence[ExperienceRecord], *, write: bool = True) -> Dict[str, Any]:
         """Step 13 of the loop: reward every new decision once (learned and bootstrap parts logged separately)."""
         new = self.observe(records)
         self.refresh_selection()
         mixed = self.inner.reward_step(self.store, new, write=write)
+        for rec, m in zip(new, mixed):               # RW: both rewards as given before any outcome existed
+            if verified_progress(rec) is not None:   # its verified progress was known when it was rewarded:
+                continue                             # not a prospective test of either reward
+            self.validity.note(rec.exp_id, segment=self._life_of.get(rec.exp_id, self._life),
+                               group=independence_key(rec), r_bootstrap=float(m.bootstrap[0]),
+                               r_learned=float(m.learned[0]), ts=float(rec.decision.ts), version=m.reward_version)
+            self._val_reg[rec.exp_id] = self._n_registered
+        self.refresh_validity()
         tot = [float(m.total[0]) for m in mixed]
         return {"n": len(new), "mix": self.mixer.mix, "label": self.mixer.label,
+                "validity_pairs": self.validity.n_pairs,
                 "reward_version": self.reward.version, "rewards": tot,
                 "bootstrap": [float(m.bootstrap[0]) for m in mixed], "learned": [float(m.learned[0]) for m in mixed]}
 
@@ -484,7 +553,14 @@ class MetaLearner:
     def register_objective(self, task: Any, origin: Optional[str] = None) -> Optional[str]:
         """Record the origin of an objective (``OutcomeLedger.register_objective``): call it with the ``TaskSpec``
         whenever the runtime assigns one (its ``origin`` is used; ``Trust.SELF`` for goal-free goals), or with an
-        objective id and an explicit ``origin``. Outcomes of objectives never registered do not supervise."""
+        objective id and an explicit ``origin``. Outcomes of objectives never registered do not supervise.
+        RW: the task's success metric is remembered as the objective's *level* metric — verifier readings of it are
+        admitted as changes of the level (``integrity.LEVEL_CHANGE``), not as the level itself."""
+        if not isinstance(task, str):
+            m = (getattr(task, "success", None) or {}).get("metric") if isinstance(getattr(task, "success", None),
+                                                                                    dict) else None
+            if isinstance(m, str) and m:
+                self._goal_metric[str(task.objective_id)] = m
         return self.ledger.register_objective(task, origin)
 
     def admit_objective(self, verified: VerifiedOutcome, *, exp_ids: Optional[Sequence[str]] = None,
@@ -534,8 +610,10 @@ class MetaLearner:
                 u = self.measurement_utility(rec, q, o)
                 if u is None:
                     continue
-                res = self.ledger.admit_measurement(o, objective_id=rec.objective_id, utility=u,
-                                                    group=independence_key(rec), exp_ids=[rec.exp_id])
+                level = self._goal_metric.get(rec.objective_id) == q.metric
+                res = self.ledger.admit_measurement(o, objective_id=rec.objective_id, utility=None if level else u,
+                                                    group=independence_key(rec), exp_ids=[rec.exp_id],
+                                                    level_key=f"{rec.objective_id}|{q.metric}" if level else "")
                 n += int(res.accepted)
         return n
 
@@ -549,7 +627,7 @@ class MetaLearner:
         return all((not q.goal_relevant) or qid in done for qid, q in qs.items())
 
     def _is_held(self, group: str) -> bool:
-        f = self.mc.heldout_fraction
+        f = self.heldout
         return f > 0 and group in held_out_groups([group], fraction=f, salt="promotion")
 
     def _steps_of(self, evs: Sequence[UpdateEvent]) -> Tuple[List[InnerBatch], List[bool]]:
@@ -661,11 +739,32 @@ class MetaLearner:
         """One outer step of psi if the verified query evidence allows it; otherwise a skipped record."""
         now = self._now() if now is None else float(now)
         self.refresh_selection()
+        self.refresh_validity()
         ok, bad = self.ledger.verify_chain()
         if not ok:
             raise IntegrityError(f"the outcome ledger fails its hash chain at entry {bad}")
         if not self.events:
             return self._skip("no_policy_update_recorded", now, [], 0)
+        if self.mc.estimator not in ("query", "pooled_first_order", "auto"):
+            raise ValueError(f"unknown estimator {self.mc.estimator!r}")
+        if self.mc.estimator != "query":
+            rec = self._pooled_meta_update(now)
+            if rec.applied or self.mc.estimator == "pooled_first_order":
+                return rec
+            self.records.pop()                          # auto: the query estimator answers instead (one record)
+            self.stats["meta_skipped"] -= 1
+            pooled_reason = rec.skipped_reason
+        else:
+            pooled_reason = ""
+        out = self._query_meta_update(now)
+        if pooled_reason:
+            out.diagnostics["auto_pooled_skipped"] = 1.0
+            if not out.applied:
+                out.skipped_reason = f"{out.skipped_reason} | pooled: {pooled_reason}"
+        return out
+
+    def _query_meta_update(self, now: float) -> MetaUpdateRecord:
+        """The query-window estimator (one outer step from the decisions taken after each update event)."""
         eps, used_groups, held_groups = self._collect()
         self._discard(eps)
         eps = [e for e in eps if e.ibq is not None]
@@ -786,7 +885,8 @@ class MetaLearner:
         self.mixer.note_meta_update()
         mean_u = tot / max(N, 1)
         self._u_ema = mean_u if self._u_ema is None else 0.9 * self._u_ema + 0.1 * mean_u
-        promo = self._promotion(eps, traces, dev)
+        promo = self._promotion(eps, traces, dev) if self.mc.promotion_rule == "value" else \
+            {"promotion_rule_validity_pairs": float(self.validity.n_pairs)}
         self.stats["meta_applied"] += 1
         tensors_nonzero = sum(1 for g in grads.values() if bool((g != 0).any()))
         diag = {"ess": ess if math.isfinite(ess) else 0.0, "clipped_fraction": clipped / n_used,
@@ -805,6 +905,177 @@ class MetaLearner:
             n_support=n_sup, n_query=n_used, n_independent_outcomes=len(used_groups), inner_steps=K_used,
             inner_lr=lr_used, outer_objective=obj, meta_grad_norm=norm, estimator=est, max_importance_weight=max_w,
             bootstrap_mix=self.mixer.mix, applied=True, skipped_reason="", diagnostics=diag)
+        self.records.append(rec)
+        return rec
+
+    # ------------------------------------------------------------------------------------------- pooled estimator
+    def _pool(self, ev: UpdateEvent) -> Tuple[List[ExperienceRecord], List[float], List[str], Dict[str, int]]:
+        """Matured decisions that evaluate the policy of update event ``ev`` (RW): registered decisions of the same
+        objective segment whose goal-relevant answers are all final and that carry ledger-admitted (signed) utility,
+        outside the event's support batch and outside every independent-outcome group of the support (no outcome is
+        in both the inner update and the outer estimate). The ``pool_size`` most recent ones, oldest first.
+        Utilities as in :meth:`_episode` (``utility="return_to_go"``: discounted measured outcomes of the later pool
+        decisions of the segment, plus objective outcomes credited to the decision)."""
+        stats = {"candidates": 0, "support_or_its_group": 0, "unresolved": 0, "no_signed_utility": 0}
+        sup = set(ev.exp_ids)
+        sup_recs = [r for r in (self.store.get(i) for i in ev.exp_ids) if r is not None]
+        sup_groups = {independence_key(r) for r in sup_recs}
+        ids = [i for i, life in self._life_of.items() if life == ev.lifetime]
+        ids = ids[-max(4 * int(self.mc.pool_size), 256):]
+        many = getattr(self.store, "get_many", None)
+        recs = [r for r in (many(ids) if many is not None else [self.store.get(i) for i in ids]) if r is not None]
+        recs.sort(key=lambda r: (r.decision.ts, r.seq, r.exp_id))
+        cand = []
+        for r in recs:
+            stats["candidates"] += 1
+            if r.exp_id in sup or independence_key(r) in sup_groups or not self.inner.eligible(r):
+                stats["support_or_its_group"] += 1
+                continue
+            if not r.decision.probabilities or not self._resolved(r):
+                stats["unresolved"] += 1
+                continue
+            cand.append(r)
+        self.admit_measurements(cand)
+        obj = [[e for e in self.ledger.by_exp(r.exp_id) if e.kind == "objective"] for r in cand]
+        mea = [[e for e in self.ledger.by_exp(r.exp_id) if e.kind == "measurement"] for r in cand]
+        rtg = self.mc.utility == "return_to_go"
+        beta = self.inner.cfg.beta
+        U, keep = [], []
+        for a, r in enumerate(cand):
+            js = range(a, len(cand)) if rtg else [a]
+            has = bool(obj[a]) or any(bool(mea[j]) for j in js)
+            if not has:
+                stats["no_signed_utility"] += 1
+                continue
+            val = sum(math.exp(-beta * max(0.0, cand[j].decision.ts - r.decision.ts)) * sum(e.utility for e in mea[j])
+                      for j in js)
+            U.append(sum(e.utility for e in obj[a]) + val)
+            keep.append(a)
+        m = max(0, int(self.mc.pool_size))
+        keep, U = (keep[-m:], U[-m:]) if m else ([], [])
+        rows = [cand[a] for a in keep]
+        groups = [obj[a][0].group if obj[a] else independence_key(cand[a]) for a in keep]
+        return rows, U, groups, stats
+
+    def _pooled_meta_update(self, now: float) -> MetaUpdateRecord:
+        """RW, ``estimator="pooled_first_order"``: one outer step of psi from the newest live update event.
+
+            J(psi) ~= J(theta_0) + < grad_theta J(theta_0), theta_K(psi) - theta_0 >
+            grad_psi J ~= (d theta_K / d psi)^T g,   g = grad_theta sum_j w_j log pi_theta_0(a_j) (U_j - b_j)
+
+        theta_K(psi) is the exact differentiable inner update of the event (its snapshot, support batch, step and K,
+        at ``meta_mix``); g is the importance-weighted (self-normalised, clipped, logged propensities) policy
+        gradient of verified utility at the snapshot, from the matured decisions of :meth:`_pool` with leave-group-out
+        baselines. The only approximation is linearising J at theta_0 instead of evaluating it at theta_K (the live
+        step is a trust region of KL ~ ``target_kl``). It uses every matured decision instead of only the few taken
+        between this update and the next, so it does not wait for the next lifetime or objective. Each event is
+        stepped once."""
+        ev = next((e for e in reversed(self.events) if not e.external), None)
+        if ev is None or ev.event_id in self._pooled_done:      # only the newest live update; each once
+            return self._skip("no_new_policy_update_event", now, [], 0)
+        rows, U, groups, pst = self._pool(ev)
+        n_groups = len(set(groups))
+        diag = {f"pool.{k}": float(v) for k, v in pst.items()}
+        diag["pool.rows"] = float(len(rows))
+        if n_groups < self.mc.min_independent:
+            return self._skip(f"insufficient_independent_outcomes:{n_groups}<{self.mc.min_independent}", now, [],
+                              n_groups, diag)
+        if ev.ib is None:
+            recs = [r for r in (self.store.get(i) for i in ev.exp_ids) if r is not None]
+            ev.ib = self.inner.build_batch(self.store, recs)
+        psi = self.reward.psi()
+        dev = next(iter(psi.values())).device
+        theta0 = {n: v.to(dev) for n, v in ev.theta0.items()}
+        ibq = self.inner.build_batch(self.store, rows, policy_only=True)
+        order = [ibq.exp_ids.index(r.exp_id) for r in rows]
+        ibq = ibq.select(order)
+        blp = ibq.behaviour_logp.to(torch.float64)
+        if not bool(torch.isfinite(blp).all()) or bool((blp < math.log(self.mc.min_propensity)).any()):
+            return self._skip("no_supported_episode:invalid_or_tiny_propensities", now, [], n_groups, diag)
+        th = {n: v.detach().clone().requires_grad_(True) for n, v in theta0.items()}
+        lp = self.inner.logp(th, ibq)
+        rho = torch.exp(lp.detach().to(torch.float64) - blp)
+        ess = float(rho.sum() ** 2 / (rho ** 2).sum().clamp_min(1e-300))
+        n = len(rows)
+        if not ess >= max(self.mc.min_ess, self.mc.min_ess_fraction * n):
+            return self._skip(f"no_supported_episode:effective_sample_size_too_small:{ess:.2f}", now, [], n_groups,
+                              {**diag, "ess": ess})
+        iw = rho.clamp(max=self.mc.weight_clip)
+        w = (iw / iw.sum()).to(lp.dtype)
+        Ut = torch.tensor(U, dtype=torch.float64)
+        g_sum: Dict[str, float] = {}
+        g_cnt: Dict[str, int] = {}
+        for g_, u_ in zip(groups, U):
+            g_sum[g_] = g_sum.get(g_, 0.0) + u_
+            g_cnt[g_] = g_cnt.get(g_, 0) + 1
+        tot = float(Ut.sum())
+        base = torch.tensor([(tot - g_sum[g_]) / (n - g_cnt[g_]) if n > g_cnt[g_] else (self._u_ema or 0.0)
+                             for g_ in groups], dtype=torch.float64)
+        adv = (Ut - base)
+        max_adv = float(adv.abs().max())
+        u_scale = max(1.0, float(Ut.abs().max()))
+        diag.update({"ess": ess, "n_query_rows": float(n), "utility_min": float(Ut.min()),
+                     "utility_max": float(Ut.max()), "max_abs_advantage": max_adv,
+                     "clipped_fraction": float((rho > self.mc.weight_clip).double().mean())})
+        if max_adv <= 1e-9 * u_scale:
+            return self._skip(f"zero_advantage: all {n} pooled utilities equal their baselines", now, [], n_groups,
+                              diag, estimator="pooled_first_order_importance")
+        pg = (w * lp * adv.to(lp.dtype)).sum()
+        names = list(th)
+        g_theta = torch.autograd.grad(pg, [th[k] for k in names], allow_unused=True)
+        gvec = {k: (g.detach() if g is not None else torch.zeros_like(th[k])) for k, g in zip(names, g_theta)}
+        v_before, h_before = self.reward.version, params_hash(self.reward)
+        with self.reward.meta_window():
+            steps, _ = self._steps_of([ev])
+            trace = self.engine.inner_update(theta0, psi, steps, ev.inner_lr, len(steps), create_graph=True,
+                                             mode="unroll")
+            thK = trace.theta_K
+            surrogate = sum((gvec[k].to(thK[k].dtype) * thK[k]).sum() for k in names)
+            pnames = list(psi)
+            gr = torch.autograd.grad(surrogate, [psi[k] for k in pnames], allow_unused=True)
+        grads = {k: (g.detach() if g is not None else torch.zeros_like(psi[k])) for k, g in zip(pnames, gr)}
+        norm = math.sqrt(sum(float((g ** 2).sum()) for g in grads.values()))
+        self._pooled_done.add(ev.event_id)
+        obj = float((w.detach().to(torch.float64) * Ut).sum())
+        diag.update({"meta_grad_norm": norm if math.isfinite(norm) else -1.0,
+                     "policy_gradient_norm": math.sqrt(sum(float((g ** 2).sum()) for g in gvec.values())),
+                     "event_id": float(ev.event_id)})
+        if not math.isfinite(norm) or norm <= self.mc.min_meta_grad_norm:
+            return self._skip("non_finite_meta_gradient" if not math.isfinite(norm) else
+                              f"zero_meta_gradient:{norm:.3e}<={self.mc.min_meta_grad_norm:g}", now, [], n_groups,
+                              diag, meta_grad_norm=diag["meta_grad_norm"], estimator="pooled_first_order_importance",
+                              outer_objective=obj)
+        # d surrogate / d psi = d J / d psi to first order; MetaGradient.apply ascends J along it
+        result = MetaGradResult(True, "", "pooled_first_order_importance", grads=grads, grad_norm=norm, objective=obj,
+                                n=n, n_groups=n_groups, ess=ess, max_weight=float(rho.max()),
+                                clipped_fraction=diag["clipped_fraction"], K=trace.K, inner_lr=ev.inner_lr,
+                                mode="unroll")
+        opt_state = copy.deepcopy(self.optimizer.state_dict())
+        info = MetaGradient.apply(self.optimizer, self.reward, result, clip=self.mc.clip_reward)
+        if not info.get("applied", 0.0) or params_hash(self.reward) == h_before:
+            self.optimizer.load_state_dict(opt_state)
+            for p_ in self.reward.parameters():
+                p_.grad = None
+            return self._skip("psi_unchanged_by_the_step" if info.get("applied", 0.0)
+                              else f"not_applied:{info.get('reason', '')}", now, [], n_groups,
+                              {**diag, "clip_scale": float(info.get("clip_scale", 0.0))}, meta_grad_norm=norm,
+                              estimator="pooled_first_order_importance", outer_objective=obj)
+        self.mixer.note_meta_update()
+        mean_u = float(Ut.mean())
+        self._u_ema = mean_u if self._u_ema is None else 0.9 * self._u_ema + 0.1 * mean_u
+        self.stats["meta_applied"] += 1
+        diag.update({"clip_scale": info["clip_scale"], "utility_mean": mean_u,
+                     "psi_tensors_with_gradient": float(sum(1 for g in grads.values() if bool((g != 0).any()))),
+                     "psi_tensors": float(len(grads)), "psi_changed": float(params_hash(self.reward) != h_before),
+                     "ledger_entries": float(len(self.ledger)), "ledger_rejected": float(len(self.ledger.rejected)),
+                     "promotion_rule_validity_pairs": float(self.validity.n_pairs)})
+        rec = MetaUpdateRecord(
+            meta_id=new_id("meta"), ts=now, reward_version_before=v_before, reward_version_after=self.reward.version,
+            support_window=f"event:{ev.event_id}", query_window=f"pool:{len(rows)}@{self.ledger.head}",
+            n_support=len(ev.exp_ids), n_query=n, n_independent_outcomes=n_groups, inner_steps=trace.K,
+            inner_lr=ev.inner_lr, outer_objective=obj, meta_grad_norm=norm, estimator="pooled_first_order_importance",
+            max_importance_weight=float(rho.max()), bootstrap_mix=self.mixer.mix, applied=True, skipped_reason="",
+            diagnostics=diag)
         self.records.append(rec)
         return rec
 
@@ -903,6 +1174,8 @@ class MetaLearner:
                 "ledger_head": self.ledger.head, "stats": dict(self.stats),
                 "gate": self.inner.bootstrap.gate.state_dict(),
                 "selection": self.selection.state_dict(), "selection_pending": list(self._sel_pending),
+                "validity": self.validity.state_dict(), "validity_registered": dict(self._val_reg),
+                "pooled_done": sorted(self._pooled_done), "goal_metric": dict(self._goal_metric),
                 "selection_registered": [self._n_registered, dict(self._reg_at)],
                 "records": [r.to_dict() for r in self.records[-256:]],
                 "events": [{"event_id": e.event_id, "ts": e.ts, "exp_ids": list(e.exp_ids), "inner_lr": e.inner_lr,
@@ -955,6 +1228,21 @@ class MetaLearner:
             self._sel_pending = list(sd.get("selection_pending", []))
             n_reg, reg_at = sd.get("selection_registered", [0, {}])
             self._n_registered, self._reg_at = int(n_reg), {k: int(v) for k, v in reg_at.items()}
+        self.restored_fresh = []
+        self._pooled_done = {int(x) for x in sd.get("pooled_done", [])}
+        self._goal_metric = {str(k): str(v) for k, v in sd.get("goal_metric", {}).items()}
+        self.validity = ProspectiveValidity(step=self._grid_step(), alpha=self.mc.validity_alpha)
+        if "validity" in sd:                        # RW: checkpoints from before the validity evidence start empty
+            try:
+                self.validity.load_state_dict(sd["validity"])
+                self._val_reg = {k: int(v) for k, v in sd.get("validity_registered", {}).items()}
+            except ValueError as e:                 # another mix grid: the evidence does not apply, start afresh
+                self.validity = ProspectiveValidity(step=self._grid_step(), alpha=self.mc.validity_alpha)
+                self._val_reg = {}
+                self.restored_fresh.append(f"validity ({e})")
+        else:
+            self._val_reg = {}
+            self.restored_fresh.append("validity (not in the checkpoint)")
         self.records = [MetaUpdateRecord.from_dict(d) for d in sd.get("records", [])]
         self.events = [UpdateEvent(event_id=e["event_id"], ts=e["ts"], exp_ids=list(e["exp_ids"]),
                                    inner_lr=e["inner_lr"], steps=e["steps"], mix=e["mix"],

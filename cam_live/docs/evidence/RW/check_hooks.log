@@ -1,0 +1,2 @@
+{"restore_report_meta_restored_fresh": ["validity (not in the checkpoint)"], "status_reward_validity": {"units": 0, "pairs": 0, "informative_pairs": 0, "pending_rows": 0, "grid": [1.0, 0.75, 0.5, 0.25, 0.0], "alpha": 0.05, "concordance_bootstrap": {"mean": 0.0, "lower": -1.0, "upper": 1.0}, "concordance_learned": {"mean": 0.0, "lower": -1.0, "upper": 1.0}}}
+RW-1 / RW-2 hold on the patched copy

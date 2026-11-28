@@ -249,6 +249,15 @@ def measurement_utility(o: OutcomeObservation) -> float:
     return float(o.value)
 
 
+#: mapping of a reading of the objective's own *level* metric (e.g. a member count read after an action): the change of
+#: the level since the latest earlier admitted reading of the same metric of the same objective (RW). The first
+#: reading anchors the level (change 0: the level before it is not known to the ledger); a reading observed no later
+#: than the latest admitted one lies in an interval already credited (change 0). The changes of an objective's
+#: readings therefore sum to its last reading minus its first: no progress is counted twice, and a level that was
+#: already there is never credited to the decision after which it was read.
+LEVEL_CHANGE = "level_change_v1"
+
+
 def utility_matches(claimed: float, derived: float, rtol: float = 1e-9) -> bool:
     """Does a caller-stated utility agree with the derived one (to rounding)?"""
     c, d = float(claimed), float(derived)
@@ -331,6 +340,7 @@ class OutcomeLedger:
         self._keys: Dict[str, int] = {}
         self._by_exp: Dict[str, List[int]] = {}
         self._level: Dict[str, float] = {}                    # objective -> admitted achievement level so far
+        self._reading: Dict[str, Tuple[float, float]] = {}    # level key -> (observed_at, value) of the latest reading
         self._origins: Dict[str, str] = {}                    # objective -> recorded origin
         self._refused: Dict[Tuple[str, str], int] = {}        # (reason, key) -> index of the "refused" entry
         self.origin_conflicts: List[Tuple[str, str, str]] = []
@@ -418,11 +428,11 @@ class OutcomeLedger:
         return e
 
     def _append(self, key: str, kind: str, objective_id: str, group: str, utility: float, observed_at: float,
-                signature: str, content: str, exp_ids: Sequence[str]) -> AdmitResult:
+                signature: str, content: str, exp_ids: Sequence[str], note: str = "") -> AdmitResult:
         if key in self._keys:
             self._reject("duplicate", key)
             return AdmitResult(False, "duplicate", self._entries[self._keys[key]])
-        e = self._chain(key, kind, objective_id, group, utility, observed_at, signature, content, exp_ids)
+        e = self._chain(key, kind, objective_id, group, utility, observed_at, signature, content, exp_ids, note=note)
         self._index(e)
         return AdmitResult(True, "", e)
 
@@ -440,6 +450,15 @@ class OutcomeLedger:
             self._by_exp.setdefault(x, []).append(e.index)
         if e.kind == "objective":
             self._level[e.objective_id] = self._level.get(e.objective_id, 0.0) + e.utility
+        elif e.kind == "measurement" and e.note:
+            try:
+                m = json.loads(e.note)
+            except ValueError:
+                m = {}
+            if m.get("mapping") == LEVEL_CHANGE:
+                old = self._reading.get(m["level_key"])
+                if old is None or e.observed_at > old[0]:
+                    self._reading[m["level_key"]] = (float(e.observed_at), float(m["value"]))
 
     def _reject(self, reason: str, key: str, **detail: Any) -> None:
         self.rejected.append((reason, key))
@@ -499,11 +518,20 @@ class OutcomeLedger:
         return self._append(key, "objective", v.objective_id, group, derived, v.evaluated_at, v.signature,
                             v.content_hash(), exp_ids)
 
+    def derived_level_change(self, o: OutcomeObservation, level_key: str) -> float:
+        """The utility an admission of reading ``o`` of level ``level_key`` would store (mapping ``LEVEL_CHANGE``)."""
+        old = self._reading.get(level_key)
+        if old is None or float(o.observed_at) <= old[0]:
+            return 0.0
+        return float(o.value) - old[1]
+
     def admit_measurement(self, o: OutcomeObservation, *, objective_id: str = "", utility: Optional[float] = None,
                           group: str = "", exp_ids: Sequence[str] = (), imagined: bool = False,
-                          signature: str = "") -> AdmitResult:
+                          signature: str = "", level_key: str = "") -> AdmitResult:
         """Admit a verifier measurement (``OutcomeVerifier.measure``) authenticated by ``check_measurement``. The
-        stored utility is :func:`measurement_utility`; a disagreeing ``utility`` is refused."""
+        stored utility is :func:`measurement_utility` — or, with ``level_key`` (a reading of an objective's level
+        metric, e.g. ``"<objective>|<metric>"``), :meth:`derived_level_change` (mapping ``LEVEL_CHANGE``, the raw
+        reading kept in the entry's note); a disagreeing ``utility`` is refused."""
         key = "obs:" + _obs_key(o)
         ok, reason = screen_observation(o, imagined=imagined or bool(getattr(o, "imagined", False)),
                                         check_measurement=self._check_measurement)
@@ -513,13 +541,15 @@ class OutcomeLedger:
         if key in self._keys:
             self._reject("duplicate", key, objective_id=objective_id)
             return AdmitResult(False, "duplicate", self._entries[self._keys[key]])
-        derived = measurement_utility(o)
+        derived = self.derived_level_change(o, level_key) if level_key else measurement_utility(o)
         if utility is not None and not utility_matches(utility, derived):
             return self.refuse("utility_mismatch", key, kind="measurement", objective_id=objective_id,
                                observed_at=o.observed_at, signature=signature or getattr(o, "signature", ""),
                                content=o.content_hash(), claimed=utility, derived=derived, exp_ids=exp_ids)
+        note = json.dumps({"mapping": LEVEL_CHANGE, "level_key": level_key, "value": float(o.value)},
+                          sort_keys=True) if level_key else ""
         return self._append(key, "measurement", objective_id, group, derived, o.observed_at,
-                            signature or getattr(o, "signature", ""), o.content_hash(), exp_ids)
+                            signature or getattr(o, "signature", ""), o.content_hash(), exp_ids, note=note)
 
     # ------------------------------------------------------------------------------------------- reading
     @property

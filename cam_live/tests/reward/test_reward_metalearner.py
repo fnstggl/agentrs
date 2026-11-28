@@ -150,8 +150,10 @@ def test_shadow_update_with_importance_weights_while_bootstrap_drives_the_policy
 
 
 def test_promotion_moves_the_mix_only_on_held_out_evidence():
+    # the LRN rule (held-out value comparison), still available as promotion_rule="value"; RW's default rule is
+    # tests/reward/test_reward_rw.py
     ec, model, store, clock, ml = _stack(5, mix=1.0, mix_step=0.25, heldout=0.5, mixer_tolerance=1.0,
-                                         min_independent=2)
+                                         min_independent=2, promotion_rule="value")
     ml.mixer.min_independent = 2
     recs = []
     for i in range(30):                                           # until the held-out buffer allowed a decision

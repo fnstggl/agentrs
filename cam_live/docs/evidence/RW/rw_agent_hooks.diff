@@ -1,0 +1,20 @@
+--- /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/RW/snap/cam_live/src/cam_live/agent.py	2026-11-28 09:26:54.000000000 +0000
++++ cam_live/src/cam_live/agent.py	2026-11-28 09:59:50.437884366 +0000
+@@ -2363,6 +2363,8 @@
+         self._checkpoint_auth_hash = "" if current is not None else str(getattr(st, "auth_config_hash", "") or "")
+         aux = (st.aux_state or {}).get("agent", {})
+         self.meta.load_state_dict(aux["meta"])
++        if getattr(self.meta, "restored_fresh", None):          # RW-1: parts absent from an older checkpoint
++            self.restore_report["meta_restored_fresh"] = list(self.meta.restored_fresh)
+         self._load_meta_batches(aux.get("meta_batches", {}))
+         self.predictor.set_fast_state(self.learner.fast_state)
+         self._load_predictor_state(aux.get("predictor", {}))
+@@ -2538,6 +2540,8 @@
+             "goal_free": self._goal_free_active(), "lifetime": self.lifetime, "decisions": self.n_decisions,
+             "model_version": self.learner.model_version, "reward_version": self.meta.reward.version,
+             "bootstrap_mix": self.meta.mixer.mix, "learner": self.learner.status(), "meta": dict(self.meta.stats),
++            "reward_validity": {k: v for k, v in self.meta.validity.summary().items() if k != "by_mix"}
++            if hasattr(self.meta, "validity") else None,
+             "meta_events": len(self.meta.events), "ledger_entries": len(self.meta.ledger),
+             "credit_default": self.assigner.default, "store_records": self.store.count(),
+             "predictions": len(self.predictions), "planner_horizon": self.planner.controller.allowed(),

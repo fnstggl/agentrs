@@ -1,0 +1,52 @@
+[INFO] cam_live source: /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/RW/snap/cam_live/src
+[INFO] config: {'target_kl': 0.05, 'replay_matured': 16, 'goal_coef': 1.0, 'model_coef': 1.0, 'component_norm': True, 'meta_mix': 0.0, 'inner_lr(lo)': 0.1, 'max_inner_lr': 2.0, 'K': 2}
+[INFO] lifetime 0: meta-update skipped: insufficient_independent_outcomes:1<3
+[INFO] lifetime 1: meta-update skipped: insufficient_independent_outcomes:2<3
+[INFO] lifetime 2: code per-episode (estimator, supported, reason, rows, ess): [('on_policy', True, '', 8, 8.0), ('on_policy', True, '', 8, 8.0), ('on_policy', True, '', 8, 8.0), ('on_policy', True, '', 8, 8.0), ('on_policy', True, '', 8, 8.0)]
+[INFO] lifetime 2: mine per-episode: [(0, True, 0.0, 8), (1, True, 0.0, 8), (2, True, 0.0, 8), (3, True, 0.0, 8), (4, True, 0.0, 8)]
+[PASS] lifetime 2: applied meta-gradient == my recomputation (current loss incl. goal / credit / model terms, trust-region step)  rel_err=3.85e-07 |g|=5.534e-01 code estimator=on_policy_query mine=['on', 'on', 'on', 'on', 'on']
+[PASS] lifetime 2: psi changed by the applied step  
+/workspace/camlive/cam_live/docs/verification/repro/g2decision/probe_meta_path.py:404: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  fd = float((fp - fm) / (2 * eps_))
+[PASS] lifetime 2: my analytic directional derivative == central FD (float64)  analytic=-1.726653e-03 fd=-1.726653e-03
+[PASS] lifetime 2: code's gradient along the same direction == FD (float32 code vs float64 FD)  code=-1.726652e-03 fd=-1.726653e-03
+[INFO] lifetime 3: meta-update skipped: insufficient_independent_outcomes:1<3
+[INFO] lifetime 4: meta-update skipped: insufficient_independent_outcomes:2<3
+[INFO] lifetime 5: code per-episode (estimator, supported, reason, rows, ess): [('importance', True, '', 8, 7.999952793121338), ('on_policy', True, '', 8, 8.0), ('on_policy', True, '', 8, 8.0), ('on_policy', True, '', 5, 5.0), ('on_policy', True, '', 8, 8.0), ('on_policy', True, '', 8, 8.0)]
+[INFO] lifetime 5: mine per-episode: [(5, False, 0.000984, 8), (6, True, 0.0, 8), (7, True, 0.0, 8), (8, True, 0.0, 5), (9, True, 0.0, 8), (10, True, 0.0, 8)]
+[PASS] lifetime 5: applied meta-gradient == my recomputation (current loss incl. goal / credit / model terms, trust-region step)  rel_err=8.59e-07 |g|=1.507e-02 code estimator=mixed_on_policy_and_importance mine=['iw', 'on', 'on', 'on', 'on', 'on']
+[PASS] lifetime 5: psi changed by the applied step  
+[PASS] lifetime 5: my analytic directional derivative == central FD (float64)  analytic=-4.283469e-05 fd=-4.283469e-05
+[PASS] lifetime 5: code's gradient along the same direction == FD (float32 code vs float64 FD)  code=-4.283468e-05 fd=-4.283469e-05
+[FAIL] K=1: my analytic d/dpsi == central FD (float64, real subset, current loss)  analytic=-1.27106307e-08 fd=-1.27092781e-08
+[PASS] K=1: the code's engine gradient == mine (all psi tensors, float64)  rel=2.99e-15 code_dir=-1.27106307e-08
+[FAIL] K=2: my analytic d/dpsi == central FD (float64, real subset, current loss)  analytic=1.58595368e-06 fd=1.58595082e-06
+[PASS] K=2: the code's engine gradient == mine (all psi tensors, float64)  rel=9.17e-16 code_dir=1.58595368e-06
+[PASS] K=4: my analytic d/dpsi == central FD (float64, real subset, current loss)  analytic=2.53073271e-06 fd=2.53073396e-06
+[PASS] K=4: the code's engine gradient == mine (all psi tensors, float64)  rel=1.36e-15 code_dir=2.53073271e-06
+[PASS] K=8: my analytic d/dpsi == central FD (float64, real subset, current loss)  analytic=2.79454018e-06 fd=2.79454238e-06
+[PASS] K=8: the code's engine gradient == mine (all psi tensors, float64)  rel=1.36e-15 code_dir=2.79454018e-06
+[INFO] K sweep: {1: {'fd': -1.2709278074396478e-08, 'mine': -1.2710630707921064e-08, 'code': -1.2710630707926037e-08, 'rel_code_vs_mine': 2.9892331697859218e-15}, 2: {'fd': 1.5859508151194743e-06, 'mine': 1.5859536763002933e-06, 'code': 1.5859536763002785e-06, 'rel_code_vs_mine': 9.173454978543792e-16}, 4: {'fd': 2.5307339557301134e-06, 'mine': 2.5307327149308986e-06, 'code': 2.5307327149308986e-06, 'rel_code_vs_mine': 1.3574152705887542e-15}, 8: {'fd': 2.794542375283981e-06, 'mine': 2.7945401785380704e-06, 'code': 2.7945401785379993e-06, 'rel_code_vs_mine': 1.3621181338491628e-15}}
+[INFO] live updates checked: 12
+[INFO] event 0: {'event': 0, 'n': 8, 'lr': 2.0, 'kl': 0.017693, 'at_bound': True, 'in_region': False, 'mine_vs_live': 0.0, 'update': 0.291227, 'replay_bit_identical': True, 'goal_inputs_equal': True, 'model_inputs_equal': True, 'sources': {'verified': 5, 'predicted': 1, 'credit:rudder': 2}, 'replayed': 0}
+[INFO] event 1: {'event': 1, 'n': 14, 'lr': 2.0, 'kl': 0.02511, 'at_bound': True, 'in_region': False, 'mine_vs_live': 0.0, 'update': 0.609566, 'replay_bit_identical': True, 'goal_inputs_equal': True, 'model_inputs_equal': True, 'sources': {'verified': 9, 'predicted': 1, 'credit:simple': 2, 'credit:rudder': 2}, 'replayed': 6}
+[INFO] event 2: {'event': 2, 'n': 19, 'lr': 2.0, 'kl': 0.000154, 'at_bound': True, 'in_region': False, 'mine_vs_live': 0.0, 'update': 0.516579, 'replay_bit_identical': True, 'goal_inputs_equal': True, 'model_inputs_equal': True, 'sources': {'verified': 13, 'predicted': 1, 'credit:simple': 1, 'credit:rudder': 4}, 'replayed': 11}
+[INFO] event 3: {'event': 3, 'n': 24, 'lr': 2.0, 'kl': 2.2e-05, 'at_bound': True, 'in_region': False, 'mine_vs_live': 0.0, 'update': 1.889075, 'replay_bit_identical': True, 'goal_inputs_equal': True, 'model_inputs_equal': True, 'sources': {'verified': 16, 'predicted': 1, 'credit:simple': 1, 'credit:rudder': 6}, 'replayed': 16}
+[INFO] event 4: {'event': 4, 'n': 24, 'lr': 2.0, 'kl': 8.4e-05, 'at_bound': True, 'in_region': False, 'mine_vs_live': 0.0, 'update': 2.500434, 'replay_bit_identical': True, 'goal_inputs_equal': True, 'model_inputs_equal': True, 'sources': {'verified': 17, 'credit:rudder': 7}, 'replayed': 16}
+[INFO] event 5: {'event': 5, 'n': 24, 'lr': 2.0, 'kl': 5.9e-05, 'at_bound': True, 'in_region': False, 'mine_vs_live': 0.0, 'update': 0.651627, 'replay_bit_identical': True, 'goal_inputs_equal': True, 'model_inputs_equal': True, 'sources': {'verified': 16, 'credit:simple': 1, 'credit:rudder': 7}, 'replayed': 16}
+[INFO] event 6: {'event': 6, 'n': 24, 'lr': 2.0, 'kl': 6e-06, 'at_bound': True, 'in_region': False, 'mine_vs_live': 0.0, 'update': 1.206341, 'replay_bit_identical': True, 'goal_inputs_equal': True, 'model_inputs_equal': True, 'sources': {'verified': 13, 'credit:simple': 1, 'credit:rudder': 10}, 'replayed': 16}
+[INFO] event 7: {'event': 7, 'n': 24, 'lr': 2.0, 'kl': 6e-06, 'at_bound': True, 'in_region': False, 'mine_vs_live': 0.0, 'update': 1.94032, 'replay_bit_identical': True, 'goal_inputs_equal': True, 'model_inputs_equal': True, 'sources': {'verified': 13, 'predicted': 1, 'credit:simple': 1, 'credit:rudder': 9}, 'replayed': 16}
+[INFO] event 8: {'event': 8, 'n': 24, 'lr': 2.0, 'kl': 2e-06, 'at_bound': True, 'in_region': False, 'mine_vs_live': 0.0, 'update': 2.740241, 'replay_bit_identical': True, 'goal_inputs_equal': True, 'model_inputs_equal': True, 'sources': {'verified': 13, 'credit:rudder': 11}, 'replayed': 16}
+[INFO] event 9: {'event': 9, 'n': 21, 'lr': 2.0, 'kl': 1.4e-05, 'at_bound': True, 'in_region': False, 'mine_vs_live': 0.0, 'update': 2.122411, 'replay_bit_identical': True, 'goal_inputs_equal': True, 'model_inputs_equal': True, 'sources': {'verified': 12, 'predicted': 1, 'credit:rudder': 8}, 'replayed': 16}
+[INFO] event 10: {'event': 10, 'n': 24, 'lr': 2.0, 'kl': 1.9e-05, 'at_bound': True, 'in_region': False, 'mine_vs_live': 0.0, 'update': 0.98568, 'replay_bit_identical': True, 'goal_inputs_equal': True, 'model_inputs_equal': True, 'sources': {'verified': 13, 'credit:simple': 2, 'credit:rudder': 9}, 'replayed': 16}
+[INFO] event 11: {'event': 11, 'n': 24, 'lr': 2.0, 'kl': 7e-06, 'at_bound': True, 'in_region': False, 'mine_vs_live': 0.0, 'update': 0.638681, 'replay_bit_identical': True, 'goal_inputs_equal': True, 'model_inputs_equal': True, 'sources': {'verified': 12, 'predicted': 3, 'credit:simple': 2, 'credit:rudder': 7}, 'replayed': 16}
+[PASS] every live policy update equals MY K-step SGD on the documented loss (float32, rel. to the update)  [4e-07, 2e-07, 1e-07, 0.0, 1e-07, 5e-07, 1e-07, 1e-07, 0.0, 1e-07, 3e-07, 3e-07]
+[PASS] every live update is replayed bit-identically by the engine (what the meta-gradient differentiates)  
+[PASS] goal-term inputs (u, sources incl. credit:<est>) of every support batch equal my recomputation  
+[PASS] model-term inputs (standardised candidate values, beta_q^+) and credited returns equal my recomputation  
+[PASS] trust region: each live step reaches KL in [target/1.5, 1.5 target] or sits at a step bound  [(0.0177, 2.0, True), (0.0251, 2.0, True), (0.0002, 2.0, True), (0.0, 2.0, True), (0.0001, 2.0, True), (0.0001, 2.0, True), (0.0, 2.0, True), (0.0, 2.0, True), (0.0, 2.0, True), (0.0, 2.0, True), (0.0, 2.0, True), (0.0, 2.0, True)]
+[PASS] the goal term saw all three sources and return-like credit (KF-E01) in the support batches  
+[PASS] at least one applied meta-update was checked  2
+
+23 checks, 2 failed

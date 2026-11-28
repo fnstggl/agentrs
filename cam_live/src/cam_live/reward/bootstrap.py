@@ -263,6 +263,32 @@ class RewardMixer:
                          "margin": delta})
         return dec
 
+    def apply(self, dec: Any) -> PromotionDecision:
+        """Apply a decision of the prospective validity evidence (``reward.validity.ValidityDecision``): set the mix
+        it names, record and log it like :meth:`update`. A "lower" after at least one applied meta-update counts as
+        a promotion of the learned reward (label ``mixed`` / ``learned``)."""
+        before = self.mix
+        action, reason = dec.action, dec.reason
+        if action in ("lower", "raise") and self.step <= 0.0:          # a fixed mix (step 0) never moves
+            action, reason = "hold", f"fixed_mix:{dec.action}"
+        after = max(self.min_mix, min(1.0, float(dec.mix_after))) if action in ("lower", "raise") else before
+        self.mix = after
+        out = PromotionDecision(action, reason, before, after, int(dec.n_pairs), float(dec.mean),
+                                float(dec.lower), float(dec.upper), 0.0)
+        if action == "lower" and self.meta_updates_applied > 0:
+            self.promotions += 1
+        if action != "hold" or not self.decisions or self.decisions[-1].action != "hold":
+            self.decisions.append(out)
+        else:                                          # consecutive holds: keep the latest, not one per pair
+            self.decisions[-1] = out
+        if len(self.decisions) > 4096:
+            del self.decisions[:len(self.decisions) - 4096]
+        self.log.append({"label": "promotion", "rule": "validity", "action": out.action, "reason": out.reason,
+                         "mix_before": before, "mix_after": after, "n_pairs": int(dec.n_pairs),
+                         "n_informative": int(dec.n_informative), "comparison": dec.comparison,
+                         "mean_diff": out.mean_diff, "lower_bound": out.lower_bound, "upper_bound": out.upper_bound})
+        return out
+
     def state_dict(self) -> Dict[str, Any]:
         return {"mix": self.mix, "step": self.step, "min_mix": self.min_mix, "rel_margin": self.rel_margin,
                 "min_independent": self.min_independent, "tolerance": self.tolerance,
