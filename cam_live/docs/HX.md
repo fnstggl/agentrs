@@ -119,3 +119,34 @@ live record, approval or owned / pre-authorized / interactive entry can permit w
 
 Limits: the lists are finite and need upkeep; code is judged lexically; the constraints know one integrated
 platform (Discord).
+
+# Round 3 — fixes of the G2-harness round-2 findings at 0a30cd8 (2026-11-28)
+
+Commits `c9ae2d4` (R2-C1), `85101a2` (R2-M1, R2-m1, R2-m2, R2-m3). Probes (HOLDS / DEFECT) before → after:
+g07 6/1 → see below, g08 26/13 → 39/0, g09 3/6 → 9/0, g10 0/1 → 1/0 (20 rounds); g01 30/0, g02 2/0, g03 7/0,
+g04 1/0, g06 2/0 still hold. Every new test fails on 0a30cd8 except `test_reconciliation_never_hides_tampering`
+(a guard that tampering stays detected).
+
+* **R2-C1 (critical).** Separated services start as `python -I cam_live/harness/service_boot.py <roots> -m
+  <module>` with cwd `/` (no cwd / script directory / PYTHON* variable on the import path; exactly the launcher's
+  import roots in front), root services with HOME `/root` and a system PATH; the sandbox host checks the peer uid
+  before it reads anything and times out a silent client. Test `test_hx_sandbox_host_privileged.py::
+  test_root_services_never_import_what_a_service_uid_can_write` (on 0a30cd8 the planted module ran as uid 0 after
+  the host restart) also checks that no directory on a launched service's import path is writable by a service uid.
+  **g07** reports 6 HOLDS (incl. "never imported by the root sandbox host" with a real kill and restart) and then
+  stops with `FileNotFoundError` at its section H4: it reads the marker file unconditionally, and the marker is
+  only created when something imports the planted module — which no longer happens. With the one-line guard
+  `os.path.exists(MARK) and` at line 181 (scratch copy, the probe itself is not HX's) it reports 7 HOLDS / 0 DEFECT.
+  Not changed: the run directory stays group-writable for the learner (launcher layout); the sandbox host stays root
+  for its lifetime (no pre-forked unprivileged helper) and trusts the environment uid to have asked the
+  authorization service.
+* **R2-M1.** Human-verification recognition made precise: answer keys only with `captcha`, provider token names or
+  humanity phrases; element names only about proving one is human, CAPTCHA controls or answer fields named CAPTCHA.
+  Honeypots, Antibot keys, quiz answers, turnstile counts, "Run security check", "CAPTCHA settings" pass.
+* **R2-m1.** Adapter standing only for the adapter's own action; no credential release on behalf of a program;
+  the attachment CDN hosts as a whole are Discord data.
+* **R2-m2.** An allowed browser decision names the deny-listed paths of its host; the browser judges every
+  subresource under them per URL (images, styles, scripts, prefetch), on the page's own origin too.
+* **R2-m3.** `verify_audit_log` reads log and head under a shared lock (the g10 false alarm was a verification
+  racing the relaunched service's start entries); at open a head left behind by a kill is advanced only when every
+  later entry chains and carries a valid MAC.
