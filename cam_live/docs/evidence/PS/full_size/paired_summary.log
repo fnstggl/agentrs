@@ -1,0 +1,4 @@
+[on] objective 0 SW:rle achieved value 1.000 decisions 2 nll 1.8913328711277495 wall 39s
+[off] objective 0 SW:rle achieved value 1.000 decisions 2 nll 1.8959158757175738 wall 37s
+[on] objective 1 MECH:7 pending value 0.000 decisions 12 nll 6.8541873841974015 wall 267s
+[off] objective 1 MECH:7 pending value 0.000 decisions 12 nll -1.8218386949692105 wall 218s

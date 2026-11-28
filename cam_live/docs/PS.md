@@ -12,7 +12,7 @@ re-initialised at every call (§1). PS carries the core state across decisions: 
 state is recomputed from a stored anchor K decisions back, so decision-time and replayed beliefs are the same function
 and gradients cross K decision boundaries; old checkpoints load with the new retention parameter closed and compute
 exactly what they computed before (§2). It is integrated in the runtime and causally changes beliefs and decisions
-(§4.2–4.3). Whether it improves learning: on a synthetic memory task it is learned and carries information far beyond the
+(§4.2–4.4: at full size it changes the belief by 14 % and the policy's distribution by TV 0.004 per decision). Whether it improves learning: on a synthetic memory task it is learned and carries information far beyond the
 window (out-of-window accuracy 0.29 → 0.80); on the agent's actual experience — LabWorld, codec and SW / MECH
 objectives, and CAM's own live planning run, at debug scale and at full size, paired on identical experience — it
 gives **no measurable improvement** in learning to predict (on − off within ±0.02 nats) and no consistent retention
@@ -412,13 +412,27 @@ model ends with a worse fit of the stream it trained on (0.31–0.35 vs 0.23–0
 took 70–74 s against 23–28 s off (the K-step refresh in every replayed row and the anchor recomputation at every
 commit).
 
-**Full size, on-line, both arms in one hold** (`scripts/ps_oe_paired.py`: the substantive protocol of
-`eval.oe_runner` — condition E, open-ended generation on, sandboxed SW objective — one shared backbone, each arm's
-own checkpoint; `docs/evidence/PS/full_size/paired.json`, `paired_causal_on.jsonl`): SW:rle was achieved by both
-arms in 2 decisions (verified value 1.0; on 39 s, off 37 s; prospective NLL 1.891 vs 1.896). The within-decision
-counterfactual at the one decision with carried state (position 1): TV 0.0023 between the policy distributions with
-and without it, **the policy's most probable candidate changed**, belief changed by 14.9 % relative, the evaluator's
-success probability by 7e-5. MECH:7 (the next hold) was still queued for the shared GPU lock at the time of this version.
+**Full size, on-line, both arms in the same hold** (`scripts/ps_oe_paired.py`: the substantive protocol of
+`eval.oe_runner` — condition E, open-ended generation on, sandboxed SW objective then MECH — one shared backbone
+per hold, each arm rebuilt and restored from its own checkpoint between objectives; holds of 1.5 and 8.3 min;
+`docs/evidence/PS/full_size/paired.json`, `paired_causal_on.jsonl`):
+
+| objective | arm | verified | decisions | executable | backbone-written chosen | prospective NLL (n) | wall |
+|---|---|---|---:|---:|---:|---:|---:|
+| SW:rle | on | achieved (1.0) | 2 | 1.00 | 1.00 | 1.891 (8) | 39 s |
+| SW:rle | off | achieved (1.0) | 2 | 1.00 | 1.00 | 1.896 (8) | 37 s |
+| MECH:7 | on | not reached (0.0) | 12 | 0.83 | 0.42 | 6.854 (46) | 267 s |
+| MECH:7 | off | not reached (0.0) | 12 | 0.58 | 0.00 | −1.822 (34) | 218 s |
+
+The arms' MECH trajectories diverged after the first decision, so their outcome and NLL differences (different
+predictions on different actions, n = 1) are not attributable to the carried state (§4.3). The attributable,
+within-decision counterfactual at the 13 decisions that had a carried state (positions 1–13, across the SW → MECH
+objective boundary, the agent restored from its checkpoint in between: restore `consistent`): mean TV 0.0038
+between the trainable policy's distributions with and without it (max 0.0096), the policy's most probable candidate
+changed at 1 of 13, the belief `b` changed by 13.7 % relative (10.8–16.4 %, growing over the MECH objective), the
+evaluator's success probability by at most 4e-4. The retention moved from 1 to 0.9975. So at full size the carried
+state is used and changes beliefs substantially and decisions slightly; with one paired objective pair no competence
+difference can be measured.
 
 ### 4.5 Compatibility with the live run's checkpoints
 
