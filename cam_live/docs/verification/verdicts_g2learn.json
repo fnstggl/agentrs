@@ -98,12 +98,14 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Real backbone in float32 (CPU, same code path): embedding path -> LoRA-B gradient equals central finite differences, embed(with_grad=True) returns the canonical cached value with exactly that gradient, all 72 LoRA modules get gradient, generation_logprob gives non-zero gradient to LoRA-B and the zero-initialised bridge output and equals finite differences (probe_real_cpu_grads; FD / analytic 1.0001 / 0.9997 (embedding), 0.9994 / 0.9999 (generation)). Caches follow the adapter content after `lora_B.data = new tensor` and load_trainable_state (D10 fixed, real configuration). Adapters are updated by experience: slow steps of D's learner in the integrated agent (5-11 per run, gradients from world-model, fast-prior and bridge-grounding losses) and on Qwen3-4B (on the real configuration (Qwen3-4B + 50m core, CPU float32 run of G-cl's probe_real with own parameter snapshots): one slow step changed 144/144 LoRA and 26/28 bridge tensors and nothing else, frozen hash unchanged, guard accepted it (paired change -0.0063, 6 chunks; by-loss adapter gradient: bridge grounding 6.92, world 0.026)). On the GPU (bf16): the caches follow `lora_B.data = new tensor` and load_trainable_state bit-exactly (probe_real_learn).",
+  "notes": "Real backbone in float32 (CPU, same code path): embedding path -> LoRA-B gradient equals central finite differences, embed(with_grad=True) returns the canonical cached value with exactly that gradient, all 72 LoRA modules get gradient, generation_logprob gives non-zero gradient to LoRA-B and the zero-initialised bridge output and equals finite differences (probe_real_cpu_grads; FD / analytic 1.0001 / 0.9997 (embedding), 0.9994 / 0.9999 (generation)). Caches follow the adapter content after `lora_B.data = new tensor` and load_trainable_state (D10 fixed, real configuration). Adapters are updated by experience: slow steps of D's learner in the integrated agent (5-15 per run, gradients from world-model, fast-prior and bridge-grounding losses) and on Qwen3-4B (on the real configuration (Qwen3-4B + 50m core, CUDA and CPU, own snapshots): one slow step changed 144/144 LoRA and 26/28 bridge tensors and nothing else, frozen hash unchanged, guard verdicts with 6 chunks (CUDA: paired change +0.00025 accepted under tolerance 0.0019; CPU: -0.0063); by-loss adapter gradient bridge grounding 7.0 vs world 0.026). On the GPU (bf16): the caches follow `lora_B.data = new tensor` and load_trainable_state bit-exactly (probe_real_learn).",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cpu_grads.py",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py --cpu",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR --cpu",
    "cam_live/docs/verification/G2_learn.md"
   ]
@@ -175,11 +177,12 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Experiential weights receive real gradients through D's ContinualLearner: default tests and G-cl probe_learner 26/26 (debug); integrated agent (clean export, 5 runs): every frequent update changed experiential weights and the behaviour probe; diagnose learning experiment on the current tree reproduces held-out NLL 2.981 -> 2.291 (1e-6). Real configuration (Qwen3-4B + 50m core, CPU float32 run of G-cl's probe_real, own snapshots): one frequent update changed 127 experiential and 56 head tensors, 0 adapter / reward tensors, predictions moved (max |db| 1.10, |dz| 1.90, |dNLL| 0.214), predictions independent of inference caches afterwards. No learning curve on the real configuration (disclosed).",
+  "notes": "Experiential weights receive real gradients through D's ContinualLearner: default tests and G-cl probe_learner 26/26 (debug); integrated agent (clean export, 5 runs): every frequent update changed experiential weights and the behaviour probe; diagnose learning experiment on the current tree reproduces held-out NLL 2.981 -> 2.291 (1e-6). Real configuration (Qwen3-4B + 50m core) on CUDA and on the CPU (G-cl's probe_real copy, own parameter snapshots): one frequent update changed 127 experiential and 56 head tensors, 0 adapter / reward tensors, predictions moved (CUDA: max |db| 1.11, |dz| 1.92, |dNLL| 0.214), predictions independent of inference caches afterwards; a weights-only export reloads in a fresh CUDA process with bit-identical predictions. No learning curve on the real configuration (disclosed).",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
    "PYTHONHASHSEED=0 .venv/bin/python -m cam_live.credit.diagnose --only learning,credit,retention --threads 1 --out X --work W; .venv/bin/python cam_live/docs/verification/repro/g2learn/compare_evidence.py diagnose X",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR --cpu",
    "cam_live/docs/verification/G2_learn.md"
   ]
@@ -287,7 +290,7 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Verified in D's lab: estimators validated only on held-out lifetimes with paired standard errors, zero SE refused (G-cl M1 fixed: probe_providers C PASS; re-run on the current tree: 0 of 288 experiment lifetimes trained on, RUDDER mean z^2 6.54, COCOA 11.32, nothing promoted, default 'simple'); RUDDER and COCOA are exercised in the agent. FAILS in the integrated agent (G2L-6): nothing outside credit/ calls compare_with_experiment or select (credit_selection.jsonl empty in all 5 runs; 5-8 randomised decisions in each of the 4 runs that counted them); the agent's experiments are not in the experience store (store.experiments() == []) and each is a single randomised decision (one unit per experiment), and holdout_experiments=False (agent.py:612-615) makes every experiment objective a trained-on one \u2014 so the default stays 'simple' by construction and estimates are never compared with the agent's experiments.",
+  "notes": "Verified in D's lab: estimators validated only on held-out lifetimes with paired standard errors, zero SE refused (G-cl M1 fixed: probe_providers C PASS; re-run on the current tree: 0 of 288 experiment lifetimes trained on, RUDDER mean z^2 6.54, COCOA 11.32, nothing promoted, default 'simple'); RUDDER and COCOA are exercised in the agent. FAILS in the integrated agent (G2L-6): nothing outside credit/ calls compare_with_experiment or select (credit_selection.jsonl empty in all 7 runs at 5562e65 and 3e29595; 5-9 randomised decisions per run); the agent's experiments are not in the experience store (store.experiments() == []) and each is a single randomised decision (one unit per experiment), and holdout_experiments=False (agent.py:611-615 at 5562e65) makes every experiment objective a trained-on one \u2014 so the default stays 'simple' by construction and estimates are never compared with the agent's experiments.",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
    "PYTHONHASHSEED=0 .venv/bin/python -m cam_live.credit.diagnose --only learning,credit,retention --threads 1 --out X --work W; .venv/bin/python cam_live/docs/verification/repro/g2learn/compare_evidence.py diagnose X",
@@ -318,11 +321,12 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Updates change weights and behaviour: default tests, G-cl probe_learner 26/26; integrated agent (clean export): all frequent updates changed experiential weights and flagged a behaviour change (16-34 per run, every one); held-out NLL 2.981 -> 2.291 reproduced on the current tree (median not improved, disclosed). Real configuration (Qwen3-4B + 50m core, CPU float32 run of G-cl's probe_real, own snapshots): one frequent update changed 127 experiential and 56 head tensors, 0 adapter / reward tensors, predictions moved (max |db| 1.10, |dz| 1.90, |dNLL| 0.214), predictions independent of inference caches afterwards.",
+  "notes": "Updates change weights and behaviour: default tests, G-cl probe_learner 26/26; integrated agent (clean export): all frequent updates changed experiential weights and flagged a behaviour change (16-34 per run, every one); held-out NLL 2.981 -> 2.291 reproduced on the current tree (median not improved, disclosed). Real configuration (Qwen3-4B + 50m core) on CUDA and on the CPU (G-cl's probe_real copy, own parameter snapshots): one frequent update changed 127 experiential and 56 head tensors, 0 adapter / reward tensors, predictions moved (CUDA: max |db| 1.11, |dz| 1.92, |dNLL| 0.214), predictions independent of inference caches afterwards; a weights-only export reloads in a fresh CUDA process with bit-identical predictions.",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
    "PYTHONHASHSEED=0 .venv/bin/python -m cam_live.credit.diagnose --only learning,credit,retention --threads 1 --out X --work W; .venv/bin/python cam_live/docs/verification/repro/g2learn/compare_evidence.py diagnose X",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR --cpu",
    "cam_live/docs/verification/G2_learn.md"
   ]
@@ -334,11 +338,12 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Adapter updates occur: every adapter_every frequent updates in D's lab, 5-11 slow steps per integrated run changing LoRA and bridge, on the real configuration (Qwen3-4B + 50m core, CPU float32 run of G-cl's probe_real with own parameter snapshots): one slow step changed 144/144 LoRA and 26/28 bridge tensors and nothing else, frozen hash unchanged, guard accepted it (paired change -0.0063, 6 chunks; by-loss adapter gradient: bridge grounding 6.92, world 0.026). M4's scenario is fixed (a slow step with a measurable held-out rise is undone with weights, Adam state, lr, schedule and counters). FAILS as claimed ('a slow step is kept only if the held-out loss rises by at most min(0.01, 5 %, 2 SE)'): (a) G2L-4, with no validation cells the guard is skipped and the step kept (credit/learner.py:741/778/798; a degrading step is applied in D's lab with val_fraction 0; 6 of 39 slow steps in 5 clean integrated runs had no verdict); (b) G2L-5, the bound is on the provider-averaged loss (learner.py:543): a provider whose held-out loss rose 10x above the tolerance was kept because another improved.",
+  "notes": "Adapter updates occur: every adapter_every frequent updates in D's lab, 5-15 slow steps per integrated run changing LoRA and bridge, on the real configuration (Qwen3-4B + 50m core, CUDA and CPU, own snapshots): one slow step changed 144/144 LoRA and 26/28 bridge tensors and nothing else, frozen hash unchanged, guard verdicts with 6 chunks (CUDA: paired change +0.00025 accepted under tolerance 0.0019; CPU: -0.0063); by-loss adapter gradient bridge grounding 7.0 vs world 0.026. M4's scenario is fixed (a slow step with a measurable held-out rise is undone with weights, Adam state, lr, schedule and counters). FAILS as claimed ('a slow step is kept only if the held-out loss rises by at most min(0.01, 5 %, 2 SE)'): (a) G2L-4, with no validation cells the guard is skipped and the step kept (credit/learner.py:741/778/798; a degrading step is applied in D's lab with val_fraction 0; 8 of 61 slow steps in 7 clean integrated runs (5562e65 and 3e29595) had no verdict); (b) G2L-5, the bound is on the provider-averaged loss (learner.py:543): a provider whose held-out loss rose 10x above the tolerance was kept because another improved.",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_credit_gaps.py",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR --cpu",
    "cam_live/docs/verification/G2_learn.md"
   ]

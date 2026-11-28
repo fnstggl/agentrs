@@ -1,0 +1,129 @@
+[PASS] poll() triggers on matured outcomes of the real-config lab  ({"queued_rows": 27, "matured_rows": 16, "independent_units": 16, "threshold": 4})
+/workspace/agentrs/.venv/lib/python3.12/site-packages/triton/knobs.py:504: UserWarning: TRITON_DEFAULT_FP_FUSION is unset: defaulting to FP fusion ENABLED for backward compatibility in Triton 3.9. The default will change to DISABLED in Triton 3.10; set TRITON_DEFAULT_FP_FUSION=1 to keep fusion enabled or =0 to adopt the new default early and silence this warning.
+  warn_once(FP_FUSION_DEFAULT_WARNING)
+[PASS] real frequent update: experiential and heads tensors changed  ({'semantic_adapters': 0, 'experiential': 127, 'reward': 0, 'heads': 56})
+[PASS] real frequent update: no adapter / reward tensor changed  ({'semantic_adapters': 0, 'experiential': 127, 'reward': 0, 'heads': 56})
+[PASS] real frequent update changed future predictions  ({'b': 1.1090915203094482, 'z': 1.9208810329437256, 'nll': 0.21364498138427734, 'probs': 0.0016575157642364502})
+[PASS] real slow update: LoRA and bridge tensors both changed  (lora 144/144, bridge 26/28)
+[PASS] real slow update: experiential / heads / reward unchanged  ({'semantic_adapters': 170, 'experiential': 0, 'reward': 0, 'heads': 0})
+[PASS] frozen backbone hash unchanged by both updates
+[PASS] writer: predictions after learning do not depend on inference caches  ({'b': 0.0, 'z': 0.0, 'nll': 0.0, 'probs': 0.0})
+{
+ "parameters_by_group": {
+  "backbone_frozen": 4022468096,
+  "semantic_adapters": 16713856,
+  "experiential": 50953765,
+  "reward": 0,
+  "heads": 1932714
+ },
+ "frequent": {
+  "tensors_changed": {
+   "semantic_adapters": 0,
+   "experiential": 127,
+   "reward": 0,
+   "heads": 56
+  },
+  "record_param_groups": [
+   "experiential",
+   "heads"
+  ],
+  "grad_norms": {
+   "experiential": 0.2867196798324585,
+   "heads": 9.553832054138184
+  },
+  "weight_delta": {
+   "experiential": 0.25128981471061707,
+   "heads": 0.018796788528561592
+  },
+  "losses": {
+   "world": 0.8198280930519104,
+   "rudder": 0.353172242641449,
+   "cocoa": 2.1972246170043945
+  }
+ },
+ "frequent_prediction_change": {
+  "b": 1.1090915203094482,
+  "z": 1.9208810329437256,
+  "nll": 0.21364498138427734,
+  "probs": 0.0016575157642364502
+ },
+ "slow": {
+  "tensors_changed": {
+   "semantic_adapters": 170,
+   "experiential": 0,
+   "reward": 0,
+   "heads": 0
+  },
+  "lora_tensors_changed": 144,
+  "bridge_tensors_changed": 26,
+  "n_lora_tensors": 144,
+  "n_adapter_tensors": 172,
+  "adapter_grad_norm_by_loss": {
+   "bridge_grounding": 7.0085625648498535,
+   "world": 0.025632601231336594
+  },
+  "guard": {
+   "accepted": true,
+   "drift_after": 0.0002478982011477152,
+   "drift_before": 0.0,
+   "n_chunks": 6,
+   "noise_tolerance": 0.0018797513989101413,
+   "paired_change": 0.0002478982011477152,
+   "paired_se": 0.0009398756994550706,
+   "reasons": [],
+   "reference": "start",
+   "tolerance": 0.0018797513989101413,
+   "validation_after": 3.314284926369077,
+   "validation_before": 3.314121586935861
+  },
+  "adapter_grad_norm": {
+   "bridge": 4.910417079925537,
+   "lora": 5.000603675842285
+  },
+  "adapter_delta_norm": {
+   "bridge": 0.008757530711591244,
+   "lora": 0.01513211615383625
+  }
+ },
+ "writer_backbone_state": {
+  "mem_is_set": false,
+  "fingerprint_matches": true,
+  "cache_items": 54,
+  "stats": {
+   "cache_hits": 2223,
+   "cache_misses": 129,
+   "embedded_texts": 129,
+   "embedded_tokens": 1793,
+   "embed_s": 2.24485182762146,
+   "truncated_tokens": 0,
+   "generated_tokens": 0,
+   "generate_s": 0.0,
+   "load_s": 6.319524049758911,
+   "cache_invalidations": 2
+  }
+ },
+ "writer_after_embedding_cache_clear_max_diff": {
+  "b": 0.0,
+  "z": 0.0,
+  "nll": 0.0,
+  "probs": 0.0
+ },
+ "writer_after_lora_cast_reset_max_diff": {
+  "b": 0.0,
+  "z": 0.0,
+  "nll": 0.0,
+  "probs": 0.0
+ },
+ "writer_warm_vs_cold_cache_max_diff": {
+  "b": 0.0,
+  "z": 0.0,
+  "nll": 0.0,
+  "probs": 0.0
+ },
+ "peak_gpu_gb": 9.434037685394287,
+ "seconds": 329.61594414711
+}
+
+real	5m33.101s
+user	0m33.656s
+sys	0m5.262s
