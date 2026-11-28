@@ -324,8 +324,9 @@ publishing:
 # should do. The rules below keep the operator's approval in the listed modes whatever a record pre-authorizes;
 # spending (P-SPEND-APPROVAL), data use (data_use), the prohibited classes and the hard platform constraints
 # (X-HUMAN-VERIFICATION, X-USER-ACCOUNT, X-PLATFORM-ADAPTER) apply unchanged.
-# A rule applies to an operation with an external write or input effect when any of its ops / methods / paths /
-# fields matches.
+# The rules are the exceptions of a standing profile: they apply to tasks whose signed record names a profile (a
+# record without one keeps the meaning of its explicit pre-authorizations). A rule applies to an operation with an
+# external write or input effect when any of its ops / methods / paths / fields matches.
 # ---------------------------------------------------------------------------------------------------------------
 standing:
   profiles: [routine-reversible-1]

@@ -366,7 +366,10 @@ class PolicyService:
                        own_process=mode.own_process_services, rates=rates,
                        tool_patterns=self._authorized_tools(task), standing_profile=profile,
                        code_network_hosts=code_hosts,
-                       retained=list(pol.standing.retained) if mode.name in pol.standing.retained_modes else []), []
+                       # the retained classes are the exceptions of a standing profile: a record without one keeps
+                       # exactly the meaning of its explicit pre-authorizations (e.g. the Discord live check)
+                       retained=list(pol.standing.retained) if profile and mode.name in pol.standing.retained_modes
+                       else []), []
 
     @staticmethod
     def _authorized_tools(task: C.TaskSpec) -> Optional[List[str]]:
