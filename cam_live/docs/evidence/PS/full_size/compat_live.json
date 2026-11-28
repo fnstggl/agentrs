@@ -1,0 +1,81 @@
+{
+ "checkpoint": "ckpt_00000039",
+ "run_dir": "/workspace/camlive/runs/cam_live/live/discord-100-planning-20261128T083454Z",
+ "restore_persistent_state": {
+  "positions_in_database": 0,
+  "legacy_checkpoint": true,
+  "rho_initialised": 0.0,
+  "rho": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ "weights_missing": [],
+ "arch_signature_differences": [],
+ "records_in_store": 36,
+ "persist_rho_after_restore": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "chain_vs_plain_bit_identical": true,
+ "counterfactual_open_rho": {
+  "replayed_positions": 36,
+  "records_compared": 24,
+  "rel_belief_change_mean": 0.07241021748632193,
+  "rel_belief_change_max": 0.07285121083259583,
+  "cosine_min": 0.9973462820053101,
+  "closed_equals_plain": true,
+  "world_nll_closed_mean": 0.758503042558829,
+  "world_nll_open_mean": 0.7603985249002775,
+  "world_nll_pairs": 24
+ },
+ "rho": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "status": {
+  "enabled": true,
+  "positions": 0,
+  "unroll": 2,
+  "rho_mean": 0.0,
+  "rho_min": 0.0,
+  "rho_max": 0.0,
+  "counters": {
+   "rows_fresh": 72
+  },
+  "restore": {
+   "positions_in_database": 0,
+   "legacy_checkpoint": true,
+   "rho_initialised": 0.0,
+   "rho": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  }
+ },
+ "seconds": 26.420044898986816
+}

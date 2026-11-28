@@ -1,0 +1,2067 @@
+[
+ {
+  "source": "/workspace/camlive/runs/cam_live/eval/v5/oe/v3/x0_E_s0/agent/learner/experience.sqlite",
+  "cond": "on",
+  "seed": 0,
+  "real": true,
+  "steps": 2,
+  "batch": 8,
+  "unroll": 2,
+  "rho_init": null,
+  "n_records": 41,
+  "prequential_nll": 2.365030721179777,
+  "n_scored": 41,
+  "by_block": [
+   {
+    "block": 0,
+    "family": "openended/sw/rle",
+    "n_records": 16,
+    "n_scored": 16,
+    "prequential_nll": 3.5212072202935816
+   },
+   {
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "n_records": 5,
+    "n_scored": 5,
+    "prequential_nll": 1.9119681596755982
+   },
+   {
+    "block": 2,
+    "family": "openended/mech",
+    "n_records": 20,
+    "n_scored": 20,
+    "prequential_nll": 1.5533551622647792
+   }
+  ],
+  "retention": [
+   {
+    "after_block": 0,
+    "family": "openended/sw/rle",
+    "first_block_nll": 1.0743015435338021,
+    "n": 16
+   },
+   {
+    "after_block": 1,
+    "family": "openended/sw/rpn",
+    "first_block_nll": 0.9388283951021731,
+    "n": 16
+   },
+   {
+    "after_block": 2,
+    "family": "openended/mech",
+    "first_block_nll": 1.209018256373238,
+    "n": 16
+   }
+  ],
+  "records": [
+   {
+    "i": 0,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.5706395518779757
+   },
+   {
+    "i": 1,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 17.76788118839264
+   },
+   {
+    "i": 2,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 0.6973762094974518
+   },
+   {
+    "i": 3,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 0.7215057611465454
+   },
+   {
+    "i": 4,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 1.0309779667854309
+   },
+   {
+    "i": 5,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 1.3477309191226958
+   },
+   {
+    "i": 6,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 1.3012197518348694
+   },
+   {
+    "i": 7,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 1.5687227058410644
+   },
+   {
+    "i": 8,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 1.4326147055625915
+   },
+   {
+    "i": 9,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 1.433399976491928
+   },
+   {
+    "i": 10,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 1.3175578534603118
+   },
+   {
+    "i": 11,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 1.2502677297592164
+   },
+   {
+    "i": 12,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 0.7666845589876174
+   },
+   {
+    "i": 13,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 18.061358345746996
+   },
+   {
+    "i": 14,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.543997074365616
+   },
+   {
+    "i": 15,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.527381225824356
+   },
+   {
+    "i": 16,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 2.0639183592796324
+   },
+   {
+    "i": 17,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.8189543402194976
+   },
+   {
+    "i": 18,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.6155763208866118
+   },
+   {
+    "i": 19,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.8694542503356935
+   },
+   {
+    "i": 20,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 2.191937527656555
+   },
+   {
+    "i": 21,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.8151704162359237
+   },
+   {
+    "i": 22,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 0.6962359637022019
+   },
+   {
+    "i": 23,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.6493620884418487
+   },
+   {
+    "i": 24,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.9291669476032256
+   },
+   {
+    "i": 25,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.882532153725624
+   },
+   {
+    "i": 26,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.8331752252578735
+   },
+   {
+    "i": 27,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 2.764696819782257
+   },
+   {
+    "i": 28,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.806841371655464
+   },
+   {
+    "i": 29,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.9074411231279373
+   },
+   {
+    "i": 30,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.6558171130716801
+   },
+   {
+    "i": 31,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.6381777825951576
+   },
+   {
+    "i": 32,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.6313621024787426
+   },
+   {
+    "i": 33,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.2590304171293973
+   },
+   {
+    "i": 34,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.190268244817853
+   },
+   {
+    "i": 35,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.2057858793437481
+   },
+   {
+    "i": 36,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 0.2925696775317192
+   },
+   {
+    "i": 37,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.3324616565555334
+   },
+   {
+    "i": 38,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 2.645691374056041
+   },
+   {
+    "i": 39,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 0.9504853028059006
+   },
+   {
+    "i": 40,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 0.9808315853774547
+   }
+  ],
+  "rho": [
+   0.9979509711265564,
+   0.9985326528549194,
+   0.9981735348701477,
+   0.9979802966117859,
+   0.9980329275131226,
+   0.9979673027992249,
+   0.9980517029762268,
+   0.998202919960022
+  ],
+  "chain_counters": {
+   "commit_recomputed_anchor": 41,
+   "commits": 41,
+   "rows_context": 745,
+   "rows_post": 656,
+   "refresh_windows": 2135
+  },
+  "seconds": 73.65079689025879
+ },
+ {
+  "source": "/workspace/camlive/runs/cam_live/eval/v5/oe/v3/x0_E_s0/agent/learner/experience.sqlite",
+  "cond": "off",
+  "seed": 0,
+  "real": true,
+  "steps": 2,
+  "batch": 8,
+  "unroll": 2,
+  "rho_init": null,
+  "n_records": 41,
+  "prequential_nll": 2.3837287904540214,
+  "n_scored": 41,
+  "by_block": [
+   {
+    "block": 0,
+    "family": "openended/sw/rle",
+    "n_records": 16,
+    "n_scored": 16,
+    "prequential_nll": 3.5586771082133053
+   },
+   {
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "n_records": 5,
+    "n_scored": 5,
+    "prequential_nll": 1.9636256848573683
+   },
+   {
+    "block": 2,
+    "family": "openended/mech",
+    "n_records": 20,
+    "n_scored": 20,
+    "prequential_nll": 1.5487959126457571
+   }
+  ],
+  "retention": [
+   {
+    "after_block": 0,
+    "family": "openended/sw/rle",
+    "first_block_nll": 1.0904457139968873,
+    "n": 16
+   },
+   {
+    "after_block": 1,
+    "family": "openended/sw/rpn",
+    "first_block_nll": 0.9564192969165742,
+    "n": 16
+   },
+   {
+    "after_block": 2,
+    "family": "openended/mech",
+    "first_block_nll": 1.4705290625523775,
+    "n": 16
+   }
+  ],
+  "records": [
+   {
+    "i": 0,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.5706395518779757
+   },
+   {
+    "i": 1,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 17.793651518821715
+   },
+   {
+    "i": 2,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 0.7093744218349457
+   },
+   {
+    "i": 3,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 0.7201367914676666
+   },
+   {
+    "i": 4,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 1.0325799262523652
+   },
+   {
+    "i": 5,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 1.3589164578914643
+   },
+   {
+    "i": 6,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 1.2992688870429994
+   },
+   {
+    "i": 7,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 1.6092859601974487
+   },
+   {
+    "i": 8,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 1.494568226337433
+   },
+   {
+    "i": 9,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 1.4106246101856232
+   },
+   {
+    "i": 10,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 1.3298464900255202
+   },
+   {
+    "i": 11,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 1.276471037864685
+   },
+   {
+    "i": 12,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 0.7639980703592301
+   },
+   {
+    "i": 13,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 18.302055443525315
+   },
+   {
+    "i": 14,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.6638862776756285
+   },
+   {
+    "i": 15,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.6035300600528717
+   },
+   {
+    "i": 16,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 2.125851133465767
+   },
+   {
+    "i": 17,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.9010220301151275
+   },
+   {
+    "i": 18,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.6556019163131714
+   },
+   {
+    "i": 19,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.8792611122131349
+   },
+   {
+    "i": 20,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 2.2563922321796417
+   },
+   {
+    "i": 21,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.807771978378296
+   },
+   {
+    "i": 22,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 0.8185737371444702
+   },
+   {
+    "i": 23,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.6562064266204835
+   },
+   {
+    "i": 24,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.9077791726589204
+   },
+   {
+    "i": 25,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.7753059351444245
+   },
+   {
+    "i": 26,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.7012003767490387
+   },
+   {
+    "i": 27,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 2.7656843596696854
+   },
+   {
+    "i": 28,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.6636143273115158
+   },
+   {
+    "i": 29,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.6995038908720017
+   },
+   {
+    "i": 30,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.6584708020091057
+   },
+   {
+    "i": 31,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.594724734723568
+   },
+   {
+    "i": 32,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.5787530257552862
+   },
+   {
+    "i": 33,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.3884009029716253
+   },
+   {
+    "i": 34,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.2313056457787752
+   },
+   {
+    "i": 35,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.2110238182544708
+   },
+   {
+    "i": 36,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 0.2995369389653206
+   },
+   {
+    "i": 37,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 1.233801127448678
+   },
+   {
+    "i": 38,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 3.0457328855246306
+   },
+   {
+    "i": 39,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 0.9467246592789889
+   },
+   {
+    "i": 40,
+    "block": 2,
+    "family": "openended/mech",
+    "objective": "obj_MECH_7_2_s0",
+    "nll": 0.991803507655859
+   }
+  ],
+  "rho": null,
+  "chain_counters": null,
+  "seconds": 23.971487760543823
+ },
+ {
+  "source": "/workspace/camlive/runs/cam_live/eval/v5/oe/v3/x1_E_s0/agent/learner/experience.sqlite",
+  "cond": "on",
+  "seed": 0,
+  "real": true,
+  "steps": 2,
+  "batch": 8,
+  "unroll": 2,
+  "rho_init": null,
+  "n_records": 43,
+  "prequential_nll": 2.6624586209351584,
+  "n_scored": 43,
+  "by_block": [
+   {
+    "block": 0,
+    "family": "openended/sw/rle",
+    "n_records": 20,
+    "n_scored": 20,
+    "prequential_nll": 3.5024678196609016
+   },
+   {
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "n_records": 16,
+    "n_scored": 16,
+    "prequential_nll": 2.013600991088897
+   },
+   {
+    "block": 2,
+    "family": "openended/sw/merge",
+    "n_records": 6,
+    "n_scored": 6,
+    "prequential_nll": 1.806551424091061
+   },
+   {
+    "block": 3,
+    "family": "openended/sw/topk",
+    "n_records": 1,
+    "n_scored": 1,
+    "prequential_nll": 1.379439905025065
+   }
+  ],
+  "retention": [
+   {
+    "after_block": 0,
+    "family": "openended/sw/rle",
+    "first_block_nll": 1.2146729263812304,
+    "n": 20
+   },
+   {
+    "after_block": 1,
+    "family": "openended/sw/rpn",
+    "first_block_nll": 0.9769932474717498,
+    "n": 20
+   },
+   {
+    "after_block": 2,
+    "family": "openended/sw/merge",
+    "first_block_nll": 1.286503341211006,
+    "n": 20
+   },
+   {
+    "after_block": 3,
+    "family": "openended/sw/topk",
+    "first_block_nll": 1.0192740627713501,
+    "n": 20
+   }
+  ],
+  "records": [
+   {
+    "i": 0,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.5713099098205565
+   },
+   {
+    "i": 1,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 0.8404971098899842
+   },
+   {
+    "i": 2,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 0.7844849789142608
+   },
+   {
+    "i": 3,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 0.7150186091661453
+   },
+   {
+    "i": 4,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 32.204697304964064
+   },
+   {
+    "i": 5,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.096043654680252
+   },
+   {
+    "i": 6,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.590823667049408
+   },
+   {
+    "i": 7,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 0.7602553695440293
+   },
+   {
+    "i": 8,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 0.75004563331604
+   },
+   {
+    "i": 9,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.734909368753433
+   },
+   {
+    "i": 10,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.545592377781868
+   },
+   {
+    "i": 11,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.075553116798401
+   },
+   {
+    "i": 12,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.006567279100418
+   },
+   {
+    "i": 13,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 1.8049594056606293
+   },
+   {
+    "i": 14,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.341428866386414
+   },
+   {
+    "i": 15,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.641957560777664
+   },
+   {
+    "i": 16,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.6286702275276186
+   },
+   {
+    "i": 17,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.778107464313507
+   },
+   {
+    "i": 18,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.7211023074388505
+   },
+   {
+    "i": 19,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.4573321813344955
+   },
+   {
+    "i": 20,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 2.4365486693382263
+   },
+   {
+    "i": 21,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 2.4829268741607664
+   },
+   {
+    "i": 22,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 5.60835225045681
+   },
+   {
+    "i": 23,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 2.3170982563495635
+   },
+   {
+    "i": 24,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.8969306290149688
+   },
+   {
+    "i": 25,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.8717600378394126
+   },
+   {
+    "i": 26,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 3.6297709652781487
+   },
+   {
+    "i": 27,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.912148538827896
+   },
+   {
+    "i": 28,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.4235540753602982
+   },
+   {
+    "i": 29,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.1699300818145275
+   },
+   {
+    "i": 30,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.1467741814255714
+   },
+   {
+    "i": 31,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.0832263194024563
+   },
+   {
+    "i": 32,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.0063972836732864
+   },
+   {
+    "i": 33,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.4413618631660938
+   },
+   {
+    "i": 34,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.7334987297654152
+   },
+   {
+    "i": 35,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.0573371015489101
+   },
+   {
+    "i": 36,
+    "block": 2,
+    "family": "openended/sw/merge",
+    "objective": "obj_SW_merge_2_s0",
+    "nll": 0.8934282252192497
+   },
+   {
+    "i": 37,
+    "block": 2,
+    "family": "openended/sw/merge",
+    "objective": "obj_SW_merge_2_s0",
+    "nll": 3.589110636115074
+   },
+   {
+    "i": 38,
+    "block": 2,
+    "family": "openended/sw/merge",
+    "objective": "obj_SW_merge_2_s0",
+    "nll": 2.225535760074854
+   },
+   {
+    "i": 39,
+    "block": 2,
+    "family": "openended/sw/merge",
+    "objective": "obj_SW_merge_2_s0",
+    "nll": 1.9176818190515041
+   },
+   {
+    "i": 40,
+    "block": 2,
+    "family": "openended/sw/merge",
+    "objective": "obj_SW_merge_2_s0",
+    "nll": 0.9189050951600075
+   },
+   {
+    "i": 41,
+    "block": 2,
+    "family": "openended/sw/merge",
+    "objective": "obj_SW_merge_2_s0",
+    "nll": 1.2946470089256763
+   },
+   {
+    "i": 42,
+    "block": 3,
+    "family": "openended/sw/topk",
+    "objective": "obj_SW_topk_3_s0",
+    "nll": 1.379439905025065
+   }
+  ],
+  "rho": [
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  "chain_counters": {
+   "commit_recomputed_anchor": 43,
+   "commits": 43,
+   "rows_context": 811,
+   "rows_post": 688,
+   "refresh_windows": 2315
+  },
+  "seconds": 69.88000679016113
+ },
+ {
+  "source": "/workspace/camlive/runs/cam_live/eval/v5/oe/v3/x1_E_s0/agent/learner/experience.sqlite",
+  "cond": "off",
+  "seed": 0,
+  "real": true,
+  "steps": 2,
+  "batch": 8,
+  "unroll": 2,
+  "rho_init": null,
+  "n_records": 43,
+  "prequential_nll": 2.653209807109521,
+  "n_scored": 43,
+  "by_block": [
+   {
+    "block": 0,
+    "family": "openended/sw/rle",
+    "n_records": 20,
+    "n_scored": 20,
+    "prequential_nll": 3.517321728825569
+   },
+   {
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "n_records": 16,
+    "n_scored": 16,
+    "prequential_nll": 2.0482866124506107
+   },
+   {
+    "block": 2,
+    "family": "openended/sw/merge",
+    "n_records": 6,
+    "n_scored": 6,
+    "prequential_nll": 1.5949263766159614
+   },
+   {
+    "block": 3,
+    "family": "openended/sw/topk",
+    "n_records": 1,
+    "n_scored": 1,
+    "prequential_nll": 1.399443070292473
+   }
+  ],
+  "retention": [
+   {
+    "after_block": 0,
+    "family": "openended/sw/rle",
+    "first_block_nll": 1.1980364555567502,
+    "n": 20
+   },
+   {
+    "after_block": 1,
+    "family": "openended/sw/rpn",
+    "first_block_nll": 1.1289104250371458,
+    "n": 20
+   },
+   {
+    "after_block": 2,
+    "family": "openended/sw/merge",
+    "first_block_nll": 1.1254227970987558,
+    "n": 20
+   },
+   {
+    "after_block": 3,
+    "family": "openended/sw/topk",
+    "first_block_nll": 0.948872381426394,
+    "n": 20
+   }
+  ],
+  "records": [
+   {
+    "i": 0,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.5713099098205565
+   },
+   {
+    "i": 1,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 0.8392428529262542
+   },
+   {
+    "i": 2,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 0.7813644206523895
+   },
+   {
+    "i": 3,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 0.7186552911996842
+   },
+   {
+    "i": 4,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 32.24786241412163
+   },
+   {
+    "i": 5,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.086156601905823
+   },
+   {
+    "i": 6,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.570021562576294
+   },
+   {
+    "i": 7,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 0.7529080897569657
+   },
+   {
+    "i": 8,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 0.7406929641962051
+   },
+   {
+    "i": 9,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.7237806975841523
+   },
+   {
+    "i": 10,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.539251108765602
+   },
+   {
+    "i": 11,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.0515608727931975
+   },
+   {
+    "i": 12,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.0362544405460357
+   },
+   {
+    "i": 13,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 1.8199422037601471
+   },
+   {
+    "i": 14,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.384603716135025
+   },
+   {
+    "i": 15,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.7917951238155365
+   },
+   {
+    "i": 16,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.680236610174179
+   },
+   {
+    "i": 17,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.8260679042339323
+   },
+   {
+    "i": 18,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.6874970591068266
+   },
+   {
+    "i": 19,
+    "block": 0,
+    "family": "openended/sw/rle",
+    "objective": "obj_SW_rle_0_s0",
+    "nll": 2.4972307324409484
+   },
+   {
+    "i": 20,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 2.453169400691986
+   },
+   {
+    "i": 21,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 2.519804039001465
+   },
+   {
+    "i": 22,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 5.602222452759743
+   },
+   {
+    "i": 23,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 2.4008622574806213
+   },
+   {
+    "i": 24,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.8787543040513992
+   },
+   {
+    "i": 25,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.835839924812317
+   },
+   {
+    "i": 26,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 3.867955330312252
+   },
+   {
+    "i": 27,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.7894784742593766
+   },
+   {
+    "i": 28,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.3388709706068038
+   },
+   {
+    "i": 29,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.2456243872642516
+   },
+   {
+    "i": 30,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.10423426553607
+   },
+   {
+    "i": 31,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.1050434628129004
+   },
+   {
+    "i": 32,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.0195038923621178
+   },
+   {
+    "i": 33,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.4816373068839312
+   },
+   {
+    "i": 34,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 2.0092324689030647
+   },
+   {
+    "i": 35,
+    "block": 1,
+    "family": "openended/sw/rpn",
+    "objective": "obj_SW_rpn_1_s0",
+    "nll": 1.1203528614714742
+   },
+   {
+    "i": 36,
+    "block": 2,
+    "family": "openended/sw/merge",
+    "objective": "obj_SW_merge_2_s0",
+    "nll": 0.8831659585237503
+   },
+   {
+    "i": 37,
+    "block": 2,
+    "family": "openended/sw/merge",
+    "objective": "obj_SW_merge_2_s0",
+    "nll": 1.6010380224883556
+   },
+   {
+    "i": 38,
+    "block": 2,
+    "family": "openended/sw/merge",
+    "objective": "obj_SW_merge_2_s0",
+    "nll": 1.3942403988540173
+   },
+   {
+    "i": 39,
+    "block": 2,
+    "family": "openended/sw/merge",
+    "objective": "obj_SW_merge_2_s0",
+    "nll": 3.275137747079134
+   },
+   {
+    "i": 40,
+    "block": 2,
+    "family": "openended/sw/merge",
+    "objective": "obj_SW_merge_2_s0",
+    "nll": 1.0935030582547187
+   },
+   {
+    "i": 41,
+    "block": 2,
+    "family": "openended/sw/merge",
+    "objective": "obj_SW_merge_2_s0",
+    "nll": 1.3224730744957924
+   },
+   {
+    "i": 42,
+    "block": 3,
+    "family": "openended/sw/topk",
+    "objective": "obj_SW_topk_3_s0",
+    "nll": 1.399443070292473
+   }
+  ],
+  "rho": null,
+  "chain_counters": null,
+  "seconds": 26.863303184509277
+ },
+ {
+  "source": "/workspace/camlive/runs/cam_live/live/discord-100-planning-20261128T083454Z/learner/experience.sqlite",
+  "cond": "on",
+  "seed": 0,
+  "real": true,
+  "steps": 2,
+  "batch": 8,
+  "unroll": 2,
+  "rho_init": null,
+  "n_records": 36,
+  "prequential_nll": 0.7120751647692587,
+  "n_scored": 36,
+  "by_block": [
+   {
+    "block": 0,
+    "family": "community/membership",
+    "n_records": 36,
+    "n_scored": 36,
+    "prequential_nll": 0.7120751647692587
+   }
+  ],
+  "retention": [
+   {
+    "after_block": 0,
+    "family": "community/membership",
+    "first_block_nll": 0.307286961298022,
+    "n": 36
+   }
+  ],
+  "records": [
+   {
+    "i": 0,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 3.5979339575767515
+   },
+   {
+    "i": 1,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.7779880905151367
+   },
+   {
+    "i": 2,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.7325883877277374
+   },
+   {
+    "i": 3,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.8442487359046936
+   },
+   {
+    "i": 4,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.7399873983860016
+   },
+   {
+    "i": 5,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.9334184408187867
+   },
+   {
+    "i": 6,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.7132391929626465
+   },
+   {
+    "i": 7,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 1.0186649799346923
+   },
+   {
+    "i": 8,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 1.0284326791763305
+   },
+   {
+    "i": 9,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.5872330021858215
+   },
+   {
+    "i": 10,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.5352778220176697
+   },
+   {
+    "i": 11,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 1.0913202881813049
+   },
+   {
+    "i": 12,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.4244562917947769
+   },
+   {
+    "i": 13,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 1.0220396757125854
+   },
+   {
+    "i": 14,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.9400914907455444
+   },
+   {
+    "i": 15,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.8963600993156433
+   },
+   {
+    "i": 16,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.1430717307329178
+   },
+   {
+    "i": 17,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.026174762398004533
+   },
+   {
+    "i": 18,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.2471572905778885
+   },
+   {
+    "i": 19,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.8504412531852722
+   },
+   {
+    "i": 20,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": -0.11597699999809265
+   },
+   {
+    "i": 21,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 1.3260069847106934
+   },
+   {
+    "i": 22,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.7216614723205567
+   },
+   {
+    "i": 23,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.7354647159576416
+   },
+   {
+    "i": 24,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.683125352859497
+   },
+   {
+    "i": 25,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.7128207325935364
+   },
+   {
+    "i": 26,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.6179774761199951
+   },
+   {
+    "i": 27,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.25281357258558274
+   },
+   {
+    "i": 28,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.5781869888305664
+   },
+   {
+    "i": 29,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.5736015915870667
+   },
+   {
+    "i": 30,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.04858733803033829
+   },
+   {
+    "i": 31,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.5360587954521179
+   },
+   {
+    "i": 32,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.5222433626651763
+   },
+   {
+    "i": 33,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.5167958617210389
+   },
+   {
+    "i": 34,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.5116926431655884
+   },
+   {
+    "i": 35,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.26352047324180605
+   }
+  ],
+  "rho": [
+   0.9825769066810608,
+   0.9821348190307617,
+   0.9819443225860596,
+   0.9820219874382019,
+   0.9818887710571289,
+   0.9820854663848877,
+   0.9820311665534973,
+   0.9819695949554443
+  ],
+  "chain_counters": {
+   "commit_recomputed_anchor": 36,
+   "commits": 36,
+   "rows_context": 648,
+   "rows_post": 576,
+   "refresh_windows": 1822
+  },
+  "seconds": 73.174809217453
+ },
+ {
+  "source": "/workspace/camlive/runs/cam_live/live/discord-100-planning-20261128T083454Z/learner/experience.sqlite",
+  "cond": "off",
+  "seed": 0,
+  "real": true,
+  "steps": 2,
+  "batch": 8,
+  "unroll": 2,
+  "rho_init": null,
+  "n_records": 36,
+  "prequential_nll": 0.7159451893261737,
+  "n_scored": 36,
+  "by_block": [
+   {
+    "block": 0,
+    "family": "community/membership",
+    "n_records": 36,
+    "n_scored": 36,
+    "prequential_nll": 0.7159451893261737
+   }
+  ],
+  "retention": [
+   {
+    "after_block": 0,
+    "family": "community/membership",
+    "first_block_nll": 0.25263842447350426,
+    "n": 36
+   }
+  ],
+  "records": [
+   {
+    "i": 0,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 3.5979339575767515
+   },
+   {
+    "i": 1,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.787358329296112
+   },
+   {
+    "i": 2,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.7492945456504821
+   },
+   {
+    "i": 3,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.8403175354003907
+   },
+   {
+    "i": 4,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.7373286020755768
+   },
+   {
+    "i": 5,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.9414881110191345
+   },
+   {
+    "i": 6,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.71132199883461
+   },
+   {
+    "i": 7,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 1.0360141158103944
+   },
+   {
+    "i": 8,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 1.0599770188331603
+   },
+   {
+    "i": 9,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.5828198361396789
+   },
+   {
+    "i": 10,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.5468751859664917
+   },
+   {
+    "i": 11,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 1.0425652980804443
+   },
+   {
+    "i": 12,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.42559402048587797
+   },
+   {
+    "i": 13,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.9743416428565979
+   },
+   {
+    "i": 14,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.9430239200592041
+   },
+   {
+    "i": 15,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.8967564582824707
+   },
+   {
+    "i": 16,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.14929749310016632
+   },
+   {
+    "i": 17,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.07599561199545861
+   },
+   {
+    "i": 18,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.21827298104763032
+   },
+   {
+    "i": 19,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.8252070188522339
+   },
+   {
+    "i": 20,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": -0.08059421539306641
+   },
+   {
+    "i": 21,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 1.3978786945343018
+   },
+   {
+    "i": 22,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.724241304397583
+   },
+   {
+    "i": 23,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.7056552171707153
+   },
+   {
+    "i": 24,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.6927502632141114
+   },
+   {
+    "i": 25,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.7815245866775513
+   },
+   {
+    "i": 26,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.6750231981277466
+   },
+   {
+    "i": 27,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.035019263327121734
+   },
+   {
+    "i": 28,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.6107800483703614
+   },
+   {
+    "i": 29,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.5975359797477722
+   },
+   {
+    "i": 30,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": -0.03434663742780685
+   },
+   {
+    "i": 31,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.5728905200958252
+   },
+   {
+    "i": 32,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.5678172707557678
+   },
+   {
+    "i": 33,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.568265187740326
+   },
+   {
+    "i": 34,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.5683582901954651
+   },
+   {
+    "i": 35,
+    "block": 0,
+    "family": "community/membership",
+    "objective": "discord-100-planning",
+    "nll": 0.24944416284561158
+   }
+  ],
+  "rho": null,
+  "chain_counters": null,
+  "seconds": 28.100520610809326
+ }
+]

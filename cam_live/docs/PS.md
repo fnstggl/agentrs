@@ -320,20 +320,52 @@ Again no significant effect (on − off −0.008, SE 0.006, on better in 4 of 6;
 lot (out-of-window accuracy 0.29 → 0.80 at K = 2); started closed (`ρ = 0`, `docs/evidence/PS/recall_rho0/`) the
 learner opens it (mean `ρ` 0 → 0.33–0.44 in 300 steps) and reaches 0.60 (0.47 / 0.83 / 0.48).
 
-**Full size (Qwen3-4B + 50m core, open-ended generation on).** Not run at the time of this version: the three GPU
-holds (`scripts/ps_gpu_jobs.sh` / `gpu_jobs2.sh`: paired on/off objective SW:rle, full-size fixed-stream replay on
-two substantive-evaluation stores and the live run's store, live-checkpoint compatibility) were queued behind the
-live planning run's and ST's staging runtimes, which hold the shared lock with blocking waits.
+**Full size, paired on fixed real experience** (Qwen3-4B + 50m core on the GPU, one hold of 329 s,
+`docs/evidence/PS/full_size/replay_real.json`): the same prequential replay on three stores written by the
+full-size agent — two substantive-evaluation runs (`x0_E_s0`: SW:rle → SW:rpn → MECH; `x1_E_s0`: four SW
+objectives) and CAM's own live planning run (36 real decisions of the Discord 100-member objective, before it was
+stopped) — model seed 0:
+
+| stream | model seed | scored | NLL on | NLL off | on - off | per block on/off | retention on | retention off | rho (on, end) |
+|---|---:|---:|---:|---:|---:|---|---|---|---|
+| x0_E_s0 | 0 | 41 | 2.365 | 2.384 | -0.019 | openended/sw/rle 3.521/3.559; openended/sw/rpn 1.912/1.964; openended/mech 1.553/1.549 | 1.074 -> 1.209 | 1.090 -> 1.471 | rho 0.9981 |
+| x1_E_s0 | 0 | 43 | 2.662 | 2.653 | +0.009 | openended/sw/rle 3.502/3.517; openended/sw/rpn 2.014/2.048; openended/sw/merge 1.807/1.595; openended/sw/topk 1.379/1.399 | 1.215 -> 1.019 | 1.198 -> 0.949 | rho 1.0 |
+| live | 0 | 36 | 0.712 | 0.716 | -0.004 | community/membership 0.712/0.716 | 0.307 -> 0.307 | 0.253 -> 0.253 | rho 0.9821 |
+
+prequential NLL on - off: mean -0.004 (SE 0.007) over 3 pairs; on better in 2 of 3
+  block 0:openended/sw/rle: mean -0.026 over 2 (on better in 2)
+  block 1:openended/sw/rpn: mean -0.043 over 2 (on better in 2)
+  block 2:openended/mech: mean +0.005 over 1 (on better in 0)
+  block 2:openended/sw/merge: mean +0.212 over 1 (on better in 0)
+  block 3:openended/sw/topk: mean -0.020 over 1 (on better in 1)
+  block 0:community/membership: mean -0.004 over 1 (on better in 1)
+forgetting of the first block (on minus off, NLL change first->last block): mean -0.096 over 2 (on forgets less in 1)
+
+No measurable effect on learning to predict at full size either (on − off −0.019, +0.009, −0.004). Retention is
+mixed: after the unfamiliar MECH block the first (SW:rle) block's NLL rose by 0.135 with the carried state and by
+0.381 without it (x0); in x1 (SW only) without the chain it improved slightly more (1.198 → 0.949 vs 1.215 → 1.019).
+One model seed; seeds 1-2 and the on-line paired objectives are in the holds below. Cost at full size: an on run took
+70–74 s against 24–27 s off (the K-step refresh in every replayed row and the anchor recomputation at every commit).
+
+The on-line paired substantive objectives (scripts/ps_oe_paired.py) were queued for the shared GPU lock at the time of this version.
 
 ### 4.5 Compatibility with the live run's checkpoints
 
-By construction and test (§4.1, §4.2): a checkpoint written before PS loads with `exp.core.persist_rho` reported
-missing and the retention closed, after which every belief is bit-identical to the pre-PS model. The live run now
-runs from the frozen snapshot `a0f3411`, which contains the PS model code but not PS-1: it never attaches a chain,
-so every call is a fresh-state call (bit-identical to before PS; `persist_rho` receives exactly zero gradient and
-stays at its initial value) and its checkpoints carry no chain state — when it is restarted with PS-1 they take the
-legacy path (`ρ = 0`). The check on the live run's own checkpoint on the real configuration is in the third GPU
-hold (not run at the time of this version).
+On the real configuration (GPU, `docs/evidence/PS/full_size/compat_live.json`): the final checkpoint of CAM's live
+planning run `discord-100-planning-20261128T083454Z` (`ckpt_00000039`, 36 decisions; copied with plain reads,
+never written) restored by the PS agent: no missing or unexpected weights, no architecture-signature difference;
+`restore_report["persistent_state"]` = `legacy_checkpoint: true, rho_initialised: 0.0`. Beliefs `b` and `b_next` of
+the run's last 24 stored decisions with the chain attached are bit-identical to those without it. Counterfactual: the
+run's 36 decisions replayed into a chain in order and read with the retention open (`ρ = 1`) would have moved those
+beliefs by 7.2 % (cosine ≥ 0.997) and the world-model NLL from 0.7585 to 0.7604 — closing `ρ` at the restore is what
+keeps an upgrade exact.
+
+Observation: that checkpoint already contains `exp.core.persist_rho` at exactly 1.0 — the live run's learner
+process imported the PS model code from the worktree after `e8af02c` (its run directory is in this worktree). Without
+a chain (agent.py before PS-1) every core call takes the fresh path, which is bit-identical to the pre-PS core, and
+`persist_rho` receives exactly zero gradient, so the run computed what it computed before. The new live run
+(`discord-100-planning-20261128T104208Z`, frozen snapshot `a0f3411`: PS model code, no PS-1) is in the same
+situation; when it is restarted with PS-1 its checkpoints take the legacy path (`ρ = 0`).
 
 ## 5. Diagnosis, negative results and limitations
 
