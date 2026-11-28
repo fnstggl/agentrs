@@ -173,3 +173,44 @@ def test_the_prompt_is_fitted_to_the_backbone_window_by_shortening_observations_
         assert "[task] success definition" in _data(sent[0], C.H_OBSERVATION)
     finally:
         agent.close()
+
+
+def test_argument_names_are_listed_exactly_and_nested_objects_show_their_properties():
+    """Measured on the real configuration (docs/INT3A.md, probe before): with the "name*" marker the backbone wrote
+    "path*" / "content*" as argument names, and with nested objects shown as "object" it invented their properties;
+    every such action was refused."""
+    sch = {"type": "object", "required": ["code"], "additionalProperties": False,
+           "properties": {"code": {"type": "string"},
+                          "limits": {"type": "object", "additionalProperties": False,
+                                     "properties": {"cpu_s": {"type": "integer", "minimum": 1}}},
+                          "env": {"type": "object", "additionalProperties": {"type": "string"}}}}
+    c = compact_tool(ToolDescriptor("x.run", Modality.CODE, "Run code.", sch))
+    assert set(c["args"]) == {"code", "limits", "env"}                     # exact names, no marker
+    assert c["args"]["code"] == "string, required"
+    assert c["args"]["limits"] == "object {cpu_s: integer 1..}" and c["args"]["env"] == "object of string"
+
+
+def test_a_marker_in_an_argument_name_and_a_multiline_string_are_repaired_and_logged(tmp_path):
+    from cam_live.agent import normalise_proposal
+    agent = _agent(tmp_path)
+    try:
+        tools = _tools()
+        tmap = {t.name: t for t in tools}
+        notes = {}
+        out = normalise_proposal({"operation": "code.tool1", "arguments": {"path*": "a.py", "content*": "x"}}, tmap,
+                                 notes)
+        assert out == {"operation": "code.tool1", "arguments": {"path": "a.py", "content": "x"}}
+        assert notes == {"unmarked:code.tool1.path": 1, "unmarked:code.tool1.content": 1}
+        text = ('{"operation": "code.tool2", "arguments": {"path": "s.py", "content": "def solve(s):\n'
+                '    return s"}}\n{"operation": "wait", "arguments": {"seconds": 5}}\n'
+                '{"operation": "code.tool3", "arguments": {"path": "t.py", "content": "unterminated\n'
+                '{"operation": "wait", "arguments": {"seconds": 6}}')
+        agent.model.generate = lambda prompts, **kw: [[text]]
+        res = agent.proposer.propose([t for t in tools if t.available], "digest", objective="o")
+        ops = [(a.operation, dict(a.arguments)) for a in res.actions]
+        assert ("code.tool2", {"path": "s.py", "content": "def solve(s):\n    return s"}) in ops   # joined, exact
+        assert ("wait", {"seconds": 5}) in ops and ("wait", {"seconds": 6}) in ops
+        assert not any(o == "code.tool3" for o, _ in ops)                   # never closed: refused, not invented
+        assert res.stats["normalised"].get("multiline_joined") == 1
+    finally:
+        agent.close()

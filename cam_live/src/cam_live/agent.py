@@ -361,7 +361,7 @@ PROPOSAL_INSTRUCTIONS = (
     "Write up to {k} candidate next actions for an autonomous agent as JSON Lines: one JSON object per line and no "
     "other text.\n"
     'Each line is one action: {{"operation": <tool name>, "arguments": {{<argument>: <value>, ...}}}}, using only the '
-    "argument names listed for that tool (a name ending in * is required).\n"
+    "argument names listed for that tool, exactly as listed, and giving every argument marked required.\n"
     "The lines are different alternatives. Include actions that change the environment as well as actions that only "
     "gather information.\n"
     'Actions that must run in order may be one line: {{"steps": [<action>, <action>, ...]}}.\n'
@@ -371,7 +371,10 @@ PROPOSAL_INSTRUCTIONS = (
 _TOP_KEYS = ("operation", "arguments", "target", "expected", "rationale", "timeout_s", "prerequisites", "verify")
 
 
-def _type_of(sch: Any) -> str:
+def _type_of(sch: Any, depth: int = 0) -> str:
+    """One line for an argument's JSON Schema: type, range / options, element type of an array and, one level deep,
+    the properties of an object (S-6b: with only "object" shown the backbone invented property names, e.g.
+    ``limits: {wall, cpu}`` for ``{cpu_s, mem_mb, ...}``, and every such action was refused)."""
     if not isinstance(sch, dict):
         return "any"
     if "enum" in sch:
@@ -385,7 +388,15 @@ def _type_of(sch: Any) -> str:
     if t in ("integer", "number") and (lo is not None or hi is not None):
         t += f" {'' if lo is None else lo}..{'' if hi is None else hi}"
     if t == "array" and isinstance(sch.get("items"), dict):
-        t += " of " + _type_of(sch["items"])
+        t += " of " + _type_of(sch["items"], depth + 1)
+    if t == "object" and depth == 0:
+        props = sch.get("properties") if isinstance(sch.get("properties"), dict) else {}
+        req = set(sch.get("required") or [])
+        if props:
+            t += " {" + ", ".join(f"{k}: {_type_of(v, depth + 1)}" + (" (required)" if k in req else "")
+                                  for k, v in props.items()) + "}"
+        elif isinstance(sch.get("additionalProperties"), dict):
+            t += " of " + _type_of(sch["additionalProperties"], depth + 1)
     return t
 
 
@@ -417,9 +428,11 @@ def compact_tool(t: ToolDescriptor) -> Dict[str, Any]:
     environment validates against, in a tenth of the characters."""
     schema = t.arg_schema if isinstance(t.arg_schema, dict) else {}
     req = set(schema.get("required") or [])
-    args = {(k + ("*" if k in req else "")): _type_of(v) for k, v in (schema.get("properties") or {}).items()}
+    # the exact argument names; required ones say so in their description (S-6b: a "name*" marker was copied into
+    # the argument names the backbone wrote, "path*" / "content*", and every such action was refused)
+    args = {k: _type_of(v) + (", required" if k in req else "") for k, v in (schema.get("properties") or {}).items()}
     if t.name == "program":
-        args = {"steps*": "array of actions, each {operation, arguments}"}
+        args = {"steps": "array of actions, each {operation, arguments}, required"}
     return {"name": t.name, "does": short_description(t.description), "args": args}
 
 
@@ -457,6 +470,12 @@ def normalise_proposal(obj: Any, tools: Dict[str, ToolDescriptor], notes: Dict[s
     props = schema.get("properties") or {}
     extra = [k for k in obj if k not in _TOP_KEYS]
     args = dict(out.get("arguments") or {}) if isinstance(out.get("arguments", {}), dict) else out.get("arguments")
+    if isinstance(args, dict):
+        for k in [k for k in args if isinstance(k, str) and k.endswith("*")]:
+            base = k.rstrip("*")
+            if base in props and base not in args:   # a "required" marker written into the name (older prompt form)
+                args[base] = args.pop(k)
+                notes[f"unmarked:{op}.{base}"] = notes.get(f"unmarked:{op}.{base}", 0) + 1
     for k in extra:
         if tool is not None and k in props and isinstance(args, dict) and k not in args:
             args[k] = obj[k]
@@ -485,6 +504,34 @@ def normalise_proposal(obj: Any, tools: Dict[str, ToolDescriptor], notes: Dict[s
     if args is not None and ("arguments" in out or args):
         out["arguments"] = args
     return out
+
+
+#: lines one action may span when the backbone wrote a raw line break inside a string (e.g. program text)
+MAX_JOINED_LINES = 80
+
+
+def _joined_object(lines: Sequence[str], start: int) -> Tuple[Any, int]:
+    """(object, extra lines consumed) when ``lines[start]`` plus following lines form one JSON value whose only
+    defect is a literal line break inside a string (a program written over several lines), else (None, 0). The value
+    is decoded exactly as written (``strict=False`` admits the control character in the string; duplicate keys and
+    non-finite numbers are still refused); a line that parses on its own is never joined to another."""
+    from .predict.candidates import _no_constant, _no_duplicates, _strict_loads
+    if not lines[start].lstrip().startswith("{"):
+        return None, 0
+    text = lines[start]
+    for k in range(start + 1, min(len(lines), start + MAX_JOINED_LINES)):
+        try:
+            _strict_loads(lines[k])
+            return None, 0                             # a complete action of its own: not a continuation
+        except Exception:  # noqa: BLE001
+            pass
+        text += "\n" + lines[k]
+        try:
+            return json.loads(text, strict=False, object_pairs_hook=_no_duplicates,
+                              parse_constant=_no_constant), k - start
+        except Exception:  # noqa: BLE001 — keep joining until the value closes or the limit is reached
+            continue
+    return None, 0
 
 
 class AgentProposer(BackboneProposer):
@@ -529,12 +576,19 @@ class AgentProposer(BackboneProposer):
             lines = [ln for ln in str(text).splitlines() if ln.strip()]
             n_lines += len(lines)
             fixed = []
-            for ln in lines:
+            i = 0
+            while i < len(lines):
+                ln = lines[i]
+                i += 1
                 try:
                     obj = _strict_loads(ln)
                 except Exception:  # noqa: BLE001 — the strict parser records the rejection with its reason
-                    fixed.append(ln)
-                    continue
+                    obj, used = _joined_object(lines, i - 1)
+                    if obj is None:
+                        fixed.append(ln)
+                        continue
+                    i += used
+                    notes["multiline_joined"] = notes.get("multiline_joined", 0) + 1
                 items = obj if isinstance(obj, list) else [obj]
                 fixed += [json.dumps(normalise_proposal(x, tmap, notes)) for x in items]
             res = parse_actions("\n".join(fixed) if len(fixed) > 1 else (fixed[0] if fixed else ""), tools,
