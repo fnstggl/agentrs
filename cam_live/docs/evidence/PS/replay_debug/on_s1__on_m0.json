@@ -1,0 +1,358 @@
+{
+ "source": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/PS/runs/abl/on_s1/agent/learner/experience.sqlite",
+ "cond": "on",
+ "seed": 0,
+ "real": false,
+ "steps": 2,
+ "batch": 8,
+ "unroll": 2,
+ "rho_init": null,
+ "n_records": 39,
+ "prequential_nll": 5.5966465167764925,
+ "n_scored": 39,
+ "by_block": [
+  {
+   "block": 0,
+   "family": "lab/first",
+   "n_records": 16,
+   "n_scored": 16,
+   "prequential_nll": 7.131634924353825
+  },
+  {
+   "block": 1,
+   "family": "lab/door",
+   "n_records": 7,
+   "n_scored": 7,
+   "prequential_nll": 3.6686395126675806
+  },
+  {
+   "block": 2,
+   "family": "lab/first",
+   "n_records": 8,
+   "n_scored": 8,
+   "prequential_nll": 1.2439254682718053
+  },
+  {
+   "block": 3,
+   "family": "codec",
+   "n_records": 8,
+   "n_scored": 8,
+   "prequential_nll": 8.566396878721813
+  }
+ ],
+ "retention": [
+  {
+   "after_block": 0,
+   "family": "lab/first",
+   "first_block_nll": 2.964384535886347,
+   "n": 16
+  },
+  {
+   "after_block": 1,
+   "family": "lab/door",
+   "first_block_nll": 2.818259934936133,
+   "n": 16
+  },
+  {
+   "after_block": 2,
+   "family": "lab/first",
+   "first_block_nll": 2.563576143866198,
+   "n": 16
+  },
+  {
+   "after_block": 3,
+   "family": "codec",
+   "first_block_nll": 2.299322420048217,
+   "n": 16
+  }
+ ],
+ "records": [
+  {
+   "i": 0,
+   "block": 0,
+   "family": "lab/first",
+   "objective": "obj_F1_1000",
+   "nll": 18.807096485296885
+  },
+  {
+   "i": 1,
+   "block": 0,
+   "family": "lab/first",
+   "objective": "obj_F1_1000",
+   "nll": 30.930411430199943
+  },
+  {
+   "i": 2,
+   "block": 0,
+   "family": "lab/first",
+   "objective": "obj_F1_1000",
+   "nll": 15.918077147669262
+  },
+  {
+   "i": 3,
+   "block": 0,
+   "family": "lab/first",
+   "objective": "obj_F1_1000",
+   "nll": 2.019746196269989
+  },
+  {
+   "i": 4,
+   "block": 0,
+   "family": "lab/first",
+   "objective": "obj_F1_1000",
+   "nll": 2.2805229902267454
+  },
+  {
+   "i": 5,
+   "block": 0,
+   "family": "lab/first",
+   "objective": "obj_F1_1000",
+   "nll": 2.202549608548482
+  },
+  {
+   "i": 6,
+   "block": 0,
+   "family": "lab/first",
+   "objective": "obj_F1_1000",
+   "nll": 3.470094056924184
+  },
+  {
+   "i": 7,
+   "block": 0,
+   "family": "lab/first",
+   "objective": "obj_F1_1000",
+   "nll": 3.071652348836263
+  },
+  {
+   "i": 8,
+   "block": 0,
+   "family": "lab/first",
+   "objective": "obj_F1_1001",
+   "nll": 1.3189111550649006
+  },
+  {
+   "i": 9,
+   "block": 0,
+   "family": "lab/first",
+   "objective": "obj_F1_1001",
+   "nll": 1.5839251597722372
+  },
+  {
+   "i": 10,
+   "block": 0,
+   "family": "lab/first",
+   "objective": "obj_F1_1001",
+   "nll": 2.675897260506948
+  },
+  {
+   "i": 11,
+   "block": 0,
+   "family": "lab/first",
+   "objective": "obj_F1_1001",
+   "nll": 3.113052785396576
+  },
+  {
+   "i": 12,
+   "block": 0,
+   "family": "lab/first",
+   "objective": "obj_F1_1001",
+   "nll": 4.1936428368091585
+  },
+  {
+   "i": 13,
+   "block": 0,
+   "family": "lab/first",
+   "objective": "obj_F1_1001",
+   "nll": 6.272458225488663
+  },
+  {
+   "i": 14,
+   "block": 0,
+   "family": "lab/first",
+   "objective": "obj_F1_1001",
+   "nll": 8.543097114562988
+  },
+  {
+   "i": 15,
+   "block": 0,
+   "family": "lab/first",
+   "objective": "obj_F1_1001",
+   "nll": 7.705023988087972
+  },
+  {
+   "i": 16,
+   "block": 1,
+   "family": "lab/door",
+   "objective": "obj_T1_2000",
+   "nll": 1.5952916708257463
+  },
+  {
+   "i": 17,
+   "block": 1,
+   "family": "lab/door",
+   "objective": "obj_T1_2000",
+   "nll": 2.3747660398483275
+  },
+  {
+   "i": 18,
+   "block": 1,
+   "family": "lab/door",
+   "objective": "obj_T1_2000",
+   "nll": 2.984286379814148
+  },
+  {
+   "i": 19,
+   "block": 1,
+   "family": "lab/door",
+   "objective": "obj_T1_2000",
+   "nll": 3.3467897752920788
+  },
+  {
+   "i": 20,
+   "block": 1,
+   "family": "lab/door",
+   "objective": "obj_T1_2000",
+   "nll": 5.1235017597675325
+  },
+  {
+   "i": 21,
+   "block": 1,
+   "family": "lab/door",
+   "objective": "obj_T1_2000",
+   "nll": 4.877099700768789
+  },
+  {
+   "i": 22,
+   "block": 1,
+   "family": "lab/door",
+   "objective": "obj_T1_2000",
+   "nll": 5.37874126235644
+  },
+  {
+   "i": 23,
+   "block": 2,
+   "family": "lab/first",
+   "objective": "obj_F1_7000",
+   "nll": 1.0126733203728995
+  },
+  {
+   "i": 24,
+   "block": 2,
+   "family": "lab/first",
+   "objective": "obj_F1_7000",
+   "nll": 1.0220704406499863
+  },
+  {
+   "i": 25,
+   "block": 2,
+   "family": "lab/first",
+   "objective": "obj_F1_7000",
+   "nll": 0.9993690182765325
+  },
+  {
+   "i": 26,
+   "block": 2,
+   "family": "lab/first",
+   "objective": "obj_F1_7000",
+   "nll": 1.1844567176368501
+  },
+  {
+   "i": 27,
+   "block": 2,
+   "family": "lab/first",
+   "objective": "obj_F1_7000",
+   "nll": 1.1232332428296408
+  },
+  {
+   "i": 28,
+   "block": 2,
+   "family": "lab/first",
+   "objective": "obj_F1_7000",
+   "nll": 1.4002336661020915
+  },
+  {
+   "i": 29,
+   "block": 2,
+   "family": "lab/first",
+   "objective": "obj_F1_7000",
+   "nll": 1.4500212545196216
+  },
+  {
+   "i": 30,
+   "block": 2,
+   "family": "lab/first",
+   "objective": "obj_F1_7000",
+   "nll": 1.7593460857868195
+  },
+  {
+   "i": 31,
+   "block": 3,
+   "family": "codec",
+   "objective": "obj_T2_4000",
+   "nll": 5.74015935510397
+  },
+  {
+   "i": 32,
+   "block": 3,
+   "family": "codec",
+   "objective": "obj_T2_4000",
+   "nll": 22.178978117803734
+  },
+  {
+   "i": 33,
+   "block": 3,
+   "family": "codec",
+   "objective": "obj_T2_4000",
+   "nll": 2.0104453215996423
+  },
+  {
+   "i": 34,
+   "block": 3,
+   "family": "codec",
+   "objective": "obj_T2_4000",
+   "nll": 1.5031722250084083
+  },
+  {
+   "i": 35,
+   "block": 3,
+   "family": "codec",
+   "objective": "obj_T2_4000",
+   "nll": 1.4504123864074547
+  },
+  {
+   "i": 36,
+   "block": 3,
+   "family": "codec",
+   "objective": "obj_T2_4000",
+   "nll": 1.4758219396074612
+  },
+  {
+   "i": 37,
+   "block": 3,
+   "family": "codec",
+   "objective": "obj_T2_4000",
+   "nll": 1.4240255057811737
+  },
+  {
+   "i": 38,
+   "block": 3,
+   "family": "codec",
+   "objective": "obj_T2_4000",
+   "nll": 32.74816017846266
+  }
+ ],
+ "rho": [
+  0.9857863187789917,
+  0.9840180277824402,
+  0.9837510585784912,
+  0.9836633205413818
+ ],
+ "chain_counters": {
+  "commit_recomputed_anchor": 39,
+  "commits": 39,
+  "rows_context": 727,
+  "rows_post": 624,
+  "refresh_windows": 2049
+ },
+ "seconds": 23.036303997039795
+}

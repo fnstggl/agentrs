@@ -1,0 +1,460 @@
+{
+ "cond": "on",
+ "seed": 0,
+ "real": false,
+ "backbone": false,
+ "phases": "F1:2,T1:1,F1:1,T2:1",
+ "decisions": 8,
+ "unroll": 2,
+ "max_context": 48,
+ "lifetimes": [
+  {
+   "family": "F1",
+   "world_seed": 1000,
+   "decisions": 8,
+   "verified_status": "failed",
+   "progress": 0.423728813559322,
+   "achieved": false,
+   "quality": 0.4825246364283102,
+   "wall_seconds": 2304.6513197422028,
+   "training_s": 997.6304185898043,
+   "inference_s": 1299.4951227176934,
+   "index": 0,
+   "phase": 0,
+   "t_start": 1800000000.0,
+   "t_end": 1800518401.0,
+   "nll": {
+    "binary": {
+     "n": 17,
+     "mean": 0.5427956405676673
+    },
+    "all": {
+     "n": 53,
+     "mean": 10.684321405700704
+    },
+    "count": {
+     "n": 19,
+     "mean": 3.1837811055865166
+    },
+    "real": {
+     "n": 17,
+     "mean": 29.208803976843715
+    },
+    "goal_relevant": {
+     "n": 17,
+     "mean": 1.9191617302848418
+    },
+    "registered": 632
+   },
+   "causal": {
+    "n": 8,
+    "mean_tv": 0.007125342730432749,
+    "max_tv": 0.024342862889170647,
+    "mean_rel_db": 0.20020705461502075
+   },
+   "persistent_state": {
+    "positions": 8,
+    "rho_mean": 0.9972025901079178,
+    "rho_min": 0.9971877932548523,
+    "rho_max": 0.9972118139266968
+   },
+   "persistent_counters": {
+    "rows_live": 62,
+    "commits": 8,
+    "refresh_windows": 583,
+    "rows_context": 210,
+    "rows_post": 103
+   },
+   "nll_final": {
+    "binary": {
+     "n": 17,
+     "mean": 0.5427956405676673
+    },
+    "all": {
+     "n": 53,
+     "mean": 10.684321405700704
+    },
+    "count": {
+     "n": 19,
+     "mean": 3.1837811055865166
+    },
+    "real": {
+     "n": 17,
+     "mean": 29.208803976843715
+    },
+    "goal_relevant": {
+     "n": 17,
+     "mean": 1.9191617302848418
+    },
+    "registered": 632
+   }
+  },
+  {
+   "family": "F1",
+   "world_seed": 1001,
+   "decisions": 8,
+   "verified_status": "failed",
+   "progress": 0.17272727272727273,
+   "achieved": false,
+   "quality": 0.08830264825504347,
+   "wall_seconds": 1051.9546465873718,
+   "training_s": 286.71915911883116,
+   "inference_s": 589.4630048740655,
+   "index": 1,
+   "phase": 0,
+   "t_start": 1800518401.0,
+   "t_end": 1801036802.0,
+   "nll": {
+    "binary": {
+     "n": 16,
+     "mean": 0.554078076778028
+    },
+    "all": {
+     "n": 50,
+     "mean": 4.062602525712395
+    },
+    "count": {
+     "n": 22,
+     "mean": 2.8680959820126852
+    },
+    "real": {
+     "n": 12,
+     "mean": 10.93056378774102
+    },
+    "goal_relevant": {
+     "n": 18,
+     "mean": 1.7795883238031385
+    },
+    "registered": 609
+   },
+   "causal": {
+    "n": 8,
+    "mean_tv": 0.013473574770614505,
+    "max_tv": 0.020288512110710144,
+    "mean_rel_db": 0.2724141348153353
+   },
+   "persistent_state": {
+    "positions": 16,
+    "rho_mean": 0.9931057989597321,
+    "rho_min": 0.992830753326416,
+    "rho_max": 0.9933471083641052
+   },
+   "persistent_counters": {
+    "rows_live": 126,
+    "commits": 16,
+    "refresh_windows": 3555,
+    "rows_context": 1510,
+    "rows_post": 450
+   },
+   "nll_final": {
+    "binary": {
+     "n": 16,
+     "mean": 0.554078076778028
+    },
+    "all": {
+     "n": 50,
+     "mean": 4.062602525712395
+    },
+    "count": {
+     "n": 22,
+     "mean": 2.8680959820126852
+    },
+    "real": {
+     "n": 12,
+     "mean": 10.93056378774102
+    },
+    "goal_relevant": {
+     "n": 18,
+     "mean": 1.7795883238031385
+    },
+    "registered": 609
+   }
+  },
+  {
+   "family": "T1",
+   "world_seed": 2000,
+   "decisions": 8,
+   "verified_status": "failed",
+   "progress": 0.3230769230769231,
+   "achieved": false,
+   "quality": 0.11524235657211836,
+   "wall_seconds": 84.54193782806396,
+   "training_s": 63.75451204646379,
+   "inference_s": 17.56287420121953,
+   "index": 2,
+   "phase": 1,
+   "t_start": 1801036802.0,
+   "t_end": 1801555203.0,
+   "nll": {
+    "binary": {
+     "n": 17,
+     "mean": 0.5606726542749585
+    },
+    "all": {
+     "n": 51,
+     "mean": 4.217191208761915
+    },
+    "count": {
+     "n": 20,
+     "mean": 3.237032168665724
+    },
+    "real": {
+     "n": 14,
+     "mean": 10.05747665363349
+    },
+    "goal_relevant": {
+     "n": 17,
+     "mean": 1.493520173091488
+    },
+    "registered": 608
+   },
+   "causal": {
+    "n": 8,
+    "mean_tv": 0.007672102306969464,
+    "max_tv": 0.022448833100497723,
+    "mean_rel_db": 0.2635855469852686
+   },
+   "persistent_state": {
+    "positions": 24,
+    "rho_mean": 0.9934988915920258,
+    "rho_min": 0.9931679368019104,
+    "rho_max": 0.9937143921852112
+   },
+   "persistent_counters": {
+    "rows_live": 189,
+    "commits": 24,
+    "refresh_windows": 7712,
+    "rows_context": 3292,
+    "rows_post": 896
+   },
+   "nll_final": {
+    "binary": {
+     "n": 17,
+     "mean": 0.5606726542749585
+    },
+    "all": {
+     "n": 53,
+     "mean": 4.133276342663009
+    },
+    "count": {
+     "n": 22,
+     "mean": 3.123978994890742
+    },
+    "real": {
+     "n": 14,
+     "mean": 10.05747665363349
+    },
+    "goal_relevant": {
+     "n": 17,
+     "mean": 1.493520173091488
+    },
+    "registered": 608
+   }
+  },
+  {
+   "family": "F1",
+   "world_seed": 7000,
+   "decisions": 8,
+   "verified_status": "failed",
+   "progress": 0.3333333333333333,
+   "achieved": false,
+   "quality": 0.37656348694259256,
+   "wall_seconds": 110.76322650909424,
+   "training_s": 84.14306811150163,
+   "inference_s": 21.38554687751457,
+   "index": 3,
+   "phase": 2,
+   "t_start": 1801555203.0,
+   "t_end": 1802073604.0,
+   "nll": {
+    "binary": {
+     "n": 17,
+     "mean": 0.5300355795115628
+    },
+    "all": {
+     "n": 53,
+     "mean": 3.6770243150936457
+    },
+    "count": {
+     "n": 20,
+     "mean": 1.9043065669804604
+    },
+    "real": {
+     "n": 16,
+     "mean": 9.236597031791092
+    },
+    "goal_relevant": {
+     "n": 18,
+     "mean": 1.2735718892177674
+    },
+    "registered": 652
+   },
+   "causal": {
+    "n": 8,
+    "mean_tv": 0.007384504075162113,
+    "max_tv": 0.01826229691505432,
+    "mean_rel_db": 0.280430955812335
+   },
+   "persistent_state": {
+    "positions": 32,
+    "rho_mean": 0.9946528971195221,
+    "rho_min": 0.9940384030342102,
+    "rho_max": 0.995024561882019
+   },
+   "persistent_counters": {
+    "rows_live": 254,
+    "commits": 32,
+    "refresh_windows": 13574,
+    "rows_context": 5785,
+    "rows_post": 1474
+   },
+   "nll_final": {
+    "binary": {
+     "n": 17,
+     "mean": 0.5300355795115628
+    },
+    "all": {
+     "n": 53,
+     "mean": 3.6770243150936457
+    },
+    "count": {
+     "n": 20,
+     "mean": 1.9043065669804604
+    },
+    "real": {
+     "n": 16,
+     "mean": 9.236597031791092
+    },
+    "goal_relevant": {
+     "n": 18,
+     "mean": 1.2735718892177674
+    },
+    "registered": 652
+   }
+  },
+  {
+   "family": "T2",
+   "world_seed": 4000,
+   "decisions": 8,
+   "verified_status": "pending",
+   "progress": 0.9581807749842762,
+   "achieved": false,
+   "quality": 0.9577034883720931,
+   "wall_seconds": 71.1269736289978,
+   "training_s": 54.14597589336336,
+   "inference_s": 11.56366467056796,
+   "index": 4,
+   "phase": 3,
+   "t_start": 1802073604.0,
+   "t_end": 1802074204.0,
+   "nll": {
+    "binary": {
+     "n": 9,
+     "mean": 0.4052246736020868
+    },
+    "all": {
+     "n": 31,
+     "mean": -0.449143578762565
+    },
+    "real": {
+     "n": 22,
+     "mean": -0.7986578638208317
+    },
+    "goal_relevant": {
+     "n": 4,
+     "mean": -7.270891948750588
+    },
+    "registered": 541
+   },
+   "causal": {
+    "n": 8,
+    "mean_tv": 0.0028720826376229525,
+    "max_tv": 0.004279857501387596,
+    "mean_rel_db": 0.31727768294513226
+   },
+   "persistent_state": {
+    "positions": 40,
+    "rho_mean": 0.9955961257219315,
+    "rho_min": 0.995423436164856,
+    "rho_max": 0.9959231019020081
+   },
+   "persistent_counters": {
+    "rows_live": 314,
+    "commits": 40,
+    "refresh_windows": 17869,
+    "rows_context": 7590,
+    "rows_post": 1879
+   },
+   "nll_final": {
+    "binary": {
+     "n": 9,
+     "mean": 0.4052246736020868
+    },
+    "all": {
+     "n": 31,
+     "mean": -0.449143578762565
+    },
+    "real": {
+     "n": 22,
+     "mean": -0.7986578638208317
+    },
+    "goal_relevant": {
+     "n": 4,
+     "mean": -7.270891948750588
+    },
+    "registered": 541
+   }
+  }
+ ],
+ "retention_first_phase_records": {
+  "after_phase_0": {
+   "n_records": 16,
+   "n_scored": 16,
+   "mean_nll": 2.2795637760725285
+  },
+  "after_phase_1": {
+   "n_records": 16,
+   "n_scored": 16,
+   "mean_nll": 2.2532779599229493
+  },
+  "after_phase_2": {
+   "n_records": 16,
+   "n_scored": 16,
+   "mean_nll": 2.284181585907936
+  },
+  "after_phase_3": {
+   "n_records": 16,
+   "n_scored": 16,
+   "mean_nll": 2.320964558256997
+  }
+ },
+ "persistent_state": {
+  "enabled": true,
+  "positions": 40,
+  "unroll": 2,
+  "rho_mean": 0.9955961257219315,
+  "rho_min": 0.995423436164856,
+  "rho_max": 0.9959231019020081,
+  "counters": {
+   "rows_live": 314,
+   "commits": 40,
+   "refresh_windows": 17898,
+   "rows_context": 7606,
+   "rows_post": 1879
+  }
+ },
+ "parameters": {
+  "frozen": 360768,
+  "experiential": 202425,
+  "adapters": 42304,
+  "adapters_lora": 1024,
+  "adapters_bridge": 41280,
+  "reward": 227521,
+  "heads_total": 709269,
+  "total_persistent_trainable": 1181519
+ },
+ "backbone_name": "tiny",
+ "scale": "debug",
+ "wall_seconds": 3651.682033061981,
+ "commit": "50629269f7238675fd25b1061fa6b6b7c0933aee"
+}

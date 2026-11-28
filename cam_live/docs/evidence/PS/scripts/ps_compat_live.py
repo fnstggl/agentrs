@@ -65,7 +65,7 @@ def main() -> int:
     lock = None
     if not a.cpu:
         from cam_live.nn.gpu import gpu_lock
-        lock = gpu_lock()
+        lock = gpu_lock(timeout_s=4 * 3600.0, poll_s=1.0)
         lock.__enter__()
     out = {"checkpoint": name, "run_dir": a.run_dir}
     try:
@@ -77,8 +77,15 @@ def main() -> int:
         out["arch_signature_differences"] = rep.get("arch_signature_differences")
         recs = [r for r in agent.store.all() if r.result is not None]
         out["records_in_store"] = len(recs)
-        sample = recs[-a.records:]
+        out["persist_rho_after_restore"] = agent.persist.rho()
+        sample = recs[-a.records:] if a.records > 0 else []
         model = agent.model
+        if not sample:                                    # restore report only (CPU: no backbone forwards)
+            out["seconds"] = time.time() - t0
+            json.dump(out, open(a.out, "w"), indent=1, default=str)
+            print(json.dumps(out, indent=1, default=str))
+            agent.close()
+            return 0
         with torch.no_grad():
             b_chain = encode_decisions(model, agent.store, sample, with_next=True, grad=False)
             chain = agent.persist

@@ -43,6 +43,10 @@ def main(argv: List[str] = None) -> int:
     ap.add_argument("--unroll", type=int, default=2)
     ap.add_argument("--max-context", type=int, default=0, help="override core.max_context (0 = configuration's)")
     ap.add_argument("--world-offset", type=int, default=0)
+    ap.add_argument("--rho-init", type=float, default=None,
+                    help="initial retention of the carried state (default: the model's, 1.0); 0 = start exactly at "
+                         "the pre-PS computation, as a restored legacy checkpoint does")
+    ap.add_argument("--tag", default="", help="suffix of the condition name in output files")
     a = ap.parse_args(argv)
     os.makedirs(a.out, exist_ok=True)
     from cam_live.contracts import SimClock
@@ -58,7 +62,8 @@ def main(argv: List[str] = None) -> int:
     cfg.sections["agent"] = agent_sec
     cfg.sections["persistent_state"] = {"enabled": a.cond == "on", "unroll": int(a.unroll)}
     clock = SimClock(1.8e9)
-    root = os.path.join(a.out, f"{a.cond}_s{a.seed}")
+    name = f"{a.cond}{a.tag}_s{a.seed}"
+    root = os.path.join(a.out, name)
     os.makedirs(root, exist_ok=True)
 
     def build():
@@ -75,6 +80,9 @@ def main(argv: List[str] = None) -> int:
     retention: Dict[str, Any] = {}
     with lock:
         agent = build()
+        if a.rho_init is not None and agent.persist is not None:
+            with torch.no_grad():
+                agent.model.exp.core.persist_rho.fill_(float(a.rho_init))
         timed = Timed(agent)
         probe = CausalProbe(agent) if a.cond == "on" else None
         phases = [(f, int(n)) for f, n in (p.split(":") for p in a.phases.split(","))]
@@ -104,7 +112,7 @@ def main(argv: List[str] = None) -> int:
                 row["persistent_counters"] = ps.get("counters", {})
                 rows.append(row)
                 print(json.dumps({k: row[k] for k in ("index", "family", "progress", "decisions")}), flush=True)
-                _dump(a, {"cond": a.cond, "seed": a.seed, "partial": True, "lifetimes": rows,
+                _dump(a, {"cond": a.cond, "tag": a.tag, "rho_init": a.rho_init, "seed": a.seed, "partial": True, "lifetimes": rows,
                           "retention_first_phase_records": retention})
                 idx += 1
             if pi == 0:
@@ -115,7 +123,7 @@ def main(argv: List[str] = None) -> int:
         for row in rows:
             row["nll_final"] = _nll_summary([recs[i] for i in row.pop("prediction_ids") if i in recs])
         status = agent.status()
-        out = {"cond": a.cond, "seed": a.seed, "real": a.real, "backbone": a.backbone, "phases": a.phases,
+        out = {"cond": a.cond, "tag": a.tag, "rho_init": a.rho_init, "seed": a.seed, "real": a.real, "backbone": a.backbone, "phases": a.phases,
                "decisions": a.decisions, "unroll": a.unroll, "max_context": int(cfg.core.max_context),
                "lifetimes": rows, "retention_first_phase_records": retention,
                "persistent_state": status.get("persistent_state"), "parameters": status.get("parameters"),
@@ -123,12 +131,12 @@ def main(argv: List[str] = None) -> int:
                "wall_seconds": time.time() - t0, "commit": _commit()}
         agent.close()
     _dump(a, out)
-    print("wrote", os.path.join(a.out, f"{a.cond}_s{a.seed}.json"), round(time.time() - t0, 1), "s")
+    print("wrote", os.path.join(a.out, f"{name}.json"), round(time.time() - t0, 1), "s")
     return 0
 
 
 def _dump(a: Any, obj: Dict[str, Any]) -> None:
-    path = os.path.join(a.out, f"{a.cond}_s{a.seed}.json")
+    path = os.path.join(a.out, f"{a.cond}{a.tag}_s{a.seed}.json")
     with open(path + ".tmp", "w") as fh:
         json.dump(obj, fh, indent=1, default=str)
     os.replace(path + ".tmp", path)

@@ -1,0 +1,388 @@
+{
+ "cond": "off",
+ "seed": 0,
+ "real": false,
+ "backbone": false,
+ "phases": "F1:2,T1:1,F1:1,T2:1",
+ "decisions": 8,
+ "unroll": 2,
+ "max_context": 48,
+ "lifetimes": [
+  {
+   "family": "F1",
+   "world_seed": 1000,
+   "decisions": 8,
+   "verified_status": "failed",
+   "progress": 0.11864406779661017,
+   "achieved": false,
+   "quality": 0.38129004975652,
+   "wall_seconds": 1842.6837747097015,
+   "training_s": 811.3377285096794,
+   "inference_s": 1025.8979703807272,
+   "index": 0,
+   "phase": 0,
+   "t_start": 1800000000.0,
+   "t_end": 1800518401.0,
+   "nll": {
+    "binary": {
+     "n": 16,
+     "mean": 0.558804335813139
+    },
+    "all": {
+     "n": 47,
+     "mean": 10.243275964913785
+    },
+    "count": {
+     "n": 15,
+     "mean": 2.316905869775319
+    },
+    "real": {
+     "n": 16,
+     "mean": 27.358719558206744
+    },
+    "goal_relevant": {
+     "n": 15,
+     "mean": 1.7103048781133887
+    },
+    "registered": 628
+   },
+   "persistent_state": {
+    "positions": null,
+    "rho_mean": null,
+    "rho_min": null,
+    "rho_max": null
+   },
+   "persistent_counters": {},
+   "nll_final": {
+    "binary": {
+     "n": 16,
+     "mean": 0.558804335813139
+    },
+    "all": {
+     "n": 47,
+     "mean": 10.243275964913785
+    },
+    "count": {
+     "n": 15,
+     "mean": 2.316905869775319
+    },
+    "real": {
+     "n": 16,
+     "mean": 27.358719558206744
+    },
+    "goal_relevant": {
+     "n": 15,
+     "mean": 1.7103048781133887
+    },
+    "registered": 628
+   }
+  },
+  {
+   "family": "F1",
+   "world_seed": 1001,
+   "decisions": 8,
+   "verified_status": "failed",
+   "progress": 0.06363636363636363,
+   "achieved": false,
+   "quality": 0.030325579128193142,
+   "wall_seconds": 1831.8182353973389,
+   "training_s": 964.3460238617845,
+   "inference_s": 787.4586420748383,
+   "index": 1,
+   "phase": 0,
+   "t_start": 1800518401.0,
+   "t_end": 1801036802.0,
+   "nll": {
+    "binary": {
+     "n": 17,
+     "mean": 0.5288485616436185
+    },
+    "all": {
+     "n": 53,
+     "mean": 3.483909808843436
+    },
+    "count": {
+     "n": 20,
+     "mean": 1.3802830458012212
+    },
+    "real": {
+     "n": 16,
+     "mean": 9.25319583779601
+    },
+    "goal_relevant": {
+     "n": 17,
+     "mean": 1.0483963551117244
+    },
+    "registered": 602
+   },
+   "persistent_state": {
+    "positions": null,
+    "rho_mean": null,
+    "rho_min": null,
+    "rho_max": null
+   },
+   "persistent_counters": {},
+   "nll_final": {
+    "binary": {
+     "n": 17,
+     "mean": 0.5288485616436185
+    },
+    "all": {
+     "n": 53,
+     "mean": 3.483909808843436
+    },
+    "count": {
+     "n": 20,
+     "mean": 1.3802830458012212
+    },
+    "real": {
+     "n": 16,
+     "mean": 9.25319583779601
+    },
+    "goal_relevant": {
+     "n": 17,
+     "mean": 1.0483963551117244
+    },
+    "registered": 602
+   }
+  },
+  {
+   "family": "T1",
+   "world_seed": 2000,
+   "decisions": 8,
+   "verified_status": "failed",
+   "progress": 0.06153846153846154,
+   "achieved": false,
+   "quality": 0.0467817997960768,
+   "wall_seconds": 62.39975666999817,
+   "training_s": 41.48843609215692,
+   "inference_s": 17.635112260468304,
+   "index": 2,
+   "phase": 1,
+   "t_start": 1801036802.0,
+   "t_end": 1801555203.0,
+   "nll": {
+    "binary": {
+     "n": 17,
+     "mean": 0.5617557211087784
+    },
+    "all": {
+     "n": 53,
+     "mean": 3.3275376900178366
+    },
+    "count": {
+     "n": 21,
+     "mean": 1.4879401228693527
+    },
+    "real": {
+     "n": 15,
+     "mean": 9.037527182122647
+    },
+    "goal_relevant": {
+     "n": 17,
+     "mean": 1.086324590045077
+    },
+    "registered": 605
+   },
+   "persistent_state": {
+    "positions": null,
+    "rho_mean": null,
+    "rho_min": null,
+    "rho_max": null
+   },
+   "persistent_counters": {},
+   "nll_final": {
+    "binary": {
+     "n": 17,
+     "mean": 0.5617557211087784
+    },
+    "all": {
+     "n": 53,
+     "mean": 3.3275376900178366
+    },
+    "count": {
+     "n": 21,
+     "mean": 1.4879401228693527
+    },
+    "real": {
+     "n": 15,
+     "mean": 9.037527182122647
+    },
+    "goal_relevant": {
+     "n": 17,
+     "mean": 1.086324590045077
+    },
+    "registered": 605
+   }
+  },
+  {
+   "family": "F1",
+   "world_seed": 7000,
+   "decisions": 8,
+   "verified_status": "failed",
+   "progress": 0.0,
+   "achieved": false,
+   "quality": 0.016655456532939292,
+   "wall_seconds": 65.298166513443,
+   "training_s": 46.954276726581156,
+   "inference_s": 14.415037592872977,
+   "index": 3,
+   "phase": 2,
+   "t_start": 1801555203.0,
+   "t_end": 1802073604.0,
+   "nll": {
+    "binary": {
+     "n": 17,
+     "mean": 0.5194769415369735
+    },
+    "all": {
+     "n": 54,
+     "mean": 3.025579996716251
+    },
+    "count": {
+     "n": 19,
+     "mean": 0.6527394475394331
+    },
+    "real": {
+     "n": 18,
+     "mean": 7.897120128516652
+    },
+    "goal_relevant": {
+     "n": 18,
+     "mean": 0.8033984723869474
+    },
+    "registered": 607
+   },
+   "persistent_state": {
+    "positions": null,
+    "rho_mean": null,
+    "rho_min": null,
+    "rho_max": null
+   },
+   "persistent_counters": {},
+   "nll_final": {
+    "binary": {
+     "n": 17,
+     "mean": 0.5194769415369735
+    },
+    "all": {
+     "n": 54,
+     "mean": 3.025579996716251
+    },
+    "count": {
+     "n": 19,
+     "mean": 0.6527394475394331
+    },
+    "real": {
+     "n": 18,
+     "mean": 7.897120128516652
+    },
+    "goal_relevant": {
+     "n": 18,
+     "mean": 0.8033984723869474
+    },
+    "registered": 607
+   }
+  },
+  {
+   "family": "T2",
+   "world_seed": 4000,
+   "decisions": 4,
+   "verified_status": "achieved",
+   "progress": 1.0,
+   "achieved": true,
+   "quality": 0.9788517441860465,
+   "wall_seconds": 22.17769455909729,
+   "training_s": 13.708758532069623,
+   "inference_s": 4.88763098558411,
+   "index": 4,
+   "phase": 3,
+   "t_start": 1802073604.0,
+   "t_end": 1802074864.0,
+   "nll": {
+    "binary": {
+     "n": 8,
+     "mean": 0.5938547071171396
+    },
+    "all": {
+     "n": 16,
+     "mean": 2.8060904016296315
+    },
+    "real": {
+     "n": 8,
+     "mean": 5.018326096142123
+    },
+    "goal_relevant": {
+     "n": 4,
+     "mean": 0.6931642916768347
+    },
+    "registered": 282
+   },
+   "persistent_state": {
+    "positions": null,
+    "rho_mean": null,
+    "rho_min": null,
+    "rho_max": null
+   },
+   "persistent_counters": {},
+   "nll_final": {
+    "binary": {
+     "n": 8,
+     "mean": 0.5938547071171396
+    },
+    "all": {
+     "n": 16,
+     "mean": 2.8060904016296315
+    },
+    "real": {
+     "n": 8,
+     "mean": 5.018326096142123
+    },
+    "goal_relevant": {
+     "n": 4,
+     "mean": 0.6931642916768347
+    },
+    "registered": 282
+   }
+  }
+ ],
+ "retention_first_phase_records": {
+  "after_phase_0": {
+   "n_records": 16,
+   "n_scored": 16,
+   "mean_nll": 1.4308915426333746
+  },
+  "after_phase_1": {
+   "n_records": 16,
+   "n_scored": 16,
+   "mean_nll": 1.452537717990991
+  },
+  "after_phase_2": {
+   "n_records": 16,
+   "n_scored": 16,
+   "mean_nll": 1.4713714513410296
+  },
+  "after_phase_3": {
+   "n_records": 16,
+   "n_scored": 16,
+   "mean_nll": 1.5052927490944663
+  }
+ },
+ "persistent_state": {
+  "enabled": false
+ },
+ "parameters": {
+  "frozen": 360768,
+  "experiential": 202425,
+  "adapters": 42304,
+  "adapters_lora": 1024,
+  "adapters_bridge": 41280,
+  "reward": 227521,
+  "heads_total": 709269,
+  "total_persistent_trainable": 1181519
+ },
+ "backbone_name": "tiny",
+ "scale": "debug",
+ "wall_seconds": 3846.2561371326447,
+ "commit": "50629269f7238675fd25b1061fa6b6b7c0933aee"
+}

@@ -28,7 +28,8 @@ import torch.nn.functional as Fn
 torch.set_num_threads(int(os.environ.get("PS_THREADS", "4")))     # a shared machine: never oversubscribe the CPU
 
 
-def run(cond: str, seed: int, steps: int, period: int, width: int, n_cls: int, batch: int, lr: float) -> Dict[str, Any]:
+def run(cond: str, seed: int, steps: int, period: int, width: int, n_cls: int, batch: int, lr: float,
+        rho_init: Any = None) -> Dict[str, Any]:
     from cam_live.config import CamLiveConfig
     from cam_live.contracts import ExperienceItem, ItemKind, Quantity
     from cam_live.credit.replay import SqliteExperienceStore
@@ -46,6 +47,10 @@ def run(cond: str, seed: int, steps: int, period: int, width: int, n_cls: int, b
     chain = None
     if cond != "off":
         chain = PersistentStateChain(model, store, PersistSettings(unroll=int(cond[1:])))
+        if rho_init is not None:                        # start at the pre-PS computation; learning may open it
+            with torch.no_grad():
+                model.exp.core.persist_rho.fill_(float(rho_init))
+    rho_trace: List[Any] = []
     params = model.param_groups()[GROUP_EXPERIENTIAL] + list(head.parameters())
     opt = torch.optim.AdamW(params, lr=lr, weight_decay=0.0)
     words = ["red", "green", "blue", "tall", "round", "quiet", "fast", "late"]
@@ -92,6 +97,8 @@ def run(cond: str, seed: int, steps: int, period: int, width: int, n_cls: int, b
         loss.backward()
         torch.nn.utils.clip_grad_norm_(params, 1.0)
         opt.step()
+        if chain is not None and step % 25 == 0:
+            rho_trace.append([step, round(sum(chain.rho()) / len(chain.rho()), 4)])
     acc = {int(k): v[0] / v[1] for k, v in sorted(scores.items())}
     nll = {int(k): nll_sum[k] / scores[k][1] for k in sorted(scores)}
     beyond = [k for k in acc if k >= width]
@@ -102,6 +109,8 @@ def run(cond: str, seed: int, steps: int, period: int, width: int, n_cls: int, b
            "nll_beyond_window": sum(nll_sum[k] for k in beyond) / max(1, n_b), "n_beyond": n_b}
     if chain is not None:
         out["rho"] = chain.rho()
+        out["rho_init"] = rho_init
+        out["rho_trace"] = rho_trace
         out["counters"] = dict(chain.counters)
     return out
 
@@ -125,13 +134,14 @@ def main() -> int:
     ap.add_argument("--lr", type=float, default=3e-3)
     ap.add_argument("--seeds", default="0,1,2")
     ap.add_argument("--conds", default="off,K1,K2,K4")
+    ap.add_argument("--rho-init", type=float, default=None)
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     res = []
     for seed in [int(s) for s in a.seeds.split(",")]:
         for cond in a.conds.split(","):
             t0 = time.time()
-            r = run(cond, seed, a.steps, a.period, a.width, a.n_cls, a.batch, a.lr)
+            r = run(cond, seed, a.steps, a.period, a.width, a.n_cls, a.batch, a.lr, a.rho_init)
             r["seconds"] = time.time() - t0
             print(json.dumps({k: r[k] for k in ("cond", "seed", "acc_in_window", "acc_beyond_window",
                                                 "nll_beyond_window", "seconds")}), flush=True)

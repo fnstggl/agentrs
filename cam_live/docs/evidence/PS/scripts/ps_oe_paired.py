@@ -56,7 +56,7 @@ def main() -> int:
     lock = None
     if not a.cpu:
         from cam_live.nn.gpu import gpu_lock
-        lock = gpu_lock(min_free_gb=14.0, timeout_s=4 * 3600.0)
+        lock = gpu_lock(min_free_gb=14.0, timeout_s=4 * 3600.0, poll_s=1.0)
         lock.__enter__()
     t_lock = time.time()
     try:
