@@ -20,6 +20,8 @@ pairs = {}
 for r in runs:
     pairs.setdefault((r["source"], r["seed"], r.get("rho_init")), {})[r["cond"]] = r
 rows, d_all, d_blocks, d_ret = [], [], {}, []
+print("| stream | model seed | scored | NLL on | NLL off | on - off | per block on/off | retention on | retention off | rho (on, end) |")
+print("|---|---:|---:|---:|---:|---:|---|---|---|---|")
 for (src, seed, rho0), pr in sorted(pairs.items(), key=lambda x: (x[0][0], x[0][1])):
     on, off = pr.get("on"), pr.get("off")
     if not on or not off:

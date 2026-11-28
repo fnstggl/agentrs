@@ -2,6 +2,9 @@
 
 ## PS-1 — agent.py: thread the persistent core state through the agent (for ST)
 
+**Status: applied by ST in `dde7d2d`** (all 11 hunks present in agent.py; `tests/nn/test_ps_agent_integration.py`
+passes against it).
+
 **What.** Attach a `cam_live.nn.persist.PersistentStateChain` to the model in `CamLiveAgent.__init__`, read the
 current window with the carried state inside the decision-time calls (`_belief`, `update_beliefs`' `belief_value`,
 `evaluate`'s `evaluate_candidates` and `planner.plan`), commit every decision to the chain in `record_result`,

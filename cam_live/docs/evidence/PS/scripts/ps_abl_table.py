@@ -10,6 +10,7 @@ import sys
 
 d = sys.argv[1]
 runs = {os.path.basename(f)[:-5]: json.load(open(f)) for f in sorted(glob.glob(os.path.join(d, "*_s*.json")))}
+runs = {k: v for k, v in runs.items() if not v.get("partial")}            # finished runs only
 K = ("count", "binary", "goal_relevant")
 print("| run | lifetime | family | progress | NLL count (n) | NLL binary (n) | NLL goal-relevant (n) | causal TV | rel. change of b | rho |")
 print("|---|---:|---|---:|---:|---:|---:|---:|---:|---:|")
