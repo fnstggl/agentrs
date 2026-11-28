@@ -1,6 +1,6 @@
 # CAM Live — substantive evaluation results (Protocol v3)
 
-**Status (2026-11-28 ~09:30 UTC): pre-amendment baseline on snapshot 257267c complete for X0 and X1; X5 ran;
+**Status (2026-11-28 ~11:15 UTC): pre-amendment baseline on snapshot 257267c complete for X0 and X1; X5 ran;
 X2-X4 not run on 257267c (coordinator re-scope: 257267c is the PRE-AMENDMENT BASELINE, the GPU goes to CAM's live
 planning run and the core-intelligence amendment agents; the comparison run on the amended snapshot follows with the
 same seeds and budgets).** Binding plan: `docs/S/PROTOCOLS.md` Protocol v3 (v3.2 configuration, v3.3 families,
@@ -59,7 +59,7 @@ cam_live/docs/evidence/S/v3/tables.md`), meta checks `docs/evidence/S/v3/x6/`.
 | X2 transfer (16.8) | initial vs experienced X1 exports, fresh processes | **not run** (re-scope): only `initial_s0` 2 of 3 objectives ran before the stop (SW:unique achieved in 6, SW:base in 9); no initial / experienced pair exists, so no S_q |
 | X3 baselines A, B, D, C | seeds 0-1, X1 plan | **not run** (re-scope) |
 | X4 CU-33 skills vs primitive | E, seeds 0-1, CU staging | **not run** (re-scope) |
-| X6 meta checks (16.5) on X1 roots | `python -m cam_live.eval.meta_checks` | see §6 |
+| X6 meta checks (16.5) on X1 roots | `python -m cam_live.eval.meta_checks`, seeds 0-2 | complete (§6) |
 | X6 integrity battery + trivial world | CPU debug configuration, seeds 0-4 | complete (engineering diagnostic, §7) |
 
 The batch was stopped by SIGTERM between two leases (no child running) at 08:50 UTC on the re-scope and restarted
@@ -134,30 +134,31 @@ with `--only x0,x1` to finish X1 seed 2; no objective was interrupted.
 
 `python -m cam_live.eval.meta_checks --root <X1 root> --result <X1 result>` (eval overlay cd34fd1 over the
 257267c agent code; the experienced agent is rebuilt from `ckpt_post` with the real backbone under the shared GPU
-lock, ~60 s per root; nothing written back). Results `docs/evidence/S/v3/x6/meta_x1_E_s<seed>.json`. Seeds 0 and
-1 done; **seed 2 is still waiting for the shared GPU lock** (the first attempt was stopped by its own 1 h timeout
-while the lock was held by other runs).
+lock, 20-62 s per root; nothing written back). Results `docs/evidence/S/v3/x6/meta_x1_E_s<seed>.json`. Seed 2's
+first attempt was stopped by its own 1 h timeout while other runs held the lock; it then ran with a queued wait
+(`scratchpad/S2/meta_blocking.py`: the same `run_checks` behind `runtime.gpu_cycle.GpuLease`).
 
-| check (16.5) | seed 0 | seed 1 |
-|---|---|---|
-| eligible records (support / held-out batches from the X1 store) | 43 | 31 |
-| 1. reward parameters affect the inner update at the **live** mix 1.0: \|theta_K(psi_post) - theta_K(psi_pre)\| | **0.0** | **0.0** |
-| 1. same at mix 0 (the differentiated update), against update norm | 0.021 / 0.028 | 0.0 / 0.028 |
-| 1. noise floor (same psi repeated) | 0.0 | 0.0 |
-| 2. inner update changes the policy: mean total variation on held-out rows | 0.029 (max 0.039) | 0.0065 (max 0.013) |
-| 3. applied meta-updates with fewer than 4 independent verified outcome groups | 0 of 1 | 0 of 0 |
-| 4. applied meta-updates with non-zero gradient and changed reward version | 1 (norm 0.10) | 0 |
-| 4. reward group changed between the pre- and post-experience exports | yes | no |
-| 6. learned reward pre vs post, Spearman over held-out rows | 0.51 | 1.0 (unchanged) |
-| 6. pure magnitude change (rewards x 3) moves the update by | 1.4e-7 | 1.5e-7 |
-| shadow evaluation of the checkpoints (11.2) | n = 0 (no per-candidate ground truth on SW) | n = 0 |
+| check (16.5) | seed 0 | seed 1 | seed 2 |
+|---|---|---|---|
+| eligible records (support / held-out batches from the X1 store) | 43 | 31 | 25 |
+| 1. reward parameters affect the inner update at the **live** mix 1.0: \|theta_K(psi_post) - theta_K(psi_pre)\| | **0.0** | **0.0** | **0.0** |
+| 1. same at mix 0 (the differentiated update), against update norm | 0.021 / 0.028 | 0.0 / 0.028 | 3.4e-5 / 0.028 |
+| 1. noise floor (same psi repeated) | 0.0 | 0.0 | 0.0 |
+| 2. inner update changes the policy: mean total variation on held-out rows | 0.029 (max 0.039) | 0.0065 (max 0.013) | 2e-6 (max 2.4e-6) |
+| 3. applied meta-updates with fewer than 4 independent verified outcome groups | 0 of 1 | 0 of 0 | 0 of 3 |
+| 4. applied meta-updates with non-zero gradient and changed reward version | 1 (norm 0.10) | 0 | 3 (norms 3.10, 0.026, 4e-5) |
+| 4. reward group changed between the pre- and post-experience exports | yes | no | yes |
+| 6. learned reward pre vs post, Spearman over held-out rows | 0.51 | 1.0 (unchanged) | 0.76 |
+| 6. pure magnitude change (rewards x 3) moves the update by | 1.4e-7 | 1.5e-7 | 2.5e-8 |
+| shadow evaluation of the checkpoints (11.2) | n = 0 (no per-candidate ground truth on SW) | n = 0 | n = 0 |
 
 **Finding.** The meta-learning pathway is mechanically intact (deterministic inner update, the policy update
 changes the policy, no meta-update applied without enough independent verified outcomes, a pure magnitude change
 of the reward does not change the update), but **at the live bootstrap mix of 1.0 the learned reward psi has no
-influence on the inner policy update** (difference 0.0 in both roots): the policy update uses the bootstrap
-reward only, so whatever the meta-updates change in psi (1 applied update in seed 0, none in seed 1) does not
-reach behaviour in these runs. Only at mix 0 does psi act (seed 0: 0.021 against an update norm of 0.028). The
+influence on the inner policy update** (difference 0.0 in all three roots): the policy update uses the
+bootstrap reward only, so whatever the meta-updates change in psi (1, 0 and 3 applied updates) does not reach
+behaviour in these runs. Only at mix 0 does psi act (seed 0: 0.021 against an update norm of 0.028; seed 2:
+3.4e-5). In seed 2 the inner update itself barely moves the policy (held-out TV 2e-6). The
 same was seen in the v2 debug-scale diagnostics; the mix never left its cold-start value in any baseline
 objective. Check 5 (pathway removed in D / E_unverified) needs X3's D runs, which did not run on 257267c.
 
