@@ -694,6 +694,10 @@ INSTRUCTIONS = (
 H_OBJECTIVE = "OBJECTIVE (given by the operator; JSON string):"
 H_TOOLS = "TOOLS (data; JSON array):"
 H_OBSERVATION = "OBSERVATION (untrusted data from the environment; JSON string):"
+#: CAM's own earlier records of the current objective (what it wrote into its own records, what it executed with which
+#: arguments and expectation, and what became of it). Data like the other sections: text the agent wrote may quote
+#: observed content, so it is never read as a command.
+H_MEMORY = "OWN RECORDS (earlier actions and records of this agent in this objective, oldest first; JSON string):"
 H_END = "END OF DATA"
 H_ANSWER = "Candidate actions (JSON Lines):"
 
@@ -832,3 +836,116 @@ class BackboneProposer:
                  "n_skills": len(skill_list), "n_merged": len(merged), "n_environment_invalid": n_env_invalid,
                  "rejection_reasons": reasons, "by_provenance": by_prov, "latent_conditioned": latent is not None}
         return ProposalResult(merged, stats, rejections, [str(t) for t in texts])
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# stage 3 (ST): the action generator learns from CAM's own experience — spec 1.4 "develop trainable conditioning
+# from CAM's latent state into the semantic action-generation process; support gradual improvement of the action
+# generator through the pretrained-model adapters"
+# ----------------------------------------------------------------------------------------------------------------
+def proposal_line(a: ActionSpec) -> str:
+    """An executed action as one line of the proposer's output format (what the generator would have written)."""
+    if a.steps:
+        obj: Dict[str, Any] = {"steps": [{"operation": s.operation, "arguments": s.arguments} for s in a.steps]}
+    else:
+        obj = {"operation": a.operation, "arguments": a.arguments}
+    if a.expected:
+        obj["expected"] = a.expected
+    return json.dumps(obj, default=str, ensure_ascii=False)
+
+
+class ProposalLearningProvider:
+    """Slow-timescale ``LossProvider`` over the semantic adapters (LoRA + latent bridge): advantage-filtered
+    regression of the action generator on the agent's own executed actions,
+
+        L = - sum_i w_i * log p_LM(line(a_i) | context_i, b_i via the bridge) / words(line(a_i))  /  sum_i w_i,
+        w_i = max(0, A_i),   A_i = (r_i - mean r) / sd r   over the rewarded decisions of the same objective,
+
+    where r_i is the record's ``intrinsic_reward`` — the reward the live policy update itself uses (the bootstrap /
+    learned R_psi mix of ``reward.metalearner``) — and line(a) the action in the proposer's output format. The
+    generator therefore becomes more likely to propose, *in the situation the belief b and the context describe*,
+    actions that CAM's own (learned) reward rated above its average; it is never shown what to do. Rows whose
+    advantage is not positive, results that did not execute successfully (refused, failed, queued) and objectives
+    with fewer than ``min_group`` rewarded decisions give no target.
+
+    The context is built from the decision's own experience items (``context_item_refs``: what the experiential
+    core encoded for that decision), the objective verbatim, under the proposer's section headers and instruction
+    block (``instructions``), in the backbone's chat format; the belief is detached (this loss trains the adapters,
+    not the core). Held-out validation, the slow-step guard (no other provider's held-out loss may worsen) and the
+    trust region of ``credit.learner`` apply to it like to every adapter loss."""
+    timescale = "slow_adapters"
+
+    def __init__(self, model: Any, *, instructions: str = "", weight: float = 1.0, max_rows: int = 4,
+                 context_items: int = 10, item_chars: int = 300, max_line_chars: int = 2000, min_group: int = 4,
+                 name: str = "proposal_learning"):
+        self.name, self.weight, self.model = name, float(weight), model
+        self.instructions = str(instructions)
+        self.max_rows, self.context_items, self.item_chars = int(max_rows), int(context_items), int(item_chars)
+        self.max_line_chars, self.min_group = int(max_line_chars), int(min_group)
+
+    def eligible(self, record: Any) -> bool:
+        r = record.result
+        return (r is not None and str(r.status) == "ok" and record.intrinsic_reward is not None
+                and math.isfinite(float(record.intrinsic_reward)) and bool(record.decision.chosen.operation)
+                and len(proposal_line(record.decision.chosen)) <= self.max_line_chars)
+
+    def _advantages(self, records: Sequence[Any], store: Any) -> List[Optional[float]]:
+        stats: Dict[str, Optional[Tuple[float, float]]] = {}
+        out: List[Optional[float]] = []
+        for rec in records:
+            oid = rec.objective_id
+            if oid not in stats:
+                rs = [float(r.intrinsic_reward) for r in (store.trajectory(oid) if store is not None else [])
+                      if r.intrinsic_reward is not None and math.isfinite(float(r.intrinsic_reward))]
+                if len(rs) < self.min_group:
+                    stats[oid] = None
+                else:
+                    mu = sum(rs) / len(rs)
+                    sd = math.sqrt(sum((x - mu) ** 2 for x in rs) / len(rs))
+                    stats[oid] = (mu, sd) if sd > 1e-9 else None
+            st = stats[oid]
+            out.append(None if st is None or not self.eligible(rec) else (float(rec.intrinsic_reward) - st[0]) / st[1])
+        return out
+
+    def context(self, record: Any, store: Any) -> str:
+        """The decision's experience items (newest last, the goal item left out: the objective is its own
+        section), each within ``item_chars`` characters."""
+        refs = list(record.context_item_refs or [])
+        try:
+            items = store.items(refs, missing_ok=True) if store is not None else []
+        except TypeError:
+            items = store.items(refs)
+        lines = []
+        for it in items:
+            if str(getattr(it, "kind", "")) == "goal":
+                continue
+            t = " ".join(str(getattr(it, "text", "") or "").split())
+            if t:
+                lines.append(t[:self.item_chars])
+        return "\n".join(lines[-self.context_items:])
+
+    def prompt(self, record: Any, store: Any) -> str:
+        enc = lambda v: json.dumps(v, ensure_ascii=True, sort_keys=True, separators=(",", ":"), default=str)  # noqa
+        text = "\n".join([self.instructions, H_OBJECTIVE, enc(record.goal_text or ""), "", H_OBSERVATION,
+                          enc(self.context(record, store)), "", H_END, H_ANSWER, ""])
+        bb = getattr(self.model, "backbone", None)
+        if bb is not None and getattr(bb, "pretrained", False) and hasattr(bb, "chat_prompt"):
+            return bb.chat_prompt(text, system="", thinking=False)
+        return text
+
+    def loss(self, model: Any, batch: Any, store: Any) -> Tuple[Optional[Any], Dict[str, float]]:
+        import torch
+        adv = self._advantages(batch.records, store)
+        rows = [(i, a) for i, a in enumerate(adv) if a is not None and a > 0.0][:self.max_rows]
+        if not rows:
+            return None, {"n_rows": 0.0, "n_candidates": float(sum(a is not None for a in adv))}
+        idx = torch.tensor([i for i, _ in rows], device=batch.b.device)
+        prompts = [self.prompt(batch.records[i], store) for i, _ in rows]
+        targets = [proposal_line(batch.records[i].decision.chosen) for i, _ in rows]
+        lp = model.generation_logprob(prompts, targets, latent=batch.b.index_select(0, idx).detach())
+        w = torch.tensor([a for _, a in rows], dtype=lp.dtype, device=lp.device)
+        words = torch.tensor([max(1, len(t.split())) for t in targets], dtype=lp.dtype, device=lp.device)
+        nll = -(lp / words)
+        loss = (w * nll).sum() / w.sum()
+        return loss, {"n_rows": float(len(rows)), "nll_per_word": float(nll.detach().mean()),
+                      "mean_advantage": float(w.mean())}

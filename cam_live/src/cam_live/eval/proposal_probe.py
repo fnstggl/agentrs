@@ -1,6 +1,7 @@
 """cam_live.eval.proposal_probe — what the full-size agent's open-ended proposer writes for an objective.
 
     python -m cam_live.eval.proposal_probe --plan SW:rle,MECH:7 --rounds 4 --out P.json   (GPU lock)
+    python -m cam_live.eval.proposal_probe analyse-run RUN_DIR [OUT.json]    (ST: what a run recorded, CPU)
     python -m cam_live.eval.proposal_probe --family SW --problem rle --rounds 4 --out P.json
 
 Builds the real agent (Qwen3-4B + 50m, substantive settings), opens each objective of the plan in the open-ended
@@ -77,7 +78,163 @@ def traversable(path: str, uid: int, gid: int) -> bool:
         cur = os.path.dirname(cur)
 
 
+# ----------------------------------------------------------------------------------------------------------------
+# ST: what a run of the agent recorded about research, hypotheses, experiments, plans and their revision
+# ----------------------------------------------------------------------------------------------------------------
+#: words of the evaluation's crude content measure (counted in what CAM wrote; never shown to CAM, never a signal)
+HYPOTHESIS_WORDS = ("hypothes", "experiment", "predict", "expect", "test ", "if ", "assum", "plan", "strategy",
+                    "measure", "evidence", "lesson", "revise", "because")
+_STOP = set("the a an and or of to in for on with by is are be this that it as at from will can we i our".split())
+
+
+def _jsonl(path: str) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        out.append(json.loads(line))
+                    except ValueError:
+                        pass
+    except OSError:
+        pass
+    return out
+
+
+def _words(text: str) -> set:
+    import re
+    return {w for w in re.findall(r"[a-z][a-z0-9]{2,}", str(text).lower()) if w not in _STOP}
+
+
+def _strings(x: Any) -> List[str]:
+    if isinstance(x, str):
+        return [x]
+    if isinstance(x, dict):
+        return [s for v in x.values() for s in _strings(v)]
+    if isinstance(x, list):
+        return [s for v in x for s in _strings(v)]
+    return []
+
+
+def analyse_run(run_dir: str) -> Dict[str, Any]:
+    """Counts over a run directory written by ``LiveRuntime`` (decisions.jsonl, the internal executor's notebook,
+    operator requests, experiments.jsonl, action results in events.jsonl). Evaluation measures only:
+
+    * notes / requests: executed, their text length, CAM's own tags, the share containing ``HYPOTHESIS_WORDS``;
+    * expectations: chosen actions that carried an ``expected`` text (a prediction written with the action);
+    * coherence: a chosen action whose argument strings reuse a token (>= 6 characters, not in the task's resources)
+      that first appeared in an EARLIER decision's observed result; repeated executions of an identical action;
+    * revisions: a note sharing >= 30 % of its content words (Jaccard) with an earlier note; after a refused /
+      failed action, a later chosen action of the same operation with different arguments;
+    * generation: items written, valid, per-sample truncation, proposed operations, chosen provenance."""
+    import collections
+    R = os.path.abspath(run_dir)
+    decs = [r.get("data", {}).get("decision", {}) for r in _jsonl(os.path.join(R, "decisions.jsonl"))]
+    decs = [d for d in decs if d.get("chosen")]
+    events = _jsonl(os.path.join(R, "events.jsonl"))
+    results = {e["data"].get("decision_id"): e["data"] for e in events if e.get("type") == "action_result"}
+    obs_text = {}
+    for e in events:
+        if e.get("type") == "observation":
+            d = e.get("data", {})
+            o = d.get("observation", d)
+            obs_text[o.get("obs_id", "")] = str(o.get("text", ""))
+    try:
+        task = json.load(open(os.path.join(R, "task.json")))
+    except (OSError, ValueError):
+        task = {}
+    resource_strings = set(_strings(task.get("resources", {})))
+    out: Dict[str, Any] = {"run_dir": R, "decisions": len(decs)}
+    chosen_ops = collections.Counter(d["chosen"]["operation"] for d in decs)
+    out["chosen_operations"] = dict(chosen_ops)
+    out["chosen_provenance"] = dict(collections.Counter(d["chosen"].get("provenance", "").split("+")[0]
+                                                        for d in decs))
+    gen = [d.get("diagnostics", {}).get("generation") or {} for d in decs]
+    items = sum(int(g.get("n_items") or 0) for g in gen)
+    valid = sum(int(g.get("n_backbone_valid") or 0) for g in gen)
+    samples = [s for g in gen for s in (g.get("per_sample") or [])]
+    proposed = collections.Counter(c["action"]["operation"] for d in decs for c in d.get("candidates", [])
+                                   if "backbone" in str(c["action"].get("provenance", "")))
+    out["generation"] = {
+        "items": items, "valid": valid, "validity": (valid / items) if items else None,
+        "mean_valid_per_decision": valid / max(1, len(decs)),
+        "samples": len(samples) or None,
+        "samples_last_line_rejected": sum(int(s.get("last_line_rejected", 0)) for s in samples) if samples else None,
+        "decisions_with_not_json": sum(1 for g in gen if (g.get("rejection_reasons") or {}).get("not_json")),
+        "proposed_backbone_operations_offered": dict(proposed),
+        "mean_prompt_tokens": (sum(int(g.get("prompt_tokens") or 0) for g in gen) / max(1, len(gen))),
+        "mean_memory_chars": (sum(int(g.get("memory_chars") or 0) for g in gen) / max(1, len(gen)))}
+    # executed own records
+    ok = lambda d: (results.get(d["decision_id"]) or {}).get("status") == "ok"          # noqa: E731
+    notes = [d for d in decs if d["chosen"]["operation"] == "internal.note" and ok(d)]
+    reqs = [d for d in decs if d["chosen"]["operation"] == "internal.request_operator" and ok(d)]
+    note_texts = [str(d["chosen"]["arguments"].get("text", "")) for d in notes]
+    hyp = lambda t: any(w in t.lower() for w in HYPOTHESIS_WORDS)                         # noqa: E731
+    out["notes"] = {"executed": len(notes), "chars": [len(t) for t in note_texts],
+                    "with_hypothesis_words": sum(1 for t in note_texts if hyp(t)),
+                    "tags": dict(collections.Counter(t for d in notes for t in d["chosen"]["arguments"].get("tags", [])
+                                                     if isinstance(t, str))),
+                    "proposed_by_backbone_offered": proposed.get("internal.note", 0),
+                    "texts": [t[:600] for t in note_texts]}
+    out["operator_requests"] = {"executed": len(reqs), "kinds": dict(collections.Counter(
+        d["chosen"]["arguments"].get("kind", "") for d in reqs)),
+        "distinct_titles": len({d["chosen"]["arguments"].get("title", "") for d in reqs})}
+    exp_txt = [d["chosen"].get("expected", "") for d in decs if d["chosen"].get("expected")]
+    out["expectations"] = {"chosen_with_expected": len(exp_txt),
+                           "with_hypothesis_words": sum(1 for t in exp_txt if hyp(t)), "examples": exp_txt[:8]}
+    # coherence: reuse of tokens first observed in an earlier decision's result
+    seen_tokens: Dict[str, int] = {}
+    follow_ups, repeats, executed_keys = 0, 0, {}
+    revisions_after_failure, failed_ops = 0, {}
+    for i, d in enumerate(decs):
+        ch = d["chosen"]
+        key = json.dumps([ch["operation"], ch.get("arguments")], sort_keys=True, default=str)
+        strs = [s for s in _strings(ch.get("arguments", {})) if s not in resource_strings]
+        toks = {t for s in strs for t in __import__("re").findall(r"[A-Za-z0-9_./:-]{6,}", s)}
+        if any(seen_tokens.get(t, i) < i for t in toks):
+            follow_ups += 1
+        if key in executed_keys:
+            repeats += 1
+        res = results.get(d["decision_id"]) or {}
+        if ch["operation"] in failed_ops and failed_ops[ch["operation"]] != key:
+            revisions_after_failure += 1
+            failed_ops.pop(ch["operation"], None)
+        if res.get("status") in ("denied", "failed", "error", "timeout"):
+            failed_ops[ch["operation"]] = key
+        executed_keys[key] = i
+        for oid in res.get("observation_ids") or []:
+            for t in __import__("re").findall(r"[A-Za-z0-9_./:-]{6,}", obs_text.get(oid, "")):
+                seen_tokens.setdefault(t, i)
+    rev_notes = 0
+    for j in range(1, len(note_texts)):
+        wj = _words(note_texts[j])
+        if any(wj and _words(t) and len(wj & _words(t)) / len(wj | _words(t)) >= 0.3 for t in note_texts[:j]):
+            rev_notes += 1
+    out["coherence"] = {"follow_ups_using_earlier_results": follow_ups, "identical_repeats": repeats,
+                        "max_run_same_operation": max((len(list(g)) for _, g in __import__("itertools").groupby(
+                            d["chosen"]["operation"] for d in decs)), default=0)}
+    out["revisions"] = {"notes_building_on_earlier_notes": rev_notes,
+                        "changed_retry_after_failure": revisions_after_failure}
+    out["experiments_registered"] = len({r.get("data", {}).get("experiment_id") for r in
+                                         _jsonl(os.path.join(R, "experiments.jsonl"))} - {None})
+    out["result_status"] = dict(collections.Counter((results.get(d["decision_id"]) or {}).get("status", "none")
+                                                    for d in decs))
+    return out
+
+
 def main(argv=None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    if argv and argv[0] == "analyse-run":                      # python -m cam_live.eval.proposal_probe analyse-run R
+        res = analyse_run(argv[1])
+        text = json.dumps(res, indent=1, default=str)
+        if len(argv) > 2:
+            with open(argv[2], "w") as f:
+                f.write(text)
+        print(text[:6000])
+        return 0
     ap = argparse.ArgumentParser()
     ap.add_argument("--plan", default="", help="FAMILY:PROBLEM[,FAMILY:PROBLEM...] (overrides --family/--problem)")
     ap.add_argument("--family", default="SW")
