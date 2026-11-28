@@ -85,6 +85,26 @@ class _View:
     real_scale: Tensor
 
 
+def _head_view(o: Any, exposure: Tensor, phi: Tensor, kind_ids: Tensor, real_loc: Tensor, real_scale: Tensor
+               ) -> _View:
+    sq = lambda t: t[:, :, 0].to(F64)                                                      # noqa: E731
+    edges = o._edges()[:, :, 0]
+    return _View(count=torch.exp(sq(o.log_rate)) * exposure.to(F64)[None], loc=sq(o.loc),
+                 logit=sq(o.logit), time=D.hazard_expected_time(o.hazard_logits[:, :, 0], edges).to(F64),
+                 cat=o._cat_mode_prob()[:, :, 0].to(F64), phi=phi[:, 0].to(F64), kind_ids=kind_ids,
+                 real_loc=real_loc.to(F64), real_scale=real_scale.to(F64))
+
+
+def _pick_members(v: _View, member: Tensor) -> _View:
+    """The view of one world-model ensemble member per row (``member`` [R] long): a member axis of size 1, so the
+    combined mean of :meth:`Predictor._means` is that member's (with the fast layer's posterior on top)."""
+    ar = torch.arange(member.shape[0], device=v.count.device)
+    mem = member.to(v.count.device) % v.count.shape[0]
+    pick = lambda t: t[mem, ar][None]                                                      # noqa: E731
+    return _View(count=pick(v.count), loc=pick(v.loc), logit=pick(v.logit), time=pick(v.time), cat=pick(v.cat),
+                 phi=v.phi, kind_ids=v.kind_ids, real_loc=v.real_loc, real_scale=v.real_scale)
+
+
 class Predictor:
     def __init__(self, model: LatentModelAPI, fast_state: Any, registry: PredictionRegistry, clock: Clock,
                  cfg: Any = None, *, heads: Optional[PredictHeads] = None, model_version: str = "",
@@ -142,13 +162,7 @@ class Predictor:
 
     # ---- head + fast layer --------------------------------------------------------------------------------------
     def _view(self, wb: WorldBatch) -> _View:
-        o = wb.out
-        sq = lambda t: t[:, :, 0].to(F64)                                                  # noqa: E731
-        edges = o._edges()[:, :, 0]
-        return _View(count=torch.exp(sq(o.log_rate)) * wb.meta.exposure.to(F64)[None], loc=sq(o.loc),
-                     logit=sq(o.logit), time=D.hazard_expected_time(o.hazard_logits[:, :, 0], edges).to(F64),
-                     cat=o._cat_mode_prob()[:, :, 0].to(F64), phi=wb.phi[:, 0].to(F64), kind_ids=wb.kind_ids,
-                     real_loc=wb.real_loc.to(F64), real_scale=wb.real_scale.to(F64))
+        return _head_view(wb.out, wb.meta.exposure, wb.phi, wb.kind_ids, wb.real_loc, wb.real_scale)
 
     def _supports(self, fast: Any, kind: str) -> bool:
         return fast is not None and fast.supports(kind)
@@ -368,8 +382,39 @@ class Predictor:
             self._register_success(objective_id, decision_id, float(ev_v.p_success[0]), now, deadline)
         self.last = {"decision_id": decision_id, "b": b.detach(), "z": z.detach(), "e_a": e_a.detach(),
                      "e_g": e_g.detach(), "a_mask": a_mask, "policy_logits": pol.raw_logits.detach(),
-                     "p_success": ev_q.p_success.detach(), "v_state": float(ev_v.p_success[0])}
+                     "p_success": ev_q.p_success.detach(), "v_state": float(ev_v.p_success[0]),
+                     "horizon": horizon, "scale": scale, "net_cost": net_cost,
+                     "world": ({"wb": wb, "gmask": gmask, "n": n} if (has_q and any_goal) else None)}
         return out
+
+    @torch.no_grad()
+    def goal_values(self, z: Tensor, member: Optional[Tensor] = None) -> Optional[Tensor]:
+        """[R, N] float64 net goal-relevant values of the candidates of the latest evaluation at other decision
+        latents ``z`` [R, N, D] (e.g. at imagined beliefs): the same goal-relevant questions, query encodings, scalers,
+        exposures and fast state as :meth:`evaluate_candidates`, the world model read at ``z`` instead of the real
+        decision latents, minus the same weighted cost. ``member`` [R] reads one world-model ensemble member per row
+        (a coherent imagined particle); None averages the members. None when the latest evaluation asked no
+        goal-relevant question (the value of a candidate is then its evaluator success probability)."""
+        w = (self.last or {}).get("world")
+        if w is None:
+            return None
+        wb, gmask, n = w["wb"], w["gmask"], int(w["n"])
+        r, n_z, d = z.shape
+        if n_z != n:
+            raise ValueError(f"goal_values: {n_z} candidates given, the latest evaluation had {n}")
+        rep = lambda t: t.repeat((r,) + (1,) * (t.dim() - 1))                               # noqa: E731
+        z1 = z.reshape(r * n, d).unsqueeze(1)
+        e_q, kind = rep(wb.e_q), rep(wb.kind_ids)
+        expo, rl, rs = rep(wb.meta.exposure), rep(wb.real_loc), rep(wb.real_scale)
+        phi = self.model.features(z1, e_q)
+        out = self.heads.world(z1, e_q, kind, rep(wb.horizon_s), phi if self.heads.world.in_phi is not None else None,
+                               exposure=expo, n_categories=rep(wb.meta.n_categories), real_loc=rl, real_scale=rs)
+        v = _head_view(out, expo, phi, kind, rl, rs)
+        if member is not None:
+            v = _pick_members(v, member.repeat_interleave(n))
+        mean, _ = self._means(v, self.fast)
+        g = (mean * rep(gmask).to(mean.device)).sum(-1).reshape(r, n).cpu()
+        return g - self.last["net_cost"].to(g.dtype)[None]
 
     @staticmethod
     def _goal_mask(canon: List[List[OutcomeQuery]], wb: WorldBatch) -> Tensor:

@@ -11,7 +11,7 @@ while the *measured* open-loop k-step error on real sequences (:func:`multistep_
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import torch
 from torch import Tensor
@@ -154,39 +154,113 @@ def multistep_error(transition: LatentTransition, decision_latent: Callable[[Ten
     return torch.where(counts > 0, errs / counts.clamp_min(1), torch.full_like(errs, float("nan")))
 
 
+@torch.no_grad()
+def value_consistency_error(transition: LatentTransition,
+                            decision_latent: Callable[[Tensor, Tensor, Tensor], Tensor],
+                            q_fn: Callable[[Tensor, int], Optional[Tensor]], b_seq: Tensor, e_a_seq: Tensor,
+                            e_g: Tensor, dt_s: Tensor, max_k: int) -> Tuple[Tensor, Tensor, Tensor]:
+    """Decision-relevant open-loop accuracy of imagination on one *real* sequence (batch 1).
+
+    ``b_seq`` [1, T+1, D] real beliefs, ``e_a_seq`` [1, T, D] executed actions, ``dt_s`` [1, T];
+    ``q_fn(b [1, D], t) -> [N_t]`` the values of the candidates of real decision t read from a belief ``b`` (None when
+    decision t has none). For every start s and k = 1..max_k the belief is imagined k steps ahead through the
+    executed actions (transition means) and decision t = s + k's candidates are valued at the imagined belief and at
+    the real one. Returns (sum of squared differences [max_k], sum of the squared deviations of the real values from
+    their mean over the candidates [max_k]); their ratio is the error relative to the differences between the
+    actions the decision was about (1.0: the imagination error is as large as those differences), and the same sum
+    of squared differences for *not imagining* (values read at the start belief: the persistence baseline [max_k])."""
+    t = b_seq.shape[1] - 1
+    num = torch.zeros(max_k, dtype=torch.float64)
+    den = torch.zeros(max_k, dtype=torch.float64)
+    per = torch.zeros(max_k, dtype=torch.float64)
+    real: Dict[int, Optional[Tensor]] = {}
+    for start in range(t):
+        cur = b_seq[:, start]
+        for k in range(1, max_k + 1):
+            tt = start + k
+            if tt > t - 1:
+                break
+            z = decision_latent(cur, e_a_seq[:, tt - 1:tt], e_g).squeeze(1)
+            cur = transition(z, dt_s[:, tt - 1], cur).mean
+            if tt not in real:
+                real[tt] = q_fn(b_seq[:, tt], tt)
+            vr = real[tt]
+            if vr is None or vr.numel() < 2:
+                continue
+            vi = q_fn(cur, tt)
+            vp = q_fn(b_seq[:, start], tt)
+            num[k - 1] += float(((vi.double() - vr.double()) ** 2).sum())
+            per[k - 1] += float(((vp.double() - vr.double()) ** 2).sum())
+            den[k - 1] += float(((vr.double() - vr.double().mean()) ** 2).sum())
+    return num, den, per
+
+
 class HorizonController:
     """Decides how many imagined steps may be used. Starts at ``min_horizon`` (one step); the horizon k is
     allowed only when every j <= k has at least ``min_count`` measurements and a smoothed measured error at or
-    below ``threshold``. It shrinks again as soon as the measured error rises."""
+    below ``threshold``. It shrinks again as soon as the measured error rises.
+
+    Two measured errors are tracked: ``latent`` — the normalised open-loop error of the imagined belief itself
+    (:func:`multistep_error`) — and ``value`` — the error of the candidates' values read at the imagined belief
+    relative to the differences between those candidates at the real belief (:func:`value_consistency_error`),
+    which is what a decision needs to be right about. ``criterion`` names the one that decides."""
 
     def __init__(self, max_horizon: int = 8, threshold: float = 0.5, min_count: int = 3, momentum: float = 0.8,
-                 min_horizon: int = 1):
+                 min_horizon: int = 1, criterion: str = "latent"):
+        if criterion not in ("latent", "value"):
+            raise ValueError("criterion must be 'latent' or 'value'")
         self.max_horizon, self.threshold, self.min_count = max_horizon, threshold, min_count
-        self.momentum, self.min_horizon = momentum, min_horizon
+        self.momentum, self.min_horizon, self.criterion = momentum, min_horizon, criterion
         self.err = [float("nan")] * max_horizon
         self.count = [0] * max_horizon
+        self.value_err = [float("nan")] * max_horizon
+        self.value_count = [0] * max_horizon
 
-    def update(self, errors: Tensor) -> int:
-        for k, e in enumerate(errors.tolist()[:self.max_horizon]):
+    def _smooth(self, err: List[float], count: List[int], errors: Sequence[float]) -> None:
+        for k, e in enumerate(list(errors)[:self.max_horizon]):
             if e != e:
                 continue
-            self.err[k] = e if self.count[k] == 0 else self.momentum * self.err[k] + (1 - self.momentum) * e
-            self.count[k] += 1
+            err[k] = e if count[k] == 0 else self.momentum * err[k] + (1 - self.momentum) * e
+            count[k] += 1
+
+    def update(self, errors: Tensor) -> int:
+        """Latent errors (``multistep_error``)."""
+        self._smooth(self.err, self.count, errors.tolist())
         return self.allowed()
 
-    def allowed(self) -> int:
+    def update_value(self, errors: Sequence[float]) -> int:
+        """Value errors (ratio of :func:`value_consistency_error`'s sums; NaN where nothing was measured)."""
+        self._smooth(self.value_err, self.value_count, [float(e) for e in errors])
+        return self.allowed()
+
+    def _allowed(self, err: List[float], count: List[int]) -> int:
         k = 0
-        while k < self.max_horizon and self.count[k] >= self.min_count and self.err[k] <= self.threshold:
+        while k < self.max_horizon and count[k] >= self.min_count and err[k] <= self.threshold:
             k += 1
         return max(self.min_horizon, k)
 
+    def allowed(self) -> int:
+        if self.criterion == "value":
+            return self._allowed(self.value_err, self.value_count)
+        return self._allowed(self.err, self.count)
+
     def state(self) -> Dict[str, Any]:
         return {"allowed": self.allowed(), "err": list(self.err), "count": list(self.count),
-                "threshold": self.threshold}
+                "threshold": self.threshold, "criterion": self.criterion, "value_err": list(self.value_err),
+                "value_count": list(self.value_count),
+                "allowed_by": {"latent": self._allowed(self.err, self.count),
+                               "value": self._allowed(self.value_err, self.value_count)}}
 
     def load_state(self, s: Dict[str, Any]) -> None:
-        self.err, self.count = list(s["err"]), list(s["count"])
+        """Also reads controller states written before the value criterion existed (its measurements start empty;
+        the configured criterion is kept)."""
+        def fit(x: List[Any], fill: Any) -> List[Any]:
+            x = list(x)[:self.max_horizon]
+            return x + [fill] * (self.max_horizon - len(x))
+        self.err, self.count = fit(s["err"], float("nan")), fit(s["count"], 0)
         self.threshold = float(s.get("threshold", self.threshold))
+        self.value_err = fit(s.get("value_err", []), float("nan"))
+        self.value_count = fit(s.get("value_count", []), 0)
 
 
 def imagined_prediction(query: OutcomeQuery, dist: Distribution, made_at: float, horizon_steps: int, *,

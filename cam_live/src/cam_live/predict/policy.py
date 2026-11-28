@@ -457,6 +457,161 @@ def selection_calibration(policy: nn.Module) -> SelectionCalibration:
     return cal
 
 
+# ----------------------------------------------------------------------------------------------------------------
+# imagination in the selection rule (amendment 2026-11-28 item 2)
+# ----------------------------------------------------------------------------------------------------------------
+IM_MEAN = "im_cont"                  # extras: imagined continuation value of a candidate (mean over particles)
+IM_SAMPLE = "imc_"                   # extras["imc_<p>"]: the same value in imagined particle p
+IM_HORIZON = "im_horizon"            # extras: imagined transitions behind it (the horizon controller's allowance)
+
+
+def imagined_preference(cont: Tensor, q_mean: Tensor, a_mask: Tensor) -> Tuple[Tensor, Tensor]:
+    """What imagination adds to the one-step world model, in the units of the selection rule.
+
+    ``cont`` [P, B, N] the imagined continuation value of every candidate in each imagined particle (the value of the
+    best imagined continuation after the candidate, :class:`cam_live.predict.planner.LatentPlanner`), ``q_mean``
+    [B, N] the one-step predicted net values of the same candidates (the numbers ``z`` of the rule is standardised
+    with). Returns ``(m_samples [P, B, N], m_mean [B, N])``: each particle's continuation values centred over the
+    feasible candidates and divided by the spread of the *one-step* means — one numeraire for both terms, so that
+    with weight 1 the rule ranks by the standardised imagined long-term value (one-step value + continuation) and a
+    continuation difference as large as the one-step differences counts as much — winsorised at +-Z_CLIP, 0 at
+    infeasible candidates. Equal continuations (an imagination that distinguishes nothing) give exactly 0."""
+    m = a_mask.to(torch.float64)
+    n = m.sum(-1, keepdim=True).clamp_min(1.0)
+    qm = torch.where(a_mask, q_mean.to(torch.float64), torch.zeros_like(q_mean, dtype=torch.float64))
+    mu = qm.sum(-1, keepdim=True) / n
+    sd = torch.sqrt(torch.where(a_mask, (qm - mu) ** 2, torch.zeros_like(qm)).sum(-1, keepdim=True) / n)
+    sd = torch.where(sd > 1e-12, sd, torch.ones_like(sd))
+    c = torch.where(a_mask.unsqueeze(0), cont.to(torch.float64), torch.zeros_like(cont, dtype=torch.float64))
+
+    def centre(x: Tensor) -> Tensor:                                                           # [..., B, N]
+        mu_x = (x * m).sum(-1, keepdim=True) / n
+        return torch.where(a_mask, (x - mu_x) / sd, torch.zeros_like(x)).clamp(-Z_CLIP, Z_CLIP)
+
+    return centre(c), centre(c.mean(0))
+
+
+def imagination_inputs(evaluations: Sequence[Any]) -> Optional[Dict[str, Any]]:
+    """The planner's per-candidate numbers recorded in ``CandidateEvaluation.extras`` (``IM_MEAN``, ``IM_SAMPLE<p>``,
+    ``IM_HORIZON``) as tensors: {"cont": [P, 1, N], "horizon": h}; None unless every candidate carries them."""
+    if not evaluations:
+        return None
+    ex0 = evaluations[0].extras or {}
+    keys = sorted((k for k in ex0 if k.startswith(IM_SAMPLE)), key=lambda k: int(k[len(IM_SAMPLE):]))
+    if not keys or any(IM_MEAN not in (e.extras or {}) or any(k not in e.extras for k in keys) for e in evaluations):
+        return None
+    try:
+        cont = torch.tensor([[float(e.extras[k]) for e in evaluations] for k in keys], dtype=torch.float64)[:, None]
+        h = int(round(float(ex0.get(IM_HORIZON, 1))))
+    except (TypeError, ValueError):
+        return None
+    if not bool(torch.isfinite(cont).all()):
+        return None
+    return {"cont": cont, "horizon": max(1, h)}
+
+
+class ImaginationCalibration:
+    """How much the planner's imagined consequences are worth in *verified* outcomes, per imagined horizon h.
+
+    For an executed decision planned with horizon h, ``z`` is the chosen candidate's standardised one-step value
+    (as in :class:`SelectionCalibration`) and ``m`` its imagined preference (:func:`imagined_preference`, mean over
+    particles), both recomputed from what the decision recorded *before* acting. The target is what the imagined
+    rollout was about: the verified progress of that decision and the h decisions that followed it in the same
+    objective, ``y_h = sum_{j=0..h} verified_progress(t + j)`` (signed verifier readings only; a decision without any
+    goal-relevant question contributes 0). Per h a Bayesian linear regression (the machinery of
+    :class:`SelectionCalibration`: prior beta ~ N((0, 1, 0), diag(1, sd_q^2, sd_im^2)), exponential forgetting)
+
+        y_h / s = beta_0 + beta_q * z + beta_im * m + noise
+
+    gives the imagination weight of the rule, lambda_im = beta_im^+ / beta_q (:func:`policy_weight`), drawn per
+    Thompson sample. Imagination therefore starts with no systematic weight (prior mean 0, the exploratory spread
+    of its prior), gains weight only where its imagined differences predicted verified multi-step progress beyond the
+    one-step model, and loses it again when they stop doing so. A new horizon starts from the prior: what was learned
+    about h-step imagination says nothing about (h+1)-step imagination. No observation is invented: a window enters
+    only when every decision in it has its final verified value, each decision once."""
+
+    def __init__(self, *, prior_sd_q: float = 0.5, prior_sd_im: float = 0.5, forget: float = 0.99,
+                 max_obs: int = 1024):
+        self.prior_sd_q, self.prior_sd_im = float(prior_sd_q), float(prior_sd_im)
+        self.forget, self.max_obs = float(forget), int(max_obs)
+        self.by_h: Dict[int, SelectionCalibration] = {}
+        self.pending: Dict[str, str] = {}            # exp id -> objective id, decisions waiting for their window
+        self.closed: List[str] = []                  # objectives no later decision can belong to (newest last)
+
+    def get(self, h: int) -> SelectionCalibration:
+        h = max(1, int(h))
+        if h not in self.by_h:
+            self.by_h[h] = SelectionCalibration(prior_sd_q=self.prior_sd_q, prior_sd_pi=self.prior_sd_im,
+                                                forget=self.forget, max_obs=self.max_obs)
+        return self.by_h[h]
+
+    def __len__(self) -> int:
+        return sum(len(c) for c in self.by_h.values())
+
+    @staticmethod
+    def features(decision: Any) -> Optional[Tuple[float, float, int]]:
+        """(z, m, h) of a recorded ``contracts.Decision``, or None when it carries no imagination or no goal value."""
+        zc = SelectionCalibration.features(decision)
+        cands = list(getattr(decision, "candidates", []) or [])
+        if zc is None or not cands:
+            return None
+        im = imagination_inputs(cands)
+        if im is None:
+            return None
+        i = int(decision.chosen_index)
+        feas = [bool(c.feasible) for c in cands]
+        feas[i] = True
+        q = [float((c.extras or {}).get("q_goal", 0.0)) - float((c.extras or {}).get("net_cost", 0.0) or 0.0)
+             for c in cands]
+        _, mm = imagined_preference(im["cont"], torch.tensor([q], dtype=torch.float64), torch.tensor([feas]))
+        return zc[0], float(mm[0, i]), int(im["horizon"])
+
+    def observe(self, key: str, h: int, z: float, m: float, y: float) -> bool:
+        return self.get(h).observe(key, z, m, y)
+
+    def sample(self, h: int, n: int, generator: Optional[torch.Generator] = None) -> Tensor:
+        """[n, 2] draws of (beta_q, beta_im) of horizon ``h``."""
+        return self.get(h).sample(n, generator)
+
+    def summary(self, h: Optional[int] = None) -> Dict[str, Any]:
+        if h is not None:
+            s = self.get(h).summary()
+            return {"horizon": int(h), "n": s["n"], "scale": s["scale"], "beta_q": s["beta_q"],
+                    "beta_q_sd": s["beta_q_sd"], "beta_im": s["beta_pi"], "beta_im_sd": s["beta_pi_sd"],
+                    "noise_var": s["noise_var"]}
+        return {"by_horizon": {str(k): self.summary(k) for k in sorted(self.by_h)}, "pending": len(self.pending)}
+
+    def state_dict(self) -> Dict[str, Any]:
+        return {"prior_sd_q": self.prior_sd_q, "prior_sd_im": self.prior_sd_im, "forget": self.forget,
+                "max_obs": self.max_obs, "by_h": {str(k): c.state_dict() for k, c in self.by_h.items()},
+                "pending": dict(self.pending), "closed": list(self.closed)}
+
+    def load_state_dict(self, d: Dict[str, Any]) -> None:
+        self.prior_sd_q, self.prior_sd_im = float(d["prior_sd_q"]), float(d["prior_sd_im"])
+        self.forget, self.max_obs = float(d["forget"]), int(d["max_obs"])
+        self.by_h = {}
+        for k, s in (d.get("by_h") or {}).items():
+            c = SelectionCalibration()
+            c.load_state_dict(s)
+            self.by_h[int(k)] = c
+        self.pending = {str(k): str(v) for k, v in (d.get("pending") or {}).items()}
+        self.closed = list(d.get("closed") or [])
+
+
+IMAGINATION_ATTR = "imagination_calibration"
+
+
+def imagination_calibration(transition: nn.Module) -> ImaginationCalibration:
+    """The one :class:`ImaginationCalibration` of a model's latent transition head (created on first use and kept on
+    the module): the ``LatentPlanner`` that feeds it with verified windows and the ``DecisionMaker`` that selects
+    with it reach the same object."""
+    cal = getattr(transition, IMAGINATION_ATTR, None)
+    if not isinstance(cal, ImaginationCalibration):
+        cal = ImaginationCalibration()
+        object.__setattr__(transition, IMAGINATION_ATTR, cal)
+    return cal
+
+
 def selection_probs(rule: str, *, a_mask: Tensor, logits: Optional[Tensor] = None, q_mean: Optional[Tensor] = None,
                     q_std: Optional[Tensor] = None, q_samples: Optional[Tensor] = None,
                     info_gain: Optional[Tensor] = None, arms: Optional[Tensor] = None,
@@ -596,6 +751,8 @@ class DecisionMaker:
         self.experiments = experiments
         self.generator = torch.Generator().manual_seed(int(seed))
         self.calibration = selection_calibration(self.heads.policy)
+        tr = getattr(self.heads, "transition", None)
+        self.imagination = imagination_calibration(tr) if tr is not None else ImaginationCalibration()
 
     # ---- numbers ------------------------------------------------------------------------------------------------
     def scores(self, evaluations: Sequence[Any]) -> Dict[str, Any]:
@@ -628,18 +785,27 @@ class DecisionMaker:
                                                 for e in evaluations]], dtype=f64),
                 "cost": cost,
                 "voi": torch.tensor([[e.voi if e.voi is not None else 0.0 for e in evaluations]], dtype=f64),
-                "value_source": "q_goal" if has_goal else "p_success"}
+                "value_source": "q_goal" if has_goal else "p_success",
+                "imagination": imagination_inputs(evaluations)}
 
     def thompson_policy(self, sc: Dict[str, Any]) -> Tuple[Tensor, Dict[str, Any]]:
         """[1, N] probabilities of rule ``thompson_policy`` for the numbers ``sc`` of :meth:`scores`, and what was used
         (recorded in the decision's diagnostics): calibration summary, the policy's share of the decision (total
         variation between this distribution and the same rule with beta_pi = 0, before the floor) and the value-only
-        distribution itself."""
+        distribution itself.
+
+        When the candidates carry the planner's imagined continuation values (:func:`imagination_inputs`), every
+        Thompson sample s adds ``lambda_im[s] * m[s mod P]`` — the imagined preference (:func:`imagined_preference`) of
+        particle s mod P weighted by a draw from :attr:`imagination` (:class:`ImaginationCalibration` of the planned
+        horizon). ``PredictConfig.imagination_select = False`` is the ablation "imagination weight 0": the same numbers
+        are drawn, the distribution without imagination is used, and both are recorded (``imagination.share_tv``)."""
         a_mask = sc["a_mask"]
         z = standardised_values(sc["samples"], sc["q"], a_mask)
-        coef = self.calibration.sample(z.shape[0], self.generator)
+        S = z.shape[0]
+        coef = self.calibration.sample(S, self.generator)
         lp = policy_preference(sc["policy_logits"], a_mask, standardised_values(sc["q"][None], sc["q"], a_mask)[0])
-        full = _tie_share(thompson_policy_scores(z, coef, lp), a_mask)
+        base = thompson_policy_scores(z, coef, lp)
+        full = _tie_share(base, a_mask)
         no_pi = coef.clone()
         no_pi[:, 1] = 0.0
         value_only = _tie_share(thompson_policy_scores(z, no_pi, lp), a_mask)
@@ -650,6 +816,26 @@ class DecisionMaker:
                 "coef_positive_share": {"beta_q": float((coef[:, 0] > 0).double().mean()),
                                         "beta_pi": float((coef[:, 1] > 0).double().mean())},
                 "value_only_probabilities": [float(x) for x in value_only[0]]}
+        im = sc.get("imagination")
+        if im is not None:
+            # imagined consequences: Thompson sample s uses imagined particle s mod P and a draw (beta_q, beta_im)
+            # of the imagination calibration of this horizon; both arms of the ablation draw the same numbers
+            m_s, m_mean = imagined_preference(im["cont"], sc["q"], a_mask)
+            P = m_s.shape[0]
+            im_coef = self.imagination.sample(im["horizon"], S, self.generator)
+            lam_im = policy_weight(im_coef)
+            with_im = _tie_share(base + lam_im.view(S, 1, 1) * m_s[torch.arange(S) % P], a_mask)
+            on = bool(getattr(self.cfg, "imagination_select", True))
+            diag["imagination"] = {
+                "enabled": on, "horizon": int(im["horizon"]), "particles": int(P),
+                "calibration": self.imagination.summary(im["horizon"]),
+                "weight": {"mean": float(lam_im.mean()), "share_positive": float((lam_im > 0).double().mean())},
+                "share_tv": float(0.5 * (with_im - full).abs().sum()),
+                "preference": [float(x) for x in m_mean[0]],
+                "without_probabilities": [float(x) for x in full[0]],
+                "with_probabilities": [float(x) for x in with_im[0]]}
+            if on:
+                full = with_im
         return full, {"diag": diag, "log_policy": lp}
 
     @staticmethod
@@ -728,6 +914,11 @@ class DecisionMaker:
         if "selection" in sc:
             sel = dict(sc["selection"])
             sel["policy_centred_logp_chosen"] = float(sc["log_policy"][0, idx])
+            if isinstance(sel.get("imagination"), dict):
+                im = dict(sel["imagination"])
+                im["preference_chosen"] = im["preference"][idx]
+                im["changed_choice_probability"] = float(im["with_probabilities"][idx] - im["without_probabilities"][idx])
+                sel["imagination"] = im
             extra = {"selection": {"rule": mode, **sel}}
         return self._decision(evaluations, idx, [float(x) for x in p], mode, sc, objective_id=objective_id,
                               decision_id=decision_id, ts=ts, extra_diag=extra, **fields)

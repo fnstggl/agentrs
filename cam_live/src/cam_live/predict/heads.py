@@ -86,6 +86,19 @@ class PredictConfig:
     imagination_particles: int = 8
     max_imagination_horizon: int = 4
     imagination_threshold: float = 0.5
+    imagination_criterion: str = "value"      # what must be measured accurate for k imagined steps: "value" (the
+                                             # world model's values of the candidates read at the imagined belief
+                                             # vs at the real one, relative to their spread) or "latent" (belief)
+    imagination_select: bool = True          # imagined continuation values enter rule thompson_policy, weighted by
+                                             # the ImaginationCalibration (False: ablation, weight 0; still recorded)
+    imagination_continuation: str = "search"  # how imagined steps k >= 1 continue: "search" (every feasible action
+                                             # at each imagined belief while imagination_max_rows allows, else the
+                                             # best-valued one plus a random subset; the best sequence counts),
+                                             # "greedy" (best value at each imagined belief) or "policy" (the
+                                             # policy's most probable action)
+    imagination_max_rows: int = 32768        # world-model rows per imagined level (bounds the search's breadth)
+    imagination_aleatoric: bool = False      # add the transition's aleatoric noise to imagined beliefs
+    imagination_prior_sd: float = 0.5        # prior sd of beta_im (and beta_q) of the ImaginationCalibration
     seed: int = 0
 
     @classmethod
