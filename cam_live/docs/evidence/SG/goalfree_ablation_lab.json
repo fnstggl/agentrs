@@ -4,20 +4,28 @@
   "seeds": "0,1,2,3,4,5,6,7,8,9",
   "free": 8,
   "decisions": 16,
-  "out": "cam_live/docs/evidence/SG/goalfree_ablation_lab.json"
+  "out": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/SG/abl_paired.json",
+  "repeat_check": true
  },
  "rows": [
   {
    "seed": 0,
    "arm": "none",
+   "repeat_check": false,
+   "uid": "62e29e",
+   "first_objective_actions": [
+    "{\"seconds\": 64845.0}",
+    "{\"channel\": 1, \"effort\": 2}",
+    "{\"channel\": 0, \"effort\": 1}",
+    "{\"channel\": 3, \"effort\": 3}"
+   ],
    "free_decisions": 0,
    "free_ops": [],
    "adopters_before": 0.0,
-   "adopters_after": 5.0,
-   "gain": 5.0,
+   "adopters_after": 8.0,
+   "gain": 8.0,
    "objective_ops": [
     "wait",
-    "wait",
     "lab.act",
     "lab.act",
     "lab.act",
@@ -29,9 +37,10 @@
     "lab.act",
     "lab.act",
     "lab.act",
-    "lab.noise",
-    "lab.noise",
-    "wait"
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
    ],
    "goal_free_goals": 0,
    "transfer_points": 0,
@@ -41,530 +50,25 @@
   {
    "seed": 0,
    "arm": "goalfree",
+   "repeat_check": false,
+   "uid": "62e29e",
+   "first_objective_actions": [
+    "{\"channel\": 0, \"effort\": 3}",
+    "{\"channel\": 3, \"effort\": 2}",
+    "{\"channel\": 0, \"effort\": 3}",
+    "{\"channel\": 3, \"effort\": 2}"
+   ],
    "free_decisions": 8,
    "free_ops": [
     "lab.noise",
-    "wait",
-    "wait",
     "lab.noise",
+    "wait",
     "lab.act",
     "wait",
+    "lab.act",
     "lab.act",
     "lab.noise"
    ],
-   "adopters_before": 0.0,
-   "adopters_after": 1.0,
-   "gain": 1.0,
-   "objective_ops": [
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act"
-   ],
-   "goal_free_goals": 5,
-   "transfer_points": 10,
-   "transfer_evidence": 10,
-   "transfer_by_key": {
-    "lab.act|lab.adopters.from.{action}": {
-     "n": 10,
-     "gain_sum": 2.371803173016077,
-     "positive": 10,
-     "mean_gain": 0.23718031730160768,
-     "estimate": 0.854365942744093
-    }
-   }
-  },
-  {
-   "seed": 1,
-   "arm": "none",
-   "free_decisions": 0,
-   "free_ops": [],
-   "adopters_before": 0.0,
-   "adopters_after": 24.0,
-   "gain": 24.0,
-   "objective_ops": [
-    "lab.noise",
-    "lab.probe",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act"
-   ],
-   "goal_free_goals": 0,
-   "transfer_points": 0,
-   "transfer_evidence": 0,
-   "transfer_by_key": {}
-  },
-  {
-   "seed": 1,
-   "arm": "goalfree",
-   "free_decisions": 8,
-   "free_ops": [
-    "lab.noise",
-    "lab.noise",
-    "wait",
-    "lab.noise",
-    "wait",
-    "lab.noise",
-    "lab.act",
-    "lab.act"
-   ],
-   "adopters_before": 0.0,
-   "adopters_after": 15.0,
-   "gain": 15.0,
-   "objective_ops": [
-    "lab.probe",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act"
-   ],
-   "goal_free_goals": 6,
-   "transfer_points": 9,
-   "transfer_evidence": 9,
-   "transfer_by_key": {
-    "lab.act|lab.adopters.from.{action}": {
-     "n": 9,
-     "gain_sum": 0.9546199919483838,
-     "positive": 7,
-     "mean_gain": 0.10606888799426487,
-     "estimate": 0.6735672712633425
-    }
-   }
-  },
-  {
-   "seed": 2,
-   "arm": "none",
-   "free_decisions": 0,
-   "free_ops": [],
-   "adopters_before": 0.0,
-   "adopters_after": 24.0,
-   "gain": 24.0,
-   "objective_ops": [
-    "wait",
-    "lab.unlock",
-    "lab.noise",
-    "lab.act",
-    "wait",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.probe",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act"
-   ],
-   "goal_free_goals": 0,
-   "transfer_points": 0,
-   "transfer_evidence": 0,
-   "transfer_by_key": {}
-  },
-  {
-   "seed": 2,
-   "arm": "goalfree",
-   "free_decisions": 8,
-   "free_ops": [
-    "wait",
-    "wait",
-    "wait",
-    "wait",
-    "lab.act",
-    "wait",
-    "lab.noise",
-    "lab.noise"
-   ],
-   "adopters_before": 0.0,
-   "adopters_after": 15.0,
-   "gain": 15.0,
-   "objective_ops": [
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act"
-   ],
-   "goal_free_goals": 6,
-   "transfer_points": 9,
-   "transfer_evidence": 9,
-   "transfer_by_key": {
-    "lab.act|lab.adopters.from.{action}": {
-     "n": 9,
-     "gain_sum": 0.7170795915125356,
-     "positive": 7,
-     "mean_gain": 0.07967551016805952,
-     "estimate": 0.6189921671926993
-    }
-   }
-  },
-  {
-   "seed": 3,
-   "arm": "none",
-   "free_decisions": 0,
-   "free_ops": [],
-   "adopters_before": 0.0,
-   "adopters_after": 34.0,
-   "gain": 34.0,
-   "objective_ops": [
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act"
-   ],
-   "goal_free_goals": 0,
-   "transfer_points": 0,
-   "transfer_evidence": 0,
-   "transfer_by_key": {}
-  },
-  {
-   "seed": 3,
-   "arm": "goalfree",
-   "free_decisions": 8,
-   "free_ops": [
-    "wait",
-    "wait",
-    "wait",
-    "wait",
-    "wait",
-    "wait",
-    "wait",
-    "wait"
-   ],
-   "adopters_before": 0.0,
-   "adopters_after": 24.0,
-   "gain": 24.0,
-   "objective_ops": [
-    "wait",
-    "lab.probe",
-    "lab.probe",
-    "lab.probe",
-    "wait",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.probe",
-    "lab.act"
-   ],
-   "goal_free_goals": 7,
-   "transfer_points": 9,
-   "transfer_evidence": 9,
-   "transfer_by_key": {
-    "lab.act|lab.adopters.from.{action}": {
-     "n": 9,
-     "gain_sum": 0.06183394302980738,
-     "positive": 4,
-     "mean_gain": 0.006870438114423043,
-     "estimate": 0.5112425350963286
-    }
-   }
-  },
-  {
-   "seed": 4,
-   "arm": "none",
-   "free_decisions": 0,
-   "free_ops": [],
-   "adopters_before": 0.0,
-   "adopters_after": 13.0,
-   "gain": 13.0,
-   "objective_ops": [
-    "wait",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act"
-   ],
-   "goal_free_goals": 0,
-   "transfer_points": 0,
-   "transfer_evidence": 0,
-   "transfer_by_key": {}
-  },
-  {
-   "seed": 4,
-   "arm": "goalfree",
-   "free_decisions": 8,
-   "free_ops": [
-    "wait",
-    "wait",
-    "wait",
-    "wait",
-    "wait",
-    "wait",
-    "lab.noise",
-    "lab.noise"
-   ],
-   "adopters_before": 0.0,
-   "adopters_after": 17.0,
-   "gain": 17.0,
-   "objective_ops": [
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act"
-   ],
-   "goal_free_goals": 7,
-   "transfer_points": 7,
-   "transfer_evidence": 7,
-   "transfer_by_key": {
-    "lab.act|lab.adopters.from.{action}": {
-     "n": 7,
-     "gain_sum": 0.5690609623745712,
-     "positive": 6,
-     "mean_gain": 0.0812944231963673,
-     "estimate": 0.6264579916387936
-    }
-   }
-  },
-  {
-   "seed": 5,
-   "arm": "none",
-   "free_decisions": 0,
-   "free_ops": [],
-   "adopters_before": 0.0,
-   "adopters_after": 19.0,
-   "gain": 19.0,
-   "objective_ops": [
-    "lab.probe",
-    "lab.unlock",
-    "wait",
-    "lab.probe",
-    "lab.noise",
-    "lab.probe",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act"
-   ],
-   "goal_free_goals": 0,
-   "transfer_points": 0,
-   "transfer_evidence": 0,
-   "transfer_by_key": {}
-  },
-  {
-   "seed": 5,
-   "arm": "goalfree",
-   "free_decisions": 8,
-   "free_ops": [
-    "wait",
-    "wait",
-    "wait",
-    "wait",
-    "wait",
-    "wait",
-    "wait",
-    "wait"
-   ],
-   "adopters_before": 0.0,
-   "adopters_after": 10.0,
-   "gain": 10.0,
-   "objective_ops": [
-    "lab.probe",
-    "lab.probe",
-    "lab.noise",
-    "wait",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act"
-   ],
-   "goal_free_goals": 7,
-   "transfer_points": 5,
-   "transfer_evidence": 5,
-   "transfer_by_key": {
-    "lab.act|lab.adopters.from.{action}": {
-     "n": 5,
-     "gain_sum": 0.5533112445858894,
-     "positive": 5,
-     "mean_gain": 0.11066224891717788,
-     "estimate": 0.641443795001467
-    }
-   }
-  },
-  {
-   "seed": 6,
-   "arm": "none",
-   "free_decisions": 0,
-   "free_ops": [],
-   "adopters_before": 0.0,
-   "adopters_after": 19.0,
-   "gain": 19.0,
-   "objective_ops": [
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act"
-   ],
-   "goal_free_goals": 0,
-   "transfer_points": 0,
-   "transfer_evidence": 0,
-   "transfer_by_key": {}
-  },
-  {
-   "seed": 6,
-   "arm": "goalfree",
-   "free_decisions": 8,
-   "free_ops": [
-    "wait",
-    "wait",
-    "wait",
-    "wait",
-    "wait",
-    "lab.noise",
-    "lab.probe",
-    "wait"
-   ],
-   "adopters_before": 0.0,
-   "adopters_after": 1.0,
-   "gain": 1.0,
-   "objective_ops": [
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act",
-    "lab.act"
-   ],
-   "goal_free_goals": 6,
-   "transfer_points": 8,
-   "transfer_evidence": 8,
-   "transfer_by_key": {
-    "lab.act|lab.adopters.from.{action}": {
-     "n": 8,
-     "gain_sum": 0.8258316540909012,
-     "positive": 5,
-     "mean_gain": 0.10322895676136265,
-     "estimate": 0.6651663308181803
-    }
-   }
-  },
-  {
-   "seed": 7,
-   "arm": "none",
-   "free_decisions": 0,
-   "free_ops": [],
    "adopters_before": 0.0,
    "adopters_after": 9.0,
    "gain": 9.0,
@@ -586,28 +90,83 @@
     "lab.act",
     "lab.act"
    ],
+   "goal_free_goals": 4,
+   "transfer_points": 7,
+   "transfer_evidence": 7,
+   "transfer_by_key": {
+    "lab.act|lab.adopters.from.{action}": {
+     "n": 7,
+     "gain_sum": 1.6533882893076852,
+     "positive": 7,
+     "mean_gain": 0.23619832704395502,
+     "estimate": 0.7924962382036302
+    }
+   }
+  },
+  {
+   "seed": 1,
+   "arm": "none",
+   "repeat_check": false,
+   "uid": "fcd2b6",
+   "first_objective_actions": [
+    "{}",
+    "{\"channel\": 2}",
+    "{\"channel\": 2}",
+    "{}"
+   ],
+   "free_decisions": 0,
+   "free_ops": [],
+   "adopters_before": 0.0,
+   "adopters_after": 26.0,
+   "gain": 26.0,
+   "objective_ops": [
+    "lab.noise",
+    "lab.probe",
+    "lab.probe",
+    "lab.unlock",
+    "lab.probe",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.probe",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
    "goal_free_goals": 0,
    "transfer_points": 0,
    "transfer_evidence": 0,
    "transfer_by_key": {}
   },
   {
-   "seed": 7,
+   "seed": 1,
    "arm": "goalfree",
+   "repeat_check": false,
+   "uid": "fcd2b6",
+   "first_objective_actions": [
+    "{\"channel\": 2, \"effort\": 2}",
+    "{\"channel\": 3, \"effort\": 3}",
+    "{\"channel\": 3, \"effort\": 2}",
+    "{\"channel\": 3, \"effort\": 3}"
+   ],
    "free_decisions": 8,
    "free_ops": [
     "lab.noise",
+    "lab.noise",
     "wait",
     "wait",
     "lab.noise",
-    "wait",
     "lab.noise",
-    "wait",
-    "wait"
+    "lab.noise",
+    "lab.noise"
    ],
    "adopters_before": 0.0,
-   "adopters_after": 18.0,
-   "gain": 18.0,
+   "adopters_after": 13.0,
+   "gain": 13.0,
    "objective_ops": [
     "lab.act",
     "lab.act",
@@ -627,27 +186,321 @@
     "lab.act"
    ],
    "goal_free_goals": 7,
-   "transfer_points": 9,
-   "transfer_evidence": 9,
+   "transfer_points": 10,
+   "transfer_evidence": 10,
    "transfer_by_key": {
     "lab.act|lab.adopters.from.{action}": {
-     "n": 9,
-     "gain_sum": 0.47881995856309034,
-     "positive": 6,
-     "mean_gain": 0.05320221761812115,
-     "estimate": 0.5870581742841983
+     "n": 10,
+     "gain_sum": 0.9135477429086467,
+     "positive": 9,
+     "mean_gain": 0.09135477429086467,
+     "estimate": 0.6522579571514412
     }
    }
   },
   {
-   "seed": 8,
+   "seed": 2,
    "arm": "none",
+   "repeat_check": false,
+   "uid": "773b92",
+   "first_objective_actions": [
+    "{\"seconds\": 64845.0}",
+    "{}",
+    "{}",
+    "{\"channel\": 0, \"effort\": 3}"
+   ],
    "free_decisions": 0,
    "free_ops": [],
    "adopters_before": 0.0,
-   "adopters_after": 32.0,
-   "gain": 32.0,
+   "adopters_after": 27.0,
+   "gain": 27.0,
    "objective_ops": [
+    "wait",
+    "lab.unlock",
+    "lab.noise",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   "goal_free_goals": 0,
+   "transfer_points": 0,
+   "transfer_evidence": 0,
+   "transfer_by_key": {}
+  },
+  {
+   "seed": 2,
+   "arm": "goalfree",
+   "repeat_check": false,
+   "uid": "773b92",
+   "first_objective_actions": [
+    "{\"seconds\": 129630.0}",
+    "{\"channel\": 1}",
+    "{\"channel\": 1}",
+    "{\"channel\": 2, \"effort\": 1}"
+   ],
+   "free_decisions": 8,
+   "free_ops": [
+    "wait",
+    "lab.noise",
+    "lab.noise",
+    "lab.noise",
+    "wait",
+    "lab.noise",
+    "wait",
+    "wait"
+   ],
+   "adopters_before": 0.0,
+   "adopters_after": 11.0,
+   "gain": 11.0,
+   "objective_ops": [
+    "wait",
+    "lab.probe",
+    "lab.probe",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   "goal_free_goals": 7,
+   "transfer_points": 8,
+   "transfer_evidence": 8,
+   "transfer_by_key": {
+    "lab.act|lab.adopters.from.{action}": {
+     "n": 8,
+     "gain_sum": 0.9903202561999417,
+     "positive": 7,
+     "mean_gain": 0.12379003202499271,
+     "estimate": 0.6890741952794616
+    }
+   }
+  },
+  {
+   "seed": 3,
+   "arm": "none",
+   "repeat_check": false,
+   "uid": "96cf2c",
+   "first_objective_actions": [
+    "{\"channel\": 2, \"effort\": 1}",
+    "{\"channel\": 1, \"effort\": 3}",
+    "{\"channel\": 2, \"effort\": 1}",
+    "{\"channel\": 2, \"effort\": 1}"
+   ],
+   "free_decisions": 0,
+   "free_ops": [],
+   "adopters_before": 0.0,
+   "adopters_after": 38.0,
+   "gain": 38.0,
+   "objective_ops": [
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   "goal_free_goals": 0,
+   "transfer_points": 0,
+   "transfer_evidence": 0,
+   "transfer_by_key": {}
+  },
+  {
+   "seed": 3,
+   "arm": "goalfree",
+   "repeat_check": false,
+   "uid": "96cf2c",
+   "first_objective_actions": [
+    "{\"channel\": 2, \"effort\": 2}",
+    "{\"channel\": 1, \"effort\": 1}",
+    "{\"channel\": 3, \"effort\": 2}",
+    "{\"channel\": 0, \"effort\": 3}"
+   ],
+   "free_decisions": 8,
+   "free_ops": [
+    "wait",
+    "wait",
+    "wait",
+    "wait",
+    "wait",
+    "wait",
+    "wait",
+    "wait"
+   ],
+   "adopters_before": 0.0,
+   "adopters_after": 10.0,
+   "gain": 10.0,
+   "objective_ops": [
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   "goal_free_goals": 7,
+   "transfer_points": 10,
+   "transfer_evidence": 10,
+   "transfer_by_key": {
+    "lab.act|lab.adopters.from.{action}": {
+     "n": 10,
+     "gain_sum": 0.925880543672486,
+     "positive": 9,
+     "mean_gain": 0.0925880543672486,
+     "estimate": 0.6543134239454144
+    }
+   }
+  },
+  {
+   "seed": 4,
+   "arm": "none",
+   "repeat_check": false,
+   "uid": "07cc00",
+   "first_objective_actions": [
+    "{\"seconds\": 64845.0}",
+    "{\"channel\": 1, \"effort\": 3}",
+    "{\"channel\": 3, \"effort\": 3}",
+    "{\"channel\": 3, \"effort\": 3}"
+   ],
+   "free_decisions": 0,
+   "free_ops": [],
+   "adopters_before": 0.0,
+   "adopters_after": 15.0,
+   "gain": 15.0,
+   "objective_ops": [
+    "wait",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   "goal_free_goals": 0,
+   "transfer_points": 0,
+   "transfer_evidence": 0,
+   "transfer_by_key": {}
+  },
+  {
+   "seed": 4,
+   "arm": "goalfree",
+   "repeat_check": false,
+   "uid": "07cc00",
+   "first_objective_actions": [
+    "{\"channel\": 3}",
+    "{\"channel\": 2}",
+    "{\"seconds\": 64845.0}",
+    "{\"channel\": 3}"
+   ],
+   "free_decisions": 8,
+   "free_ops": [
+    "wait",
+    "wait",
+    "wait",
+    "wait",
+    "wait",
+    "wait",
+    "lab.noise",
+    "lab.noise"
+   ],
+   "adopters_before": 0.0,
+   "adopters_after": 15.0,
+   "gain": 15.0,
+   "objective_ops": [
+    "lab.probe",
+    "lab.probe",
+    "wait",
+    "lab.probe",
+    "wait",
+    "lab.noise",
+    "wait",
+    "wait",
+    "lab.noise",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   "goal_free_goals": 7,
+   "transfer_points": 6,
+   "transfer_evidence": 6,
+   "transfer_by_key": {
+    "lab.act|lab.adopters.from.{action}": {
+     "n": 6,
+     "gain_sum": 0.2473416725409202,
+     "positive": 5,
+     "mean_gain": 0.04122361209015337,
+     "estimate": 0.5618354181352301
+    }
+   }
+  },
+  {
+   "seed": 5,
+   "arm": "none",
+   "repeat_check": false,
+   "uid": "0b564e",
+   "first_objective_actions": [
+    "{\"channel\": 0}",
+    "{\"seconds\": 129630.0}",
+    "{\"channel\": 1}",
+    "{\"channel\": 0, \"effort\": 2}"
+   ],
+   "free_decisions": 0,
+   "free_ops": [],
+   "adopters_before": 0.0,
+   "adopters_after": 16.0,
+   "gain": 16.0,
+   "objective_ops": [
+    "lab.probe",
     "wait",
     "lab.probe",
     "lab.act",
@@ -658,7 +511,291 @@
     "lab.act",
     "lab.act",
     "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   "goal_free_goals": 0,
+   "transfer_points": 0,
+   "transfer_evidence": 0,
+   "transfer_by_key": {}
+  },
+  {
+   "seed": 5,
+   "arm": "goalfree",
+   "repeat_check": false,
+   "uid": "0b564e",
+   "first_objective_actions": [
+    "{}",
+    "{\"seconds\": 64845.0}",
+    "{\"seconds\": 64845.0}",
+    "{\"channel\": 0}"
+   ],
+   "free_decisions": 8,
+   "free_ops": [
+    "wait",
+    "wait",
+    "wait",
+    "wait",
+    "wait",
+    "wait",
+    "lab.act",
+    "wait"
+   ],
+   "adopters_before": 0.0,
+   "adopters_after": 36.0,
+   "gain": 36.0,
+   "objective_ops": [
+    "lab.unlock",
+    "wait",
+    "wait",
     "lab.probe",
+    "lab.probe",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.probe"
+   ],
+   "goal_free_goals": 6,
+   "transfer_points": 10,
+   "transfer_evidence": 10,
+   "transfer_by_key": {
+    "lab.act|lab.adopters.from.{action}": {
+     "n": 10,
+     "gain_sum": -1.5830025933137568,
+     "positive": 4,
+     "mean_gain": -0.15830025933137568,
+     "estimate": 0.44540540036572
+    }
+   }
+  },
+  {
+   "seed": 6,
+   "arm": "none",
+   "repeat_check": false,
+   "uid": "a99a63",
+   "first_objective_actions": [
+    "{\"channel\": 2, \"effort\": 3}",
+    "{\"channel\": 2, \"effort\": 3}",
+    "{\"channel\": 0, \"effort\": 3}",
+    "{\"channel\": 0, \"effort\": 3}"
+   ],
+   "free_decisions": 0,
+   "free_ops": [],
+   "adopters_before": 0.0,
+   "adopters_after": 8.0,
+   "gain": 8.0,
+   "objective_ops": [
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   "goal_free_goals": 0,
+   "transfer_points": 0,
+   "transfer_evidence": 0,
+   "transfer_by_key": {}
+  },
+  {
+   "seed": 6,
+   "arm": "goalfree",
+   "repeat_check": false,
+   "uid": "a99a63",
+   "first_objective_actions": [
+    "{}",
+    "{\"channel\": 3, \"effort\": 3}",
+    "{\"channel\": 3, \"effort\": 3}",
+    "{\"channel\": 3, \"effort\": 3}"
+   ],
+   "free_decisions": 8,
+   "free_ops": [
+    "wait",
+    "wait",
+    "wait",
+    "wait",
+    "wait",
+    "wait",
+    "wait",
+    "wait"
+   ],
+   "adopters_before": 0.0,
+   "adopters_after": 32.0,
+   "gain": 32.0,
+   "objective_ops": [
+    "lab.unlock",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.probe",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   "goal_free_goals": 7,
+   "transfer_points": 8,
+   "transfer_evidence": 8,
+   "transfer_by_key": {
+    "lab.act|lab.adopters.from.{action}": {
+     "n": 8,
+     "gain_sum": 0.4865813591706838,
+     "positive": 7,
+     "mean_gain": 0.060822669896335474,
+     "estimate": 0.5973162718341367
+    }
+   }
+  },
+  {
+   "seed": 7,
+   "arm": "none",
+   "repeat_check": false,
+   "uid": "67f97e",
+   "first_objective_actions": [
+    "{\"channel\": 1, \"effort\": 3}",
+    "{\"channel\": 1, \"effort\": 3}",
+    "{\"channel\": 1, \"effort\": 3}",
+    "{\"channel\": 3, \"effort\": 2}"
+   ],
+   "free_decisions": 0,
+   "free_ops": [],
+   "adopters_before": 0.0,
+   "adopters_after": 15.0,
+   "gain": 15.0,
+   "objective_ops": [
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   "goal_free_goals": 0,
+   "transfer_points": 0,
+   "transfer_evidence": 0,
+   "transfer_by_key": {}
+  },
+  {
+   "seed": 7,
+   "arm": "goalfree",
+   "repeat_check": false,
+   "uid": "67f97e",
+   "first_objective_actions": [
+    "{\"channel\": 0, \"effort\": 1}",
+    "{\"channel\": 3, \"effort\": 2}",
+    "{\"channel\": 0, \"effort\": 1}",
+    "{\"channel\": 3, \"effort\": 2}"
+   ],
+   "free_decisions": 8,
+   "free_ops": [
+    "lab.noise",
+    "wait",
+    "wait",
+    "lab.noise",
+    "wait",
+    "lab.noise",
+    "wait",
+    "wait"
+   ],
+   "adopters_before": 0.0,
+   "adopters_after": 9.0,
+   "gain": 9.0,
+   "objective_ops": [
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   "goal_free_goals": 7,
+   "transfer_points": 10,
+   "transfer_evidence": 10,
+   "transfer_by_key": {
+    "lab.act|lab.adopters.from.{action}": {
+     "n": 10,
+     "gain_sum": 0.1550176201209339,
+     "positive": 6,
+     "mean_gain": 0.01550176201209339,
+     "estimate": 0.5258362700201556
+    }
+   }
+  },
+  {
+   "seed": 8,
+   "arm": "none",
+   "repeat_check": false,
+   "uid": "44686b",
+   "first_objective_actions": [
+    "{\"seconds\": 60.0}",
+    "{\"channel\": 1}",
+    "{\"channel\": 0}",
+    "{\"channel\": 1}"
+   ],
+   "free_decisions": 0,
+   "free_ops": [],
+   "adopters_before": 0.0,
+   "adopters_after": 20.0,
+   "gain": 20.0,
+   "objective_ops": [
+    "wait",
+    "lab.probe",
+    "lab.probe",
+    "lab.probe",
+    "lab.probe",
+    "wait",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
     "lab.act",
     "lab.act",
     "lab.act",
@@ -673,6 +810,14 @@
   {
    "seed": 8,
    "arm": "goalfree",
+   "repeat_check": false,
+   "uid": "44686b",
+   "first_objective_actions": [
+    "{\"channel\": 3, \"effort\": 3}",
+    "{\"channel\": 3, \"effort\": 2}",
+    "{\"channel\": 3, \"effort\": 2}",
+    "{\"channel\": 3, \"effort\": 2}"
+   ],
    "free_decisions": 8,
    "free_ops": [
     "wait",
@@ -685,8 +830,8 @@
     "lab.act"
    ],
    "adopters_before": 0.0,
-   "adopters_after": 47.0,
-   "gain": 47.0,
+   "adopters_after": 1.0,
+   "gain": 1.0,
    "objective_ops": [
     "lab.act",
     "lab.act",
@@ -700,32 +845,40 @@
     "lab.act",
     "lab.act",
     "lab.act",
-    "wait",
+    "lab.act",
     "lab.act",
     "lab.act",
     "lab.act"
    ],
    "goal_free_goals": 4,
-   "transfer_points": 14,
-   "transfer_evidence": 14,
+   "transfer_points": 8,
+   "transfer_evidence": 8,
    "transfer_by_key": {
     "lab.act|lab.adopters.from.{action}": {
-     "n": 14,
-     "gain_sum": -0.30981595234409964,
-     "positive": 9,
-     "mean_gain": -0.022129710881721405,
-     "estimate": 0.4908825832406884
+     "n": 8,
+     "gain_sum": 2.279158375661866,
+     "positive": 8,
+     "mean_gain": 0.28489479695773323,
+     "estimate": 0.8842892080876862
     }
    }
   },
   {
    "seed": 9,
    "arm": "none",
+   "repeat_check": false,
+   "uid": "06cf63",
+   "first_objective_actions": [
+    "{}",
+    "{\"channel\": 0, \"effort\": 2}",
+    "{\"channel\": 3, \"effort\": 1}",
+    "{\"channel\": 1, \"effort\": 2}"
+   ],
    "free_decisions": 0,
    "free_ops": [],
    "adopters_before": 0.0,
-   "adopters_after": 40.0,
-   "gain": 40.0,
+   "adopters_after": 46.0,
+   "gain": 46.0,
    "objective_ops": [
     "lab.unlock",
     "lab.act",
@@ -752,23 +905,31 @@
   {
    "seed": 9,
    "arm": "goalfree",
+   "repeat_check": false,
+   "uid": "06cf63",
+   "first_objective_actions": [
+    "{\"seconds\": 60.0}",
+    "{\"seconds\": 129630.0}",
+    "{\"channel\": 0, \"effort\": 3}",
+    "{\"channel\": 2, \"effort\": 3}"
+   ],
    "free_decisions": 8,
    "free_ops": [
     "lab.noise",
     "lab.noise",
     "wait",
-    "lab.act",
-    "lab.probe",
-    "lab.act",
-    "lab.probe",
-    "lab.act"
+    "lab.noise",
+    "lab.noise",
+    "lab.noise",
+    "wait",
+    "wait"
    ],
    "adopters_before": 0.0,
-   "adopters_after": 25.0,
-   "gain": 25.0,
+   "adopters_after": 30.0,
+   "gain": 30.0,
    "objective_ops": [
-    "lab.act",
-    "lab.act",
+    "wait",
+    "wait",
     "lab.act",
     "lab.act",
     "lab.act",
@@ -784,67 +945,79 @@
     "lab.act",
     "lab.act"
    ],
-   "goal_free_goals": 3,
-   "transfer_points": 7,
-   "transfer_evidence": 7,
+   "goal_free_goals": 7,
+   "transfer_points": 6,
+   "transfer_evidence": 6,
    "transfer_by_key": {
     "lab.act|lab.adopters.from.{action}": {
-     "n": 7,
-     "gain_sum": 0.1937737989344117,
-     "positive": 5,
-     "mean_gain": 0.02768197127634453,
-     "estimate": 0.549781341345175
+     "n": 6,
+     "gain_sum": -0.10645092527043953,
+     "positive": 2,
+     "mean_gain": -0.01774182087840659,
+     "estimate": 0.4733872686823901
     }
    }
   }
  ],
  "summary": {
+  "repeat_check": {
+   "seed": 0,
+   "identical_ops": true,
+   "gains": [
+    8.0,
+    8.0
+   ],
+   "uids": [
+    "62e29e",
+    "62e29e"
+   ]
+  },
   "none": {
    "n": 10,
    "mean_gain": 21.9,
    "gains": [
-    5.0,
-    24.0,
-    24.0,
-    34.0,
-    13.0,
-    19.0,
-    19.0,
-    9.0,
-    32.0,
-    40.0
+    8.0,
+    26.0,
+    27.0,
+    38.0,
+    15.0,
+    16.0,
+    8.0,
+    15.0,
+    20.0,
+    46.0
    ]
   },
   "goalfree": {
    "n": 10,
-   "mean_gain": 17.3,
+   "mean_gain": 16.6,
    "gains": [
-    1.0,
-    15.0,
-    15.0,
-    24.0,
-    17.0,
+    9.0,
+    13.0,
+    11.0,
     10.0,
+    15.0,
+    36.0,
+    32.0,
+    9.0,
     1.0,
-    18.0,
-    47.0,
-    25.0
+    30.0
    ]
   },
   "paired_difference": {
    "values": [
-    -4.0,
-    -9.0,
-    -9.0,
-    -10.0,
-    4.0,
-    -9.0,
-    -18.0,
-    9.0,
-    15.0,
-    -15.0
+    1.0,
+    -13.0,
+    -16.0,
+    -28.0,
+    0.0,
+    20.0,
+    24.0,
+    -6.0,
+    -19.0,
+    -16.0
    ],
-   "mean": -4.6,
+   "mean": -5.3,
    "positive": 3,
    "n": 10
   }

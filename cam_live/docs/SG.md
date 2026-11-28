@@ -176,7 +176,7 @@ Pairs with the same world seed and agent seed: arm "goalfree" spends 8 decisions
 chooses its own learning goals), then gets the objective "reach 30 adopters" for 16 decisions; arm "none" gets the
 objective at once. Measured: verified adopters gained during the objective (after 12 h of drain).
 
-* **First design (one world for both phases; `goalfree_ablation_lab_shared_world.json`, 10 pairs)**: goal-free arm
+* **First design (one world for both phases; `goalfree_ablation_lab_shared_world_unpaired.json`, 10 unpaired runs per arm; superseded)**: goal-free arm
   9.2 adopters on average vs 20.4 without; paired difference -11.2 (bootstrap 95 % interval [-19.8, -3.5]),
   positive in 2 of 10 pairs. Diagnosis: a design
   confound and an architectural weakness. The goal-free period consumed the world the objective then had to work in
@@ -184,7 +184,7 @@ objective at once. Measured: verified adopters gained during the objective (afte
   decisions mostly on `wait` (47 of 80) and the static gauge (`lab.noise`, the noisy TV; 22 of 80), probing a
   channel twice and intervening 9 times in 80 decisions: in a period this short the repeat discount and the noisy-TV gate have not yet
   learned that these teach nothing, and "does a wait execute" is genuinely uncertain at the start.
-* **Second design (the goal-free period on its own instance of the same world, the objective on a fresh one)**:
+* **Second design (the goal-free period on its own instance of the same world, the objective on a fresh one; UNPAIRED, superseded by §11)**:
   goal-free arm 17.3 adopters vs 21.9 without; paired difference
   -4.6 (bootstrap 95 % interval [-10.6, +1.9]), positive in 3 of 10 pairs — **no improvement**, a slight harm that the
   interval does not separate from zero. The goal-free periods were again mostly `wait` (45 of 80 decisions) and the
@@ -313,7 +313,7 @@ learned estimates that now weight goal selection) ran in the real configuration.
 | 6.7 procedural vs neural | — | the policy chooses `skill.run` among all candidates like any action | real runs: no skill existed, so `skill.run` was never offered; the policy's own `skill.discover` choices: 1 of 32 (real), 7 of 90 (debug) | not measurable here (no skill in the real configuration); controlled: the procedural gain is 4 -> 1 / 6 -> 1 decisions, which is not neural learning — it does not change what the policy prefers |
 | 7.1 gaps, informative experiences, unfamiliar mechanisms | existing `GoalFreeMode` tests (uncertainty x achievable progress, noisy-TV gate, budget) | the runtime's goal-free mode (no success criterion); real run §6 | real: 24 goals proposed, 6 resolved, all about the environment's own execution statistics; LabWorld: the chosen goal-free actions were mostly `wait` (92 of 160) and the noisy gauge (42 of 160) | — |
 | 7.2 learned transfer estimate (was 1.0) | `test_sg_transfer.py` (4) | SG-2 / SG-3 hooks (ST); patched copy: agent-level test passes on HEAD (`tests/reward/test_sg_agent_transfer.py`) | the estimate scales the selection score (test: the higher-transfer goal is selected; score ratio = transfer ratio) | LabWorld diagnostic: same mechanism +1.11 nats, 5/5 seeds, estimate 0.80; re-drawn -0.57 nats, 1/5, estimate 0.46; real run §6: 21 later outcomes scored, per-key mean gains -0.03..+0.10 nats, estimates 0.46-0.62 (small transfer) |
-| 7.3 usefulness on later unfamiliar objectives (ablation) | — | `CUFREE` period before assigned objectives in the same runtime | the goal-free period changes the later objective's behaviour and result (LabWorld pairs differ; real: same floor) | negative: LabWorld second design paired difference -4.6 adopters [-10.6, +1.9], 3 of 10 positive (first, confounded design -11.2 [-19.8, -3.5]); real: not measurable (neither arm achieved anything) |
+| 7.3 usefulness on later unfamiliar objectives (ablation) | — | `CUFREE` period before assigned objectives in the same runtime | the goal-free period changes the later objective's behaviour and result (LabWorld pairs differ; real: same floor) | no improvement: LabWorld, 10 truly paired seeds (§11): -5.3 adopters [-14.7, +5.0], 3 of 10 positive (earlier unpaired -4.6 / -11.2 superseded); real: not measurable (neither arm achieved anything, one unpaired run per arm) |
 
 ## 9. Reproduce
 
@@ -348,3 +348,42 @@ a skill would now be registered with `effect_unobserved` (runs unconfirmed) inst
 layout B accepts either outcome and still pins that no run reports verified success without a stored entry.
 Limitation kept: conditions on intermediate step results (e.g. "the API's answer to step 0 names the page") are not
 derived; they would give such API skills an observable confirmation.
+
+## 11. Round 3 (independent verifier G3-act at `bb4ab3b`): G3A-12 fixed, the goal-free ablation corrected
+
+**G3A-12 (fixed in `6d46362`).** After §10, a skill whose effect no observation shows ran `ok` on 3 of 3 runs while
+the site refused every commit, and its reliability rose 0.83 -> 0.88 (never *verified* True, but a success in every
+other signal). Now:
+* after a skill the state is observed until two looks of the environment's `observe()` agree (an in-page request
+  the last step started has answered; at most 4 looks 0.4 s apart);
+* a resulting state that *announces a failure* — an ARIA alert, or a text of the page's own that says something
+  could not be done / was refused / is invalid / is required, which was not there before the run — fails the run:
+  status not ok, termination `failure_announced`, counted against reliability and applicability (a language-level
+  heuristic over the page's own words; English UI text; no site rule);
+* a run of an `effect_unobserved` skill that announces nothing is `effect_unconfirmed`: status ok, `verified` None,
+  reliability and applicability unchanged (`Skill.unconfirmed_runs` counts them).
+Regression tests: `test_a_refused_effect_is_a_failed_run_and_an_unobserved_one_counts_neither_way` (browser, the
+verifier's case: every refused commit is a failed run, reliability falls each time, after two the skill is stale and
+no longer executed) and `test_effect_unobserved_runs_are_unconfirmed_and_an_announced_refusal_fails_them` (unit, the
+effect-unobserved path without browser timing). The verifier's probe `repro/g3act/test_g3act_skill_effect_unobserved.py`
+on the fix: `RESIDUAL ok-without-effect runs: 0 of 6; reliability raised by 0` (the settled look now confirms the
+layout-B skill's own text condition, so it is no longer effect-unobserved; the refused runs fail and lower its
+reliability 0.83 -> 0.71 -> 0.61). Skills + autonomy + SG tests on a clean archive: 222 passed, 5 skipped, 0 failed.
+This revises §5.3's layout-B row and §7's first bullet: with the settled look, a layout-B skill can be acquired and
+confirmed.
+
+**G3A-3: the goal-free ablation of §5.5 was not a paired experiment.** Two fresh agents with the same seed drew
+different ids (`os.urandom`), and the verifier's re-run of seeds 0, 1 gave +12 / +15 adopters where §5.5 reported
+-4 / -9. Re-run on a snapshot of `7074351` (ST's seeding fix `831cc85` and salt default `b74b312`, SG's G3A-12 fix):
+both arms set the same explicit `agent.id_salt` (`pair-<seed>`), `PYTHONHASHSEED=0`, seeded `uuid4`, the test
+driver's unbounded learn budget (`learn(1e9)`), SimClock. Pairing verified: the first seed's "none" arm run twice gave identical
+actions and gains (8 / 8, uid `62e29e` both). Result (10 pairs, `docs/evidence/SG/goalfree_ablation_lab.json`):
+goal-free arm 16.6 adopters vs 21.9 without; paired difference **-5.3, bootstrap 95 % interval [-14.7, +5.0]**,
+positive in 3, equal in 1, negative in 6 of 10 pairs (seed 0: +1, seed 1: -13). The goal-free periods were again mostly
+`wait` (46 of 80) and the noisy gauge (26), 1 probe, 7 interventions. **Corrected conclusion: no improvement from an
+8-decision goal-free period at debug scale, and no harm either that the interval separates from zero**; §5.5's
+earlier numbers (-4.6 [-10.6, +1.9] and -11.2) came from unpaired runs and are superseded (files renamed
+`*_unpaired.json`); the verifier's +12 / +15 for seeds 0, 1 were unpaired too. The diagnosis of §5.5 (uninformative
+goal-free choices in short periods) stands; the pair-to-pair spread (sd 16.9 adopters) is larger than any effect this
+design could show with 10 pairs. The real-configuration comparison of §6.3 used one run per arm, which are not pairs
+of the same experiment either (same seed, different ids at that code): it stays a floor observation.

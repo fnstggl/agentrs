@@ -76,7 +76,7 @@
    "evidence": [
     "docs/SG.md"
    ],
-   "changed": "learned applicability (probit ADF) gates runs only when confident; precondition failures teach applicability; refinement drops needless steps after successes",
+   "changed": "learned applicability (probit ADF) gates runs only when confident; precondition failures teach applicability; refinement drops needless steps after successes; G3A-12: a failure the resulting state announces fails the run (status, reliability); effect-unobserved runs are unconfirmed (counted neither way)",
    "still_fails": "applicability never refused a run in the real-configuration runs (too few runs)"
   },
   "CU-33": {
@@ -117,7 +117,7 @@
     "docs/SG.md"
    ],
    "changed": "expected transferable competence learned from later assigned objectives (was 1.0)",
-   "still_fails": "usefulness not shown: LabWorld ablation paired difference -4.6 adopters [-10.6, +1.9] (no improvement); real configuration: floor (no objective achieved in either arm)"
+   "still_fails": "usefulness not shown: LabWorld, 10 truly paired seeds: -5.3 adopters [-14.7, +5.0] (no improvement; earlier unpaired -4.6 / -11.2 superseded, G3A-3); real configuration: floor, one unpaired run per arm"
   }
  },
  "public_api": [
@@ -203,10 +203,15 @@
   "real.real_goalfree.2.CU:record_item.skill_runs_ok": "0/0",
   "real.real_goalfree.2.CU:record_item.library": 0,
   "real.real_goalfree.2.CU:record_item.transfer_points": 21,
-  "tests.SG_fix.passed": 180,
+  "tests.SG_fix.passed": 222,
   "tests.SG_fix.failed": 0,
-  "tests.SG_fix.wall_s": 137.9,
-  "tests.SG_fix.tree": "git archive of HEAD 3daecde"
+  "tests.SG_fix.tree": "git archive of 4585ef9-era HEAD + 6d46362 skills (tests/harness/skills + tests/harness/autonomy + tests/reward/test_sg_*)",
+  "tests.SG_fix.skipped": 5,
+  "goalfree_ablation_lab.paired_difference.ci95": [
+   -14.7,
+   5.0
+  ],
+  "goalfree_ablation_lab.repeat_check_identical": true
  },
  "measured_commands": [
   "PYTHONPATH=<HEAD tree>/cam_live/src .venv/bin/python -m pytest cam_live/tests/harness/skills cam_live/tests/reward/test_sg_transfer.py cam_live/tests/reward/test_sg_agent_transfer.py cam_live/tests/reward/test_reward_goalfree.py cam_live/tests/reward/test_reward_selfgoals.py -m 'browser or not browser' --junitxml=cam_live/docs/evidence/test_results/SG_fix.xml",
@@ -221,5 +226,5 @@
   "goal-free usefulness() on verified objective utilities is still not fed by the runtime (the learned transfer estimate is)"
  ],
  "scientific_failures": [],
- "notes": "Tests run on git-archive trees of SG's commits (other workstreams' uncommitted authorization changes break two Discord live-check tests in the shared working tree)."
+ "notes": "Tests run on git-archive trees of SG's commits (other workstreams' uncommitted authorization changes break two Discord live-check tests in the shared working tree). Round 3: G3A-12 fixed in 6d46362; goal-free ablation re-run truly paired on 7074351 (salt pair-<seed>, PYTHONHASHSEED=0, seeded uuid4)."
 }
