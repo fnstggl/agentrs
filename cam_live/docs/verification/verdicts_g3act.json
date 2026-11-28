@@ -1,0 +1,250 @@
+{
+ "AE-02": {
+  "status": "failed",
+  "by": "G3-act",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "No revision of approach is shown on the full-size agent and the executed evidence contradicts it: ST's long staging run (52 decisions) 16 identical repeats, 0 changed retries after a failure; live attempt 2 (120 decisions) discord.modify_guild 53 times, 22+ of them refused by the write-rate limit and re-issued. The mechanisms that could support it (OWN RECORDS showing refusals and results, the expected field) are off by default and had no measured effect (one seed; same-seed runs are not paired, G3A-3).",
+  "evidence": [
+   "cam_live/docs/verification/repro/g3act/../../../evidence/live/planning_20261128/README.md",
+   "python -m cam_live.eval.proposal_probe analyse-run runs/cam_live/st/long/run (re-counted)",
+   "cam_live/docs/verification/repro/g3act/determinism_probe.py"
+  ]
+ },
+ "AE-03": {
+  "status": "partial",
+  "by": "G3-act",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Self-directed learning runs end to end in the real configuration (SG real goal-free arm: 24 goals, 6 resolved, 21 transfer evidence points through SG-2 in agent.py) and its acceptance test passes; usefulness is not established: SG's LabWorld ablation does not reproduce with the same seeds (my re-run seeds 0, 1: +12, +15 adopters vs SG's -4, -9; agent uid = os.urandom makes same-seed arms unpaired, G3A-3), real configuration at the floor in both arms.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g3act/determinism_probe.py",
+   "cam_live/docs/evidence/SG/goalfree_ablation_lab.py --seeds 0,1 --free 8 --decisions 16 (re-run)",
+   "pytest <named acceptance tests> on the freeze (worktree = 6cba496; -m '(privileged or browser or slow or not privileged) and not network and not gpu'): 148 passed"
+  ]
+ },
+ "AE-04": {
+  "status": "verified",
+  "by": "G3-act",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Budgeted goal-free mode with a learned transferable-competence estimate: the constant 1.0 is replaced by TransferEstimator (prior 1/2, Beta update from gains measured on goal-free mode's own fast state against its pre-goal-free reference; no leakage of assigned outcomes found); my numerical check reproduces the estimate exactly; 10 acceptance tests + SG's 180 pass. Its usefulness on later objectives is NOT established (ablation not reproducible, G3A-3) - that is AE-03 / LX evidence, not this item's existence claim.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g3act/test_g3act_sg.py",
+   "pytest <named acceptance tests> on the freeze (worktree = 6cba496; -m '(privileged or browser or slow or not privileged) and not network and not gpu'): 148 passed",
+   "SG tests 180 passed on the extract"
+  ]
+ },
+ "AE-08": {
+  "status": "partial",
+  "by": "G3-act",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Unchanged obstacle code since G2 (runtime/obstacles.py, harness/failures.py, explain_obstacle); obstacle records and classification hold (OB-01..04 tests pass); strategy change after obstacles still not measured and the full-size runs show repetition after refusals (see AE-02).",
+  "evidence": [
+   "pytest <named acceptance tests> on the freeze (worktree = 6cba496; -m '(privileged or browser or slow or not privileged) and not network and not gpu'): 148 passed"
+  ]
+ },
+ "OB-01": {
+  "status": "verified",
+  "by": "G3-act",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Files unchanged since the G2 verdicts (git diff fdab7d3 6cba496 empty for runtime/obstacles.py, harness/failures.py; explain_obstacle unchanged); acceptance tests pass.",
+  "evidence": [
+   "pytest <named acceptance tests> on the freeze (worktree = 6cba496; -m '(privileged or browser or slow or not privileged) and not network and not gpu'): 148 passed"
+  ]
+ },
+ "OB-02": {
+  "status": "verified",
+  "by": "G3-act",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Files unchanged since G2-final (runtime/loop.py, runtime/obstacles.py); acceptance test passes.",
+  "evidence": [
+   "pytest <named acceptance tests> on the freeze (worktree = 6cba496; -m '(privileged or browser or slow or not privileged) and not network and not gpu'): 148 passed"
+  ]
+ },
+ "OB-03": {
+  "status": "verified",
+  "by": "G3-act",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "runtime/obstacles.py unchanged; acceptance test passes.",
+  "evidence": [
+   "pytest <named acceptance tests> on the freeze (worktree = 6cba496; -m '(privileged or browser or slow or not privileged) and not network and not gpu'): 148 passed"
+  ]
+ },
+ "OB-04": {
+  "status": "verified",
+  "by": "G3-act",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "harness/failures.py, harness/modality.py unchanged; hard classes never retried, refusal never causes a modality switch (tests pass). Hard platform constraints re-checked under a standing profile, also after an operator approval (probe_au_standing.py: X-HUMAN-VERIFICATION, X-USER-ACCOUNT, X-PLATFORM-ADAPTER deny).",
+  "evidence": [
+   "pytest <named acceptance tests> on the freeze (worktree = 6cba496; -m '(privileged or browser or slow or not privileged) and not network and not gpu'): 148 passed",
+   "cam_live/docs/verification/repro/g3act/probe_au_standing.py"
+  ]
+ },
+ "OP-06": {
+  "status": "verified",
+  "by": "G3-act",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "AU added request kinds account / verification (operator_requests.py, internal.py); asking grants nothing (AU tests), acceptance tests pass.",
+  "evidence": [
+   "pytest <named acceptance tests> on the freeze (worktree = 6cba496; -m '(privileged or browser or slow or not privileged) and not network and not gpu'): 148 passed",
+   "tests/harness/autonomy (55 of 56 passed; the failure is G3A-1, unrelated)"
+  ]
+ },
+ "IH-08": {
+  "status": "verified",
+  "by": "G3-act",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "AU changed default_policy.yaml, evaluate.py, liveauth.py, policy.py, schema.py, vault.py; tool permissions are still independently enforced (authorized_tools, unknown tool / modality deny, fail-closed policy; acceptance tests 14 pass; an unknown standing profile is refused at registration and ignored by an older policy). The standing profile's retained-approval classes are a separate property, judged under CU-25 / G3A-2.",
+  "evidence": [
+   "pytest <named acceptance tests> on the freeze (worktree = 6cba496; -m '(privileged or browser or slow or not privileged) and not network and not gpu'): 148 passed",
+   "cam_live/docs/verification/repro/g3act/probe_au_standing.py"
+  ]
+ },
+ "CU-25": {
+  "status": "partial",
+  "by": "G3-act",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Acceptance tests pass (denials hold across modalities). As changed by AU, the retained approvals of a standing profile are not modality- or spelling-independent (G3A-2): an HTTP DELETE keeps approval but the same deletion as POST + X-HTTP-Method-Override / _method, or as a browser.click on a pre-authorized hosting page, is allowed without approval (end to end: hosted site deleted, 0 approvals); purchases, transfers, messages to people and new credentials through an approved integration are not recognised.",
+  "evidence": [
+   "pytest <named acceptance tests> on the freeze (worktree = 6cba496; -m '(privileged or browser or slow or not privileged) and not network and not gpu'): 148 passed",
+   "cam_live/docs/verification/repro/g3act/probe_au_standing.py",
+   "cam_live/docs/verification/repro/g3act/test_g3act_au_e2e.py"
+  ]
+ },
+ "CU-37": {
+  "status": "verified",
+  "by": "G3-act",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Privileged acceptance tests pass from the worktree (= freeze): launcher uids, uid matrix, no privilege regain, chromium under cambrowser; AU's test_au_separated (standing record over AuthRPC across uids) and test_au_sandbox_packages (camsbx, Landlock + seccomp, egress broker) pass.",
+  "evidence": [
+   "pytest <named acceptance tests> on the freeze (worktree = 6cba496; -m '(privileged or browser or slow or not privileged) and not network and not gpu'): 148 passed",
+   "tests/harness/autonomy privileged tests passed"
+  ]
+ },
+ "CU-19": {
+  "status": "partial",
+  "by": "G3-act",
+  "commit": "bb4ab3bb10b7e20dee5a1cf3be98d8129d840606",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Judged at bb4ab3b. Procedure level (skill.run with its low-level trace) and now composition (skill.run as a step, depth <= 3, scopes inherited) hold in tests; interventions / semi-Markov duration treatment still absent.",
+  "evidence": [
+   "pytest <named acceptance tests> on the freeze (worktree = 6cba496; -m '(privileged or browser or slow or not privileged) and not network and not gpu'): 148 passed",
+   "SG tests 180 passed"
+  ]
+ },
+ "CU-22": {
+  "status": "partial",
+  "by": "G3-act",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Neural learning from interaction experience runs (frequent updates on every real-configuration run; test_agent_runtime learning test, see G3_act.md section 2); ST's generator learning: one real slow step, reverted by the guard, trained on a proxy prompt (G3A-4); no measured comparison of neural learning against the skill library's contribution (SG 6.7: not measurable, no skill in the real configuration).",
+  "evidence": [
+   "pytest <named acceptance tests> on the freeze (worktree = 6cba496; -m '(privileged or browser or slow or not privileged) and not network and not gpu'): 148 passed",
+   "cam_live/docs/verification/repro/g3act/../../../ST.md"
+  ]
+ },
+ "CU-30": {
+  "status": "partial",
+  "by": "G3-act",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Evaluated in the real configuration by SG (Qwen3-4B + 50m, real runtime, staging computer): 0 of 5 objectives achieved (32 + 32 decisions; backbone actions naming nonexistent tabs, fills without submit); unfamiliar path /app/ works for an acquired skill in a scripted test only.",
+  "evidence": [
+   "cam_live/docs/evidence/SG/real_summary.json (read)"
+  ]
+ },
+ "CU-33": {
+  "status": "partial",
+  "by": "G3-act",
+  "commit": "bb4ab3bb10b7e20dee5a1cf3be98d8129d840606",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Judged at bb4ab3b (SG's post-freeze skills.py fix, on the master's instruction). SG's controlled comparison reproduced with --n 2 (real Chromium, real authorization service): store entry 4 -> 1 decisions, 4 -> 3 operations; wizard 6 -> 1 decisions; unfamiliar path ok - with skills induced from scripted traces, not acquired by CAM (real configuration: nothing acquired). At 6cba496 a skill could not be acquired from HTTP-API integrations (G3A-1); fixed at bb4ab3b (229 passed, 5 privileged skipped). New at bb4ab3b (G3A-12): an effect-unobserved skill (layout B, now acquired) reports status ok and gains reliability on runs whose effect the site refused (3 of 3; verified stays None, never True).",
+  "evidence": [
+   "cam_live/docs/verification/repro/g3act/test_g3act_skill_effect_unobserved.py",
+   "cam_live/docs/evidence/SG/skills_browser_measure.py --n 2 (re-run)",
+   "tests/harness/skills + tests/harness/autonomy + tests/reward/test_sg_* on git archive bb4ab3b: 229 passed, 5 skipped"
+  ]
+ },
+ "LX-04": {
+  "status": "failed",
+  "by": "G3-act",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Not demonstrated on the full-size agent and contradicted by its runs: live attempt 2 (120 decisions, hotfix code) 0 notes, no niche or concept proposed (it asked the operator for the niche; the only text is a generic server description in discord.modify_guild); 0 notes and 0 internal.note proposals in 172 real-model staging decisions over ST's conditions. The item-5 mechanisms exist (off by default) and changed nothing measurable.",
+  "evidence": [
+   "cam_live/docs/evidence/live/planning_20261128/attempt2_plan_report.md (read)",
+   "analyse-run re-count of ST staging runs"
+  ]
+ },
+ "LX-05": {
+  "status": "failed",
+  "by": "G3-act",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Not demonstrated and contradicted: live attempt 2 visited no web page (browser.open_tab / read / scroll on blank tabs only), wrote 0 notes and generated no resource; ST's staging runs 0 notes; information-only actions receive ~0 realised information value (|IV| <= 5.8e-4 nats, 33 values) so the learned selection has no pathway to value research yet.",
+  "evidence": [
+   "cam_live/docs/evidence/live/planning_20261128/README.md (read)",
+   "cam_live/docs/verification/repro/g3act/iv_store_report.py",
+   "cam_live/docs/verification/repro/g3act/iv_sensitivity.py"
+  ]
+ },
+ "LX-06": {
+  "status": "partial",
+  "by": "G3-act",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "The trial-and-error pathway functions mechanically (failed actions become experience records, are rewarded and learned from: OB-03; randomised experiments registered: 1-7 per staging run, 38 records in live attempt 2); improvement from trial and error is not shown, and the full-size runs repeat refused actions (see AE-02).",
+  "evidence": [
+   "pytest <named acceptance tests> on the freeze (worktree = 6cba496; -m '(privileged or browser or slow or not privileged) and not network and not gpu'): 148 passed",
+   "analyse-run re-count"
+  ]
+ }
+}

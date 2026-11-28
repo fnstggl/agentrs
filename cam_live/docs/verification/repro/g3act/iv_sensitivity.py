@@ -160,7 +160,11 @@ def real_mode(a):
         wd.start()                                       # never hold the shared lock longer than 13 minutes
         agent = CamLiveAgent(cfg, adir, clock=SimClock())
         try:
+            # the meta-learner's bookkeeping is bound to the run's signed outcome ledger (its verifier key is not
+            # copied, so the restore would refuse it); this measurement needs only the trained weights and heads
+            agent.meta.load_state_dict = lambda sd: None
             agent.load(a.checkpoint)
+            print("restored:", json.dumps(agent.restore_report, default=str)[:600], flush=True)
             recs = sorted(agent.store.all(), key=lambda r: r.seq)
             rows, neigh = measure(agent, agent.store, recs, max_n=a.max_n, budget_s=a.budget_s)
         finally:
