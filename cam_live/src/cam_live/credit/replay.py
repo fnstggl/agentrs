@@ -100,6 +100,42 @@ class StoreIntegrityError(RuntimeError):
     """An index column of a stored record disagrees with the record's stored content."""
 
 
+class OutcomeTimingError(ValueError):
+    """``append`` / ``update`` was given a newly attached matured outcome dated before its query was issued or before
+    the decision it is attached to (the rule ``add_outcome`` applies; fix of G2L-2). Nothing was written."""
+
+    def __init__(self, exp_id: str, problems: Sequence[str]):
+        self.exp_id, self.problems = exp_id, list(problems)
+        super().__init__(f"record {exp_id}: refused outcome(s) dated before their query / decision "
+                         f"({'; '.join(self.problems[:6])})")
+
+
+def _outcome_sig(o: Any) -> Tuple[str, str, float]:
+    """Identity of a stored outcome for the timing check (query, de-duplication key, observation time)."""
+    return (str(o.query_id), outcome_key(o), float(o.observed_at or 0.0))
+
+
+def misdated_outcomes(rec: ExperienceRecord, queries: Dict[str, OutcomeQuery], known: Iterable[Tuple] = ()
+                      ) -> List[str]:
+    """Matured outcomes of ``rec`` that are not in ``known`` (signatures of outcomes already stored) and are dated
+    before their query was issued or before the decision was made. An observation time of 0 means unknown and is not
+    judged (as in ``add_outcome``)."""
+    known = set(known)
+    out: List[str] = []
+    for o in rec.outcomes:
+        if o.status not in _MATURED or not o.observed_at or _outcome_sig(o) in known:
+            continue
+        t = float(o.observed_at)
+        q = queries.get(o.query_id)
+        if q is not None and t + 1e-9 < float(q.issued_at):
+            out.append(f"outcome of query {o.query_id} observed at {t:.6g}, before the query was issued at "
+                       f"{float(q.issued_at):.6g}")
+        elif t + 1e-9 < float(rec.decision.ts):
+            out.append(f"outcome of query {o.query_id} observed at {t:.6g}, before the decision at "
+                       f"{float(rec.decision.ts):.6g}")
+    return out
+
+
 def _diff_paths(a: Any, b: Any, path: str, out: List[str], limit: int = 8) -> None:
     """Paths at which two JSON values differ (at most ``limit``)."""
     if len(out) >= limit:
@@ -636,6 +672,11 @@ class SqliteExperienceStore:
                 rec.seq = old[0]                      # the lifetime position never changes
             self._dedup_outcomes(rec)
             queries = self._queries_of(rec)
+            known = () if new else {_outcome_sig(o) for o in self._decode(old[8], old[9], old[10]).outcomes}
+            bad = misdated_outcomes(rec, queries, known)
+            if bad:                                  # same rule as add_outcome, for outcomes appended directly
+                self.stats["refused_outcomes"] = self.stats.get("refused_outcomes", 0) + 1
+                raise OutcomeTimingError(rec.exp_id, bad)
             ix = self._derive(rec, queries)
             static, result, dyn = self._parts(rec)
             shas = (_sha(static), _sha(result), _sha(dyn))
@@ -736,6 +777,8 @@ class SqliteExperienceStore:
             rec = self.get(target)
             if rec is None:
                 return AddOutcomeResult(False, reason=f"record {target} not found", dedup_key=key)
+            if obs.status in _MATURED and obs.observed_at and obs.observed_at + 1e-9 < float(rec.decision.ts):
+                return AddOutcomeResult(False, target, reason="observed before the decision was made", dedup_key=key)
             if upgraded:
                 rec.outcomes = [o for o in rec.outcomes if o.query_id != obs.query_id]
                 db.execute("DELETE FROM outcomes WHERE query_id=?", (obs.query_id,))

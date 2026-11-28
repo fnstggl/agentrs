@@ -321,10 +321,16 @@ def _mode_poisson(eta0: Tensor, s: Tensor, c: Tensor, e: Tensor, disp: Tensor, m
 
     r is concave and decreasing, and G(x) = log(e exp(x)) - log(c + k (eta0 - x)) (same root, defined where
     c + k (eta0 - x) > 0) is convex and increasing. A Newton step on r from the left of the root lands on its right
-    (and inside G's domain); from the right, Newton steps on r and on G both stay right of the root, so their minimum
-    is taken. The iterates decrease monotonically to the root: no overshoot, no clipping, quadratic convergence
-    whichever term dominates (G when the exponential does, e.g. a censoring window of a year in seconds; r when the
-    prior does)."""
+    (and inside G's domain), and so does a Newton step on G (convexity); from the right, Newton steps on r and on G
+    both stay right of the root. On either side the smaller of the two is taken (G-1: from the left the r-step alone
+    can land near eta0 + c / k, astronomically far right when the prior predictor e exp(eta0) is ~16 orders below
+    the count, and then crawls back by 1 per iteration). The iterates decrease monotonically to the root: no
+    overshoot, no clipping, quadratic convergence whichever term dominates (G when the exponential does, e.g. a
+    censoring window of a year in seconds; r when the prior does).
+
+    Convergence is reported only where the step rule |step| <= tol (1 + |x|) is met *and* the root condition holds at
+    the returned point: |r(x)| <= 1e-8 (c + e exp(x) + k |x - eta0|) + the float64 rounding of k (eta0 - x), or, in
+    log form, |G(x)| <= 1e-8 (G2L-1: the relative step rule alone was met by a crawl of step 1 at |x| > 1e11)."""
     k = disp / s
     log_e = torch.log(e)
     x = eta0.clone()
@@ -340,17 +346,25 @@ def _mode_poisson(eta0: Tensor, s: Tensor, c: Tensor, e: Tensor, disp: Tensor, m
         em = torch.exp(-lmu.clamp(min=_LOG_MAX))                    # only used where lmu > 700 (then em < 1e-304)
         ratio = torch.where(big, (1.0 - L * em) / (1.0 + k * em), (mu - L) / (mu + k))
         x_r = x - ratio
-        okg = (~left) & (L > 0) & (mu > 0)
+        okg = (L > 0) & (mu > 0)
         Ls = L.clamp_min(tiny)
         x_g = x - (lmu - torch.log(Ls)) / (1.0 + k / Ls)
-        x_new = torch.where(okg, torch.minimum(x_r, x_g), x_r)
+        x_new = torch.where(okg & torch.isfinite(x_g), torch.minimum(x_r, x_g), x_r)
         step = (x_new - x).abs()
         x = torch.where(done, x, x_new)
         iters = iters + (~done).long()
         done = done | (step <= tol * (1.0 + x.abs())) | (ratio == 0)
         if bool(done.all()):
             break
-    return x, iters, done
+    # the stopping rule is relative to |x|: confirm the root condition at the returned point (G2L-1)
+    lmu = log_e + x
+    mu = torch.exp(lmu.clamp(max=_LOG_MAX))
+    L = c + k * (eta0 - x)
+    scale = c.abs() + mu + k * (x - eta0).abs()
+    rounding = 8.0 * torch.finfo(F64).eps * k * (x.abs() + eta0.abs() + 1.0)   # of k (eta0 - x) in float64
+    r_ok = (L - mu).abs() <= 1e-8 * scale + rounding
+    g_ok = (L > 0) & ((lmu - torch.log(L.clamp_min(tiny))).abs() <= 1e-8)
+    return x, iters, done & (r_ok | g_ok)
 
 
 @torch.no_grad()

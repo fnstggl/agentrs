@@ -258,11 +258,20 @@ class OutcomeLinker:
                 total = sum(amounts.values())
                 if total <= 0:
                     continue
+                if math.isfinite(total):
+                    scaled, denom = amounts, total
+                else:
+                    # amounts whose sum overflows (1e308 + 1e308) are shares relative to the largest one (G2L-3);
+                    # the sum itself is the outcome value only when the event states none, and an infinite sum is
+                    # then refused explicitly by _make ("the outcome value is not finite")
+                    peak = max(amounts.values())
+                    scaled = {i: a / peak for i, a in amounts.items()}
+                    denom = math.fsum(scaled.values())
                 shares = []
-                for ident, amount in sorted(amounts.items()):
+                for ident, amount in sorted(scaled.items()):
                     rec = find(kind, str(ident))
                     if rec is not None and amount > 0:
-                        shares.append((rec, amount / total, 0.0))
+                        shares.append((rec, amount / denom, 0.0))
                 return self._make(key, shares, EV_KEY, ts, total if value is None else value, metric, verified, True,
                                   {"field": field_name, "amounts": amounts}, refused)
         for field_name, kind in (("action_id", "action"), ("decision_id", "decision")):
