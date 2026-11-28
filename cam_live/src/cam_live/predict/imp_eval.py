@@ -158,6 +158,10 @@ def run(arm: str, seed: int, *, family: str, lifetimes: int, decisions: int, rea
                 "wall_seconds": lt["wall_seconds"], "planner_seconds": sum(plan_s[n0:]),
                 "planner_calls": len(plan_s) - n0, "decision_rows": rows,
                 "planner_measure": agent.last.get("planner"), "planner_error": agent.last.get("planner_error")})
+            if out:                               # partial result after every lifetime
+                os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+                with open(out + ".partial", "w") as f:
+                    json.dump(res, f, default=str)
             print(f"[imp_eval] arm={arm} seed={seed} lifetime {i}: progress {lt['progress']:.3f} "
                   f"achieved {lt['achieved']} decisions {lt['decisions']} wall {lt['wall_seconds']:.0f} s "
                   f"planner {sum(plan_s[n0:]):.1f} s", flush=True)
