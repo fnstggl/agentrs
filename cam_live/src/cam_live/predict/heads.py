@@ -57,6 +57,8 @@ class PredictConfig:
     n_members: int = 5
     transition_hidden: int = 256
     transition_members: int = 3
+    transition_prior_scale: float = 1.0  # randomised prior functions of the transition ensemble (0 disables; per
+                                         # dimension of the RMS-normalised belief; world heads use prior_scale 1.0)
     n_hazard_bins: int = 12
     max_categories: int = 16
     use_phi: bool = True             # the heads also read the fast-layer features phi
@@ -215,7 +217,7 @@ def attach_heads(model: LatentModelAPI, pcfg: Optional[PredictConfig] = None) ->
                                        seed=pcfg.seed))
         world.normaliser = KindNormaliser()
         transition = LatentTransition(d, hidden=pcfg.transition_hidden, n_members=pcfg.transition_members,
-                                      seed=pcfg.seed + 1)
+                                      seed=pcfg.seed + 1, prior_scale=pcfg.transition_prior_scale)
         evaluator = GoalEvaluator(EvaluatorConfig(d_model=d, hidden=pcfg.hidden, n_time_bins=pcfg.n_hazard_bins,
                                                   n_resources=len(pcfg.resource_scale)))
         policy = CandidatePolicy(PolicyConfig(d_model=d, hidden=pcfg.hidden))

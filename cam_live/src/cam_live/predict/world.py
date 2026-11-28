@@ -515,10 +515,22 @@ class TransitionOutput:
 
 class LatentTransition(nn.Module):
     """(z, dt) -> distribution over the next belief b' (ensemble mean + diagonal variance). With ``b`` given the
-    members predict the change ``b' - b`` (residual), which is the easier target for short steps."""
+    members predict the change ``b' - b`` (residual), which is the easier target for short steps.
+
+    Randomised prior functions (Osband et al. 2018, as in :class:`WorldHeads`), ``prior_scale > 0``: member k adds
+    ``prior_scale * (p_k(z, b) - mean_j p_j(z, b))`` to its predicted change, p_k a frozen random network of the raw
+    inputs. The offsets are zero-mean over the members, so the **ensemble mean is exactly that of the trainable
+    members** (a transition trained without them predicts the same mean); each member's own trainable output learns to
+    cancel its offset where there are data, so the members agree on what was experienced and disagree, by about
+    ``prior_scale`` per dimension of the RMS-normalised belief, about the consequences of actions never taken. Without
+    them the members are initialised with nearly zero outputs and agree everywhere (measured at debug scale: member
+    spread 0.12 against real belief changes of norm 9.2), so imagination is confidently "nothing changes" for every
+    untried action. The prior weights are regenerated from ``seed`` (non-persistent buffers): checkpoints are
+    unchanged and older ones load."""
 
     def __init__(self, d_model: int, hidden: int = 256, n_members: int = 3, d_time: int = 16, seed: int = 0,
-                 min_log_var: float = -10.0, max_log_var: float = 4.0):
+                 min_log_var: float = -10.0, max_log_var: float = 4.0, prior_scale: float = 0.0,
+                 prior_hidden: int = 64):
         super().__init__()
         g = torch.Generator().manual_seed(seed)
         self.d_model, self.d_time, self.n_members = d_model, d_time, n_members
@@ -529,6 +541,25 @@ class LatentTransition(nn.Module):
         self.norm = nn.LayerNorm(hidden)
         self.members = _EnsembleMLP(n_members, hidden, hidden, 2 * d_model, out_std=0.1 / math.sqrt(hidden),
                                     generator=g)
+        self.prior_scale = float(prior_scale)
+        if self.prior_scale > 0 and n_members > 1:
+            gp = torch.Generator().manual_seed(int(seed) * 7919 + 104729)
+            self.register_buffer("prior_w1", torch.randn(n_members, 2 * d_model, prior_hidden, generator=gp)
+                                 / math.sqrt(2 * d_model), persistent=False)
+            self.register_buffer("prior_w2", torch.randn(n_members, prior_hidden, d_model, generator=gp)
+                                 / math.sqrt(prior_hidden), persistent=False)
+
+    def prior_offsets(self, z: Tensor, b: Tensor) -> Optional[Tensor]:
+        """[M, ..., D] zero-mean (over members) prior offsets of the predicted change, or None."""
+        if self.prior_scale <= 0 or not hasattr(self, "prior_w1"):
+            return None
+        x = torch.cat([z, b], -1).detach()
+        lead = x.shape[:-1]
+        xf = x.reshape(1, -1, x.shape[-1]).expand(self.n_members, -1, -1).to(self.prior_w1.dtype)
+        h = torch.tanh(torch.bmm(xf, self.prior_w1))
+        p = torch.bmm(h, self.prior_w2)                                                       # [M, R, D]
+        p = (p - p.mean(0, keepdim=True)) * self.prior_scale
+        return p.reshape((self.n_members,) + lead + (self.d_model,)).to(z.dtype)
 
     def forward(self, z: Tensor, dt_s: Tensor, b: Optional[Tensor] = None) -> TransitionOutput:
         """z [..., D]; dt_s [...] seconds; b [..., D] optional current belief (residual prediction)."""
@@ -539,6 +570,9 @@ class LatentTransition(nn.Module):
         o = self.members(x.unsqueeze(0).expand((self.n_members,) + x.shape))
         mean, log_var = o[..., :self.d_model], o[..., self.d_model:] - 2.0
         if b is not None:
+            off = self.prior_offsets(z, b)
+            if off is not None:
+                mean = mean + off
             mean = mean + b.unsqueeze(0)
         return TransitionOutput(mean, log_var.clamp(self.min_log_var, self.max_log_var))
 

@@ -396,3 +396,38 @@ def test_verified_windows_feed_the_calibration_once_and_only_when_final():
     # features come from what the decision recorded: z of the chosen candidate, its imagined preference, horizon
     f = P.ImaginationCalibration.features(recs[0].decision)
     assert f is not None and f[2] == 1 and math.isfinite(f[0]) and math.isfinite(f[1])
+
+
+# ---------------------------------------------------------------------------------------------- transition priors
+def test_transition_prior_keeps_the_mean_and_the_checkpoint_and_makes_untried_actions_uncertain(measure):
+    torch.manual_seed(0)
+    d = 16
+    plain = LatentTransition(d, hidden=32, n_members=3, d_time=8, seed=4)
+    prior = LatentTransition(d, hidden=32, n_members=3, d_time=8, seed=4, prior_scale=1.0)
+    assert set(plain.state_dict()) == set(prior.state_dict())             # checkpoints unchanged (and older load)
+    prior.load_state_dict(plain.state_dict())
+    z, b, dt = torch.randn(64, d), torch.randn(64, d), torch.full((64,), 3600.0)
+    o0, o1 = plain(z, dt, b), prior(z, dt, b)
+    assert torch.allclose(o0.mean, o1.mean, atol=1e-5)                    # the ensemble mean is the trainable one
+    s0, s1 = float(o0.epistemic_var.sqrt().mean().detach()), float(o1.epistemic_var.sqrt().mean().detach())
+    assert s0 < 0.05 and s1 > 0.5                                         # without priors the members agree
+    # train both on a dynamics where only 'seen' actions occur; the members then agree there and still disagree
+    # about an action never taken
+    seen = torch.randn(4, d)
+    unseen = 3.0 * torch.randn(1, d)
+    from cam_live.predict.world import transition_nll
+    opt = torch.optim.Adam(prior.parameters(), lr=3e-3)
+    for _ in range(800):
+        bb = torch.randn(64, d)
+        zz = seen[torch.randint(0, 4, (64,))] + 0.05 * torch.randn(64, d)
+        tgt = bb + 0.5 * torch.tanh(zz)
+        loss, _ = transition_nll(prior(zz, torch.full((64,), 3600.0), bb), tgt)
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+    bb = torch.randn(64, d)
+    on = prior(seen[torch.randint(0, 4, (64,))], dt, bb).epistemic_var.sqrt().mean()
+    off = prior(unseen.expand(64, d), dt, bb).epistemic_var.sqrt().mean()
+    measure("imp_transition_prior_spread_untrained", {"without": s0, "with": s1})
+    measure("imp_transition_prior_spread_trained", {"seen": float(on.detach()), "never_taken": float(off.detach())})
+    assert float(off) > 3.0 * float(on)
