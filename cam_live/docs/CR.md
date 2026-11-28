@@ -287,6 +287,10 @@ in `docs/evidence/CR/`.
 * RUDDER's decomposer is trained by one head step per frequent update in the agent (~40-50 steps in a 64-decision
   run, on a handful of segments); in D's lab it needed ~1600 steps on 288 lifetimes to resolve the mechanisms. A
   dedicated, guarded training schedule for the credit heads is the next step suggested by the data; not built.
+* Segment credit is on by default (`CreditAssigner(segment_decisions=16)`): from the next restart the agent's RUDDER /
+  COCOA losses also train on matured segments of the open objective. Its extra compute was not measured separately
+  (real configuration: 413 s training vs 301 s inference for 39 decisions with it); `segment_decisions=0` (CR-2)
+  restores the lifetime-only behaviour exactly.
 * The integrated ablation is debug scale (tiny random backbone, schema-walker candidates) and LabWorld only; the
   real-configuration runs are in section 5.
 * Under the master's CPU rule (10:50 UTC) the last 12 ablation runs were paused (SIGSTOP) and resumed one at a time;
