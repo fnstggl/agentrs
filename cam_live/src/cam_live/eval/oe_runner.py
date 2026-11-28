@@ -118,6 +118,9 @@ class UnavailableTools(RuntimeError):
 
 
 _MODALITY_OF_INTERFACE = {"browser": "structured_browser"}
+#: the tools each family cannot be attempted without (all unavailable permitted tools are recorded either way; e.g. the
+#: publishing tools are legitimately unavailable where no publishing destination exists)
+ESSENTIAL_PREFIXES = {"SW": ("sandbox.",), "MECH": ("sandbox.", "http."), "CU": ("browser.",)}
 
 
 def unavailable_permitted_tools(env: Any, task: Any) -> List[Dict[str, str]]:
@@ -133,8 +136,9 @@ def run_objective(agent: Any, oc: Any, family: str, problem: str, wseed: int, ob
     from .conditions import Timed
     env, policy, verifier, task = oc.open(family, problem, wseed, objective_id, max_decisions=max_decisions)
     unavailable = unavailable_permitted_tools(env, task)
-    if unavailable and not allow_unavailable:
-        raise UnavailableTools(f"{objective_id}: permitted tools unavailable: {unavailable[:5]}")
+    essential = [u for u in unavailable if u["tool"].startswith(ESSENTIAL_PREFIXES.get(family, ()))]
+    if essential and not allow_unavailable:
+        raise UnavailableTools(f"{objective_id}: tools the objective needs are unavailable: {essential[:5]}")
     agent.attach_verifier(verifier)
     timed = Timed(agent)
     rt = LiveRuntime(timed, env, policy, verifier, task, run_dir, clock,
