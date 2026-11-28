@@ -1,0 +1,1094 @@
+{
+ "behaviour_change": {
+  "candidates": [
+   "intervention:api:lab.act({\"channel\": 0, \"effort\": 1}) -> ",
+   "intervention:api:lab.act({\"channel\": 1, \"effort\": 2}) -> ",
+   "intervention:api:lab.act({\"channel\": 2, \"effort\": 2}) -> ",
+   "intervention:api:lab.act({\"channel\": 3, \"effort\": 3}) -> ",
+   "intervention:api:lab.probe({\"channel\": 0}) -> ",
+   "intervention:api:lab.probe({\"channel\": 1}) -> ",
+   "intervention:api:lab.probe({\"channel\": 2}) -> ",
+   "intervention:api:lab.probe({\"channel\": 3}) -> ",
+   "intervention:internal:wait({\"seconds\": 60.0}) -> ",
+   "intervention:internal:wait({\"seconds\": 64845.0}) -> ",
+   "intervention:internal:wait({\"seconds\": 194415.0}) -> ",
+   "intervention:internal:wait({\"seconds\": 259200.0}) -> "
+  ],
+  "context": "held-out LabWorld seed 9999 (never acted in); 12 fixed schema candidates",
+  "note": "restoring every trainable group (frozen backbone untouched, store / fast state / registries kept) must give back the old distribution exactly; restoring only the experiential group shows the part of the change carried by the experiential weights",
+  "p_after": [
+   0.069366,
+   0.08945,
+   0.08107,
+   0.093907,
+   0.03587,
+   0.070512,
+   0.05993,
+   0.073709,
+   0.122801,
+   0.11583,
+   0.103113,
+   0.084442
+  ],
+  "p_before": [
+   0.088709,
+   0.090974,
+   0.091693,
+   0.091917,
+   0.077473,
+   0.084478,
+   0.086726,
+   0.087702,
+   0.073801,
+   0.078898,
+   0.073515,
+   0.074115
+  ],
+  "tv_after_all_trainable_groups_restored_vs_before": 0.0,
+  "tv_before_after": 0.127847570925951,
+  "tv_only_experiential_restored_vs_after": 0.09994708746671677,
+  "tv_only_experiential_restored_vs_before": 0.03500918671488762,
+  "tv_reapplied_vs_after": 0.0,
+  "weight_delta_norm_by_group": {
+   "experiential": 3.146274148382341,
+   "heads": 0.9104127852737601,
+   "reward": 0.0,
+   "semantic_adapters": 0.0
+  }
+ },
+ "build_seconds": 18.050034761428833,
+ "checks": {
+  "adapter_weights_changed": {
+   "holds": false,
+   "stats": null
+  },
+  "approvals_exercised": {
+   "executed_after_approval": 0,
+   "holds": false,
+   "resolved": 0
+  },
+  "behaviour_changed_on_held_out_context": {
+   "holds": true,
+   "tv": 0.127847570925951
+  },
+  "computer_environment_decisions": {
+   "decisions": 1,
+   "holds": true,
+   "verified": "pending"
+  },
+  "delayed_outcomes_linked": {
+   "holds": true,
+   "n": 3
+  },
+  "experiential_weights_changed": {
+   "holds": true,
+   "stats": {
+    "max": 1.465162754058838,
+    "mean": 1.0276641305625809,
+    "min": 0.3298555836440613,
+    "n": 4,
+    "nonzero": 4
+   }
+  },
+  "internal_rewards": {
+   "holds": true
+  },
+  "lab_lifetimes_verified": {
+   "closed": 0,
+   "holds": false,
+   "n": 1
+  },
+  "logging": {
+   "decisions_logged": 4,
+   "holds": true,
+   "journal": true
+  },
+  "meta_step_changes_policy": {
+   "holds": false,
+   "rows": 0
+  },
+  "meta_update_applied": {
+   "applied": 0,
+   "applied_with_nonzero_gradient": 0,
+   "holds": false,
+   "skipped": {
+    "insufficient_independent_outcomes": 2,
+    "no_policy_update_recorded": 1
+   }
+  },
+  "no_grant_refusals": {
+   "executed": 1,
+   "holds": true,
+   "refusals": 0
+  },
+  "predictions_before_outcomes": {
+   "holds": true,
+   "n_resolved": 21
+  },
+  "recovery_exercised": {
+   "holds": false,
+   "restarts": []
+  },
+  "resource_limit_exercised": {
+   "holds": true,
+   "limits": {
+    "compute_s": 80.0,
+    "max_decisions": 10,
+    "max_external_actions": 2,
+    "money": 1.0
+   },
+   "reason": "limit compute_s exhausted",
+   "refusals": 0
+  },
+  "weights_explain_the_change": {
+   "holds": true,
+   "tv": 0.0
+  }
+ },
+ "evidence": {
+  "agent_status": {
+   "backbone": "Qwen/Qwen3-4B",
+   "bootstrap_mix": 1.0,
+   "checkpoint": "ckpt_00000002",
+   "counters": {
+    "annotated_epistemic_after": 3,
+    "annotated_learning_progress": 4,
+    "candidates_grounded": 4,
+    "candidates_offered": 40,
+    "decisions_with_unavailable_permitted_tools": 1,
+    "objectives": 2,
+    "promotions_refused": 1,
+    "results": 4,
+    "verified_delta_level_change": 2
+   },
+   "credit_default": "simple",
+   "decisions": 4,
+   "goal_free": false,
+   "last_promotion": {
+    "baseline_id": "",
+    "checkpoint_id": "ckpt_000001_b80ae03e",
+    "deltas": {},
+    "ignored": [],
+    "kept": [],
+    "promoted": false,
+    "reasons": [
+     "no retention metric supplied"
+    ],
+    "retention": {},
+    "rolled_back_to": "",
+    "trigger": "objective obj_staging_computer ended",
+    "ts": 1795836208.9543502,
+    "validation": {
+     "heldout/neg_bridge_grounding": -11.821703910827637,
+     "heldout/neg_fast_prior": -2.5758988857269287,
+     "heldout/neg_retention": -0.0,
+     "heldout/neg_world_model": -9.621145248413086,
+     "heldout/neg_world_model_adapters": -9.621146202087402
+    },
+    "weight_delta": {}
+   },
+   "learner": {
+    "counters": {
+     "fast": 15,
+     "frequent": 3,
+     "skipped": 1,
+     "slow": 0,
+     "slow_deferred": 1,
+     "slow_reverted": 0,
+     "triggers": 3
+    },
+    "credit_selection": {},
+    "last_update": {
+     "losses": {},
+     "param_groups": [],
+     "timescale": "slow_adapters",
+     "trigger": "3 frequent updates (adapter_every=3)"
+    },
+    "lr": {
+     "experiential": 0.0003,
+     "heads": 0.0003,
+     "semantic_adapters": 2.5e-05
+    },
+    "model_version": "m3.0",
+    "providers": [
+     {
+      "name": "world_model",
+      "timescale": "frequent",
+      "weight": 1.0
+     },
+     {
+      "name": "fast_prior",
+      "timescale": "frequent",
+      "weight": 0.5
+     },
+     {
+      "name": "evaluator",
+      "timescale": "frequent",
+      "weight": 1.0
+     },
+     {
+      "name": "world_model_adapters",
+      "timescale": "slow_adapters",
+      "weight": 0.5
+     },
+     {
+      "name": "evaluator_adapters",
+      "timescale": "slow_adapters",
+      "weight": 0.5
+     },
+     {
+      "name": "rudder",
+      "timescale": "frequent",
+      "weight": 1.0
+     },
+     {
+      "name": "cocoa",
+      "timescale": "frequent",
+      "weight": 1.0
+     },
+     {
+      "name": "retention",
+      "timescale": "frequent",
+      "weight": 1.0
+     },
+     {
+      "name": "bridge_grounding",
+      "timescale": "slow_adapters",
+      "weight": 1.0
+     }
+    ],
+    "trigger": {
+     "independent_units": 2,
+     "matured_rows": 2,
+     "queued_rows": 3,
+     "threshold": 2
+    }
+   },
+   "ledger_entries": 5,
+   "lifetime": 1,
+   "meta": {
+    "discarded_rows": 0.0,
+    "evicted_query_rows": 0.0,
+    "meta_applied": 0.0,
+    "meta_skipped": 3.0,
+    "policy_updates": 1.0
+   },
+   "meta_events": 1,
+   "model_version": "m3.0",
+   "objective": "obj_staging_lab_101",
+   "parameters": {
+    "adapters": 16713856,
+    "adapters_bridge": 4917376,
+    "adapters_lora": 11796480,
+    "experiential": 50953765,
+    "frozen": 4022468096,
+    "heads_total": 6055337,
+    "reward": 949121,
+    "total_persistent_trainable": 74672079
+   },
+   "planner_horizon": 1,
+   "predictions": 206,
+   "promoted_checkpoint": "",
+   "proposal": {
+    "by_operation": {
+     "lab.act": 1,
+     "lab.probe": 3
+    },
+    "fraction_valid_of_items": 1.0,
+    "latent_conditioned": true,
+    "n_backbone_valid": 4,
+    "n_grounded": 0,
+    "n_invalid_by_operation": {
+     "exceeds_time_left": 2
+    },
+    "n_items": 4,
+    "n_lines": 4,
+    "n_pool_valid": 21,
+    "n_raw": 23,
+    "n_skill_candidates": 0,
+    "n_texts": 1,
+    "normalised": {},
+    "offered_by_provenance": {
+     "backbone": 4,
+     "schema_walker": 6
+    },
+    "prompt_chars": 3080,
+    "prompt_fit": {
+     "fitted": false,
+     "obs_budget": 3000,
+     "over_window": false,
+     "tokens": 913,
+     "tokens_before_fit": 913,
+     "window": 6144
+    },
+    "prompt_sha256": "29b4f6fab98593bcad0dbcb2e1849517223322ecea1cd76ff8f9f59d0c662b5e",
+    "prompt_tokens": 913,
+    "prompt_tools": [
+     "wait",
+     "lab.act",
+     "lab.unlock",
+     "lab.noise",
+     "lab.probe"
+    ],
+    "rejection_reasons": {},
+    "rejections_sample": [],
+    "surface": "obs_167a067a820f4e87",
+    "tools_not_listed": [],
+    "tools_permitted": 5,
+    "tools_unavailable": {},
+    "validator": true
+   },
+   "reward_version": "rpsi1-s1.0-6cf9d1f1f6aeaaaf",
+   "scale": "50m",
+   "skills_known": 0,
+   "store_records": 4,
+   "surface": "http://127.0.0.1:42729/a/",
+   "verifier_attached": true
+  },
+  "candidate_provenance": {
+   "backbone": 15,
+   "grounded": 4,
+   "schema_walker": 21
+  },
+  "chosen_operations": {
+   "browser.screenshot": 1,
+   "lab.act": 2,
+   "lab.probe": 1
+  },
+  "decision_rules": {
+   "randomized": 1,
+   "thompson_policy": 3
+  },
+  "delayed_outcome_links": 3,
+  "intrinsic_rewards": {
+   "max": 0.0017224251059815288,
+   "mean": 0.0008744895167183131,
+   "min": 0.0001920461654663086,
+   "n": 4,
+   "n_records_with_reward": 4,
+   "nonzero": 4,
+   "values_first_20": [
+    0.001119852066040039,
+    0.0017224251059815288,
+    -0.0001920461654663086,
+    -0.000463634729385376
+   ]
+  },
+  "learning_update_records": [
+   {
+    "losses": {
+     "heldout/neg_bridge_grounding": -11.821703910827637,
+     "heldout/neg_fast_prior": -2.5758988857269287,
+     "heldout/neg_retention": -0.0,
+     "heldout/neg_world_model": -9.621145248413086,
+     "heldout/neg_world_model_adapters": -9.621146202087402
+    },
+    "model_version": "m0.0",
+    "param_groups": [],
+    "prediction_change": {},
+    "timescale": "checkpoint",
+    "trigger": "promotion: objective obj_staging_computer ended",
+    "weight_delta": {}
+   },
+   {
+    "losses": {
+     "fast_prior": 2.5758988857269287,
+     "retention": 0.0,
+     "world_model": 3.491487503051758
+    },
+    "model_version": "m1.0",
+    "param_groups": [
+     "experiential",
+     "heads"
+    ],
+    "prediction_change": {
+     "latent_b": 0.617476761341095,
+     "latent_z": 0.5980852246284485,
+     "max_abs": 0.617476761341095,
+     "policy_probs": 0.0012533820699900389
+    },
+    "timescale": "frequent",
+    "trigger": "matured_outcomes:2_independent/2_rows",
+    "weight_delta": {
+     "experiential": 1.0464324951171875,
+     "heads": 0.2280045598745346
+    }
+   },
+   {
+    "losses": {
+     "fast_prior": 2.3326449394226074,
+     "retention": 1.245070219039917,
+     "world_model": 2.78456711769104
+    },
+    "model_version": "m2.0",
+    "param_groups": [
+     "experiential",
+     "heads"
+    ],
+    "prediction_change": {
+     "latent_b": 0.416581392288208,
+     "latent_z": 0.5159323215484619,
+     "max_abs": 0.5159323215484619,
+     "policy_probs": 0.001305574201978743
+    },
+    "timescale": "frequent",
+    "trigger": "matured_outcomes:2_independent/2_rows",
+    "weight_delta": {
+     "experiential": 1.465162754058838,
+     "heads": 0.3819529712200165
+    }
+   },
+   {
+    "losses": {
+     "policy_improvement": 0.5136515498161316,
+     "policy_improvement_last": -0.7147437334060669
+    },
+    "model_version": "m2.0",
+    "param_groups": [
+     "heads",
+     "experiential"
+    ],
+    "prediction_change": {
+     "policy_kl": 0.06160533055663109,
+     "policy_prob_max_abs_change": 0.112253338098526,
+     "policy_prob_mean_abs_change": 0.2655896544456482
+    },
+    "timescale": "frequent",
+    "trigger": "3 newly rewarded decisions",
+    "weight_delta": {
+     "experiential": 0.3298555836440613,
+     "heads": 0.3576501683047497
+    }
+   },
+   {
+    "losses": {
+     "fast_prior": 2.364372730255127,
+     "retention": 0.5699155330657959,
+     "world_model": 3.028475522994995
+    },
+    "model_version": "m3.0",
+    "param_groups": [
+     "experiential",
+     "heads"
+    ],
+    "prediction_change": {
+     "latent_b": 0.24743415415287018,
+     "latent_z": 0.31302139163017273,
+     "max_abs": 0.31302139163017273,
+     "policy_probs": 0.0030661080963909626
+    },
+    "timescale": "frequent",
+    "trigger": "matured_outcomes:2_independent/2_rows",
+    "weight_delta": {
+     "experiential": 1.2692056894302368,
+     "heads": 0.3451290428638458
+    }
+   },
+   {
+    "losses": {},
+    "model_version": "m3.0",
+    "param_groups": [],
+    "prediction_change": {},
+    "timescale": "slow_adapters",
+    "trigger": "3 frequent updates (adapter_every=3)",
+    "weight_delta": {}
+   }
+  ],
+  "learning_updates": {
+   "checkpoint": 1,
+   "fast": 3,
+   "frequent": 4,
+   "slow_adapters": 1
+  },
+  "meta_applied": 0,
+  "meta_skipped_reasons": {
+   "insufficient_independent_outcomes": 2,
+   "no_policy_update_recorded": 1
+  },
+  "meta_updates": [
+   {
+    "applied": false,
+    "bootstrap_mix": 1.0,
+    "estimator": "",
+    "meta_grad_norm": 0.0,
+    "n_independent_outcomes": 0,
+    "n_query": 0,
+    "n_support": 0,
+    "outer_objective": 0.0,
+    "reward_version_after": "rpsi1-s1.0-0f8bcc1384240ebb",
+    "reward_version_before": "rpsi1-s1.0-0f8bcc1384240ebb",
+    "skipped_reason": "no_policy_update_recorded"
+   },
+   {
+    "applied": false,
+    "bootstrap_mix": 1.0,
+    "estimator": "",
+    "meta_grad_norm": 0.0,
+    "n_independent_outcomes": 0,
+    "n_query": 0,
+    "n_support": 0,
+    "outer_objective": 0.0,
+    "reward_version_after": "rpsi1-s1.0-848188dabad33f15",
+    "reward_version_before": "rpsi1-s1.0-848188dabad33f15",
+    "skipped_reason": "insufficient_independent_outcomes:0<4"
+   },
+   {
+    "applied": false,
+    "bootstrap_mix": 1.0,
+    "estimator": "",
+    "meta_grad_norm": 0.0,
+    "n_independent_outcomes": 0,
+    "n_query": 0,
+    "n_support": 0,
+    "outer_objective": 0.0,
+    "reward_version_after": "rpsi1-s1.0-6cf9d1f1f6aeaaaf",
+    "reward_version_before": "rpsi1-s1.0-6cf9d1f1f6aeaaaf",
+    "skipped_reason": "insufficient_independent_outcomes:0<4"
+   }
+  ],
+  "n_decisions": 4,
+  "n_records": 4,
+  "prediction_resolutions": {
+   "all_resolved_after_registration": true,
+   "examples": [
+    {
+     "kind": "binary",
+     "made_at": 1795836074.2749615,
+     "metric": "action.succeeded",
+     "nll": 0.5112137907185016,
+     "observed": 1.0,
+     "predicted_mean": 0.5997671450247203,
+     "predicted_std": 0.4899454222396781,
+     "resolved_at": 1795836143.6301208,
+     "status": "observed"
+    },
+    {
+     "kind": "count",
+     "made_at": 1795836074.2749615,
+     "metric": "staging.entries.count",
+     "nll": 0.7699867782340859,
+     "observed": 0.0,
+     "predicted_mean": 1.8171829996943147,
+     "predicted_std": 2.892181849693343,
+     "resolved_at": 1795836169.2460988,
+     "status": "observed"
+    },
+    {
+     "kind": "count",
+     "made_at": 1795836074.2749615,
+     "metric": "observed.exec.modality.visual_heavy.n",
+     "nll": 0.7116351586487277,
+     "observed": 0.0,
+     "predicted_mean": 1.8984883932077419,
+     "predicted_std": 3.2583594963506233,
+     "resolved_at": 1795836168.960776,
+     "status": "observed"
+    },
+    {
+     "kind": "real",
+     "made_at": 1795836074.2749615,
+     "metric": "observed.exec.modality.visual_heavy.expected_cost",
+     "nll": 8.341741737090217,
+     "observed": 11.428571428571429,
+     "predicted_mean": 0.028958118706941607,
+     "predicted_std": 2.257448799377967,
+     "resolved_at": 1795836168.960776,
+     "status": "observed"
+    },
+    {
+     "kind": "real",
+     "made_at": 1795836074.2749615,
+     "metric": "observed.exec.modality.visual_heavy.recovery_s",
+     "nll": 2.745624843124129,
+     "observed": 3.0,
+     "predicted_mean": 0.1404682368040085,
+     "predicted_std": 2.3845979722281188,
+     "resolved_at": 1795836168.960776,
+     "status": "observed"
+    },
+    {
+     "kind": "binary",
+     "made_at": 1795836244.360651,
+     "metric": "action.succeeded",
+     "nll": 0.590473061191282,
+     "observed": 1.0,
+     "predicted_mean": 0.5540651160246407,
+     "predicted_std": 0.4970683687675591,
+     "resolved_at": 1795837042.7718372,
+     "status": "observed"
+    },
+    {
+     "kind": "count",
+     "made_at": 1795836244.360651,
+     "metric": "lab.adopters.total",
+     "nll": 0.702814501338176,
+     "observed": 0.0,
+     "predicted_mean": 1.5075260388834892,
+     "predicted_std": 2.4379280189593175,
+     "resolved_at": 1795837075.459836,
+     "status": "observed"
+    },
+    {
+     "kind": "count",
+     "made_at": 1795836244.360651,
+     "metric": "observed.lab.adopters.total",
+     "nll": 0.7166020925919082,
+     "observed": 0.0,
+     "predicted_mean": 1.5708444016667922,
+     "predicted_std": 2.5331282145808243,
+     "resolved_at": 1795837075.3256197,
+     "status": "observed"
+    },
+    {
+     "kind": "real",
+     "made_at": 1795836244.360651,
+     "metric": "observed.lab.time.remaining",
+     "nll": 66.31249340289618,
+     "observed": 171921.2905342579,
+     "predicted_mean": 0.04789882302284241,
+     "predicted_std": 2.2551452475253697,
+     "resolved_at": 1795837075.3256197,
+     "status": "observed"
+    },
+    {
+     "kind": "real",
+     "made_at": 1795836244.360651,
+     "metric": "observed.lab.budget.remaining",
+     "nll": 15.562364216829145,
+     "observed": 39.7,
+     "predicted_mean": 0.16332313418388367,
+     "predicted_std": 2.235458169471068,
+     "resolved_at": 1795837075.3256197,
+     "status": "observed"
+    },
+    {
+     "kind": "binary",
+     "made_at": 1795837085.130871,
+     "metric": "action.succeeded",
+     "nll": 0.515068486464529,
+     "observed": 1.0,
+     "predicted_mean": 0.5974596753161833,
+     "predicted_std": 0.4904096366174549,
+     "resolved_at": 1795840906.144886,
+     "status": "observed"
+    },
+    {
+     "kind": "count",
+     "made_at": 1795837085.130871,
+     "metric": "lab.adopters.total",
+     "nll": 0.49892198509514735,
+     "observed": 0.0,
+     "predicted_mean": 0.7511053531993604,
+     "predicted_std": 1.273110546928169,
+     "resolved_at": 1795840909.1448212,
+     "status": "observed"
+    },
+    {
+     "kind": "count",
+     "made_at": 1795837085.130871,
+     "metric": "observed.lab.adopters.total",
+     "nll": 0.5128921121468198,
+     "observed": 0.0,
+     "predicted_mean": 0.7698891016169319,
+     "predicted_std": 1.2856001246037425,
+     "resolved_at": 1795840908.9499183,
+     "status": "observed"
+    },
+    {
+     "kind": "real",
+     "made_at": 1795837085.130871,
+     "metric": "observed.lab.time.remaining",
+     "nll": 13.447394929777452,
+     "observed": 168087.66623783112,
+     "predicted_mean": 53256.15494786135,
+     "predicted_std": 88486.83276433183,
+     "resolved_at": 1795840908.9499183,
+     "status": "observed"
+    },
+    {
+     "kind": "real",
+     "made_at": 1795837085.130871,
+     "metric": "observed.lab.budget.remaining",
+     "nll": 12.245228541892214,
+     "observed": 37.7,
+     "predicted_mean": 31979.669551639145,
+     "predicted_std": 90196.0852202853,
+     "resolved_at": 1795840908.9499183,
+     "status": "observed"
+    },
+    {
+     "kind": "binary",
+     "made_at": 1795837085.130871,
+     "metric": "action.succeeded",
+     "nll": 0.515068486464529,
+     "observed": 1.0,
+     "predicted_mean": 0.5974596753161833,
+     "predicted_std": 0.4904096366174549,
+     "resolved_at": 1795840906.144886,
+     "status": "observed"
+    },
+    {
+     "kind": "count",
+     "made_at": 1795837085.130871,
+     "metric": "lab.adopters.total",
+     "nll": 0.49892198509514735,
+     "observed": 0.0,
+     "predicted_mean": 0.7511053531993604,
+     "predicted_std": 1.273110546928169,
+     "resolved_at": 1795840909.1448212,
+     "status": "observed"
+    },
+    {
+     "kind": "count",
+     "made_at": 1795837085.130871,
+     "metric": "observed.lab.adopters.total",
+     "nll": 0.5128921121468198,
+     "observed": 0.0,
+     "predicted_mean": 0.7698891016169319,
+     "predicted_std": 1.2856001246037425,
+     "resolved_at": 1795840908.9499183,
+     "status": "observed"
+    },
+    {
+     "kind": "real",
+     "made_at": 1795837085.130871,
+     "metric": "observed.lab.time.remaining",
+     "nll": 13.447394929777452,
+     "observed": 168087.66623783112,
+     "predicted_mean": 53256.15494786135,
+     "predicted_std": 88486.83276433183,
+     "resolved_at": 1795840908.9499183,
+     "status": "observed"
+    },
+    {
+     "kind": "real",
+     "made_at": 1795837085.130871,
+     "metric": "observed.lab.budget.remaining",
+     "nll": 12.245228541892214,
+     "observed": 37.7,
+     "predicted_mean": 31979.669551639145,
+     "predicted_std": 90196.0852202853,
+     "resolved_at": 1795840908.9499183,
+     "status": "observed"
+    },
+    {
+     "kind": "binary",
+     "made_at": 1795840919.95522,
+     "metric": "action.succeeded",
+     "nll": 0.4377859187039737,
+     "observed": 1.0,
+     "predicted_mean": 0.6454639498262019,
+     "predicted_std": 0.47837249011723093,
+     "resolved_at": 1795844848.862693,
+     "status": "observed"
+    }
+   ],
+   "mean_nll_by_kind": {
+    "binary": 0.513921948708563,
+    "count": 0.6155833406621041,
+    "real": 18.043433892909874
+   },
+   "n_registered": 206,
+   "n_resolved": 21,
+   "runtime_resolution_lines": 15
+  },
+  "weight_delta_by_timescale_group": {
+   "frequent:experiential": {
+    "max": 1.465162754058838,
+    "mean": 1.0276641305625809,
+    "min": 0.3298555836440613,
+    "n": 4,
+    "nonzero": 4
+   },
+   "frequent:heads": {
+    "max": 0.3819529712200165,
+    "mean": 0.32818418556578666,
+    "min": 0.2280045598745346,
+    "n": 4,
+    "nonzero": 4
+   }
+  }
+ },
+ "executed": true,
+ "failures": [],
+ "git_head": "",
+ "gpu_peak_gb": 9.512659549713135,
+ "kind": "staging_validation",
+ "lock_seconds": 1095.1091930866241,
+ "meta_step_effects": [],
+ "ok": false,
+ "parameters": {
+  "adapters": 16713856,
+  "adapters_bridge": 4917376,
+  "adapters_lora": 11796480,
+  "backbone": "Qwen/Qwen3-4B",
+  "backbone_pretrained": true,
+  "by_group": {
+   "backbone_frozen": 4022468096,
+   "experiential": 50953765,
+   "heads": 6055337,
+   "reward": 949121,
+   "semantic_adapters": 16713856
+  },
+  "experiential": 50953765,
+  "fast_state_numbers_per_kind": 16512,
+  "frozen": 4022468096,
+  "head_groups": {
+   "credit_cocoa": "heads",
+   "credit_rudder": "heads",
+   "predict_downstream": "heads",
+   "predict_evaluator": "heads",
+   "predict_policy": "heads",
+   "predict_transition": "heads",
+   "predict_world": "heads",
+   "reward": "reward"
+  },
+  "heads": {
+   "credit_cocoa": 925696,
+   "credit_rudder": 559361,
+   "predict_downstream": 84195,
+   "predict_evaluator": 783192,
+   "predict_policy": 702339,
+   "predict_transition": 1977600,
+   "predict_world": 1022954,
+   "reward": 949121
+  },
+  "heads_total": 6055337,
+  "reward": 949121,
+  "scale": "50m",
+  "total_persistent_trainable": 74672079
+ },
+ "passed": false,
+ "phase_computer": {
+  "approvals_resolved": [],
+  "chosen": [
+   [
+    "browser.screenshot",
+    "schema_walker"
+   ]
+  ],
+  "counters": {
+   "actions_executed": 1,
+   "compute_s": 131.3985870219767,
+   "decisions": 1,
+   "external_actions": 0,
+   "failures": 0,
+   "money": 0.0,
+   "waits": 0
+  },
+  "errors": [],
+  "executed_after_approval": 0,
+  "grant_refusals": 0,
+  "journal": true,
+  "key": "store_entry",
+  "learning_skipped_for_compute": 4,
+  "limits": {
+   "compute_s": 80.0,
+   "max_decisions": 10,
+   "max_external_actions": 2,
+   "money": 1.0
+  },
+  "metrics": [
+   {
+    "exposure": 1.0,
+    "kind": "count",
+    "name": "staging.items.count",
+    "unit": "",
+    "value": 3.0
+   },
+   {
+    "exposure": 1.0,
+    "kind": "count",
+    "name": "staging.items.archived",
+    "unit": "",
+    "value": 0.0
+   },
+   {
+    "exposure": 1.0,
+    "kind": "count",
+    "name": "staging.uploads.count",
+    "unit": "",
+    "value": 0.0
+   },
+   {
+    "exposure": 1.0,
+    "kind": "count",
+    "name": "staging.entries.count",
+    "unit": "",
+    "value": 0.0
+   }
+  ],
+  "reason": "limit compute_s exhausted",
+  "resource_limit_refusals": 0,
+  "result_kinds": {
+   "execute:ok": 1
+  },
+  "runtime_dir": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2INTEGRATION/staging/run1/computer/runtime",
+  "seconds": 132.46570301055908,
+  "status": "exhausted",
+  "steps": 2,
+  "tools": 80,
+  "verified": {
+   "evaluated_at": 1795836169.3348463,
+   "evidence_refs": [
+    "source:staging-sites",
+    "verifier-log:3"
+   ],
+   "excluded": {},
+   "notes": "staging.entries.count = 0 read from staging-sites.",
+   "objective_id": "obj_staging_computer",
+   "origin": "operator",
+   "secondary": [
+    {
+     "exposure": 1.0,
+     "kind": "real",
+     "name": "secondary.time_elapsed_s",
+     "unit": "s",
+     "value": 105.77546691894531
+    }
+   ],
+   "signature": "a56f3296cf796f95ca74155654ad7aaf2333785546fe1d92a3de47020df1530e",
+   "status": "pending",
+   "target": 1.0,
+   "uncertainty": 0.0,
+   "value": 0.0
+  }
+ },
+ "phase_lab": {
+  "lifetimes": [
+   {
+    "counters": {
+     "actions_executed": 3,
+     "compute_s": 881.4932760396041,
+     "decisions": 3,
+     "external_actions": 3,
+     "failures": 0,
+     "money": 6.3,
+     "waits": 0
+    },
+    "errors": [],
+    "restart": null,
+    "runtime_dir": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2INTEGRATION/staging/run1/lab_101/runtime",
+    "seconds": 844.8407602310181,
+    "seed": 101,
+    "status": "stopped",
+    "steps": 3,
+    "target": 6,
+    "verified": {
+     "evaluated_at": 1795840909.2274084,
+     "evidence_refs": [],
+     "excluded": {},
+     "notes": "labworld ground truth",
+     "objective_id": "obj_staging_lab_101",
+     "origin": "",
+     "secondary": [
+      {
+       "exposure": 1.0,
+       "kind": "real",
+       "name": "lab.budget.spent",
+       "unit": "",
+       "value": 2.3
+      }
+     ],
+     "signature": "ac1f9f815b63927d15d31c141b20c60cd5b0cd8c717d352dba183ccd59a46058",
+     "status": "pending",
+     "target": 6.0,
+     "uncertainty": 0.0,
+     "value": 0.0
+    }
+   }
+  ],
+  "stopped": "time budget of 574 s reached before lifetime 102"
+ },
+ "real_model": true,
+ "requirements": [
+  "IN-07",
+  "LX-11",
+  "IN-01",
+  "NA-06",
+  "CU-22",
+  "CU-30",
+  "CL-02",
+  "CL-03",
+  "CL-09",
+  "MR-01",
+  "MR-03",
+  "MR-05",
+  "MR-06",
+  "PI-02",
+  "RC-01",
+  "AE-05",
+  "AE-08"
+ ],
+ "requirements_evidenced": [
+  "CL-02",
+  "CL-09",
+  "CU-22",
+  "CU-30",
+  "IN-01",
+  "IN-07",
+  "LX-11",
+  "MR-01",
+  "NA-06",
+  "PI-02",
+  "RC-01"
+ ],
+ "reward_param_delta_norm_total": 0.0,
+ "root": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2INTEGRATION/staging/run1",
+ "seed": 0,
+ "settings": {
+  "agent": {
+   "experiment_rate": 0.1,
+   "planner_measure_every": 4,
+   "policy_update_batch": 12,
+   "policy_update_every": 3,
+   "proposer_k": 4,
+   "proposer_max_new_tokens": 160
+  },
+  "approvals": true,
+  "backbone": "Qwen/Qwen3-4B",
+  "budget_s": 780.0,
+  "computer_compute_limit_s": 80.0,
+  "computer_decisions": 10,
+  "computer_key": "store_entry",
+  "computer_share": 0.25,
+  "credit": {
+   "learner": {
+    "adapter_every": 3,
+    "batch_size": 8,
+    "grad_last": 2,
+    "min_independent_outcomes": 2,
+    "slow_batch_size": 3,
+    "warmup_steps": 2
+   }
+  },
+  "external_limit": 2,
+  "lab_decisions_per_lifetime": 7,
+  "lab_drain": true,
+  "lab_kw": {
+   "mean_delay_s": [
+    900.0,
+    3600.0
+   ],
+   "outcome_horizon_s": 7200.0
+  },
+  "lab_seeds": [
+   101,
+   102,
+   103,
+   104
+  ],
+  "lab_target": [
+   6,
+   30,
+   10,
+   40
+  ],
+  "meta_min_independent_outcomes": 4,
+  "n_decisions": 40,
+  "restart": true,
+  "scale": "50m"
+ },
+ "started_utc": "20261128T030744Z",
+ "wall_seconds": 1866.2309975624084
+}

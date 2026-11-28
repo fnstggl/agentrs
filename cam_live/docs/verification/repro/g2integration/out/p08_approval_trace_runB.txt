@@ -1,0 +1,27 @@
+approvals at the authorization service: [('apr_1f9f8e3686804194', 'approved')]
+task usage at the authorization service: {'decisions': 4.0, 'external_actions': 1.0, 'primitive_ops': 3.0, 'seconds': 0.9723353385925293}
+grants: [('closed', '', '{"compute_s":0.0,"external_actions":1.0,"money":0.0}'), ('closed', '', '{"compute_s":0.0,"external_actions":0.0,"money":0.0}'), ('issued', 'apr_1f9f8e3686804194', '{"compute_s":0.0,"external_actions":1.0,"money":0.0}'), ('closed', '', '{"compute_s":0.0,"external_actions":0.0,"money":0.0}')]
+authorization trail:
+  authorize          browser.navigate   allow                                  permitted by policy default-2
+  grant_use                                                                    
+  authorize          internal.inspect   allow                                  permitted by policy default-2
+  grant_use                                                                    
+  approval_requested                                    apr_1f9f8e3686804194   
+  authorize          browser.fill       needs_approval  apr_1f9f8e3686804194   interaction with owned page url:127.0.0.1:34061/a needs the operator's approval (not pre-authorized)
+  approval_resolved                     approved        apr_1f9f8e3686804194   
+  authorize          browser.fill       allow           apr_1f9f8e3686804194   permitted by policy default-2; approved by the operator (apr_1f9f8e3686804194)
+  authorize          browser.fill       deny                                   resource: max_external_actions exhausted (used 2 incl. reserved, requested 1, limit 2)
+  authorize          browser.click      deny                                   resource: max_external_actions exhausted (used 2 incl. reserved, requested 1, limit 2)
+  authorize          internal.inspect   allow                                  permitted by policy default-2
+  grant_use                                                                    
+  authorize          browser.download   deny                                   url:amount/ is an address of this machine or its network (private_name) and not a registered local service; th
+runtime action results:
+  internal.inspect   execute   ok             none                                        
+  browser.fill       queued    needs_approval none                 apr_1f9f8e3686804194   queued for operator approval: interaction with owned page url:[REDACTED:ipv4]:34061/a need
+  browser.fill       rejected  denied         missing_permission   apr_1f9f8e3686804194   the operator rejected approval apr_1f9f8e3686804194
+  browser.click      denied    denied         missing_permission                          resource: max_external_actions exhausted (used 2 incl. reserved, requested 1, limit 2)
+  internal.inspect   execute   ok             none                                        
+  browser.download   denied    denied         missing_permission                          url:amount/ is an address of this machine or its network (private_name) and not a register
+[BROKEN] approval apr_1f9f8e3686804194 (approved by operator) is not reported to the learner as rejected by the operator :: the operator rejected approval apr_1f9f8e3686804194
+[BROKEN] approval apr_1f9f8e3686804194: the approved action was executed, or not executed with the true reason :: executed 0, reported ['rejected']
+== p08_approval_trace: 2 broken
