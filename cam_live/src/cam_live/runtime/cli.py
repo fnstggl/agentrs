@@ -799,6 +799,7 @@ def _export_offline(run_dir: str, a: argparse.Namespace) -> Dict[str, Any]:
         verified: Any = "no MANIFEST.json in the checkpoint (not verifiable)"
         if os.path.isfile(os.path.join(copy, "MANIFEST.json")):
             from ..credit.checkpoint import verify_checkpoint
+            _manifest_paths_inside(copy)        # R5-m1: before anything stats / hashes a path the MANIFEST names
             bad = verify_checkpoint(copy)
             if bad:
                 raise ExportRefused(f"the checkpoint does not match its MANIFEST: {bad[:3]}")
@@ -825,6 +826,33 @@ def _export_offline(run_dir: str, a: argparse.Namespace) -> Dict[str, Any]:
             "exported_at": WallClock().now()}
     atomic_write_json(dest.rstrip("/") + ".export.json", meta)
     return meta
+
+
+def _manifest_paths_inside(copy: str) -> None:
+    """R5-m1: every path a (learner-written) MANIFEST names must be relative, without ``..``, and resolve inside the
+    checkpoint copy without following a symbolic link; otherwise the export is refused (root would otherwise stat
+    and hash files elsewhere and print their sizes)."""
+    try:
+        with open(os.path.join(copy, "MANIFEST.json")) as f:
+            m = json.load(f)
+        files = m.get("files") if isinstance(m, dict) else None
+    except (OSError, ValueError) as e:
+        raise ExportRefused(f"the checkpoint's MANIFEST is unreadable ({type(e).__name__})")
+    if not isinstance(files, dict):
+        raise ExportRefused("the checkpoint's MANIFEST has no file list")
+    root = os.path.realpath(copy)
+    for rel in files:
+        r = str(rel)
+        parts = r.replace("\\", "/").split("/")
+        if not r or os.path.isabs(r) or r.startswith("~") or ".." in parts or "\x00" in r:
+            raise ExportRefused(f"the checkpoint's MANIFEST names a path outside the checkpoint: {r[:120]!r}")
+        cur = root
+        for part in [x for x in parts if x not in ("", ".")]:
+            cur = os.path.join(cur, part)
+            if os.path.islink(cur):
+                raise ExportRefused(f"the checkpoint's MANIFEST names a path through a symbolic link: {r[:120]!r}")
+        if not (os.path.realpath(cur) + os.sep).startswith(root + os.sep):
+            raise ExportRefused(f"the checkpoint's MANIFEST names a path outside the checkpoint: {r[:120]!r}")
 
 
 def cmd_export_checkpoint(a: argparse.Namespace) -> int:

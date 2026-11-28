@@ -525,3 +525,23 @@ def test_a_hold_is_bounded_between_learner_calls_not_only_between_cycles(tmp_pat
     # once each call's duration is known, no hold reaches a whole cycle (0.6 s); only the very first may
     assert len([h for h in holds if h > 0.55]) <= 1, holds                  # a5ab772: every hold is a whole cycle
     lab.rt.close()
+
+
+# ---------------------------------------------------------------------------------------------------------- R5-m1
+def test_an_export_refuses_a_manifest_that_names_paths_outside_the_checkpoint(tmp_path):
+    import inspect
+    from cam_live.runtime import cli
+    ck = tmp_path / "ck"
+    (ck / "sub").mkdir(parents=True)
+    (ck / "sub" / "w.bin").write_bytes(b"x")
+    outside = tmp_path / "secret.txt"
+    outside.write_text("not the checkpoint's")
+    os.symlink(str(tmp_path), str(ck / "link"))
+    good = {"files": {"sub/w.bin": {"bytes": 1, "sha256": ""}}}
+    (ck / "MANIFEST.json").write_text(json.dumps(good))
+    cli._manifest_paths_inside(str(ck))                                       # a plain relative path is fine
+    for rel in ("../secret.txt", str(outside), "sub/../../secret.txt", "link/secret.txt", "~/x"):
+        (ck / "MANIFEST.json").write_text(json.dumps({"files": {rel: {"bytes": 1, "sha256": ""}}}))
+        with pytest.raises(cli.ExportRefused):
+            cli._manifest_paths_inside(str(ck))
+    assert "_manifest_paths_inside(copy)" in inspect.getsource(cli)          # checked before verify_checkpoint
