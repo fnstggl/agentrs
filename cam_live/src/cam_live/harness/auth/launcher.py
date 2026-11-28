@@ -57,13 +57,19 @@ from . import stop as _stop
 from .grants import KEY_BYTES
 from .schema import DEFAULT_POLICY_PATH
 
-START_ORDER = ("auth", "verifier", "exec", "learner")
-DEFAULT_ROLES = {"auth": "auth", "exec": "browser", "verifier": "verifier", "learner": "learner"}
-DEFAULT_SOCKETS = {"auth": SOCK_AUTH, "exec": SOCK_EXEC, "verifier": SOCK_VERIFY, "learner": ""}
+START_ORDER = ("auth", "verifier", "sandbox", "exec", "learner")
+#: "sandbox" is the sandbox host (cam_live.harness.sandbox_host): root, so that it can drop every program to the
+#: sandbox uid; it serves only the environment service's uid. Started with "exec" in the separated deployment.
+DEFAULT_ROLES = {"auth": "auth", "exec": "browser", "verifier": "verifier", "learner": "learner", "sandbox": "root"}
+DEFAULT_SOCKETS = {"auth": SOCK_AUTH, "exec": SOCK_EXEC, "verifier": SOCK_VERIFY, "learner": "",
+                   "sandbox": "sandbox.sock"}
 ENV_PASSTHROUGH = ("PATH", "LANG", "LC_ALL", "TZ", "HF_HOME", "HF_HUB_OFFLINE", "TOKENIZERS_PARALLELISM",
                    "CUDA_VISIBLE_DEVICES", "NVIDIA_VISIBLE_DEVICES", "NVIDIA_DRIVER_CAPABILITIES", "LD_LIBRARY_PATH",
                    "PLAYWRIGHT_BROWSERS_PATH", "CAM_LIVE_GPU_LOCK", "CAM_LIVE_HOME", "OMP_NUM_THREADS",
-                   "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS")
+                   "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
+                   # this instance's public address: the authorization service counts it as an address of this
+                   # machine (localnet), so it must see it in the separated deployment too (G2-harness D7)
+                   "PUBLIC_IPADDR")
 RUN_TAG_ENV, SERVICE_ENV = "CAM_LIVE_RUN_TAG", "CAM_LIVE_SERVICE"
 # sets no_new_privs, then becomes the real command
 _TRAMPOLINE = ("import ctypes,os,sys\n"
@@ -659,7 +665,8 @@ def _resolve(services: Optional[Sequence[Union[str, ServiceSpec]]], cfg: Launche
             spec = dataclasses.replace(s)
             spec.role = spec.role or cfg.roles.get(spec.name, "")
         elif s in SERVICE_MODULES:
-            spec = ServiceSpec(name=s, module=SERVICE_MODULES[s], role=cfg.roles[s], socket=DEFAULT_SOCKETS.get(s, ""),
+            spec = ServiceSpec(name=s, module=SERVICE_MODULES[s], role=cfg.roles.get(s, DEFAULT_ROLES.get(s, "")),
+                               socket=DEFAULT_SOCKETS.get(s, ""),
                                stop_on_estop=(s != "auth"))
         else:
             raise KeyError(f"unknown service {s!r}; known: {sorted(SERVICE_MODULES)}")
@@ -686,7 +693,21 @@ def launch(run_dir: str, services: Optional[Sequence[Union[str, ServiceSpec]]] =
     separated = (os.geteuid() == 0) if cfg.separated is None else bool(cfg.separated)
     if separated:
         _ensure_users()
+    if separated and services is not None:
+        names = [x.name if isinstance(x, ServiceSpec) else x for x in services]
+        if "exec" in names and "sandbox" not in names and cfg.roles.get("exec", "browser") != "root":
+            # the environment service is not root: its generated-code sandbox runs in the sandbox host (G2-harness D2)
+            services = list(services) + ["sandbox"]
     specs, unavailable = _resolve(services, cfg)
+    by_name = {sp.name: sp for sp in specs}
+    if "sandbox" in by_name and by_name["sandbox"].argv is None:
+        sb = by_name["sandbox"]
+        exec_role = cfg.roles.get("exec", "browser")
+        if separated:
+            sb.args = list(sb.args) + ["--client-uid", str(_ids(exec_role)[0])]
+        if "exec" in by_name:
+            by_name["exec"].env = dict(by_name["exec"].env, CAM_LIVE_SANDBOX_SOCKET=os.path.join(
+                os.path.abspath(run_dir), "sock", by_name["sandbox"].socket or "sandbox.sock"))
     layout = prepare_run_dir(run_dir, separated, cfg.roles, cfg.policy_path, cfg.operator_pubkey)
     handle = LaunchHandle(run_dir, cfg, separated, layout, specs)
     for name, why in unavailable.items():

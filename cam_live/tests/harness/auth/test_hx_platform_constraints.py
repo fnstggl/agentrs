@@ -157,9 +157,11 @@ def test_raw_requests_and_code_never_act_as_a_discord_user(svc, lt):
     ]:
         d = decide(svc, lt, op, None, **args)
         assert refused(d, U), (op, args, d.verdict, d.policy_ids, d.reasons)
-    # the official bot integration and a bot-scheme request to a bot endpoint are not touched by the constraint
+    # a bot-scheme raw request to a bot endpoint is not a user-account action, but since G2-harness D1 it is refused
+    # as well: Discord is reached only through its adapter (X-PLATFORM-ADAPTER); the official integration is not
+    # touched by either constraint
     d = decide(svc, lt, "http.get", None, url="https://discord.com/api/v10/guilds/1/channels", auth=bot)
-    assert U not in d.policy_ids and d.verdict == ALLOW, (d.policy_ids, d.reasons)
+    assert U not in d.policy_ids and d.verdict == DENY and PC.PID_ADAPTER in d.policy_ids, (d.policy_ids, d.reasons)
     d = decide(svc, lt, "discord.send_message", None, channel_id="900000000000000011",
                content="The weekly notes are up in the resources channel.")
     assert U not in d.policy_ids and d.verdict == ALLOW, (d.policy_ids, d.reasons)

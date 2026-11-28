@@ -163,8 +163,11 @@ class PageScreen:
         return self.page.url
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def chromium():
+    # module scope (not session): sync_playwright() keeps an asyncio loop running in the main thread while it is
+    # open, and later tests elsewhere that start their own sync_playwright() in the main thread would be refused
+    # ("Sync API inside the asyncio loop", change request HX-4)
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
         try:

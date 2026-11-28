@@ -964,6 +964,42 @@ class BrowserScreen:
         self._run(lambda p: self._x._settle(p))
 
 
+#: resource types of page requests whose response the page's scripts can read: judged per URL (G2-harness D6)
+_SCRIPT_READ_TYPES = ("fetch", "xhr", "eventsource")
+
+
+def _form_fields(req: Any, limit: int = 64) -> List[str]:
+    """Names of the fields a request submits (form-urlencoded, multipart or a JSON object), bounded; [] if none."""
+    try:
+        ctype = str((req.headers or {}).get("content-type", "")).lower()
+        data = req.post_data_buffer
+    except Exception:  # noqa: BLE001 — no body / not decodable
+        return []
+    if not data:
+        return []
+    names: List[str] = []
+    try:
+        if "multipart/form-data" in ctype:
+            for m in re.finditer(rb'(?i)content-disposition:\s*form-data;\s*name="([^"]{1,200})"', data[:262144]):
+                names.append(m.group(1).decode("utf-8", "replace"))
+        elif "json" in ctype:
+            obj = json.loads(data[:262144].decode("utf-8", "replace"))
+            if isinstance(obj, dict):
+                names = [str(k) for k in obj]
+        else:
+            from urllib.parse import parse_qsl
+            names = [k for k, _v in parse_qsl(data[:262144].decode("utf-8", "replace"), keep_blank_values=True)]
+    except Exception:  # noqa: BLE001
+        return []
+    out: List[str] = []
+    for n in names:
+        if n not in out:
+            out.append(n[:120])
+        if len(out) >= limit:
+            break
+    return out
+
+
 class BrowserExecutor:
     """``contracts.ModalityExecutor`` for ``Modality.STRUCTURED_BROWSER``."""
     modality = Modality.STRUCTURED_BROWSER
@@ -1508,6 +1544,21 @@ class BrowserExecutor:
     def _blocked(self, sess: _Session, url: str, why: str, verdict: str, main: bool, via: str) -> None:
         sess.blocked.append({"url": url, "why": why, "verdict": verdict, "main": main, "via": via})
 
+    async def _script_read_allowed(self, sess: _Session, url: str, resource: str, method: str) -> AuthorizationDecision:
+        """A script-initiated read, judged per URL (fragment and query kept out of the cache key's path)."""
+        now = self.clock.now()
+        key = "script:" + _norm_url(url)
+        cached = sess.origin_cache.get(key)
+        if cached is not None and cached[1] >= now:
+            return AuthorizationDecision(AuthVerdict.ALLOW if cached[0] else AuthVerdict.DENY,
+                                         reasons=[] if cached[0] else ["request denied earlier in this action"])
+        op = PrimitiveOp(op="browser.request", modality=self.modality, started=now, ended=now,
+                         arguments={"url": url, "resource_type": resource, "method": method, "via": "page",
+                                    "session": sess.name})
+        dec = await self._check(sess.ctx, op, sess.action)
+        sess.origin_cache[key] = (dec.verdict == AuthVerdict.ALLOW, now + self.cfg.origin_cache_s)
+        return dec
+
     async def _read_allowed(self, sess: _Session, origin: str, resource: str, method: str) -> AuthorizationDecision:
         """Reads (GET / HEAD / OPTIONS of a subresource) are judged per origin, once per action."""
         now = self.clock.now()
@@ -1620,22 +1671,36 @@ class BrowserExecutor:
                 if sess.approved.get(key, 0) > 0:
                     sess.approved[key] -= 1
                 else:
+                    nav_args = {"url": url, "via": "page", "method": method, "session": sess.name}
+                    fields = _form_fields(req) if method not in self._READ_METHODS else []
+                    if fields:                       # a form submitted as a navigation
+                        nav_args["form_fields"] = fields
                     op = PrimitiveOp(op="browser.navigate", modality=self.modality, started=now, ended=now,
-                                     arguments={"url": url, "via": "page", "method": method, "session": sess.name})
+                                     arguments=nav_args)
                     dec = await self._check(sess.ctx, op, sess.action)
                     if dec.verdict != AuthVerdict.ALLOW:
                         return await block("; ".join(dec.reasons) or "navigation denied", dec.verdict, main)
                 sess.checked.add(key)
                 sess.origins_ok[origin] = True
                 return await go()
-            if method in self._READ_METHODS:
+            if method in self._READ_METHODS and req.resource_type in _SCRIPT_READ_TYPES:
+                # a script's read (fetch / XHR / EventSource): its response is readable by the page, so it is
+                # judged per URL like a write, not per origin -- a path the task denies stays denied even on the
+                # page's own origin (G2-harness D6); allowed URLs are remembered for the rest of the action
+                dec = await self._script_read_allowed(sess, url, req.resource_type, method)
+            elif method in self._READ_METHODS:
                 dec = await self._read_allowed(sess, origin, req.resource_type, method)
             else:
                 # a write (a script's POST, a form submission into a frame, a beacon): reported and judged per URL,
-                # also on an origin the page itself came from
+                # also on an origin the page itself came from; the names of submitted form fields are reported so
+                # that a human-verification answer is recognised (G2-harness D4)
+                args = {"url": url, "method": method, "resource_type": req.resource_type, "via": "page",
+                        "session": sess.name}
+                fields = _form_fields(req)
+                if fields:
+                    args["form_fields"] = fields
                 op = PrimitiveOp(op="browser.request", modality=self.modality, started=now, ended=now,
-                                 arguments={"url": url, "method": method, "resource_type": req.resource_type,
-                                            "via": "page", "session": sess.name})
+                                 arguments=args)
                 dec = await self._check(sess.ctx, op, sess.action)
             if dec.verdict == AuthVerdict.ALLOW:
                 return await go()

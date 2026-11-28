@@ -61,6 +61,13 @@ def browser(run_dir: str, clock: Optional[Clock] = None, browser_config: Any = N
 
 def code(run_dir: str, clock: Optional[Clock] = None, sandbox_config: Any = None, sandbox_workspace: str = "",
          **_: Any) -> ModalityExecutor:
+    """The sandbox in this process when it can drop programs to the sandbox uid (root); otherwise, in the separated
+    deployment, the sandbox host the launcher started as root (``$CAM_LIVE_SANDBOX_SOCKET``): the environment
+    service itself never needs root (G2-harness D2)."""
+    from .sandbox_host import ENV_SOCKET, RemoteSandboxExecutor
+    remote = os.environ.get(ENV_SOCKET, "")
+    if remote and os.geteuid() != 0 and sandbox_config is None:
+        return RemoteSandboxExecutor(remote)
     from .sandbox import SandboxExecutor
     return SandboxExecutor(workspace=sandbox_workspace or default_sandbox_workspace(run_dir), cfg=sandbox_config)
 

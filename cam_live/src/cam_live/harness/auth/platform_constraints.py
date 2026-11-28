@@ -49,7 +49,7 @@ from __future__ import annotations
 
 import fnmatch
 import re
-from typing import Any, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 from urllib.parse import parse_qsl, urlsplit
 
 from ... import contracts as C
@@ -57,7 +57,16 @@ from . import destinations as D
 
 PID_HUMAN = "X-HUMAN-VERIFICATION"
 PID_ACCOUNT = "X-USER-ACCOUNT"
-PIDS = (PID_HUMAN, PID_ACCOUNT)
+PID_ADAPTER = "X-PLATFORM-ADAPTER"
+PIDS = (PID_HUMAN, PID_ACCOUNT, PID_ADAPTER)
+
+#: integrated platforms: the operations of their official adapter. A platform's data (its API, gateway, attachment
+#: CDN) is reached only through these operations, whose data-use rules apply, and the platform's credential is
+#: released only to them (G2-harness D1; spec 12.5, 12.6, 12A.7 "never interpret an access restriction as a reason
+#: to switch execution modalities")
+PLATFORM_ADAPTER_OPS: Dict[str, Tuple[str, ...]] = {"discord": ("discord.*",)}
+#: credential names that belong to a platform even when the operator stored them without its scope
+PLATFORM_CREDENTIALS: Dict[str, str] = {"discord_bot_token": "discord"}
 
 _BROWSER = (C.Modality.STRUCTURED_BROWSER, C.Modality.VISUAL)
 _RAW = (C.Modality.API, C.Modality.CODE, C.Modality.SKILL)
@@ -94,6 +103,31 @@ TOKEN_FIELDS = frozenset((
     "captchasolution", "captchaanswer", "captchacode", "captchatext", "captchavalue", "captchakey", "captchaid",
     "arkosetoken", "fctoken", "funcaptchatoken", "geetestvalidate", "geetestseccode", "geetestchallenge",
     "datadomecaptcha", "pxcaptcha", "awswaftoken", "frccaptchasolution", "mtcaptchaverifiedtoken"))
+
+#: parts of a normalised key (argument, body field, URL query, form field) that make it a human-verification
+#: answer: matched as substrings, so ``captcha_input``, ``recaptcha_response_field``, ``captchaResponseToken``,
+#: ``human_check`` are recognised without an exact list (G2-harness D4)
+TOKEN_KEY_PARTS = ("captcha", "recaptcha", "hcaptcha", "turnstile", "humancheck", "humanverif", "notarobot",
+                   "imnotarobot", "botcheck", "antibot", "arkose", "funcaptcha", "geetest", "frccaptcha",
+                   "challengeresponse", "challengeanswer", "challengetoken", "proofofhuman")
+#: accessible names / labels of page elements that are a human-verification test (structural, any site)
+_HUMAN_TEST_TEXT = re.compile(
+    r"(?i)captcha|\bturnstile\b|human[\s_\-]*(verification|check|test)|verify\s+(that\s+)?you(\s+are|'re)\s+(a\s+)?"
+    r"(human|real|not\s+a\s+(ro)?bot)|prove\s+(that\s+)?you(\s+are|'re)\s+(a\s+)?human|(i\s*am|i'm)\s+not\s+a\s+"
+    r"(ro)?bot|are\s+you\s+(a\s+)?(human|(ro)?bot)|not\s+a\s+robot|bot\s+(check|detection|protection)|"
+    r"security\s+(check|challenge)|type\s+the\s+(characters|letters|text|code)\s+(you\s+see|shown|in\s+the\s+image)|"
+    r"select\s+all\s+(images|squares)")
+
+
+def is_token_key(key: str) -> bool:
+    """A normalised key that names a human-verification answer (substring match on :data:`TOKEN_KEY_PARTS`)."""
+    k = re.sub(r"[^a-z0-9]", "", str(key).lower())
+    return k in TOKEN_FIELDS or any(part in k for part in TOKEN_KEY_PARTS)
+
+
+def is_human_test_label(text: str) -> bool:
+    return bool(text) and bool(_HUMAN_TEST_TEXT.search(str(text)))
+
 
 #: normalised operation-name parts that make an operation a human-verification "solver"
 _OP_WORDS = ("captcha", "humanverification", "botchallenge", "solvechallenge", "bypasschallenge", "antibot",
@@ -148,12 +182,18 @@ DISCORD_USER_ENDPOINTS: Tuple[str, ...] = (
     "/applications/detectable*", "/discoverable-guilds*", "/guilds/*/requests*", "/guilds/*/member-verification*",
     "/guilds/*/members/@me", "/guilds/*/members/@me/*", "/guilds/*/premium*", "/guilds/*/profile*",
     "/guilds/*/join-requests*", "/guilds/*/ack*", "/channels/*/messages/*/ack", "/read-states*", "/sticker-packs*")
+#: Discord's attachment CDN (files of the guild's messages): platform data like the API
+_DISCORD_CDN = (("cdn.discordapp.com", ("/attachments/*", "/ephemeral-attachments/*")),
+                ("media.discordapp.net", ("/attachments/*", "/ephemeral-attachments/*")),
+                ("cdn.discord.com", ("/attachments/*", "/ephemeral-attachments/*")))
 _API_PREFIX = re.compile(r"^/api(/v\d+)?(?=/|$)")
 _SELFBOT_TEXT = re.compile(
     r"(?i)(?<![a-z0-9])(self[_\-\s]?bots?|discord\.py-self|discord-self|discord\.js-selfbot(-v\d+)?|"
     r"discum)(?![a-z0-9])|/api(/v\d+)?/auth/(login|register|mfa)")
 #: only together with a reference to Discord: a user token is the credential of a user account
 _USER_TOKEN_TEXT = re.compile(r"(?i)(?<![a-z0-9])user[_\-\s]?token(?![a-z0-9])")
+#: resource types of page requests that scripts issue (their responses are readable by the page)
+_SCRIPT_READS = ("xhr", "fetch", "eventsource", "websocket", "other", "ping", "beacon")
 _GATEWAY_HOSTS = ("gateway.discord.gg", "*.discord.gg", "gateway.discord.com", "*.gateway.discord.gg")
 
 
@@ -196,6 +236,39 @@ def discord_api_path(d: D.Destination) -> Optional[str]:
     return (d.path[m.end():] or "/")
 
 
+def is_discord_data(d: D.Destination) -> bool:
+    """Discord's REST API, its Gateway, or its attachment CDN: the platform's data."""
+    if d.kind != "url" or not is_discord(d):
+        return False
+    if discord_api_path(d) is not None or _host_in(d.host, _GATEWAY_HOSTS):
+        return True
+    return any(_host_in(d.host, (h,)) and _path_in(d.path, paths) for h, paths in _DISCORD_CDN)
+
+
+def _discord_client_path(path: str) -> bool:
+    p = path or "/"
+    if _path_in(p, DISCORD_CLIENT_PATHS):
+        return True
+    # the developer portal (applications, bots and their tokens, teams, servers) runs with a user's session; only
+    # the documentation below /developers/docs is public reading (G2-harness D3)
+    low = p.lower()
+    return low.startswith("/developers/") and not (low == "/developers/" or low.startswith("/developers/docs"))
+
+
+def adapter_op(operation: str, platform: str) -> bool:
+    return any(fnmatch.fnmatchcase(operation or "", g) for g in PLATFORM_ADAPTER_OPS.get(platform, ()))
+
+
+def credential_platform(name: str, scopes: Sequence[str] = ()) -> str:
+    """The integrated platform a stored credential belongs to ('' for none)."""
+    n = str(name or "")
+    n = n[len("secret:"):] if n.startswith("secret:") else n
+    for sc in scopes or ():
+        if str(sc).lower() in PLATFORM_ADAPTER_OPS:
+            return str(sc).lower()
+    return PLATFORM_CREDENTIALS.get(n, "")
+
+
 def _query_keys(d: D.Destination) -> List[str]:
     if d.kind != "url" or "?" not in (d.raw or ""):
         return []
@@ -223,12 +296,15 @@ def _truthy(v: Any) -> bool:
 
 
 def findings(node: C.ActionSpec, dests: Sequence[D.Destination], effect: str, text_all: str,
-             expanded_args: Any, raw_tool: bool, opaque: bool) -> List[Tuple[str, str, Optional[D.Destination]]]:
+             expanded_args: Any, raw_tool: bool, opaque: bool,
+             secret_platform: Optional[Callable[[str], str]] = None,
+             realises: Sequence[str] = ()) -> List[Tuple[str, str, Optional[D.Destination]]]:
     """``(policy id, reason, destination)`` of every hard constraint ``node`` violates.
 
     ``effect`` is the node's resolved base effect (``external_read`` / ``external_write`` / ``interact`` /
     ``local`` / ``none``); ``raw_tool`` is true for raw HTTP tools (``http.*``, ``net.request``, ``api.*``);
-    ``opaque`` for tools whose payload is program text."""
+    ``opaque`` for tools whose payload is program text; ``realises`` the operations of the granted action a
+    primitive belongs to (the adapter's own transport requests realise an adapter operation)."""
     out: List[Tuple[str, str, Optional[D.Destination]]] = []
     op_norm = re.sub(r"[^a-z0-9]", "", (node.operation or "").lower())
     modality = node.modality
@@ -245,10 +321,23 @@ def findings(node: C.ActionSpec, dests: Sequence[D.Destination], effect: str, te
         elif is_challenge(d) and active:
             out.append((PID_HUMAN, f"{d.key} is a human-verification challenge: loading a page that embeds it is "
                                    f"permitted, interacting with or answering it is not", d))
-        if TOKEN_FIELDS & set(_query_keys(d)):
-            out.append((PID_HUMAN, "the URL carries a solved human-verification token", d))
+        if any(is_token_key(k) for k in _query_keys(d)):
+            out.append((PID_HUMAN, "the URL carries a human-verification answer", d))
     keys = [(k, v) for k, v in _walk_keys(expanded_args) if _truthy(v)]
-    tok = sorted({k for k, _ in keys if k in TOKEN_FIELDS})
+    tok = sorted({k for k, _ in keys if is_token_key(k)})
+    a0 = node.arguments if isinstance(node.arguments, dict) else {}
+    ff = a0.get("form_fields")
+    if isinstance(ff, (list, tuple)):          # a page's form submission / write request, as the browser reports it
+        hit = sorted({str(f) for f in ff if isinstance(f, str) and is_token_key(f)})
+        if hit:
+            out.append((PID_HUMAN, f"the request submits a human-verification form field ({', '.join(hit[:3])})",
+                        None))
+    el = a0.get("element")
+    if isinstance(el, dict) and (active or effect in ("interact",)):
+        label = " ".join(str(el.get(k) or "") for k in ("name", "label", "placeholder", "id", "field"))
+        if is_human_test_label(label):
+            out.append((PID_HUMAN, f"the element {str(el.get('role') or '')} {str(el.get('name') or '')[:60]!r} is a "
+                                   f"human-verification test; it is never answered or ticked", None))
     if tok:
         out.append((PID_HUMAN, f"the arguments carry a human-verification token field ({', '.join(tok[:3])})", None))
     prox = sorted({k for k, _ in keys if k in PROXY_FIELDS})
@@ -267,17 +356,47 @@ def findings(node: C.ActionSpec, dests: Sequence[D.Destination], effect: str, te
             out.append((PID_HUMAN, f"the payload refers to {d.host}, a CAPTCHA-solving service", d))
             break
 
+    # ---- integrated platforms: data and credentials only through the platform's adapter ------------------------
+    in_adapter = adapter_op(node.operation, "discord") or any(adapter_op(o, "discord") for o in realises)
+    for d in url_dests:
+        if is_discord_data(d) and not in_adapter:
+            out.append((PID_ADAPTER, f"{d.key} is Discord's API / Gateway / attachment store: Discord data is reached "
+                                     f"only through the Discord adapter (discord.* operations), whose data-use and "
+                                     f"scope rules apply; no other modality may read or write it", d))
+    if (opaque or raw_tool) and not in_adapter:
+        for d in D.urls_in_text(text_all):
+            if is_discord_data(d):
+                out.append((PID_ADAPTER, f"the payload addresses Discord's API / Gateway / attachments ({d.host}); "
+                                         f"Discord data is reached only through the Discord adapter", d))
+                break
+    a1 = node.arguments if isinstance(node.arguments, dict) else {}
+    auth = a1.get("auth") if isinstance(a1.get("auth"), dict) else None
+    names = [auth.get("secret")] if auth and isinstance(auth.get("secret"), str) else []
+    names += [v for k, v in _walk_keys(expanded_args) if isinstance(v, str) and v.startswith("secret:")]
+    for n in names:
+        plat = (secret_platform(n) if secret_platform is not None else "") or credential_platform(n)
+        if plat and not (adapter_op(node.operation, plat) or any(adapter_op(o, plat) for o in realises)):
+            out.append((PID_ADAPTER, f"{n!r} is the {plat} credential: it is released only to the {plat} adapter's "
+                                     f"operations, never to {node.operation!r}", None))
+            break
+
     # ---- user accounts (Discord) -------------------------------------------------------------------------------
     for d in url_dests:
         if not is_discord(d):
             continue
         docs = _host_in(d.host, _DISCORD_DOC_HOSTS)
         if modality in _BROWSER:
+            rtype = str((node.arguments or {}).get("resource_type") or "").lower() if isinstance(node.arguments, dict) else ""
+            if (not active and rtype in _SCRIPT_READS and not docs
+                    and ((d.path or "/") == "/" or _discord_client_path(d.path) or discord_api_path(d) is not None)):
+                out.append((PID_ACCOUNT, f"a page script's read of {d.key} would use the browser's Discord session; "
+                                         f"Discord is never read with a user's session (G2-harness D6)", d))
+                continue
             if active:
                 out.append((PID_ACCOUNT, f"the browser does not interact with Discord ({d.host}): Discord user "
                                          f"accounts are never automated; programmatic operations use the official "
                                          f"bot integration", d))
-            elif not docs and (_path_in(d.path, DISCORD_CLIENT_PATHS) or _host_in(d.host, ("discord.gg", "*.discord.gg",
+            elif not docs and (_discord_client_path(d.path) or _host_in(d.host, ("discord.gg", "*.discord.gg",
                                                                                               "discord.new",
                                                                                               "discord.gift"))):
                 out.append((PID_ACCOUNT, f"{d.key} is Discord's client application (a user account's session); the "

@@ -30,6 +30,7 @@ SOCK_AUTH, SOCK_EXEC, SOCK_VERIFY = "auth.sock", "exec.sock", "verify.sock"
 SERVICE_MODULES: Dict[str, str] = {
     "auth": "cam_live.harness.auth.service",
     "exec": "cam_live.harness.service",
+    "sandbox": "cam_live.harness.sandbox_host",          # root; runs generated code as the sandbox uid (D2)
     "verifier": "cam_live.runtime.verifier_service",
     "learner": "cam_live.runtime.loop_service",
 }

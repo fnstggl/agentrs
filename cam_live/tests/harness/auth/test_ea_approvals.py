@@ -142,6 +142,8 @@ def test_transport_requests_of_an_approved_logical_write_are_covered(svc, tmp_pa
     assert svc.check_primitive(prim("net.request", C.Modality.API, method="POST", url=url, json={"content": TEXT}), a).verdict == ALLOW
     other = f"https://discord.com/api/v10/channels/{CHAN2}/messages"
     assert svc.check_primitive(prim("net.request", C.Modality.API, method="POST", url=other, json={"content": TEXT}), a).verdict == NEEDS
-    # the same raw request issued as an action of its own is not pre-approved by anything
+    # the same raw request issued as an action of its own is not pre-approved by anything; since G2-harness D1 it
+    # is refused outright: Discord is reached only through its adapter (X-PLATFORM-ADAPTER)
     raw = act("http.post", arguments={"url": url, "json": {"content": TEXT}})
-    assert svc.authorize(raw, t, {}).verdict == NEEDS
+    r = svc.authorize(raw, t, {})
+    assert r.verdict == DENY and "X-PLATFORM-ADAPTER" in r.policy_ids

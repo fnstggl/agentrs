@@ -59,6 +59,7 @@ class TaskCtx:
     local_services: Set[Tuple[str, int]] = field(default_factory=set)   # registered (canonical host, port)
     own_process: bool = False            # loopback ports served only by this process count as registered
     rates: Dict[str, RateRule] = field(default_factory=dict)            # effective write / write_global rules
+    tool_patterns: Optional[List[str]] = None   # task.resources.authorized_tools (names, globs, modality names)
 
     @property
     def task_id(self) -> str:
@@ -312,7 +313,8 @@ class Evaluator:
         return out
 
     # -- one node --------------------------------------------------------------------------------------------
-    def node(self, node: C.ActionSpec, tc: TaskCtx, location: str = "", primitive: bool = False) -> NodeEval:
+    def node(self, node: C.ActionSpec, tc: TaskCtx, location: str = "", primitive: bool = False,
+             parent: Optional[C.ActionSpec] = None) -> NodeEval:
         ne = NodeEval(node=node)
         p, args = self.p, node.arguments
         tool = p.tool_for(node.operation)
@@ -337,6 +339,12 @@ class Evaluator:
                 node.modality in tc.modalities or any(fnmatch.fnmatchcase(node.operation, pat) for pat in tc.op_patterns)):
             ne.deny.append(Finding("P-INTERFACE", f"the task does not permit {node.operation!r} "
                                                   f"(modality {node.modality!r}) among its interfaces"))
+        if (not primitive and tc.tool_patterns is not None and node.operation != C.PROGRAM_OPERATION
+                and not any(pat == node.modality or fnmatch.fnmatchcase(node.operation, pat) for pat in tc.tool_patterns)):
+            # the operator's explicit tool list (resources.authorized_tools) is enforced, not only the interfaces
+            # (G2-harness D5): a program is judged by its steps
+            ne.deny.append(Finding("P-TOOL-NOT-AUTHORIZED", f"{node.operation!r} is not among the task's authorized "
+                                                            f"tools ({', '.join(tc.tool_patterns)[:160]})"))
 
         # destinations ------------------------------------------------------------------------------------------
         context_ids: Set[int] = set()
@@ -488,7 +496,8 @@ class Evaluator:
         for pid, why, d in platform_constraints.findings(
                 node, ne.dests, base, text_all, expand(args), raw_tool=tool.id == "T-NET-REQUEST" or
                 tool.effect == "by_method" and node.modality not in (C.Modality.STRUCTURED_BROWSER, C.Modality.VISUAL),
-                opaque=bool(tool.opaque)):
+                opaque=bool(tool.opaque), secret_platform=self.secret_platform,
+                realises=[n.operation for n in self.flatten(parent)] if parent is not None else ()):
             ne.deny.append(Finding(pid, why, d))
         ne.effect = [e for e, r in EFFECT_RANK.items() if r == rank][0]
         ne.potential = [e for e, r in EFFECT_RANK.items() if r == max(pot, rank)][0]
@@ -526,6 +535,19 @@ class Evaluator:
         return ne
 
     # -- helpers ---------------------------------------------------------------------------------------------
+    def secret_platform(self, name: str) -> str:
+        """The integrated platform a stored credential belongs to (by its vault scopes or its known name)."""
+        n = str(name or "")
+        n = n[len("secret:"):] if n.startswith("secret:") else n
+        scopes: List[str] = []
+        try:
+            for row in (self.vault.names() if self.vault is not None and hasattr(self.vault, "names") else []):
+                if row.get("name") == n:
+                    scopes = list(row.get("scopes") or [])
+        except Exception:  # noqa: BLE001 — unknown scopes: the name rule still applies
+            scopes = []
+        return platform_constraints.credential_platform(n, scopes)
+
     def local_denial(self, d: D.Destination, tc: TaskCtx) -> str:
         """'' when ``d`` may be reached as far as the local-address rule goes, else why not (its local class)."""
         if d.kind != "url":

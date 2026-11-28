@@ -30,6 +30,7 @@ from ... import contracts as C
 from . import destinations as D
 from . import liveauth
 from . import localnet
+from . import platform_constraints
 from .approvals import APPROVED, PENDING, REJECTED, ApprovalQueue
 from .audit import AuditLog, AuditVerification, verify_audit_log
 from .evaluate import INTENT_PIDS, WRITE_ONLY_PIDS, Evaluator, Finding, NodeEval, TaskCtx, shingles, similarity
@@ -348,7 +349,18 @@ class PolicyService:
                        op_patterns=op_patterns, limits=limits, strict_unset=mode.requires_authorization_record,
                        window=window, record_id=record["record_id"] if record else "",
                        file_base=os.path.join(self.run_dir, "sandbox"), local_services=local,
-                       own_process=mode.own_process_services, rates=rates), []
+                       own_process=mode.own_process_services, rates=rates,
+                       tool_patterns=self._authorized_tools(task)), []
+
+    @staticmethod
+    def _authorized_tools(task: C.TaskSpec) -> Optional[List[str]]:
+        """``resources.authorized_tools`` of the pinned task: tool names, globs (``discord.*``) or modality names
+        (``api``). None = the task states no list (then interfaces alone decide, as before)."""
+        res = task.resources if isinstance(task.resources, dict) else {}
+        tools = res.get("authorized_tools")
+        if not isinstance(tools, (list, tuple)):
+            return None
+        return [str(t) for t in tools if isinstance(t, str) and t.strip()]
 
     def _rates(self, mode: Any, req: Any) -> Tuple[Dict[str, Optional[RateRule]], str]:
         """Effective write rules: the policy's, or what the task (staging) / signed record (live) asks for, clamped
@@ -939,7 +951,7 @@ class PolicyService:
         if tc is None:
             return self._decision(DENY, ah, terr)
         tab = args.get("tab_id", "") if isinstance(args.get("tab_id", ""), str) else ""
-        ne = self._eval.node(node, tc, self._location(tc.task_id, {"tab_id": tab}), primitive=True)
+        ne = self._eval.node(node, tc, self._location(tc.task_id, {"tab_id": tab}), primitive=True, parent=action)
         self._peer_check(ne, args, tc)
         info["effects"] = sorted({f"{c}:{d.key}" for c, d in ne.effects})[:16]
         info["tool"] = ne.tool.id if ne.tool is not None else ""
@@ -1464,6 +1476,14 @@ class PolicyService:
             raise SecretError(f"{dest.key} is outside what {tc.mode.name} mode may reach")
         if D.match_any(dest, tc.owned) is None and D.match_any(dest, tc.read) is None:
             raise SecretError(f"{dest.key} is not an allowed destination for this task")
+        plat = self._eval.secret_platform(name)
+        if plat:
+            # a platform credential goes only to that platform's adapter (the Discord bot token only to discord.*
+            # operations, never to generic HTTP, the browser or the sandbox): G2-harness D1
+            ops = [n.operation for n in self._eval.flatten(action)] if action.steps else [action.operation]
+            if not any(platform_constraints.adapter_op(o, plat) for o in ops):
+                raise SecretError(f"secret {name!r} is the {plat} credential and is released only to the {plat} "
+                                  f"adapter's operations, not to {action.operation!r}")
         return self.vault.release(name, dest)
 
     def put_secret(self, name: str, value: str, destinations: Sequence[str], scopes: Sequence[str] = (),
