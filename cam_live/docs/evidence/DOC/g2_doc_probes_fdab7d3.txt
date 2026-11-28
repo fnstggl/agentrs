@@ -1,0 +1,84 @@
+# G2-integration documentation probes d01-d05 re-run by DOC on the worktree at fdab7d3 (documents as of 855296f), 2026-11-28 08:05-08:35 UTC
+# <S> = DOC scratch r3_probes. Commands:
+#  d01: .venv/bin/python -I cam_live/docs/verification/repro/g2integration/docs/d01_citations.py /workspace/camlive
+#  d02: PYTHONPATH=cam_live/src CAM_LIVE_HOME=<S>/home CAM_LIVE_GPU_LOCK=<S>/gpu.lock CUDA_VISIBLE_DEVICES= .venv/bin/python .../d02_operator_resources.py /workspace/camlive
+#  d03: PYTHONPATH=cam_live/src .venv/bin/python .../d03_reproduce_commands.py /workspace/camlive <S>/d03
+#  d04: .venv/bin/python -I .../d04_known_failures.py /workspace/camlive
+#  d05: .venv/bin/python -I .../d05_model_math_claims.py /workspace/camlive <pc.json re-measured at fdab7d3> <math_check output at fdab7d3>
+# Reading: d02, d03, d04 part 2 and d05 encode the OLD documents' claims; BROKEN there = the old claim is false and the refreshed document no longer makes it (checked by grep). d04 part 1: KF-E05 (2026-11-27 row, append-only) writes its evidence as path:symbol (erratum KF-V36). d02's preflight counts include a gpu_lock item because the probe points CAM_LIVE_GPU_LOCK at an absent file (with the machine's lock: 9 / 8).
+
+=== d01
+summary: 397 distinct citations, 397 HOLD, 0 BROKEN (root /workspace/camlive)
+
+=== d02
+BROKEN  OR-0/KF-D01 no override for persistent_storage: preflight.ACCEPTABLE_RISKS = {'persistent_storage': '--accept-ephemeral-storage'}; cam-live run/preflight/resume flag '--accept-ephemeral-storage'
+BROKEN  OR-0 item 1 'no operator command fixes it': cam-live run accepts --accept-ephemeral-storage
+BROKEN  OR-2.5/KF-D07 default config sets neither runtime.gpu_lock nor gpu_hold_s: configs/cam_live.yaml runtime = {'keep_checkpoints': 2, 'gpu_lock': 'auto', 'gpu_hold_s': 840, 'gpu_yield_s': 15}
+BROKEN  OR-2.5 runtime holds the lock for the whole process lifetime (unbounded hold by default): gpu_hold_s = 840 (lease cycled per hold, runtime/gpu_cycle.py)
+HOLDS   OR-2.2 configs/cam_live.yaml has no launcher.operator_pubkey: launcher section = None
+HOLDS   OR-2.5 five service users camlearn/cambrowser/camsbx/camauth/camverify: SERVICE_USERS = {'learner': 'camlearn', 'browser': 'cambrowser', 'sandbox': 'camsbx', 'auth': 'camauth', 'verifier': 'camverify'}
+BROKEN  RE-1.1/OR (info) services = auth, exec, verifier, learner only: SERVICE_MODULES = ['auth', 'exec', 'learner', 'sandbox', 'verifier'] (the root sandbox host is a fifth service)
+HOLDS   OR-2.3 discord_bot_token: verifier copy, bound to discord.com, gateway.discord.gg, *.discord.gg: KNOWN = {'dest': ['discord.com', 'gateway.discord.gg', '*.discord.gg'], 'scopes': ['discord'], 'verifier': True, 'min_len': 50}
+HOLDS   OR-2.4 DEFAULT_SCOPE: 18 permissions, integer 2269727275740401: 18 permissions, integer 2269727275740401
+HOLDS   OR-2.4 NEVER_GRANTED as listed: NEVER_GRANTED = ('ADMINISTRATOR', 'KICK_MEMBERS', 'BAN_MEMBERS', 'MODERATE_MEMBERS', 'MANAGE_GUILD', 'MANAGE_ROLES', 'MANAGE_WEBHOOKS', 'MENTION_EVERYONE')
+HOLDS   OR-2 planning limits 6 h / 120 decisions / 60 external / 7200 compute-s / money 1: (21600.0, 120, 60, 7200.0, 1.0)
+HOLDS   OR-2 planning interfaces structured_browser, code, api, internal: ['structured_browser', 'code', 'api', 'internal']
+HOLDS   OR-1 guild 1575680989060010034 / application 1575681780462129232: guild 1575680989060010034, application 1575681780462129232
+HOLDS   OR-3 execution task adds interfaces visual and skill: ['structured_browser', 'visual', 'code', 'api', 'skill', 'internal']
+BROKEN  OR-6 offline preflight discord_100_planning: 9 live items (excluding the 'gpu' item, present only when CUDA is hidden): 11 items, 10 without 'gpu'; accepted_risks=[]
+BROKEN  OR-0 discord_100_planning: persistent_storage cannot be accepted by the operator: with accept_risks=[persistent_storage]: still listed = False; accepted = ['persistent_storage']
+BROKEN  OR-6 offline preflight discord_100: 25 live items (excluding the 'gpu' item, present only when CUDA is hidden): 27 items, 26 without 'gpu'; accepted_risks=[]
+BROKEN  OR-0 discord_100: persistent_storage cannot be accepted by the operator: with accept_risks=[persistent_storage]: still listed = False; accepted = ['persistent_storage']
+HOLDS   OR-2.1 storage.min_free_gb 20, runtime.keep_checkpoints 2: storage {'min_free_gb': 20, 'warn_free_gb': 50}, keep_checkpoints 2
+HOLDS   OR-2.6 approve / reject take an approval id: approve args ['help', 'config', 'run_dir', 'timeout', 'json', 'approval_id', 'note']
+summary: 11 HOLD, 9 BROKEN
+
+=== d04
+BROKEN  evidence paths of KF rows exist: 498 checked, missing: ['KF-E05 src/cam_live/agent.py:set_objective']
+BROKEN  KF-D01 (register: open, re-stated later): 'no override for persistent_storage' is no longer true in the code
+BROKEN  KF-D07 (register: open, re-stated later): 'default config does not bound the GPU-lock hold' is no longer true in the code
+BROKEN  KF-E01 (register: open, re-stated later): 'no loss reads ExperienceRecord.credit (policy update)' is no longer true in the code
+BROKEN  KF-E02 (register: open, re-stated later): 'info_gain never produced (assembler reads only extras['info_gain'])' is no longer true in the code
+BROKEN  KF-E03 (register: open, re-stated later): 'epistemic_after / learning_progress never written' is no longer true in the code
+BROKEN  KF-E05 (register: open, re-stated later): 'R_psi lifetime context reset at every objective change' is no longer true in the code
+BROKEN  KF-E10 (register: open, re-stated later): 'whole suite cannot be collected in one process' is no longer true in the code
+BROKEN  KF-E11 (register: open, re-stated later): 'validate --debug keeps the given (real) configuration' is no longer true in the code
+BROKEN  KF-E12 (register: open, re-stated later): 'eval docstrings name missing commands' is no longer true in the code
+HOLDS   KF-R02 cites the latest real-configuration staging validation: newer evidence files not in the register: ['staging_20261128T004747Z.json', 'staging_20261128T005844Z.json', 'staging_20261128T051613Z_cpu.json', 'staging_20261128T051702Z.json']
+HOLDS   register mentions INT3B-4: prompt window (12 of 12 decisions over the window)
+HOLDS   register mentions INT3B-5: one-process suite failure (tolerance test)
+HOLDS   register mentions INT3A-5: promotion without held-out evidence
+HOLDS   register mentions G2L-6: estimator selection not connected
+HOLDS   register mentions DX-1: agent hook for estimator selection not applied
+HOLDS   register mentions R3-M1: root follows learner symlinks
+HOLDS   register mentions R3-m2: OP-09 false refusals
+HOLDS   register mentions approvals_exercised: staging check failing
+summary: 9 HOLD, 10 BROKEN
+
+=== d05
+BROKEN  MA 8 step 1 / 9 / 10.2: set_objective calls MetaLearner.new_lifetime (R_psi context reset): set_objective calls new_objective (context kept)
+HOLDS   MA 10.1: every core_forward call passes state=None: no carried state found
+HOLDS   MA 7 / 10.7, MN 11.3: the integrated agent runs evidence-based estimator selection: agent.py calls attach_experiments / evaluate_experiments / compare_with_experiment
+BROKEN  MN 11.3 / 14 / KF-E01: no training loss reads ExperienceRecord.credit: reward/inner.py credit_fn / credited_goal_return and agent.py sets meta.inner.credit_fn
+BROKEN  MN 7.1 / 13 / 14: info_gain has no producer (assembler reads extras['info_gain'] only): assembler falls back to extras['info_gain_nats']
+BROKEN  MN 7.1 / 13: epistemic_after and learning_progress are never written: agent.py annotates both (LRN-3)
+BROKEN  MN 12: slow guard = one mean paired change over all providers: per-provider verdicts and deferral without held-out evidence (G2L-4/5)
+BROKEN  MN 2.3: Poisson mode search takes the G-step only from the right: G-step on either side, convergence also requires the root condition (G2L-1)
+HOLDS   MA 1 parameter counts (default) equal the committed evidence: total 74672079; differing keys []
+HOLDS   MA 1 parameter counts (debug) equal the committed evidence: total 1181515; differing keys []
+HOLDS   MN header: math_check.py output equals docs/evidence/DOC/math_check.txt: 5 lines, equal=True
+summary: 5 HOLD, 6 BROKEN
+
+=== d03 (HOLDS lines omitted: 81)
+help summary: 66/66 exit 0
+BROKEN  doctor: REPRODUCE 4: '48/51 ok' -> got: ['47/52 checks ok; failed: gpu, persistent_storage, kernel_network_filtering, user_namespaces, gpu_lock; unknown: none']
+BROKEN  preflight_staging_planning: REPRODUCE 14: exit 3, 9 live items, mode staging (exit 0; ['LIVE: BLOCKED — 9 item(s) missing'])
+status levels:
+  1_)
+BROKEN  docstrings_name_missing_commands: REPRODUCE 13 / KF-E12: the eval docstrings still name the missing commands
+BROKEN  collect_runtime: REPRODUCE 3: runtime 215 tests (exit 0: ['299 tests collected in 1.82s'])
+BROKEN  collect_storage: REPRODUCE 3: storage 3 tests (exit 0)
+BROKEN  collect_all_fails: REPRODUCE 3 / KF-E10: one-process collection fails, exit 2 (exit 0: ['tests/runtime/test_rt_fix_tasks.py::test_invalid_yaml_is_a_task_validation_error', '1679 tests collected in 16.09s'])
+BROKEN  cam-live_test_storage: REPRODUCE 3: exit 0, 3 passed (exit 0)
+commands run: 87; results in <S>/d03/d03_results.tsv
+exit 0
