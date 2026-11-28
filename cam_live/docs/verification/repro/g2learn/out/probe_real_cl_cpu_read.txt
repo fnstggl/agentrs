@@ -1,0 +1,25 @@
+[PASS] real model: fresh-process weights-only reload has identical group hashes  ({'semantic_adapters': True, 'experiential': True, 'reward': True, 'heads': True, 'backbone_frozen': True})
+[FAIL] real model: fresh-process reload reproduces predictions bit-exactly (CUDA)  ({'b': 7.069110870361328e-05, 'z': 5.1975250244140625e-05, 'nll': 2.1457672119140625e-06, 'probs': 8.940696716308594e-08})
+{
+ "reader_vs_writer_cold_cache_max_diff": {
+  "b": 7.069110870361328e-05,
+  "z": 5.1975250244140625e-05,
+  "nll": 2.1457672119140625e-06,
+  "probs": 8.940696716308594e-08
+ },
+ "reload_max_abs_diff": {
+  "b": 7.069110870361328e-05,
+  "z": 5.1975250244140625e-05,
+  "nll": 2.1457672119140625e-06,
+  "probs": 8.940696716308594e-08
+ },
+ "load_report_clean": true,
+ "group_hashes_identical": {
+  "semantic_adapters": true,
+  "experiential": true,
+  "reward": true,
+  "heads": true,
+  "backbone_frozen": true
+ }
+}
+FAILED: ['real model: fresh-process reload reproduces predictions bit-exactly (CUDA)']

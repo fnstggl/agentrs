@@ -1,0 +1,6 @@
+[INFO] run 0: records / first promotion (promoted, reasons) / validate() / validation flags: (17, (True, []), {'rudder': 0.5868, 'cocoa': 0.697}, {'val:bridge_grounding': 1, 'val:cocoa': 1, 'val:rudder': 1})
+[INFO] run 1: records / first promotion (promoted, reasons) / validate() / validation flags: (13, (True, []), {'bridge_grounding': 19.4672}, {'val:bridge_grounding': 3})
+[INFO] run 2: records / first promotion (promoted, reasons) / validate() / validation flags: (17, (True, []), {'rudder': 0.5853, 'cocoa': 0.8348, 'bridge_grounding': 18.8789}, {'val:bridge_grounding': 1, 'val:cocoa': 3, 'val:rudder': 3})
+[PASS] the first promotion after the lifetime is granted on held-out evidence in every run  3 of 3
+
+1 checks, 0 failed

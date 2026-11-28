@@ -149,6 +149,21 @@ trained = set(getattr(agent.learner, "trained_objectives", set()))
 exp_objs = {r.objective_id for r in recs if r.decision.experiment_id}
 info("objectives with randomised decisions / of them trained on by the learner (holdout_experiments="
      f"{agent.learner.settings.holdout_experiments})", (len(exp_objs), len(exp_objs & trained)))
+# KF-E01 (later commits): does the stored credit reach the policy update?
+cf = getattr(getattr(getattr(agent, "meta", None), "inner", None), "credit_fn", None)
+if cf is not None:
+    used = collections.Counter()
+    for r in recs:
+        try:
+            c = cf(r)
+        except Exception:  # noqa: BLE001
+            c = None
+        used["none" if c is None else f"{c[1]}:{'return_like' if c[2] else 'per_decision'}"] += 1
+    info("records whose stored credit the policy update's goal term would use (agent.meta.inner.credit_fn)", dict(used))
+    check("RC-02: stored credit reaches the policy update for some decisions (credit_fn returns a value)",
+          sum(v for k, v in used.items() if k != "none") > 0, f"{dict(used)}")
+else:
+    info("agent.meta.inner.credit_fn", "absent (stored credit does not reach the policy update at this commit)")
 info("credit default used by the agent's assigner", getattr(agent.assigner, "default", None) if not callable(
     getattr(agent.assigner, "default", None)) else agent.assigner.default())
 

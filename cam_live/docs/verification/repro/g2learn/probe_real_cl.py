@@ -23,7 +23,20 @@ import time
 import torch
 
 sys.path.insert(0, "cam_live/src")
-from cam_live.nn.gpu import gpu_lock                                            # noqa: E402
+from cam_live.nn.gpu import gpu_lock as _gpu_lock                              # noqa: E402
+import contextlib                                                              # noqa: E402
+
+CPU = "--cpu" in sys.argv        # G2-learn: the real configuration on the CPU (no GPU lock) when the GPU is unavailable
+DEV = "cpu" if CPU else "cuda"
+
+
+def gpu_lock(**kw):
+    """G2-learn: queued (blocking) waiter on the shared lock (see repro/g2learn/_common.queued_gpu_lock)."""
+    if CPU:
+        return contextlib.nullcontext()
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from _common import queued_gpu_lock
+    return queued_gpu_lock(float(kw.get("min_free_gb", 14.0)))
 
 FAILS, OUT = [], {}
 BETA = 2e-6
@@ -66,7 +79,9 @@ def part_write(d):
     os.makedirs(d)
     torch.manual_seed(0)
     cfg = CamLiveConfig()
-    cfg.device = "cuda"
+    cfg.device = DEV
+    if CPU:
+        torch.set_num_threads(16)
     cfg.core.max_context = 64
     t0 = time.time()
     with gpu_lock(timeout_s=7200.0, min_free_gb=14.0, poll_s=0.2):
@@ -143,7 +158,7 @@ def part_write(d):
             torch.save(ref, os.path.join(d, "ref.pt"))
             json.dump({"ids": ids, "hashes": m.group_hashes()}, open(os.path.join(d, "ids.json"), "w"))
             st.flush()
-            OUT["peak_gpu_gb"] = torch.cuda.max_memory_allocated() / 2 ** 30
+            OUT["peak_gpu_gb"] = None if CPU else torch.cuda.max_memory_allocated() / 2 ** 30
         finally:
             lab.close()
     OUT["seconds"] = time.time() - t0
@@ -156,7 +171,7 @@ def part_read(d):
     meta = json.load(open(os.path.join(d, "ids.json")))
     with gpu_lock(timeout_s=7200.0, min_free_gb=14.0, poll_s=0.2):
         holder = {}
-        em = ckpt.load_exported_model(os.path.join(d, "export"), device="cuda",
+        em = ckpt.load_exported_model(os.path.join(d, "export"), device=DEV,
                                       register_heads=lambda mm: holder.update(register_lab_heads(mm, None, beta=BETA)))
         st = SqliteExperienceStore(os.path.join(d, "store.sqlite"), readonly=True)
         got = predictions(em.model, holder["world"], holder["policy"], st, meta["ids"])
@@ -186,7 +201,7 @@ def part_within(d):
     meta = json.load(open(os.path.join(d, "ids.json")))
     with gpu_lock(timeout_s=7200.0, min_free_gb=14.0, poll_s=0.2):
         holder = {}
-        em = ckpt.load_exported_model(os.path.join(d, "export"), device="cuda",
+        em = ckpt.load_exported_model(os.path.join(d, "export"), device=DEV,
                                       register_heads=lambda mm: holder.update(register_lab_heads(mm, None, beta=BETA)))
         st = SqliteExperienceStore(os.path.join(d, "store.sqlite"), readonly=True)
         ids = meta["ids"]
@@ -213,6 +228,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--part", required=True, choices=["write", "read", "within"])
     ap.add_argument("--dir", required=True)
+    ap.add_argument("--cpu", action="store_true")
     a = ap.parse_args()
     {"write": part_write, "read": part_read, "within": part_within}[a.part](a.dir)
     print(json.dumps(OUT, indent=1, default=str))

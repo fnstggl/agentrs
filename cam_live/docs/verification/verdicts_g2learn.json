@@ -6,7 +6,7 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Qwen/Qwen3-4B is the backbone of the real configuration: recomputed from the module tree, 4,022,468,096 frozen parameters, none requires grad; embeddings, next-token logits, generation_logprob and greedy generation run through the same code path (real weights, CPU float32 run while the shared GPU was held: probe_real_learn --cpu 10/10, probe_real_cpu_grads). GPU (bf16) path not re-run by G2-learn: the shared GPU lock was held by other tenants for the whole session (A's own A_fix.xml of 06:44 records the GPU tests passing). Qwen3-8B never loaded (disclosed). D3: the float32 head removed the head error; the bf16 trunk still differs from float32 by up to 0.36 nats per one-token completion (disclosed as a scientific failure).",
+  "notes": "Qwen/Qwen3-4B is the backbone of the real configuration: recomputed from the module tree, 4,022,468,096 frozen parameters, none requires grad; embeddings, next-token logits, generation_logprob and greedy generation run through the same code path (real weights, CPU float32 run while the shared GPU was held: probe_real_learn --cpu 10/10, probe_real_cpu_grads). On the GPU (bf16, probe_real_learn on CUDA via the queued GPU lease, 13/13): frozen parameters bf16 without grad, the same counts, bridge / cache / batch-invariance checks pass. Qwen3-8B never loaded (disclosed). D3: the float32 head removed the head error; the bf16 trunk still differs from float32 by up to 0.36 nats per one-token completion (disclosed as a scientific failure).",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
    ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m gpu --timeout=7200",
@@ -67,7 +67,7 @@
   "supersedes": [
    "all"
   ],
-  "notes": "One decision latent z / feature map phi shared by world model, evaluator, policy and reward (default tests); D7 fixed: an argument change moves z (cos 0.639 debug, 0.752 on the real configuration for click e3 vs e4, was 0.9997); D8: bit-exact on the tiny backbone (90 comparisons at every bucket edge, > max_text_tokens, more rows than one forward); on the bf16 GPU backbone not re-run by G2-learn (GPU lock held by other tenants; A_fix.xml records A's GPU test passing). Remaining, disclosed: phi is ill-conditioned on real inputs at initialisation (D6, Gram eigenvalue ratio 2.3e4; the float64 fast layer stays exact on it), and usefulness of the representation after training is a scientific question not shown here.",
+  "notes": "One decision latent z / feature map phi shared by world model, evaluator, policy and reward (default tests); D7 fixed: an argument change moves z (cos 0.639 debug, 0.752 on the real configuration for click e3 vs e4, was 0.9997; 0.738 on the GPU); D8: bit-exact also on the bf16 GPU backbone: 90 comparisons of texts at every bucket edge (1-300 tokens and 434 > max_text_tokens), with other texts and more rows than one forward, max |diff| 0; embed(with_grad=True) returns the canonical value bit-exactly; belief b alone vs in a padded batch rel. 2.3e-7. Remaining, disclosed: phi is ill-conditioned on real inputs at initialisation (D6, Gram eigenvalue ratio 2.3e4; the float64 fast layer stays exact on it), and usefulness of the representation after training is a scientific question not shown here.",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py --cpu",
@@ -98,14 +98,13 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Real backbone in float32 (CPU, same code path): embedding path -> LoRA-B gradient equals central finite differences, embed(with_grad=True) returns the canonical cached value with exactly that gradient, all 72 LoRA modules get gradient, generation_logprob gives non-zero gradient to LoRA-B and the zero-initialised bridge output and equals finite differences (probe_real_cpu_grads; FD / analytic 1.0001 / 0.9997 (embedding), 0.9994 / 0.9999 (generation)). Caches follow the adapter content after `lora_B.data = new tensor` and load_trainable_state (D10 fixed, real configuration). Adapters are updated by experience: slow steps of D's learner in the integrated agent (5-11 per run, gradients from world-model, fast-prior and bridge-grounding losses) and on Qwen3-4B (on Qwen3-4B on the GPU not re-run by G2-learn (GPU lock held by other tenants); D's real_update.json records one). bf16 GPU gradients / caches not re-run by G2-learn (GPU lock held).",
+  "notes": "Real backbone in float32 (CPU, same code path): embedding path -> LoRA-B gradient equals central finite differences, embed(with_grad=True) returns the canonical cached value with exactly that gradient, all 72 LoRA modules get gradient, generation_logprob gives non-zero gradient to LoRA-B and the zero-initialised bridge output and equals finite differences (probe_real_cpu_grads; FD / analytic 1.0001 / 0.9997 (embedding), 0.9994 / 0.9999 (generation)). Caches follow the adapter content after `lora_B.data = new tensor` and load_trainable_state (D10 fixed, real configuration). Adapters are updated by experience: slow steps of D's learner in the integrated agent (5-11 per run, gradients from world-model, fast-prior and bridge-grounding losses) and on Qwen3-4B (on the real configuration (Qwen3-4B + 50m core, CPU float32 run of G-cl's probe_real with own parameter snapshots): one slow step changed 144/144 LoRA and 26/28 bridge tensors and nothing else, frozen hash unchanged, guard accepted it (paired change -0.0063, 6 chunks; by-loss adapter gradient: bridge grounding 6.92, world 0.026)). On the GPU (bf16): the caches follow `lora_B.data = new tensor` and load_trainable_state bit-exactly (probe_real_learn).",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cpu_grads.py",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py --cpu",
-   ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live -m gpu --timeout=7200",
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu --timeout=7200",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR --cpu",
    "cam_live/docs/verification/G2_learn.md"
   ]
  },
@@ -130,7 +129,7 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Default token tests pass (every record type / item kind, exact float64 values in TokenBatch.values, value channel separates +1/-1, time encoding, stable hashes); argument leaves now go through the value channel (D7: cos(z) 0.752 on the real configuration for a one-argument change). GPU token test not re-run by G2-learn (GPU lock held).",
+  "notes": "Default token tests pass (every record type / item kind, exact float64 values in TokenBatch.values, value channel separates +1/-1, time encoding, stable hashes); argument leaves now go through the value channel (D7: cos(z) 0.752 on the real configuration for a one-argument change). A's GPU token test was not re-run (the pytest GPU fixtures poll the shared lock and never got a turn); argument-leaf sensitivity confirmed on the GPU (cos(z) 0.738).",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py --cpu",
@@ -145,7 +144,7 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Latent bridge on Qwen3-4B (real weights): next-token logits bit-identical with and without latents of norm 1e-3..1e3 at initialisation and greedy generation identical; generation_logprob gives non-zero gradient to the zero-initialised bridge output projections (equal to finite differences); one Adam step on the bridge alone makes the next-token distribution depend on the latent (TV(latent, -latent) 0.9997). Run on the CPU in float32 (same code path); bf16 GPU run not repeated by G2-learn (GPU lock held). Not shown: that a trained bridge improves candidate actions (disclosed).",
+  "notes": "Latent bridge on Qwen3-4B (real weights): next-token logits bit-identical with and without latents of norm 1e-3..1e3 at initialisation and greedy generation identical; generation_logprob gives non-zero gradient to the zero-initialised bridge output projections (equal to finite differences); one Adam step on the bridge alone makes the next-token distribution depend on the latent (TV(latent, -latent) 0.9997). On the GPU (bf16): logits bit-identical at init, TV(latent, -latent) 1.0000 after one bridge step. Not shown: that a trained bridge improves candidate actions (disclosed).",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_learn.py --cpu",
@@ -176,24 +175,23 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Experiential weights receive real gradients through D's ContinualLearner: default tests and G-cl probe_learner 26/26 (debug); integrated agent (clean export, 5 runs): every frequent update changed experiential weights and the behaviour probe; diagnose learning experiment on the current tree reproduces held-out NLL 2.981 -> 2.291 (1e-6). Real-configuration frequent update on the GPU not re-run by G2-learn (GPU lock held); D's real_update.json and G-cl's earlier probe record it. No learning curve on the real configuration (disclosed).",
+  "notes": "Experiential weights receive real gradients through D's ContinualLearner: default tests and G-cl probe_learner 26/26 (debug); integrated agent (clean export, 5 runs): every frequent update changed experiential weights and the behaviour probe; diagnose learning experiment on the current tree reproduces held-out NLL 2.981 -> 2.291 (1e-6). Real configuration (Qwen3-4B + 50m core, CPU float32 run of G-cl's probe_real, own snapshots): one frequent update changed 127 experiential and 56 head tensors, 0 adapter / reward tensors, predictions moved (max |db| 1.10, |dz| 1.90, |dNLL| 0.214), predictions independent of inference caches afterwards. No learning curve on the real configuration (disclosed).",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
    "PYTHONHASHSEED=0 .venv/bin/python -m cam_live.credit.diagnose --only learning,credit,retention --threads 1 --out X --work W; .venv/bin/python cam_live/docs/verification/repro/g2learn/compare_evidence.py diagnose X",
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu --timeout=7200",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR --cpu",
    "cam_live/docs/verification/G2_learn.md"
   ]
  },
  "RC-01": {
   "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "3e29595461c5d5d160e82717af77490b90bbc9a9",
   "supersedes": [
    "all"
   ],
-  "notes": "Acceptance tests pass, incl. tests/integration/test_agent_runtime.py::test_delayed_outcomes_link_to_their_decisions on a clean export. G-cl M3 fixed (probe_store_links --only links PASS; own attacks with unknown ids, booleans, strings, zeros: weights <= 1, credit <= outcome). Integrated agent, 5 clean runs: every matured declared outcome linked, per-outcome link weights <= 1, none to a later decision. Observation G2L-3: amounts that overflow when summed (1e308 + 1e308) drop the outcome (artificial input).",
+  "notes": "Pinned to 3e29595 (agent.py, one of RC-01's files, changed after 5562e65): acceptance tests pass on exports of both commits, incl. tests/integration/test_agent_runtime.py::test_delayed_outcomes_link_to_their_decisions. G-cl M3 fixed (probe_store_links --only links PASS; own attacks with unknown ids, booleans, strings, zeros: weights <= 1, credit <= outcome). Integrated agent, 5 clean runs: every matured declared outcome linked, per-outcome link weights <= 1, none to a later decision (5 runs at 5562e65, 2 at 3e29595). Observation G2L-3: amounts that overflow when summed (1e308 + 1e308) drop the outcome (artificial input).",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
    ".venv/bin/python -m pytest cam_live/tests/integration/test_agent_runtime.py::test_delayed_outcomes_link_to_their_decisions cam_live/tests/integration/test_agent_runtime.py::test_learning_changes_experiential_and_adapter_weights cam_live/tests/integration/test_int2_checkpoints.py -q --rootdir=cam_live  (on a git-archive export of the commit)",
@@ -204,16 +202,18 @@
   ]
  },
  "RC-02": {
-  "status": "partial",
+  "status": "verified",
   "by": "G2-learn",
-  "commit": "5562e65aa3fa50bbd36c930c413148d03f28b48e",
+  "commit": "3e29595461c5d5d160e82717af77490b90bbc9a9",
   "supersedes": [
    "all"
   ],
-  "notes": "Verified: return decomposer (G-cl probe_rudder 63/63), full-trajectory credit (m3 fixed: every one of 11 decisions credited with max_len 3, sum Gamma c = G, random non-zero decomposer), retrospective credit when objectives close (integrated agent). FAILS: spec 9.2 'use redistributed credit during eligible training updates' \u2014 no training update consumes credit: CreditAssigner.credited_returns (credit/providers.py:871) has no caller in src/, no loss reads record.credit (G2L-7; disclosed by D as 'exposed but not consumed').",
+  "notes": "Verified at 3e29595 (agent.py / reward/inner.py changed after 5562e65; credit/ unchanged): return decomposer (G-cl probe_rudder 63/63), full-trajectory credit (m3 fixed: every one of 11 decisions credited with max_len 3, sum Gamma c = G with a random non-zero decomposer), retrospective credit when objectives close (integrated agent). The gap of G-cl / G2L-7 ('redistributed credit feeds no training update', open at 5562e65) is closed by INT3A's KF-E01 (4476c27): the evidence-selected estimator's stored credit is the goal term of the policy update (agent._credit_for -> reward.inner credit_fn); tests/integration/test_int3a_audit.py KF-E01 tests pass on an export of 3e29595 (with the default set to rudder the credited return-to-go replaces the goal return and changes the gradient; without credit the update is unchanged) and in two integrated runs the hook returns stored (simple) credit for 20/20 and 34/34 records. RUDDER credit reaches training only once RUDDER is the evidence-selected default, which the integrated agent never evaluates (G2L-6, RC-08).",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_long_rudder.py",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
+   ".venv/bin/python -m pytest cam_live/tests/integration/test_int3a_audit.py -q --rootdir=cam_live",
    ".venv/bin/python cam_live/docs/verification/repro/cl/probe_rudder.py",
    ".venv/bin/python cam_live/docs/verification/repro/cl/probe_providers.py",
    "cam_live/docs/verification/G2_learn.md"
@@ -318,12 +318,12 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Updates change weights and behaviour: default tests, G-cl probe_learner 26/26; integrated agent (clean export): all frequent updates changed experiential weights and flagged a behaviour change (16-34 per run, every one); held-out NLL 2.981 -> 2.291 reproduced on the current tree (median not improved, disclosed). Real-configuration frequent update on the GPU not re-run by G2-learn (GPU lock held); D's real_update.json and G-cl's earlier probe record it.",
+  "notes": "Updates change weights and behaviour: default tests, G-cl probe_learner 26/26; integrated agent (clean export): all frequent updates changed experiential weights and flagged a behaviour change (16-34 per run, every one); held-out NLL 2.981 -> 2.291 reproduced on the current tree (median not improved, disclosed). Real configuration (Qwen3-4B + 50m core, CPU float32 run of G-cl's probe_real, own snapshots): one frequent update changed 127 experiential and 56 head tensors, 0 adapter / reward tensors, predictions moved (max |db| 1.10, |dz| 1.90, |dNLL| 0.214), predictions independent of inference caches afterwards.",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
    "PYTHONHASHSEED=0 .venv/bin/python -m cam_live.credit.diagnose --only learning,credit,retention --threads 1 --out X --work W; .venv/bin/python cam_live/docs/verification/repro/g2learn/compare_evidence.py diagnose X",
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu --timeout=7200",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR --cpu",
    "cam_live/docs/verification/G2_learn.md"
   ]
  },
@@ -334,13 +334,12 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Adapter updates occur: every adapter_every frequent updates in D's lab, 5-11 slow steps per integrated run changing LoRA and bridge, on Qwen3-4B on the GPU not re-run by G2-learn (GPU lock held by other tenants); D's real_update.json records one. M4's scenario is fixed (a slow step with a measurable held-out rise is undone with weights, Adam state, lr, schedule and counters). FAILS as claimed ('a slow step is kept only if the held-out loss rises by at most min(0.01, 5 %, 2 SE)'): (a) G2L-4, with no validation cells the guard is skipped and the step kept (credit/learner.py:741/778/798; a degrading step is applied in D's lab with val_fraction 0; 6 of 39 slow steps in 5 clean integrated runs had no verdict); (b) G2L-5, the bound is on the provider-averaged loss (learner.py:543): a provider whose held-out loss rose 10x above the tolerance was kept because another improved.",
+  "notes": "Adapter updates occur: every adapter_every frequent updates in D's lab, 5-11 slow steps per integrated run changing LoRA and bridge, on the real configuration (Qwen3-4B + 50m core, CPU float32 run of G-cl's probe_real with own parameter snapshots): one slow step changed 144/144 LoRA and 26/28 bridge tensors and nothing else, frozen hash unchanged, guard accepted it (paired change -0.0063, 6 chunks; by-loss adapter gradient: bridge grounding 6.92, world 0.026). M4's scenario is fixed (a slow step with a measurable held-out rise is undone with weights, Adam state, lr, schedule and counters). FAILS as claimed ('a slow step is kept only if the held-out loss rises by at most min(0.01, 5 %, 2 SE)'): (a) G2L-4, with no validation cells the guard is skipped and the step kept (credit/learner.py:741/778/798; a degrading step is applied in D's lab with val_fraction 0; 6 of 39 slow steps in 5 clean integrated runs had no verdict); (b) G2L-5, the bound is on the provider-averaged loss (learner.py:543): a provider whose held-out loss rose 10x above the tolerance was kept because another improved.",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_credit_gaps.py",
    ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_agent_credit.py --seeds 11 12 13  (x5, outputs cam_live/docs/verification/repro/g2learn/out/probe_agent_credit_clean_*.txt)",
-   ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu --timeout=7200",
-   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR",
+   ".venv/bin/python cam_live/docs/verification/repro/g2learn/probe_real_cl.py --part write|read --dir DIR --cpu",
    "cam_live/docs/verification/G2_learn.md"
   ]
  },
@@ -365,7 +364,7 @@
   "supersedes": [
    "all"
   ],
-  "notes": "Acceptance tests pass; tests/integration/test_int2_checkpoints.py 2/2 on a clean export (the agent promotes only on independent evidence, a refusal rolls the learner back); G-cl promote checks PASS; m6 fixed (provenance-based filter; no provider registered by the agent is trained on the internal reward). Short integrated runs: the first attempts are refused for missing validation / retention metrics (fail-closed), later ones promote.",
+  "notes": "Acceptance tests pass; tests/integration/test_int2_checkpoints.py 2/2 on a clean export (the agent promotes only on independent evidence, a refusal rolls the learner back); G-cl promote checks PASS; m6 fixed (provenance-based filter; no provider registered by the agent is trained on the internal reward). Short integrated runs: the first attempts are refused for missing validation / retention metrics (fail-closed), later ones promote. Caveat at the newer commit 3e29595 (agent.py changed; CL-05's files did not): the same INT2 test fails 3 of 4 runs and probe_promotion_evidence refuses 1 of 3 first promotions with 'no independent validation metric supplied' (0 of 6 at 5562e65): whether a short lifetime leaves any eligible held-out record is chance (record-hash split, ids carry os.urandom bytes) \u2014 see G2L-4 / G2L-8 in G2_learn.md.",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
    ".venv/bin/python -m pytest cam_live/tests/integration/test_agent_runtime.py::test_delayed_outcomes_link_to_their_decisions cam_live/tests/integration/test_agent_runtime.py::test_learning_changes_experiential_and_adapter_weights cam_live/tests/integration/test_int2_checkpoints.py -q --rootdir=cam_live  (on a git-archive export of the commit)",

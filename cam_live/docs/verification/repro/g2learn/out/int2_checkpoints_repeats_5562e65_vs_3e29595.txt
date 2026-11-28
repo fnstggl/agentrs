@@ -1,0 +1,7 @@
+3e29595: E           AssertionError: ['no independent validation metric supplied']
+3e29595: 1 failed in 46.85s
+3e29595: E           AssertionError: ['no independent validation metric supplied']
+3e29595: 1 failed in 46.90s
+3e29595: 2 passed in 45.66s
+5562e65: 2 passed in 44.43s
+5562e65: 2 passed in 59.93s

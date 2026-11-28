@@ -1,0 +1,28 @@
+......F.                                                                 [100%]
+=================================== FAILURES ===================================
+______ test_promotion_needs_independent_evidence_and_a_refusal_rolls_back ______
+
+tmp_path = PosixPath('/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G2LEARN/int_tmp4/test_promotion_needs_independe0')
+
+    def test_promotion_needs_independent_evidence_and_a_refusal_rolls_back(tmp_path):
+        agent = _agent(tmp_path)
+        clock = agent.clock
+        try:
+            rec = Recorder(agent)
+            lt1 = run_lifetime(rec, clock, str(tmp_path), 31, max_steps=30, max_decisions=14)
+            lt2 = run_lifetime(rec, clock, str(tmp_path), 32, max_steps=6, max_decisions=3)
+            assert agent.promotions, agent.last.get("promotion_error")
+            first = agent.promotions[0]
+            assert first["trigger"].startswith(f"objective {lt1.task.objective_id} ended")
+>           assert first["promoted"], first["reasons"]
+E           AssertionError: ['no independent validation metric supplied']
+E           assert False
+
+cam_live/tests/integration/test_int2_checkpoints.py:44: AssertionError
+=========================== short test summary info ============================
+FAILED cam_live/tests/integration/test_int2_checkpoints.py::test_promotion_needs_independent_evidence_and_a_refusal_rolls_back
+1 failed, 7 passed in 396.61s (0:06:36)
+
+real	6m39.506s
+user	16m23.953s
+sys	1m22.127s

@@ -48,3 +48,30 @@ def finish(argv=None):
     n_fail = sum(1 for r in RESULTS if r.get("ok") is False)
     print(f"\n{sum(1 for r in RESULTS if 'check' in r)} checks, {n_fail} failed")
     return 1 if n_fail else 0
+
+
+def queued_gpu_lock(min_free_gb=16.0):
+    """The shared GPU lock taken as a *queued* (blocking) waiter through the project's ``runtime.gpu_cycle.GpuLease``
+    when it exists (other tenants wait that way, so a polling waiter never gets a turn); else ``nn.gpu.gpu_lock``.
+    Yields the time it was acquired; the caller keeps the hold short (< 15 min)."""
+    import contextlib as _cl
+    import time as _t
+    try:
+        from cam_live.runtime.gpu_cycle import GpuLease
+    except ImportError:
+        from cam_live.nn.gpu import gpu_lock
+        return gpu_lock(timeout_s=7200.0, min_free_gb=min_free_gb, poll_s=0.2)
+
+    @_cl.contextmanager
+    def _cm():
+        lease = GpuLease(hold_s=0.0)
+        lease.acquire()
+        try:
+            import torch
+            free = torch.cuda.mem_get_info()[0] / 2 ** 30
+            if free < min_free_gb:
+                raise RuntimeError(f"only {free:.1f} GB GPU memory free, need {min_free_gb}")
+            yield _t.time()
+        finally:
+            lease.release()
+    return _cm()

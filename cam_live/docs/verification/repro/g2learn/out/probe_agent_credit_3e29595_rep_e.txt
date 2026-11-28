@@ -1,0 +1,41 @@
+[INFO] lifetimes (status): ['completed', 'exhausted', 'exhausted']
+[INFO] records: 20
+[INFO] matured declared outcomes / links / distinct linked outcomes: (23, 32, 32)
+[PASS] RC-01: every matured declared outcome of the agent's records is linked  23 matured, unlinked records []
+[PASS] RC-01: per outcome the link weights sum to at most 1  0 outcomes over 1: []
+[PASS] RC-07: no link to a decision made after its outcome  0
+[PASS] RC-07: no stored outcome is dated before the decision it is attached to  []
+[PASS] RC-07: the linker's leakage audit finds no context item dated after its decision  []
+[INFO] objectives / closed in the store: (3, 1)
+[PASS] RC-06: verified objective verdicts reach the store (put_objective_outcome by the agent)  1 of 3 closed
+[INFO] credit history entries by estimator: {'simple': 22, 'cocoa': 1, 'rudder': 2, 'rudder_contribution': 2, 'rudder_rtg': 2}
+[PASS] RC-06: learned (RUDDER / COCOA) credit is written retrospectively for decisions of closed objectives  2 of 2 records of closed objectives (1.00)
+[INFO] records whose credit was re-versioned (more than one version): 2
+[INFO] retrain queue entries left at the end: 0
+[INFO] decisions: open-ended candidate sets / tracked proposals / COCOA-supportable (closed or tracked): (0, 20, 20)
+[PASS] RC-05: no COCOA credit value for a decision with an open-ended untracked candidate set  0 such records carry COCOA credit: []
+[INFO] estimator selection log rows: 0
+[INFO] randomised experiments: registered in the experience store / experiment ids on the agent's decisions: (0, 7)
+[INFO] compare_with_experiment on the agent's own experiments (None = fewer than two matured held-out units per arm): [('exp_b05798c0b2', 'arms on the decisions: [\'lab.act({"channel": 3, "effort": 3})\']'), ('exp_812af193cb', 'arms on the decisions: [\'lab.act({"channel": 3, "effort": 3})\']'), ('exp_fb6fe03b4f', 'arms on the decisions: [\'lab.act({"channel": 1, "effort": 2})\']'), ('exp_952d1777b4', 'arms on the decisions: [\'lab.act({"channel": 2, "effort": 2})\']'), ('exp_c1655a3c44', 'arms on the decisions: [\'lab.act({"channel": 0, "effort": 2})\']'), ('exp_7f4bedbff9', 'arms on the decisions: [\'lab.act({"channel": 0, "effort": 2})\']')]
+[INFO] objectives with randomised decisions / of them trained on by the learner (holdout_experiments=False): (3, 2)
+[INFO] records whose stored credit the policy update's goal term would use (agent.meta.inner.credit_fn): {'simple:per_decision': 20}
+[PASS] RC-02: stored credit reaches the policy update for some decisions (credit_fn returns a value)  {'simple:per_decision': 20}
+[INFO] credit default used by the agent's assigner: simple
+[INFO] learning updates by timescale (learner log): {'frequent': 23, 'slow_adapters': 7}
+[INFO] slow updates: attempted / applied-or-reverted / without a guard verdict / reverted: (7, 7, 0, 2)
+[INFO] guard verdicts of the guarded slow steps: [{'accepted': True, 'n_chunks': 3, 'paired_se': 0.05310964668576172, 'tolerance': 0.01, 'paired_change': -0.07942965295579697}, {'accepted': True, 'n_chunks': 3, 'paired_se': 0.06281232868429455, 'tolerance': 0.01, 'paired_change': -0.04239302211337619}, {'accepted': False, 'n_chunks': 3, 'paired_se': 0.03356523761490956, 'tolerance': 0.01, 'paired_change': 0.044335385163625084}, {'accepted': True, 'n_chunks': 4, 'paired_se': 0.020160259579637563, 'tolerance': 0.01, 'paired_change': -0.023219505945841473}, {'accepted': True, 'n_chunks': 4, 'paired_se': 0.040709812349974506, 'tolerance': 0.01, 'paired_change': -0.03809339304765066}, {'accepted': True, 'n_chunks': 4, 'paired_se': 0.007918769297784256, 'tolerance': 0.01, 'paired_change': -0.002028663953145345}, {'accepted': False, 'n_chunks': 5, 'paired_se': 0.035145987132352834, 'tolerance': 0.01, 'paired_change': 0.020879324277242022}]
+[PASS] CL-03: adapter (slow) updates occur in the integrated agent  7
+[PASS] CL-03: every applied slow step in the integrated agent carries a held-out guard verdict  0 of 7 applied slow steps ran without any held-out check (no validation cells)
+[PASS] CL-02: frequent updates change experiential weights in the integrated agent  21
+[INFO] frequent updates whose behavioural probe changed: (21, 21)
+[PASS] CL-02: frequent updates of the integrated agent change predictions or behaviour (probe)  21 of 21
+[INFO] frequent update triggers: {'matured_outcomes:3_independent/3_rows': 12, 'matured_outcomes:2_independent/2_rows': 9, 'matured_outcomes:4_independent/4_rows': 2}
+[INFO] learner.validate() at the end (held-out losses available to the slow guard and to promotion): {'rudder': 225.0, 'cocoa': 0.9872233271598816, 'bridge_grounding': 19.171409606933594}
+[INFO] runtime learning log (RunFiles.LEARNING): records whose notes JSON no longer parses: (31, 56)
+[INFO] promotions (decision, reasons): [(False, ['no retention metric supplied']), (False, ['no retention metric supplied'])]
+
+13 checks, 0 failed
+
+real	1m2.328s
+user	1m22.453s
+sys	0m18.984s

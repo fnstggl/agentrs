@@ -1,0 +1,123 @@
+[PASS] poll() triggers on matured outcomes of the real-config lab  ({"queued_rows": 27, "matured_rows": 16, "independent_units": 16, "threshold": 4})
+[PASS] real frequent update: experiential and heads tensors changed  ({'semantic_adapters': 0, 'experiential': 127, 'reward': 0, 'heads': 56})
+[PASS] real frequent update: no adapter / reward tensor changed  ({'semantic_adapters': 0, 'experiential': 127, 'reward': 0, 'heads': 56})
+[PASS] real frequent update changed future predictions  ({'b': 1.1019620895385742, 'z': 1.8997875452041626, 'nll': 0.21433722972869873, 'probs': 0.001659296452999115})
+[PASS] real slow update: LoRA and bridge tensors both changed  (lora 144/144, bridge 26/28)
+[PASS] real slow update: experiential / heads / reward unchanged  ({'semantic_adapters': 170, 'experiential': 0, 'reward': 0, 'heads': 0})
+[PASS] frozen backbone hash unchanged by both updates
+[PASS] writer: predictions after learning do not depend on inference caches  ({'b': 0.0, 'z': 0.0, 'nll': 0.0, 'probs': 0.0})
+{
+ "parameters_by_group": {
+  "backbone_frozen": 4022468096,
+  "semantic_adapters": 16713856,
+  "experiential": 50953765,
+  "reward": 0,
+  "heads": 1932714
+ },
+ "frequent": {
+  "tensors_changed": {
+   "semantic_adapters": 0,
+   "experiential": 127,
+   "reward": 0,
+   "heads": 56
+  },
+  "record_param_groups": [
+   "experiential",
+   "heads"
+  ],
+  "grad_norms": {
+   "experiential": 0.2871362566947937,
+   "heads": 9.55338191986084
+  },
+  "weight_delta": {
+   "experiential": 0.25132545828819275,
+   "heads": 0.01879158988595009
+  },
+  "losses": {
+   "world": 0.8197673559188843,
+   "rudder": 0.35317227244377136,
+   "cocoa": 2.1972246170043945
+  }
+ },
+ "frequent_prediction_change": {
+  "b": 1.1019620895385742,
+  "z": 1.8997875452041626,
+  "nll": 0.21433722972869873,
+  "probs": 0.001659296452999115
+ },
+ "slow": {
+  "tensors_changed": {
+   "semantic_adapters": 170,
+   "experiential": 0,
+   "reward": 0,
+   "heads": 0
+  },
+  "lora_tensors_changed": 144,
+  "bridge_tensors_changed": 26,
+  "n_lora_tensors": 144,
+  "n_adapter_tensors": 172,
+  "adapter_grad_norm_by_loss": {
+   "bridge_grounding": 6.924394130706787,
+   "world": 0.02585035003721714
+  },
+  "guard": {
+   "accepted": true,
+   "drift_after": -0.006332838700877295,
+   "drift_before": 0.0,
+   "n_chunks": 6,
+   "noise_tolerance": 0.005039927196546583,
+   "paired_change": -0.006332838700877295,
+   "paired_se": 0.0025199635982732916,
+   "reasons": [],
+   "reference": "start",
+   "tolerance": 0.005039927196546583,
+   "validation_after": 3.3055150508880615,
+   "validation_before": 3.31195224466778
+  },
+  "adapter_grad_norm": {
+   "bridge": 4.843857288360596,
+   "lora": 4.9480085372924805
+  },
+  "adapter_delta_norm": {
+   "bridge": 0.008757472038269043,
+   "lora": 0.015132177621126175
+  }
+ },
+ "writer_backbone_state": {
+  "mem_is_set": false,
+  "fingerprint_matches": true,
+  "cache_items": 54,
+  "stats": {
+   "cache_hits": 2223,
+   "cache_misses": 129,
+   "embedded_texts": 129,
+   "embedded_tokens": 1793,
+   "embed_s": 186.7353870868683,
+   "truncated_tokens": 0,
+   "generated_tokens": 0,
+   "generate_s": 0.0,
+   "load_s": 262.2137060165405,
+   "cache_invalidations": 2
+  }
+ },
+ "writer_after_embedding_cache_clear_max_diff": {
+  "b": 0.0,
+  "z": 0.0,
+  "nll": 0.0,
+  "probs": 0.0
+ },
+ "writer_after_lora_cast_reset_max_diff": {
+  "b": 0.0,
+  "z": 0.0,
+  "nll": 0.0,
+  "probs": 0.0
+ },
+ "writer_warm_vs_cold_cache_max_diff": {
+  "b": 0.0,
+  "z": 0.0,
+  "nll": 0.0,
+  "probs": 0.0
+ },
+ "peak_gpu_gb": null,
+ "seconds": 630.4723436832428
+}
