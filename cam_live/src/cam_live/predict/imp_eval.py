@@ -102,7 +102,7 @@ def build_config(arm: str, seed: int, *, real: bool, backbone: bool, extra_predi
 
 def run(arm: str, seed: int, *, family: str, lifetimes: int, decisions: int, real: bool, backbone: bool,
         out: str, workdir: str, threads: int, world_base: Optional[int], extra_predict: Dict[str, Any],
-        budget_s: float, from_dir: str = "", save: bool = False) -> Dict[str, Any]:
+        budget_s: float, from_dir: str = "", save: bool = False, lifetime_wall_s: float = 0.0) -> Dict[str, Any]:
     from ..agent import CamLiveAgent
     from ..eval.runner import run_lifetime
     from ..validation import OffsetClock
@@ -146,8 +146,13 @@ def run(arm: str, seed: int, *, family: str, lifetimes: int, decisions: int, rea
                 res["stopped_early"] = f"time budget {budget_s:.0f} s reached after {i} lifetimes"
                 break
             n0 = len(plan_s)
+            t_lt = time.time()
+
+            def wall_cap(rt: Any) -> None:            # a GPU hold stays short: the runtime ends the lifetime
+                if lifetime_wall_s and rt.status == "running" and time.time() - t_lt > lifetime_wall_s:
+                    rt._finish("stopped", f"imp_eval wall budget {lifetime_wall_s:.0f} s")
             lt = run_lifetime(agent, family, wb + i, os.path.join(root, f"lt{i:02d}"), clock,
-                              max_decisions=decisions, k=16)
+                              max_decisions=decisions, k=16, on_step=wall_cap)
             rows = [decision_row(agent, r) for r in lt["decision_rows"]]
             res["lifetimes"].append({
                 "index": i, "world_seed": wb + i, "decisions": lt["decisions"], "progress": lt["progress"],
@@ -155,6 +160,7 @@ def run(arm: str, seed: int, *, family: str, lifetimes: int, decisions: int, rea
                 "verified_value": lt["verified_value"], "target": lt["target"],
                 "expected_adopters": lt.get("expected_adopters"),
                 "oracle_expected_adopters": lt.get("oracle_expected_adopters"), "quality": lt.get("quality"),
+                "runtime_status": lt.get("runtime_status"),
                 "wall_seconds": lt["wall_seconds"], "planner_seconds": sum(plan_s[n0:]),
                 "planner_calls": len(plan_s) - n0, "decision_rows": rows,
                 "planner_measure": agent.last.get("planner"), "planner_error": agent.last.get("planner_error")})
@@ -427,6 +433,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     r.add_argument("--out", required=True)
     r.add_argument("--from-dir", default="", help="workdir of a run made with --save: continue from its checkpoint")
     r.add_argument("--save", action="store_true", help="save a checkpoint (and keep the experience) at the end")
+    r.add_argument("--lifetime-wall-s", type=float, default=0.0, help="end a lifetime after this many seconds")
     rp = sub.add_parser("replay")
     rp.add_argument("--run-dir", required=True)
     rp.add_argument("--ckpt", required=True)
@@ -440,7 +447,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if a.cmd == "run":
         kw = dict(family=a.family, lifetimes=a.lifetimes, decisions=a.decisions, real=a.real, backbone=a.backbone,
                   out=a.out, workdir=a.workdir, threads=a.threads, world_base=a.world_base,
-                  extra_predict=json.loads(a.predict), budget_s=a.budget_s, from_dir=a.from_dir, save=a.save)
+                  extra_predict=json.loads(a.predict), budget_s=a.budget_s, from_dir=a.from_dir, save=a.save, lifetime_wall_s=a.lifetime_wall_s)
         if a.real:
             from ..nn.gpu import free_gpu_memory, gpu_lock
             with gpu_lock(timeout_s=3 * 3600.0):
