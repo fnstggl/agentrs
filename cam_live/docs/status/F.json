@@ -110,7 +110,8 @@
     "tests/runtime/test_rt_fix_tasks.py::test_yaml_anchor_alias_and_merge_key_are_refused",
     "tests/runtime/test_rt_fix_runtime.py::test_D6_the_learner_receives_only_the_learner_view",
     "tests/runtime/test_int3b_round2.py::test_disguised_strategy_content_is_refused",
-    "tests/runtime/test_int3b_round2.py::test_normalisation_reads_like_a_reader_and_shipped_tasks_stay_clean"
+    "tests/runtime/test_int3b_round2.py::test_normalisation_reads_like_a_reader_and_shipped_tasks_stay_clean",
+    "tests/runtime/test_int3b_round2.py::test_confusables_leetspeak_and_concatenations_are_read_and_task_files_stay_clean"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
@@ -119,9 +120,10 @@
    "evidence": [
     "docs/evidence/test_results/F.xml",
     "docs/F/FIXES.md",
-    "docs/evidence/test_results/INT3B_fix2.xml"
+    "docs/evidence/test_results/INT3B_fix2.xml",
+    "docs/evidence/test_results/INT3B_fix3.xml"
    ],
-   "limitations": "Closed schema (unknown keys anywhere rejected with their path), bounded free text, YAML anchors / aliases / duplicate keys refused, mechanical strategy scan of every free text and free-form key; objective text with strategy-like content needs objective_confirmation: sha256:<hash of the text>. The text scan is heuristic (regular expressions): prose that avoids every pattern in a free-text field (objective, success.definition, measurement.protocol) can still pass. The runtime process reads the full task file (the authorization service pins the task by its content hash); only the learner object is limited to learner_view. INT3B round 2 (G2R-1): keys and values are scanned as a reader sees them (NFKC, invisible / direction characters removed, identifiers split on separators and camelCase); invisible characters are refused in identifiers and keys (probe_tasks_disguise 14/14 hold). Still heuristic."
+   "limitations": "Closed schema (unknown keys anywhere rejected with their path), bounded free text, YAML anchors / aliases / duplicate keys refused, mechanical strategy scan of every free text and free-form key; objective text with strategy-like content needs objective_confirmation: sha256:<hash of the text>. The text scan is heuristic (regular expressions): prose that avoids every pattern in a free-text field (objective, success.definition, measurement.protocol) can still pass. The runtime process reads the full task file (the authorization service pins the task by its content hash); only the learner object is limited to learner_view. INT3B round 2 (G2R-1): keys and values are scanned as a reader sees them (NFKC, invisible / direction characters removed, identifiers split on separators and camelCase); invisible characters are refused in identifiers and keys (probe_tasks_disguise 14/14 hold). Still heuristic. INT3B round 3 (G2R-1b): confusable skeleton (TR39-style), leetspeak folding, spelled-out letters joined, concatenated words split over a word list, mixed-script words flagged, listing / bump sites and outreach moves (probe_tasks_disguise 23/23: 18 variants refused). False refusals: none on the 6 task files of the repository and 141 identifiers of the code base. Still heuristic: a disguise outside these readings and word lists can pass."
   },
   "LX-03": {
    "state": "partial",
@@ -146,7 +148,8 @@
     "tests/runtime/test_rt_fix_verifier.py::test_a_restarted_verifier_refuses_a_log_edited_before_its_last_entry",
     "tests/runtime/test_rt_fix_runtime.py::test_signed_verifier_measurements_check_locally_and_over_rpc",
     "tests/runtime/test_int3b_round2.py::test_members_who_joined_before_the_experiment_are_not_counted",
-    "tests/runtime/test_int3b_round2.py::test_an_operator_assigned_objective_is_verified_and_a_forged_one_is_refused"
+    "tests/runtime/test_int3b_round2.py::test_an_operator_assigned_objective_is_verified_and_a_forged_one_is_refused",
+    "tests/runtime/test_int3b_round2.py::test_members_present_at_the_start_who_leave_and_rejoin_are_not_counted"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
@@ -157,9 +160,10 @@
     "docs/evidence/test_results/F.xml",
     "docs/evidence/test_results/F_privileged.xml",
     "docs/F/FIXES.md",
-    "docs/evidence/test_results/INT3B_fix2.xml"
+    "docs/evidence/test_results/INT3B_fix2.xml",
+    "docs/evidence/test_results/INT3B_fix3.xml"
    ],
-   "limitations": "Membership rules: per-id merging, case-insensitive flags, link keys tainted by excluded accounts, unknown join time / account age uncertain; achieved only when the lower confidence bound reaches the target. The Discord membership source (harness.discord_membership, master-owned) is the default for Discord tasks; F made no Discord API call. Deleting the last log entry together with the head file stays undetectable (unkeyed chain). INT3B round 2 (G2R-2): only members who joined at / after the experiment's start count (window_start_ts, else the verifier's first reading; a count-only baseline is logged); probe_verifier_live_source A holds."
+   "limitations": "Membership rules: per-id merging, case-insensitive flags, link keys tainted by excluded accounts, unknown join time / account age uncertain; achieved only when the lower confidence bound reaches the target. The Discord membership source (harness.discord_membership, master-owned) is the default for Discord tasks; F made no Discord API call. Deleting the last log entry together with the head file stays undetectable (unkeyed chain). INT3B round 2 (G2R-2): only members who joined at / after the experiment's start count (window_start_ts, else the verifier's first reading; a count-only baseline is logged); probe_verifier_live_source A holds. INT3B round 3 (G2R-2b): keyed hashes of the members present at the start (verifier state only, 0600) exclude members who leave and rejoin (probe A2 holds)."
   },
   "LX-07": {
    "state": "implemented",
@@ -177,7 +181,8 @@
     "tests/runtime/test_rt_loop.py::test_delayed_outcomes_reconcile_exactly_once",
     "tests/runtime/test_rt_fix_runtime.py::test_D10_learner_claims_are_never_recorded_or_shown_as_outcomes",
     "tests/runtime/test_int3b_ops.py::test_plan_report_reproduces_cam_texts_verbatim_with_provenance",
-    "tests/runtime/test_int3b_round2.py::test_plan_report_markdown_cannot_be_injected_and_json_is_byte_exact"
+    "tests/runtime/test_int3b_round2.py::test_plan_report_markdown_cannot_be_injected_and_json_is_byte_exact",
+    "tests/runtime/test_int3b_round2.py::test_the_plan_report_exports_no_members_data_and_counts_its_redactions"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/INT3B_fix.xml  (one process, importlib mode)"
@@ -190,9 +195,10 @@
     "docs/evidence/INT3B/rehearsal_segmentB_plan_report.json.gz",
     "docs/evidence/INT3B/rehearsal_segmentA_check.json",
     "docs/evidence/INT3B/rehearsal_segmentA_plan_report.md",
-    "docs/evidence/test_results/INT3B_fix2.xml"
+    "docs/evidence/test_results/INT3B_fix2.xml",
+    "docs/evidence/test_results/INT3B_fix3.xml"
    ],
-   "limitations": "INT3B: experiments.jsonl is written from the integrated agent (CamLiveAgent.drain_experiments) in the real-configuration staging rehearsal (6 registry records); the learner's 'actual' stays learner_reported_actual, actual outcomes are the runtime's experiment_outcome records (D10). The experiments are the learner's randomised comparisons; their question / hypothesis texts are generated by the registry, not by CAM's backbone. INT3B round 2 (G2R-7, R5-m2): JSON keeps CAM's texts byte-exact; in Markdown every CAM text is a code span or fenced block with terminal controls shown as escapes (probe_plan_report 6/6, g18 X6b holds)."
+   "limitations": "INT3B: experiments.jsonl is written from the integrated agent (CamLiveAgent.drain_experiments) in the real-configuration staging rehearsal (6 registry records); the learner's 'actual' stays learner_reported_actual, actual outcomes are the runtime's experiment_outcome records (D10). The experiments are the learner's randomised comparisons; their question / hypothesis texts are generated by the registry, not by CAM's backbone. INT3B round 2 (G2R-7, R5-m2): JSON keeps CAM's texts byte-exact; in Markdown every CAM text is a code span or fenced block with terminal controls shown as escapes (probe_plan_report 6/6, g18 X6b holds). INT3B round 3: the report's texts pass the run logs' redaction (G2R-7b)."
   },
   "LX-08": {
    "state": "implemented",
@@ -263,7 +269,8 @@
     "tests/runtime/test_rt_fix_dashboard.py::test_operator_actions_need_operator_credential_csrf_and_same_origin",
     "tests/runtime/test_rt_fix_dashboard.py::test_a_learner_uid_process_cannot_approve_even_with_every_credential",
     "tests/runtime/test_rt_fix_dashboard.py::test_strict_csp_and_security_headers_on_every_response",
-    "tests/runtime/test_int3b_round2.py::test_a_server_error_carries_the_security_headers"
+    "tests/runtime/test_int3b_round2.py::test_a_server_error_carries_the_security_headers",
+    "tests/runtime/test_int3b_round2.py::test_the_dashboard_shows_the_storage_guards_level"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
@@ -272,9 +279,10 @@
    "evidence": [
     "docs/evidence/test_results/F.xml",
     "docs/F/FIXES.md",
-    "docs/evidence/test_results/INT3B_fix2.xml"
+    "docs/evidence/test_results/INT3B_fix2.xml",
+    "docs/evidence/test_results/INT3B_fix3.xml"
    ],
-   "limitations": "Text-only rendering, strict CSP without inline script, operator actions need a separate operator credential (header only), a CSRF token and same origin, and refuse a service-uid peer (owner of the loopback socket read from /proc/net/tcp). The operator credential lives in the page's memory while the page is open; anyone with the operator's uid can read both credential files. INT3B round 2 (G2R-11): error responses carry the security headers (probe_dashboard 19/19)."
+   "limitations": "Text-only rendering, strict CSP without inline script, operator actions need a separate operator credential (header only), a CSRF token and same origin, and refuse a service-uid peer (owner of the loopback socket read from /proc/net/tcp). The operator credential lives in the page's memory while the page is open; anyone with the operator's uid can read both credential files. INT3B round 2 (G2R-11): error responses carry the security headers (probe_dashboard 19/19). INT3B round 3: /api/health and the page show the storage guard's level (ok / warning / low)."
   },
   "LX-12": {
    "state": "implemented",
@@ -355,7 +363,9 @@
     "tests/runtime/test_int3b_round2.py::test_program_steps_count_toward_the_external_action_limit",
     "tests/runtime/test_int3b_round2.py::test_a_limit_refusal_is_a_resource_limit_not_a_missing_permission",
     "tests/runtime/test_int3b_round2.py::test_exports_and_reports_are_disk_guarded_and_doctor_uses_the_storage_section",
-    "tests/runtime/test_int3b_round2.py::test_the_storage_thresholds_follow_the_configuration_and_the_environment_can_only_tighten_them"
+    "tests/runtime/test_int3b_round2.py::test_the_storage_thresholds_follow_the_configuration_and_the_environment_can_only_tighten_them",
+    "tests/runtime/test_int3b_round2.py::test_the_verifier_follows_the_operators_signed_change_of_the_objective_in_force",
+    "tests/runtime/test_int3b_round2.py::test_a_program_is_not_started_when_its_external_steps_do_not_fit_into_the_limit"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
@@ -366,9 +376,10 @@
     "docs/evidence/test_results/F.xml",
     "docs/F/FIXES.md",
     "docs/evidence/test_results/INT2_full.xml",
-    "docs/evidence/test_results/INT3B_fix2.xml"
+    "docs/evidence/test_results/INT3B_fix2.xml",
+    "docs/evidence/test_results/INT3B_fix3.xml"
    ],
-   "limitations": "Every execution (also of approved actions) is preceded by the limit checks; money uses the larger of the learner's and the tool's estimate, so an action whose actual cost exceeds both overshoots by that action. Learning calls get at most the remaining compute. Invalid limits fail closed. authorization_revoked recognises revocation from the authorization service's reason text (change request F-9). INT2: below storage.min_free_gb the runtime writes no checkpoint and pauses with a resource obstacle; keep_checkpoints 2, optimizer state only in the newest. INT3B round 2: every external step of a program counts and a program is not started at the limit (G2R-5, probe_limits_program 3/3; a program started below the limit can overshoot by its own steps only as far as the authorization service's per-step ledger allows); L- refusals are resource_limit (G2I-14, p07 4/4); export-checkpoint and plan-report check the storage guard first (p03 10/11; check 4 is the agent's export_weights, change request INT3B-8)."
+   "limitations": "Every execution (also of approved actions) is preceded by the limit checks; money uses the larger of the learner's and the tool's estimate, so an action whose actual cost exceeds both overshoots by that action. Learning calls get at most the remaining compute. Invalid limits fail closed. authorization_revoked recognises revocation from the authorization service's reason text (change request F-9). INT2: below storage.min_free_gb the runtime writes no checkpoint and pauses with a resource obstacle; keep_checkpoints 2, optimizer state only in the newest. INT3B round 2: every external step of a program counts and a program is not started at the limit (G2R-5, probe_limits_program 3/3; a program started below the limit can overshoot by its own steps only as far as the authorization service's per-step ledger allows); L- refusals are resource_limit (G2I-14, p07 4/4); export-checkpoint and plan-report check the storage guard first (p03 10/11; check 4 is the agent's export_weights, change request INT3B-8). INT3B round 3: G2R-15 the verifier follows the operator's signed change of the objective in force (deadline, target; probe_next_objective E1 holds); a program whose external steps do not fit into what is left is not started (probe_limits_program 4 holds; its check 3 now reports the decision budget as what ends that scenario)."
   },
   "LX-15": {
    "state": "implemented",
@@ -735,7 +746,8 @@
     "tests/runtime/test_rt_tasks.py::test_discord_task_is_the_spec_objective_with_independent_criteria",
     "tests/runtime/test_int3b_round2.py::test_retention_counts_members_who_left_with_a_current_members_only_source",
     "tests/runtime/test_int3b_round2.py::test_participation_from_aggregate_signals_cost_and_resource_use_are_cams",
-    "tests/runtime/test_int3b_round2.py::test_the_run_services_connect_the_cost_accounting"
+    "tests/runtime/test_int3b_round2.py::test_the_run_services_connect_the_cost_accounting",
+    "tests/runtime/test_int3b_round2.py::test_members_present_at_the_start_who_leave_and_rejoin_are_not_counted"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/INT3B_fix.xml  (one process, importlib mode)"
@@ -748,9 +760,10 @@
     "docs/evidence/INT3B/rehearsal_segmentB_plan_report.json.gz",
     "docs/evidence/INT3B/rehearsal_segmentA_check.json",
     "docs/evidence/INT3B/rehearsal_segmentA_plan_report.md",
-    "docs/evidence/test_results/INT3B_fix2.xml"
+    "docs/evidence/test_results/INT3B_fix2.xml",
+    "docs/evidence/test_results/INT3B_fix3.xml"
    ],
-   "limitations": "Seven-day retention, voluntary participation, consented feedback, resource use (usefulness), operating cost and time are separate Quantity values of VerifiedOutcome.secondary; the primary value is the confirmed member count only (test). In the staging rehearsal the signed outcomes carried only the secondary values the staging source supports (resource use, time elapsed): no members, no participation, no feedback exist there. INT3B round 2 (G2R-3): retention counts departures (left_at, or the verifier's hourly cohorts for a current-members-only source; probe B holds); participation from aggregate message authorship of the Discord source; feedback only with collect_feedback_with_consent (no feedback source exists yet: reported 'Not measured'); operating cost and resource use are CAM's own from the authorization ledger (wired in verifier_service.serve and in-process). The probe's C1-C4 report 'not measured' in its set-up (fake API without channels, no ledger); nothing is a placeholder. Not measured against a real Discord guild."
+   "limitations": "Seven-day retention, voluntary participation, consented feedback, resource use (usefulness), operating cost and time are separate Quantity values of VerifiedOutcome.secondary; the primary value is the confirmed member count only (test). In the staging rehearsal the signed outcomes carried only the secondary values the staging source supports (resource use, time elapsed): no members, no participation, no feedback exist there. INT3B round 2 (G2R-3): retention counts departures (left_at, or the verifier's hourly cohorts for a current-members-only source; probe B holds); participation from aggregate message authorship of the Discord source; feedback only with collect_feedback_with_consent (no feedback source exists yet: reported 'Not measured'); operating cost and resource use are CAM's own from the authorization ledger (wired in verifier_service.serve and in-process). The probe's C1-C4 report 'not measured' in its set-up (fake API without channels, no ledger); nothing is a placeholder. Not measured against a real Discord guild. INT3B round 3 (G2R-3b): usefulness of community resources is reported as not measured (no evidence source)."
   },
   "LX-19": {
    "state": "implemented",
@@ -766,16 +779,19 @@
     "tests/runtime/test_int3b_settle.py::test_outcomes_pending_at_verified_success_are_measured_before_the_objective_closes",
     "tests/runtime/test_int3b_settle.py::test_settling_resumes_after_a_restart",
     "tests/runtime/test_int3b_round2.py::test_an_operator_assigned_objective_is_verified_and_a_forged_one_is_refused",
-    "tests/runtime/test_int3b_round2.py::test_finishing_an_objective_again_after_a_crash_records_it_once"
+    "tests/runtime/test_int3b_round2.py::test_finishing_an_objective_again_after_a_crash_records_it_once",
+    "tests/runtime/test_int3b_round2.py::test_the_verifier_follows_the_operators_signed_change_of_the_objective_in_force",
+    "tests/runtime/test_int3b_round2.py::test_an_assigned_task_file_is_read_once_and_restored_from_the_verifiers_copy"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/INT3B_fix.xml  (one process, importlib mode)"
    ],
    "evidence": [
     "docs/evidence/test_results/INT3B_fix.xml",
-    "docs/evidence/test_results/INT3B_fix2.xml"
+    "docs/evidence/test_results/INT3B_fix2.xml",
+    "docs/evidence/test_results/INT3B_fix3.xml"
    ],
-   "limitations": "After a signed success nothing is proposed or executed; outcomes still pending are settled (bounded window, never past the deadline), the learner state is checkpointed at the end (forced commit), and a queued objective (cam-live assign) starts after it; otherwise the run stays completed awaiting the operator. Demonstrated on LabWorld only (no live objective). INT3B round 2 (G2R-4, G2R-8): the verifier follows an objective assigned by a command signed with the operator's key (hash and task rules checked; forged refused; probe_next_objective 2/2); objective_finished is written once across a crash (probe_settle_crash 15/15)."
+   "limitations": "After a signed success nothing is proposed or executed; outcomes still pending are settled (bounded window, never past the deadline), the learner state is checkpointed at the end (forced commit), and a queued objective (cam-live assign) starts after it; otherwise the run stays completed awaiting the operator. Demonstrated on LabWorld only (no live objective). INT3B round 2 (G2R-4, G2R-8): the verifier follows an objective assigned by a command signed with the operator's key (hash and task rules checked; forged refused; probe_next_objective 2/2); objective_finished is written once across a crash (probe_settle_crash 15/15). INT3B round 3: G2R-18 an assigned task file is read once by the runtime and once by the verifier, each parsing the bytes it hashed; the verifier keeps its own copy for restarts and refuses replayed assignments."
   },
   "LX-20": {
    "state": "implemented",
@@ -790,7 +806,8 @@
     "tests/runtime/test_rt_fix_runtime.py::test_D7_structured_shapes_are_redacted",
     "tests/runtime/test_rt_fix_runtime.py::test_D7_text_shapes_are_redacted",
     "tests/runtime/test_rt_logs_journal.py::test_redaction_of_secrets_personal_information_and_member_identifiers",
-    "tests/runtime/test_int3b_round2.py::test_redaction_covers_more_secret_shapes_and_leaves_prose_readable"
+    "tests/runtime/test_int3b_round2.py::test_redaction_covers_more_secret_shapes_and_leaves_prose_readable",
+    "tests/runtime/test_int3b_round2.py::test_the_plan_report_exports_no_members_data_and_counts_its_redactions"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/INT3B_fix.xml  (one process, importlib mode)"
@@ -803,9 +820,10 @@
     "docs/evidence/INT3B/rehearsal_segmentB_plan_report.json.gz",
     "docs/evidence/INT3B/rehearsal_segmentA_check.json",
     "docs/evidence/INT3B/rehearsal_segmentA_plan_report.md",
-    "docs/evidence/test_results/INT3B_fix2.xml"
+    "docs/evidence/test_results/INT3B_fix2.xml",
+    "docs/evidence/test_results/INT3B_fix3.xml"
    ],
-   "limitations": "Every record carries ts, seq, rid, run_id, provenance (task mode) and source; consequential records are fsync'ed. Redaction is pattern-based (credentials, personal data, member ids, message content per data_permissions): in the rehearsal it also redacted loopback IPv4 addresses in URLs (over-redaction, harmless). The staging token never appears in the run's records (checked: grep of the staging token over every file of both rehearsal run directories outside vault/ and verifier/: 0 matches). INT3B: floats are no longer pseudonymised as Discord ids (G2-learn: 34-42 of 56-65 learning notes unparseable before; probe_agent_credit.py --seeds 11 now 0 of 5); test tests/runtime/test_int3b_ops.py::test_floats_are_not_redacted_as_member_ids_but_real_ids_are. INT3B round 2 (G2R-6): JWT, HTTP Basic, OAuth (ya29), bare 32/40/48-hex values under value-like keys, integer ids under *_id keys, E.164 numbers without separators, IPv6; prose after 'token:' stays readable (probe_redaction 13/13). Still pattern-based."
+   "limitations": "Every record carries ts, seq, rid, run_id, provenance (task mode) and source; consequential records are fsync'ed. Redaction is pattern-based (credentials, personal data, member ids, message content per data_permissions): in the rehearsal it also redacted loopback IPv4 addresses in URLs (over-redaction, harmless). The staging token never appears in the run's records (checked: grep of the staging token over every file of both rehearsal run directories outside vault/ and verifier/: 0 matches). INT3B: floats are no longer pseudonymised as Discord ids (G2-learn: 34-42 of 56-65 learning notes unparseable before; probe_agent_credit.py --seeds 11 now 0 of 5); test tests/runtime/test_int3b_ops.py::test_floats_are_not_redacted_as_member_ids_but_real_ids_are. INT3B round 2 (G2R-6): JWT, HTTP Basic, OAuth (ya29), bare 32/40/48-hex values under value-like keys, integer ids under *_id keys, E.164 numbers without separators, IPv6; prose after 'token:' stays readable (probe_redaction 13/13). Still pattern-based. INT3B round 3 (G2R-7b): the plan report applies the run logs' redaction to every text, CAM's included (members' handles, e-mail addresses and platform ids -> the logs' keyed hashes / markers), with redaction counts per section; CAM's texts are otherwise byte-exact (probe_plan_report 10/10). A 17-20 digit number whose snowflake time is before 2015-03 or after 2100 is not treated as an account id. A member's real name written as plain words is not detected (pattern-based)."
   }
  },
  "public_api": [
@@ -941,6 +959,38 @@
    "result": "339 passed, 11 skipped, 0 failed, 779 s",
    "code": "working tree of the final INT3B round-2 commit",
    "also": "privileged HX tests test_hx5_operator_cli_root.py + test_hx4_safe_writes.py: 6 passed (-m privileged); tests/integration/test_int3b_validation.py: 1 passed (-m browser)"
+  }
+ },
+ "int3b_round3": {
+  "note": "INT3B round 3: G2-runtime round 2 at 257267c (docs/INT3B.md section 11); regression tests fail on 257267c",
+  "commits": [
+   "e091b41",
+   "929434c",
+   "2247328"
+  ],
+  "probes": {
+   "probe_plan_report": "10/10",
+   "probe_next_objective": "7/7",
+   "probe_verifier_live_source": "10/10",
+   "probe_tasks_disguise": "23/23",
+   "probe_verifier_rules_after_start": "9/9",
+   "probe_redaction": "13/13",
+   "probe_settle_crash": "15/15",
+   "probe_preflight": "7/7",
+   "probe_control_signed": "9/9",
+   "probe_dashboard": "19/19",
+   "probe_limits_program": "4/5 (3: by construction after the fix of 4)",
+   "probe_gpu_lease": "2/3 with the lock file created first (since 7265843 the probe's scratch file is not created)",
+   "G-rt p07": "62/62",
+   "G-rt p06": "24/38 (14 broken as at 257267c, by construction)"
+  },
+  "G2I-12": "docs/COMPLETION.md durability section is generated by verify_completion --merge-status: left to the master",
+  "junit": {
+   "file": "docs/evidence/test_results/INT3B_fix3.xml",
+   "result": "355 passed, 12 skipped, 0 failed, 689 s (run 2)",
+   "run1": "docs/evidence/test_results/INT3B_fix3_run1.xml: 353 passed, 12 skipped, 2 failed (test_int2_wiring::test_runtime_executes_in_the_computer_environment_without_grant_refusals, test_int3a_lrn6::test_a_refused_promotion_keeps_psi_the_meta_optimizer_and_an_unjudged_policy; both pass alone and in run 2: order / process-state dependent, not reproduced)",
+   "command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime cam_live/tests/integration -q --rootdir=cam_live --junitxml=... (default marks, one process)",
+   "also": "privileged HX tests 6 passed; tests/integration/test_int3b_validation.py (-m browser) 1 passed"
   }
  }
 }
