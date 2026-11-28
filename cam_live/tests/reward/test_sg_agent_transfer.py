@@ -1,8 +1,8 @@
 """SG change request SG-2 / SG-3 (agent.py, owned by ST): outcomes of a later assigned objective reach goal-free mode's
 learned transfer estimate through the real agent API, and the evidence survives save / load.
 
-Skipped until ST has applied the hook (``CamLiveAgent._transfer_evidence``); SG ran it on a patched copy of the agent
-(docs/change_requests/SG.md, docs/SG.md §5). Debug model on CPU, LabWorld (diagnostic)."""
+Skipped where the hook (``CamLiveAgent._transfer_evidence``) is absent; ST integrated it in dde7d2d. Debug model on
+CPU, LabWorld (diagnostic)."""
 import os
 import sys
 
@@ -35,21 +35,24 @@ def test_assigned_objective_outcomes_become_transfer_evidence_and_persist(tmp_pa
         assert agent.counters["transfer_evidence"] == 0                 # nothing during the goal-free period
         agent.set_objective(lab_task(world, "assigned_71"))
         assert not agent._goal_free_active()
-        drive(agent, world, clock, verifier, st, 8)
+        drive(agent, world, clock, verifier, st, 6)
+        clock.advance(12 * 3600.0)                                     # the world's outcomes are delayed: let them mature
+        drive(agent, world, clock, verifier, st, 2)
         n = agent.counters["transfer_evidence"]
         assert n > 0 and len(agent.goal_free.transfer.points) > 0
         assert all(p["objective_id"] == "assigned_71" for p in agent.goal_free.transfer.points)
         keys = {p["key"] for p in agent.goal_free.transfer.points}
         assert any(agent.goal_free.transfer.estimate(k)["mean"] != 0.5 for k in keys)
         agent.save(str(tmp_path / "ck"))
-        twin = CamLiveAgent(agent_config(seed=9), str(tmp_path / "agent2"), clock=clock, verifier=verifier)
-        try:
-            twin.load(str(tmp_path / "ck"))
-            assert len(twin.goal_free.transfer.points) == len(agent.goal_free.transfer.points)
-            k = sorted(keys)[0]
-            assert twin.goal_free.transfer.estimate(k)["mean"] == pytest.approx(agent.goal_free.transfer.estimate(k)["mean"])
-            assert twin.goal_free.restore_notes == []                   # reference prior restored, not re-taken
-        finally:
-            twin.close()
+        k = sorted(keys)[0]
+        before = (len(agent.goal_free.transfer.points), agent.goal_free.transfer.estimate(k)["mean"])
     finally:
         agent.close()
+    twin = CamLiveAgent(agent_config(seed=9), str(tmp_path / "agent"), clock=clock, verifier=verifier)
+    try:                                               # a restart: same run directory, state from the checkpoint
+        twin.load(str(tmp_path / "ck"))
+        assert (len(twin.goal_free.transfer.points), twin.goal_free.transfer.estimate(k)["mean"]) == \
+            (before[0], pytest.approx(before[1]))
+        assert twin.goal_free.restore_notes == []                       # reference prior restored, not re-taken
+    finally:
+        twin.close()
