@@ -85,6 +85,17 @@ class PersistSettings:
         return s
 
 
+def _rows(tok: TokenBatch, rows: Sequence[int]) -> TokenBatch:
+    """The given rows of a token batch, trimmed to their longest real context (right padding)."""
+    ii = torch.tensor(list(rows), device=tok.x.device, dtype=torch.long)
+    pad = tok.pad_mask.index_select(0, ii)
+    T = max(1, int(pad.sum(1).max()))
+    return TokenBatch(x=tok.x.index_select(0, ii)[:, :T], pad_mask=pad[:, :T], time=tok.time.index_select(0, ii)[:, :T],
+                      kind_ids=tok.kind_ids.index_select(0, ii)[:, :T], values=tok.values.index_select(0, ii)[:, :T],
+                      value_mask=tok.value_mask.index_select(0, ii)[:, :T],
+                      refs=[tok.refs[r][:T] for r in rows] if tok.refs else [])
+
+
 def window_key(refs: Sequence[str]) -> str:
     """Hash of a window's item refs in order (as the tokenizer sees them)."""
     h = hashlib.sha256()
@@ -312,11 +323,16 @@ class PersistentStateChain:
         T = torch.tensor(times, dtype=torch.float64, device=dev)
         n_win = [q - a for q, a in zip(qs, starts)]
         L = max(n_win) if n_win else 0
+        steps = []                                       # per step: rows taking part and the window each reads
         for j in range(L):
             idx = [i for i, m in enumerate(n_win) if j >= L - m]
-            wins = [starts[i] + (j - (L - n_win[i])) for i in idx]
-            ctx = [self._items(self._window_refs(w)) for w in wins]
-            tok = self.model.tokenize(ctx)
+            steps.append((idx, [starts[i] + (j - (L - n_win[i])) for i in idx]))
+        uniq = sorted({w for _, wins in steps for w in wins})
+        if uniq:                                         # every window of every step tokenised in one call
+            row_of = {w: k for k, w in enumerate(uniq)}
+            allt = self.model.tokenize([self._items(self._window_refs(w)) for w in uniq])
+        for idx, wins in steps:
+            tok = _rows(allt, [row_of[w] for w in wins])
             ii = torch.tensor(idx, device=dev, dtype=torch.long)
             out = core(tok, CoreState(S.index_select(0, ii), T.index_select(0, ii), 1))
             S = S.index_copy(0, ii, out.state.slots)
