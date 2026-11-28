@@ -423,3 +423,90 @@ read in the code (`sandbox_host.py` `_handle`) and the uid refusals measured (g0
 
 Live Discord (OP-04 unchanged); the MAI-UI-2B GPU test; public-network egress of the root host's broker; code
 execution through R3-M1 (only fixed-content overwrites were attempted).
+
+---
+
+# Round 4 — final harness re-check at a5ab772 (2026-11-28)
+
+**Harness-security go / no-go for the live planning launch: CONDITIONAL GO.** The harness boundary holds. But until
+R4-C1 and R4-M1 are fixed, the operator must not run `cam-live export-checkpoint` on the live run directory at all,
+and must run `cam-live plan-report` only with `--out <path in a root-only directory>`. Both defects need the learner
+uid to be compromised and the operator to run the command as root.
+
+Verdict commit: `a5ab7720f169c1bc23cc442be96a31310dfa29eb`. HX's fixes are in `0fedb1a`, and the claims in `6945e2a` /
+`docs/HX.md` "Round 4". HX-6 was fixed by the master in `a5ab772`. The working tree's `cam_live/src` and
+`cam_live/tests` are identical to a5ab772. All 49 ids were re-judged at a5ab772.
+
+**Verdicts (49):** 42 verified, 6 partial (IH-07, IH-16, CU-27, OP-07, CU-19, OP-04), 1 failed (CU-37). The partial
+and failed verdicts of IH-07, IH-16, CU-27, OP-07 and CU-37 all rest on R4-C1 / R4-M1. Both are pre-existing
+runtime operator-CLI defects (present at 4d6044a), not in `harness/`.
+
+## R4.1 What I executed
+
+| What | Result |
+|---|---|
+| Harness suites as root, browser + privileged, compute first | **632 passed, 0 failed**, 304 s |
+| `tests/runtime` as root (`-m "privileged or not (gpu or slow or network)"`) | **244 passed, 1 skipped**, 98 s |
+| G-sec p01-p15, G-env probes, EB registered variant | all 0 defects, with the same counts as round 3 (SEP-BROWSER stale) |
+| g01-g14 | g01 30/0, g02 2/0, g03 7/0, g04 1/0, g05 24/0, g06 2/0, g07 7/0, g08 39/0, g09 9/0, g10 1/0 (20 rounds), **g11 11/0, g12 8/0, g13 16/0**, g14 5/0 |
+| New probes g15-g17 | g15 0 / **2** (root CLI), g16 2 / **1** (safefs races), g17 5/0 (audit anchor) |
+
+## R4.2 Round-3 defects re-checked
+
+| Defect | Re-check |
+|---|---|
+| R3-M1: root follows learner symlinks in the run dir | **Fixed for the safefs writers.** g11 S4: a symlink planted under the supervisor's temporary name is never followed, given name or not, and the inotify race now wins 0 of 5. g16 F1/F2 ran 3000 writes each while the learner kept swapping the target between its own file and a symlink to a victim, then a path component between its own directory and a symlink. Nothing was written through: 145 writes were refused and the victim stayed intact. `control.json.lock` uses `_open_lock` (HX-6; tests/runtime pass). **Not fixed outside safefs:** R4-C1 and R4-M1 below. |
+| R3-m1: a restart rewrote the audit head | **Fixed.** g12 8/0: a truncated log, and a head 70 entries behind, are now reported. g17: the anchor `<run>/logs/audit.anchor` is root 0600 in a root 0755 directory; camlearn and camauth get PermissionError on write, unlink and replace. A tail removed while the service was down, with the log and head rewritten to match (MAC computed with the real key), is reported at the next start ("discontinuity … out-of-band anchor (entry 14) is not in the log"). The anchor records whatever head the auth uid left at stop, so the auth uid's own tampering stays outside, as SECURITY.md says. |
+| R3-m2: CAPTCHA false refusals | **Fixed.** g13 16/0: own-site CAPTCHA configuration, the "Are you a bot?" FAQ link and the e-mail code field are allowed; real answers are still refused. |
+
+## R4.3 New defects (found by grepping every file operation reachable from a root process)
+
+**R4-C1 (critical, pre-existing) — `cam-live export-checkpoint` as root copies learner-chosen files into any
+directory (CU-37, IH-07, CU-27, OP-07).** This is `runtime/cli.py` `cmd_export_checkpoint`, lines 690-704. With no
+runtime alive, the checkpoint id and path come from `<run>/state.json`, which is the learner's own file. The
+destination `<run>/exports/export_<id>` is built without normalising the path. When the path is not a loadable
+checkpoint, it is copied with `shutil.copytree(src, dest, dirs_exist_ok=True)`.
+
+As camlearn, the probe wrote `state.json` with `id = "x/../../../../../../<root-only dir>"` and a path to a directory of
+its own. That directory held a file named `authorized_keys`. Then root ran the real CLI,
+`cam-live export-checkpoint --run-dir R`: it exited 0 and the learner's file now sits root-owned in the root-only
+directory. Aimed at `/root/.ssh` with sshd listening on 22, this is root code execution; I did not take that step.
+With `--out` the source path is still the learner's choice, so root can copy for example `/root/.config/camlive`
+into the operator's export. REPRODUCE.md tells the operator to export anything worth keeping with this command.
+Fix: never take a filesystem path from the run's state, validate the id, normalise `dest` under the run directory,
+and read the checkpoint with safefs. Repro (root): `g15_operator_cli_root.py` E1.
+
+**R4-M1 (major, pre-existing) — `cam-live plan-report` writes through a learner symlink (CU-37, IH-16).** This is
+`runtime/plan_report.py` `write_report`, lines 341-345. The default output is `<run>/plan_report.md`, written
+through `<out>.tmp` with `open(..., "w")`. The learner planted `plan_report.md.tmp` as a symlink to a root-owned
+file, and root wrote "# Plan report — run …" into that file. This report is the planning phase's deliverable
+(ledger session 4). Fix: use `atomic_write_text`. Repro: `g15_operator_cli_root.py` E2.
+
+**R4-m1 (minor) — the safefs read opens before it checks the file type.** `safefs.read_nofollow` checks
+`S_ISREG` only after `os.open(…, O_RDONLY|O_NOFOLLOW)`. The learner replaced its own `state.json` with a FIFO, and
+root's `runtime.logs.read_json` was still blocked after 10 s. That read sits in the supervisor's loop
+(`cmd_supervise` reads `state.json` every second) and in the operator's `status`, `resume` and `export-checkpoint`.
+The same pattern applies to `_mk`, which opens existing layout files `O_WRONLY|O_APPEND`, and to
+`chown_chmod_nofollow`. Fix: open with `O_NONBLOCK`, or check the type with `fstatat` first and then `fstat` after
+opening. Repro: `g16_safefs.py` F3.
+
+**R4-m2 (minor) — `credentials revoke` unlinks `<run>/verifier/secrets/<name>` by path** (`harness/credentials.py`,
+lines 147-149). The verifier uid owns `<run>/verifier`, so it can redirect the unlink of a file with that one name
+(code reading only).
+
+Checked and holding:
+- The supervisor starts with cwd = repository root and the operator's environment.
+- `run.json` and `task.yaml` are written by root before the learner starts.
+- `OperatorKey` and `runtime/private.py` refuse directories they do not own.
+- The GPU lock directory is root 775.
+- `journal` and `resume` write through safefs.
+- Checkpoints load with `safetensors` and `torch.load(weights_only=True)`, not pickle.
+- `fs.protected_hardlinks=1` and `fs.protected_regular=2` hold on this host (safefs does not depend on them for
+  writes).
+
+## R4.4 Not checked
+
+- Live Discord; OP-04 is unchanged.
+- The MAI-UI-2B GPU test.
+- Exploiting R4-C1 up to a root shell.
+- The root CLIs of the evaluation runners (not part of the live launch).
