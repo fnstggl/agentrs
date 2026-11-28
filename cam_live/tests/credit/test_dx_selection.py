@@ -174,10 +174,15 @@ def test_one_unit_experiments_are_reported_as_insufficient(agents):
     xids = [ag.run_experiment(e, 1)[0] for e in range(3)]       # one randomised decision per experiment
     ag.learn(rounds=1)
     ev = ag.lab.assigner.last_evaluation
-    assert not ev.ran and ev.n_randomized == 3 and ev.n_compared == 0
+    assert ev.n_randomized == 3 and ev.n_compared == 0
     for x in ev.experiments:
         assert x["experiment_id"] in xids and x["decisions"] == 1 and not x["compared"]
         assert "(< 2" in x["reason"]
+    # CR: their held-out units reach the pooled rule, which promotes nothing on 3 units and says so
+    assert ev.n_units == 3 and ev.default_after == "simple"
+    sel = ag.lab.assigner.selector.history[-1]
+    assert sel.mode == "pooled_units" and not sel.changed
+    assert any("only 3 held-out randomised units" in r for r in sel.reasons)
 
 
 def test_without_an_attached_source_nothing_changes(agents):
@@ -188,7 +193,8 @@ def test_without_an_attached_source_nothing_changes(agents):
     assert ag.lab.assigner.last_evaluation is None and ag.lab.learner.credit_selection == {}
     # the API also works when called directly with the records
     ev = ag.lab.assigner.evaluate_experiments(ag.experiments.records())
-    assert ev.n_recorded == 1 and ev.n_experiments == 1 and not ev.ran
+    assert ev.n_recorded == 1 and ev.n_experiments == 1
+    assert ev.default_after == "simple" and ev.n_units <= 4         # CR: too few pooled units to promote anything
 
 
 @pytest.mark.slow

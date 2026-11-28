@@ -80,7 +80,12 @@ class LearnerSettings:
     fresh_fraction: float = 0.25         # share of a batch reserved for the experience that triggered the update
     val_fraction: float = 0.15
     val_split: str = "objective"         # "objective": whole objectives are held out; "record": single records,
-                                         # stratified within each objective (every 1/val_fraction-th record, INT3A-5)
+                                         # stratified within each objective (every 1/val_fraction-th record, INT3A-5);
+                                         # "segment": every 1/val_fraction-th block of the credit assigner's
+                                         # segment_decisions top-level decisions of each objective (CR: blocked
+                                         # split, so randomised decisions of a held-out block validate the credit
+                                         # estimators inside one long objective); records stored before the learner
+                                         # first used "segment" keep the record split (live-run compatibility)
     holdout_experiments: bool = True     # lifetimes with a decision of a registered randomised experiment are always
                                          # held out: they validate the credit estimators (RC-08), so nothing trains on them
     val_batch: int = 32
@@ -238,9 +243,16 @@ class ContinualLearner:
         self.slow_guard_state: Dict[str, Any] = self._fresh_guard_state()
         #: objectives with a record in a batch that a parameter step was taken on (never validation data)
         self.trained_objectives: set = set()
+        #: credit units (segments of open objectives, ``credit.segments``) with such a record, plus their objectives
+        self.trained_units: set = set()
+        #: "segment" split: first store sequence number it applies to (records before keep the record split; their
+        #: segments count as trained on). None until the learner first uses the segment split.
+        self.segment_split_from_seq: Optional[int] = None
         self._sync_optimizers()
         if credit is not None and hasattr(credit, "attach_learner"):
             credit.attach_learner(self)
+        if self.settings.val_split == "segment":
+            self._segment_switch()      # records already in the store keep the record split (CR)
 
     # ------------------------------------------------------------------------------------------ registration
     def register(self, provider: LossProvider) -> LossProvider:
@@ -328,12 +340,72 @@ class ContinualLearner:
         if self.settings.holdout_experiments:
             if rec.decision.experiment_id or (rec.objective_id and rec.objective_id in self.experiment_objectives()):
                 return True
+        if self.settings.val_split == "segment" and rec.objective_id and int(rec.seq or 0) > 0:
+            got = self._segment_held_out(rec)
+            if got is not None:
+                return got
         if self.settings.val_split != "objective" and rec.objective_id and int(rec.seq or 0) > 0 \
                 and hasattr(self.store, "position_in_objective"):
             return self._record_held_out(rec)
         key = rec.objective_id if (self.settings.val_split == "objective" and rec.objective_id) else rec.exp_id
         h = int(hashlib.sha1(f"{self.settings.seed}|{key}".encode()).hexdigest()[:8], 16) / 2.0 ** 32
         return h < self.settings.val_fraction
+
+    def _units(self) -> Any:
+        u = getattr(self.credit, "units", None)
+        return u if u is not None and getattr(u, "enabled", False) else None
+
+    def _unit_ids(self, records: Sequence[ExperienceRecord]) -> set:
+        u = self._units()
+        out: set = set()
+        for r in records:
+            if not r.objective_id:
+                continue
+            out.add(r.objective_id)
+            if u is not None:
+                out.add(u.unit_of(r))
+        return out
+
+    def _segment_switch(self) -> int:
+        """The first sequence number of the segment split; set on first use: every record already stored keeps the
+        record split, and the segments (and objectives) holding such records count as trained on - they cannot be
+        held-out credit units, whatever the learner did with them before (no assumption about older runs)."""
+        if self.segment_split_from_seq is None:
+            st = self.store
+            head = int(st.head_seq()) if hasattr(st, "head_seq") else 0
+            self.segment_split_from_seq = head + 1
+            self._mark_pre_switch_trained()
+        return self.segment_split_from_seq
+
+    def _mark_pre_switch_trained(self) -> None:
+        """Units (segments, objectives) holding a record stored before the segment split took effect."""
+        st, u, sw = self.store, self._units(), self.segment_split_from_seq
+        if u is None or not sw or sw <= 1 or not hasattr(st, "objective_ids"):
+            return
+        for oid in st.objective_ids():
+            recs = [r for r in u.trajectory(oid) if int(r.seq or 0) < sw]
+            self.trained_units |= self._unit_ids(recs)
+
+    def _segment_held_out(self, rec: ExperienceRecord) -> Optional[bool]:
+        """Blocked split (``val_split="segment"``): the record's segment (``credit.segments``) is held out as a
+        whole, every 1/f-th segment of the objective. None (record split instead) when the assigner has no segments,
+        the record is older than the switch, or its position is unknown."""
+        u = self._units()
+        if u is None or int(rec.seq or 0) < self._segment_switch():
+            return None
+        s = self.settings
+        ck = (rec.exp_id, s.seed, -float(s.val_fraction))
+        hit = self._val_cache.get(ck)
+        if hit is not None:
+            return hit
+        k = u.segment_index(rec)
+        if k is None:
+            return None
+        out = u.held_out_segment(rec.objective_id, k, s.val_fraction, s.seed)
+        if len(self._val_cache) > 200_000:
+            self._val_cache.clear()
+        self._val_cache[ck] = out
+        return out
 
     def _record_held_out(self, rec: ExperienceRecord) -> bool:
         """Stratified record split (change request INT3A-5): the k-th stored record of an objective (k = its position
@@ -1021,6 +1093,7 @@ class ContinualLearner:
             p.grad = None
         self.counters["frequent"] += 1
         self.trained_objectives.update(r.objective_id for r in records if r.objective_id)
+        self.trained_units |= self._unit_ids(records)
         with torch.no_grad():
             rec.weight_delta = {g: _norm([p - b for p, b in zip(ps, bs)]) for g, ps, bs in
                                 ((GROUP_EXPERIENTIAL, exp_p, before[:ne]), (GROUP_HEADS, head_p, before[ne:]))}
@@ -1165,6 +1238,7 @@ class ContinualLearner:
         if not reverted:
             self.counters["slow"] += 1
             self.trained_objectives.update(r.objective_id for r in records if r.objective_id)
+            self.trained_units |= self._unit_ids(records)
         return self._finish(rec, notes, hash_before, probe_before)
 
     # ------------------------------------------------------------------------------------------ records
@@ -1217,6 +1291,7 @@ class ContinualLearner:
         return {"version": 1, "counters": dict(self.counters), "sched_step": dict(self.sched_step),
                 "probe_ids": list(self.probe_ids), "elig_seq": dict(self.elig_seq),
                 "trained_objectives": sorted(self.trained_objectives), "slow_guard": dict(self.slow_guard_state),
+                "trained_units": sorted(self.trained_units), "segment_split_from_seq": self.segment_split_from_seq,
                 "settings": dataclasses.asdict(self.settings), "lr": dict(self.lr), "clip": dict(self.clip),
                 "providers": [p.name for p in self.providers], "model_version": self.model_version}
 
@@ -1226,6 +1301,13 @@ class ContinualLearner:
         self.probe_ids = list(st.get("probe_ids", []))
         self.elig_seq = dict(st.get("elig_seq", {}))
         self.trained_objectives = set(st.get("trained_objectives", []))
+        # CR: a checkpoint written before segment units had none: its objectives' units are counted as trained on
+        self.trained_units = set(st.get("trained_units", [])) | set(self.trained_objectives)
+        if st.get("segment_split_from_seq") is not None:
+            self.segment_split_from_seq = int(st["segment_split_from_seq"])
+        if "trained_units" not in st and self.settings.val_split == "segment":
+            self._segment_switch()
+            self._mark_pre_switch_trained()
         self.slow_guard_state = dict(st.get("slow_guard", {})) or self._fresh_guard_state()
         self._probe_cache, self._hash_cache = (None, {}), (None, {})
         saved = st.get("providers", [])

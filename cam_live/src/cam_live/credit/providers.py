@@ -25,6 +25,7 @@ Nothing here produces a reward: credit is bookkeeping about verified / measured 
 from __future__ import annotations
 
 import bisect
+import dataclasses
 import hashlib
 import json
 import math
@@ -41,7 +42,9 @@ from .cocoa import SUPPORTED, UNSUPPORTED, HindsightModel, check_support
 from .links import OutcomeLink, record_arm
 from .replay import SqliteExperienceStore, outcome_key
 from .rudder import ReturnDecomposer, duration_discount
-from .select import ARM_DIFFERENCE, UNIT_MEAN, EstimatorSelector, ExperimentEvidence, SelectionRecord, paired_comparison
+from .segments import CreditUnits, parse_unit
+from .select import (ARM_DIFFERENCE, PER_DECISION, PER_UNIT_CONTRAST, UNIT_MEAN, EstimatorSelector, ExperimentEvidence,
+                     SelectionRecord, UnitContrast, paired_comparison)
 from .simple import NAME as SIMPLE, arm_difference, credit_from_links
 
 RUDDER, COCOA = "rudder", "cocoa"
@@ -252,12 +255,15 @@ class TrajectoryEncoder:
         self._cache: Dict[Tuple[str, int], EncodedTrajectory] = {}
         self._fp: Tuple = ()
         self.stats = {"encoded": 0, "hits": 0, "invalidations": 0}
+        self.units: Optional[CreditUnits] = None       # set by CreditAssigner: segment ids resolve to their records
 
     def fingerprint(self) -> Tuple:
         groups = self.model.param_groups()
         return tuple(p._version for g in ("experiential", "semantic_adapters") for p in groups.get(g, []))
 
     def records(self, objective_id: str) -> List[ExperienceRecord]:
+        if self.units is not None and parse_unit(objective_id)[1] is not None:
+            return self.units.records(objective_id)
         return self.store.trajectory(objective_id)
 
     def encode(self, objective_id: str, records: Optional[Sequence[ExperienceRecord]] = None, *, grad: bool = False,
@@ -310,27 +316,58 @@ class TrajectoryEncoder:
         return enc
 
 
-def _batch_objectives(batch: DecisionBatch, limit: int) -> List[str]:
+def _batch_objectives(batch: DecisionBatch, limit: int, units: Optional[CreditUnits] = None) -> List[str]:
+    """Credit units (lifetimes, or segments of open objectives when ``units`` has segments) of a batch's records."""
     out: List[str] = []
     for r in batch.records:
-        if r.objective_id and r.objective_id not in out:
-            out.append(r.objective_id)
+        u = units.unit_of(r) if units is not None else r.objective_id
+        if u and u not in out:
+            out.append(u)
         if len(out) >= limit:
             break
+    return out
+
+
+def _unit_of(units: Optional[CreditUnits], rec: ExperienceRecord) -> str:
+    return units.unit_of(rec) if units is not None else rec.objective_id
+
+
+def _trained_ids(unit_ids: Iterable[str]) -> Set[str]:
+    """A segment that entered a training loss also makes its objective "trained on" (its lifetime is no longer a
+    held-out unit once it closes); a lifetime is its own id."""
+    out: Set[str] = set()
+    for u in unit_ids:
+        if u:
+            out.add(u)
+            out.add(parse_unit(u)[0])
     return out
 
 
 class _ReturnCache:
     """Final returns of closed objectives (a matured return never changes; anything else is recomputed)."""
 
-    def __init__(self, store: SqliteExperienceStore, beta: float, require_closed: bool, verified_only: bool):
+    def __init__(self, store: SqliteExperienceStore, beta: float, require_closed: bool, verified_only: bool,
+                 units: Optional[CreditUnits] = None):
         self.store, self.beta, self.require_closed, self.verified_only = store, beta, require_closed, verified_only
+        self.units = units
         self._final: Dict[str, TrajectoryReturn] = {}
 
     def get(self, objective_id: str, records: Optional[Sequence[ExperienceRecord]] = None) -> TrajectoryReturn:
         hit = self._final.get(objective_id)
         if hit is not None:
             return hit
+        oid, k = parse_unit(objective_id)
+        if k is not None:              # a segment of an open objective (credit.segments): final once complete + resolved
+            if self.units is None or not self.units.complete(objective_id):
+                return TrajectoryReturn(objective_id, [], [], [], 0.0, False, 0, False, "segment not complete")
+            recs = list(records) if records is not None else self.units.records(objective_id)
+            if not recs:
+                return TrajectoryReturn(objective_id, [], [], [], 0.0, False, 0, False, "no decisions")
+            tr = dataclasses.replace(trajectory_return(self.store, recs, beta=self.beta, require_closed=False,
+                                                       verified_only=self.verified_only), objective_id=objective_id)
+            if tr.matured:
+                self._final[objective_id] = tr
+            return tr
         if self.require_closed and records is None and self.store.objective_outcome(objective_id) is None:
             return TrajectoryReturn(objective_id, [], [], [], 0.0, False, 0, False, "objective still open")
         recs = list(records) if records is not None else self.store.trajectory(objective_id)
@@ -396,6 +433,7 @@ class ReturnDecompositionProvider:
         self.decomposer.to(model.device)
         #: objectives whose trajectories entered a training loss of the decomposer (held out from its validation)
         self.trained_objectives: Set[str] = set()
+        self.units: Optional[CreditUnits] = None       # set by CreditAssigner (segments of open objectives)
 
     def state_dict(self) -> Dict[str, Any]:
         return {"trained_objectives": sorted(self.trained_objectives)}
@@ -405,7 +443,7 @@ class ReturnDecompositionProvider:
 
     # ---- LossProvider -------------------------------------------------------------------------------------
     def eligible(self, record: ExperienceRecord) -> bool:
-        return is_top_level(record) and self.returns.get(record.objective_id).matured
+        return is_top_level(record) and self.returns.get(_unit_of(self.units, record)).matured
 
     def _inputs(self, enc: EncodedTrajectory) -> Tensor:
         x = torch.cat([enc.z, enc.b], -1) if self.use_belief else enc.z
@@ -453,14 +491,15 @@ class ReturnDecompositionProvider:
         return return_to_go_at(tr, float(enc.ts[0]), self.beta)
 
     def loss(self, model: LatentModelAPI, batch: DecisionBatch, store: Any) -> Tuple[Optional[Tensor], Dict[str, float]]:
-        encs, rets = self._matured(_batch_objectives(batch, self.max_trajectories), grad=not self.detach_latents)
+        encs, rets = self._matured(_batch_objectives(batch, self.max_trajectories, self.units),
+                                   grad=not self.detach_latents)
         if not encs:
             return None, {"n_trajectories": 0.0}
         x, mask, G, e_g, times = self._stack(encs, [self.window_target(e, t) for e, t in zip(encs, rets)])
         matured = torch.ones(len(encs), dtype=torch.bool, device=x.device)
         training = _training_call()
         if training:
-            self.trained_objectives.update(t.objective_id for t in rets)
+            self.trained_objectives.update(_trained_ids(t.objective_id for t in rets))
             with torch.no_grad():                   # RUDDER's linear return scale: the largest |G| trained on so far
                 top = float(G.abs().max())
                 if not bool(self.decomposer.scale_fitted) or top > float(self.decomposer.scale):
@@ -536,6 +575,7 @@ class HindsightProvider:
         self.hindsight.to(model.device)
         #: objectives whose trajectories entered a training loss of the hindsight model
         self.trained_objectives: Set[str] = set()
+        self.units: Optional[CreditUnits] = None       # set by CreditAssigner (segments of open objectives)
 
     def state_dict(self) -> Dict[str, Any]:
         return {"trained_objectives": sorted(self.trained_objectives)}
@@ -545,7 +585,7 @@ class HindsightProvider:
 
     def eligible(self, record: ExperienceRecord) -> bool:
         return is_top_level(record) and bool(record.decision.probabilities) and \
-            self.returns.get(record.objective_id).matured
+            self.returns.get(_unit_of(self.units, record)).matured
 
     # ---- pairs ----------------------------------------------------------------------------------------------
     def _pairs(self, enc: EncodedTrajectory, tr: TrajectoryReturn) -> List[Tuple[int, int]]:
@@ -588,7 +628,7 @@ class HindsightProvider:
     def loss(self, model: LatentModelAPI, batch: DecisionBatch, store: Any) -> Tuple[Optional[Tensor], Dict[str, float]]:
         rows: List[Dict[str, Tensor]] = []
         n_traj = 0
-        for oid in _batch_objectives(batch, self.max_trajectories):
+        for oid in _batch_objectives(batch, self.max_trajectories, self.units):
             tr = self.returns.get(oid)
             if not tr.matured:
                 continue
@@ -600,7 +640,7 @@ class HindsightProvider:
                 rows.append(self._rows(enc, tr, pairs))
                 n_traj += 1
                 if _training_call():
-                    self.trained_objectives.add(oid)
+                    self.trained_objectives.update(_trained_ids([oid]))
         if not rows:
             return None, {"n_pairs": 0.0}
         b, u, cand, mask, logp, taken, el = self._stack_rows(rows)
@@ -642,7 +682,7 @@ class HindsightProvider:
         training data of COCOA: the slow step uses its gradient only to keep its update from raising this loss (the
         hindsight model reads the representation the adapters change; DX round 2). No random draw."""
         rows: List[Dict[str, Tensor]] = []
-        for oid in _batch_objectives(batch, max_trajectories):
+        for oid in _batch_objectives(batch, max_trajectories, self.units):
             tr = self.returns.get(oid)
             if not tr.matured:
                 continue
@@ -810,6 +850,7 @@ class ExperimentEvaluation(Record):
     n_compared: int = 0                    # comparisons that produced held-out evidence in this pass
     n_evidence: int = 0                    # held-out randomised comparisons the selector holds in total
     experiments: List[Dict[str, Any]] = field(default_factory=list)
+    n_units: int = 0                       # held-out randomised units the selector holds (pooled rule, CR)
     selection: Optional[Dict[str, Any]] = None
 
 
@@ -829,8 +870,17 @@ class CreditAssigner:
     def __init__(self, model: LatentModelAPI, store: SqliteExperienceStore, *,
                  rudder: Optional[ReturnDecompositionProvider] = None, cocoa: Optional[HindsightProvider] = None,
                  selector: Optional[EstimatorSelector] = None, beta: float = 0.0, clock: Optional[Clock] = None,
-                 goal_relevant_only: bool = True):
+                 goal_relevant_only: bool = True, segment_decisions: int = 16):
         self.model, self.store, self.rudder, self.cocoa = model, store, rudder, cocoa
+        #: credit units (``credit.segments``): a closed objective is one unit; an open objective's complete blocks of
+        #: ``segment_decisions`` top-level decisions are units, so learned credit and held-out evidence exist inside
+        #: one long objective (CR). 0 = lifetimes only (the behaviour before CR).
+        self.units = CreditUnits(store, segment_decisions)
+        for prov in (rudder, cocoa):
+            if prov is not None:
+                prov.units = self.units
+                prov.returns.units = self.units
+                prov.encoder.units = self.units
         self.beta, self.clock = float(beta), clock or WallClock()
         self.selector = selector or EstimatorSelector(clock=self.clock)
         self.goal_relevant_only = goal_relevant_only
@@ -841,6 +891,12 @@ class CreditAssigner:
         self._evidence_fp: Optional[str] = None
         self.last_evaluation: Optional[ExperimentEvaluation] = None
         self.min_units_per_arm = 2
+        #: collect held-out randomised units for the pooled, estimand-matched selection rule (CR)
+        self.pooled_units = True
+        #: records whose learning credit (``LEARNING_KEY``) changed, oldest first, with the keys that changed: the
+        #: policy update replays them (``pop_revised``; change request CR-3), so revised credit reaches the weights
+        self._revised: Dict[str, Set[str]] = {}
+        self.max_revised = 4096
 
     def attach_learner(self, learner: Any) -> None:
         """Called by ``ContinualLearner(credit=self)``: what the learner trained on is excluded from validation."""
@@ -856,7 +912,23 @@ class CreditAssigner:
                 out |= set(getattr(prov, "trained_objectives", ()))
         for l in self._learners:
             out |= set(getattr(l, "trained_objectives", ()))
+            out |= set(getattr(l, "trained_units", ()))
         return out
+
+    def unit_of(self, rec: ExperienceRecord) -> str:
+        """Credit unit of a record (``credit.segments.CreditUnits.unit_of``)."""
+        return self.units.unit_of(rec)
+
+    def _expand(self, objective_id: str) -> List[str]:
+        """Units of one objective: the lifetime when closed or without segments, else every segment (the last one may
+        still be incomplete: it is withheld, its records still get simple credit)."""
+        u = self.units
+        if not u.enabled or not objective_id or u.closed(objective_id):
+            return [objective_id]
+        recs = u.trajectory(objective_id)
+        n = -(-sum(1 for r in recs if is_top_level(r)) // u.decisions)
+        from .segments import segment_id
+        return [segment_id(objective_id, k) for k in range(n)]
 
     @property
     def default(self) -> str:
@@ -873,7 +945,10 @@ class CreditAssigner:
         st = self.store
         if objective_ids is None:
             if exp_ids is None:
-                objective_ids = st.objective_ids()
+                objective_ids = [u for o in st.objective_ids() for u in self._expand(o)]
+            elif self.units.enabled:
+                recs_in = st.get_many(list(exp_ids))
+                objective_ids = self.units.units_of(recs_in)
             else:
                 seen = st.objective_of(exp_ids)
                 objective_ids = list(dict.fromkeys(seen[e] for e in exp_ids if e in seen))
@@ -891,7 +966,7 @@ class CreditAssigner:
         totals: Dict[str, List[float]] = {}
         with st.batch():
             for oid in objective_ids:
-                recs = st.trajectory(oid)
+                recs = self.units.records(oid) if parse_unit(oid)[1] is not None else st.trajectory(oid)
                 ids = [r.exp_id for r in recs]
                 links = [OutcomeLink.from_dict(l) for e in ids for l in st.links(exp_id=e)]
                 simple = credit_from_links(links, beta=self.beta, goal_relevant_only=self.goal_relevant_only)
@@ -926,15 +1001,43 @@ class CreditAssigner:
                     ch = st.set_credits(r.exp_id, vals, version=version, reason=reason, ts=now)
                     if ch:
                         up.exp_ids.append(r.exp_id)
+                        learn = {k for k in ch if k in LEARNING_KEY.values()}
+                        if learn:
+                            self._revised.setdefault(r.exp_id, set()).update(learn)
                     for k, d in ch.items():
                         totals.setdefault(k, []).append(abs(d))
                     for k, v in vals.items():
                         if v is not None:
                             up.written[k] = up.written.get(k, 0) + 1
             st.kv_put("credit_version", version)
+        for oid in objective_ids:            # an open objective is reported as such (its segments are listed too)
+            base, k = parse_unit(oid)
+            if k is not None:
+                n_mat = sum(1 for x in up.matured if parse_unit(x)[0] == base)
+                up.withheld.setdefault(base, f"objective still open ({n_mat} matured segments in this update; "
+                                             f"learned credit of an open objective comes from matured segments)")
         up.changes = {k: sum(v) / len(v) for k, v in totals.items()}
         self.last = up
         return up
+
+    def pop_revised(self, n: int, estimator: Optional[str] = None) -> List[str]:
+        """Up to ``n`` records (oldest revision first) whose credit under ``estimator`` (default: the training
+        default) changed since they were last popped; they leave the queue. Records revised only under other
+        estimators stay queued (they matter if the default changes)."""
+        key = LEARNING_KEY.get(estimator or self.default, estimator or self.default)
+        out: List[str] = []
+        for e in list(self._revised):
+            if len(out) >= int(n):
+                break
+            ks = self._revised[e]
+            if key in ks:
+                out.append(e)
+                ks.discard(key)
+                if not ks:
+                    del self._revised[e]
+        while len(self._revised) > self.max_revised:
+            del self._revised[next(iter(self._revised))]
+        return out
 
     def on_reconcile(self, report: Any) -> CreditUpdate:
         """Retrospective update after ``OutcomeLinker.reconcile``: the linked decisions and the earlier decisions of
@@ -973,7 +1076,7 @@ class CreditAssigner:
         exp = st.experiment(experiment_id)
         recs = st.experiment_records(experiment_id)
         src = self.rudder or self.cocoa
-        returns = src.returns if src is not None else _ReturnCache(st, self.beta, True, False)
+        returns = src.returns if src is not None else _ReturnCache(st, self.beta, True, False, self.units)
         trained = self.trained_objectives() | set(exclude_objectives or ())
         arms: Dict[str, List[ExperienceRecord]] = {treatment: [], control: []}
         G: Dict[str, float] = {}
@@ -983,11 +1086,12 @@ class CreditAssigner:
             arm = record_arm(r)
             if arm not in arms:
                 continue
-            tr = returns.get(r.objective_id)
+            unit = self.unit_of(r)
+            tr = returns.get(unit)
             if not tr.matured:
                 continue
-            if r.objective_id in trained:
-                excluded.append(r.objective_id)
+            if unit in trained:
+                excluded.append(unit)
                 continue
             arms[arm].append(r)
             G[r.exp_id] = self._return_to_go(r, tr)
@@ -1015,7 +1119,7 @@ class CreditAssigner:
                 pd[name], ps[name], pn[name] = pc
         if self.cocoa is not None:
             units_r = arms[treatment] + arms[control]
-            cc = self.cocoa.credit(list(dict.fromkeys(r.objective_id for r in units_r)))
+            cc = self.cocoa.credit(list(dict.fromkeys(self.unit_of(r) for r in units_r)))
             diffs, cunits = [], []
             for r in units_r:
                 c, idx = cc.get(r.exp_id), candidate_arms(r)
@@ -1045,6 +1149,91 @@ class CreditAssigner:
                                   "trained_objectives_known": len(trained)})
         self.selector.add_evidence(ev)
         return ev
+
+    @staticmethod
+    def _arm_probabilities(exp: Optional[ExperimentRecord], rec: ExperienceRecord, treatment: str, control: str
+                           ) -> Optional[Tuple[float, float]]:
+        """Logged assignment probabilities of the two arms for one unit: the experiment's ``arm_probs`` when recorded,
+        else the decision's probabilities at the arms' candidate indices, else (two-arm decision whose probabilities
+        are zero off the arms) the executed arm's probability and its complement."""
+        if exp is not None and exp.arm_probs and len(exp.arm_probs) == len(exp.arms):
+            pa = dict(zip([str(a) for a in exp.arms], [float(x) for x in exp.arm_probs]))
+            if treatment in pa and control in pa:
+                return pa[treatment], pa[control]
+        p = list(rec.decision.probabilities or [])
+        idx = candidate_arms(rec)
+        if treatment in idx and control in idx and max(idx[treatment], idx[control]) < len(p):
+            return float(p[idx[treatment]]), float(p[idx[control]])
+        arm = record_arm(rec)
+        ci = int(rec.decision.chosen_index)
+        if p and 0 <= ci < len(p) and arm in (treatment, control):
+            pc = float(p[ci])
+            nz = [x for x in p if x > 0]
+            if len(nz) == 2 and abs(sum(nz) - 1.0) < 1e-6:
+                return (pc, 1.0 - pc) if arm == treatment else (1.0 - pc, pc)
+        return None
+
+    def experiment_units(self, experiment_id: str, *, treatment: str, control: str,
+                         exclude_objectives: Optional[Iterable[str]] = None) -> Tuple[List[UnitContrast], Dict[str, int]]:
+        """Held-out randomised units of one experiment for the pooled, estimand-matched validation (CR): every
+        decision assigned to ``treatment`` or ``control`` whose return is final, whose lifetime no estimator and no
+        learner trained on (same rule as :meth:`compare_with_experiment`) and whose assignment probabilities were
+        logged, with its measured return-to-go and every estimator's value. Works for experiments with any number of
+        units, including one. Returns (units, counts of the units left out by reason)."""
+        st = self.store
+        exp = st.experiment(experiment_id)
+        src = self.rudder or self.cocoa
+        returns = src.returns if src is not None else _ReturnCache(st, self.beta, True, False, self.units)
+        trained = self.trained_objectives() | set(exclude_objectives or ())
+        counts = {"assigned": 0, "return_not_final": 0, "lifetime_trained_on": 0, "not_randomized": 0,
+                  "no_propensity": 0, "held_out": 0}
+        rows: List[Tuple[ExperienceRecord, str, float, float]] = []
+        for r in st.experiment_records(experiment_id):
+            arm = record_arm(r)
+            if arm not in (treatment, control):
+                continue
+            counts["assigned"] += 1
+            unit = self.unit_of(r)
+            tr = returns.get(unit)
+            if not tr.matured:
+                counts["return_not_final"] += 1
+                continue
+            if unit in trained:
+                counts["lifetime_trained_on"] += 1
+                continue
+            if not (exp is not None and exp.assignment == "randomized" and r.decision.exploration == "randomized"
+                    and bool(r.decision.probabilities)):
+                counts["not_randomized"] += 1
+                continue
+            pp = self._arm_probabilities(exp, r, treatment, control)
+            if pp is None or not (pp[0] > 0 and pp[1] > 0):
+                counts["no_propensity"] += 1
+                continue
+            counts["held_out"] += 1
+            rows.append((r, arm, pp[0] / (pp[0] + pp[1]), self._return_to_go(r, tr)))
+        units: List[UnitContrast] = []
+        coc: Dict[str, CocoaCredit] = {}
+        if self.cocoa is not None and rows:
+            coc = self.cocoa.credit(list(dict.fromkeys(self.unit_of(r) for r, _, _, _ in rows)))
+        for r, arm, p, y in rows:
+            vals: Dict[str, float] = {}
+            kinds: Dict[str, str] = {}
+            for name, key in VALIDATION_KEY.items():
+                v = r.credit.get(key)
+                if v is not None and math.isfinite(float(v)):
+                    vals[name], kinds[name] = float(v), PER_DECISION
+            c, idx = coc.get(r.exp_id), candidate_arms(r)
+            if c is not None and c.per_candidate is not None and treatment in idx and control in idx:
+                # COCOA's counterfactual contrast of the later outcomes plus the executed arm's own outcome weighted
+                # by its inverse propensity (as in compare_with_experiment): a per-unit estimate of the arm contrast
+                per = list(c.per_candidate)
+                per[r.decision.chosen_index] -= c.own
+                x = per[idx[treatment]] - per[idx[control]]
+                x += c.own / max(p, 1e-12) if arm == treatment else -c.own / max(1.0 - p, 1e-12)
+                vals[COCOA], kinds[COCOA] = float(x), PER_UNIT_CONTRAST
+            units.append(UnitContrast(experiment_id, r.exp_id, self.unit_of(r), treatment, control, arm, p, float(y),
+                                      vals, kinds))
+        return units, counts
 
     def select(self) -> SelectionRecord:
         """Re-evaluate which estimator is the training default from all randomised evidence added so far."""
@@ -1096,9 +1285,10 @@ class CreditAssigner:
             if record_arm(r) != arm:
                 continue
             out["assigned"] += 1
-            if not returns.get(r.objective_id).matured:
+            unit = self.unit_of(r)
+            if not returns.get(unit).matured:
                 out["return_not_final"] += 1
-            elif r.objective_id in trained:
+            elif unit in trained:
                 out["lifetime_trained_on"] += 1
             elif not (exp.assignment == "randomized" and r.decision.exploration == "randomized"
                       and bool(r.decision.probabilities)):
@@ -1120,7 +1310,7 @@ class CreditAssigner:
         before = self.selector.default
         trained = self.trained_objectives()
         src = self.rudder or self.cocoa
-        returns = src.returns if src is not None else _ReturnCache(st, self.beta, True, False)
+        returns = src.returns if src is not None else _ReturnCache(st, self.beta, True, False, self.units)
         rows: List[Dict[str, Any]] = []
         exps = st.experiments()
         n_rand = n_cmp = 0
@@ -1140,6 +1330,10 @@ class CreditAssigner:
                 treatment, control = arms[0], other
                 units = {a: self._units(exp, recs, trained, a, returns) for a in (treatment, control)}
                 pr: Dict[str, Any] = {"treatment": treatment, "control": control, "units": units}
+                if self.pooled_units:        # CR: every held-out randomised unit, also of one-unit experiments
+                    got, cnt = self.experiment_units(exp.experiment_id, treatment=treatment, control=control)
+                    self.selector.add_units(got)
+                    pr["pooled_units"] = cnt
                 short = [a for a, u in units.items() if u["held_out"] < self.min_units_per_arm]
                 if short:
                     pr.update(compared=False, reason="; ".join(
@@ -1163,37 +1357,42 @@ class CreditAssigner:
             if not row["compared"]:
                 row["reason"] = " | ".join(p["reason"] for p in pairs)
             rows.append(row)
-        used = self.selector._used()
+        used = list(self.selector._used())
+        pooled = list(self.selector.units.values())
         # the selection is re-run when the held-out *measurement* changes (a new comparison, more or other units),
         # not each time a still-training estimator's estimate moves (that is picked up with the next measurement)
         ev_fp = hashlib.sha256(json.dumps(sorted(
             (e.key, e.diff, e.se, e.n_treatment, e.n_control, e.n_excluded_trained, sorted(e.estimates))
-            for e in used), default=str).encode()).hexdigest()
+            for e in used) + sorted((u.key, u.arm, u.y, u.p_treatment, sorted(u.values)) for u in pooled),
+            default=str).encode()).hexdigest()
+        has_evidence = bool(used) or bool(pooled)
         ran, reason, sel = False, "", None
         if not exps:
             reason = "no experiment is recorded in the experience store"
         elif not n_rand:
             reason = "no randomised experiment with two or more arms"
-        elif not used:
-            reason = (f"no randomised experiment has {self.min_units_per_arm} or more matured held-out units in each "
-                      f"arm (held out by lifetime: units whose lifetime an estimator or the learner trained on are "
-                      f"excluded); the default stays {before}")
+        elif not has_evidence:
+            reason = (f"no held-out randomised unit (matured return; lifetime or segment that no estimator and no "
+                      f"learner trained on; logged propensities) and no randomised experiment has "
+                      f"{self.min_units_per_arm} or more matured held-out units in each arm (held out by lifetime or "
+                      f"segment); the default stays {before}")
         report = ExperimentEvaluation(ts=self.clock.now(), ran=False, reason=reason, default_before=before,
                                       default_after=before, n_experiments=len(exps), n_randomized=n_rand,
-                                      n_recorded=n_rec, n_compared=n_cmp, n_evidence=len(used), experiments=rows)
-        if used and (ev_fp != self._evidence_fp or force_log):
+                                      n_recorded=n_rec, n_compared=n_cmp, n_evidence=len(used), experiments=rows,
+                                      n_units=len(pooled))
+        if has_evidence and (ev_fp != self._evidence_fp or force_log):
             sel = self.selector.select(context=report.to_dict())
             self._evidence_fp = ev_fp
             report.ran, report.default_after = True, sel.default_after
             report.reason = "; ".join(sel.reasons) or "selection ran on held-out randomised evidence"
             report.selection = sel.to_dict()
             self._eval_fp = None
-        elif used:                 # the last selection stands; nothing new to log
+        elif has_evidence:         # the last selection stands; nothing new to log
             report.ran, report.reason = False, "held-out evidence unchanged since the last selection"
             report.default_after = self.selector.default
         fp = hashlib.sha256(json.dumps({k: v for k, v in report.to_dict().items() if k not in ("ts", "n_recorded")},
                                        sort_keys=True, default=str).encode()).hexdigest()
-        if not used and (fp != self._eval_fp or force_log):
+        if not has_evidence and (fp != self._eval_fp or force_log):
             self.selector.log_row({"evaluation": report.to_dict(), "selection": None})
             self._eval_fp = fp
         self.last_evaluation = report
@@ -1201,7 +1400,10 @@ class CreditAssigner:
 
     # ---- persistence ----------------------------------------------------------------------------------------
     def state_dict(self) -> Dict[str, Any]:
-        return {"selector": self.selector.state_dict(), "credit_version": self.version, "beta": self.beta}
+        return {"selector": self.selector.state_dict(), "credit_version": self.version, "beta": self.beta,
+                "revised": [[e, sorted(k)] for e, k in self._revised.items()],
+                "segment_decisions": self.units.decisions}
 
     def load_state_dict(self, st: Dict[str, Any]) -> None:
         self.selector.load_state_dict(st.get("selector", {}))
+        self._revised = {str(e): set(k) for e, k in st.get("revised", [])}   # absent before CR: empty queue

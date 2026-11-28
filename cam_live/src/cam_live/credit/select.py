@@ -101,6 +101,156 @@ def paired_comparison(units: Sequence[Tuple[str, float, float]], treatment: str,
     return D, math.sqrt(max(var, 0.0)), n
 
 
+# ------------------------------------------------------------------------------------------------ unit level (CR)
+#: kinds of per-unit estimate: a per-decision credit of the executed action (its contrast between arms is formed by
+#: the inverse-propensity weight) or a per-unit estimate of the arm contrast itself (e.g. COCOA's counterfactual
+#: contrast of the unit)
+PER_DECISION, PER_UNIT_CONTRAST = "per_decision", "per_unit_contrast"
+
+
+@dataclass
+class UnitContrast(Record):
+    """One held-out randomised unit (amendment item 4, CR): a randomised decision whose return is final, whose lifetime
+    or segment no estimator and no learner trained on, with its logged assignment probability, the measured
+    return-to-go and each estimator's value for it. Units of different experiments - also of experiments with a
+    single unit - are pooled: every unit carries its own arms and propensity (``pooled_unit_score``)."""
+    experiment_id: str
+    exp_id: str
+    unit: str                         # lifetime (objective id) or matured segment id the return refers to
+    treatment: str
+    control: str
+    arm: str                          # executed arm (treatment or control)
+    p_treatment: float                # P(treatment | treatment or control), as logged at assignment
+    y: float                          # measured matured return-to-go of the decision
+    values: Dict[str, float] = field(default_factory=dict)     # estimator -> its value for this unit
+    kinds: Dict[str, str] = field(default_factory=dict)        # estimator -> PER_DECISION | PER_UNIT_CONTRAST
+
+    @property
+    def key(self) -> str:
+        return f"{self.experiment_id}:{self.exp_id}"
+
+    @property
+    def weight(self) -> float:
+        """Inverse-propensity contrast weight w = 1/p (treatment) or -1/(1-p) (control): E[w f(A)] = f(T) - f(C)."""
+        p = min(max(float(self.p_treatment), 1e-12), 1.0 - 1e-12)
+        return 1.0 / p if self.arm == self.treatment else -1.0 / (1.0 - p)
+
+
+def chi2_cdf(x: float, k: float) -> float:
+    """Regularised lower incomplete gamma P(k/2, x/2) (series / continued fraction; no scipy at run time)."""
+    if x <= 0.0:
+        return 0.0
+    a, z = 0.5 * k, 0.5 * x
+    gln = math.lgamma(a)
+    if z < a + 1.0:
+        term = s = 1.0 / a
+        ap = a
+        for _ in range(1000):
+            ap += 1.0
+            term *= z / ap
+            s += term
+            if abs(term) < abs(s) * 1e-15:
+                break
+        return s * math.exp(-z + a * math.log(z) - gln)
+    b, c, d = z + 1.0 - a, 1.0 / 1e-300, 1.0 / (z + 1.0 - a)
+    h = d
+    for i in range(1, 1000):
+        an = -i * (i - a)
+        b += 2.0
+        d = an * d + b
+        d = 1e-300 if abs(d) < 1e-300 else d
+        c = b + an / c
+        c = 1e-300 if abs(c) < 1e-300 else c
+        d = 1.0 / d
+        de = d * c
+        h *= de
+        if abs(de - 1.0) < 1e-15:
+            break
+    return 1.0 - math.exp(-z + a * math.log(z) - gln) * h
+
+
+def chi2_ppf(p: float, k: float) -> float:
+    lo, hi = 0.0, max(1.0, 2.0 * k)
+    while chi2_cdf(hi, k) < p:
+        hi *= 2.0
+    for _ in range(200):
+        mid = 0.5 * (lo + hi)
+        if chi2_cdf(mid, k) < p:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
+
+
+@dataclass
+class PooledScore(Record):
+    """Estimand-matched validation of one estimator on pooled held-out randomised units (CR).
+
+    Per unit i with contrast weight w_i (``UnitContrast.weight``) the paired error term is
+        d_i = (e_i - y_i - c_i) w_i                for a per-decision credit e_i of the executed action,
+        d_i = x_i - (y_i - c_i) w_i                 for a per-unit contrast estimate x_i,
+    with c_i the leave-one-out mean of (e - y) (resp. y) over the other units (a baseline that does not depend on
+    unit i's assignment, so it changes the variance only). Under randomisation E[d_i | h_i] = (estimated contrast
+    at h_i) - (true contrast at h_i): the mean d is the estimator's average contrast bias *at the information
+    states of the units* - the estimand the estimator targets - whatever hidden mechanism generated each unit and
+    however many units its experiment has. Validated (``passes``) when the bias is statistically equivalent to zero
+    within a margin delta = ``margin_sd`` x sd(y) (two one-sided tests at level ``alpha``: the 1 - 2 alpha interval
+    lies inside (-delta, delta); Schuirmann 1987) with at least ``min_units`` units."""
+    name: str
+    n: int = 0
+    bias: float = float("nan")
+    se: float = float("nan")
+    ci_low: float = float("nan")
+    ci_high: float = float("nan")
+    margin: float = float("nan")
+    y_sd: float = float("nan")
+    z: float = float("nan")
+    rmse_terms: float = float("nan")  # root mean square of d (efficiency of the comparison; not a gate)
+    n_experiments: int = 0
+    passes: bool = False
+    reasons: List[str] = field(default_factory=list)
+
+
+def pooled_unit_score(units: Sequence[UnitContrast], name: str, *, min_units: int = 8, margin_sd: float = 0.5,
+                      alpha: float = 0.05) -> PooledScore:
+    from .simple import student_t_ppf
+    rows = [u for u in units if name in u.values and math.isfinite(float(u.values[name])) and math.isfinite(u.y)]
+    s = PooledScore(name=name, n=len(rows), n_experiments=len({u.experiment_id for u in rows}))
+    ys = [u.y for u in units if math.isfinite(u.y)]
+    if len(ys) >= 2:
+        my = sum(ys) / len(ys)
+        s.y_sd = math.sqrt(sum((y - my) ** 2 for y in ys) / (len(ys) - 1))
+    if len(rows) < 2:
+        s.reasons.append(f"only {len(rows)} held-out randomised units with an estimate (< {max(2, min_units)})")
+        return s
+    per_dec = [u.kinds.get(name, PER_DECISION) == PER_DECISION for u in rows]
+    r = [float(u.values[name]) - u.y if pd else u.y for u, pd in zip(rows, per_dec)]
+    tot, n = sum(r), len(rows)
+    d = []
+    for u, pd, ri in zip(rows, per_dec, r):
+        c = (tot - ri) / (n - 1)
+        d.append((ri - c) * u.weight if pd else float(u.values[name]) - (ri - c) * u.weight)
+    m = sum(d) / n
+    var = sum((x - m) ** 2 for x in d) / (n - 1)
+    s.bias, s.se = m, math.sqrt(var / n)
+    s.rmse_terms = math.sqrt(sum(x * x for x in d) / n)
+    tq = student_t_ppf(1.0 - alpha, n - 1)
+    s.ci_low, s.ci_high = m - tq * s.se, m + tq * s.se
+    s.z = m / s.se if s.se > 0 else float("nan")
+    s.margin = margin_sd * s.y_sd if math.isfinite(s.y_sd) else float("nan")
+    if n < min_units:
+        s.reasons.append(f"only {n} held-out randomised units with an estimate (< {min_units})")
+    if not (s.se > 0 and math.isfinite(s.se)):
+        s.reasons.append("zero or undefined standard error of the pooled bias (cannot be scored)")
+    elif not (math.isfinite(s.margin) and s.margin > 0):
+        s.reasons.append("no outcome scale for the equivalence margin (sd of the measured returns is 0)")
+    elif not (-s.margin < s.ci_low and s.ci_high < s.margin):
+        s.reasons.append(f"average contrast bias {m:.3g} (90% CI [{s.ci_low:.3g}, {s.ci_high:.3g}]) is not within "
+                         f"+-{s.margin:.3g} ({margin_sd} sd of the measured return)")
+    s.passes = not s.reasons
+    return s
+
+
 @dataclass
 class EstimatorScore(Record):
     name: str
@@ -130,6 +280,9 @@ class SelectionRecord(Record):
     excluded_non_randomized: List[str] = field(default_factory=list)
     excluded_not_held_out: List[str] = field(default_factory=list)  # in-sample or unknown split: never scored
     holdout: Dict[str, Any] = field(default_factory=dict)           # per scored evidence: units used / excluded
+    mode: str = "per_experiment"      # "per_experiment" (no unit evidence) | "pooled_units" (CR)
+    pooled: Dict[str, Dict[str, Any]] = field(default_factory=dict)  # estimator -> PooledScore + calibration check
+    n_units: int = 0
 
 
 class EstimatorSelector:
@@ -140,11 +293,25 @@ class EstimatorSelector:
     max_mean_sq_z         calibration gate: mean squared z of (estimate - measured)
     min_sign_agreement    on significant measured effects, the share whose sign the estimator gets right
     min_improvement       required relative reduction of RMSE against the current default on common experiments
-    """
+
+    With unit evidence (``add_units``: held-out randomised units, pooled over experiments - CR) the selection uses the
+    estimand-matched rule instead (``mode="pooled_units"``): an estimator is validated when (a) its average contrast
+    bias over the pooled held-out units is equivalent to zero within ``margin_sd`` sd of the measured return
+    (``pooled_unit_score``: two one-sided tests at ``alpha``, at least ``min_units`` units), and (b) on every
+    experiment with at least ``calib_min_per_arm`` held-out units per arm its per-experiment paired z^2 values are
+    not jointly rejected (sum z^2 <= chi^2_K quantile ``1 - calib_alpha``). (a) is valid for experiments of any size
+    (one unit included) and for segments of one open objective; (b) keeps the per-experiment calibration wherever the
+    data can test it (with fewer units per arm the paired standard error rests on too few degrees of freedom:
+    ``cr_diagnose power``). The validated estimator with the tightest bias bound becomes the default; a learned
+    default that stops passing falls back to the baseline."""
 
     def __init__(self, *, baseline: str = SIMPLE, min_experiments: int = 5, max_mean_sq_z: float = 3.0,
                  min_sign_agreement: float = 0.8, min_improvement: float = 0.1, log_path: Optional[str] = None,
-                 clock: Optional[Clock] = None, require_held_out: bool = True):
+                 clock: Optional[Clock] = None, require_held_out: bool = True, min_units: int = 8,
+                 margin_sd: float = 0.5, alpha: float = 0.05, calib_min_per_arm: int = 5, calib_alpha: float = 0.01):
+        self.min_units, self.margin_sd, self.alpha = int(min_units), float(margin_sd), float(alpha)
+        self.calib_min_per_arm, self.calib_alpha = int(calib_min_per_arm), float(calib_alpha)
+        self.units: Dict[str, UnitContrast] = {}
         self.baseline = baseline
         self.require_held_out = bool(require_held_out)
         self.default = baseline
@@ -156,6 +323,46 @@ class EstimatorSelector:
         self.history: List[SelectionRecord] = []
 
     # ---------------------------------------------------------------------------------------------- evidence
+    def add_units(self, units: Sequence[UnitContrast]) -> int:
+        """Add or replace (same experiment and decision) held-out randomised units; returns how many changed."""
+        n = 0
+        for u in units:
+            old = self.units.get(u.key)
+            if old is None or old.to_dict() != u.to_dict():
+                self.units[u.key] = u
+                n += 1
+        return n
+
+    def pooled_scores(self) -> Dict[str, Dict[str, Any]]:
+        """Estimand-matched scores (see the class doc) of every estimator with a value on a held-out unit."""
+        units = list(self.units.values())
+        names = sorted({n for u in units for n in u.values} | {self.baseline, self.default})
+        out: Dict[str, Dict[str, Any]] = {}
+        for name in names:
+            ps = pooled_unit_score(units, name, min_units=self.min_units, margin_sd=self.margin_sd, alpha=self.alpha)
+            d = ps.to_dict()
+            z2 = {}
+            for e in self._used():
+                if min(e.n_treatment, e.n_control) < self.calib_min_per_arm or name not in e.estimates:
+                    continue
+                err, z, _ = self._z(name, e)
+                if z is not None:
+                    z2[e.key] = z
+            d["calibration"] = {"experiments": len(z2), "sum_z2": sum(z2.values()),
+                                "chi2_quantile": chi2_ppf(1.0 - self.calib_alpha, len(z2)) if z2 else None,
+                                "z2": z2, "min_units_per_arm": self.calib_min_per_arm}
+            rejected = bool(z2) and sum(z2.values()) > d["calibration"]["chi2_quantile"]
+            d["calibration"]["rejected"] = rejected
+            if rejected:
+                d["reasons"] = list(d["reasons"]) + [
+                    f"per-experiment calibration rejected on {len(z2)} experiments with >= {self.calib_min_per_arm} "
+                    f"units per arm: sum z^2 {sum(z2.values()):.2f} > chi^2 {d['calibration']['chi2_quantile']:.2f}"]
+                d["passes"] = False
+            hw = max(abs(ps.ci_low), abs(ps.ci_high)) if math.isfinite(ps.ci_low) else float("inf")
+            d["bias_bound"] = hw
+            out[name] = d
+        return out
+
     def add_evidence(self, ev: ExperimentEvidence) -> None:
         """Add or replace (same experiment and arm pair) one comparison. Non-randomised comparisons are kept for
         the record but never used for scoring."""
@@ -275,11 +482,65 @@ class EstimatorSelector:
             fh.flush()
             os.fsync(fh.fileno())
 
+    def _select_pooled(self, context: Optional[Dict[str, Any]]) -> SelectionRecord:
+        sc = self.pooled_scores()
+        before, reasons = self.default, []
+        current = self.default
+        if current != self.baseline and not sc.get(current, {}).get("passes", False):
+            why = "; ".join(sc.get(current, {}).get("reasons", [])) or "no estimate on the held-out units"
+            reasons.append(f"{current} no longer validated ({why}): back to {self.baseline}")
+            current = self.baseline
+        best, best_bound = None, float("inf")
+        for name, d in sc.items():
+            if name == current:
+                continue
+            if not d["passes"]:
+                if name != self.baseline:
+                    reasons.append(f"{name} not promoted: {'; '.join(d['reasons'])}")
+                continue
+            if current != self.baseline and sc.get(current, {}).get("passes") and \
+                    not d["bias_bound"] <= (1.0 - self.min_improvement) * sc[current]["bias_bound"]:
+                reasons.append(f"{name} not promoted: bias bound {d['bias_bound']:.4g} is not {self.min_improvement:.0%} "
+                               f"below {current}'s {sc[current]['bias_bound']:.4g}")
+                continue
+            reasons.append(f"{name}: validated on {d['n']} held-out units of {d['n_experiments']} experiments, "
+                           f"average contrast bias {d['bias']:.4g} (90% CI [{d['ci_low']:.4g}, {d['ci_high']:.4g}], "
+                           f"margin {d['margin']:.4g})")
+            if d["bias_bound"] < best_bound:
+                best, best_bound = name, d["bias_bound"]
+        if best is not None:
+            reasons.append(f"promoted {best} to training default")
+            current = best
+        self.default = current
+        used = self._used()
+        rec = SelectionRecord(
+            ts=self.clock.now(), default_before=before, default_after=current, changed=before != current,
+            n_randomized_experiments=len({u.experiment_id for u in self.units.values()}),
+            scores={n: s.to_dict() for n, s in self.scores().items()},
+            gates={"min_units": self.min_units, "margin_sd": self.margin_sd, "alpha": self.alpha,
+                   "calib_min_per_arm": self.calib_min_per_arm, "calib_alpha": self.calib_alpha,
+                   "min_improvement": self.min_improvement},
+            reasons=reasons, evidence_keys=sorted(e.key for e in used),
+            excluded_non_randomized=sorted(e.key for e in self.evidence.values() if not e.randomized),
+            excluded_not_held_out=sorted(e.key for e in self.evidence.values() if e.randomized and not self._held_out(e)),
+            holdout={e.key: {"held_out": e.held_out, "n_excluded_trained": e.n_excluded_trained,
+                             "paired_n": dict(e.paired_n), **e.holdout} for e in used},
+            mode="pooled_units", pooled=sc, n_units=len(self.units))
+        self.history.append(rec)
+        row: Dict[str, Any] = {"selection": rec.to_dict(), "evidence": [e.to_dict() for e in self.evidence.values()],
+                               "units": [u.to_dict() for u in self.units.values()]}
+        if context is not None:
+            row["evaluation"] = context
+        self.log_row(row)
+        return rec
+
     def select(self, context: Optional[Dict[str, Any]] = None) -> SelectionRecord:
-        """Re-evaluate the default. A candidate is promoted only if it passes every gate *and* its error against
+        """Re-evaluate the default (estimand-matched pooled rule when unit evidence exists, see the class doc). A candidate is promoted only if it passes every gate *and* its error against
         the measured differences is at least ``min_improvement`` lower than the current default's on the
         experiments both were compared on. A learned default that no longer passes falls back to the baseline.
         ``context`` (e.g. ``CreditAssigner.evaluate_experiments``' per-experiment report) is logged with the row."""
+        if self.units:
+            return self._select_pooled(context)
         scores = self.scores()
         before, reasons = self.default, []
         current = self.default
@@ -332,10 +593,15 @@ class EstimatorSelector:
     # ---------------------------------------------------------------------------------------------- persistence
     def state_dict(self) -> Dict[str, Any]:
         return {"default": self.default, "baseline": self.baseline,
-                "evidence": [e.to_dict() for e in self.evidence.values()]}
+                "evidence": [e.to_dict() for e in self.evidence.values()],
+                "units": [u.to_dict() for u in self.units.values()]}
 
     def load_state_dict(self, st: Dict[str, Any]) -> None:
         self.default = st.get("default", self.baseline)
         self.evidence = {}
         for d in st.get("evidence", []):
             self.add_evidence(ExperimentEvidence.from_dict(d))
+        self.units = {}
+        for d in st.get("units", []):                  # absent in checkpoints written before CR: no unit evidence
+            u = UnitContrast.from_dict(d)
+            self.units[u.key] = u
