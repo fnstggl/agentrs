@@ -50,3 +50,36 @@ lifetimes the held-out fraction stays 0.15. A run that needs the old behaviour s
 **Why.** `segment_decisions` bounds the horizon of learned credit inside an open objective (outcomes measured by
 queries of later segments are not part of an earlier segment's return until the objective closes). The default 16
 is used without this line; the line only makes it configurable per task.
+
+## CR-3 (src/cam_live/agent.py): revised credit reaches the policy weights (replay of credit revisions)
+
+**What.** In `CamLiveAgent.learn`, the batch of the real policy update is the newest `policy_update_batch` rewarded
+decisions plus up to half as many *earlier* decisions whose training-default credit was revised since they were last
+replayed (`CreditAssigner.pop_revised`, credit/providers.py).
+
+```diff
+         if len(self.rewarded_since_update) >= s.policy_update_every:
+             ids = self.rewarded[-s.policy_update_batch:]
++            # CR-3: earlier decisions whose training-default credit was revised (outcomes matured, a segment or the
++            # lifetime closed, the estimator retrained) are replayed, so revised credit reaches the policy weights
++            done = set(self.rewarded)
++            ids = ids + [e for e in self.assigner.pop_revised(max(1, s.policy_update_batch // 2))
++                         if e in done and e not in ids]
+             recs = sorted((r for r in self.store.get_many(ids) if r is not None), key=lambda r: r.seq)
+```
+
+**Why (measured).** Learned credit of a decision exists only once its segment (or lifetime) matured, i.e. several
+decisions after it was made; by then most decisions of the segment have left the window of the newest 12 rewarded
+decisions that the policy update reads. In the integrated agent with RUDDER forced as the training default (debug
+scale, one open LabWorld objective, 22 decisions, segments of 6: `cr_agent_eval` smoke run), **3 of 96 policy-update
+rows** carried RUDDER credit, although 24 of 24 records had RUDDER credit by the end and records were revised up to 47
+times: revising earlier credit did not update the weights that act. With the line the revised decisions are replayed
+(each revision once; the queue is checkpointed with the assigner state; `tests/credit/test_cr.py::
+test_revised_credit_is_queued_for_replay_and_survives_a_checkpoint`). Measured effect in docs/CR.md.
+
+**Applies to every estimator** (simple credit is revised as linked outcomes mature as well); the inner update's
+segment / discount bookkeeping (`reward.inner`, lifetimes) is unchanged: a replayed row with return-like credit takes
+its credit as goal return, a per-decision credit enters as that row's goal reward.
+
+The three requests are independent; CR-1 and CR-3 are the ones the evidence in docs/CR.md was measured with (patched
+copy of agent.py at the commit named there, `PYTHONPATH` pointing at the copy).

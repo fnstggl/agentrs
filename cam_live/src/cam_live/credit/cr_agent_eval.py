@@ -219,3 +219,50 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def credit_quality(result_json: str) -> Dict[str, Any]:
+    """How well each estimator's stored credit tracks the ground truth of the agent's own decisions (diagnosis of an
+    ablation run): for every executed ``lab.act`` the truth is its expected adopters (hidden rate x effort, the tap's
+    row); Pearson / Spearman correlation and the spread of each credit key over those decisions, and the same for the
+    realised return-to-go within the decision's segment."""
+    from .replay import SqliteExperienceStore
+    res = json.load(open(result_json))
+    work = os.path.splitext(result_json)[0] + "_work"
+    store = SqliteExperienceStore(os.path.join(work, "agent", "learner", "experience.sqlite"), durable=False)
+    try:
+        oid = next(o for o in store.objective_ids() if o.startswith("obj_crlong"))
+        recs = [r for r in store.trajectory(oid) if not r.decision.chosen.parent_decision_id]
+    finally:
+        store.close()
+    rows = res["truth_rows"]
+    pairs: Dict[str, List[Tuple[float, float]]] = {}
+    n = min(len(rows), len(recs))
+    for r, t in zip(recs[:n], rows[:n]):
+        if t.get("operation") != "lab.act" or r.decision.chosen.operation != "lab.act" or "expected_adopters" not in t:
+            continue
+        for k, v in r.credit.items():
+            pairs.setdefault(k, []).append((float(v), float(t["expected_adopters"])))
+
+    def rank(x: List[float]) -> List[float]:
+        order = sorted(range(len(x)), key=lambda i: x[i])
+        out = [0.0] * len(x)
+        for pos, i in enumerate(order):
+            out[i] = float(pos)
+        return out
+
+    def corr(a: List[float], b: List[float]) -> float:
+        if len(a) < 3:
+            return float("nan")
+        ma, mb = sum(a) / len(a), sum(b) / len(b)
+        sa = math.sqrt(sum((x - ma) ** 2 for x in a))
+        sb = math.sqrt(sum((x - mb) ** 2 for x in b))
+        return sum((x - ma) * (y - mb) for x, y in zip(a, b)) / (sa * sb) if sa > 0 and sb > 0 else float("nan")
+
+    out = {}
+    for k, ps in pairs.items():
+        a, b = [p[0] for p in ps], [p[1] for p in ps]
+        m = sum(a) / len(a)
+        out[k] = {"n": len(ps), "pearson": corr(a, b), "spearman": corr(rank(a), rank(b)),
+                  "sd": math.sqrt(sum((x - m) ** 2 for x in a) / max(1, len(a) - 1))}
+    return {"condition": res["condition"], "seed": res["seed"], "keys": out}
