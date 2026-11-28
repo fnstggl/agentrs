@@ -209,8 +209,8 @@ chosen candidate's |imagined preference| had median 0.10 and 90th percentile 0.8
 > 0 for 66 % of chosen candidates (median 0.019 goal units); plan 0.56 s per decision (CPU, debug scale).
 
 What gated it: in B2 the drawn imagination weight stayed at its prior level (mean 0.17 in lifetimes 0, 1 and 2)
-while the calibration's `beta_im` stayed at 0 (-0.017, +0.011, +0.074 by lifetime; 2-7 verified windows per seed and
-lifetime), i.e. the verified multi-step outcomes gave imagination no systematic weight — as designed, it remained an
+while the calibration's `beta_im` stayed at 0 (-0.017, +0.011, +0.074 by lifetime, with on average 2.3, 7.0 and 6.7
+verified windows per seed by then), i.e. the verified multi-step outcomes gave imagination no systematic weight — as designed, it remained an
 exploratory perturbation. Under the earlier ratio weight (A, B) the drawn weight *rose* with experience (A: 0.35 ->
 0.45 -> 0.97 -> 1.28 over lifetimes 0-3) while `beta_im` stayed ~0: the defect fixed in 00f8913.
 
@@ -269,8 +269,8 @@ of 63 verified windows) on 3 held-out worlds each, 6 replicates (world seeds 820
 1. **Imagined continuations barely differ between first actions** (full size: sd over candidates 0.0012 against a
    particle spread of 0.26, |m| <= 0.02; debug scale without transition priors: share_tv 0.010). Diagnosis, measured:
    the world model's values of the candidates respond hardly at all to the belief changes on CAM's real sequences —
-   the value error of imagination equals that of *not imagining* (full size 0.040 vs 0.038 at k = 1; debug 0.015 vs
-   0.015), both small relative to the differences between candidates. The learned world model predicts an action's
+   the value error of imagination equals that of *not imagining* (full size 0.040 vs 0.038 at k = 1; debug scale, in
+   the first smoke run of the integrated agent on T1: 0.015 vs 0.015), both small relative to the differences between candidates. The learned world model predicts an action's
    value mostly from the action and the slowly varying context, not from what the previous action changed.
    **Empirical limitation** of the world model at this amount of experience (36 live decisions; <= 6 debug
    lifetimes), compounded by the re-encoded, stateless belief (KF-E04, PS's item) whose step-to-step change is
