@@ -545,3 +545,25 @@ def test_an_export_refuses_a_manifest_that_names_paths_outside_the_checkpoint(tm
         with pytest.raises(cli.ExportRefused):
             cli._manifest_paths_inside(str(ck))
     assert "_manifest_paths_inside(copy)" in inspect.getsource(cli)          # checked before verify_checkpoint
+
+
+# ---------------------------------------------------------------------------------------------------------- storage
+def test_exports_and_reports_are_disk_guarded_and_doctor_uses_the_storage_section(tmp_path, monkeypatch):
+    from cam_live.config import CamLiveConfig
+    from cam_live.diagnostics.world import LabConfig
+    from cam_live.runtime import cli, doctor
+    from rt_helpers import make_lab
+    from cam_live.runtime.loop import RuntimeConfig
+    lab = make_lab(str(tmp_path / "run"), lab_cfg=LabConfig(seed=3, target=10000),
+                   rt_cfg=RuntimeConfig(fsync=False, min_free_gb=1e9, warn_free_gb=2e9))
+    lab.rt.start()
+    ok, detail = lab.rt._export(str(tmp_path / "exp"))
+    assert not ok and "not exported" in detail                          # a5ab772: exported regardless
+    lab.rt.close()
+    cfg = tmp_path / "c.yaml"
+    cfg.write_text("storage:\n  min_free_gb: 1000000000\n  warn_free_gb: 2000000000\n")
+    assert cli.main(["plan-report", "--run-dir", lab.run_dir, "--config", str(cfg), "--out", str(tmp_path / "r.md")]) == 1
+    assert not (tmp_path / "r.md").exists()
+    c = CamLiveConfig.load(str(cfg))
+    d = {x["name"]: x for x in doctor.storage_checks(c)}["disk"]
+    assert d["ok"] is False and "minimum 1e+09 GB" in d["detail"]       # a5ab772: a fixed 20 GB

@@ -911,6 +911,13 @@ class LiveRuntime:
     def _export(self, dest: str) -> tuple:
         dest = dest or os.path.join(self.run_dir, "exports", f"export_{len(self._exports) + 1:04d}")
         os.makedirs(os.path.dirname(dest), exist_ok=True)
+        # storage rule: an export must leave the configured minimum free (about the size of the last checkpoint)
+        last = (self._committed.get("ckpt") or {}).get("path", "")
+        try:
+            DiskGuard(os.path.dirname(dest), float(self.cfg.min_free_gb), float(self.cfg.warn_free_gb)).check(
+                dir_bytes(last) if last and os.path.isdir(last) else 0, "export")
+        except DiskSpaceLow as e:
+            return False, f"not exported: {e}"
         if callable(getattr(self.agent, "export_weights", None)):
             # weights-only transfer artefact (spec 15.3): weights, adapters and the configuration that rebuilds the
             # model — no experience, optimizer or task state (credit.checkpoint.load_exported_model reads it)

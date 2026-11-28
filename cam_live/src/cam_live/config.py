@@ -23,7 +23,10 @@ REPO_ROOT = os.path.abspath(os.path.join(PROJECT_ROOT, ".."))
 
 #: other tenants on this GPU serialise heavy jobs on this lock; hold it (fcntl.flock) for any job that loads a
 #: >= 1.7B backbone or needs > 4 GB of GPU memory, for at most ~15 minutes at a time. Never wrap pytest in it.
-GPU_LOCK_PATH = os.environ.get("CAM_LIVE_GPU_LOCK", "/workspace/agentrs/runs/cam_unified/gpu_heavy.lock")
+#: The default is CAM Live's own path (G2I-10); ``CAM_LIVE_GPU_LOCK`` names another tenant's lock file. On the
+#: development machine of 2026-11 ``<repo>/runs/gpu_heavy.lock`` is a symbolic link to the shared tenant's lock
+#: (/workspace/agentrs/runs/cam_unified/gpu_heavy.lock), so the lock actually used there is unchanged.
+GPU_LOCK_PATH = os.environ.get("CAM_LIVE_GPU_LOCK", os.path.join(REPO_ROOT, "runs", "gpu_heavy.lock"))
 
 
 @dataclass

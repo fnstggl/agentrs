@@ -97,7 +97,14 @@ def storage_checks(cfg: CamLiveConfig) -> List[Dict[str, Any]]:
     while not os.path.exists(probe):
         probe = os.path.dirname(probe)
     du = shutil.disk_usage(probe)
-    out = [_check("disk", du.free / 2**30 >= 20, f"{du.free / 2**30:.0f} GB free of {du.total / 2**30:.0f} GB at {probe} "
+    st = (cfg.section("storage") if hasattr(cfg, "section") else {}) or {}
+    from ..storage import DEFAULT_MIN_FREE_GB, DEFAULT_WARN_FREE_GB
+    min_gb = float(st.get("min_free_gb", DEFAULT_MIN_FREE_GB))      # the storage rule's thresholds, not a constant
+    warn_gb = float(st.get("warn_free_gb", DEFAULT_WARN_FREE_GB))
+    free = du.free / 2**30
+    out = [_check("disk", free >= min_gb, f"{free:.0f} GB free of {du.total / 2**30:.0f} GB at {probe} "
+                                          f"(minimum {min_gb:g} GB, warning below {warn_gb:g} GB"
+                                          + ("; below the warning level" if free < warn_gb else "") + ") "
                                                  f"(state root {home})", "staging"),
            _check("state_root_writable", os.access(probe, os.W_OK), f"{probe} writable by uid {os.geteuid()}", "staging")]
     persistent: Optional[bool] = None

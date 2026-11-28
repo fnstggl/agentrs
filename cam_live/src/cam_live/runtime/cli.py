@@ -752,6 +752,25 @@ def _copy_tree_safe(src_dfd: int, dst: str, budget: Dict[str, int]) -> None:
             raise ExportRefused(f"the checkpoint contains {kind} ({n}); nothing is exported")
 
 
+def _disk_guard(a: argparse.Namespace, path: str) -> Any:
+    """The storage guard with the configuration's thresholds (section ``storage``)."""
+    from ..storage import DEFAULT_MIN_FREE_GB, DEFAULT_WARN_FREE_GB, DiskGuard
+    st = _cfg(getattr(a, "config", "")).section("storage") or {}
+    return DiskGuard(path, float(st.get("min_free_gb", DEFAULT_MIN_FREE_GB)),
+                     float(st.get("warn_free_gb", DEFAULT_WARN_FREE_GB)))
+
+
+def _tree_bytes(path: str) -> int:
+    n = 0
+    for root, _dirs, files in os.walk(path, followlinks=False):
+        for f in files:
+            try:
+                n += os.lstat(os.path.join(root, f)).st_size
+            except OSError:
+                pass
+    return n
+
+
 def _export_offline(run_dir: str, a: argparse.Namespace) -> Dict[str, Any]:
     """Export the committed checkpoint of a run with no runtime process (G2-harness R4-C1). Root runs this on the
     operator's behalf over a directory the learner writes, so: the checkpoint is chosen by NAME among the real
@@ -787,6 +806,9 @@ def _export_offline(run_dir: str, a: argparse.Namespace) -> Dict[str, Any]:
         os.rmdir(dest)
     parent = os.path.dirname(dest)
     os.makedirs(parent, exist_ok=True)
+    # storage rule (G2-integration): an export needs about twice the checkpoint (staging copy + export) and must leave
+    # the configured minimum free
+    _disk_guard(a, parent).check(2 * _tree_bytes(os.path.join(run_dir, RunFiles.CHECKPOINTS, name)), "checkpoint export")
     import tempfile
     staging = tempfile.mkdtemp(prefix=".cam-export-", dir=parent)        # 0700, this uid's, next to the destination
     try:
@@ -859,9 +881,10 @@ def cmd_export_checkpoint(a: argparse.Namespace) -> int:
     run_dir = _run_dir(a)
     if pid_alive(read_pid(run_dir)):
         return _command(a, lambda c: c.export_checkpoint(a.out))
+    from ..storage import DiskSpaceLow
     try:
         meta = _export_offline(run_dir, a)
-    except (ExportRefused, OSError) as e:
+    except (ExportRefused, OSError, DiskSpaceLow) as e:
         print(f"cam-live export-checkpoint: {e}", file=sys.stderr)
         return 1
     _out(meta, a.json, f"exported checkpoint {meta['checkpoint']} to {meta['path']} ({meta['method']})")
@@ -885,7 +908,14 @@ def cmd_plan_report(a: argparse.Namespace) -> int:
     if not os.path.exists(os.path.join(run_dir, RunFiles.STATE)):
         print(f"cam-live plan-report: no runtime state in {run_dir}", file=sys.stderr)
         return 1
-    path = write_report(run_dir, os.path.abspath(a.out) if a.out else "", as_json=a.json)
+    from ..storage import DiskSpaceLow
+    out = os.path.abspath(a.out) if a.out else os.path.join(run_dir, "plan_report." + ("json" if a.json else "md"))
+    try:
+        _disk_guard(a, os.path.dirname(out)).check(8 * 2 ** 20, "plan report")   # a report is a few MB at most
+    except DiskSpaceLow as e:
+        print(f"cam-live plan-report: {e}", file=sys.stderr)
+        return 1
+    path = write_report(run_dir, out, as_json=a.json)
     print(path)
     return 0
 
