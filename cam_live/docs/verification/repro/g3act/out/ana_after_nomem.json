@@ -1,0 +1,91 @@
+{
+ "run_dir": "/workspace/camlive/runs/cam_live/st/after_nomem/run",
+ "decisions": 30,
+ "chosen_operations": {
+  "discord.modify_guild": 9,
+  "browser.scroll": 3,
+  "internal.inspect": 2,
+  "discord.get_audit_summary": 1,
+  "internal.request_operator": 2,
+  "browser.inspect": 1,
+  "discord.listen_events": 3,
+  "wait": 1,
+  "browser.read": 1,
+  "discord.list_events": 1,
+  "discord.create_channel": 2,
+  "browser.screenshot": 2,
+  "browser.select_tab": 1,
+  "browser.close_tab": 1
+ },
+ "chosen_provenance": {
+  "backbone": 10,
+  "schema_walker": 20
+ },
+ "generation": {
+  "items": 239,
+  "valid": 169,
+  "validity": 0.7071129707112971,
+  "mean_valid_per_decision": 5.633333333333334,
+  "samples": 120,
+  "samples_last_line_rejected": 11,
+  "decisions_with_not_json": 1,
+  "proposed_backbone_operations_offered": {
+   "discord.modify_guild": 65,
+   "discord.create_channel": 36,
+   "internal.request_operator": 44,
+   "discord.get_guild_settings": 8,
+   "discord.list_channels": 9,
+   "discord.get_guild_stats": 4,
+   "discord.list_roles": 1,
+   "discord.list_events": 2
+  },
+  "mean_prompt_tokens": 5548.2,
+  "mean_memory_chars": 0.0
+ },
+ "notes": {
+  "executed": 0,
+  "chars": [],
+  "with_hypothesis_words": 0,
+  "tags": {},
+  "proposed_by_backbone_offered": 0,
+  "texts": []
+ },
+ "operator_requests": {
+  "executed": 2,
+  "kinds": {
+   "permission": 2
+  },
+  "distinct_titles": 2
+ },
+ "expectations": {
+  "chosen_with_expected": 10,
+  "with_hypothesis_words": 0,
+  "examples": [
+   "The server name and description will be updated to reflect the community's focus and value proposition.",
+   "The server settings are updated to reflect the new name, description, and channel configurations, allowing the community to be established.",
+   "The server's name and description will be updated to reflect the new community focus, and settings will be adjusted to enhance member safety and communication.",
+   "Operator grants permission to modify guild settings.",
+   "The server settings are updated to create a new community with a name, description, and configured notification and content filters.",
+   "A new text channel named 'General' is created, providing a space for community members to discuss various topics.",
+   "The server's settings are updated to reflect the new community description, verification level, and channel configurations.",
+   "A new announcements channel is created to facilitate important community updates and news."
+  ]
+ },
+ "coherence": {
+  "follow_ups_using_earlier_results": 1,
+  "identical_repeats": 0,
+  "max_run_same_operation": 1
+ },
+ "revisions": {
+  "notes_building_on_earlier_notes": 0,
+  "changed_retry_after_failure": 2
+ },
+ "experiments_registered": 1,
+ "result_status": {
+  "needs_approval": 11,
+  "ok": 16,
+  "denied": 3
+ },
+ "median_seconds_between_decisions": 23.428770542144775,
+ "seconds_first_to_last_decision": 651.8078515529633
+}

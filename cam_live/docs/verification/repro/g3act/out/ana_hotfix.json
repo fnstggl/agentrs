@@ -1,0 +1,83 @@
+{
+ "run_dir": "/workspace/camlive/runs/cam_live/st/hotfix/run",
+ "decisions": 30,
+ "chosen_operations": {
+  "sandbox.list_files": 6,
+  "internal.request_operator": 5,
+  "browser.read": 3,
+  "discord.modify_guild": 5,
+  "browser.scroll": 3,
+  "discord.list_channels": 1,
+  "discord.listen_events": 1,
+  "wait": 1,
+  "sandbox.job_status": 1,
+  "browser.screenshot": 1,
+  "internal.inspect": 3
+ },
+ "chosen_provenance": {
+  "schema_walker": 22,
+  "backbone": 8
+ },
+ "generation": {
+  "items": 240,
+  "valid": 139,
+  "validity": 0.5791666666666667,
+  "mean_valid_per_decision": 4.633333333333334,
+  "samples": 120,
+  "samples_last_line_rejected": 13,
+  "decisions_with_not_json": 0,
+  "proposed_backbone_operations_offered": {
+   "discord.get_audit_summary": 3,
+   "discord.get_guild_settings": 27,
+   "discord.modify_guild": 16,
+   "discord.list_channels": 16,
+   "discord.get_guild_stats": 2,
+   "internal.request_operator": 63,
+   "discord.list_roles": 2,
+   "discord.create_channel": 8,
+   "discord.get_member_events": 1,
+   "browser.open_tab": 1
+  },
+  "mean_prompt_tokens": 5552.333333333333,
+  "mean_memory_chars": 0.0
+ },
+ "notes": {
+  "executed": 0,
+  "chars": [],
+  "with_hypothesis_words": 0,
+  "tags": {},
+  "proposed_by_backbone_offered": 0,
+  "texts": []
+ },
+ "operator_requests": {
+  "executed": 5,
+  "kinds": {
+   "resource": 1,
+   "permission": 2,
+   "information": 2
+  },
+  "distinct_titles": 5
+ },
+ "expectations": {
+  "chosen_with_expected": 0,
+  "with_hypothesis_words": 0,
+  "examples": []
+ },
+ "coherence": {
+  "follow_ups_using_earlier_results": 1,
+  "identical_repeats": 5,
+  "max_run_same_operation": 2
+ },
+ "revisions": {
+  "notes_building_on_earlier_notes": 0,
+  "changed_retry_after_failure": 0
+ },
+ "experiments_registered": 1,
+ "result_status": {
+  "ok": 24,
+  "needs_approval": 5,
+  "denied": 1
+ },
+ "median_seconds_between_decisions": 19.05762529373169,
+ "seconds_first_to_last_decision": 539.9928433895111
+}

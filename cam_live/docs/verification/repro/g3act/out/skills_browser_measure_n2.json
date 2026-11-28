@@ -1,0 +1,132 @@
+{
+ "what": "SG: skills acquired from the agent's own *grounded* browser traces versus primitive-only operation, on the local",
+ "n_per_arm": 2,
+ "tasks": {
+  "store_entry_layout_b": {
+   "primitive_only": {
+    "n": 2,
+    "success": 2,
+    "decisions_per_task": 5,
+    "primitive_ops_per_task": 5,
+    "latency_s_mean": 0.9129260540939867,
+    "latency_s_median": 0.9129260540939867
+   },
+   "skill_based": null,
+   "acquisition": {
+    "ok": false,
+    "latency_s": 0.5647929953411222,
+    "primitive_ops": 4,
+    "skill_id": null,
+    "source_decisions": 10,
+    "detail": "no skill registered: postconditions_met: "
+   },
+   "every_skill_entry_stored": false,
+   "skill": null,
+   "note": "the layout-A skill is refused here by its precondition; this one was acquired from traces on B"
+  },
+  "store_entry": {
+   "primitive_only": {
+    "n": 2,
+    "success": 2,
+    "decisions_per_task": 4,
+    "primitive_ops_per_task": 4,
+    "latency_s_mean": 0.6355019556358457,
+    "latency_s_median": 0.6355019556358457
+   },
+   "skill_based": {
+    "n": 2,
+    "success": 2,
+    "decisions_per_task": 1,
+    "primitive_ops_per_task": 3,
+    "latency_s_mean": 0.6329078215640038,
+    "latency_s_median": 0.6329078215640038
+   },
+   "acquisition": {
+    "ok": true,
+    "latency_s": 0.5997547833248973,
+    "primitive_ops": 3,
+    "skill_id": "skill_5ed75286bba741ce",
+    "source_decisions": 8,
+    "detail": ""
+   },
+   "every_skill_entry_stored": true,
+   "unfamiliar_path_same_layout": {
+    "ok": true,
+    "termination": "postconditions_met"
+   },
+   "interface_changed_to_layout_b": [
+    {
+     "status": "failed",
+     "termination": "precondition_failed",
+     "skill_status": "validated"
+    },
+    {
+     "status": "failed",
+     "termination": "precondition_failed",
+     "skill_status": "validated"
+    },
+    {
+     "status": "failed",
+     "termination": "precondition_failed",
+     "skill_status": "validated"
+    }
+   ],
+   "skill": {
+    "operations": [
+     "browser.fill",
+     "browser.select_option",
+     "browser.click"
+    ],
+    "params": [
+     "label",
+     "text"
+    ],
+    "applicability_n": 7
+   },
+   "rate_limit_waits": 0
+  },
+  "record_item": {
+   "primitive_only": {
+    "n": 2,
+    "success": 2,
+    "decisions_per_task": 6,
+    "primitive_ops_per_task": 6,
+    "latency_s_mean": 1.6991268121637404,
+    "latency_s_median": 1.6991268121637404
+   },
+   "skill_based": {
+    "n": 2,
+    "success": 2,
+    "decisions_per_task": 1,
+    "primitive_ops_per_task": 6,
+    "latency_s_mean": 1.601567744044587,
+    "latency_s_median": 1.601567744044587
+   },
+   "acquisition": {
+    "ok": true,
+    "latency_s": 1.5821993127465248,
+    "primitive_ops": 6,
+    "skill_id": "skill_23da504ea0fc4ada",
+    "source_decisions": 12,
+    "detail": ""
+   },
+   "every_skill_item_recorded": true,
+   "skill": {
+    "operations": [
+     "browser.navigate",
+     "browser.fill",
+     "browser.select_option",
+     "browser.click",
+     "browser.click",
+     "browser.click"
+    ],
+    "params": [
+     "label",
+     "text"
+    ]
+   },
+   "failures": [],
+   "rate_limit_waits": 0
+  }
+ }
+}

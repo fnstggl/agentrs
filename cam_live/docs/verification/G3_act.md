@@ -7,7 +7,7 @@ Verifier: G3-act (workstream G, lens `g3act`). I wrote none of the code under te
 6cba496 at the start; from 14:48 UTC the worktree's `cam_live/src` differed from the freeze only in S's `eval/oe_batch.py`,
 `oe_runner.py`, `v3_report.py` (a52dead), which neither the tests I ran from the worktree nor any non-`eval` module
 import). GPU use only with `CAM_LIVE_GPU_LOCK=/workspace/agentrs/runs/cam_unified/gpu_heavy.lock`, inside
-`gpu_lock()`, a 13-minute watchdog inside the hold, CPU jobs at `nice 10`, `OMP_NUM_THREADS<=4`, one at a time.
+`gpu_lock()`, a 13-minute watchdog inside the hold (4 holds, the last one the measurement), CPU jobs at `nice 10`, `OMP_NUM_THREADS<=4`, one at a time.
 Nothing live was started, no external service was contacted; the ST staging run directories were only read (the
 experience store and a checkpoint were copied to my scratch directory and opened from there).
 `<scratch>` = `/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad`.
@@ -26,12 +26,12 @@ items 5-8), `docs/ST.md`, `docs/SG.md`, `docs/AUTONOMY.md` (`docs/AU.md`), `docs
 | ST OWN RECORDS | holds | **off by default** (staging overlay only) | not established (one seed; and seeds are not paired, G3A-3) | none (honestly reported) |
 | ST `expected` field | holds | off by default | carried (6-14 chosen actions per run) | none (honestly reported) |
 | ST proposal learning (LoRA + bridge) | holds as specified | off by default; one real slow step, reverted | none | none; its held-out gain is on a **proxy prompt** (G3A-4) |
-| ST realised information value | **holds** (my recomputation equals the stored values exactly; the removal is effective) | holds (on; reaches the bootstrap reward and the 16-record policy-update window) | none (IV ~ 0) | none; diagnosis **incomplete** (§1.5) |
+| ST realised information value | **holds** (my recomputation equals the stored values exactly; the removal is effective) | holds (on; reaches the bootstrap reward and the 16-record policy-update window) | none (IV ~ 0) | none; diagnosis **incomplete**: on the real model the predictions ignore the context and the belief barely moves (§1.5) |
 | ST prohibitions (no workflow / strategy / plan prompt) | **holds** (every prompt string read) | — | — | — |
 | SG skill induction / validation / applicability / composition / refinement | holds (180 tests incl. browser at the freeze, 229 at bb4ab3b; ADF = quadrature) | partial: at the freeze no skill from **HTTP integrations** (G3A-1, fixed at bb4ab3b); at bb4ab3b effect-unobserved skills count unverified runs as successes (G3A-12); `skill.*` is not authorized in the planning task (G3A-8) | controlled only | controlled measurement reproduced (n = 2); real configuration: nothing acquired (honest) |
 | SG learned TransferEstimator | holds (my numerical checks) | holds (SG-2/3 in agent.py) | holds in the unit test (score ratio) | LabWorld diagnostic as reported |
 | SG goal-free ablation | — | — | **not paired** (G3A-3) | **not reproducible**: my re-run of seeds 0, 1 gives +12, +15 adopters (SG: -4, -9) |
-| AU standing profile + retained approvals | holds for the listed lexical forms (55/56 AU tests) | holds (composed environment, real service) | the profile's own effect is a *restriction* (G3A-6) | **refuted in part**: a routine-profile record lets CAM delete, buy, transfer, message people and mint credentials without approval (G3A-2) |
+| AU standing profile + retained approvals | holds for the listed lexical forms (55/56 AU tests) | holds (composed environment, real service) | the profile's own effect is a *restriction* (G3A-6) | **refuted in part**: a routine-profile record lets CAM delete, buy, transfer, message people, mint credentials and read personal data through an approved integration without approval (G3A-2) |
 | AU sandbox network with declared hosts | holds (privileged tests) | holds (foreground); jobs need CR AU-1 | holds | holds (install + test now possible) |
 | AU credentials (bound / expiring / generated) | holds | holds | holds | — |
 | AU request kinds account / verification | holds | holds | — | — |
@@ -81,7 +81,32 @@ What I re-checked:
 * The real-model measurement below separates these: how much do the later beliefs and predictions move at all when
   the items are removed?
 
-* Real-model measurement (`repro/g3act/iv_sensitivity.py real`): waiting for the shared GPU lock at the time of this commit; see the next commit of this report.
+* **Real-model measurement** (`repro/g3act/iv_sensitivity.py real`: Qwen3-4B bf16 + LoRA + bridge + 50m core, the long
+  run's last checkpoint `ckpt_00000054` and its experience store, both copied; one GPU hold; output
+  `repro/g3act/out/iv_sensitivity_real_long.json`), all **33** IV records:
+
+  | measure (later decisions t+1, t+2 of each record) | median | max / upper quartile |
+  |---|---|---|
+  | relative change of the later beliefs when the record's 2 items are removed, ‖b_with − b_without‖ / ‖b_with‖ | **3.3e-4** | 7.2e-4 (Q3), 6.2e-3 (max, the earliest decisions with 7-12 context items) |
+  | relative change of the belief between consecutive decisions (natural scale) | **0.19** | — |
+  | NLL change when only the newest 3 of the context items are kept (median 119 items) | **7.0e-5 nats** (absolute) | 3.1e-4 |
+  | IV recomputed with the final weights | 3.0e-6 nats (absolute) | 5.1e-5 |
+  | stored IV (weights at annotation time) minus recomputed | — | 5.5e-4 |
+
+  So at this checkpoint the world model's predictions of *all* its targets ignore the context window almost entirely
+  (dropping ~116 of 119 items moves the NLL by 7e-5 nats), and the experiential core's belief is moved ~600 times less
+  by an item two decisions old than by one decision's step. ST's stored values (|IV| up to 5.8e-4) are ~10 times
+  larger than the same quantity with the final weights and are at the resolution of the bf16 pipeline; they carry no
+  measurable information either way.
+* **Diagnosis.** ST's cause (content-independent targets) is real for four of the five targets, but it is not the
+  whole cause and not "by construction": even a content-*dependent* target would see almost nothing here, because
+  (i) the predictions do not use the context at all yet (an empirical state of a world model after 52 decisions and
+  few frequent updates), and (ii) the belief through which every prediction is made — including IMP's content head,
+  which reads the decision latent — is nearly insensitive to an individual older item in a ~120-item window
+  (an architectural property of how the core pools its window, or of its training so far; this measurement cannot
+  separate the two). A content target is therefore necessary but not sufficient; whether the core's belief can be
+  made to carry an individual item's information over several decisions is the untested part. Neither is a defect
+  in the IV computation itself.
 
 * At the freeze the runtime IV still ignores IMP's content target (G3A-10), so even the remedy ST named would not
   reach the reward without an agent change.
@@ -105,7 +130,7 @@ What I re-checked:
 | `python -m cam_live.eval.proposal_probe analyse-run` on ST's staging runs hotfix / after / after_nomem / after_rot / long (read-only) | extract | ST's table reproduced (decisions, provenance, valid per decision, `not_json` decisions 0 / 0 / 1 / 2 / 2, notes 0 everywhere, requests 5 / 2 / 2 / 2 / 2, `expected` 0 / 6 / 10 / 6 / 14, repeats 5 / 6 / 0 / 5 / 16, changed retries 0 / 2 / 2 / 0 / 0) |
 | `repro/g3act/iv_store_report.py` on a copy of the long run's store | extract | 52 records, 33 IV values, min -5.79e-4, max +4.88e-4, mean -1.7e-5; targets: action.succeeded 35, three exec metrics 31 each, membership.confirmed 31; median context 115 items |
 | `repro/g3act/iv_sensitivity.py debug` | extract | recomputed IV = stored IV exactly (max difference 0.0); removing the items moves the belief (rel. change 0.61-0.81 at debug scale) |
-| `repro/g3act/iv_sensitivity.py real` (Qwen3-4B + 50m, the long run's last checkpoint copied, the copied store) | extract, GPU lock | queued for the shared lock (two earlier holds ended at restore: the meta-learner refuses the run's signed outcome ledger outside its run; the probe now restores weights and heads only) |
+| `repro/g3act/iv_sensitivity.py real` (Qwen3-4B + 50m, the long run's last checkpoint copied, the copied store) | extract, GPU lock | 33 records: belief change from removing a record's items median 3.3e-4 (relative) vs 0.19 between consecutive decisions; NLL change keeping only the newest 3 of ~119 items 7e-5 nats; IV with final weights 3e-6 (median), 5.1e-5 (max) (hold 4 of 4; holds 1-3, each < 3 min, ended without a measurement: twice the restore was refused because the agent keeps its ledger in `<run>/learner`, which my first layout lacked, once the agent read an empty store for the same reason; the probe restores weights and heads, not the meta-learner's ledger-bound bookkeeping) |
 
 ## 3. ST — autonomous strategic invention and the agent.py integration
 
@@ -285,7 +310,8 @@ correctly marked as the learner's property; AU's runtime-level ablation is uninf
 ## 7. What I could not check
 
 * The real-model belief / prediction sensitivity is measured on one run's last checkpoint (the ST `long` run, 52
-  decisions).
+  decisions); the bf16 pipeline's noise floor (the same input evaluated twice) was not measured separately, and the
+  stored IVs could not be recomputed with the weights they were computed with (only the final checkpoint exists).
 * No real-model re-run of any ST / SG staging condition (one GPU hold used; the conditions are one sample path each
   and, by G3A-3, not paired anyway).
 * SG's controlled browser measurement (`skills_browser_measure.py`) was not re-run as such; its mechanisms are covered

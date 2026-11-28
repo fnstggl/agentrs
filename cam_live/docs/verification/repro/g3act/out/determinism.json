@@ -1,0 +1,60 @@
+{
+ "fresh_same_seed": {
+  "run1": [
+   [
+    "wait",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   4.0
+  ],
+  "run2": [
+   [
+    "wait",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   1.0
+  ],
+  "identical": false
+ },
+ "same_seed_same_uid": {
+  "run1": [
+   [
+    "wait",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   2.0
+  ],
+  "run2": [
+   [
+    "wait",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   2.0
+  ],
+  "identical": true
+ }
+}

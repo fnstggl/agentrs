@@ -1,0 +1,196 @@
+{
+ "what": "SG diagnostic (debug model on CPU, LabWorld, the agent API in the runtime's order): does a goal-free period before an",
+ "args": {
+  "seeds": "0,1",
+  "free": 8,
+  "decisions": 16,
+  "out": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/G3ACT/results/gfab_s01.json"
+ },
+ "rows": [
+  {
+   "seed": 0,
+   "arm": "none",
+   "free_decisions": 0,
+   "free_ops": [],
+   "adopters_before": 0.0,
+   "adopters_after": 8.0,
+   "gain": 8.0,
+   "objective_ops": [
+    "wait",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   "goal_free_goals": 0,
+   "transfer_points": 0,
+   "transfer_evidence": 0,
+   "transfer_by_key": {}
+  },
+  {
+   "seed": 0,
+   "arm": "goalfree",
+   "free_decisions": 8,
+   "free_ops": [
+    "lab.noise",
+    "lab.noise",
+    "wait",
+    "lab.noise",
+    "lab.act",
+    "lab.unlock",
+    "lab.noise",
+    "lab.probe"
+   ],
+   "adopters_before": 0.0,
+   "adopters_after": 20.0,
+   "gain": 20.0,
+   "objective_ops": [
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   "goal_free_goals": 5,
+   "transfer_points": 10,
+   "transfer_evidence": 10,
+   "transfer_by_key": {
+    "lab.act|lab.adopters.from.{action}": {
+     "n": 10,
+     "gain_sum": 0.759321819124675,
+     "positive": 8,
+     "mean_gain": 0.0759321819124675,
+     "estimate": 0.6265536365207791
+    }
+   }
+  },
+  {
+   "seed": 1,
+   "arm": "none",
+   "free_decisions": 0,
+   "free_ops": [],
+   "adopters_before": 0.0,
+   "adopters_after": 27.0,
+   "gain": 27.0,
+   "objective_ops": [
+    "lab.noise",
+    "lab.probe",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   "goal_free_goals": 0,
+   "transfer_points": 0,
+   "transfer_evidence": 0,
+   "transfer_by_key": {}
+  },
+  {
+   "seed": 1,
+   "arm": "goalfree",
+   "free_decisions": 8,
+   "free_ops": [
+    "lab.noise",
+    "lab.noise",
+    "wait",
+    "wait",
+    "lab.noise",
+    "lab.noise",
+    "lab.noise",
+    "lab.noise"
+   ],
+   "adopters_before": 0.0,
+   "adopters_after": 42.0,
+   "gain": 42.0,
+   "objective_ops": [
+    "wait",
+    "wait",
+    "lab.unlock",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act",
+    "lab.act"
+   ],
+   "goal_free_goals": 7,
+   "transfer_points": 7,
+   "transfer_evidence": 7,
+   "transfer_by_key": {
+    "lab.act|lab.adopters.from.{action}": {
+     "n": 7,
+     "gain_sum": -0.449620650543604,
+     "positive": 1,
+     "mean_gain": -0.06423152150622914,
+     "estimate": 0.40008429987919913
+    }
+   }
+  }
+ ],
+ "summary": {
+  "none": {
+   "n": 2,
+   "mean_gain": 17.5,
+   "gains": [
+    8.0,
+    27.0
+   ]
+  },
+  "goalfree": {
+   "n": 2,
+   "mean_gain": 31.0,
+   "gains": [
+    20.0,
+    42.0
+   ]
+  },
+  "paired_difference": {
+   "values": [
+    12.0,
+    15.0
+   ],
+   "mean": 13.5,
+   "positive": 2,
+   "n": 2
+  }
+ }
+}

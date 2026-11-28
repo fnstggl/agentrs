@@ -1,0 +1,96 @@
+{
+ "run_dir": "/workspace/camlive/runs/cam_live/st/long/run",
+ "decisions": 52,
+ "chosen_operations": {
+  "discord.get_audit_summary": 1,
+  "browser.read": 11,
+  "discord.modify_guild": 10,
+  "internal.inspect": 3,
+  "internal.request_operator": 2,
+  "discord.create_channel": 7,
+  "browser.select_tab": 4,
+  "browser.inspect": 2,
+  "browser.scroll": 6,
+  "discord.listen_events": 3,
+  "wait": 1,
+  "browser.close_tab": 1,
+  "sandbox.list_files": 1
+ },
+ "chosen_provenance": {
+  "schema_walker": 38,
+  "backbone": 14
+ },
+ "generation": {
+  "items": 412,
+  "valid": 286,
+  "validity": 0.6941747572815534,
+  "mean_valid_per_decision": 5.5,
+  "samples": 208,
+  "samples_last_line_rejected": 29,
+  "decisions_with_not_json": 2,
+  "proposed_backbone_operations_offered": {
+   "discord.modify_guild": 43,
+   "internal.request_operator": 9,
+   "discord.create_channel": 85,
+   "discord.get_guild_settings": 31,
+   "discord.list_channels": 37,
+   "discord.create_role": 2,
+   "discord.list_roles": 3,
+   "discord.get_member_events": 3,
+   "discord.get_guild_stats": 3,
+   "discord.create_invite": 1,
+   "discord.get_audit_summary": 1,
+   "discord.get_channel_activity": 1,
+   "discord.get_permissions": 6,
+   "discord.get_identity": 2
+  },
+  "mean_prompt_tokens": 6169.038461538462,
+  "mean_memory_chars": 1919.9423076923076
+ },
+ "notes": {
+  "executed": 0,
+  "chars": [],
+  "with_hypothesis_words": 0,
+  "tags": {},
+  "proposed_by_backbone_offered": 0,
+  "texts": []
+ },
+ "operator_requests": {
+  "executed": 2,
+  "kinds": {
+   "permission": 2
+  },
+  "distinct_titles": 1
+ },
+ "expectations": {
+  "chosen_with_expected": 14,
+  "with_hypothesis_words": 0,
+  "examples": [
+   "Operator approves the permission to manage the Discord server.",
+   "A new text channel named 'Community' is created, providing a space for members to discuss and engage with the community.",
+   "A new text channel named 'Announcements' is created, providing a space for important community updates and news.",
+   "Operator approves the permission to manage the Discord server.",
+   "A new text channel named 'Welcome' is created, providing a space for new members to learn about the community and its rules.",
+   "The server's description is updated to reflect a welcoming community, and verification level and content filters are set to 0, allowing for open communication and participation.",
+   "A new text channel named 'Community Announcements' is created in the server, providing a space for official announcements and discussions.",
+   "A new text channel named 'Community Engagement' is created in the server, providing a space for members to interact and discuss community-related topics."
+  ]
+ },
+ "coherence": {
+  "follow_ups_using_earlier_results": 0,
+  "identical_repeats": 16,
+  "max_run_same_operation": 3
+ },
+ "revisions": {
+  "notes_building_on_earlier_notes": 0,
+  "changed_retry_after_failure": 0
+ },
+ "experiments_registered": 7,
+ "result_status": {
+  "ok": 32,
+  "needs_approval": 17,
+  "denied": 3
+ },
+ "median_seconds_between_decisions": 21.369102954864502,
+ "seconds_first_to_last_decision": 4025.6863148212433
+}

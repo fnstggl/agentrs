@@ -1,0 +1,91 @@
+{
+ "run_dir": "/workspace/camlive/runs/cam_live/st/after_rot/run",
+ "decisions": 30,
+ "chosen_operations": {
+  "discord.modify_guild": 2,
+  "internal.request_operator": 2,
+  "discord.get_audit_summary": 1,
+  "discord.create_channel": 4,
+  "sandbox.list_files": 2,
+  "browser.read": 5,
+  "browser.open_tab": 1,
+  "browser.screenshot": 1,
+  "browser.scroll": 6,
+  "wait": 2,
+  "browser.select_tab": 1,
+  "discord.get_guild_settings": 1,
+  "internal.inspect": 2
+ },
+ "chosen_provenance": {
+  "schema_walker": 23,
+  "backbone": 7
+ },
+ "generation": {
+  "items": 238,
+  "valid": 146,
+  "validity": 0.6134453781512605,
+  "mean_valid_per_decision": 4.866666666666666,
+  "samples": 120,
+  "samples_last_line_rejected": 21,
+  "decisions_with_not_json": 2,
+  "proposed_backbone_operations_offered": {
+   "discord.modify_guild": 8,
+   "internal.request_operator": 15,
+   "discord.create_channel": 85,
+   "discord.get_audit_summary": 1,
+   "discord.list_invites": 2,
+   "discord.list_channels": 8,
+   "discord.get_guild_settings": 10,
+   "discord.create_role": 1,
+   "discord.get_permissions": 1,
+   "discord.list_events": 1,
+   "discord.list_roles": 1,
+   "discord.get_channel_activity": 1
+  },
+  "mean_prompt_tokens": 6109.0,
+  "mean_memory_chars": 1858.0333333333333
+ },
+ "notes": {
+  "executed": 0,
+  "chars": [],
+  "with_hypothesis_words": 0,
+  "tags": {},
+  "proposed_by_backbone_offered": 0,
+  "texts": []
+ },
+ "operator_requests": {
+  "executed": 2,
+  "kinds": {
+   "permission": 2
+  },
+  "distinct_titles": 2
+ },
+ "expectations": {
+  "chosen_with_expected": 6,
+  "with_hypothesis_words": 0,
+  "examples": [
+   "Operator approves the permission to create and manage Discord channels.",
+   "A new announcement channel is created in the server for posting community updates and important information.",
+   "A new text channel is created for general community discussions and member interactions.",
+   "A new announcement channel is created to post event announcements and important updates to the community.",
+   "Server settings including name, description, verification level, notification default, content filter, and system channels.",
+   "A new general text channel is created in the Discord server."
+  ]
+ },
+ "coherence": {
+  "follow_ups_using_earlier_results": 0,
+  "identical_repeats": 5,
+  "max_run_same_operation": 2
+ },
+ "revisions": {
+  "notes_building_on_earlier_notes": 0,
+  "changed_retry_after_failure": 0
+ },
+ "experiments_registered": 5,
+ "result_status": {
+  "needs_approval": 6,
+  "ok": 24
+ },
+ "median_seconds_between_decisions": 18.57926321029663,
+ "seconds_first_to_last_decision": 536.0653269290924
+}

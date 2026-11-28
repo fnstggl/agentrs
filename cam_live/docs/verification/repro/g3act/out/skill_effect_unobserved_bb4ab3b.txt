@@ -1,0 +1,12 @@
+INDUCE ok 
+SKILL ['browser.click', 'browser.fill', 'browser.click', 'browser.click'] effect_unobserved True post ['every step reported success'] refuted ['text_len changes by +52', 'the argument text appears in the resulting state']
+RUN {'phase': 'normal', 'status': 'ok', 'verified': None, 'stored': True, 'reliability_before': 0.667, 'reliability_after': 0.749}
+RUN {'phase': 'normal', 'status': 'ok', 'verified': None, 'stored': True, 'reliability_before': 0.749, 'reliability_after': 0.798}
+RUN {'phase': 'normal', 'status': 'ok', 'verified': None, 'stored': True, 'reliability_before': 0.798, 'reliability_after': 0.83}
+RUN {'phase': 'refused', 'status': 'ok', 'verified': None, 'stored': False, 'reliability_before': 0.83, 'reliability_after': 0.853}
+RUN {'phase': 'refused', 'status': 'ok', 'verified': None, 'stored': False, 'reliability_before': 0.853, 'reliability_after': 0.87}
+RUN {'phase': 'refused', 'status': 'ok', 'verified': None, 'stored': False, 'reliability_before': 0.87, 'reliability_after': 0.884}
+RESIDUAL ok-without-effect runs: 3 of 6; reliability raised by 3 of them; verified values: ['None']
+.SKILL-A effect_unobserved None ['tables/[0]/n_rows changes by +1', 'tables/[0]/rows/# changes by +1', 'the argument text appears in the resulting state', 'every step reported success']
+RUN-A failed False postcondition not met: tables/[0]/n_rows changes by +1; tables/[0]/rows/# changes by +1
+2 passed in 26.43s

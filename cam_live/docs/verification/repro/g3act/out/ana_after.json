@@ -1,0 +1,90 @@
+{
+ "run_dir": "/workspace/camlive/runs/cam_live/st/after/run",
+ "decisions": 30,
+ "chosen_operations": {
+  "discord.modify_guild": 3,
+  "wait": 4,
+  "discord.get_audit_summary": 2,
+  "browser.read": 3,
+  "browser.screenshot": 1,
+  "discord.get_guild_settings": 1,
+  "discord.list_invites": 1,
+  "discord.create_channel": 2,
+  "discord.listen_events": 4,
+  "internal.inspect": 5,
+  "discord.get_member_events": 1,
+  "internal.request_operator": 2,
+  "browser.inspect": 1
+ },
+ "chosen_provenance": {
+  "backbone": 7,
+  "schema_walker": 23
+ },
+ "generation": {
+  "items": 240,
+  "valid": 118,
+  "validity": 0.49166666666666664,
+  "mean_valid_per_decision": 3.933333333333333,
+  "samples": 120,
+  "samples_last_line_rejected": 2,
+  "decisions_with_not_json": 0,
+  "proposed_backbone_operations_offered": {
+   "discord.modify_guild": 6,
+   "discord.create_channel": 22,
+   "internal.request_operator": 29,
+   "discord.get_audit_summary": 3,
+   "discord.list_invites": 2,
+   "discord.get_guild_settings": 15,
+   "discord.list_channels": 11,
+   "discord.get_guild_stats": 7,
+   "discord.get_member_events": 8,
+   "discord.get_permissions": 1
+  },
+  "mean_prompt_tokens": 6156.433333333333,
+  "mean_memory_chars": 1709.3666666666666
+ },
+ "notes": {
+  "executed": 0,
+  "chars": [],
+  "with_hypothesis_words": 0,
+  "tags": {},
+  "proposed_by_backbone_offered": 0,
+  "texts": []
+ },
+ "operator_requests": {
+  "executed": 2,
+  "kinds": {
+   "permission": 2
+  },
+  "distinct_titles": 1
+ },
+ "expectations": {
+  "chosen_with_expected": 6,
+  "with_hypothesis_words": 0,
+  "examples": [
+   "The server name and description will be updated to reflect the community's focus and value proposition.",
+   "The current settings of the authorized server will be retrieved, including name, description, verification level, notification default, content filter, system, rules and updates channels, locale.",
+   "A new text channel named 'Community Announcements' will be created in the authorized server for posting important community updates.",
+   "The agent will receive detailed membership changes, including joins, leaves, and changes, to track community growth and member engagement.",
+   "A new text channel named 'Community Engagement' will be created in the authorized server for fostering member interaction and discussion.",
+   "The operator will grant the 'member_list' data permission, allowing the agent to track community growth and member engagement."
+  ]
+ },
+ "coherence": {
+  "follow_ups_using_earlier_results": 0,
+  "identical_repeats": 6,
+  "max_run_same_operation": 2
+ },
+ "revisions": {
+  "notes_building_on_earlier_notes": 0,
+  "changed_retry_after_failure": 2
+ },
+ "experiments_registered": 3,
+ "result_status": {
+  "needs_approval": 5,
+  "ok": 20,
+  "denied": 5
+ },
+ "median_seconds_between_decisions": 18.551478147506714,
+ "seconds_first_to_last_decision": 540.414222240448
+}
