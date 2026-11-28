@@ -181,7 +181,11 @@
     "tests/nn/test_fast.py::test_dispersion_tempers_counts_only",
     "tests/nn/test_fast.py::test_mode_search_reports_iterations_and_non_convergence",
     "tests/nn/test_fast.py::test_impossible_observations_are_rejected_without_touching_the_state",
-    "tests/nn/test_fast.py::test_nig_predict_variance_is_the_student_t_variance"
+    "tests/nn/test_fast.py::test_nig_predict_variance_is_the_student_t_variance",
+    "tests/nn/test_dx_fast_mode.py::test_count_far_above_the_prior_predictor_reaches_the_mode",
+    "tests/nn/test_dx_fast_mode.py::test_stateful_update_reaches_the_mode_or_reports_non_convergence",
+    "tests/nn/test_dx_fast_mode.py::test_a_stopping_rule_met_away_from_the_root_is_not_reported_as_converged",
+    "tests/nn/test_dx_fast_mode.py::test_whole_extreme_count_grid_converges_to_the_reference"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live"
@@ -189,7 +193,7 @@
    "evidence": [
     "docs/evidence/A/fast_adaptation.json"
    ],
-   "limitations": "One posterior per outcome kind (real, count, binary, time-to-event); categorical outcomes are not modelled by the fast layer (change request A-5). Non-Gaussian updates are Laplace approximations: the mode is exact (monotone safeguarded search to |step| <= 1e-11 (1 + |eta|), cap 100 iterations, measured <= 7 iterations for counts / time-to-event and <= 16 for 1e9 binomial trials; iterations and convergence are returned), the shape is Gaussian. Time-to-event uses a constant-hazard (exponential) likelihood. The learned dispersion exp(disp_raw) (1 at init) tempers count likelihoods only. Inferred-noise Gaussian: predict() returns the Student-t predictive variance (b/(a-1))(1+q); posterior()['cov'] / ['noise'] are the scale (b/a)V and b/a. Impossible observations raise ValueError (stateful update and online_nll)."
+   "limitations": "One posterior per outcome kind (real, count, binary, time-to-event); categorical outcomes are not modelled by the fast layer (change request A-5). Non-Gaussian updates are Laplace approximations: the mode is exact (monotone safeguarded search to |step| <= 1e-11 (1 + |eta|), cap 100 iterations, measured <= 7 iterations for counts / time-to-event and <= 16 for 1e9 binomial trials; iterations and convergence are returned). [DX, G2L-1] The count / time-to-event search takes the convex G-step from the left of the root too, and 'converged' is reported only where the root condition holds at the returned point (relative residual <= 1e-8 plus the float64 rounding of the prior term, or the log-form residual <= 1e-8): before, 4 of 2625 extreme count problems (prior predictor >= 16 orders below the count, e.g. eta0 -30, count 1e9 at exposure 1e-12) reported convergence at eta 3.3e11 / 1e15 instead of 48.35; now all 2625 equal a float64 bisection to <= 1e-9 (tests/nn/test_dx_fast_mode.py; G2-learn probe_fast_stress.py 46/46). The Laplace shape is Gaussian. Time-to-event uses a constant-hazard (exponential) likelihood. The learned dispersion exp(disp_raw) (1 at init) tempers count likelihoods only. Inferred-noise Gaussian: predict() returns the Student-t predictive variance (b/(a-1))(1+q); posterior()['cov'] / ['noise'] are the scale (b/a)V and b/a. Impossible observations raise ValueError (stateful update and online_nll)."
   },
   "NA-09": {
    "state": "implemented",
