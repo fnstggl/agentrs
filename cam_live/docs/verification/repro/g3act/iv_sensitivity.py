@@ -145,20 +145,31 @@ def real_mode(a):
     import shutil
     # the agent restores its meta-learner against the outcome ledger of its own directory: the agent directory is a
     # COPY of the run's learner directory (store, ledger, registries; never the run's own files)
-    adir = tempfile.mkdtemp(prefix="g3act-ivr-", dir=a.home)
+    rdir = tempfile.mkdtemp(prefix="g3act-ivr-", dir=a.home)      # the agent's run directory; it keeps its state in
+    adir = os.path.join(rdir, "learner")                            # <run>/learner (agent.LEARNER_DIR)
+    os.makedirs(adir)
     src = a.learner_dir
     for f in os.listdir(src):
         if f in ("runtime.key", "promoted") or f.endswith(".lock"):
             continue
         p = os.path.join(src, f)
         (shutil.copytree if os.path.isdir(p) else shutil.copy2)(p, os.path.join(adir, f))
+    if a.dry_debug:                                  # plumbing check on the CPU: debug model, no checkpoint, no lock
+        agent = CamLiveAgent(CamLiveConfig.debug(), rdir, clock=SimClock())
+        try:
+            recs = sorted(agent.store.all(), key=lambda r: r.seq)
+            rows, neigh = measure(agent, agent.store, recs, max_n=3, budget_s=a.budget_s)
+            print(json.dumps({"dry_debug": True, "records": len(recs), "summary": summary(rows, neigh)}, indent=1))
+        finally:
+            agent.close()
+        return
     with gpu_lock(timeout_s=3600.0):
         import threading
         print("gpu lock acquired", flush=True)
         wd = threading.Timer(780.0, lambda: (print("watchdog: 13 min in the lock, exiting", flush=True), os._exit(3)))
         wd.daemon = True
         wd.start()                                       # never hold the shared lock longer than 13 minutes
-        agent = CamLiveAgent(cfg, adir, clock=SimClock())
+        agent = CamLiveAgent(cfg, rdir, clock=SimClock())
         try:
             # the meta-learner's bookkeeping is bound to the run's signed outcome ledger (its verifier key is not
             # copied, so the restore would refuse it); this measurement needs only the trained weights and heads
@@ -185,6 +196,7 @@ if __name__ == "__main__":
     ap.add_argument("--out", default="iv_sensitivity_real.json")
     ap.add_argument("--max-n", type=int, default=40)
     ap.add_argument("--budget-s", type=float, default=420.0)
+    ap.add_argument("--dry-debug", action="store_true")
     args = ap.parse_args()
     torch.set_num_threads(int(os.environ.get("OMP_NUM_THREADS", "4")))
     debug_mode() if args.mode == "debug" else real_mode(args)
