@@ -90,6 +90,30 @@ afterwards):
 * **Single-uid development mode** (`separated=False`, or the service users absent): every role is the same uid.
   All rules still run, but nothing in section 1 applies. It is for tests and diagnostics only.
 
+## 2a. Hard platform constraints (fixed in code, not in the policy file)
+
+`src/cam_live/harness/auth/platform_constraints.py` (HX, commits a1cdc0e, 863bdae; documented in its docstring and
+`docs/HX.md`) adds `deny` findings that no policy file, task, live authorization record, approval, pre-authorization
+or `owned` / `interactive` list can turn into anything else. It runs inside `Evaluator.node`, i.e. on `authorize`
+(every program / skill step) and on `check_primitive` (every browser navigation and page write, HTTP hop, sandbox
+connection, skill step, visual gesture):
+
+* `X-HUMAN-VERIFICATION` — no CAPTCHA / human-verification / bot-challenge solving: no requests to solver services,
+  no interaction with or answers to challenge endpoints, no solved-challenge tokens, no solver or evasion
+  libraries, no `navigator.webdriver` override, no proxy / IP rotation. Challenges are also recognised
+  structurally (answer-key substrings, accessible names of the element being filled or clicked, submitted form
+  field names).
+* `X-USER-ACCOUNT` — no automation of ordinary or owner Discord user accounts: the browser does not interact with
+  Discord's client, login, invites, OAuth2 or user pages (public documentation stays readable; the developer
+  portal is refused), raw HTTP never reaches user-only endpoints or uses a non-bot credential, generated code does
+  not connect to Discord.
+* `X-PLATFORM-ADAPTER` — Discord's API, Gateway and attachment CDN are reachable only through the official bot
+  adapter (`discord.*`), which applies the data-use rules and the operator's permission scope; the bot credential
+  is released only to an action that is, or contains, a `discord.*` operation.
+
+Limits (HX, G2-harness): the lists are finite, generated code is judged lexically, the constraints cover Discord
+(the one integrated platform), static subresources are judged per origin.
+
 ## 3. Tamper evidence (detective, not preventive)
 
 The audit log is hash-chained (`hash = sha256(prev ‖ entry)`), each entry carries an HMAC under a key only the
