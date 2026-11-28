@@ -33,7 +33,8 @@ from typing import Tuple
 from ..contracts import ActionSpec, Clock, Cost, GoalStatus, OutcomeKind, OutcomeQuery, Trust, new_id
 from .integrity import LedgerEntry, NoisyTVGate, SelfGoalDiscount
 
-__all__ = ["GoalFreeBudget", "LearningGoalCandidate", "SelectedGoal", "SelfGoalSelector", "SelfGoal", "GoalFreeMode"]
+__all__ = ["GoalFreeBudget", "LearningGoalCandidate", "SelectedGoal", "SelfGoalSelector", "SelfGoal", "GoalFreeMode",
+           "TransferEstimator"]
 
 
 @dataclass
@@ -240,6 +241,88 @@ class SelfGoalSelector:
         self.history, self._later = list(d["history"]), list(d["later"])
 
 
+# ================================================================================================ transfer (learned)
+class TransferEstimator:
+    """Expected transferable competence of a learning goal (spec 11.4: "generate learning goals based on ...
+    expected transferable competence"), learned from what goal-free learning was later worth — replacing the constant
+    1.0 that every candidate had before (AE-04 partial, KF-E21).
+
+    Evidence: every outcome observed during a later *independently assigned* objective is scored twice on the same
+    data — by the goal-free posterior (the fast layer that absorbed the goal-free observations) and by the reference
+    prior that posterior started from; ``gain = NLL_reference - NLL_goal_free`` (nats) is how much the knowledge
+    acquired without an objective improved the prediction of what happened under the objective. A soft success
+    ``u = (1 + clip(gain / scale, -1, 1)) / 2`` enters a Beta posterior.
+
+    Estimate for a candidate (key = operation|metric, features phi): Beta(prior_strength * prior + sum w_i u_i,
+    prior_strength * (1 - prior) + sum w_i (1 - u_i)) over the evidence points i, with similarity weights
+    w_i = max(exp((cos(phi, phi_i) - 1) / tau), 1 for the same key, 1/2 for the same operation). Without evidence
+    the estimate is the prior (1/2: uninformative), and it moves only with measured later gains."""
+
+    def __init__(self, *, prior: float = 0.5, prior_strength: float = 2.0, tau: float = 0.1, scale: float = 0.25,
+                 max_points: int = 512, min_abs_gain: float = 1e-4):
+        self.prior, self.prior_strength, self.tau, self.scale = float(prior), float(prior_strength), float(tau), float(scale)
+        self.max_points, self.min_abs_gain = int(max_points), float(min_abs_gain)
+        self.points: List[Dict[str, Any]] = []            # {key, phi (unit list), gain, objective_id}
+
+    @staticmethod
+    def _unit(phi: Any) -> List[float]:
+        v = [float(x) for x in (phi.detach().cpu().double().reshape(-1).tolist() if hasattr(phi, "detach")
+                                else list(phi))]
+        n = math.sqrt(sum(x * x for x in v)) or 1.0
+        return [x / n for x in v]
+
+    def observe(self, key: str, phi: Any, gain: float, objective_id: str = "") -> bool:
+        """One later outcome's measured gain; |gain| below ``min_abs_gain`` says nothing (False, not kept)."""
+        g = float(gain)
+        if not math.isfinite(g) or abs(g) < self.min_abs_gain:
+            return False
+        self.points.append({"key": str(key), "phi": self._unit(phi), "gain": g, "objective_id": str(objective_id)})
+        del self.points[:-self.max_points]
+        return True
+
+    def _weight(self, key: str, u: List[float], p: Dict[str, Any]) -> float:
+        cos = sum(a * b for a, b in zip(u, p["phi"])) if len(u) == len(p["phi"]) else -1.0
+        w = math.exp((min(cos, 1.0) - 1.0) / max(self.tau, 1e-6))
+        if p["key"] == key:
+            w = max(w, 1.0)
+        elif p["key"].split("|")[0] == key.split("|")[0]:
+            w = max(w, 0.5)
+        return w
+
+    def estimate(self, key: str, phi: Any = None) -> Dict[str, float]:
+        u = self._unit(phi) if phi is not None else []
+        a = self.prior_strength * self.prior
+        b = self.prior_strength * (1.0 - self.prior)
+        n_eff, gain = 0.0, 0.0
+        for p in self.points:
+            w = self._weight(key, u, p) if u else (1.0 if p["key"] == key else 0.0)
+            if w <= 1e-6:
+                continue
+            s = 0.5 * (1.0 + max(-1.0, min(1.0, p["gain"] / self.scale)))
+            a, b, n_eff, gain = a + w * s, b + w * (1.0 - s), n_eff + w, gain + w * p["gain"]
+        return {"mean": a / (a + b), "n_eff": n_eff, "mean_gain": (gain / n_eff) if n_eff else None,
+                "sd": math.sqrt(a * b / ((a + b) ** 2 * (a + b + 1.0)))}
+
+    def by_key(self) -> Dict[str, Dict[str, float]]:
+        out: Dict[str, Dict[str, float]] = {}
+        for p in self.points:
+            d = out.setdefault(p["key"], {"n": 0, "gain_sum": 0.0, "positive": 0})
+            d["n"] += 1
+            d["gain_sum"] += p["gain"]
+            d["positive"] += int(p["gain"] > 0)
+        for k, d in out.items():
+            d["mean_gain"] = d["gain_sum"] / d["n"]
+            d["estimate"] = self.estimate(k)["mean"]
+        return out
+
+    def state_dict(self) -> Dict[str, Any]:
+        return {"prior": self.prior, "prior_strength": self.prior_strength, "tau": self.tau, "scale": self.scale,
+                "points": [dict(p) for p in self.points]}
+
+    def load_state_dict(self, d: Mapping[str, Any]) -> None:
+        self.points = [dict(p) for p in d.get("points", [])][-self.max_points:]
+
+
 # ================================================================================================ on the real model
 @dataclass
 class SelfGoal:
@@ -294,6 +377,12 @@ class GoalFreeMode:
         self.achieved: Dict[str, Tuple[int, int]] = {}         # key -> (achieved, resolved)
         self._replay: Dict[str, List[Tuple[Any, float, float]]] = {}   # key -> [(phi, y, exposure)]
         self.goals: List[SelfGoal] = []
+        #: learned expected transfer (SG): evidence from later independently assigned objectives, scored against the
+        #: prior the goal-free posterior started from (kept as ``reference``)
+        self.transfer = TransferEstimator()
+        self.reference = fast.clone() if hasattr(fast, "clone") else None
+        self.transfer_log: List[Dict[str, Any]] = []
+        self.restore_notes: List[str] = []
 
     # ---------------------------------------------------------------------------------------- proposal
     @staticmethod
@@ -336,7 +425,8 @@ class GoalFreeMode:
             cand = LearningGoalCandidate(
                 key=key, description=f"predict {q.metric} after {a.operation}", epistemic=math.sqrt(v),
                 achievable_progress=achievable if achievable >= self.min_progress else 0.0,
-                p_success=self.p_success(key), transfer=1.0, est_cost=a.est_cost)
+                p_success=self.p_success(key), transfer=self.transfer.estimate(key, phi[i])["mean"],
+                est_cost=a.est_cost)
             out.append((cand, phi[i].detach().cpu(), raw))
         return out
 
@@ -426,6 +516,28 @@ class GoalFreeMode:
         self.selector.record_result(goal.selected, cost, epistemic_after=eps_after, realised_progress=realised)
         return goal
 
+    # ---------------------------------------------------------------------------------------- transfer
+    def observe_assigned(self, key: str, phi: Any, kind: str, value: float, exposure: float = 1.0, *,
+                         censored: Optional[bool] = None, objective_id: str = "") -> Optional[float]:
+        """An outcome observed under a later independently assigned objective (never during the goal-free period):
+        how much better the goal-free posterior predicts it than the prior it started from (nats; None when nothing
+        can be said: no goal-free learning yet, a kind the fast layer does not model, no reference)."""
+        if self.reference is None or not self.fast.supports(kind) or not any(
+                g.status in (GoalStatus.ACHIEVED, GoalStatus.FAILED) for g in self.goals) and not self.selector.history:
+            return None
+        if value is None or not math.isfinite(float(value)):
+            return None
+        ex = exposure if kind != OutcomeKind.REAL else None
+        try:
+            gain = float(self.reference.nll(phi, float(value), kind, ex, censored)) - \
+                float(self.fast.nll(phi, float(value), kind, ex, censored))
+        except Exception:  # noqa: BLE001 — a malformed observation teaches nothing about transfer
+            return None
+        kept = self.transfer.observe(key, phi, gain, objective_id)
+        self.transfer_log = (self.transfer_log + [{"key": key, "gain": gain, "kept": kept,
+                                                   "objective_id": objective_id}])[-256:]
+        return gain
+
     # ---------------------------------------------------------------------------------------- usefulness
     def record_later_objective(self, entry: LedgerEntry, predicted_without: float) -> None:
         self.selector.record_later_objective(entry, predicted_without)
@@ -447,15 +559,37 @@ class GoalFreeMode:
                 "achieved": sum(g.status == GoalStatus.ACHIEVED for g in done), "by_key": by_key,
                 "budget_remaining": self.budget.remaining(), "budget_exhausted": self.budget.exhausted,
                 "calibration": dict(self.calibration), "usefulness": self.usefulness(),
-                "progress_estimator_error": self.selector.progress_estimator_error()}
+                "progress_estimator_error": self.selector.progress_estimator_error(),
+                "transfer": {"points": len(self.transfer.points), "by_key": self.transfer.by_key(),
+                             "restore_notes": list(self.restore_notes)}}
 
     def state_dict(self) -> Dict[str, Any]:
         return {"selector": self.selector.state_dict(), "calibration": dict(self.calibration),
                 "cal": {k: list(v) for k, v in self._cal.items()},
-                "achieved": {k: list(v) for k, v in self.achieved.items()}}
+                "achieved": {k: list(v) for k, v in self.achieved.items()},
+                "transfer": self.transfer.state_dict(),
+                "reference": self.reference.state_dict() if self.reference is not None else None}
 
     def load_state_dict(self, d: Mapping[str, Any]) -> None:
+        """Checkpoints written before SG have no transfer evidence and no reference prior: the estimator starts
+        empty (every candidate at the uninformative prior) and the reference is the fast state as restored, so gains
+        are measured only for goal-free learning after the restore (recorded in ``restore_notes``)."""
         self.selector.load_state_dict(d["selector"])
         self.calibration = dict(d["calibration"])
         self._cal = {k: (float(v[0]), float(v[1])) for k, v in d.get("cal", {}).items()}
         self.achieved = {k: (int(v[0]), int(v[1])) for k, v in d["achieved"].items()}
+        if d.get("transfer"):
+            self.transfer.load_state_dict(d["transfer"])
+        else:
+            self.restore_notes.append("transfer estimator initialised fresh (checkpoint without transfer evidence)")
+        self._reference_sd = d.get("reference")
+
+    def after_fast_restore(self) -> None:
+        """Call after the goal-free fast state itself was restored: the reference prior is restored from the
+        checkpoint, or (older checkpoints) taken as the restored state."""
+        sd = getattr(self, "_reference_sd", None)
+        if sd and self.reference is not None:
+            self.reference.load_state_dict(sd)
+        elif hasattr(self.fast, "clone"):
+            self.reference = self.fast.clone()
+            self.restore_notes.append("reference prior = restored goal-free fast state (checkpoint without one)")
