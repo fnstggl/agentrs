@@ -76,7 +76,7 @@ def summarise(rows: List[Dict[str, Any]], n: int) -> Dict[str, Any]:
 
 def run(condition: str, seed: int, decisions: int, work: str, *, real: bool = False, world_seed: Optional[int] = None,
         segment: int = 16, split: str = "segment", backbone: Optional[bool] = None, replay: bool = True,
-        max_wall_s: float = 0.0, learn_budget_s: float = 30.0) -> Dict[str, Any]:
+        max_wall_s: float = 0.0, learn_budget_s: float = 30.0, id_salt: Optional[str] = None) -> Dict[str, Any]:
     from ..contracts import SimClock
     from ..diagnostics.world import AllowAllPolicy
     from ..eval.conditions import Timed, base_config
@@ -88,6 +88,8 @@ def run(condition: str, seed: int, decisions: int, work: str, *, real: bool = Fa
     cfg = base_config(real=real, seed=seed)
     agent_sec = dict(cfg.sections.get("agent", {}))
     agent_sec["use_backbone"] = bool(real if backbone is None else backbone)
+    if id_salt is not None:                        # paired arms: the same explicit salt draws the same ids (b74b312)
+        agent_sec["id_salt"] = str(id_salt)
     cfg.sections["agent"] = agent_sec
     cred = dict(cfg.sections.get("credit", {}))
     cred["learner"] = {**cred.get("learner", {}), "val_split": split}
@@ -197,7 +199,7 @@ def run(condition: str, seed: int, decisions: int, work: str, *, real: bool = Fa
 def _run_main(a: Any, work: str) -> Dict[str, Any]:
     return run(a.condition, a.seed, a.decisions, work, real=a.real, world_seed=a.world_seed, segment=a.segment,
                split=a.split, backbone=False if a.no_backbone else None, replay=not a.no_replay,
-               max_wall_s=a.max_wall_s, learn_budget_s=a.learn_budget_s)
+               max_wall_s=a.max_wall_s, learn_budget_s=a.learn_budget_s, id_salt=a.id_salt)
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -216,6 +218,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--threads", type=int, default=2)
     ap.add_argument("--max-wall-s", type=float, default=0.0, help="stop the run after this many seconds (GPU hold)")
     ap.add_argument("--gpu-timeout-s", type=float, default=3600.0, help="how long to wait for the shared GPU lock")
+    ap.add_argument("--id-salt", default=None, help="agent.id_salt (paired arms: the same value in both)")
+    ap.add_argument("--seed-uuid", action="store_true", help="draw uuid4 ids (observations, predictions ...) from a "
+                    "generator seeded with --seed, so paired arms also share them")
     ap.add_argument("--learn-budget-s", type=float, default=30.0, help="runtime learning budget per step (wall clock); "
                     "1e9 for exactly paired arms")
     ap.add_argument("--work", default="")
@@ -223,6 +228,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     a = ap.parse_args(argv)
     torch.set_num_threads(a.threads)
     torch.manual_seed(a.seed)
+    if a.seed_uuid:
+        import random as _random
+        import uuid as _uuid
+        _r = _random.Random(1_000_003 + int(a.seed))
+        _uuid.uuid4 = lambda: _uuid.UUID(int=_r.getrandbits(128), version=4)
     if a.rudder_key:                               # ablation of D-CR2's choice of RUDDER's learning signal
         from . import providers as _p
         _p.LEARNING_KEY[_p.RUDDER] = a.rudder_key
@@ -244,6 +254,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     from .diagnose import code_provenance
 
     res["rudder_learning_key"] = a.rudder_key or "default"
+    res["id_salt"], res["seed_uuid"] = a.id_salt, bool(a.seed_uuid)
     res["_code"] = code_provenance()
     res["_command"] = "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.cr_agent_eval " + " ".join(
         argv if argv is not None else __import__("sys").argv[1:])
