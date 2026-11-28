@@ -40,3 +40,12 @@ written. With `nn: {max_prompt_tokens: 6144}` (segment B) the prompts were 4369-
 valid backbone proposals (96 actions).
 **Proposed.** `nn: {max_prompt_tokens: 6144}` in `configs/cam_live.yaml` for the planning run (Qwen3-4B's context is
 32k; nvidia-smi sampled the segment-B learner at ~10 GB GPU memory early in the run — no peak was recorded), or a compact tool list for large tool sets.
+
+## INT3B-5 (tests, `tests/eval/test_meta_integrity.py`, owner S): a tolerance that depends on the process's torch thread count
+
+In the whole suite run in ONE process (INT3B final run, 2026-11-28) `test_meta_checks_on_a_saved_run` failed with
+`1.10e-07 <= 1e-05 * 0.00902` (magnitude-only reward change vs update norm); alone it passes (98 s). The module sets
+`torch.set_num_threads(2)` at import, which other modules of the same process change (the last setter wins), and the
+bound (1e-5 of the update norm) is tighter than the reduction-order noise of a different thread count.
+**Proposed.** Set the thread count inside the test (or a fixture) rather than at import, or bound by an absolute
+floating-point floor (e.g. `max(1e-5 * norm, 1e-6)`).

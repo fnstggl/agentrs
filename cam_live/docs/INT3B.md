@@ -228,7 +228,7 @@ streamed output read as `'phase one'` vs `'phase one\n'` under load; not mine). 
 * **LX-20** durable, timestamped, provenance, redacted — implemented (tests; rehearsal token scan 0 matches; loopback
   IPv4 over-redacted).
 * **CL-06** restart — runtime side: settle state restored, kill -9 tests, validation recovery check; G-cl's real-model
-  embedding-cache difference not addressed (partial stays as D / M-int had it).
+  embedding-cache difference not addressed (state left as M-int had it: implemented).
 * **OP-05** Discord observations into the experience pipeline — partial: shown in staging (4 observations as store
   items, 8 records of Discord actions, learned from in the same run's frequent updates); nothing live.
 * **OP-11** planning phase — partial: prerequisites rehearsed in staging (objective verbatim, requests, queued writes,
@@ -259,3 +259,12 @@ streamed output read as `'phase one'` vs `'phase one\n'` under load; not mine). 
   before the redaction and approval fixes; they were not re-run.
 * `harness/compute/test_ec_jobs::test_status_is_observable_while_running_and_cancel_stops_the_job` failed once under
   load (not my code).
+
+## 9. Final whole-suite run (one process)
+
+`cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests -q --rootdir=cam_live --junitxml=...` on the
+worktree at fa008fd (+ other workstreams' files as they were): **1540 tests: 1443 passed, 96 skipped, 1 failed,
+0 errors, 1630 s (27 min) wall**, JUnit `docs/evidence/test_results/INT3B_fix.xml`. The failure is S's
+`tests/eval/test_meta_integrity.py::test_meta_checks_on_a_saved_run` (a 1e-5 relative tolerance exceeded by 1.1e-7
+under the thread count another module of the same process set; passes alone in 98 s): change request INT3B-5.
+Runtime probes of G-rt (`docs/verification/repro/rt/p01, p03, p04, p07`): 124 of 124 checks HOLD on the final code.

@@ -63,19 +63,21 @@
     "src/cam_live/validation.py"
    ],
    "integration_points": [
-    "cam_live.validation.run_staging"
+    "cam_live.validation.run_staging",
+    "cam-live validate --mode staging"
    ],
    "tests": [
+    "tests/runtime/test_int3b_ops.py::test_a_resource_limit_counts_only_when_it_is_not_the_decision_budget",
     "tests/integration/test_int2_queries.py::test_a_result_after_approval_is_recorded_without_rewriting_history"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -c \"from cam_live.validation import run_staging, EVIDENCE_DIR; run_staging(None, real_model=True, n_decisions=40, evidence_dir=EVIDENCE_DIR)\""
+    "cam-live validate --mode staging --real-model --decisions 40 --budget-s 840 --meta-min-independent 3 --computer-share 0.2 (run 1); run_staging(real_model=True, n_decisions=46, budget_s=840, computer_share=0.22, lab_seeds=(101..106), lab_target=(6,30,10,40,8,20), meta_min_independent=3, compute_limit_s=140) (run 2)"
    ],
    "evidence": [
-    "docs/evidence/test_results/INT2_full.xml",
-    "docs/evidence/validation/staging_20261127T223510Z.json"
+    "docs/evidence/validation/staging_20261128T005844Z.json",
+    "docs/evidence/test_results/INT3B_fix.xml"
    ],
-   "limitations": "Real-configuration staging validation executed (INT2, frozen copy of d55986d, 630 s under the GPU lock): checks failing: approvals_exercised, meta_step_changes_policy, meta_update_applied, resource_limit_exercised. The approval failure was a defect (an approved action's result refused by the append-only store), fixed in 1039a6f and covered by tests/integration/test_int2_queries.py; the run was not repeated after the fix. The resource limit was not reached before the decision budget; no meta-update was applied in 4 lifetimes of 7 decisions (39 skips for insufficient independent outcomes)."
+   "limitations": "INT3B real-configuration staging validation, run 2 (staging_20261128T005844Z.json, worktree 3e29595 = INT3B fc96aeb + INT3A, lock 809 s, peak 18.7 GB): 15 of 16 checks hold, NOT passed. Hold now: resource_limit_exercised (computer phase ended by limit compute_s exhausted), meta_update_applied (2 applied, meta-gradient norms 40.7 / 15.4, psi deltas 0.097 / 0.062), meta_step_changes_policy (mean TV 0.22 / 0.011) - with meta_min_independent_outcomes 3 and six LabWorld lifetimes drained to signed verdicts (documented staging-scale configuration; live default 8). Fails: approvals_exercised (1 approval requested and approved, after the compute limit had ended the objective: not executed; none rejected). Run 1 (staging_20261128T004747Z.json, 4 lifetimes): 13 of 16 (meta checks and approvals failed)."
   },
   "NA-06": {
    "state": "implemented",
@@ -178,15 +180,18 @@
    ],
    "tests": [
     "tests/integration/test_agent_recovery.py::test_save_fresh_process_load_gives_identical_decisions",
-    "tests/integration/test_agent_recovery.py::test_kill_9_mid_run_then_restart_without_duplicate_actions"
+    "tests/integration/test_agent_recovery.py::test_kill_9_mid_run_then_restart_without_duplicate_actions",
+    "tests/runtime/test_rt_crash.py::test_kill_with_an_action_in_flight_then_resume",
+    "tests/runtime/test_int3b_settle.py::test_settling_resumes_after_a_restart"
    ],
    "commands": [
     "per test directory from a frozen copy of the commit (git archive): PYTHONPATH=<copy>/cam_live/src .venv/bin/python -m pytest cam_live/tests/<dir> -q --rootdir=cam_live --junitxml=...; merged into docs/evidence/test_results/INT2_full.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/INT2_full.xml"
+    "docs/evidence/test_results/INT3B_fix.xml",
+    "docs/evidence/validation/staging_20261128T005844Z.json"
    ],
-   "limitations": "Save -> fresh process -> load: decisions identical (first bit-identical). Restored update events used to rebuild their support batches from the store (INT2-8, measured: docs/evidence/validation/diagnosis/inner_batch_rebuild_20261127.txt); fixed by LRN in reward/ (5ad3777). Same PYTHONHASHSEED in both processes."
+   "limitations": "INT3B: runtime-side restart also restores an ended objective's settle state; the real-configuration staging validation's interruption + restart from disk: recovery_exercised holds in both runs (interruption half-way through lifetime 2, rebuilt agent restored from disk, run resumed). G-cl's real-configuration finding (fresh-process predictions differ by up to 0.053 through the embedding cache) is not addressed here."
   },
   "AE-03": {
    "state": "partial",
@@ -428,24 +433,55 @@
   "OP-11": {
    "state": "partial",
    "files": [
-    "tasks/discord_100_planning.yaml",
-    "src/cam_live/agent.py"
+    "tasks/staging/discord_100_planning_staging.yaml",
+    "tools/planning_rehearsal.py",
+    "src/cam_live/runtime/plan_report.py"
    ],
    "integration_points": [
-    "cam_live.agent.AgentProposer"
+    "cam-live run",
+    "cam-live plan-report"
    ],
    "tests": [
-    "tests/integration/test_int2_planning.py::test_planning_task_file",
-    "tests/integration/test_int2_planning.py::test_backbone_notes_and_operator_requests_become_candidates",
-    "tests/integration/test_int2_prompts.py::test_constant_templates_carry_no_strategy"
+    "tests/runtime/test_int3b_ops.py::test_plan_report_reproduces_cam_texts_verbatim_with_provenance",
+    "tests/runtime/test_int3b_ops.py::test_plan_report_is_written_wherever_the_operator_says"
    ],
    "commands": [
-    "per test directory from a frozen copy of the commit (git archive): PYTHONPATH=<copy>/cam_live/src .venv/bin/python -m pytest cam_live/tests/<dir> -q --rootdir=cam_live --junitxml=...; merged into docs/evidence/test_results/INT2_full.xml"
+    "cam_live/tools/planning_rehearsal.py prepare --root R; ... serve; cam-live run --task tasks/staging/discord_100_planning_staging.yaml --inproc; planning_rehearsal.py check; cam-live plan-report --run-dir R/run --out F"
    ],
    "evidence": [
-    "docs/evidence/test_results/INT2_full.xml"
+    "docs/evidence/INT3B/rehearsal_summary.json",
+    "docs/evidence/INT3B/rehearsal_segmentB_check.json",
+    "docs/evidence/INT3B/rehearsal_segmentB_plan_report.md",
+    "docs/evidence/INT3B/rehearsal_segmentB_plan_report.json.gz",
+    "docs/evidence/INT3B/rehearsal_segmentA_check.json",
+    "docs/evidence/INT3B/rehearsal_segmentA_plan_report.md"
    ],
-   "limitations": "Planning task prepared (objective verbatim, confirmed by hash); not run. A live read-only observation run is prepared (docs/evidence/validation/discord_live/run_live_observe.py) but was not executed: its launch was refused by the session's permission system and needs the operator's permission."
+   "limitations": "Prerequisites rehearsed in staging (docs/INT3B.md section 3): CAM received the operator's objective verbatim (run_started, learner view, every decision record); segment B (nn.max_prompt_tokens 6144; with the default 2048 the prompt never fit: segment A, 0 backbone proposals): 30 decisions, 8 backbone-written chosen actions, 5 operator requests recorded (4 with justification), 0 notes (CAM wrote no plan / hypothesis / lesson note), 2380 predictions registered, 3 Discord writes queued for approval and 1 denied, 0 executed without approval, 0 write requests at the staging Discord, 43 learning updates. cam-live plan-report exports all of it verbatim with provenance. The live planning run was not started."
+  },
+  "OP-05": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/harness/discord.py",
+    "src/cam_live/agent.py",
+    "tasks/staging/discord_100_planning_staging.yaml"
+   ],
+   "integration_points": [
+    "cam_live.harness.discord.DiscordExecutor.execute",
+    "cam_live.agent.CamLiveAgent.ingest"
+   ],
+   "tests": [],
+   "commands": [
+    "cam_live/tools/planning_rehearsal.py prepare / serve / cam-live run / check"
+   ],
+   "evidence": [
+    "docs/evidence/INT3B/rehearsal_summary.json",
+    "docs/evidence/INT3B/rehearsal_segmentB_check.json",
+    "docs/evidence/INT3B/rehearsal_segmentB_plan_report.md",
+    "docs/evidence/INT3B/rehearsal_segmentB_plan_report.json.gz",
+    "docs/evidence/INT3B/rehearsal_segmentA_check.json",
+    "docs/evidence/INT3B/rehearsal_segmentA_plan_report.md"
+   ],
+   "limitations": "Staging only (harness/staging_discord, tasks/staging/discord_100_planning_staging.yaml, real configuration): in rehearsal segment B 4 Discord observations (provenance discord:staging) were logged and all 4 are items of the learner's experience store (found by observation id); 8 experience records of Discord actions; the same run made 15 frequent and 1 slow-adapter updates on that store. Nothing live was contacted; whether observations from the live Discord enter the pipeline the same way is not shown (same code path, different base_url)."
   }
  },
  "public_api": [
@@ -705,10 +741,35 @@
   "Learning quality is not established: no improvement with repetition at debug scale; no real-configuration repeated-task learning run.",
   "LRN-3 (bootstrap inputs epistemic_after / learning_progress) not wired.",
   "S-6: backbone proposals are executable (16/16 valid in the probe, 12 of 13 chosen actions executed) but the software objective was not attempted on the real configuration (no code written).",
-  "Outcomes still pending when an objective completes are not measured (drain covers an exhausted decision budget only)."
+  "Outcomes still pending when an objective completes are not measured (drain covers an exhausted decision budget only).",
+  "INT3B: staging validation not passed - run 2 (staging_20261128T005844Z.json) 15 of 16 checks; approvals_exercised fails (the one approved action came after the compute limit ended the objective; none rejected). The meta-update checks hold with meta_min_independent_outcomes 3 and six lifetimes; with four lifetimes (run 1) they did not.",
+  "INT3B: in the staging planning rehearsal CAM wrote no note (no plan / hypothesis / lesson) in 30 decisions; its 5 operator requests were its only planning output. The live planning run was not started.",
+  "INT3B: with the default nn.max_prompt_tokens 2048 the planning task's proposer prompt (4112 tokens) never fit: no backbone proposal in 12 decisions (INT3B-4); measured with 6144 in segment B.",
+  "INT3B: a GPU hold can overrun runtime.gpu_hold_s by one cycle (measured 1234 s for 840 s when one cycle took ~13 min under load)."
  ],
  "scientific_failures": [
   "Repeated staging task, debug scale: success fell with repetition (learn_primitive 0.42 -> 0.25, CI [-0.29, -0.04]); skills never registered.",
   "Real configuration: meta-updates rare (4 of 63 calls applied) and small (policy change TV <= 0.027); effect on decision quality not measured."
- ]
+ ],
+ "int3b": {
+  "commit": "85101a2",
+  "rehearsal": "staging planning rehearsal on the real configuration: segment A 12 decisions (prompt over the 2048-token window in 12/12, no backbone proposals), segment B 30 decisions with nn.max_prompt_tokens 6144 (8 backbone actions chosen, 5 operator requests, 0 notes, 3 Discord writes queued, 0 executed without approval, 0 writes at the service, 4 Discord observations in the store, 43 learning updates); docs/evidence/INT3B/",
+  "validation": "docs/evidence/validation/staging_20261128T005844Z.json",
+  "full_suite": {
+   "tests": 1540,
+   "passed": 1443,
+   "skipped": 96,
+   "failed": 1,
+   "errors": 0,
+   "wall_s": 1630,
+   "failed_tests": [
+    "tests/eval/test_meta_integrity.py::test_meta_checks_on_a_saved_run (S's; passes alone; INT3B-5)"
+   ],
+   "command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/INT3B_fix.xml (one process)",
+   "code": "fa008fd",
+   "junit": "docs/evidence/test_results/INT3B_fix.xml",
+   "rt_probes": "docs/verification/repro/rt p01 / p03 / p04 / p07: 124 of 124 HOLD"
+  },
+  "junit": "docs/evidence/test_results/INT3B_fix.xml"
+ }
 }
