@@ -18,13 +18,15 @@ from __future__ import annotations
 
 import bz2
 import gzip
+import io
 import json
 import lzma
 import os
 import re
 import subprocess
 import sys
-from typing import Iterator, List, Optional, Set, Tuple
+import zipfile
+from typing import Dict, Iterator, List, Optional, Set, Tuple
 
 PAT = re.compile(rb"ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|gho_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|"
                  rb"AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY|xox[baprs]-[A-Za-z0-9-]{10,}|"
@@ -79,6 +81,18 @@ def expansions(data: bytes, depth: int = 0) -> Iterator[bytes]:
     yield data
     if depth >= 3:
         return
+    if data.startswith(b"PK\x03\x04"):                    # zip (G2I-16): every member, expanded in turn
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as z:
+                total = 0
+                for info in z.infolist():
+                    total += info.file_size
+                    if total > MAX_EXPANDED:
+                        break
+                    yield from expansions(z.read(info), depth + 1)
+        except Exception:  # noqa: BLE001 - a corrupt archive is scanned as its bytes only
+            pass
+        return
     for magic, fn in ((b"\x1f\x8b", gzip.decompress), (b"\xfd7zXZ\x00", lzma.decompress), (b"BZh", bz2.decompress)):
         if data.startswith(magic):
             try:
@@ -113,17 +127,19 @@ def main(argv: Optional[List[str]] = None) -> int:
     secrets, allow = real_secrets(), allowed_paths()
     real_hits: Set[Tuple[str, str]] = set()
     pat_hits: Set[Tuple[str, str]] = set()
-    seen: Set[str] = set()
+    seen: Dict[str, Tuple[bool, bool]] = {}           # blob -> (real credential, credential pattern)
     for commit, blob, path in blobs:
-        if blob in seen:
-            continue
-        seen.add(blob)
-        data = git("cat-file", "blob", blob)
-        for chunk in expansions(data):
-            if any(s in chunk for s in secrets):
-                real_hits.add((commit[:12], path))
-            if path not in allow and PAT.search(chunk):
-                pat_hits.add((commit[:12], path))
+        if blob not in seen:                            # each blob is scanned once ...
+            real = pat = False
+            for chunk in expansions(git("cat-file", "blob", blob)):
+                real = real or any(s in chunk for s in secrets)
+                pat = pat or bool(PAT.search(chunk))
+            seen[blob] = (real, pat)
+        real, pat = seen[blob]                          # ... but judged at every path it occurs at (G2I-17)
+        if real:
+            real_hits.add((commit[:12], path))
+        if pat and path not in allow:
+            pat_hits.add((commit[:12], path))
     print(f"secret scan: {len(seen)} blobs of {base[:12]}..{sha[:12]} scanned (every commit, decompressed)")
     if real_hits:
         print("secret scan: a REAL credential of this machine occurs in: "

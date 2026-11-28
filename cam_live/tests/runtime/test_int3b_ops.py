@@ -68,6 +68,7 @@ def _gpu_events(run_dir):
 # ---------------------------------------------------------------------------------------------------------- item C
 def test_the_lease_cycles_the_lock_in_the_running_process_and_waits_for_another_holder(tmp_path):
     lock = str(tmp_path / "gpu.lock")
+    open(lock, "a").close()                   # the machine's lock file exists (never created by a lease)
     lab = make_lab(str(tmp_path / "run"), lab_cfg=LabConfig(seed=3, target=100000),
                    rt_cfg=RuntimeConfig(fsync=False))
     lease = GpuLease(lock, hold_s=0.4, yield_s=0.3, poll_s=0.05, release_sleep_s=1e9)   # never release on a sleep
@@ -104,6 +105,7 @@ def test_the_lease_cycles_the_lock_in_the_running_process_and_waits_for_another_
 
 def test_waiting_for_the_lock_is_visible_and_a_stop_ends_the_wait(tmp_path):
     lock = str(tmp_path / "gpu.lock")
+    open(lock, "a").close()                   # the machine's lock file exists (never created by a lease)
     lab = make_lab(str(tmp_path / "run"), lab_cfg=LabConfig(seed=3, target=100000), rt_cfg=RuntimeConfig(fsync=False))
     lease = GpuLease(lock, hold_s=0.0, yield_s=0.0, poll_s=0.05)
     rt = lab.rt
@@ -151,6 +153,7 @@ def test_waiting_for_the_lock_is_visible_and_a_stop_ends_the_wait(tmp_path):
 
 def test_sleeping_releases_the_lock_and_the_next_cycle_takes_it_again(tmp_path):
     lock = str(tmp_path / "gpu.lock")
+    open(lock, "a").close()                   # the machine's lock file exists (never created by a lease)
     lab = make_lab(str(tmp_path / "run"), lab_cfg=LabConfig(seed=3, target=100000), rt_cfg=RuntimeConfig(fsync=False))
     lease = GpuLease(lock, hold_s=840.0, poll_s=0.05, release_sleep_s=5.0)
     lease.acquire()

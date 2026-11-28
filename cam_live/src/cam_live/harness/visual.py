@@ -148,8 +148,8 @@ class _Reject(Exception):
 def _shared_gpu_lock(timeout_s: float) -> Iterator[bool]:
     """The lock every tenant of this GPU takes for work above 4 GB (``cam_live.config.GPU_LOCK_PATH``)."""
     from ..config import GPU_LOCK_PATH
-    os.makedirs(os.path.dirname(GPU_LOCK_PATH), exist_ok=True)
-    f = open(GPU_LOCK_PATH, "a+")
+    from cam_live.nn.gpu import open_lock_file
+    f = open_lock_file(GPU_LOCK_PATH)          # never creates a private lock; read-only for service uids
     got = False
     end = time.monotonic() + timeout_s
     try:

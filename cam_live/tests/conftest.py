@@ -73,8 +73,8 @@ def gpu_lock(timeout_s: float = 1800.0, min_free_gb: float = 0.0):
     """Serialise heavy GPU work with every other tenant of this GPU. Hold for <= ~15 minutes. Never wrap pytest
     itself in ``flock`` on this file: tests take the lock here and would deadlock."""
     from cam_live.config import GPU_LOCK_PATH
-    os.makedirs(os.path.dirname(GPU_LOCK_PATH), exist_ok=True)
-    f = open(GPU_LOCK_PATH, "a+")
+    from cam_live.nn.gpu import open_lock_file
+    f = open_lock_file(GPU_LOCK_PATH)          # never creates a private lock (G2I-18): fails if the file is missing
     t0 = time.time()
     while True:
         try:

@@ -238,8 +238,11 @@ def harness_checks(cfg: CamLiveConfig, config_path: str = "") -> List[Dict[str, 
                               "staging"))
         except Exception as e:  # noqa: BLE001
             out.append(_check(f"module:{mod}", False, f"{type(e).__name__}: {e}", "staging"))
-    lock_dir = os.path.dirname(GPU_LOCK_PATH)
-    out.append(_check("gpu_lock", os.path.isdir(lock_dir), f"shared GPU lock file {GPU_LOCK_PATH}", ""))
+    # G2I-18: the lock is never created by CAM Live (a private lock coordinates with nobody); a run with a
+    # pretrained backbone on CUDA refuses to start without it, and live mode needs it
+    have = os.path.isfile(GPU_LOCK_PATH)
+    out.append(_check("gpu_lock", have, f"shared GPU lock file {GPU_LOCK_PATH}" + (
+        "" if have else " is missing: set CAM_LIVE_GPU_LOCK to the machine's lock file"), "live"))
     return out
 
 

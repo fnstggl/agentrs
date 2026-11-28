@@ -558,6 +558,7 @@ def test_a_hold_is_bounded_between_learner_calls_not_only_between_cycles(tmp_pat
     from cam_live.runtime.loop import RuntimeConfig
     from rt_helpers import make_lab
     lab = make_lab(str(tmp_path / "run"), lab_cfg=LabConfig(seed=3, target=100000), rt_cfg=RuntimeConfig(fsync=False))
+    (tmp_path / "gpu.lock").touch()             # the machine's lock file exists (never created by a lease)
     lease = GpuLease(str(tmp_path / "gpu.lock"), hold_s=0.5, yield_s=0.05, poll_s=0.02, release_sleep_s=1e9)
     lease.acquire()
     attach(lab.rt, lease)

@@ -153,7 +153,8 @@ def gpu_lock(needed: bool, timeout_s: float = 1800.0) -> Iterator[None]:
         yield
         return
     os.makedirs(os.path.dirname(GPU_LOCK_PATH), exist_ok=True)
-    with open(GPU_LOCK_PATH, "a+") as f:
+    from ..nn.gpu import open_lock_file
+    with open_lock_file(GPU_LOCK_PATH) as f:       # never creates a private lock (G2I-18)
         end = time.monotonic() + timeout_s
         while True:
             try:

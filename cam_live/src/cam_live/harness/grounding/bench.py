@@ -95,8 +95,8 @@ def _gpu_lock(needed: bool, timeout_s: float) -> Iterator[bool]:
     if not needed:
         yield True
         return
-    os.makedirs(os.path.dirname(GPU_LOCK_PATH), exist_ok=True)
-    f = open(GPU_LOCK_PATH, "a+")
+    from cam_live.nn.gpu import open_lock_file
+    f = open_lock_file(GPU_LOCK_PATH)          # never creates a private lock; read-only for service uids
     got, end = False, time.monotonic() + timeout_s
     try:
         while True:

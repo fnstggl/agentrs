@@ -89,3 +89,27 @@ def test_clean_history_and_allow_listed_fixtures_pass(repo, monkeypatch):
     _commit(repo, "fixture.py", f"T = '{FAKE}'\n".encode(), "allowed fixture")
     head = _commit(repo, "ok.txt", b"nothing here\n", "clean")
     assert mod.main([base, head]) == 0
+
+
+def test_a_credential_inside_a_zip_archive_is_found(repo, monkeypatch):
+    import io
+    import zipfile
+    mod = _load()
+    monkeypatch.setattr(mod, "SECRET_FILES", ())
+    base = _git(repo, "rev-parse", "HEAD")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("inner/notes.txt", f"token {FAKE}\n")
+    head = _commit(repo, "bundle.zip", buf.getvalue(), "zip")
+    assert mod.main([base, head]) == 3
+
+
+def test_identical_content_in_an_allow_listed_file_does_not_hide_another_path(repo, monkeypatch):
+    mod = _load()
+    monkeypatch.setattr(mod, "SECRET_FILES", ())
+    monkeypatch.setattr(mod, "allowed_paths", lambda: {"fixture.py"})
+    base = _git(repo, "rev-parse", "HEAD")
+    data = f"T = '{FAKE}'\n".encode()
+    _commit(repo, "fixture.py", data, "allowed fixture")
+    head = _commit(repo, "leak.py", data, "same content elsewhere")
+    assert mod.main([base, head]) == 3

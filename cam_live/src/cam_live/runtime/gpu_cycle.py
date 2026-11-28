@@ -58,7 +58,6 @@ class GpuLease:
         while this thread stays responsive (``should_abort`` every ``poll_s``)."""
         if self.held:
             return 0.0
-        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         from ..nn.gpu import open_lock_file
         fh = open_lock_file(self.path)
         t0 = time.time()
