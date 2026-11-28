@@ -5,7 +5,51 @@ file under `docs/evidence/INT3A/` or a test named here; "before" is the code at 
 stated otherwise. Real configuration = Qwen3-4B (frozen, bf16) + LoRA + latent bridge + 50m core, under the shared GPU
 lock. Change requests: `docs/change_requests/INT3A.md`.
 
-<!-- SECTION S6B -->
+## 1. S-6b: the backbone now attempts the software objective
+
+**Measured before** (`python -m cam_live.eval.proposal_probe --plan SW:rle,MECH:7 --rounds 4`, code of b663d5e, real
+configuration; `docs/evidence/INT3A/probe_before_*.json`; every prompt sent is in the files):
+
+| run | prompt: tools listed / tokens | rounds with a valid write of the named file (SW / MECH) | rounds running code | validity (valid / written) SW, MECH | what it wrote |
+|---|---|---|---|---|---|
+| b663d5e, run root below a 0700 directory (as S-6 ran) | 5 of 14 (SW), 7 of 16 (MECH) / 907, 1102 | 0 / 4, 0 / 4 | 0 | 16/16, 3/15 | notes restating the task, `program`s of `internal.inspect`, and in every SW round `internal.request_operator` for "the capability to write solution.py"; byte-identical to S-6's probe (same seeds) |
+| b663d5e, traversable root | 12 of 14, 12 of 16 / 1269-1459 | 0 / 4, 2 / 4 | 0 | 1/15, 7/16 | full `solve` programs in `sandbox.write_file` / `sandbox.python` — refused: `path*`, `content*`, `code*`, `what*` as argument names |
+| this round (snapshot of 8cebdb0's agent), traversable root | 14 of 14, 16 of 16 / 1690, 1932 | **4 / 4, 4 / 4** | 0 | **16/16, 16/16** | SW: `sandbox.write_file solution.py` with a complete `solve` every round (each of the 4 files passes 60 / 60 of the verifier's hidden tests when scored offline; the agent did not execute them in the probe), `sandbox.list_files`, `internal.inspect`, an operator request asking to *confirm* the solution; MECH: `http.get` of a measurement, a placeholder `model.py` (`return 0.0`), `sandbox.list_files` |
+
+Why the model "believed it could not write files" — three integration causes, found in the prompt text and the raw
+outputs:
+
+1. **The sandbox tools were unavailable** in S-6's runs. The sandbox runs code as uid 996 and is available only if that
+   uid can traverse to its workspace; S-6 ran from a frozen copy under the session scratch directory (`/tmp/claude-0`,
+   mode 0700), so every `sandbox.*` tool was `available=False` ("workspace ... is below a directory the sandbox uid 996
+   cannot traverse") and the agent (correctly) listed only the 5 internal tools. The model's request for the
+   capability to write `solution.py` was the true state of that computer. Not an agent defect; nothing reported it.
+   Now every decision records the permitted tools the environment reports unavailable, with the reason, and the probe
+   stops unless `--allow-unavailable`; change request INT3A-2 asks the open-ended runner to refuse such a run.
+2. **The required-argument marker was copied into argument names.** The compact tool form wrote required arguments as
+   `path*`; the backbone wrote `{"path*": "solution.py", "content*": "def solve..."}` and the normaliser stripped the
+   unknown names (the tool schema has `additionalProperties: false`), leaving `arguments: {}` — every file write and
+   program run refused as "missing required property". Now names are listed exactly with `required` in their
+   description, and a trailing `*` on a name the schema has is undone (logged `unmarked:<tool>.<name>`).
+3. **Nested objects were shown as "object"**: the backbone invented `limits: {wall, cpu, memory}` for
+   `{cpu_s, mem_mb, ...}` and the action was refused. Now one level of properties is shown.
+
+Also changed (brief items a-c): the prompt lists the complete authorized action space every decision (every
+available tool whose modality the task permits, internal tools always; the policy's top-ranked operations first,
+then the environment's order; no random rotation; `proposer_tools = 0` by default, a positive value is an ablation);
+descriptions are shortened to whole sentences (200 characters); the objective is verbatim, the task's success
+definition is the first line of the digest (`[task] success definition: {...}`), and every executed action adds a
+`[result] <operation> -> <status> (<failure class>): <detail>` line; the prompt is fitted to the backbone's window
+(`nn.max_prompt_tokens`, 2048: the backbone keeps a longer prompt's *end*) by shortening the digest and then the tool
+descriptions, never the tool list (INT3A-4: INT3B measured 4112 tokens in the planning task); a raw line break inside
+a JSON string (multi-line program text) is joined back exactly. Every decision records the listed tools in prompt
+order, the prompt's sha256, characters, tokens, the fit and the unavailable permitted tools
+(`decision.diagnostics["generation"]`). Prompt size grew from 907 / 1102 to 1690 / 1932 tokens (SW / MECH), still
+inside the 2048 window. Tests: `tests/integration/test_int3a_prompt.py` (8; the first two fail on b663d5e).
+
+What is not shown by the probe: it calls `propose` without executing anything, on the objective's first context.
+Whether the agent *chooses* and executes the write is a property of the selection rule on the real model — measured in
+the runtime runs of section 2 (SW:rle, 4 decisions).
 
 ## 3. LRN-3: the bootstrap's learning-progress and exploration inputs are written
 
@@ -104,7 +148,49 @@ switch). `new_lifetime()` is kept for diagnostics whose lifetimes are separate l
 `test_int3a_audit.py::test_the_lifetime_context_of_r_psi_is_not_reset_at_an_objective_change` (zeroed before).
 `docs/MODEL_ARCHITECTURE.md` section 10.2 (not INT3A's file) still describes the old behaviour.
 
-<!-- SECTION COST -->
+## 2. Decision cost on the real configuration
+
+`docs/evidence/INT3A/profile_decision.py`: the agent built as the open-ended runner builds it (condition E,
+substantive settings), driven by `LiveRuntime` with the runner's `RuntimeConfig`; every agent method, the proposer,
+`model.generate` / `encode_*` / `backbone.embed`, the predictor (`evaluate_candidates`, `_voi`, `observe_outcomes`,
+`belief_value`), decider, planner, learner, meta-learner, providers' losses, environment, verifier and runtime methods
+are wrapped by timers (inclusive wall time, CUDA synchronised before and after). Machine shared (load 24-30, other GPU
+processes resident). Mean seconds per runtime step that decided and acted:
+
+| component (inclusive) | SW:rle, this round, old VOI (2 acted steps) | MECH:7, before (7) | MECH:7, after (8) |
+|---|---|---|---|
+| whole runtime step | 16.7 | 18.5 | 17.1 |
+| propose (of which `model.generate`) | 12.5 (12.2) | 11.4 (11.2) | 10.8 (10.5) |
+| evaluate (of which VOI) | 2.1 (1.5) | 2.1 (1.7) | 2.0 (1.5) |
+| `backbone.embed` (candidate and context texts) | 1.1 | 2.1 | 2.1 |
+| learn (of which `ContinualLearner.learn`) | 0.9 (0.8) | 3.9 (3.4) | 3.3 (2.7) |
+| internal rewards / update beliefs / save | 0.3 / 0.2 / 0.5 | 0.3 / 0.3 / 0.2 | 0.3 / 0.2 / 0.2 |
+| learning-progress measurement (LRN-3, new) | 0.07 | 0.2 | 0.3 |
+
+* **110-150 s per decision is not reproduced**: a decision of the real configuration takes ~17-19 s here, 60-73 % of
+  it the backbone writing the k = 4 alternatives (up to 512 new tokens; the generation itself is `nn/`'s). The
+  b663d5e agent measured the same way on the same objective: see the last paragraph. The S-6 sequence run's 110-150 s
+  were measured on a machine at load ~55 with another tenant on the GPU; no component of the agent accounts for them
+  in these profiles.
+* **Waste removed (same semantics)**: the VOI computed the decision's predictive means three times
+  (`evaluate_candidates` already had them) and ran its `voi_max_candidates x voi_samples` (16 x 8) sampled-outcome
+  re-evaluations on the GPU head view while the fast layer computes on the CPU (every re-evaluation copied every
+  candidate's features to the CPU and back). Now the evaluation passes its means and the loop runs on a CPU copy of
+  the view. Same numbers: on the CPU bit-identical (`tests/predict/test_int3a_cost.py`); on the real configuration the
+  first VOI call of the SW run, captured with its inputs (fast state, generator state) and recomputed with the new code,
+  differs by at most 4.4e-16 in VOI (max 0.26) and 7.1e-15 in information gain (max 16.4) — rounding of the same
+  float64 operations on another device. VOI 1.67 -> 1.45 s per decision (MECH); the difference of whole steps
+  (18.5 -> 17.1 s) is within the run-to-run spread (different actions are chosen, the generated text differs).
+* Not changed: generation (11 s), embedding of new candidate texts (2 s: backbone proposals are new texts every
+  decision; the embedding cache already serves repeats), the continual learner (`credit/`, frozen for verification).
+  The runtime's own work is below 0.5 s per step.
+
+What the runtime runs also show (S-6b in the loop, not only in the probe): on SW:rle the agent chose
+`internal.request_operator` (asking the operator to confirm a solution; recorded, nothing sent) and then the
+backbone-written `sandbox.write_file solution.py`; the verifier's next reading was pass fraction 1.0 and the objective
+was verified achieved after 2 decisions (`runtime_sw_rle_profile.json`). On MECH:7 within 8 decisions the agent
+measured the service with backbone-written `http.get`s at chosen points, wrote a placeholder `model.py` and inspected
+its records; the verifier's R^2 stayed 0 (no fitted model was written in 8 decisions).
 
 ## 6. The bootstrap mix stays at 1 on the real model: can the promotion test become conclusive?
 
