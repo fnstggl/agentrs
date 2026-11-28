@@ -53,13 +53,14 @@ from ..contracts import (ActionResult, ActionSpec, AgentAPI, AuthorizationDecisi
                          OutcomeObservation, OutcomeQuery, OutcomeStatus, OutcomeVerifier, PolicyEngine,
                          PredictionRecord, Provenance, ResultStatus, RunFiles, TaskSpec, Trust, VerifiedOutcome,
                          new_id)
-from .control import PID_FILE, PRIVILEGED, ControlChannel, file_sha256
+from .control import PID_FILE, PRIVILEGED, ControlChannel
 from .logs import (Redactor, RunLog, RunReader, _repair_torn_tail, atomic_write_json, atomic_write_text, iter_jsonl,
                    iter_since, load_salt, read_json)
 from .obstacles import ObstacleTracker, is_obstacle
 from .private import PrivateBox, SealError
 from .scheduler import PendingItem, PendingOutcomes, SimSleeper, WallSleeper, make_sleeper, plan_wake
-from .tasks import LIMIT_FIELDS, TaskValidationError, check_runnable, learner_view, limit_problems, load_task
+from .tasks import (LIMIT_FIELDS, TaskFileChanged, TaskValidationError, check_runnable, learner_view, limit_problems,
+                    load_task, load_task_bytes, read_task_file)
 
 STATE_VERSION = 2
 RUNNING, PAUSED, STOPPED = "running", "paused", "stopped"
@@ -949,14 +950,18 @@ class LiveRuntime:
         return True, f"exported {cid} to {dest} ({how})"
 
     def _assign(self, path: str, sha256: str, by: str) -> tuple:
-        if sha256 and file_sha256(path) != sha256:
+        # G2R-18: the file is read once; the bytes whose hash the command names are the bytes parsed
+        try:
+            task = load_task_bytes(read_task_file(path), sha256=sha256, for_run=True, path=path)
+        except TaskFileChanged:
             return False, "task file changed after the command was issued"
-        task = load_task(path, for_run=True)           # same validation as any task (no strategy, explicit limits)
         self._guard_live(task)
         # G2R-4: the run's verifier must be able to judge the new objective: it accepts it only with the operator's
-        # signed command (it checks the signature and the task file itself); if it refuses, so does the runtime
+        # signed command (it checks the signature and the task file itself); if it refuses, so does the runtime.
+        # G2R-15: also for the objective in force (new deadline, target, ...): the verifier then judges the changed
+        # objective, not the one it was pinned to
         accept = getattr(self.verifier, "assign_objective", None)
-        if callable(accept) and task.objective_id != self.task.objective_id:
+        if callable(accept):
             try:
                 accept(dict(self._cmd_in_progress or {}))
             except Exception as e:  # noqa: BLE001

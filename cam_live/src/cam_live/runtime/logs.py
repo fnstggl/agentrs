@@ -76,6 +76,18 @@ _MENTION = re.compile(r"<@!?(\d{5,})>")
 _VALUE_KEYS = ("value", "val", "key", "auth", "pass", "pw", "pin", "code", "header")
 _HEX_SECRET = re.compile(r"^(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{40}|[0-9a-fA-F]{48})$")
 _SNOWFLAKE = re.compile(r"(?<![\w+-])(?<!\d\.)(\d{17,20})(?![\w-]|\.\d)")   # "member.<id>.x" is still an id
+#: a Discord snowflake carries its creation time (ms since 2015-01-01 in the bits above 22): account ids exist only
+#: from 2015-03 on (Discord launched in May 2015) and not after 2100 — a 17-20 digit count such as
+#: 12345678901234567 (2015-02-04) is a number, not an account id (INT3B round 3, G2R-7b: benign report texts)
+_SNOWFLAKE_MS = (59 * 86400 * 1000, (2100 - 2015) * 365 * 86400 * 1000)
+
+
+def plausible_snowflake(v: str) -> bool:
+    try:
+        ms = int(v) >> 22
+    except ValueError:
+        return False
+    return _SNOWFLAKE_MS[0] <= ms <= _SNOWFLAKE_MS[1]
 _USER_TAG = re.compile(r"(?<![\w#])([A-Za-z0-9_.]{2,32}#\d{4})(?![\w#])")
 #: mapping keys whose values identify a person -> replaced by a keyed hash (stable inside one run)
 DEFAULT_MEMBER_KEYS = ("member_id", "member_ids", "user_id", "user_ids", "author_id", "author_ids", "inviter_id",
@@ -227,8 +239,10 @@ class Redactor:
                 return m.group(0)
             self._hit("member")
             return m.group(0).replace(v, self.hash_member(v))
+        def snowflake(m: "re.Match[str]") -> str:
+            return member(m) if plausible_snowflake(m.group(1)) else m.group(0)
         s = _MENTION.sub(member, s)
-        s = _SNOWFLAKE.sub(member, s)
+        s = _SNOWFLAKE.sub(snowflake, s)
         s = _USER_TAG.sub(member, s)
         return s
 

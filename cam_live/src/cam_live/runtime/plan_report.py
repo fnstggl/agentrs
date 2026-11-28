@@ -8,10 +8,13 @@ hypotheses, lessons — grouped only by the tags CAM itself gave them, in its ow
 (with their resolutions where they matured), the experiments of its registry, its requests to the operator with
 their justifications and current status, the actions executed / queued for approval / refused, and the learning
 updates (counts, weight-delta norms, reward versions). Nothing here is written by anything other than CAM: the only
-additions are counts, record identifiers and timestamps. CAM's own texts (notebook, requests) are byte-exact in the
-JSON form; the Markdown form shows every CAM-written string literally (code fences / spans) with control characters
-escaped, so nothing CAM wrote becomes report structure or terminal control (G2R-7, R5-m2). Fields that come from the
-run's logs (actions, results) are as the run recorded them.
+additions are counts, record identifiers and timestamps. Every text — CAM's own included — passes the redaction the
+run's logs apply (``runtime.logs.Redactor`` with the run's salt, data permissions and configured ids): members'
+handles, e-mail addresses, platform ids and other personal identifiers become the same keyed hashes / markers as in
+the logs, credentials are removed (G2R-7b); the number of redactions is reported per section. Apart from those spans
+CAM's texts (notebook, requests) are byte-exact in the JSON form; the Markdown form shows every CAM-written string
+literally (code fences / spans) with control characters escaped, so nothing CAM wrote becomes report structure or
+terminal control (G2R-7, R5-m2). Fields that come from the run's logs (actions, results) are as the run recorded them.
 
 Sources (all read-only): ``task.json``, ``events.jsonl``, ``decisions.jsonl``, ``predictions.jsonl``,
 ``experiments.jsonl``, ``learning_updates.jsonl``, ``meta_updates.jsonl``, ``state.json`` (via ``RunReader``), the
@@ -76,6 +79,24 @@ def _count(xs: Iterable[Any]) -> Dict[str, int]:
     return out
 
 
+def _redactor(run_dir: str, st: Dict[str, Any]) -> Any:
+    """The run logs' redactor (G2R-7b): the run's own salt (so a member's hash matches the logs'), the task's data
+    permissions and the identifiers the operator configured (guild, channels), which stay readable."""
+    from ..harness import safefs
+    from .logs import Redactor
+    try:
+        salt = safefs.read_nofollow(os.path.join(run_dir, ".redaction_salt"), 4096)
+    except Exception:  # noqa: BLE001 — no readable salt: a fresh one (hashes then differ from the logs')
+        salt = b""
+    task = st.get("task") if isinstance(st.get("task"), dict) else {}
+    r = task.get("resources") if isinstance(task.get("resources"), dict) else {}
+    d = r.get("discord") if isinstance(r.get("discord"), dict) else {}
+    keep = [r.get("discord_guild_id"), d.get("guild_id"), d.get("application_id"), d.get("metric_channel_id")]
+    keep += list((d.get("channels") or {}).values()) if isinstance(d.get("channels"), dict) else []
+    keep = [str(x) for x in keep if x not in (None, "") and not str(x).upper().startswith("REQUIRED")]
+    return Redactor.from_config({}, salt or os.urandom(32), task.get("data_permissions") or {}, keep_ids=keep)
+
+
 def build_report(run_dir: str) -> Dict[str, Any]:
     run_dir = os.path.abspath(run_dir)
     r = RunReader(run_dir)
@@ -89,9 +110,18 @@ def build_report(run_dir: str) -> Dict[str, Any]:
     learning = r.records(RunFiles.LEARNING)
     metas = r.records(RunFiles.META)
 
+    red = _redactor(run_dir, st)
+    redactions: Dict[str, int] = {}
+    section = ["objective"]
+
     def clean(x: Any) -> Any:
-        # G2R-7: CAM's own texts (notebook, requests) are exported byte-exact; the Markdown rendering escapes them
-        return x
+        """G2R-7b: the run logs' redaction (personal identifiers, credentials), counted per section; otherwise the
+        text is exported byte-exact (G2R-7)."""
+        before = sum(red.counts.values())
+        out = red.text(x) if isinstance(x, str) else red(x) if isinstance(x, (dict, list)) else x
+        n = sum(red.counts.values()) - before
+        redactions[section[0]] = redactions.get(section[0], 0) + n
+        return out
 
     dec_by_action: Dict[str, Dict[str, Any]] = {}
     for d in decisions:
@@ -112,15 +142,16 @@ def build_report(run_dir: str) -> Dict[str, Any]:
     # ---- objective ------------------------------------------------------------------------------------------
     started = next((e for e in events if e["type"] == "run_started"), None)
     assigned = [e for e in events if e["type"] == "objective_assigned"]
-    objective = {"text": view.get("objective", ""), "objective_id": view.get("objective_id", ""),
+    objective = {"text": clean(view.get("objective", "")), "objective_id": view.get("objective_id", ""),
                  "mode": view.get("mode", ""), "task_sha256": task.get("task_sha256", ""),
                  "received": [{"record": e.get("rid", ""), "time": e.get("ts"), "time_utc": _iso(e.get("ts")),
                                "event": e["type"], "objective_id": (e["data"].get("task") or {}).get("objective_id"),
-                               "text": (e["data"].get("task") or {}).get("objective", "")}
+                               "text": clean((e["data"].get("task") or {}).get("objective", ""))}
                               for e in ([started] if started else []) + assigned],
                  "withheld_from_learner": task.get("withheld_from_learner", [])}
 
     # ---- notes (the text as saved by the notebook, joined to the decision that wrote it) --------------------
+    section[0] = "notes"
     saved = {n.get("action_id", ""): n for n in _rows(_find(run_dir, os.path.join("workspace", "notes.jsonl")))}
     notes: List[Dict[str, Any]] = []
     for d in decisions:
@@ -166,16 +197,18 @@ def build_report(run_dir: str) -> Dict[str, Any]:
                                           "time": p.get("ts"), "time_utc": _iso(p.get("ts"))}})
 
     # ---- experiments (every revision of the registry, in order) ---------------------------------------------
+    section[0] = "experiments"
     experiments = [{"record": e.get("rid", ""), "time": e.get("ts"), "time_utc": _iso(e.get("ts")), "type": e["type"],
-                    "data": e["data"]} for e in exps]
+                    "data": clean(e["data"])} for e in exps]
 
     # ---- operator requests --------------------------------------------------------------------------------
+    section[0] = "operator_requests"
     requests = []
     for q in _latest_requests(_find(run_dir, "operator_requests.jsonl")):
         d = dec_by_action.get(q.get("action_id", ""))
-        requests.append({k: clean(q.get(k)) for k in ("request_id", "kind", "title", "description", "justification",
-                                                       "blocking", "status", "resolution_note", "resolved_by",
-                                                       "revisions")}
+        requests.append({k: clean(q.get(k)) if k in ("kind", "title", "description", "justification", "resolution_note")
+                         else q.get(k) for k in ("request_id", "kind", "title", "description", "justification",
+                                                 "blocking", "status", "resolution_note", "resolved_by", "revisions")}
                         | {"requested_at": q.get("ts"), "requested_at_utc": _iso(q.get("ts")),
                            "resolved_at": q.get("resolved_at"), "provenance": prov(d, {"action_id": q.get("action_id")})})
 
@@ -189,13 +222,16 @@ def build_report(run_dir: str) -> Dict[str, Any]:
         kind = rd.get("kind", "")
         group = ("executed" if kind in EXECUTED_KINDS and rd.get("status") in ("ok", "failed", "timeout") else
                  "queued" if kind in QUEUED_KINDS else "no_result" if res is None else "refused")
-        actions.append({"operation": c.get("operation", ""), "arguments": c.get("arguments", {}),
+        section[0] = "actions"
+        actions.append({"operation": clean(c.get("operation", "")), "arguments": clean(c.get("arguments", {})),
                         "candidate_source": c.get("provenance", ""), "group": group, "result_kind": kind,
                         "status": rd.get("status", ""), "approval_id": rd.get("approval_id", ""),
-                        "failure_class": rd.get("failure_class", ""), "failure_detail": rd.get("failure_detail", ""),
+                        "failure_class": rd.get("failure_class", ""), "failure_detail": clean(rd.get("failure_detail", "")),
                         "selection": dd.get("exploration", ""), "provenance": prov(d, {"action_id": c.get("action_id")})})
-    approvals = [{"approval_id": k, **{x: v.get(x) for x in ("status", "operation", "queued_at", "resolved_at",
-                                                             "decision_id", "reasons", "by")}}
+    section[0] = "approvals"
+    approvals = [{"approval_id": k, **{x: clean(v.get(x)) if x in ("operation", "reasons") else v.get(x)
+                                       for x in ("status", "operation", "queued_at", "resolved_at", "decision_id",
+                                                 "reasons", "by")}}
                  for k, v in (st.get("approvals") or {}).items()]
 
     # ---- learning updates -----------------------------------------------------------------------------------
@@ -247,6 +283,10 @@ def build_report(run_dir: str) -> Dict[str, Any]:
                    "experiment_records": len(experiments), "operator_requests": len(requests),
                    "actions_by_group": _count(a["group"] for a in actions),
                    "actions_by_operation": _count(a["operation"] for a in actions), "counters": counters},
+        "redaction": "every text passed the run logs' redaction (personal identifiers -> the run's keyed hashes or "
+                     "markers, credentials removed); counts per section",
+        "redactions": {k: redactions.get(k, 0) for k in ("objective", "notes", "operator_requests", "actions",
+                                                          "experiments", "approvals")},
         "notes": notes, "notes_by_tag": by_tag,
         "predictions": registered, "experiments": experiments, "operator_requests": requests,
         "actions": actions, "approvals": approvals, "learning": learning_summary,
@@ -286,13 +326,19 @@ def _c(text: Any) -> str:
     return f"{tick}{pad}{s}{pad}{tick}"
 
 
+def _redline(rep: Dict[str, Any], section: str) -> str:
+    n = (rep.get("redactions") or {}).get(section, 0)
+    return (f"Redacted in this section by the run logs' rules (personal identifiers, credentials): {n}.\n" if n else
+            "Redacted in this section by the run logs' rules: none.\n")
+
+
 def render_markdown(rep: Dict[str, Any]) -> str:
     L: List[str] = [f"# Plan report — run {_c(rep.get('run_id', ''))}", "",
                     f"Generated {rep['generated_at_utc']} from {_c(rep['run_dir'])}. Run status: {_c(rep['status'])}"
                     + (f" ({_c(rep['status_reason'])})" if rep.get("status_reason") else "") + ".", "",
                     rep["authorship"], ""]
     o = rep["objective"]
-    L += ["## Objective (as CAM received it)", "",
+    L += ["## Objective (as CAM received it)", "", _redline(rep, "objective"),
           f"Objective id {_c(o['objective_id'])}, mode {_c(o['mode'])}, task sha256 {_c(o['task_sha256'])}.", "",
           _q(o["text"]), ""]
     for e in o["received"]:
@@ -301,7 +347,7 @@ def render_markdown(rep: Dict[str, Any]) -> str:
     L += ["", "## Counts", ""]
     for k, v in rep["counts"].items():
         L.append(f"* {k}: {json.dumps(v, sort_keys=True)}")
-    L += ["", f"## CAM's notes ({len(rep['notes'])})", ""]
+    L += ["", f"## CAM's notes ({len(rep['notes'])})", "", _redline(rep, "notes")]
     if rep["notes_by_tag"]:
         L.append("Tags (CAM's own): " + ", ".join(f"{_c(t)} ({len(ix)})" for t, ix in rep["notes_by_tag"].items()))
         L.append("")
@@ -310,7 +356,7 @@ def render_markdown(rep: Dict[str, Any]) -> str:
         L += [f"### Note {i} — decision {p.get('decision_id', '')}, {p.get('time_utc', '')}",
               f"tags: {', '.join(_c(t) for t in n['tags']) or '(none)'}; saved: {n['saved']} {_c(n['note_id'])}; record "
               f"{p.get('decision_record', '')}; action {p.get('action_id', '')}", "", _q(n["text"]), ""]
-    L += [f"## Requests to the operator ({len(rep['operator_requests'])})", ""]
+    L += [f"## Requests to the operator ({len(rep['operator_requests'])})", "", _redline(rep, "operator_requests")]
     for q in rep["operator_requests"]:
         p = q["provenance"]
         L += [f"### {_c(q['request_id'])} — {_c(q['kind'])}, status {_c(q['status'])} (requested {q['requested_at_utc']}, "
@@ -318,7 +364,8 @@ def render_markdown(rep: Dict[str, Any]) -> str:
               _q(q["description"]), "", "Justification:", _q(q["justification"]), ""]
         if q.get("resolution_note"):
             L += [f"Operator's answer ({_c(q.get('resolved_by', ''))}):", _q(q["resolution_note"]), ""]
-    L += [f"## Actions ({len(rep['actions'])})", "", "| time (UTC) | decision | operation | source | outcome | detail |",
+    L += [f"## Actions ({len(rep['actions'])})", "", _redline(rep, "actions"),
+          "| time (UTC) | decision | operation | source | outcome | detail |",
           "|---|---|---|---|---|---|"]
     for a in rep["actions"]:
         p = a["provenance"]
@@ -326,7 +373,7 @@ def render_markdown(rep: Dict[str, Any]) -> str:
                  f"{_c(a['candidate_source'])} | {a['group']} ({_c(a['result_kind'])}:{_c(a['status'])}) | "
                  f"{_c(a['failure_detail'] or '')} |")
     L += ["", "Arguments of every action are in the JSON form of this report (`--json`).", "",
-          f"## Approvals ({len(rep['approvals'])})", ""]
+          f"## Approvals ({len(rep['approvals'])})", "", _redline(rep, "approvals")]
     for a in rep["approvals"]:
         L.append(f"* {_c(a['approval_id'])}: {_c(a.get('status'))} — {_c(a.get('operation'))} "
                  f"(decision {_c(a.get('decision_id'))})")
@@ -342,7 +389,7 @@ def render_markdown(rep: Dict[str, Any]) -> str:
         rs = "" if not res else f"{res.get('status')} {res.get('value')}" + (" (verified)" if res.get("verified") else "")
         L.append(f"| {p['provenance']['time_utc']} | {_c(p['provenance']['decision_id'])} | {_c(p['metric'])} | "
                  f"{_c(p['kind'])} | {d.get('mean')} | {d.get('std')} | {p['for_chosen_action']} | {_c(rs)} |")
-    L += ["", f"## Experiments ({len(rep['experiments'])} registry records)", ""]
+    L += ["", f"## Experiments ({len(rep['experiments'])} registry records)", "", _redline(rep, "experiments")]
     for e in rep["experiments"]:
         d = e["data"]
         L.append(f"* {e['time_utc']} {_c(e['type'])} {_c(d.get('experiment_id', ''))}: status {_c(d.get('status', ''))}; "

@@ -683,3 +683,170 @@ def test_the_storage_thresholds_follow_the_configuration_and_the_environment_can
     monkeypatch.setenv("CAM_LIVE_WARN_FREE_GB", "1")
     assert storage_thresholds(cfg) == (5000.0, 50.0)
     assert RuntimeConfig.from_any(cfg).min_free_gb == 5000.0
+
+
+# ---------------------------------------------------------------------------------------------------------- round 3
+def test_the_plan_report_exports_no_members_data_and_counts_its_redactions(tmp_path):
+    """G2R-7b (probe_plan_report R2d): a member's handle, e-mail address and Discord id in a CAM note were in the
+    report in the clear. They now get the run logs' redaction (the run's salt: the same hashes as in the logs), the
+    count is reported per section, and everything else of CAM's text stays byte-exact."""
+    from cam_live.runtime.logs import Redactor, load_salt
+    from cam_live.runtime.plan_report import build_report, render_markdown
+    from test_int3b_ops import _note_run
+    w = _note_run(tmp_path)
+    handle, mail, uid = "user" + "name#1234", "jane" + ".doe" + "@" + "example.org", "123456789012345678"
+    member_note = f"Ask {handle} and {mail} (member {uid}) about the event"
+    benign = "Compare 12345678901234567 sign-ups at version 2.10.3.1; authorization: pending"
+    notes = os.path.join(w["run"], "exec", "workspace", "notes.jsonl")
+    with open(notes, "a") as f:
+        f.write(json.dumps({"note_id": "n0", "ts": 1.0, "text": member_note, "tags": ["people"], "action_id": "act_0"}) + "\n")
+        f.write(json.dumps({"note_id": "n2", "ts": 2.0, "text": benign, "tags": ["plan"], "action_id": "act_2"}) + "\n")
+    rep = build_report(w["run"])
+    md = render_markdown(rep)
+    blob = json.dumps(rep, ensure_ascii=False)
+    for x in (handle, mail, uid):
+        assert x not in md and x not in blob, x                         # 257267c: all three in both forms
+    expect = Redactor(load_salt(w["run"])).text(member_note)            # the logs' redaction of the same text
+    assert rep["notes"][0]["text"] == expect and expect.startswith("Ask member:") and expect.endswith("about the event")
+    assert rep["notes"][1]["text"] == benign                            # nothing personal: byte-exact
+    assert rep["redactions"]["notes"] == 3
+    assert "Redacted in this section by the run logs' rules (personal identifiers, credentials): 3." in md
+
+
+class _WorldMetric:
+    name, live = "lab-world-metric", False
+
+    def __init__(self, world):
+        self.world = world
+
+    def read(self):
+        return [Quantity("lab.adopters.total", float(self.world.total()))]
+
+
+def _pinned_lab(tmp_path, **lab_kw):
+    from cam_live.diagnostics.world import LabConfig
+    from cam_live.runtime.control import OperatorKey
+    from rt_helpers import make_lab
+
+    def edit(task):
+        task.success["verifier"] = "metric_threshold"
+    lab = make_lab(str(tmp_path / "run"), lab_cfg=LabConfig(seed=3, **lab_kw), task_edit=edit)
+    OperatorKey(lab.run_dir).ensure()
+    v = build_verifier(lab.task, os.path.join(lab.run_dir, "verifier"), lab.clock, _WorldMetric(lab.world),
+                       log_path=os.path.join(lab.run_dir, "verifier.jsonl"), pin=True)
+    lab.rt.verifier = v
+    return lab, v
+
+
+def _lab_task_file(path, lab, **limits):
+    raw = yaml.safe_load(open(os.path.join(PROJECT, "tasks", "lab_staging.yaml")))
+    raw.update(objective_id=lab.task.objective_id, objective=lab.task.objective)
+    raw["success"].update(verifier="metric_threshold", metric="lab.adopters.total", target=100000)
+    raw["limits"].update(limits)
+    yaml.safe_dump(raw, open(path, "w"))
+    return path
+
+
+def test_the_verifier_follows_the_operators_signed_change_of_the_objective_in_force(tmp_path):
+    """G2R-15 (probe_next_objective E1): the operator's signed assignment of the running objective with a longer
+    duration was applied by the runtime, but the pinned verifier kept the old deadline and signed FAILED after
+    1 day (the run ended 'failed' after 2.1 days). The verifier now judges the changed objective."""
+    from cam_live.runtime.control import OperatorControl
+    from cam_live.runtime.logs import RunReader
+    lab, v = _pinned_lab(tmp_path, target=100000, budget=1000.0, horizon_s=86400.0)
+    lab.rt.run(max_iterations=5)
+    cid = OperatorControl(lab.run_dir).assign_objective(_lab_task_file(str(tmp_path / "ext.yaml"), lab,
+                                                                       duration_s=10 * 86400))
+    lab.rt.step()
+    assert RunReader(lab.run_dir).state()["control_results"][cid]["ok"] is True
+    for _ in range(3000):
+        if lab.rt.status != "running" or lab.clock.now() - lab.rt.started_at > 3 * 86400:
+            break
+        lab.rt.step()
+    assert not (lab.rt.status == "failed" and lab.clock.now() - lab.rt.started_at < 10 * 86400), \
+        (lab.rt.status, lab.rt.status_reason, (lab.clock.now() - lab.rt.started_at) / 86400)   # 257267c: failed, 2.1 d
+    assert v._task(lab.task).limits.duration_s == 10 * 86400
+    rows = [e for e in RunReader(lab.run_dir).records(RunFiles.EVENTS, types=["operator_command"])]
+    assert rows and rows[-1]["data"]["ok"]
+    lab.rt.close()
+
+
+def test_an_assigned_task_file_is_read_once_and_restored_from_the_verifiers_copy(tmp_path):
+    """G2R-18: the file was hashed and then parsed from a second read, so a file swapped in between was applied
+    although its hash is not the one the operator signed; after a verifier restart an assignment whose file had
+    changed was not restored."""
+    from unittest import mock
+    from cam_live.runtime.control import OperatorControl
+    lab, v = _pinned_lab(tmp_path, target=100000, budget=1000.0, horizon_s=86400.0)
+    lab.rt.run(max_iterations=3)
+    path = _lab_task_file(str(tmp_path / "ext.yaml"), lab, duration_s=10 * 86400)
+    swapped = _lab_task_file(str(tmp_path / "other.yaml"), lab, duration_s=40 * 86400)
+    swapped_text = open(swapped).read()
+    real_open = open
+    state = {"reads": 0}
+
+    class SwapAfterFirstRead:                 # the first reader of the file closes it, then the file is replaced
+        def __init__(self, f):
+            self.f = f
+
+        def read(self, *a):
+            return self.f.read(*a)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            self.f.close()
+            state["reads"] += 1
+            if state["reads"] == 1:
+                with real_open(path, "w") as g:
+                    g.write(swapped_text)
+
+    def swapping_open(p, *a, **k):
+        f = real_open(p, *a, **k)
+        return SwapAfterFirstRead(f) if os.path.abspath(str(p)) == os.path.abspath(path) else f
+    cid = OperatorControl(lab.run_dir).assign_objective(path)      # signs the hash of the 10-day file
+    with mock.patch("builtins.open", swapping_open):
+        lab.rt.step()
+    from cam_live.runtime.logs import RunReader
+    res = RunReader(lab.run_dir).state()["control_results"][cid]
+    assert lab.rt.task.limits.duration_s != 40 * 86400, res        # 257267c: the swapped 40-day file was applied
+    assert v._task(lab.task).limits.duration_s != 40 * 86400
+    # restart: the verifier restores the assignment from its own copy, whatever happened to the file since
+    with open(path, "w") as f:
+        f.write(open(_lab_task_file(str(tmp_path / "ok.yaml"), lab, duration_s=10 * 86400)).read())
+    cid2 = OperatorControl(lab.run_dir).assign_objective(path)
+    lab.rt.step()
+    assert RunReader(lab.run_dir).state()["control_results"][cid2]["ok"] is True
+    with open(path, "a") as f:
+        f.write("# edited after the assignment\n")
+    v2 = build_verifier(lab.task, os.path.join(lab.run_dir, "verifier"), lab.clock, _WorldMetric(lab.world),
+                        log_path=os.path.join(lab.run_dir, "verifier.jsonl"), pin=True)
+    assert v2._task(lab.task).limits.duration_s == 10 * 86400       # 257267c: assignment_not_restored
+    lab.rt.close()
+
+
+def test_members_present_at_the_start_who_leave_and_rejoin_are_not_counted(tmp_path):
+    """G2R-2b (probe_verifier_live_source A2): a rejoin resets the platform's joined_at, so 10 members present at the
+    start who left and rejoined counted as attracted (value 10, nobody new). The verifier keeps keyed hashes of the
+    members present at the start (its state directory only) and excludes them for the run, across a restart."""
+    fake = FakeDiscord()
+    for i in range(10):
+        fake.members[_uid(i)] = T0 - 30 * DAY
+    clock = SimClock(T0 + 3600.0)
+    t, v = _verifier(tmp_path, fake, clock)
+    assert v.verify(t).value == 0
+    clock.advance(DAY)
+    for i in range(10):                                       # they leave and come back
+        fake.members[_uid(i)] = clock.now()
+    fake.members[_uid(50)] = clock.now()                      # and one new member joins
+    o = v.verify(t)
+    assert o.value == 1, o.notes                              # 257267c: 11
+    assert o.excluded.get("present_at_start") == 10 and "rejoined" in o.notes
+    t2, v2 = _verifier(tmp_path, fake, clock)                 # a restarted verifier (same state directory)
+    assert v2.verify(t2).value == 1
+    stored = open(tmp_path / "v" / "verifier" / "baseline_members.json").read()
+    log = open(tmp_path / "v" / "v.jsonl").read()
+    assert _uid(0) not in stored and _uid(0) not in log       # keyed hashes only, and only in the state directory
+    assert oct(os.stat(tmp_path / "v" / "verifier" / "baseline_members.json").st_mode & 0o777) == "0o600"
+    assert "usefulness" in o.notes                            # G2R-3b: reported as not measured

@@ -280,6 +280,7 @@ class SignedVerifier:
         #: run directory whose control.pub is the operator's key (default: the directory above the state dir)
         self.operator_dir = os.path.abspath(operator_dir or os.path.dirname(self.state_dir))
         self._assigned: Dict[str, TaskSpec] = {}
+        self._applied_commands: set = set()
         self._current_id = pinned_task.objective_id if pinned_task is not None else ""
         self._first_seen: Dict[str, float] = {}
         for e in iter_jsonl(self.log.path):
@@ -312,19 +313,48 @@ class SignedVerifier:
                 and hmac.compare_digest(sig, self._obs_signature(obs)))
 
     # ---- operator-assigned objectives (G2R-4) --------------------------------------------------------------
-    def _load_assigned_file(self, path: str, sha256: str) -> TaskSpec:
-        from .control import file_sha256
-        from .tasks import load_task
-        if not sha256 or file_sha256(path) != sha256:
-            raise PermissionError("the task file differs from the one the operator's command names")
-        return load_task(path, for_run=True)
+    def _assigned_copy(self, sha256: str) -> str:
+        return os.path.join(self.state_dir, "assigned", f"{sha256}.yaml")
+
+    def _load_assigned_file(self, path: str, sha256: str, restore: bool = False) -> TaskSpec:
+        """The task file the operator's command names, read ONCE: the bytes hashed are the bytes parsed (G2R-18).
+        The verifier keeps its own copy (state directory, 0600); a restart (``restore``) uses it, so the assignment
+        is restored even if the file was changed or removed since."""
+        from .tasks import TaskFileChanged, load_task_bytes, read_task_file
+        if not sha256:
+            raise PermissionError("the operator's command names no task file hash")
+        copy_path = self._assigned_copy(sha256)
+        data = None
+        if restore and os.path.exists(copy_path):
+            with open(copy_path, "rb") as f:
+                data = f.read()
+            if hashlib.sha256(data).hexdigest() != sha256:
+                data = None
+        if data is None:
+            data = read_task_file(path)
+        try:
+            t = load_task_bytes(data, sha256=sha256, for_run=True, path=path)
+        except TaskFileChanged as e:
+            raise PermissionError("the task file differs from the one the operator's command names") from e
+        if not os.path.exists(copy_path):
+            os.makedirs(os.path.dirname(copy_path), mode=0o700, exist_ok=True)
+            tmp = copy_path + f".{os.getpid()}.tmp"
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "wb") as f:
+                f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, copy_path)
+        return t
 
     def _reload_assigned(self, payload: Dict[str, Any]) -> str:
         try:
-            t = self._load_assigned_file(str(payload.get("path", "")), str(payload.get("sha256", "")))
+            t = self._load_assigned_file(str(payload.get("path", "")), str(payload.get("sha256", "")), restore=True)
         except Exception as e:  # noqa: BLE001 — not restored: verifying that objective is refused
             return f"{type(e).__name__}: {e}"
         self._assigned[t.objective_id] = t
+        if payload.get("command_id"):
+            self._applied_commands.add(str(payload["command_id"]))
         return ""
 
     def assign_objective(self, command: Dict[str, Any]) -> Dict[str, Any]:
@@ -339,15 +369,26 @@ class SignedVerifier:
         ok, why = ControlChannel(self.operator_dir).authenticate(command)
         if not ok:
             raise PermissionError(f"the assignment is not signed by the operator ({why})")
+        cid = str(command.get("id", ""))
+        if cid and cid in self._applied_commands:
+            raise PermissionError("this signed assignment was already applied (replayed command)")
         args = command.get("args") or {}
         path, sha = str(args.get("path", "")), str(args.get("sha256", ""))
         t = self._load_assigned_file(path, sha)
-        if t.objective_id == self.pinned_task.objective_id:
-            raise PermissionError("the first objective is pinned; its criteria are not replaced")
+        if cid:
+            self._applied_commands.add(cid)
+        # G2R-15: a signed assignment of an objective this verifier already judges (the pinned one, or one assigned
+        # before) is the operator's change of the objective in force — new deadline, target, ... — and replaces it
+        # (the operator, not the learner, authors the criteria; the signature and the hash are checked above)
+        before = self._assigned.get(t.objective_id) or (self.pinned_task if t.objective_id ==
+                                                         self.pinned_task.objective_id else None)
         self._assigned[t.objective_id] = t
+        changed = sorted(k for k in ("success", "limits", "measurement", "secondary_metrics", "data_permissions")
+                         if before is not None and getattr(before, k, None) != getattr(t, k, None))
         self.log.append(self.clock.now(), "assigned", {"objective_id": t.objective_id, "path": path, "sha256": sha,
-                                                       "command_id": str(command.get("id", ""))})
-        return {"accepted": True, "objective_id": t.objective_id}
+                                                       "command_id": str(command.get("id", "")),
+                                                       "amends": before is not None, "changed": changed})
+        return {"accepted": True, "objective_id": t.objective_id, "amends": before is not None, "changed": changed}
 
     # ---- helpers -------------------------------------------------------------------------------------------
     def _task(self, task: TaskSpec) -> TaskSpec:
@@ -356,12 +397,12 @@ class SignedVerifier:
         assigned with a signed command (:meth:`assign_objective`)."""
         if self.pinned_task is None:
             return task
+        if task.objective_id in self._assigned:            # assigned, or the pinned one as amended (G2R-15)
+            self._current_id = task.objective_id
+            return self._assigned[task.objective_id]
         if task.objective_id == self.pinned_task.objective_id:
             self._current_id = task.objective_id
             return self.pinned_task
-        if task.objective_id in self._assigned:
-            self._current_id = task.objective_id
-            return self._assigned[task.objective_id]
         raise PermissionError(f"this verifier serves objective {self.pinned_task.objective_id!r} and the "
                               f"objectives the operator assigned ({sorted(self._assigned)}) only")
 
@@ -506,7 +547,8 @@ def merge_members(members: Sequence[MemberRecord]) -> Tuple[List[Tuple[MemberRec
     return merged, extra, invalid
 
 
-def classify_members(members: Sequence[MemberRecord], rules: Dict[str, Any], now: float) -> Dict[str, Any]:
+def classify_members(members: Sequence[MemberRecord], rules: Dict[str, Any], now: float,
+                     present_at_start: Optional[Callable[[MemberRecord], bool]] = None) -> Dict[str, Any]:
     """Apply the exclusion rules. Returns counted / excluded / uncertain member lists with reasons.
 
     A member counts only when nothing in the evidence speaks against it:
@@ -578,6 +620,8 @@ def classify_members(members: Sequence[MemberRecord], rules: Dict[str, Any], now
             out(excluded, "departed", m)
         elif rules.get("counted_from_ts") and 0 < m.joined_at < float(rules["counted_from_ts"]):
             out(excluded, "joined_before_start", m)      # G2R-2: already a member before the experiment began
+        elif present_at_start is not None and present_at_start(m):
+            out(excluded, "present_at_start", m)         # G2R-2b: a member at the start who left and rejoined
         elif links and person in tainted:
             out(excluded, "linked_to_excluded", m)
         elif links and person in claimed:
@@ -616,9 +660,23 @@ class MembershipVerifier(SignedVerifier):
         self._cohorts_path = os.path.join(self.state_dir, "cohorts.json")
         self._cohorts: Dict[str, Dict[str, Dict[str, Any]]] = read_json(self._cohorts_path, {}) or {}
         self._baseline: Dict[str, Dict[str, Any]] = {}
+        # G2R-2b: keyed hashes of the members present at the start, per objective — kept by the verifier only
+        # (state directory, 0600; the hash-chained log records counts only)
+        self._baseline_path = os.path.join(self.state_dir, "baseline_members.json")
+        self._baseline_refs: Dict[str, set] = {k: set(v) for k, v in
+                                               (read_json(self._baseline_path, {}) or {}).items()}
         for e in iter_jsonl(self.log.path):
             if e.get("kind") == "baseline":
                 self._baseline[e["payload"]["objective_id"]] = dict(e["payload"])
+
+    def _save_baseline_refs(self) -> None:
+        path, tmp = self._baseline_path, self._baseline_path + f".{os.getpid()}.tmp"
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            json.dump({k: sorted(v) for k, v in self._baseline_refs.items()}, f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
 
     def _rules(self, task: TaskSpec) -> Dict[str, Any]:
         rules = dict(DEFAULT_RULES)
@@ -650,11 +708,15 @@ class MembershipVerifier(SignedVerifier):
         # the start is measurement.window_start_ts, else the verifier's first reading of this objective
         rules["counted_from_ts"] = self._started(task, now)
         members = list(self.source.list_members())
-        c = classify_members(members, rules, now)
+        base = self._baseline_refs.get(task.objective_id)
+        c = classify_members(members, rules, now,
+                             present_at_start=(lambda m: self._ref("member", m.id) in base) if base else None)
         if task.objective_id not in self._baseline:
-            before = len(c["excluded"].get("joined_before_start", []))
+            present = c["excluded"].get("joined_before_start", [])
             b = {"objective_id": task.objective_id, "start": rules["counted_from_ts"], "at": now,
-                 "members_listed": len(members), "members_before_start": before}
+                 "members_listed": len(members), "members_before_start": len(present)}
+            self._baseline_refs[task.objective_id] = {self._ref("member", m.id) for m in present}
+            self._save_baseline_refs()
             self._baseline[task.objective_id] = b
             self.log.append(now, "baseline", b)         # counts only: no identifier is recorded
         n_c = len(c["counted"])
@@ -774,6 +836,10 @@ class MembershipVerifier(SignedVerifier):
             out.append(Quantity("secondary.compute_s", float(cost["compute_s"]), "s"))
         if not any(q.name.startswith("secondary.resource_use.") for q in out):
             missing["resource_use"] = cost.get("error", "no resource accounting is connected to this verifier")
+        # G2R-3b: how useful the community's resources are to its members (spec 13.2) — resource_use above is what
+        # CAM spent, not this — has no evidence source yet
+        missing["usefulness_of_community_resources"] = ("no evidence source measures members' use of the "
+                                                        "community's resources (resource_use is CAM's own spending)")
         out.append(Quantity("secondary.time_elapsed_s", max(0.0, now - self._started(task, now)), "s"))
         ev["not_measured"] = missing
         return out
@@ -801,6 +867,9 @@ class MembershipVerifier(SignedVerifier):
         before = len(c["excluded"].get("joined_before_start", []))
         if before:
             notes += f" {before} members joined before the experiment started and are not counted."
+        back = len(c["excluded"].get("present_at_start", []))
+        if back:
+            notes += f" {back} members present at the start left and rejoined; they are not counted."
         secondary = self._secondary(task, ev)
         if ev.get("not_measured"):
             notes += " Not measured: " + "; ".join(f"{k} ({v})" for k, v in sorted(ev["not_measured"].items())) + "."

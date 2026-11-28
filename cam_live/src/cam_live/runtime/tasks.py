@@ -755,6 +755,38 @@ def load_task(path: str, *, for_run: bool = True) -> TaskSpec:
     return parse_task(raw)
 
 
+#: largest task file read for an assignment (a task file is a few kilobytes)
+MAX_TASK_FILE_BYTES = 1 << 20
+
+
+class TaskFileChanged(TaskValidationError):
+    """The task file's bytes are not the ones the operator's command names (sha256)."""
+
+
+def read_task_file(path: str) -> bytes:
+    """The task file's bytes, read once (G2R-18: what is hashed is what is parsed)."""
+    with open(path, "rb") as f:
+        data = f.read(MAX_TASK_FILE_BYTES + 1)
+    if len(data) > MAX_TASK_FILE_BYTES:
+        raise TaskValidationError([f"task file larger than {MAX_TASK_FILE_BYTES} bytes"], path)
+    return data
+
+
+def load_task_bytes(data: bytes, *, sha256: str = "", for_run: bool = True, path: str = "") -> TaskSpec:
+    """Validate and parse a task file from its bytes; with ``sha256`` the bytes must have exactly that hash."""
+    if sha256 and hashlib.sha256(data).hexdigest() != sha256:
+        raise TaskFileChanged(["the task file differs from the one the operator's command names"], path)
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as e:
+        raise TaskValidationError([f"task file is not UTF-8: {e}"], path)
+    raw = load_task_text(text, path)
+    problems = validate_task(raw, for_run=for_run)
+    if problems:
+        raise TaskValidationError(problems, path)
+    return parse_task(raw)
+
+
 def task_from_dict(raw: Dict[str, Any], *, for_run: bool = True) -> TaskSpec:
     problems = validate_task(raw, for_run=for_run)
     if problems:

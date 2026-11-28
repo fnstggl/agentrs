@@ -511,4 +511,7 @@ def test_plan_report_keeps_cam_numbers_and_ids_byte_exact(tmp_path):
         f.write(json.dumps({"note_id": "n9", "ts": 1.0, "text": text, "tags": [], "action_id": "act_2"}) + "\n")
     rep = build_report(w["run"])
     got = [n["text"] for n in rep["notes"] if "estimate" in n["text"]]
-    assert got == [text]                         # G2R-7: CAM's text byte-exact in the JSON form (nothing redacted)
+    # G2R-7: CAM's text byte-exact in the JSON form, except (G2R-7b, round 3) the member id, which gets the run
+    # logs' keyed hash; the float's digits are not an id
+    from cam_live.runtime.logs import Redactor, load_salt
+    assert got == ["estimate 0.12345678901234567 for member " + Redactor(load_salt(w["run"])).hash_member("175928847299117063")]
