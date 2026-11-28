@@ -461,3 +461,39 @@ def test_the_supervisor_registers_staging_sites_before_the_learner_starts(tmp_pa
     run.mkdir()
     assert cli.main(["_supervise", "--run-dir", str(run), "--task", LIVE_TASK]) == 5
     assert calls == [("task", "live")]
+
+
+# ---------------------------------------------------------------------------------------------------------- item E
+def test_floats_are_not_redacted_as_member_ids_but_real_ids_are(tmp_path):
+    """G2-learn: digits of a float (0.12345678901234567) were hashed as a Discord snowflake in learning_updates.jsonl.
+    A number stays a number; a free-standing 18-19 digit id is still replaced by the run's keyed hash."""
+    from cam_live.contracts import LearningUpdateRecord
+    from cam_live.runtime.logs import Redactor
+    r = Redactor.from_config({}, b"salt")
+    for num in ("0.12345678901234567", "1.2345678901234567e-05", "12345678901234567.5", "-0.123456789012345678"):
+        assert r.text(f"loss {num} ok") == f"loss {num} ok"
+    ids = ("175928847299117063", "1234567890123456789")                    # 18 and 19 digits
+    for i in ids:
+        out = r.text(f"member {i} joined; mention <@{i}>; end {i}.")
+        assert i not in out and out.count(r.hash_member(i)) == 3
+    # through the run log: a learning record's notes keep their numbers
+    log = RunLog(str(tmp_path / "run"), SimClock(), durable=False)
+    note = json.dumps({"grad_norm": 0.12345678901234566, "user": "who 175928847299117063"})   # a repr-exact float
+    log.learning_update(LearningUpdateRecord(update_id="u1", ts=0.0, trigger="t", timescale="frequent", notes=note))
+    log.close()
+    (row,) = RunReader(str(tmp_path / "run")).records(RunFiles.LEARNING)
+    assert "0.12345678901234566" in row["data"]["notes"] and "175928847299117063" not in row["data"]["notes"]
+
+
+def test_plan_report_keeps_cam_numbers_and_hashes_ids_like_the_run(tmp_path):
+    from cam_live.runtime.logs import Redactor, load_salt
+    from cam_live.runtime.plan_report import build_report
+    w = _note_run(tmp_path)
+    path = os.path.join(w["run"], "exec", "workspace", "notes.jsonl")
+    text = "estimate 0.12345678901234567 for member 175928847299117063"
+    with open(path, "a") as f:
+        f.write(json.dumps({"note_id": "n9", "ts": 1.0, "text": text, "tags": [], "action_id": "act_2"}) + "\n")
+    rep = build_report(w["run"])
+    got = [n["text"] for n in rep["notes"] if "estimate" in n["text"]]
+    h = Redactor.from_config({}, load_salt(w["run"])).hash_member("175928847299117063")
+    assert got == [f"estimate 0.12345678901234567 for member {h}"]          # number intact, id as in the run's logs

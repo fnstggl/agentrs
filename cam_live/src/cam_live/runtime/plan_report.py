@@ -24,7 +24,7 @@ import time
 from typing import Any, Dict, Iterable, List, Optional
 
 from ..contracts import RunFiles
-from .logs import RunReader, iter_jsonl, read_json
+from .logs import Redactor, RunReader, iter_jsonl, load_salt, read_json
 
 REPORT_VERSION = 1
 NOTE_OP, REQUEST_OP = "internal.note", "internal.request_operator"
@@ -86,6 +86,17 @@ def build_report(run_dir: str) -> Dict[str, Any]:
     learning = r.records(RunFiles.LEARNING)
     metas = r.records(RunFiles.META)
 
+    # the texts of the executor's own files (notebook, request file) pass the run's redactor too (same salt, data
+    # permissions and kept ids as the run's logs): credentials and personal data never leave in the report
+    tview = (st.get("task") or {}) if isinstance(st.get("task"), dict) else {}
+    keep = [str(x) for x in ((tview.get("resources") or {}).get("discord_guild_id"),
+                             ((tview.get("resources") or {}).get("discord") or {}).get("guild_id"),
+                             ((tview.get("resources") or {}).get("discord") or {}).get("application_id")) if x]
+    red = Redactor.from_config({}, load_salt(run_dir), tview.get("data_permissions") or {}, keep_ids=keep)
+
+    def clean(x: Any) -> Any:
+        return red.text(x) if isinstance(x, str) else x
+
     dec_by_action: Dict[str, Dict[str, Any]] = {}
     for d in decisions:
         c = (d["data"].get("decision") or {}).get("chosen") or {}
@@ -123,7 +134,8 @@ def build_report(run_dir: str) -> Dict[str, Any]:
         a = c.get("arguments") or {}
         res = res_by_action.get(c.get("action_id", ""))
         sv = saved.get(c.get("action_id", ""))
-        notes.append({"text": (sv or {}).get("text", a.get("text", "")), "tags": list((sv or a).get("tags") or []),
+        notes.append({"text": clean((sv or {}).get("text", a.get("text", ""))),
+                      "tags": [clean(t) for t in ((sv or a).get("tags") or [])],
                       "saved": sv is not None, "note_id": (sv or {}).get("note_id", ""),
                       "result": None if res is None else {"kind": res["data"].get("kind"),
                                                           "status": res["data"].get("status")},
@@ -165,8 +177,9 @@ def build_report(run_dir: str) -> Dict[str, Any]:
     requests = []
     for q in _latest_requests(_find(run_dir, "operator_requests.jsonl")):
         d = dec_by_action.get(q.get("action_id", ""))
-        requests.append({k: q.get(k) for k in ("request_id", "kind", "title", "description", "justification",
-                                                "blocking", "status", "resolution_note", "resolved_by", "revisions")}
+        requests.append({k: clean(q.get(k)) for k in ("request_id", "kind", "title", "description", "justification",
+                                                       "blocking", "status", "resolution_note", "resolved_by",
+                                                       "revisions")}
                         | {"requested_at": q.get("ts"), "requested_at_utc": _iso(q.get("ts")),
                            "resolved_at": q.get("resolved_at"), "provenance": prov(d, {"action_id": q.get("action_id")})})
 

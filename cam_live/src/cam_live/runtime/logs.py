@@ -56,7 +56,10 @@ DEFAULT_PII_PATTERNS: Dict[str, str] = {
 #: member identifiers inside free text -> keyed hash: platform account ids (Discord snowflakes are 17-20 digits),
 #: ``name#1234`` tags and ``<@id>`` mentions
 _MENTION = re.compile(r"<@!?(\d{5,})>")
-_SNOWFLAKE = re.compile(r"(?<![\w-])(\d{17,20})(?![\w-])")
+# a free-standing 17-20 digit run, not digits of a number: not after a decimal point / sign / digit-word and not
+# followed by a fraction or an exponent (``0.12345678901234567``, ``1.2345678901234567e-05`` and
+# ``12345678901234567.5`` are numbers, not identifiers; INT3B, found by G2-learn in learning_updates.jsonl notes)
+_SNOWFLAKE = re.compile(r"(?<![\w.+-])(\d{17,20})(?![\w-]|\.\d)")
 _USER_TAG = re.compile(r"(?<![\w#])([A-Za-z0-9_.]{2,32}#\d{4})(?![\w#])")
 #: mapping keys whose values identify a person -> replaced by a keyed hash (stable inside one run)
 DEFAULT_MEMBER_KEYS = ("member_id", "member_ids", "user_id", "user_ids", "author_id", "author_ids", "inviter_id",
