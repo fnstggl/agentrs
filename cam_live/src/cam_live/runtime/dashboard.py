@@ -396,7 +396,10 @@ def create_app(run_dir: str, token: str, policy: Optional[PolicyEngine] = None, 
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
-        resp = await call_next(request)
+        try:
+            resp = await call_next(request)
+        except Exception:  # noqa: BLE001 — G2R-11: a server error gets the same headers and no detail
+            resp = PlainTextResponse("internal error", status_code=500)
         for k, v in SECURITY_HEADERS.items():
             resp.headers[k] = v
         return resp

@@ -8,8 +8,10 @@ hypotheses, lessons — grouped only by the tags CAM itself gave them, in its ow
 (with their resolutions where they matured), the experiments of its registry, its requests to the operator with
 their justifications and current status, the actions executed / queued for approval / refused, and the learning
 updates (counts, weight-delta norms, reward versions). Nothing here is written by anything other than CAM: the only
-additions are counts, record identifiers and timestamps. The run's own redaction (credentials, personal data,
-message content the task does not permit) applies, because the source is the run's records — nothing else is changed.
+additions are counts, record identifiers and timestamps. CAM's own texts (notebook, requests) are byte-exact in the
+JSON form; the Markdown form shows every CAM-written string literally (code fences / spans) with control characters
+escaped, so nothing CAM wrote becomes report structure or terminal control (G2R-7, R5-m2). Fields that come from the
+run's logs (actions, results) are as the run recorded them.
 
 Sources (all read-only): ``task.json``, ``events.jsonl``, ``decisions.jsonl``, ``predictions.jsonl``,
 ``experiments.jsonl``, ``learning_updates.jsonl``, ``meta_updates.jsonl``, ``state.json`` (via ``RunReader``), the
@@ -20,11 +22,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from typing import Any, Dict, Iterable, List, Optional
 
 from ..contracts import RunFiles
-from .logs import Redactor, RunReader, iter_jsonl, load_salt, read_json
+from .logs import RunReader, iter_jsonl, read_json
 
 REPORT_VERSION = 1
 NOTE_OP, REQUEST_OP = "internal.note", "internal.request_operator"
@@ -86,16 +89,9 @@ def build_report(run_dir: str) -> Dict[str, Any]:
     learning = r.records(RunFiles.LEARNING)
     metas = r.records(RunFiles.META)
 
-    # the texts of the executor's own files (notebook, request file) pass the run's redactor too (same salt, data
-    # permissions and kept ids as the run's logs): credentials and personal data never leave in the report
-    tview = (st.get("task") or {}) if isinstance(st.get("task"), dict) else {}
-    keep = [str(x) for x in ((tview.get("resources") or {}).get("discord_guild_id"),
-                             ((tview.get("resources") or {}).get("discord") or {}).get("guild_id"),
-                             ((tview.get("resources") or {}).get("discord") or {}).get("application_id")) if x]
-    red = Redactor.from_config({}, load_salt(run_dir), tview.get("data_permissions") or {}, keep_ids=keep)
-
     def clean(x: Any) -> Any:
-        return red.text(x) if isinstance(x, str) else x
+        # G2R-7: CAM's own texts (notebook, requests) are exported byte-exact; the Markdown rendering escapes them
+        return x
 
     dec_by_action: Dict[str, Dict[str, Any]] = {}
     for d in decisions:
@@ -257,54 +253,83 @@ def build_report(run_dir: str) -> Dict[str, Any]:
     }
 
 
-def _q(text: Any) -> str:
-    """A verbatim block (Markdown blockquote: the text itself is not altered, each line is prefixed)."""
+_CONTROL = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]")
+
+
+def visible(text: Any) -> str:
+    """G2R-7 / R5-m2: control characters (C0 / C1, ANSI escapes, bidi overrides, zero-width and format characters)
+    shown as escapes (``\\x1b``, ``U+202E``) so that nothing CAM wrote can hide, reorder or rewrite what the operator
+    sees; every other character is kept."""
     s = str(text if text is not None else "")
-    return "\n".join("> " + line for line in (s.split("\n") if s else [""]))
+    return _CONTROL.sub(lambda m: (f"\\x{ord(m.group(0)):02x}" if ord(m.group(0)) < 0x100
+                                   else f"U+{ord(m.group(0)):04X}"), s)
+
+
+def _q(text: Any) -> str:
+    """CAM's text as a literal block: control characters escaped, inside a code fence longer than any run of
+    backticks in it — nothing in the text becomes a heading, a list item or a table of the report."""
+    s = visible(text)
+    longest = max((len(m.group(0)) for m in re.finditer(r"`+", s)), default=0)
+    fence = "`" * max(3, longest + 1)
+    return f"{fence}text\n{s}\n{fence}"
+
+
+def _c(text: Any) -> str:
+    """CAM-written (or learner-derived) text inline, e.g. a tag or an operation name in a sentence or a table cell:
+    an inline code span, control characters and line breaks escaped, table pipes escaped."""
+    s = visible(text).replace("\r", "\\r").replace("\n", "\\n").replace("|", "\\|")
+    if not s:
+        return "``"
+    longest = max((len(m.group(0)) for m in re.finditer(r"`+", s)), default=0)
+    tick = "`" * (longest + 1)
+    pad = " " if s.startswith("`") or s.endswith("`") else ""
+    return f"{tick}{pad}{s}{pad}{tick}"
 
 
 def render_markdown(rep: Dict[str, Any]) -> str:
-    L: List[str] = [f"# Plan report — run {rep.get('run_id', '')}", "",
-                    f"Generated {rep['generated_at_utc']} from `{rep['run_dir']}`. Run status: {rep['status']}"
-                    + (f" ({rep['status_reason']})" if rep.get("status_reason") else "") + ".", "",
+    L: List[str] = [f"# Plan report — run {_c(rep.get('run_id', ''))}", "",
+                    f"Generated {rep['generated_at_utc']} from {_c(rep['run_dir'])}. Run status: {_c(rep['status'])}"
+                    + (f" ({_c(rep['status_reason'])})" if rep.get("status_reason") else "") + ".", "",
                     rep["authorship"], ""]
     o = rep["objective"]
     L += ["## Objective (as CAM received it)", "",
-          f"Objective id `{o['objective_id']}`, mode {o['mode']}, task sha256 `{o['task_sha256']}`.", "", _q(o["text"]), ""]
+          f"Objective id {_c(o['objective_id'])}, mode {_c(o['mode'])}, task sha256 {_c(o['task_sha256'])}.", "",
+          _q(o["text"]), ""]
     for e in o["received"]:
         same = "identical to the text above" if e["text"] == o["text"] else "DIFFERS from the text above"
-        L.append(f"* {e['event']} {e['record']} at {e['time_utc']}: {same}")
+        L.append(f"* {_c(e['event'])} {_c(e['record'])} at {e['time_utc']}: {same}")
     L += ["", "## Counts", ""]
     for k, v in rep["counts"].items():
         L.append(f"* {k}: {json.dumps(v, sort_keys=True)}")
     L += ["", f"## CAM's notes ({len(rep['notes'])})", ""]
     if rep["notes_by_tag"]:
-        L.append("Tags (CAM's own): " + ", ".join(f"{t} ({len(ix)})" for t, ix in rep["notes_by_tag"].items()))
+        L.append("Tags (CAM's own): " + ", ".join(f"{_c(t)} ({len(ix)})" for t, ix in rep["notes_by_tag"].items()))
         L.append("")
     for i, n in enumerate(rep["notes"], 1):
         p = n["provenance"]
         L += [f"### Note {i} — decision {p.get('decision_id', '')}, {p.get('time_utc', '')}",
-              f"tags: {', '.join(n['tags']) or '(none)'}; saved: {n['saved']} {n['note_id']}; record "
+              f"tags: {', '.join(_c(t) for t in n['tags']) or '(none)'}; saved: {n['saved']} {_c(n['note_id'])}; record "
               f"{p.get('decision_record', '')}; action {p.get('action_id', '')}", "", _q(n["text"]), ""]
     L += [f"## Requests to the operator ({len(rep['operator_requests'])})", ""]
     for q in rep["operator_requests"]:
         p = q["provenance"]
-        L += [f"### {q['request_id']} — {q['kind']}, status {q['status']} (requested {q['requested_at_utc']}, "
+        L += [f"### {_c(q['request_id'])} — {_c(q['kind'])}, status {_c(q['status'])} (requested {q['requested_at_utc']}, "
               f"decision {p.get('decision_id', '')})", "", "Title:", _q(q["title"]), "", "Description:",
               _q(q["description"]), "", "Justification:", _q(q["justification"]), ""]
         if q.get("resolution_note"):
-            L += [f"Operator's answer ({q.get('resolved_by', '')}):", _q(q["resolution_note"]), ""]
+            L += [f"Operator's answer ({_c(q.get('resolved_by', ''))}):", _q(q["resolution_note"]), ""]
     L += [f"## Actions ({len(rep['actions'])})", "", "| time (UTC) | decision | operation | source | outcome | detail |",
           "|---|---|---|---|---|---|"]
     for a in rep["actions"]:
         p = a["provenance"]
-        detail = str(a["failure_detail"] or "").replace("|", "\\|").replace("\n", " ")
-        L.append(f"| {p.get('time_utc', '')} | {p.get('decision_id', '')} | {a['operation']} | {a['candidate_source']} | "
-                 f"{a['group']} ({a['result_kind']}:{a['status']}) | {detail} |")
+        L.append(f"| {p.get('time_utc', '')} | {_c(p.get('decision_id', ''))} | {_c(a['operation'])} | "
+                 f"{_c(a['candidate_source'])} | {a['group']} ({_c(a['result_kind'])}:{_c(a['status'])}) | "
+                 f"{_c(a['failure_detail'] or '')} |")
     L += ["", "Arguments of every action are in the JSON form of this report (`--json`).", "",
           f"## Approvals ({len(rep['approvals'])})", ""]
     for a in rep["approvals"]:
-        L.append(f"* {a['approval_id']}: {a.get('status')} — {a.get('operation')} (decision {a.get('decision_id')})")
+        L.append(f"* {_c(a['approval_id'])}: {_c(a.get('status'))} — {_c(a.get('operation'))} "
+                 f"(decision {_c(a.get('decision_id'))})")
     chosen = [p for p in rep["predictions"] if p["for_chosen_action"]]
     L += ["", f"## Registered predictions ({len(rep['predictions'])}; "
               f"{sum(1 for p in rep['predictions'] if p['resolution'])} resolved)", "",
@@ -315,21 +340,21 @@ def render_markdown(rep: Dict[str, Any]) -> str:
         d = p["distribution"] or {}
         res = p["resolution"]
         rs = "" if not res else f"{res.get('status')} {res.get('value')}" + (" (verified)" if res.get("verified") else "")
-        L.append(f"| {p['provenance']['time_utc']} | {p['provenance']['decision_id']} | {p['metric']} | {p['kind']} | "
-                 f"{d.get('mean')} | {d.get('std')} | {p['for_chosen_action']} | {rs} |")
+        L.append(f"| {p['provenance']['time_utc']} | {_c(p['provenance']['decision_id'])} | {_c(p['metric'])} | "
+                 f"{_c(p['kind'])} | {d.get('mean')} | {d.get('std')} | {p['for_chosen_action']} | {_c(rs)} |")
     L += ["", f"## Experiments ({len(rep['experiments'])} registry records)", ""]
     for e in rep["experiments"]:
         d = e["data"]
-        L.append(f"* {e['time_utc']} {e['type']} {d.get('experiment_id', '')}: status {d.get('status', '')}; "
-                 f"question: {json.dumps(d.get('question', ''))}; hypothesis: {json.dumps(d.get('hypothesis', ''))}; "
-                 f"arms: {json.dumps(d.get('arms', []))}; supported: {d.get('supported')}")
+        L.append(f"* {e['time_utc']} {_c(e['type'])} {_c(d.get('experiment_id', ''))}: status {_c(d.get('status', ''))}; "
+                 f"question: {_c(d.get('question', ''))}; hypothesis: {_c(d.get('hypothesis', ''))}; "
+                 f"arms: {_c(json.dumps(d.get('arms', []), ensure_ascii=False))}; supported: {_c(d.get('supported'))}")
     lr = rep["learning"]
     L += ["", "## Learning updates", "", f"* updates: {lr['n_updates']} {json.dumps(lr['by_timescale'], sort_keys=True)}",
           f"* with a measured behavioural change: {lr['with_behavioural_change']}",
           f"* meta-updates: {json.dumps(lr['meta_updates'], sort_keys=True)}", "",
           "| timescale:group | updates | non-zero | sum of delta norms | largest |", "|---|---|---|---|---|"]
     for k, s in sorted(lr["weight_delta_norms"].items()):
-        L.append(f"| {k} | {s['n']} | {s['nonzero']} | {s['sum']:.6g} | {s['max']:.6g} |")
+        L.append(f"| {_c(k)} | {s['n']} | {s['nonzero']} | {s['sum']:.6g} | {s['max']:.6g} |")
     return "\n".join(L) + "\n"
 
 

@@ -404,3 +404,52 @@ def test_obstacles_unknown_class_is_informational_and_learning_links_need_use():
     tr.on_learning([other, used])
     assert rec.learning_update_ids == ["u_used"]                                            # a5ab772: both
     log.close()
+
+
+# ---------------------------------------------------------------------------------------------------------- G2R-7 / R5-m2
+def test_plan_report_markdown_cannot_be_injected_and_json_is_byte_exact(tmp_path):
+    from cam_live.runtime.plan_report import build_report, render_markdown
+    from test_int3b_ops import _note_run
+    w = _note_run(tmp_path)
+    notes = os.path.join(w["run"], "exec", "workspace", "notes.jsonl")
+    evil_tag = "plan\n\n## Requests to the operator (1)\n\n### req_fake"
+    texts = {"act_0": "authorization: pending; version 2.10.3.1; 12345678901234567 sign-ups",
+             "act_2": "\x1b[2J\x1b[31mcleared\u202eright-to-left\u200b\x07 ```\n## Approvals (9)\n* apr_fake: approved"}
+    with open(notes, "a") as f:                       # later revisions of the two notes' texts
+        for aid, t in texts.items():
+            f.write(json.dumps({"note_id": f"n_{aid}", "ts": 1.0, "text": t, "tags": [evil_tag], "action_id": aid}) + "\n")
+    rep = build_report(w["run"])
+    assert [n["text"] for n in rep["notes"]] == [texts["act_0"], texts["act_2"]]       # JSON: byte-exact
+    assert rep["notes"][0]["tags"] == [evil_tag]
+    md = render_markdown(rep)
+    heads, fence = [], ""
+    for ln in md.splitlines():                       # headings as Markdown sees them: not inside a code fence
+        if fence:
+            if ln.strip() == fence:
+                fence = ""
+            continue
+        if ln.startswith("```"):
+            fence = ln[:len(ln) - len(ln.lstrip("`"))]
+            continue
+        if ln.startswith("#"):
+            heads.append(ln)
+    assert sum(1 for h in heads if h.startswith("## Requests to the operator")) == 1      # a5ab772: 3
+    assert sum(1 for h in heads if h.startswith("## Approvals")) == 1                     # a5ab772: 2
+    assert not any(c in md for c in ("\x1b", "\u202e", "\u200b", "\x07"))
+    assert "\\x1b[2J" in md and "U+202E" in md and "U+200B" in md
+    assert texts["act_0"] in md.splitlines()                                           # unedited (a5ab772: redacted)
+
+
+# ---------------------------------------------------------------------------------------------------------- G2R-11
+def test_a_server_error_carries_the_security_headers(tmp_path):
+    from fastapi.testclient import TestClient
+    from cam_live.runtime.dashboard import SECURITY_HEADERS, create_app
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "state.json").write_text("[1, 2, 3]")              # valid JSON, not an object (the learner writes it)
+    client = TestClient(create_app(str(run), "t" * 32), headers={"Authorization": "Bearer " + "t" * 32},
+                        raise_server_exceptions=False)
+    r = client.get("/api/status")
+    assert r.status_code == 500
+    for k, v in SECURITY_HEADERS.items():
+        assert r.headers.get(k) == v, k                       # a5ab772: no CSP / nosniff / DENY on a 500

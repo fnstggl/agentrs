@@ -324,10 +324,10 @@ def test_plan_report_reproduces_cam_texts_verbatim_with_provenance(tmp_path):
     assert groups == {"dec_0": "executed", "dec_1": "executed", "dec_2": "executed", "dec_3": "queued"}
     assert rep["counts"]["predictions_registered"] == 4 and rep["approvals"][0]["status"] == "pending"
     md = render_markdown(rep)
-    # every line of every CAM text appears verbatim (as a quoted line) in the Markdown form
+    # every line of every CAM text appears verbatim (as a line of a literal block) in the Markdown form
     for t in w["texts"] + [w["objective"], "Why it\nwould help."]:
         for line in t.split("\n"):
-            assert f"> {line}" in md
+            assert line in md.splitlines()
 
 
 def test_plan_report_is_written_wherever_the_operator_says(tmp_path, monkeypatch):
@@ -485,8 +485,7 @@ def test_floats_are_not_redacted_as_member_ids_but_real_ids_are(tmp_path):
     assert "0.12345678901234566" in row["data"]["notes"] and "175928847299117063" not in row["data"]["notes"]
 
 
-def test_plan_report_keeps_cam_numbers_and_hashes_ids_like_the_run(tmp_path):
-    from cam_live.runtime.logs import Redactor, load_salt
+def test_plan_report_keeps_cam_numbers_and_ids_byte_exact(tmp_path):
     from cam_live.runtime.plan_report import build_report
     w = _note_run(tmp_path)
     path = os.path.join(w["run"], "exec", "workspace", "notes.jsonl")
@@ -495,5 +494,4 @@ def test_plan_report_keeps_cam_numbers_and_hashes_ids_like_the_run(tmp_path):
         f.write(json.dumps({"note_id": "n9", "ts": 1.0, "text": text, "tags": [], "action_id": "act_2"}) + "\n")
     rep = build_report(w["run"])
     got = [n["text"] for n in rep["notes"] if "estimate" in n["text"]]
-    h = Redactor.from_config({}, load_salt(w["run"])).hash_member("175928847299117063")
-    assert got == [f"estimate 0.12345678901234567 for member {h}"]          # number intact, id as in the run's logs
+    assert got == [text]                         # G2R-7: CAM's text byte-exact in the JSON form (nothing redacted)
