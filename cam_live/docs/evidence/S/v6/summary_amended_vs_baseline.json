@@ -197,15 +197,15 @@
  "x1/E": {
   "objectives_attempted": {
    "baseline": 12,
-   "new": 2
+   "new": 12
   },
   "objectives_achieved": {
    "baseline": 11,
-   "new": 2
+   "new": 10
   },
   "objectives_never_reached": {
    "baseline": 1,
-   "new": 0
+   "new": 2
   },
   "objectives_interrupted": {
    "baseline": 0,
@@ -213,7 +213,7 @@
   },
   "objectives_not_run": {
    "baseline": 0,
-   "new": 2
+   "new": 0
   },
   "achieved_by_problem": {
    "baseline": {
@@ -223,8 +223,10 @@
     "topk": "3/3"
    },
    "new": {
-    "rle": "1/1",
-    "rpn": "1/1"
+    "merge": "2/3",
+    "rle": "3/3",
+    "rpn": "3/3",
+    "topk": "2/3"
    }
   },
   "stops": {
@@ -233,7 +235,8 @@
     "achieved": 11
    },
    "new": {
-    "achieved": 2
+    "achieved": 10,
+    "wall_budget": 2
    }
   },
   "slow_steps": {
@@ -244,118 +247,140 @@
     "deferred": 1
    },
    "new": {
-    "total": 1,
-    "kept": 1,
-    "reverted": 0,
-    "deferred": 0
+    "total": 22,
+    "kept": 18,
+    "reverted": 1,
+    "deferred": 3
    }
   },
   "meta_updates_applied": {
    "baseline": "4/110",
-   "new": "0/8"
+   "new": "4/81"
   },
   "seeds": [
-   0
+   0,
+   1,
+   2
   ],
   "paired": false,
   "pairing_note": "unpaired: runs with the same seed are independent (agent id from os.urandom, G3A-3), so the difference of the arm means is reported with a bootstrap interval and a label-permutation p over the per-seed means (descriptive only, v3.5)",
   "n_to_achieve": {
    "a_per_seed": [
-    3.0
+    2.75,
+    15.5,
+    2.5
    ],
    "b_per_seed": [
-    10.75
+    10.75,
+    7.75,
+    6.25
    ],
-   "a_mean": 3.0,
-   "b_mean": 10.75,
+   "a_mean": 6.916666666666667,
+   "b_mean": 8.25,
    "a_minus_b": {
     "paired": false,
-    "n_x": 1,
-    "n_y": 1,
-    "mean": -7.75,
-    "lo": -7.75,
-    "hi": -7.75,
-    "p": 1.0,
+    "n_x": 3,
+    "n_y": 3,
+    "mean": -1.333333333333333,
+    "lo": -7.166666666666666,
+    "hi": 6.75,
+    "p": 0.7985201479852014,
     "test": "Monte-Carlo label permutation"
    }
   },
   "verified_value": {
    "a_per_seed": [
+    1.0,
+    0.75,
     1.0
    ],
    "b_per_seed": [
-    0.75
+    0.75,
+    1.0,
+    1.0
    ],
-   "a_mean": 1.0,
-   "b_mean": 0.75,
+   "a_mean": 0.9166666666666666,
+   "b_mean": 0.9166666666666666,
    "a_minus_b": {
     "paired": false,
-    "n_x": 1,
-    "n_y": 1,
-    "mean": 0.25,
-    "lo": 0.25,
-    "hi": 0.25,
+    "n_x": 3,
+    "n_y": 3,
+    "mean": 0.0,
+    "lo": -0.16666666666666663,
+    "hi": 0.16666666666666663,
     "p": 1.0,
     "test": "Monte-Carlo label permutation"
    }
   },
   "achieved": {
    "a_per_seed": [
+    1.0,
+    0.5,
     1.0
    ],
    "b_per_seed": [
-    0.75
+    0.75,
+    1.0,
+    1.0
    ],
-   "a_mean": 1.0,
-   "b_mean": 0.75,
+   "a_mean": 0.8333333333333334,
+   "b_mean": 0.9166666666666666,
    "a_minus_b": {
     "paired": false,
-    "n_x": 1,
-    "n_y": 1,
-    "mean": 0.25,
-    "lo": 0.25,
-    "hi": 0.25,
+    "n_x": 3,
+    "n_y": 3,
+    "mean": -0.08333333333333326,
+    "lo": -0.41666666666666663,
+    "hi": 0.16666666666666663,
     "p": 1.0,
     "test": "Monte-Carlo label permutation"
    }
   },
   "executable_fraction": {
    "a_per_seed": [
-    0.9
+    0.8875,
+    0.9821428571428572,
+    1.0
    ],
    "b_per_seed": [
-    0.93125
+    0.93125,
+    1.0,
+    0.9375
    ],
-   "a_mean": 0.9,
-   "b_mean": 0.93125,
+   "a_mean": 0.956547619047619,
+   "b_mean": 0.9562499999999999,
    "a_minus_b": {
     "paired": false,
-    "n_x": 1,
-    "n_y": 1,
-    "mean": -0.03125,
-    "lo": -0.03125,
-    "hi": -0.03125,
+    "n_x": 3,
+    "n_y": 3,
+    "mean": 0.00029761904761904656,
+    "lo": -0.06875000000000009,
+    "hi": 0.06071428571428583,
     "p": 1.0,
     "test": "Monte-Carlo label permutation"
    }
   },
   "backbone_chosen_fraction": {
    "a_per_seed": [
-    0.9
+    0.8875,
+    0.4023809523809524,
+    0.6666666666666666
    ],
    "b_per_seed": [
-    0.5875
+    0.5875,
+    0.42916666666666664,
+    0.4652777777777778
    ],
-   "a_mean": 0.9,
-   "b_mean": 0.5875,
+   "a_mean": 0.6521825396825397,
+   "b_mean": 0.4939814814814815,
    "a_minus_b": {
     "paired": false,
-    "n_x": 1,
-    "n_y": 1,
-    "mean": 0.3125,
-    "lo": 0.3125,
-    "hi": 0.3125,
-    "p": 1.0,
+    "n_x": 3,
+    "n_y": 3,
+    "mean": 0.15820105820105818,
+    "lo": -0.09160052910052907,
+    "hi": 0.38472222222222213,
+    "p": 0.3965603439656034,
     "test": "Monte-Carlo label permutation"
    }
   }

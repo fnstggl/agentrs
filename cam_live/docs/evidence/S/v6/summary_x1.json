@@ -5,71 +5,90 @@
  "conditions": {
   "E": {
    "seeds": [
-    0
+    0,
+    1,
+    2
    ],
-   "objectives_planned": 4,
-   "objectives_attempted": 2,
-   "objectives_achieved": 2,
-   "objectives_never_reached": 0,
+   "objectives_planned": 12,
+   "objectives_attempted": 12,
+   "objectives_achieved": 10,
+   "objectives_never_reached": 2,
    "objectives_interrupted": 0,
-   "objectives_not_run": 2,
+   "objectives_not_run": 0,
    "stops": {
-    "achieved": 2
+    "achieved": 10,
+    "wall_budget": 2
    },
    "achieved_by_problem": {
-    "rle": "1/1",
-    "rpn": "1/1"
+    "merge": "2/3",
+    "rle": "3/3",
+    "rpn": "3/3",
+    "topk": "2/3"
    },
    "decisions_to_achieve_censored": {
     "per_seed": [
-     3.0
+     2.75,
+     15.5,
+     2.5
     ],
-    "mean": 3.0,
-    "min": 3.0,
-    "max": 3.0
+    "mean": 6.916666666666667,
+    "min": 2.5,
+    "max": 15.5
    },
    "decisions_used": {
     "per_seed": [
-     3.0
+     2.75,
+     12.5,
+     2.5
     ],
-    "mean": 3.0,
-    "min": 3.0,
-    "max": 3.0
+    "mean": 5.916666666666667,
+    "min": 2.5,
+    "max": 12.5
    },
    "verified_value": {
     "per_seed": [
+     1.0,
+     0.75,
      1.0
     ],
-    "mean": 1.0,
-    "min": 1.0,
+    "mean": 0.9166666666666666,
+    "min": 0.75,
     "max": 1.0
    },
    "executable_fraction": {
     "per_seed": [
-     0.9
+     0.8875,
+     0.9821428571428572,
+     1.0
     ],
-    "mean": 0.9,
-    "min": 0.9,
-    "max": 0.9
+    "mean": 0.956547619047619,
+    "min": 0.8875,
+    "max": 1.0
    },
    "backbone_chosen_fraction": {
     "per_seed": [
-     0.9
+     0.8875,
+     0.4023809523809524,
+     0.6666666666666666
     ],
-    "mean": 0.9,
-    "min": 0.9,
-    "max": 0.9
+    "mean": 0.6521825396825397,
+    "min": 0.4023809523809524,
+    "max": 0.8875
    },
    "backbone_candidate_fraction": {
     "per_seed": [
-     0.49
+     0.495,
+     0.5,
+     0.5
     ],
-    "mean": 0.49,
-    "min": 0.49,
-    "max": 0.49
+    "mean": 0.49833333333333335,
+    "min": 0.495,
+    "max": 0.5
    },
    "repeats_of_failed_actions": {
     "per_seed": [
+     0.0,
+     0.0,
      0.0
     ],
     "mean": 0.0,
@@ -78,68 +97,87 @@
    },
    "distinct_strategies": {
     "per_seed": [
-     3.0
+     2.75,
+     7.25,
+     2.5
     ],
-    "mean": 3.0,
-    "min": 3.0,
-    "max": 3.0
+    "mean": 4.166666666666667,
+    "min": 2.5,
+    "max": 7.25
    },
    "mean_prediction_nll": {
     "per_seed": [
-     1.5418591995315252
+     2.3832251460847833,
+     1.3523493317931894,
+     -0.8753868390659028
     ],
-    "mean": 1.5418591995315252,
-    "min": 1.5418591995315252,
-    "max": 1.5418591995315252
+    "mean": 0.9533958796040233,
+    "min": -0.8753868390659028,
+    "max": 2.3832251460847833
    },
-   "meta_update_records": 8,
-   "meta_updates_applied_total": 0,
+   "meta_update_records": 81,
+   "meta_updates_applied_total": 4,
    "meta_skip_reasons": {
-    "no_policy_update_recorded": 2,
-    "insufficient_independent_outcomes": 6
+    "no_policy_update_recorded": 7,
+    "insufficient_independent_outcomes": 50,
+    "no_supported_episode": 5,
+    "zero_advantage": 15
    },
-   "meta_grad_norms": [],
-   "objectives_with_reward_change": 0,
-   "objectives_with_adapter_change": 1,
+   "meta_grad_norms": [
+    0.7762889105992932,
+    0.027063043815526766,
+    0.798478045417015,
+    0.15322473102794087
+   ],
+   "objectives_with_reward_change": 3,
+   "objectives_with_adapter_change": 6,
    "bootstrap_mix_values": [
     1.0
    ],
    "slow_steps": {
-    "objectives_with_log": 2,
-    "total": 1,
-    "kept": 1,
-    "reverted": 0,
-    "deferred": 0,
+    "objectives_with_log": 12,
+    "total": 22,
+    "kept": 18,
+    "reverted": 1,
+    "deferred": 3,
     "kept_unguarded": 0,
     "skipped": {}
    },
    "unavailable_tools_seen": [],
-   "max_lock_hold_s": 149.50102281570435,
-   "gpu_peak_gb_max": 10.21511459350586,
+   "max_lock_hold_s": 669.4150741100311,
+   "gpu_peak_gb_max": 14.390800952911377,
    "wall_s_per_objective": {
     "per_seed": [
-     95.09793090820312
+     123.54455262422562,
+     549.702615737915,
+     79.17070066928864
     ],
-    "mean": 95.09793090820312,
-    "min": 95.09793090820312,
-    "max": 95.09793090820312
+    "mean": 250.80595634380975,
+    "min": 79.17070066928864,
+    "max": 549.702615737915
    },
    "learning_curve_by_index": {
-    "0": "1/1",
-    "1": "1/1"
+    "0": "3/3",
+    "1": "3/3",
+    "2": "2/3",
+    "3": "2/3"
    },
    "code_check": {
     "expected": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf",
     "snapshot_commit_per_seed": {
-     "0": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     "0": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf",
+     "1": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf",
+     "2": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
     },
     "objective_eval_codes": {
-     "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf": 2
+     "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf": 12
     },
     "all_match": true
    },
    "plans": {
-    "0": "SW:rle,SW:rpn,SW:merge,SW:topk"
+    "0": "SW:rle,SW:rpn,SW:merge,SW:topk",
+    "1": "SW:rle,SW:rpn,SW:merge,SW:topk",
+    "2": "SW:rle,SW:rpn,SW:merge,SW:topk"
    },
    "per_seed": {
     "0": [
@@ -269,6 +307,676 @@
       "gpu_peak_gb": 9.863529682159424,
       "errors": 0,
       "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 2,
+      "family": "SW",
+      "problem": "merge",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 4,
+      "n_to_achieve": 4.0,
+      "censored": false,
+      "executable_fraction": 0.75,
+      "backbone_chosen_fraction": 0.75,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 4,
+      "mean_prediction_nll": 4.397358597577087,
+      "n_predictions_resolved": 13,
+      "primitive_ops_total": 4,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 248.19477343559265,
+      "inference_s": 148.32990397978574,
+      "training_s": 78.95134720671922,
+      "meta_records": 5,
+      "meta_applied": 1,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 4
+      },
+      "meta_grad_norms": [
+       0.7762889105992932
+      ],
+      "meta_estimators": [
+       "importance_weighted"
+      ],
+      "reward_changed": true,
+      "groups_changed": {
+       "semantic_adapters": true,
+       "experiential": true,
+       "reward": true,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "frequent": 7,
+       "slow_adapters": 2,
+       "fast": 4
+      },
+      "slow_steps": {
+       "total": 2,
+       "kept": 2,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": [
+        0.1393192708492279,
+        0.13887597620487213
+       ]
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 260.395001411438,
+      "gpu_peak_gb": 11.251734733581543,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 3,
+      "family": "SW",
+      "problem": "topk",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 1,
+      "n_to_achieve": 1.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 1.0,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 1,
+      "mean_prediction_nll": 2.0518235876989954,
+      "n_predictions_resolved": 4,
+      "primitive_ops_total": 1,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 55.787575244903564,
+      "inference_s": 33.86767023568973,
+      "training_s": 0.7724044569768012,
+      "meta_records": 2,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 1,
+       "no_supported_episode": 1
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": false,
+       "experiential": false,
+       "reward": false,
+       "heads": false,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "fast": 1
+      },
+      "slow_steps": {
+       "total": 0,
+       "kept": 0,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": []
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 67.64462280273438,
+      "gpu_peak_gb": 9.926802635192871,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     }
+    ],
+    "1": [
+     {
+      "index": 0,
+      "family": "SW",
+      "problem": "rle",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 7,
+      "n_to_achieve": 7.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 0.5714285714285714,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 7,
+      "mean_prediction_nll": 4.7652605537241985,
+      "n_predictions_resolved": 32,
+      "primitive_ops_total": 6,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 268.71111702919006,
+      "inference_s": 210.3556301901117,
+      "training_s": 52.41700667748228,
+      "meta_records": 8,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "no_policy_update_recorded": 2,
+       "insufficient_independent_outcomes": 6
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": true,
+       "experiential": true,
+       "reward": false,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "fast": 7,
+       "frequent": 10,
+       "slow_adapters": 2
+      },
+      "slow_steps": {
+       "total": 2,
+       "kept": 1,
+       "reverted": 1,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": [
+        0.06913115084171295
+       ]
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 281.43147230148315,
+      "gpu_peak_gb": 12.013551712036133,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 1,
+      "family": "SW",
+      "problem": "rpn",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 15,
+      "n_to_achieve": 15.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 0.4666666666666667,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 10,
+      "mean_prediction_nll": -2.276226364176151,
+      "n_predictions_resolved": 60,
+      "primitive_ops_total": 14,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 629.38982629776,
+      "inference_s": 409.98587622120976,
+      "training_s": 197.57474557776004,
+      "meta_records": 16,
+      "meta_applied": 2,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 4,
+       "zero_advantage": 10
+      },
+      "meta_grad_norms": [
+       0.027063043815526766,
+       0.798478045417015
+      ],
+      "meta_estimators": [
+       "importance_weighted"
+      ],
+      "reward_changed": true,
+      "groups_changed": {
+       "semantic_adapters": true,
+       "experiential": true,
+       "reward": true,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "fast": 15,
+       "frequent": 21,
+       "slow_adapters": 6
+      },
+      "slow_steps": {
+       "total": 6,
+       "kept": 6,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": [
+        0.0630100890994072,
+        0.0817551538348198,
+        0.10282726585865021,
+        0.10364919900894165,
+        0.10379272699356079,
+        0.10143478959798813
+       ]
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 641.2866654396057,
+      "gpu_peak_gb": 14.066463947296143,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 2,
+      "family": "SW",
+      "problem": "merge",
+      "achieved": false,
+      "interrupted": false,
+      "verified_value": 0.85,
+      "verified_status": "pending",
+      "stop": "wall_budget",
+      "runtime_reason": "wall budget 619 s of this lock hold reached",
+      "decisions": 14,
+      "n_to_achieve": 20.0,
+      "censored": true,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 0.42857142857142855,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 5,
+      "mean_prediction_nll": -2.3823091145131867,
+      "n_predictions_resolved": 53,
+      "primitive_ops_total": 14,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 646.2406809329987,
+      "inference_s": 429.82841685879976,
+      "training_s": 185.69849734241143,
+      "meta_records": 14,
+      "meta_applied": 1,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 7,
+       "no_supported_episode": 1,
+       "zero_advantage": 5
+      },
+      "meta_grad_norms": [
+       0.15322473102794087
+      ],
+      "meta_estimators": [
+       "importance_weighted"
+      ],
+      "reward_changed": true,
+      "groups_changed": {
+       "semantic_adapters": true,
+       "experiential": true,
+       "reward": true,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "fast": 13,
+       "frequent": 18,
+       "slow_adapters": 4
+      },
+      "slow_steps": {
+       "total": 4,
+       "kept": 4,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": [
+        0.09496776759624481,
+        0.0958477109670639,
+        0.09452082961797714,
+        0.09687924385070801
+       ]
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 658.4017465114594,
+      "gpu_peak_gb": 14.390800952911377,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 3,
+      "family": "SW",
+      "problem": "topk",
+      "achieved": false,
+      "interrupted": false,
+      "verified_value": 0.15,
+      "verified_status": "pending",
+      "stop": "wall_budget",
+      "runtime_reason": "wall budget 616 s of this lock hold reached",
+      "decisions": 14,
+      "n_to_achieve": 20.0,
+      "censored": true,
+      "executable_fraction": 0.9285714285714286,
+      "backbone_chosen_fraction": 0.14285714285714285,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 7,
+      "mean_prediction_nll": 5.302672252137897,
+      "n_predictions_resolved": 50,
+      "primitive_ops_total": 12,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 654.4688386917114,
+      "inference_s": 420.39390945388004,
+      "training_s": 195.20774645078927,
+      "meta_records": 14,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 12,
+       "no_supported_episode": 2
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": true,
+       "experiential": true,
+       "reward": false,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "fast": 14,
+       "frequent": 17,
+       "slow_adapters": 4
+      },
+      "slow_steps": {
+       "total": 4,
+       "kept": 4,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": [
+        0.17097598314285278,
+        0.15218929946422577,
+        0.1438179314136505,
+        0.1429157555103302
+       ]
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 669.4150741100311,
+      "gpu_peak_gb": 14.368157386779785,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     }
+    ],
+    "2": [
+     {
+      "index": 0,
+      "family": "SW",
+      "problem": "rle",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 2,
+      "n_to_achieve": 2.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 0.5,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 2,
+      "mean_prediction_nll": 1.9292255433302379,
+      "n_predictions_resolved": 8,
+      "primitive_ops_total": 2,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 53.282734632492065,
+      "inference_s": 45.10762062063441,
+      "training_s": 3.795932389330119,
+      "meta_records": 3,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "no_policy_update_recorded": 3
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": false,
+       "experiential": true,
+       "reward": false,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "fast": 2,
+       "frequent": 2
+      },
+      "slow_steps": {
+       "total": 0,
+       "kept": 0,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": []
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 65.51553773880005,
+      "gpu_peak_gb": 9.64942979812622,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 1,
+      "family": "SW",
+      "problem": "rpn",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 1,
+      "n_to_achieve": 1.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 1.0,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 1,
+      "mean_prediction_nll": -1.705518744657005,
+      "n_predictions_resolved": 4,
+      "primitive_ops_total": 1,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 32.49654197692871,
+      "inference_s": 21.204120568931103,
+      "training_s": 0.6000520018860698,
+      "meta_records": 2,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 2
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": false,
+       "experiential": true,
+       "reward": false,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "frequent": 1,
+       "fast": 1
+      },
+      "slow_steps": {
+       "total": 0,
+       "kept": 0,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": []
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 44.23212933540344,
+      "gpu_peak_gb": 9.701560497283936,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 2,
+      "family": "SW",
+      "problem": "merge",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 3,
+      "n_to_achieve": 3.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 0.6666666666666666,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 3,
+      "mean_prediction_nll": -1.8433648770106552,
+      "n_predictions_resolved": 12,
+      "primitive_ops_total": 3,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 98.95630025863647,
+      "inference_s": 75.36009174911305,
+      "training_s": 7.005487015005201,
+      "meta_records": 4,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 4
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": false,
+       "experiential": true,
+       "reward": false,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "frequent": 5,
+       "slow_adapters": 2,
+       "fast": 3
+      },
+      "slow_steps": {
+       "total": 2,
+       "kept": 0,
+       "reverted": 0,
+       "deferred": 2,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": []
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 111.31895327568054,
+      "gpu_peak_gb": 10.292515277862549,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 3,
+      "family": "SW",
+      "problem": "topk",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 4,
+      "n_to_achieve": 4.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 0.5,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 4,
+      "mean_prediction_nll": -1.8818892779261887,
+      "n_predictions_resolved": 16,
+      "primitive_ops_total": 4,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 131.9472258090973,
+      "inference_s": 108.62850725511089,
+      "training_s": 10.789426346775144,
+      "meta_records": 5,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 4,
+       "no_supported_episode": 1
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": false,
+       "experiential": true,
+       "reward": false,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "fast": 4,
+       "frequent": 6,
+       "slow_adapters": 1
+      },
+      "slow_steps": {
+       "total": 1,
+       "kept": 0,
+       "reverted": 0,
+       "deferred": 1,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": []
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 144.41353249549866,
+      "gpu_peak_gb": 10.470120906829834,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
      }
     ]
    },
@@ -360,11 +1068,2526 @@
       "reward",
       "semantic_adapters"
      ]
+    },
+    "1": {
+     "agent_class": "CamLiveAgent",
+     "backbone": "Qwen/Qwen3-4B",
+     "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+     "scale": "50m",
+     "device": "cuda:0",
+     "parameters": {
+      "frozen": 4022468096,
+      "experiential": 50953773,
+      "adapters": 16713856,
+      "adapters_lora": 11796480,
+      "adapters_bridge": 4917376,
+      "reward": 949121,
+      "heads": {
+       "predict_world": 1022954,
+       "predict_transition": 1977600,
+       "predict_evaluator": 783192,
+       "predict_policy": 702339,
+       "predict_downstream": 84195,
+       "predict_content": 284448,
+       "reward": 949121,
+       "credit_rudder": 559361,
+       "credit_cocoa": 925696
+      },
+      "head_groups": {
+       "predict_world": "heads",
+       "predict_transition": "heads",
+       "predict_evaluator": "heads",
+       "predict_policy": "heads",
+       "predict_downstream": "heads",
+       "predict_content": "heads",
+       "reward": "reward",
+       "credit_rudder": "heads",
+       "credit_cocoa": "heads"
+      },
+      "heads_total": 6339785,
+      "total_persistent_trainable": 74956535,
+      "by_group": {
+       "backbone_frozen": 4022468096,
+       "semantic_adapters": 16713856,
+       "experiential": 50953773,
+       "reward": 949121,
+       "heads": 6339785
+      },
+      "scale": "50m",
+      "backbone": "Qwen/Qwen3-4B",
+      "backbone_pretrained": true,
+      "fast_state_numbers_per_kind": 16512
+     },
+     "agent_settings": {
+      "use_backbone": true,
+      "selection_rule": "thompson_policy",
+      "proposer_max_new_tokens": 512,
+      "proposer_k": 4,
+      "experiment_rate": 0.1,
+      "adapters": true,
+      "bridge_grounding": true,
+      "retention": true
+     },
+     "loss_providers": [
+      "world_model",
+      "fast_prior",
+      "evaluator",
+      "world_model_adapters",
+      "evaluator_adapters",
+      "content",
+      "rudder",
+      "cocoa",
+      "retention",
+      "bridge_grounding"
+     ],
+     "credit_assigner": true,
+     "pathways": {
+      "fast_beliefs": true,
+      "weights": true,
+      "policy_update": true,
+      "meta_learning": true,
+      "bootstrap_mix": 1.0,
+      "chooser": "thompson_policy"
+     },
+     "trainable_groups": [
+      "backbone_frozen",
+      "experiential",
+      "heads",
+      "reward",
+      "semantic_adapters"
+     ]
+    },
+    "2": {
+     "agent_class": "CamLiveAgent",
+     "backbone": "Qwen/Qwen3-4B",
+     "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+     "scale": "50m",
+     "device": "cuda:0",
+     "parameters": {
+      "frozen": 4022468096,
+      "experiential": 50953773,
+      "adapters": 16713856,
+      "adapters_lora": 11796480,
+      "adapters_bridge": 4917376,
+      "reward": 949121,
+      "heads": {
+       "predict_world": 1022954,
+       "predict_transition": 1977600,
+       "predict_evaluator": 783192,
+       "predict_policy": 702339,
+       "predict_downstream": 84195,
+       "predict_content": 284448,
+       "reward": 949121,
+       "credit_rudder": 559361,
+       "credit_cocoa": 925696
+      },
+      "head_groups": {
+       "predict_world": "heads",
+       "predict_transition": "heads",
+       "predict_evaluator": "heads",
+       "predict_policy": "heads",
+       "predict_downstream": "heads",
+       "predict_content": "heads",
+       "reward": "reward",
+       "credit_rudder": "heads",
+       "credit_cocoa": "heads"
+      },
+      "heads_total": 6339785,
+      "total_persistent_trainable": 74956535,
+      "by_group": {
+       "backbone_frozen": 4022468096,
+       "semantic_adapters": 16713856,
+       "experiential": 50953773,
+       "reward": 949121,
+       "heads": 6339785
+      },
+      "scale": "50m",
+      "backbone": "Qwen/Qwen3-4B",
+      "backbone_pretrained": true,
+      "fast_state_numbers_per_kind": 16512
+     },
+     "agent_settings": {
+      "use_backbone": true,
+      "selection_rule": "thompson_policy",
+      "proposer_max_new_tokens": 512,
+      "proposer_k": 4,
+      "experiment_rate": 0.1,
+      "adapters": true,
+      "bridge_grounding": true,
+      "retention": true
+     },
+     "loss_providers": [
+      "world_model",
+      "fast_prior",
+      "evaluator",
+      "world_model_adapters",
+      "evaluator_adapters",
+      "content",
+      "rudder",
+      "cocoa",
+      "retention",
+      "bridge_grounding"
+     ],
+     "credit_assigner": true,
+     "pathways": {
+      "fast_beliefs": true,
+      "weights": true,
+      "policy_update": true,
+      "meta_learning": true,
+      "bootstrap_mix": 1.0,
+      "chooser": "thompson_policy"
+     },
+     "trainable_groups": [
+      "backbone_frozen",
+      "experiential",
+      "heads",
+      "reward",
+      "semantic_adapters"
+     ]
     }
    },
    "fresh_process": {},
    "code": {
     "0": {
+     "cam_live_dir": "/workspace/camlive/runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d/cam_live/src/cam_live",
+     "snapshot": "/workspace/camlive/runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d",
+     "snapshot_commit": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf",
+     "agent.py": "fd3eb80535454ed1",
+     "reward/metalearner.py": "645633ee70415742",
+     "credit/learner.py": "fa9bc23273a15f88",
+     "predict/predictor.py": "de28aff4c934c305",
+     "runtime/loop.py": "3ee639b0495c6741",
+     "nn/model.py": "781a80d113272e7d",
+     "eval/conditions.py": "b9d2a82a70388055",
+     "eval/runner.py": "e829a782e3463f5b"
+    },
+    "1": {
+     "cam_live_dir": "/workspace/camlive/runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d/cam_live/src/cam_live",
+     "snapshot": "/workspace/camlive/runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d",
+     "snapshot_commit": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf",
+     "agent.py": "fd3eb80535454ed1",
+     "reward/metalearner.py": "645633ee70415742",
+     "credit/learner.py": "fa9bc23273a15f88",
+     "predict/predictor.py": "de28aff4c934c305",
+     "runtime/loop.py": "3ee639b0495c6741",
+     "nn/model.py": "781a80d113272e7d",
+     "eval/conditions.py": "b9d2a82a70388055",
+     "eval/runner.py": "e829a782e3463f5b"
+    },
+    "2": {
+     "cam_live_dir": "/workspace/camlive/runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d/cam_live/src/cam_live",
+     "snapshot": "/workspace/camlive/runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d",
+     "snapshot_commit": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf",
+     "agent.py": "fd3eb80535454ed1",
+     "reward/metalearner.py": "645633ee70415742",
+     "credit/learner.py": "fa9bc23273a15f88",
+     "predict/predictor.py": "de28aff4c934c305",
+     "runtime/loop.py": "3ee639b0495c6741",
+     "nn/model.py": "781a80d113272e7d",
+     "eval/conditions.py": "b9d2a82a70388055",
+     "eval/runner.py": "e829a782e3463f5b"
+    }
+   }
+  },
+  "Eimag0": {
+   "seeds": [
+    0,
+    1,
+    2
+   ],
+   "objectives_planned": 12,
+   "objectives_attempted": 12,
+   "objectives_achieved": 11,
+   "objectives_never_reached": 1,
+   "objectives_interrupted": 0,
+   "objectives_not_run": 0,
+   "stops": {
+    "achieved": 11,
+    "wall_budget": 1
+   },
+   "achieved_by_problem": {
+    "merge": "3/3",
+    "rle": "3/3",
+    "rpn": "3/3",
+    "topk": "2/3"
+   },
+   "decisions_to_achieve_censored": {
+    "per_seed": [
+     2.75,
+     3.25,
+     13.5
+    ],
+    "mean": 6.5,
+    "min": 2.75,
+    "max": 13.5
+   },
+   "decisions_used": {
+    "per_seed": [
+     2.75,
+     3.25,
+     11.75
+    ],
+    "mean": 5.916666666666667,
+    "min": 2.75,
+    "max": 11.75
+   },
+   "verified_value": {
+    "per_seed": [
+     1.0,
+     1.0,
+     0.75
+    ],
+    "mean": 0.9166666666666666,
+    "min": 0.75,
+    "max": 1.0
+   },
+   "executable_fraction": {
+    "per_seed": [
+     1.0,
+     1.0,
+     0.9271978021978022
+    ],
+    "mean": 0.9757326007326007,
+    "min": 0.9271978021978022,
+    "max": 1.0
+   },
+   "backbone_chosen_fraction": {
+    "per_seed": [
+     0.8375,
+     0.7083333333333334,
+     0.4766483516483516
+    ],
+    "mean": 0.6741605616605617,
+    "min": 0.4766483516483516,
+    "max": 0.8375
+   },
+   "backbone_candidate_fraction": {
+    "per_seed": [
+     0.5,
+     0.5,
+     0.49642857142857144
+    ],
+    "mean": 0.4988095238095238,
+    "min": 0.49642857142857144,
+    "max": 0.5
+   },
+   "repeats_of_failed_actions": {
+    "per_seed": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "mean": 0.0,
+    "min": 0.0,
+    "max": 0.0
+   },
+   "distinct_strategies": {
+    "per_seed": [
+     2.25,
+     2.75,
+     6.75
+    ],
+    "mean": 3.9166666666666665,
+    "min": 2.25,
+    "max": 6.75
+   },
+   "mean_prediction_nll": {
+    "per_seed": [
+     0.1296071142534987,
+     -0.30863068370866165,
+     3.5367377725551115
+    ],
+    "mean": 1.119238067699983,
+    "min": -0.30863068370866165,
+    "max": 3.5367377725551115
+   },
+   "meta_update_records": 82,
+   "meta_updates_applied_total": 5,
+   "meta_skip_reasons": {
+    "no_policy_update_recorded": 8,
+    "insufficient_independent_outcomes": 53,
+    "no_supported_episode": 6,
+    "zero_advantage": 10
+   },
+   "meta_grad_norms": [
+    3.7002374171295203,
+    1.2888039466366128,
+    0.8303881916646572,
+    0.17100784733340868,
+    0.3126496427353937
+   ],
+   "objectives_with_reward_change": 5,
+   "objectives_with_adapter_change": 9,
+   "bootstrap_mix_values": [
+    1.0
+   ],
+   "slow_steps": {
+    "objectives_with_log": 12,
+    "total": 26,
+    "kept": 24,
+    "reverted": 0,
+    "deferred": 2,
+    "kept_unguarded": 0,
+    "skipped": {}
+   },
+   "unavailable_tools_seen": [],
+   "max_lock_hold_s": 667.5838239192963,
+   "gpu_peak_gb_max": 15.462180614471436,
+   "wall_s_per_objective": {
+    "per_seed": [
+     128.23673355579376,
+     169.77467668056488,
+     508.8949171304703
+    ],
+    "mean": 268.968775788943,
+    "min": 128.23673355579376,
+    "max": 508.8949171304703
+   },
+   "learning_curve_by_index": {
+    "0": "3/3",
+    "1": "3/3",
+    "2": "3/3",
+    "3": "2/3"
+   },
+   "code_check": {
+    "expected": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf",
+    "snapshot_commit_per_seed": {
+     "0": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf",
+     "1": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf",
+     "2": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+    },
+    "objective_eval_codes": {
+     "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf": 12
+    },
+    "all_match": true
+   },
+   "plans": {
+    "0": "SW:rle,SW:rpn,SW:merge,SW:topk",
+    "1": "SW:rle,SW:rpn,SW:merge,SW:topk",
+    "2": "SW:rle,SW:rpn,SW:merge,SW:topk"
+   },
+   "per_seed": {
+    "0": [
+     {
+      "index": 0,
+      "family": "SW",
+      "problem": "rle",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 1,
+      "n_to_achieve": 1.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 1.0,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 1,
+      "mean_prediction_nll": 2.053013240641546,
+      "n_predictions_resolved": 4,
+      "primitive_ops_total": 1,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 21.868189096450806,
+      "inference_s": 18.49511787528172,
+      "training_s": 0.0220372318290174,
+      "meta_records": 2,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "no_policy_update_recorded": 2
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": false,
+       "experiential": false,
+       "reward": false,
+       "heads": false,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "fast": 1
+      },
+      "slow_steps": {
+       "total": 0,
+       "kept": 0,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": []
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 32.52718734741211,
+      "gpu_peak_gb": 9.266298770904541,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 1,
+      "family": "SW",
+      "problem": "rpn",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 1,
+      "n_to_achieve": 1.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 1.0,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 1,
+      "mean_prediction_nll": 2.047135040797524,
+      "n_predictions_resolved": 4,
+      "primitive_ops_total": 1,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 45.59924936294556,
+      "inference_s": 31.530539351981133,
+      "training_s": 2.132838391698897,
+      "meta_records": 2,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "no_policy_update_recorded": 2
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": false,
+       "experiential": true,
+       "reward": false,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "frequent": 1,
+       "fast": 1
+      },
+      "slow_steps": {
+       "total": 0,
+       "kept": 0,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": []
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 56.73438739776611,
+      "gpu_peak_gb": 9.806226253509521,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 2,
+      "family": "SW",
+      "problem": "merge",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 5,
+      "n_to_achieve": 5.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 0.6,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 4,
+      "mean_prediction_nll": -1.4750460976087134,
+      "n_predictions_resolved": 20,
+      "primitive_ops_total": 5,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 211.49161219596863,
+      "inference_s": 151.87980965012684,
+      "training_s": 47.15561177348718,
+      "meta_records": 6,
+      "meta_applied": 1,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 5
+      },
+      "meta_grad_norms": [
+       3.7002374171295203
+      ],
+      "meta_estimators": [
+       "importance_weighted"
+      ],
+      "reward_changed": true,
+      "groups_changed": {
+       "semantic_adapters": true,
+       "experiential": true,
+       "reward": true,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "frequent": 9,
+       "fast": 5,
+       "slow_adapters": 2
+      },
+      "slow_steps": {
+       "total": 2,
+       "kept": 1,
+       "reverted": 0,
+       "deferred": 1,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": [
+        0.0689493864774704
+       ]
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 223.9839735031128,
+      "gpu_peak_gb": 11.985164642333984,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 3,
+      "family": "SW",
+      "problem": "topk",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 4,
+      "n_to_achieve": 4.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 0.75,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 3,
+      "mean_prediction_nll": -2.1066737268163616,
+      "n_predictions_resolved": 16,
+      "primitive_ops_total": 4,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 233.98788356781006,
+      "inference_s": 139.50013832189143,
+      "training_s": 76.30998975317925,
+      "meta_records": 5,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 4,
+       "no_supported_episode": 1
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": true,
+       "experiential": true,
+       "reward": false,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "fast": 4,
+       "frequent": 6,
+       "slow_adapters": 2
+      },
+      "slow_steps": {
+       "total": 2,
+       "kept": 2,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": [
+        0.1355784386396408,
+        0.1420745700597763
+       ]
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 246.0102024078369,
+      "gpu_peak_gb": 12.945260047912598,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     }
+    ],
+    "1": [
+     {
+      "index": 0,
+      "family": "SW",
+      "problem": "rle",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 5,
+      "n_to_achieve": 5.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 1.0,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 5,
+      "mean_prediction_nll": 1.2294541320695966,
+      "n_predictions_resolved": 17,
+      "primitive_ops_total": 5,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 206.86574912071228,
+      "inference_s": 147.36933242343366,
+      "training_s": 53.95792141370475,
+      "meta_records": 6,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "no_policy_update_recorded": 2,
+       "insufficient_independent_outcomes": 4
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": true,
+       "experiential": true,
+       "reward": false,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "fast": 5,
+       "frequent": 7,
+       "slow_adapters": 2
+      },
+      "slow_steps": {
+       "total": 2,
+       "kept": 2,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": [
+        0.06927072256803513,
+        0.1281576156616211
+       ]
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 216.9905743598938,
+      "gpu_peak_gb": 11.350034236907959,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 1,
+      "family": "SW",
+      "problem": "rpn",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 4,
+      "n_to_achieve": 4.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 0.5,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 2,
+      "mean_prediction_nll": -1.485086811938065,
+      "n_predictions_resolved": 14,
+      "primitive_ops_total": 4,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 195.89692735671997,
+      "inference_s": 130.89486179919913,
+      "training_s": 46.46844475856051,
+      "meta_records": 5,
+      "meta_applied": 1,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 4
+      },
+      "meta_grad_norms": [
+       1.2888039466366128
+      ],
+      "meta_estimators": [
+       "importance_weighted"
+      ],
+      "reward_changed": true,
+      "groups_changed": {
+       "semantic_adapters": true,
+       "experiential": true,
+       "reward": true,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "frequent": 7,
+       "fast": 4,
+       "slow_adapters": 1
+      },
+      "slow_steps": {
+       "total": 1,
+       "kept": 1,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": [
+        0.12530964612960815
+       ]
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 207.6763093471527,
+      "gpu_peak_gb": 11.879008769989014,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 2,
+      "family": "SW",
+      "problem": "merge",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 1,
+      "n_to_achieve": 1.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 1.0,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 1,
+      "mean_prediction_nll": 0.5825726895835323,
+      "n_predictions_resolved": 1,
+      "primitive_ops_total": 1,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 58.84902787208557,
+      "inference_s": 36.29638244025409,
+      "training_s": 0.38134531304240227,
+      "meta_records": 2,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 2
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": false,
+       "experiential": false,
+       "reward": false,
+       "heads": false,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "fast": 1
+      },
+      "slow_steps": {
+       "total": 0,
+       "kept": 0,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": []
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 71.40952563285828,
+      "gpu_peak_gb": 10.279453754425049,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 3,
+      "family": "SW",
+      "problem": "topk",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 3,
+      "n_to_achieve": 3.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 0.3333333333333333,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 3,
+      "mean_prediction_nll": -1.5614627445497105,
+      "n_predictions_resolved": 9,
+      "primitive_ops_total": 3,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 217.4870023727417,
+      "inference_s": 106.58513557352126,
+      "training_s": 87.87656546244398,
+      "meta_records": 4,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 3,
+       "no_supported_episode": 1
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": true,
+       "experiential": true,
+       "reward": false,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "frequent": 5,
+       "slow_adapters": 2,
+       "fast": 3
+      },
+      "slow_steps": {
+       "total": 2,
+       "kept": 2,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": [
+        0.12469502538442612,
+        0.1238027811050415
+       ]
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 229.63475799560547,
+      "gpu_peak_gb": 11.363924980163574,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     }
+    ],
+    "2": [
+     {
+      "index": 0,
+      "family": "SW",
+      "problem": "rle",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 13,
+      "n_to_achieve": 13.0,
+      "censored": false,
+      "executable_fraction": 0.9230769230769231,
+      "backbone_chosen_fraction": 0.5384615384615384,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 7,
+      "mean_prediction_nll": 4.683754771519626,
+      "n_predictions_resolved": 49,
+      "primitive_ops_total": 12,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 402.0717508792877,
+      "inference_s": 298.381203756202,
+      "training_s": 96.78652294399217,
+      "meta_records": 14,
+      "meta_applied": 1,
+      "meta_skipped": {
+       "no_policy_update_recorded": 2,
+       "insufficient_independent_outcomes": 5,
+       "zero_advantage": 6
+      },
+      "meta_grad_norms": [
+       0.8303881916646572
+      ],
+      "meta_estimators": [
+       "importance_weighted"
+      ],
+      "reward_changed": true,
+      "groups_changed": {
+       "semantic_adapters": true,
+       "experiential": true,
+       "reward": true,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "fast": 13,
+       "frequent": 19,
+       "slow_adapters": 5
+      },
+      "slow_steps": {
+       "total": 5,
+       "kept": 4,
+       "reverted": 0,
+       "deferred": 1,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": [
+        0.06914278864860535,
+        0.11775945127010345,
+        0.12463059276342392,
+        0.13143150508403778
+       ]
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 411.78914761543274,
+      "gpu_peak_gb": 13.077520847320557,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 1,
+      "family": "SW",
+      "problem": "rpn",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 14,
+      "n_to_achieve": 14.0,
+      "censored": false,
+      "executable_fraction": 0.7857142857142857,
+      "backbone_chosen_fraction": 0.7857142857142857,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 8,
+      "mean_prediction_nll": 7.293354458240089,
+      "n_predictions_resolved": 48,
+      "primitive_ops_total": 14,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 655.5573227405548,
+      "inference_s": 424.7980857347138,
+      "training_s": 205.71749290870503,
+      "meta_records": 15,
+      "meta_applied": 1,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 9,
+       "zero_advantage": 4,
+       "no_supported_episode": 1
+      },
+      "meta_grad_norms": [
+       0.17100784733340868
+      ],
+      "meta_estimators": [
+       "importance_weighted"
+      ],
+      "reward_changed": true,
+      "groups_changed": {
+       "semantic_adapters": true,
+       "experiential": true,
+       "reward": true,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "fast": 14,
+       "frequent": 19,
+       "slow_adapters": 5
+      },
+      "slow_steps": {
+       "total": 5,
+       "kept": 5,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": [
+        0.1305931657552719,
+        0.12852546572685242,
+        0.12019889801740646,
+        0.11577507108449936,
+        0.10935456305742264
+       ]
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 667.5838239192963,
+      "gpu_peak_gb": 14.895345211029053,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 2,
+      "family": "SW",
+      "problem": "merge",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 7,
+      "n_to_achieve": 7.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 0.42857142857142855,
+      "backbone_candidate_fraction": 0.4857142857142857,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 6,
+      "mean_prediction_nll": 1.1714920172877563,
+      "n_predictions_resolved": 28,
+      "primitive_ops_total": 7,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 350.18079447746277,
+      "inference_s": 178.2766549056396,
+      "training_s": 142.27817823318765,
+      "meta_records": 8,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 6,
+       "no_supported_episode": 2
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": true,
+       "experiential": true,
+       "reward": false,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "frequent": 12,
+       "fast": 7,
+       "slow_adapters": 3
+      },
+      "slow_steps": {
+       "total": 3,
+       "kept": 3,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": [
+        0.10542232543230057,
+        0.1017356812953949,
+        0.09734544903039932
+       ]
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 363.4223110675812,
+      "gpu_peak_gb": 15.462180614471436,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 3,
+      "family": "SW",
+      "problem": "topk",
+      "achieved": false,
+      "interrupted": false,
+      "verified_value": 0.0,
+      "verified_status": "pending",
+      "stop": "wall_budget",
+      "runtime_reason": "wall budget 617 s of this lock hold reached",
+      "decisions": 13,
+      "n_to_achieve": 20.0,
+      "censored": true,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 0.15384615384615385,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 6,
+      "mean_prediction_nll": 0.9983498431729741,
+      "n_predictions_resolved": 57,
+      "primitive_ops_total": 11,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 627.7698004245758,
+      "inference_s": 353.8241325253621,
+      "training_s": 240.0095682446845,
+      "meta_records": 13,
+      "meta_applied": 1,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 11,
+       "no_supported_episode": 1
+      },
+      "meta_grad_norms": [
+       0.3126496427353937
+      ],
+      "meta_estimators": [
+       "importance_weighted"
+      ],
+      "reward_changed": true,
+      "groups_changed": {
+       "semantic_adapters": true,
+       "experiential": true,
+       "reward": true,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "fast": 12,
+       "frequent": 16,
+       "slow_adapters": 4
+      },
+      "slow_steps": {
+       "total": 4,
+       "kept": 4,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": [
+        0.16708657145500183,
+        0.13388045132160187,
+        0.13143709301948547,
+        0.12441440671682358
+       ]
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 641.2446115016937,
+      "gpu_peak_gb": 14.84758472442627,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     }
+    ]
+   },
+   "configuration": {
+    "0": {
+     "agent_class": "CamLiveAgent",
+     "backbone": "Qwen/Qwen3-4B",
+     "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+     "scale": "50m",
+     "device": "cuda:0",
+     "parameters": {
+      "frozen": 4022468096,
+      "experiential": 50953773,
+      "adapters": 16713856,
+      "adapters_lora": 11796480,
+      "adapters_bridge": 4917376,
+      "reward": 949121,
+      "heads": {
+       "predict_world": 1022954,
+       "predict_transition": 1977600,
+       "predict_evaluator": 783192,
+       "predict_policy": 702339,
+       "predict_downstream": 84195,
+       "predict_content": 284448,
+       "reward": 949121,
+       "credit_rudder": 559361,
+       "credit_cocoa": 925696
+      },
+      "head_groups": {
+       "predict_world": "heads",
+       "predict_transition": "heads",
+       "predict_evaluator": "heads",
+       "predict_policy": "heads",
+       "predict_downstream": "heads",
+       "predict_content": "heads",
+       "reward": "reward",
+       "credit_rudder": "heads",
+       "credit_cocoa": "heads"
+      },
+      "heads_total": 6339785,
+      "total_persistent_trainable": 74956535,
+      "by_group": {
+       "backbone_frozen": 4022468096,
+       "semantic_adapters": 16713856,
+       "experiential": 50953773,
+       "reward": 949121,
+       "heads": 6339785
+      },
+      "scale": "50m",
+      "backbone": "Qwen/Qwen3-4B",
+      "backbone_pretrained": true,
+      "fast_state_numbers_per_kind": 16512
+     },
+     "agent_settings": {
+      "use_backbone": true,
+      "selection_rule": "thompson_policy",
+      "proposer_max_new_tokens": 512,
+      "proposer_k": 4,
+      "experiment_rate": 0.1,
+      "adapters": true,
+      "bridge_grounding": true,
+      "retention": true
+     },
+     "loss_providers": [
+      "world_model",
+      "fast_prior",
+      "evaluator",
+      "world_model_adapters",
+      "evaluator_adapters",
+      "content",
+      "rudder",
+      "cocoa",
+      "retention",
+      "bridge_grounding"
+     ],
+     "credit_assigner": true,
+     "pathways": {
+      "fast_beliefs": true,
+      "weights": true,
+      "policy_update": true,
+      "meta_learning": true,
+      "bootstrap_mix": 1.0,
+      "chooser": "thompson_policy"
+     },
+     "trainable_groups": [
+      "backbone_frozen",
+      "experiential",
+      "heads",
+      "reward",
+      "semantic_adapters"
+     ]
+    },
+    "1": {
+     "agent_class": "CamLiveAgent",
+     "backbone": "Qwen/Qwen3-4B",
+     "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+     "scale": "50m",
+     "device": "cuda:0",
+     "parameters": {
+      "frozen": 4022468096,
+      "experiential": 50953773,
+      "adapters": 16713856,
+      "adapters_lora": 11796480,
+      "adapters_bridge": 4917376,
+      "reward": 949121,
+      "heads": {
+       "predict_world": 1022954,
+       "predict_transition": 1977600,
+       "predict_evaluator": 783192,
+       "predict_policy": 702339,
+       "predict_downstream": 84195,
+       "predict_content": 284448,
+       "reward": 949121,
+       "credit_rudder": 559361,
+       "credit_cocoa": 925696
+      },
+      "head_groups": {
+       "predict_world": "heads",
+       "predict_transition": "heads",
+       "predict_evaluator": "heads",
+       "predict_policy": "heads",
+       "predict_downstream": "heads",
+       "predict_content": "heads",
+       "reward": "reward",
+       "credit_rudder": "heads",
+       "credit_cocoa": "heads"
+      },
+      "heads_total": 6339785,
+      "total_persistent_trainable": 74956535,
+      "by_group": {
+       "backbone_frozen": 4022468096,
+       "semantic_adapters": 16713856,
+       "experiential": 50953773,
+       "reward": 949121,
+       "heads": 6339785
+      },
+      "scale": "50m",
+      "backbone": "Qwen/Qwen3-4B",
+      "backbone_pretrained": true,
+      "fast_state_numbers_per_kind": 16512
+     },
+     "agent_settings": {
+      "use_backbone": true,
+      "selection_rule": "thompson_policy",
+      "proposer_max_new_tokens": 512,
+      "proposer_k": 4,
+      "experiment_rate": 0.1,
+      "adapters": true,
+      "bridge_grounding": true,
+      "retention": true
+     },
+     "loss_providers": [
+      "world_model",
+      "fast_prior",
+      "evaluator",
+      "world_model_adapters",
+      "evaluator_adapters",
+      "content",
+      "rudder",
+      "cocoa",
+      "retention",
+      "bridge_grounding"
+     ],
+     "credit_assigner": true,
+     "pathways": {
+      "fast_beliefs": true,
+      "weights": true,
+      "policy_update": true,
+      "meta_learning": true,
+      "bootstrap_mix": 1.0,
+      "chooser": "thompson_policy"
+     },
+     "trainable_groups": [
+      "backbone_frozen",
+      "experiential",
+      "heads",
+      "reward",
+      "semantic_adapters"
+     ]
+    },
+    "2": {
+     "agent_class": "CamLiveAgent",
+     "backbone": "Qwen/Qwen3-4B",
+     "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+     "scale": "50m",
+     "device": "cuda:0",
+     "parameters": {
+      "frozen": 4022468096,
+      "experiential": 50953773,
+      "adapters": 16713856,
+      "adapters_lora": 11796480,
+      "adapters_bridge": 4917376,
+      "reward": 949121,
+      "heads": {
+       "predict_world": 1022954,
+       "predict_transition": 1977600,
+       "predict_evaluator": 783192,
+       "predict_policy": 702339,
+       "predict_downstream": 84195,
+       "predict_content": 284448,
+       "reward": 949121,
+       "credit_rudder": 559361,
+       "credit_cocoa": 925696
+      },
+      "head_groups": {
+       "predict_world": "heads",
+       "predict_transition": "heads",
+       "predict_evaluator": "heads",
+       "predict_policy": "heads",
+       "predict_downstream": "heads",
+       "predict_content": "heads",
+       "reward": "reward",
+       "credit_rudder": "heads",
+       "credit_cocoa": "heads"
+      },
+      "heads_total": 6339785,
+      "total_persistent_trainable": 74956535,
+      "by_group": {
+       "backbone_frozen": 4022468096,
+       "semantic_adapters": 16713856,
+       "experiential": 50953773,
+       "reward": 949121,
+       "heads": 6339785
+      },
+      "scale": "50m",
+      "backbone": "Qwen/Qwen3-4B",
+      "backbone_pretrained": true,
+      "fast_state_numbers_per_kind": 16512
+     },
+     "agent_settings": {
+      "use_backbone": true,
+      "selection_rule": "thompson_policy",
+      "proposer_max_new_tokens": 512,
+      "proposer_k": 4,
+      "experiment_rate": 0.1,
+      "adapters": true,
+      "bridge_grounding": true,
+      "retention": true
+     },
+     "loss_providers": [
+      "world_model",
+      "fast_prior",
+      "evaluator",
+      "world_model_adapters",
+      "evaluator_adapters",
+      "content",
+      "rudder",
+      "cocoa",
+      "retention",
+      "bridge_grounding"
+     ],
+     "credit_assigner": true,
+     "pathways": {
+      "fast_beliefs": true,
+      "weights": true,
+      "policy_update": true,
+      "meta_learning": true,
+      "bootstrap_mix": 1.0,
+      "chooser": "thompson_policy"
+     },
+     "trainable_groups": [
+      "backbone_frozen",
+      "experiential",
+      "heads",
+      "reward",
+      "semantic_adapters"
+     ]
+    }
+   },
+   "fresh_process": {},
+   "code": {
+    "0": {
+     "cam_live_dir": "/workspace/camlive/runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d/cam_live/src/cam_live",
+     "snapshot": "/workspace/camlive/runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d",
+     "snapshot_commit": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf",
+     "agent.py": "fd3eb80535454ed1",
+     "reward/metalearner.py": "645633ee70415742",
+     "credit/learner.py": "fa9bc23273a15f88",
+     "predict/predictor.py": "de28aff4c934c305",
+     "runtime/loop.py": "3ee639b0495c6741",
+     "nn/model.py": "781a80d113272e7d",
+     "eval/conditions.py": "b9d2a82a70388055",
+     "eval/runner.py": "e829a782e3463f5b"
+    },
+    "1": {
+     "cam_live_dir": "/workspace/camlive/runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d/cam_live/src/cam_live",
+     "snapshot": "/workspace/camlive/runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d",
+     "snapshot_commit": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf",
+     "agent.py": "fd3eb80535454ed1",
+     "reward/metalearner.py": "645633ee70415742",
+     "credit/learner.py": "fa9bc23273a15f88",
+     "predict/predictor.py": "de28aff4c934c305",
+     "runtime/loop.py": "3ee639b0495c6741",
+     "nn/model.py": "781a80d113272e7d",
+     "eval/conditions.py": "b9d2a82a70388055",
+     "eval/runner.py": "e829a782e3463f5b"
+    },
+    "2": {
+     "cam_live_dir": "/workspace/camlive/runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d/cam_live/src/cam_live",
+     "snapshot": "/workspace/camlive/runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d",
+     "snapshot_commit": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf",
+     "agent.py": "fd3eb80535454ed1",
+     "reward/metalearner.py": "645633ee70415742",
+     "credit/learner.py": "fa9bc23273a15f88",
+     "predict/predictor.py": "de28aff4c934c305",
+     "runtime/loop.py": "3ee639b0495c6741",
+     "nn/model.py": "781a80d113272e7d",
+     "eval/conditions.py": "b9d2a82a70388055",
+     "eval/runner.py": "e829a782e3463f5b"
+    }
+   }
+  },
+  "Erpsi0": {
+   "seeds": [
+    0,
+    1,
+    2
+   ],
+   "objectives_planned": 12,
+   "objectives_attempted": 8,
+   "objectives_achieved": 7,
+   "objectives_never_reached": 1,
+   "objectives_interrupted": 0,
+   "objectives_not_run": 4,
+   "stops": {
+    "achieved": 7,
+    "wall_budget": 1
+   },
+   "achieved_by_problem": {
+    "merge": "1/2",
+    "rle": "3/3",
+    "rpn": "2/2",
+    "topk": "1/1"
+   },
+   "decisions_to_achieve_censored": {
+    "per_seed": [
+     3.25,
+     9.666666666666666,
+     2.0
+    ],
+    "mean": 4.972222222222222,
+    "min": 2.0,
+    "max": 9.666666666666666
+   },
+   "decisions_used": {
+    "per_seed": [
+     3.25,
+     8.333333333333334,
+     2.0
+    ],
+    "mean": 4.527777777777778,
+    "min": 2.0,
+    "max": 8.333333333333334
+   },
+   "verified_value": {
+    "per_seed": [
+     1.0,
+     0.9500000000000001,
+     1.0
+    ],
+    "mean": 0.9833333333333334,
+    "min": 0.9500000000000001,
+    "max": 1.0
+   },
+   "executable_fraction": {
+    "per_seed": [
+     1.0,
+     0.9523809523809524,
+     1.0
+    ],
+    "mean": 0.9841269841269842,
+    "min": 0.9523809523809524,
+    "max": 1.0
+   },
+   "backbone_chosen_fraction": {
+    "per_seed": [
+     0.7678571428571428,
+     0.4613095238095238,
+     0.5
+    ],
+    "mean": 0.5763888888888888,
+    "min": 0.4613095238095238,
+    "max": 0.7678571428571428
+   },
+   "backbone_candidate_fraction": {
+    "per_seed": [
+     0.5,
+     0.49374999999999997,
+     0.5
+    ],
+    "mean": 0.4979166666666666,
+    "min": 0.49374999999999997,
+    "max": 0.5
+   },
+   "repeats_of_failed_actions": {
+    "per_seed": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "mean": 0.0,
+    "min": 0.0,
+    "max": 0.0
+   },
+   "distinct_strategies": {
+    "per_seed": [
+     3.0,
+     6.0,
+     2.0
+    ],
+    "mean": 3.6666666666666665,
+    "min": 2.0,
+    "max": 6.0
+   },
+   "mean_prediction_nll": {
+    "per_seed": [
+     1.3362276755442803,
+     -1.344603007280832,
+     1.9292375538832303
+    ],
+    "mean": 0.6402874073822262,
+    "min": -1.344603007280832,
+    "max": 1.9292375538832303
+   },
+   "meta_update_records": 47,
+   "meta_updates_applied_total": 0,
+   "meta_skip_reasons": {
+    "no_policy_update_recorded": 8,
+    "insufficient_independent_outcomes": 30,
+    "psi_unchanged_by_the_step | pooled": 3,
+    "no_supported_episode": 3,
+    "zero_advantage": 3
+   },
+   "meta_grad_norms": [],
+   "objectives_with_reward_change": 0,
+   "objectives_with_adapter_change": 4,
+   "bootstrap_mix_values": [
+    1.0
+   ],
+   "slow_steps": {
+    "objectives_with_log": 8,
+    "total": 13,
+    "kept": 12,
+    "reverted": 0,
+    "deferred": 1,
+    "kept_unguarded": 0,
+    "skipped": {}
+   },
+   "unavailable_tools_seen": [],
+   "max_lock_hold_s": 650.7788503170013,
+   "gpu_peak_gb_max": 13.05942964553833,
+   "wall_s_per_objective": {
+    "per_seed": [
+     136.57690036296844,
+     319.7395398616791,
+     51.260178089141846
+    ],
+    "mean": 169.19220610459647,
+    "min": 51.260178089141846,
+    "max": 319.7395398616791
+   },
+   "learning_curve_by_index": {
+    "0": "3/3",
+    "1": "2/2",
+    "2": "1/2",
+    "3": "1/1"
+   },
+   "code_check": {
+    "expected": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf",
+    "snapshot_commit_per_seed": {
+     "0": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf",
+     "1": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf",
+     "2": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+    },
+    "objective_eval_codes": {
+     "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf": 8
+    },
+    "all_match": true
+   },
+   "plans": {
+    "0": "SW:rle,SW:rpn,SW:merge,SW:topk",
+    "1": "SW:rle,SW:rpn,SW:merge,SW:topk",
+    "2": "SW:rle,SW:rpn,SW:merge,SW:topk"
+   },
+   "per_seed": {
+    "0": [
+     {
+      "index": 0,
+      "family": "SW",
+      "problem": "rle",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 1,
+      "n_to_achieve": 1.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 1.0,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 1,
+      "mean_prediction_nll": 2.052898759497387,
+      "n_predictions_resolved": 4,
+      "primitive_ops_total": 1,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 21.05000638961792,
+      "inference_s": 18.260286196600646,
+      "training_s": 0.02443970600143075,
+      "meta_records": 2,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "no_policy_update_recorded": 2
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": false,
+       "experiential": false,
+       "reward": false,
+       "heads": false,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "fast": 1
+      },
+      "slow_steps": {
+       "total": 0,
+       "kept": 0,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": []
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 30.969675540924072,
+      "gpu_peak_gb": 9.266298770904541,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 1,
+      "family": "SW",
+      "problem": "rpn",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 7,
+      "n_to_achieve": 7.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 0.5714285714285714,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 6,
+      "mean_prediction_nll": 4.4988711188015325,
+      "n_predictions_resolved": 25,
+      "primitive_ops_total": 5,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 291.80972623825073,
+      "inference_s": 206.514096965082,
+      "training_s": 74.01472003152594,
+      "meta_records": 8,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "no_policy_update_recorded": 1,
+       "insufficient_independent_outcomes": 6,
+       "psi_unchanged_by_the_step | pooled": 1
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": true,
+       "experiential": true,
+       "reward": false,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "fast": 7,
+       "frequent": 11,
+       "slow_adapters": 3
+      },
+      "slow_steps": {
+       "total": 3,
+       "kept": 2,
+       "reverted": 0,
+       "deferred": 1,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": [
+        0.06825598329305649,
+        0.1510002166032791
+       ]
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 302.52752351760864,
+      "gpu_peak_gb": 13.05942964553833,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 2,
+      "family": "SW",
+      "problem": "merge",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 1,
+      "n_to_achieve": 1.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 1.0,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 1,
+      "mean_prediction_nll": 0.5359259739163124,
+      "n_predictions_resolved": 1,
+      "primitive_ops_total": 1,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 46.36317825317383,
+      "inference_s": 26.57967632636428,
+      "training_s": 2.459534101188183,
+      "meta_records": 2,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 2
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": false,
+       "experiential": true,
+       "reward": false,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "frequent": 1,
+       "fast": 1
+      },
+      "slow_steps": {
+       "total": 0,
+       "kept": 0,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": []
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 59.29232358932495,
+      "gpu_peak_gb": 10.071126937866211,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 3,
+      "family": "SW",
+      "problem": "topk",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 4,
+      "n_to_achieve": 4.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 0.5,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 4,
+      "mean_prediction_nll": -1.7427851500381106,
+      "n_predictions_resolved": 13,
+      "primitive_ops_total": 4,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 187.0846905708313,
+      "inference_s": 110.98421802837402,
+      "training_s": 56.15609839186072,
+      "meta_records": 5,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 4,
+       "psi_unchanged_by_the_step | pooled": 1
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": true,
+       "experiential": true,
+       "reward": false,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "frequent": 7,
+       "fast": 4,
+       "slow_adapters": 2
+      },
+      "slow_steps": {
+       "total": 2,
+       "kept": 2,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": [
+        0.14510898292064667,
+        0.1454925686120987
+       ]
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 199.47977423667908,
+      "gpu_peak_gb": 12.743956089019775,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     }
+    ],
+    "1": [
+     {
+      "index": 0,
+      "family": "SW",
+      "problem": "rle",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 7,
+      "n_to_achieve": 7.0,
+      "censored": false,
+      "executable_fraction": 0.8571428571428571,
+      "backbone_chosen_fraction": 0.5714285714285714,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 7,
+      "mean_prediction_nll": -0.15896909282725305,
+      "n_predictions_resolved": 29,
+      "primitive_ops_total": 7,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 239.78650617599487,
+      "inference_s": 179.9437621049583,
+      "training_s": 54.42457253532484,
+      "meta_records": 8,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "no_policy_update_recorded": 2,
+       "insufficient_independent_outcomes": 5,
+       "no_supported_episode": 1
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": true,
+       "experiential": true,
+       "reward": false,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "fast": 7,
+       "frequent": 11,
+       "slow_adapters": 3
+      },
+      "slow_steps": {
+       "total": 3,
+       "kept": 3,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": [
+        0.06936153024435043,
+        0.11578644812107086,
+        0.11818166822195053
+       ]
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 249.98406505584717,
+      "gpu_peak_gb": 12.938090324401855,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 1,
+      "family": "SW",
+      "problem": "rpn",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 2,
+      "n_to_achieve": 2.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 0.5,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 2,
+      "mean_prediction_nll": -1.8784484557918404,
+      "n_predictions_resolved": 8,
+      "primitive_ops_total": 2,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 81.37794733047485,
+      "inference_s": 58.31330409552902,
+      "training_s": 5.342476339545101,
+      "meta_records": 3,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 3
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": false,
+       "experiential": true,
+       "reward": false,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "fast": 2,
+       "frequent": 3
+      },
+      "slow_steps": {
+       "total": 0,
+       "kept": 0,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": []
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 92.94979596138,
+      "gpu_peak_gb": 10.146027565002441,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     },
+     {
+      "index": 2,
+      "family": "SW",
+      "problem": "merge",
+      "achieved": false,
+      "interrupted": false,
+      "verified_value": 0.85,
+      "verified_status": "pending",
+      "stop": "wall_budget",
+      "runtime_reason": "wall budget 618 s of this lock hold reached",
+      "decisions": 16,
+      "n_to_achieve": 20.0,
+      "censored": true,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 0.3125,
+      "backbone_candidate_fraction": 0.48125,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 9,
+      "mean_prediction_nll": -1.996391473223402,
+      "n_predictions_resolved": 61,
+      "primitive_ops_total": 15,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 638.0541660785675,
+      "inference_s": 457.5888191224076,
+      "training_s": 155.71549597242847,
+      "meta_records": 16,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "insufficient_independent_outcomes": 10,
+       "no_supported_episode": 2,
+       "zero_advantage": 3,
+       "psi_unchanged_by_the_step | pooled": 1
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": true,
+       "experiential": true,
+       "reward": false,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "checkpoint": 1,
+       "fast": 15,
+       "frequent": 19,
+       "slow_adapters": 5
+      },
+      "slow_steps": {
+       "total": 5,
+       "kept": 5,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": [
+        0.12222585082054138,
+        0.1251882165670395,
+        0.1226421371102333,
+        0.12120349705219269,
+        0.12318648397922516
+       ]
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 650.7788503170013,
+      "gpu_peak_gb": 11.747173309326172,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     }
+    ],
+    "2": [
+     {
+      "index": 0,
+      "family": "SW",
+      "problem": "rle",
+      "achieved": true,
+      "interrupted": false,
+      "verified_value": 1.0,
+      "verified_status": "achieved",
+      "stop": "achieved",
+      "runtime_reason": "verifier status achieved: value 1.0 against target 0.9",
+      "decisions": 2,
+      "n_to_achieve": 2.0,
+      "censored": false,
+      "executable_fraction": 1.0,
+      "backbone_chosen_fraction": 0.5,
+      "backbone_candidate_fraction": 0.5,
+      "repeats_of_failed_actions": 0,
+      "distinct_strategies": 2,
+      "mean_prediction_nll": 1.9292375538832303,
+      "n_predictions_resolved": 8,
+      "primitive_ops_total": 2,
+      "skill_runs": 0,
+      "skill_runs_ok": 0,
+      "wall_s": 51.260178089141846,
+      "inference_s": 43.60129395034164,
+      "training_s": 3.458766440395266,
+      "meta_records": 3,
+      "meta_applied": 0,
+      "meta_skipped": {
+       "no_policy_update_recorded": 3
+      },
+      "meta_grad_norms": [],
+      "meta_estimators": [],
+      "reward_changed": false,
+      "groups_changed": {
+       "semantic_adapters": false,
+       "experiential": true,
+       "reward": false,
+       "heads": true,
+       "backbone_frozen": false
+      },
+      "mix": 1.0,
+      "learning_by_timescale": {
+       "fast": 2,
+       "frequent": 2
+      },
+      "slow_steps": {
+       "total": 0,
+       "kept": 0,
+       "reverted": 0,
+       "deferred": 0,
+       "kept_unguarded": 0,
+       "skipped": {},
+       "kept_adapter_delta": []
+      },
+      "unavailable_tools": [],
+      "lock_hold_s": 61.05115747451782,
+      "gpu_peak_gb": 9.64942979812622,
+      "errors": 0,
+      "eval_code": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf"
+     }
+    ]
+   },
+   "configuration": {
+    "0": {
+     "agent_class": "CamLiveAgent",
+     "backbone": "Qwen/Qwen3-4B",
+     "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+     "scale": "50m",
+     "device": "cuda:0",
+     "parameters": {
+      "frozen": 4022468096,
+      "experiential": 50953773,
+      "adapters": 16713856,
+      "adapters_lora": 11796480,
+      "adapters_bridge": 4917376,
+      "reward": 949121,
+      "heads": {
+       "predict_world": 1022954,
+       "predict_transition": 1977600,
+       "predict_evaluator": 783192,
+       "predict_policy": 702339,
+       "predict_downstream": 84195,
+       "predict_content": 284448,
+       "reward": 949121,
+       "credit_rudder": 559361,
+       "credit_cocoa": 925696
+      },
+      "head_groups": {
+       "predict_world": "heads",
+       "predict_transition": "heads",
+       "predict_evaluator": "heads",
+       "predict_policy": "heads",
+       "predict_downstream": "heads",
+       "predict_content": "heads",
+       "reward": "reward",
+       "credit_rudder": "heads",
+       "credit_cocoa": "heads"
+      },
+      "heads_total": 6339785,
+      "total_persistent_trainable": 74956535,
+      "by_group": {
+       "backbone_frozen": 4022468096,
+       "semantic_adapters": 16713856,
+       "experiential": 50953773,
+       "reward": 949121,
+       "heads": 6339785
+      },
+      "scale": "50m",
+      "backbone": "Qwen/Qwen3-4B",
+      "backbone_pretrained": true,
+      "fast_state_numbers_per_kind": 16512
+     },
+     "agent_settings": {
+      "use_backbone": true,
+      "selection_rule": "thompson_policy",
+      "proposer_max_new_tokens": 512,
+      "proposer_k": 4,
+      "experiment_rate": 0.1,
+      "adapters": true,
+      "bridge_grounding": true,
+      "retention": true
+     },
+     "loss_providers": [
+      "world_model",
+      "fast_prior",
+      "evaluator",
+      "world_model_adapters",
+      "evaluator_adapters",
+      "content",
+      "rudder",
+      "cocoa",
+      "retention",
+      "bridge_grounding"
+     ],
+     "credit_assigner": true,
+     "pathways": {
+      "fast_beliefs": true,
+      "weights": true,
+      "policy_update": true,
+      "meta_learning": true,
+      "bootstrap_mix": 1.0,
+      "chooser": "thompson_policy"
+     },
+     "trainable_groups": [
+      "backbone_frozen",
+      "experiential",
+      "heads",
+      "reward",
+      "semantic_adapters"
+     ]
+    },
+    "1": {
+     "agent_class": "CamLiveAgent",
+     "backbone": "Qwen/Qwen3-4B",
+     "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+     "scale": "50m",
+     "device": "cuda:0",
+     "parameters": {
+      "frozen": 4022468096,
+      "experiential": 50953773,
+      "adapters": 16713856,
+      "adapters_lora": 11796480,
+      "adapters_bridge": 4917376,
+      "reward": 949121,
+      "heads": {
+       "predict_world": 1022954,
+       "predict_transition": 1977600,
+       "predict_evaluator": 783192,
+       "predict_policy": 702339,
+       "predict_downstream": 84195,
+       "predict_content": 284448,
+       "reward": 949121,
+       "credit_rudder": 559361,
+       "credit_cocoa": 925696
+      },
+      "head_groups": {
+       "predict_world": "heads",
+       "predict_transition": "heads",
+       "predict_evaluator": "heads",
+       "predict_policy": "heads",
+       "predict_downstream": "heads",
+       "predict_content": "heads",
+       "reward": "reward",
+       "credit_rudder": "heads",
+       "credit_cocoa": "heads"
+      },
+      "heads_total": 6339785,
+      "total_persistent_trainable": 74956535,
+      "by_group": {
+       "backbone_frozen": 4022468096,
+       "semantic_adapters": 16713856,
+       "experiential": 50953773,
+       "reward": 949121,
+       "heads": 6339785
+      },
+      "scale": "50m",
+      "backbone": "Qwen/Qwen3-4B",
+      "backbone_pretrained": true,
+      "fast_state_numbers_per_kind": 16512
+     },
+     "agent_settings": {
+      "use_backbone": true,
+      "selection_rule": "thompson_policy",
+      "proposer_max_new_tokens": 512,
+      "proposer_k": 4,
+      "experiment_rate": 0.1,
+      "adapters": true,
+      "bridge_grounding": true,
+      "retention": true
+     },
+     "loss_providers": [
+      "world_model",
+      "fast_prior",
+      "evaluator",
+      "world_model_adapters",
+      "evaluator_adapters",
+      "content",
+      "rudder",
+      "cocoa",
+      "retention",
+      "bridge_grounding"
+     ],
+     "credit_assigner": true,
+     "pathways": {
+      "fast_beliefs": true,
+      "weights": true,
+      "policy_update": true,
+      "meta_learning": true,
+      "bootstrap_mix": 1.0,
+      "chooser": "thompson_policy"
+     },
+     "trainable_groups": [
+      "backbone_frozen",
+      "experiential",
+      "heads",
+      "reward",
+      "semantic_adapters"
+     ]
+    },
+    "2": {
+     "agent_class": "CamLiveAgent",
+     "backbone": "Qwen/Qwen3-4B",
+     "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+     "scale": "50m",
+     "device": "cuda:0",
+     "parameters": {
+      "frozen": 4022468096,
+      "experiential": 50953773,
+      "adapters": 16713856,
+      "adapters_lora": 11796480,
+      "adapters_bridge": 4917376,
+      "reward": 949121,
+      "heads": {
+       "predict_world": 1022954,
+       "predict_transition": 1977600,
+       "predict_evaluator": 783192,
+       "predict_policy": 702339,
+       "predict_downstream": 84195,
+       "predict_content": 284448,
+       "reward": 949121,
+       "credit_rudder": 559361,
+       "credit_cocoa": 925696
+      },
+      "head_groups": {
+       "predict_world": "heads",
+       "predict_transition": "heads",
+       "predict_evaluator": "heads",
+       "predict_policy": "heads",
+       "predict_downstream": "heads",
+       "predict_content": "heads",
+       "reward": "reward",
+       "credit_rudder": "heads",
+       "credit_cocoa": "heads"
+      },
+      "heads_total": 6339785,
+      "total_persistent_trainable": 74956535,
+      "by_group": {
+       "backbone_frozen": 4022468096,
+       "semantic_adapters": 16713856,
+       "experiential": 50953773,
+       "reward": 949121,
+       "heads": 6339785
+      },
+      "scale": "50m",
+      "backbone": "Qwen/Qwen3-4B",
+      "backbone_pretrained": true,
+      "fast_state_numbers_per_kind": 16512
+     },
+     "agent_settings": {
+      "use_backbone": true,
+      "selection_rule": "thompson_policy",
+      "proposer_max_new_tokens": 512,
+      "proposer_k": 4,
+      "experiment_rate": 0.1,
+      "adapters": true,
+      "bridge_grounding": true,
+      "retention": true
+     },
+     "loss_providers": [
+      "world_model",
+      "fast_prior",
+      "evaluator",
+      "world_model_adapters",
+      "evaluator_adapters",
+      "content",
+      "rudder",
+      "cocoa",
+      "retention",
+      "bridge_grounding"
+     ],
+     "credit_assigner": true,
+     "pathways": {
+      "fast_beliefs": true,
+      "weights": true,
+      "policy_update": true,
+      "meta_learning": true,
+      "bootstrap_mix": 1.0,
+      "chooser": "thompson_policy"
+     },
+     "trainable_groups": [
+      "backbone_frozen",
+      "experiential",
+      "heads",
+      "reward",
+      "semantic_adapters"
+     ]
+    }
+   },
+   "fresh_process": {},
+   "code": {
+    "0": {
+     "cam_live_dir": "/workspace/camlive/runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d/cam_live/src/cam_live",
+     "snapshot": "/workspace/camlive/runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d",
+     "snapshot_commit": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf",
+     "agent.py": "fd3eb80535454ed1",
+     "reward/metalearner.py": "645633ee70415742",
+     "credit/learner.py": "fa9bc23273a15f88",
+     "predict/predictor.py": "de28aff4c934c305",
+     "runtime/loop.py": "3ee639b0495c6741",
+     "nn/model.py": "781a80d113272e7d",
+     "eval/conditions.py": "b9d2a82a70388055",
+     "eval/runner.py": "e829a782e3463f5b"
+    },
+    "1": {
+     "cam_live_dir": "/workspace/camlive/runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d/cam_live/src/cam_live",
+     "snapshot": "/workspace/camlive/runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d",
+     "snapshot_commit": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf",
+     "agent.py": "fd3eb80535454ed1",
+     "reward/metalearner.py": "645633ee70415742",
+     "credit/learner.py": "fa9bc23273a15f88",
+     "predict/predictor.py": "de28aff4c934c305",
+     "runtime/loop.py": "3ee639b0495c6741",
+     "nn/model.py": "781a80d113272e7d",
+     "eval/conditions.py": "b9d2a82a70388055",
+     "eval/runner.py": "e829a782e3463f5b"
+    },
+    "2": {
      "cam_live_dir": "/workspace/camlive/runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d/cam_live/src/cam_live",
      "snapshot": "/workspace/camlive/runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d",
      "snapshot_commit": "6cba496359da28a9742bcd04fa4a558fdec19160+eval:a52deadee86d744e3e8fef89acc4b4d31b6790bf",

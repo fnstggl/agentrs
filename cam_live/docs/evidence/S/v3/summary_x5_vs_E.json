@@ -2,11 +2,13 @@
  "executed": true,
  "experiment": "x5_vs_E",
  "results_dir": "/workspace/camlive/runs/cam_live/eval/v5/results/v3",
- "note": "goal-free phase first minus without (X1 E), seed-paired, the goal-free phase itself excluded (descriptive only, v3.5)",
- "paired_seeds": [
+ "note": "goal-free phase first minus without (X1 E), the goal-free phase itself excluded (descriptive only, v3.5)",
+ "seeds": [
   0,
   1
  ],
+ "paired": false,
+ "pairing_note": "unpaired: runs with the same seed are independent (agent id from os.urandom, G3A-3), so the difference of the arm means is reported with a bootstrap interval and a label-permutation p over the per-seed means (descriptive only, v3.5)",
  "n_to_achieve": {
   "a_per_seed": [
    12.0,
@@ -16,15 +18,17 @@
    10.75,
    7.75
   ],
+  "a_mean": 13.375,
+  "b_mean": 9.25,
   "a_minus_b": {
-   "n": 2,
+   "paired": false,
+   "n_x": 2,
+   "n_y": 2,
    "mean": 4.125,
    "lo": 1.25,
    "hi": 7.0,
-   "se": 2.875,
-   "paired": true,
-   "p": 0.5,
-   "test": "exact sign-flip permutation"
+   "p": 0.33666633336666335,
+   "test": "Monte-Carlo label permutation"
   }
  },
  "verified_value": {
@@ -36,15 +40,17 @@
    0.75,
    1.0
   ],
+  "a_mean": 0.7145833333333333,
+  "b_mean": 0.875,
   "a_minus_b": {
-   "n": 2,
+   "paired": false,
+   "n_x": 2,
+   "n_y": 2,
    "mean": -0.16041666666666665,
    "lo": -0.3208333333333333,
    "hi": 0.0,
-   "se": 0.16041666666666665,
-   "paired": true,
-   "p": 1.0,
-   "test": "exact sign-flip permutation"
+   "p": 0.6672332766723328,
+   "test": "Monte-Carlo label permutation"
   }
  },
  "achieved": {
@@ -56,15 +62,17 @@
    0.75,
    1.0
   ],
+  "a_mean": 0.625,
+  "b_mean": 0.875,
   "a_minus_b": {
-   "n": 2,
+   "paired": false,
+   "n_x": 2,
+   "n_y": 2,
    "mean": -0.25,
    "lo": -0.5,
    "hi": 0.0,
-   "se": 0.25,
-   "paired": true,
-   "p": 1.0,
-   "test": "exact sign-flip permutation"
+   "p": 0.6672332766723328,
+   "test": "Monte-Carlo label permutation"
   }
  }
 }

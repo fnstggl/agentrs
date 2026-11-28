@@ -1,11 +1,15 @@
 # CAM Live — substantive evaluation results (Protocol v3)
 
-**Status (2026-11-28 ~11:15 UTC): pre-amendment baseline on snapshot 257267c complete for X0 and X1; X5 ran;
-X2-X4 not run on 257267c (coordinator re-scope: 257267c is the PRE-AMENDMENT BASELINE, the GPU goes to CAM's live
-planning run and the core-intelligence amendment agents; the comparison run on the amended snapshot follows with the
-same seeds and budgets).** Binding plan: `docs/S/PROTOCOLS.md` Protocol v3 (v3.2 configuration, v3.3 families,
-v3.4 experiments, v3.5 statistics). Per Protocol v3.5 **no comparison here can reach p < 0.05** (3 paired seeds:
-smallest two-sided p = 0.25; 2 seeds: 0.5); everything below is an estimate with its range across seeds or a
+**Status (2026-11-28 ~18:45 UTC).** Two snapshots, reported separately: (A) the **pre-amendment baseline 257267c**
+(§1-§9): X0 and X1 complete, X5 ran, X2-X4 not run (coordinator re-scope); (B) the **amended snapshot 6cba496**
+(§10, partial: X0, X1 and the X1 ablation imagination-weight-0 complete, the ablation R_psi-frozen 8 of 12
+objectives; the batch was stopped between two leases at 18:37 UTC for the operator's redirection of 2026-11-28b;
+X2 not run). **Arms are independent runs, not paired by seed**: the independent verifier found that two fresh
+agents with the same seed are not the same experiment (agent id from `os.urandom`, G3A-3), so every comparison
+between arms or snapshots below is an unpaired estimate (difference of arm means, bootstrap interval, label
+permutation p over per-seed means). Binding plan: `docs/S/PROTOCOLS.md` Protocol v3 (v3.2 configuration, v3.3 families,
+v3.4 experiments, v3.5 statistics). Per Protocol v3.5 **no comparison here can reach p < 0.05** (3 seeds per arm,
+unpaired: smallest two-sided label-permutation p = 0.1; 2 seeds: 0.33); everything below is an estimate with its range across seeds or a
 count. Nothing here is a significance claim.
 
 ## 1. Configuration of the baseline (every substantive run)
@@ -123,8 +127,9 @@ with `--only x0,x1` to finish X1 seed 2; no objective was interrupted.
   job operations and one backbone-written program. Its objectives are the same instances as X1's (world seeds by
   position among assigned objectives).
 * Assigned objectives achieved 5 of 8 vs X1 seeds 0-1: 7 of 8. Decisions to achievement (censored at 20), mean
-  per seed 12.0, 14.75 vs X1 10.75, 7.75: difference goal-free minus X1 +4.1 (bootstrap range over the 2 seeds
-  1.25-7.0; exact sign-flip p = 0.5, the smallest attainable). **Confounded**: 3 of the 8 X5 objectives were
+  per seed 12.0, 14.75 vs X1 10.75, 7.75: difference of arm means goal-free minus X1 +4.1 (bootstrap range
+  1.25-7.0; unpaired label-permutation p = 0.34, the smallest attainable with 2 + 2 seeds is 0.33; first written as
+  seed-paired, corrected after G3A-3). **Confounded**: 3 of the 8 X5 objectives were
   stopped by the wall budget of the lease after 15-18 decisions (counted as 20), none of X1's; X5's decisions took
   longer (wall per objective 462 s vs 354 s). No benefit of the goal-free period is visible in this run; this
   is not evidence of harm either.
@@ -201,3 +206,67 @@ seeds and the run-to-run variability of §4 no difference in either direction ca
 * The wall budget of a lease can stop an objective before 20 decisions (3 objectives in X5).
 * Bootstrap mix stayed 1.0 (intrinsic reward only for the policy update) throughout; 8 of 233 meta-update records
   over X0 + X1 were applied.
+
+## 10. Amended snapshot 6cba496 (partial, stopped for the redirection)
+
+**Code.** `runs/cam_live/eval/snapshots/6cba496359da+evala52deadee86d`: agent / learner / runtime code of commit
+**6cba496359da28a9742bcd04fa4a558fdec19160** (the seven core-intelligence amendment agents integrated: imagination on
+with the learned `ImaginationCalibration` weight, evidence-based R_psi promotion, segment credit + revised-credit
+replay, persistent state off, information value as a bootstrap input, `nn.max_prompt_tokens` 8192), with this
+workstream's `cam_live/eval` of a52dead (ablation switches `--set`, plan v6, scheduling cut-off; only `cam_live/eval`
+differs from 6cba496). Every result records `6cba496...+eval:a52dead...` (`code_check.all_match: true`). Same
+seeds (0-2), plans, 20-decision budget and lease (810 s) as the baseline; `OMP_NUM_THREADS=4`, 4 torch threads per
+child; shared machine GPU lock. Parameter counts as §1 except experiential core 50,953,773 and heads 6,339,785;
+loss providers add `content`. Ablations: **Eimag0** = `predict.imagination_select=false` (IMP's "imagination
+weight 0": same numbers drawn, the distribution without imagination used); **Erpsi0** = `reward.meta.lr_reward=0`
+(RW's "R_psi frozen at its initialisation"); both verified to reach the built agent (meta optimizer lr 0.0,
+`imagination_select` False). Batch 14:50-18:37 UTC; stopped by SIGTERM between leases (no child running): no
+objective interrupted; not run: Erpsi0 seed 1 objective 4, Erpsi0 seed 2 objectives 2-4, all of X2.
+Evidence: `docs/evidence/S/v6/` (raw `final_6cba496/`, `summary_x0.json`, `summary_x1.json`,
+`summary_x1_ablations.json`, `summary_amended_vs_baseline.json`, `tables.md`).
+
+**X0 (E, seeds 0-2).**
+
+| seed | SW:rle | SW:rpn | MECH:7 |
+|---|---|---|---|
+| 0 | achieved in 1 | achieved in 10 | not reached, stopped by the wall budget at 16 |
+| 1 | achieved in 12 | achieved in 7 | not reached, wall budget at 19 |
+| 2 | achieved in 2 | achieved in 2 | not reached, wall budget at 20 |
+
+6 of 9 achieved (baseline 5 of 9); MECH still 0 of 3. Decisions to achievement (censored at 20), per-seed means
+10.3, 13.0, 8.0 (mean 10.4; baseline 12.7): difference amended minus baseline -2.2 (bootstrap -5.0 to 0.7,
+label-permutation p = 0.30). Executable fraction 0.88 (baseline 0.91); backbone-written fraction of chosen actions
+0.60 (baseline 0.43). Slow steps 28: 22 kept, 4 reverted, 2 deferred. Meta-updates 4 of 96 applied.
+
+**X1 and the two ablations (seeds 0-2).**
+
+| arm | seed 0 (rle, rpn, merge, topk) | seed 1 | seed 2 | achieved | decisions to achievement, per-seed means (mean) |
+|---|---|---|---|---|---|
+| baseline 257267c E | -, 16, 6, 1 | 6, 3, 12, 10 | 9, 9, 4, 3 | 11 / 12 | 10.75, 7.75, 6.25 (8.25) |
+| amended E | 5, 1, 4, 1 | 7, 15, -w14, -w14 | 2, 1, 3, 4 | 10 / 12 | 2.75, 15.5, 2.5 (6.9) |
+| amended Eimag0 (imagination weight 0) | 1, 1, 5, 4 | 5, 4, 1, 3 | 13, 14, 7, -w13 | 11 / 12 | 2.75, 3.25, 13.5 (6.5) |
+| amended Erpsi0 (R_psi frozen) | 1, 7, 1, 4 | 7, 2, -w16, not run | 2, not run x 3 | 7 / 8 | 3.25, 9.7, 2.0 over the objectives run |
+
+(numbers = decisions to verified achievement; "-" not reached at the 20-decision budget; "-wN" not reached,
+stopped by the lease wall budget after N decisions.)
+
+* Amended E vs baseline E: 10 vs 11 of 12 achieved; never reached 2 (both wall-budget stops in seed 1) vs 1;
+  decisions to achievement mean 6.9 vs 8.25, difference -1.3 (bootstrap -7.2 to 6.75, p = 0.80). Executable
+  fraction 0.96 in both; backbone-written fraction of chosen actions 0.65 vs 0.49. Slow steps 22 (18 kept, 1
+  reverted, 3 deferred) vs 34 (25 / 8 / 1); meta-updates applied 4 of 81 vs 4 of 110.
+* E minus Eimag0: decisions to achievement +0.4 (bootstrap -7.5 to 8.8, p = 1.0); achieved 10 vs 11 of 12.
+* E minus Erpsi0: +1.9 (bootstrap -4.9 to 10.1, p = 0.80) - not comparable as it stands: Erpsi0 lacks 4
+  objectives (merge / topk of seeds 1-2), so its per-seed means cover easier, earlier objectives.
+* The bootstrap mix stayed at 1.0 in every objective of every arm, so in E the learned R_psi had no say in the
+  live policy update (as in the baseline's meta checks, §6); freezing it cannot change behaviour through that
+  pathway in these runs, which is consistent with no visible difference. Erpsi0 applied 0 of 47 meta-update
+  records.
+
+**Reading.** No difference between the amended code and the baseline, or between the amended code and either
+ablation, can be read from these runs: every interval spans zero by a wide margin, the arms are independent runs
+(G3A-3) whose single-seed outcomes vary as much between repetitions of the same configuration (§4) as between arms,
+and 3 seeds per arm cannot give p < 0.1. The amended code solved the SW objectives at least as often as the
+baseline (X0 6 vs 5 of 9, X1 10 vs 11 of 12) and still never the mechanism family (MECH 0 of 3 on both). Wall-
+budget stops were more frequent on the amended code (X0 3, X1 2, Eimag0 1, Erpsi0 1; baseline X0 0, X1 0), which
+counts against it in the censored measure. Not run: X2 (transfer) on the amended code, and the 4 Erpsi0 objectives
+above; a re-run of the ablations with the seeding fix (G3A-3) was not possible before the redirection.

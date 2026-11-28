@@ -1,0 +1,169 @@
+{
+ "executed": true,
+ "experiment": "x1_ablations",
+ "results_dir": "/workspace/camlive/runs/cam_live/eval/v6/results/v3",
+ "Eimag0": {
+  "note": "E minus Eimag0 (descriptive only, v3.5)",
+  "seeds": [
+   0,
+   1,
+   2
+  ],
+  "paired": false,
+  "pairing_note": "unpaired: runs with the same seed are independent (agent id from os.urandom, G3A-3), so the difference of the arm means is reported with a bootstrap interval and a label-permutation p over the per-seed means (descriptive only, v3.5)",
+  "n_to_achieve": {
+   "a_per_seed": [
+    2.75,
+    15.5,
+    2.5
+   ],
+   "b_per_seed": [
+    2.75,
+    3.25,
+    13.5
+   ],
+   "a_mean": 6.916666666666667,
+   "b_mean": 6.5,
+   "a_minus_b": {
+    "paired": false,
+    "n_x": 3,
+    "n_y": 3,
+    "mean": 0.41666666666666696,
+    "lo": -7.5,
+    "hi": 8.833333333333332,
+    "p": 1.0,
+    "test": "Monte-Carlo label permutation"
+   }
+  },
+  "verified_value": {
+   "a_per_seed": [
+    1.0,
+    0.75,
+    1.0
+   ],
+   "b_per_seed": [
+    1.0,
+    1.0,
+    0.75
+   ],
+   "a_mean": 0.9166666666666666,
+   "b_mean": 0.9166666666666666,
+   "a_minus_b": {
+    "paired": false,
+    "n_x": 3,
+    "n_y": 3,
+    "mean": 0.0,
+    "lo": -0.16666666666666663,
+    "hi": 0.16666666666666663,
+    "p": 1.0,
+    "test": "Monte-Carlo label permutation"
+   }
+  },
+  "achieved": {
+   "a_per_seed": [
+    1.0,
+    0.5,
+    1.0
+   ],
+   "b_per_seed": [
+    1.0,
+    1.0,
+    0.75
+   ],
+   "a_mean": 0.8333333333333334,
+   "b_mean": 0.9166666666666666,
+   "a_minus_b": {
+    "paired": false,
+    "n_x": 3,
+    "n_y": 3,
+    "mean": -0.08333333333333326,
+    "lo": -0.41666666666666663,
+    "hi": 0.16666666666666663,
+    "p": 1.0,
+    "test": "Monte-Carlo label permutation"
+   }
+  }
+ },
+ "Erpsi0": {
+  "note": "E minus Erpsi0 (descriptive only, v3.5)",
+  "seeds": [
+   0,
+   1,
+   2
+  ],
+  "paired": false,
+  "pairing_note": "unpaired: runs with the same seed are independent (agent id from os.urandom, G3A-3), so the difference of the arm means is reported with a bootstrap interval and a label-permutation p over the per-seed means (descriptive only, v3.5)",
+  "n_to_achieve": {
+   "a_per_seed": [
+    2.75,
+    15.5,
+    2.5
+   ],
+   "b_per_seed": [
+    3.25,
+    9.666666666666666,
+    2.0
+   ],
+   "a_mean": 6.916666666666667,
+   "b_mean": 4.972222222222222,
+   "a_minus_b": {
+    "paired": false,
+    "n_x": 3,
+    "n_y": 3,
+    "mean": 1.9444444444444446,
+    "lo": -4.944444444444445,
+    "hi": 10.11111111111111,
+    "p": 0.7985201479852014,
+    "test": "Monte-Carlo label permutation"
+   }
+  },
+  "verified_value": {
+   "a_per_seed": [
+    1.0,
+    0.75,
+    1.0
+   ],
+   "b_per_seed": [
+    1.0,
+    0.9500000000000001,
+    1.0
+   ],
+   "a_mean": 0.9166666666666666,
+   "b_mean": 0.9833333333333334,
+   "a_minus_b": {
+    "paired": false,
+    "n_x": 3,
+    "n_y": 3,
+    "mean": -0.06666666666666676,
+    "lo": -0.2333333333333334,
+    "hi": 0.033333333333333215,
+    "p": 1.0,
+    "test": "Monte-Carlo label permutation"
+   }
+  },
+  "achieved": {
+   "a_per_seed": [
+    1.0,
+    0.5,
+    1.0
+   ],
+   "b_per_seed": [
+    1.0,
+    0.6666666666666666,
+    1.0
+   ],
+   "a_mean": 0.8333333333333334,
+   "b_mean": 0.8888888888888888,
+   "a_minus_b": {
+    "paired": false,
+    "n_x": 3,
+    "n_y": 3,
+    "mean": -0.05555555555555547,
+    "lo": -0.38888888888888884,
+    "hi": 0.22222222222222232,
+    "p": 1.0,
+    "test": "Monte-Carlo label permutation"
+   }
+  }
+ }
+}

@@ -1,7 +1,7 @@
 {
  "workstream": "S",
- "commit": "0b48cfd178ed308d5c27e176a8c58261610771e8",
- "summary": "S2: pre-amendment baseline on ONE fixed snapshot 257267c (full-size agent, open-ended generation on): X0 5/9, X1 11/12 objectives achieved, X5 (goal-free first, eval overlay) 5/8; slow adapter steps now mostly kept (X0+X1 59 of 71, pre-fix 12 of 52); X6 meta checks: the learned reward does not act on the live inner update at the bootstrap mix 1.0. X2-X4 not run on 257267c (coordinator re-scope). Pre-fix batch (f54d8cc) archived separately. No significance claims (v3.5).",
+ "commit": "1cb53ee4888d78a8b799e0fbdd9312ac90d2ee2d",
+ "summary": "S2: substantive runs on the full-size agent (open-ended generation on), two fixed snapshots reported separately. Baseline 257267c: X0 5/9, X1 11/12, X5 5/8 assigned; X6 meta checks: learned reward without effect on the live update at mix 1.0. Amended 6cba496 (partial, stopped 18:37 UTC for the operator's redirection 2026-11-28b): X0 6/9, X1 10/12, X1 imagination-weight-0 11/12, X1 R_psi-frozen 7/8 of 8 run; no difference readable (unpaired: equal seeds are independent runs, G3A-3; 3 seeds); MECH 0/3 on both. X2-X4 not run on either snapshot. No significance claims (v3.5).",
  "requirements": {
   "SV-01": {
    "state": "partial",
@@ -96,7 +96,7 @@
     "docs/evidence/S/v3/summary_x1.json",
     "docs/S/RESULTS.md"
    ],
-   "limitations": "16.5 checks executed on the X1 run roots of 257267c (python -m cam_live.eval.meta_checks). Finding: at the live bootstrap mix 1.0 the learned reward has NO effect on the inner policy update (delta theta psi_post vs psi_pre = 0.0 in every root); it acts only at mix 0 (seed 0: 0.021 against an update norm of 0.028); 4 of 110 meta-update records applied in X1 (8 of 233 over X0 + X1), the rest skipped (insufficient independent outcomes, zero advantage)"
+   "limitations": "16.5 checks executed on the X1 run roots of 257267c (python -m cam_live.eval.meta_checks). Finding: at the live bootstrap mix 1.0 the learned reward has NO effect on the inner policy update (delta theta psi_post vs psi_pre = 0.0 in every root); it acts only at mix 0 (seed 0: 0.021 against an update norm of 0.028); 4 of 110 meta-update records applied in X1 (8 of 233 over X0 + X1), the rest skipped (insufficient independent outcomes, zero advantage); amended 6cba496: bootstrap mix 1.0 in every objective of every arm (R_psi without weight in the live update), R_psi-frozen ablation (lr_reward 0) shows no readable difference"
   },
   "SV-08": {
    "state": "partial",
@@ -122,9 +122,10 @@
    "evidence": [
     "docs/evidence/S/v3/summary_x0.json",
     "docs/evidence/S/v3/summary_x1.json",
-    "docs/evidence/S/v3/summary_x5.json"
+    "docs/evidence/S/v3/summary_x5.json",
+    "docs/evidence/S/v6/summary_x1.json"
    ],
-   "limitations": "N_q (decisions to verified achievement, censored at 20) measured: X0 per-seed means 13.7 / 10.3 / 14.0, X1 10.75 / 7.75 / 6.25; S_q not measured (X2 did not run: no initial / experienced pair); AULC not computed for the substantive runs"
+   "limitations": "N_q (decisions to verified achievement, censored at 20) measured: X0 per-seed means 13.7 / 10.3 / 14.0, X1 10.75 / 7.75 / 6.25; S_q not measured (X2 did not run: no initial / experienced pair); AULC not computed for the substantive runs; amended 6cba496: X0 10.3 / 13.0 / 8.0, X1 2.75 / 15.5 / 2.5"
   },
   "SV-10": {
    "state": "partial",
@@ -253,12 +254,15 @@
     "tests/eval/"
    ],
    "evidence": [
+    "docs/S/RESULTS.md",
     "docs/evidence/S/v3/summary_x0.json",
     "docs/evidence/S/v3/summary_x1.json",
     "docs/evidence/S/v3/summary_x5.json",
-    "docs/S/RESULTS.md"
+    "docs/evidence/S/v6/summary_amended_vs_baseline.json",
+    "docs/evidence/S/v6/summary_x0.json",
+    "docs/evidence/S/v6/summary_x1.json"
    ],
-   "limitations": "pre-amendment baseline on the full-size agent (Qwen3-4B + 50m core + adapters, open-ended generation on, 512 tokens) on the open-ended families SW and MECH with independent signing verifiers: X0 5 / 9 achieved, X1 11 / 12, X5 5 / 8 assigned objectives; MECH never achieved (0 / 3); X2-X4 not run on this snapshot; 2-3 seeds, no significance claims (Protocol v3.5)"
+   "limitations": "pre-amendment baseline on the full-size agent (Qwen3-4B + 50m core + adapters, open-ended generation on, 512 tokens) on the open-ended families SW and MECH with independent signing verifiers: X0 5 / 9 achieved, X1 11 / 12, X5 5 / 8 assigned objectives; MECH never achieved (0 / 3); X2-X4 not run on this snapshot; 2-3 seeds, no significance claims (Protocol v3.5); amended 6cba496 (partial): X0 6/9, X1 10/12, ablations Eimag0 11/12 and Erpsi0 7/8 run; no difference from the baseline or between arms readable (unpaired, G3A-3)"
   }
  },
  "public_api": [
@@ -277,10 +281,13 @@
   "tests": "tests/eval on the frozen code (257267c agent code + eval / tests of this workstream, overlay runs/cam_live/eval/snapshots/257267c1c315+evaltesta0f341159c3f): 42 collected, 38 passed, 1 skipped, 3 failed in 4667 s at load ~80-90 (2 pytest timeouts at 900 s; 1 subprocess resolved the worktree's package: PYTHONPATH not set) -> docs/evidence/test_results/S2_fix.xml; the 3 rerun with PYTHONPATH on the overlay at lower load: 3 passed in 261 s -> S2_fix_rerun.xml. On the live worktree (other agents' uncommitted reward/ credit/ changes of the amendment) 4 failed / 37 passed / 1 skipped (ValueError 'step must be in (0, 1]' in reward/validity.py, unknown promotion_rule; not this workstream's code)",
   "baseline_257267c": "X0 E s0-2: 5/9 achieved; X1 E s0-2: 11/12; X5 s0-1: 5/8 assigned; X2 initial_s0 2/3 (no pair); slow steps X0 34/2/1 of 37, X1 25/8/1 of 34 (kept/reverted/deferred)",
   "pre_fix_f54d8cc": "X0 6/9, X1 11/12, X2 1 pair; slow steps X0 8/17/3 of 28, X1 4/17/3 of 24 (docs/evidence/S/v3/pre_fix_f54d8cc)",
-  "integrity_257267c_cpu": "attacks delivered in 1 of 5 seeds (all refused); trivial world tick share 0 %"
+  "integrity_257267c_cpu": "attacks delivered in 1 of 5 seeds (all refused); trivial world tick share 0 %",
+  "amended_6cba496": "X0 E s0-2 6/9 (MECH 0/3, 3 wall-budget stops); X1 E 10/12 (decisions per-seed means 2.75/15.5/2.5 vs baseline 10.75/7.75/6.25, difference -1.3 [-7.2, 6.75] unpaired); Eimag0 11/12; Erpsi0 7/8 (4 objectives not run); mix 1.0 in every objective; docs/evidence/S/v6",
+  "pairing": "G3A-3: same-seed runs are independent (agent id from os.urandom); all arm / snapshot comparisons are unpaired"
  },
  "not_done": [
-  "X2 (transfer), X3 (baselines A-D), X4 (CU-33) on 257267c: not run by coordinator re-scope; the comparison run on the amended snapshot is pending (coordinator sends the snapshot)",
+  "X2 (transfer), X3 (baselines A-D), X4 (CU-33): not run on 257267c (re-scope) nor on 6cba496 (redirection 2026-11-28b)",
+  "Erpsi0 seed 1 objective 4 and seed 2 objectives 2-4 not run; re-run of the ablations with the seeding fix (G3A-3) not done",
   "calibration (SV-05) and delayed-credit (SV-06) analyses of the substantive runs; AULC; shadow comparison on the open-ended families (AE-07)"
  ],
  "scientific_failures": [
@@ -288,6 +295,7 @@
   "Baseline 257267c: the learned reward does not reach the live inner update (bootstrap mix 1.0 in every objective; meta checks: delta theta psi_post vs psi_pre = 0 at the live mix); 8 of 233 meta-update records applied",
   "Baseline 257267c: real-model runs are not reproducible from the seed (same instance, same seed: achieved in 16 vs not reached, not reached vs 9); single-seed outcomes carry little information",
   "Baseline 257267c: no benefit of a 20-decision goal-free period on X1's objectives (5/8 vs 7/8; confounded by 3 wall-budget stops)",
-  "Diagnostic (v2, debug scale; kept from S): selection ignored the world model; 70-73 % of internal reward to zero-value actions (S-5)"
+  "Diagnostic (v2, debug scale; kept from S): selection ignored the world model; 70-73 % of internal reward to zero-value actions (S-5)",
+  "Amended 6cba496: no readable improvement over the baseline on X0 / X1 (unpaired, 3 seeds); MECH 0/3; mix never left 1.0; more wall-budget stops"
  ]
 }
