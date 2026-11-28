@@ -189,3 +189,43 @@ handed it to each other with blocking waits; the runtime's `GpuLease` waits bloc
 * Documentation requirements (IN-06, DL-02, DL-04, DL-20, IN-05, CM-13) are left for after the documentation refresh.
 * The machine was loaded (load average 15-26, other tenants' evaluation batches holding the GPU lock); no timing
   assertion was made.
+
+## 7. Documentation (DL-02, DL-04, DL-20, IN-05, IN-06, CM-13) — at HEAD `fa145e2`
+
+Checked at **`fa145e24046b18c39036b767594fd1af61b65036`** (the documents of DOC's refresh: 0b31814, fa168dc, f9bd494,
+997e142, 855296f, fa145e2), on a `git archive fa145e2` extract; its `cam_live/src`, `tools`, `configs`, `tasks` and
+`pyproject.toml` are identical to fdab7d3 (`git diff --stat fdab7d3 fa145e2` names documents, evidence and verifier
+files only). **Result: 6 verified.**
+
+| What | Result |
+|---|---|
+| G2-integration d01 (citations) | 397 / 397 hold |
+| d02 (OPERATOR_RESOURCES) | 11 hold, 9 broken — every broken line encodes the previous document; the new text says the opposite and is true (below) |
+| d03 (REPRODUCE commands) | 87 commands: 81 hold, 7 broken — all old claims, mapped one by one in REPRODUCE §14; confirmed by my probe |
+| d04 (KNOWN_FAILURES) | 9 hold, 10 broken — 9 rows of the append-only initial register re-stated as fixed in the final register, 1 the KF-E05 evidence string the register corrects itself (KF-V36) |
+| d05 (model / math claims) | 5 hold, 6 broken — the 6 old statements (new_lifetime at set_objective, no loss reads the credit, info_gain without producer, epistemic_after / learning_progress unwritten, one mean slow guard, G-step from the right) are reversed in the documents and true of the code |
+| Parameter counts, re-measured (DOC's `count_params.py`, CPU, extract) | 124 / 124 numbers equal `docs/evidence/DOC/param_counts.json`; scale presets recounted with `nn.bench.preset_counts`: 5m … 1b as quoted |
+| `math_check.py`, re-run | the five numbered lines identical to `docs/evidence/DOC/math_check.txt` |
+| **New** `repro/g2final/probe_docs_commands.py` (the new statements of REPRODUCE.md and OPERATOR_RESOURCES.md) | **120 hold, 0 broken**: 75 `--help` checks (every `cam-live` subcommand, `python -m` module and subcommand, tool and evidence script the two documents name); collection per directory and the one-process total 1679; `cam-live test --suite storage` 4 passed; doctor 49 / 52, live blocked only by `persistent_storage`; the preflight table of all 7 task files (exit codes, item counts, the 8 planning items, accepted risk, staging items); inspect-harness, run --preflight-only, validate --mode live refused; `launch_live.sh` refuses a non-interactive terminal before it writes anything; `authorize_live.py` exits 3 for a non-live task and 4 for a wrong typed objective id, writing nothing; task limits, the 16 REQUIRED values, the scope integer, configuration values, services and start order |
+| Register completeness (my check) | all 73 G2 defect ids of the G2 reports and all 27 requirements whose current G2 verdict is partial / failed appear in KNOWN_FAILURES.md |
+
+The launch procedure of OPERATOR_RESOURCES.md §3 / REPRODUCE.md §9.1 matches `tools/launch_live.sh` line by line
+(first-argument flag, token store with the verifier copy, key install, typed confirmation in `authorize_live.py`,
+`cam-live run --authorization --run-dir --accept-ephemeral-storage`, exit 3 on an existing `state.json`, `set -e`
+stop when `cam-live run` exits 5 after its 120-s default start timeout) — read and, where offline, executed; the live
+launch itself was not run.
+
+Nits (no verdict effect): MODEL_ARCHITECTURE §1.3 says `nn/` is unchanged since A's params.json — `nn/fast.py` and
+`nn/gpu.py` changed after it (the counts are identical anyway); OPERATOR_RESOURCES §5 counts the 24 execution items as
+16 values + "the service and Discord items of §8" + the guild item, which is 7 of §8's 8 (REPRODUCE §4 states it
+correctly); KNOWN_FAILURES KF-D15 cites the doctor output as OPERATOR_RESOURCES §6 (it is §8). The ledger's state
+lines and "next steps" predate the latest rounds; KNOWN_FAILURES.md is the current record.
+
+| Requirement | Verdict | Commit | Basis |
+|---|---|---|---|
+| DL-02 | **verified** | fa145e2 | d01 397/397; d05 MA reversed statements true; counts 124/124 and presets re-measured |
+| DL-04 | **verified** | fa145e2 | d01; d05 MN reversed statements true; math_check identical; formulas spot-checked against `reward/inner.py`, `predict/errors.py` |
+| DL-20 | **verified** | fa145e2 | probe_docs_commands (preflight counts, items, values, launch procedure); d02 broken lines are old claims |
+| IN-05 | **verified** | fa145e2 | probe_docs_commands 120/0; d03 broken lines are old claims (REPRODUCE §14) |
+| IN-06 | **verified** | fa145e2 | d04 broken lines are re-stated old rows and the self-corrected erratum; register complete for every G2 defect and partial / failed verdict |
+| CM-13 | **verified** | fa145e2 | one place for dependencies (versions equal the installation) and commands (all checked) |

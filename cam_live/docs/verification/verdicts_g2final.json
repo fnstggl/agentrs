@@ -167,6 +167,20 @@
    "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
   ]
  },
+ "CM-13": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fa145e24046b18c39036b767594fd1af61b65036",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "One place: REPRODUCE.md lists the dependencies (pyproject requirements; installed versions — every one equal to importlib.metadata in .venv, incl. torch 2.15.0, transformers 5.24.0, playwright 1.65.2; the layered venv disclosed; pinned model revisions equal configs/cam_live.yaml) and every command with its mark; the entry-point inventory of section 13 is covered by probe_docs_commands (all --help exit 0) and the executions of IN-05. G2R-12 (stale document) is fixed by the refresh.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2final/probe_docs_commands.py",
+   "cam_live/pyproject.toml",
+   "cam_live/docs/REPRODUCE.md"
+  ]
+ },
  "CU-06": {
   "status": "verified",
   "by": "G2-final",
@@ -245,6 +259,49 @@
    "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')"
   ]
  },
+ "DL-02": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fa145e24046b18c39036b767594fd1af61b65036",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "MODEL_ARCHITECTURE.md (0b31814) read against the code of fdab7d3 (no code change since). d01: 397/397 citations resolve. d05: the 4 MA lines hold, the MA 8 / 9 / 10.2 BROKEN line tests the old statement 'set_objective calls new_lifetime', which the document now reverses (set_objective -> MetaLearner.new_objective, checked: agent.py:921; new_lifetime only in reward/diagnose.py). Parameter counts re-measured by me on the CPU with DOC's count_params.py on the HEAD extract: 124 of 124 numbers equal docs/evidence/DOC/param_counts.json (backbone 4,022,468,096 frozen; total trainable 74,672,079; debug 1,181,515); the scale presets recounted with nn.bench.preset_counts: 5m 5,044,741 ... 1b 1,000,547,333, as quoted; the LoRA formula 36 x 32 x [(2560+4096)+(2560+1024)] = 11,796,480 holds. Nit: section 1.3 says nn/ is unchanged since A's params.json — nn/fast.py (9680ea7) and nn/gpu.py (59807fc, 7265843) changed after it; the counts are nevertheless identical.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2integration/docs/d01_citations.py",
+   "cam_live/docs/verification/repro/g2integration/docs/d05_model_math_claims.py",
+   "cam_live/docs/evidence/DOC/scripts/count_params.py (re-run on the extract)",
+   "nn.bench.preset_counts (re-run)"
+  ]
+ },
+ "DL-04": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fa145e24046b18c39036b767594fd1af61b65036",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "MATH_NOTES.md (fa168dc) against fdab7d3. d01 397/397; d05: the five MN BROKEN lines test the old statements (no loss reads the stored credit; info_gain has no producer; epistemic_after / learning_progress never written; one mean paired slow guard; Poisson G-step only from the right), each now stated the other way and true of the code (reward/inner.py credit_fn / credited_goal_return + agent.py:744; assemble.py info_gain_nats fallback; agent._annotate_epistemic_after; per-provider guard; nn/fast.py G-step both sides). math_check.py re-run on the extract: the five numbered lines identical to docs/evidence/DOC/math_check.txt. Spot checks: section 8.2 recursion Gc_i = c_g C_i / rms(C), g_i + gamma_i Gc_{i+1} equals PolicyImprovementLoss.credited_goal_return; change detector threshold 8 / re-arm 0.25 x 8 equals predict/errors.py.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2integration/docs/d05_model_math_claims.py",
+   "cam_live/docs/evidence/DOC/scripts/math_check.py (re-run)"
+  ]
+ },
+ "DL-20": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fa145e24046b18c39036b767594fd1af61b65036",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "OPERATOR_RESOURCES.md (855296f) against fdab7d3. d02 11/9: every BROKEN line encodes the previous document ('no override' for persistent_storage, GPU-hold keys absent, four services, 9/25 items counted with the probe's absent lock file and hidden GPU) and the new text states the opposite, true of the code. My probe_docs_commands (120/0): offline preflight of the planning / launch-check / execution tasks exit 3 with 9 / 9 / 25 LIVE items, 8 / 8 / 24 + 1 accepted risk with --accept-ephemeral-storage, the 8 planning items exactly as listed; 16 unset REQUIRED values = the section-5 table; scope 18 permissions = 2269727275740401, NEVER_GRANTED as listed; limits, config values, ACCEPTABLE_RISKS, ENV_PASSTHROUGH, five services and start order; every command --help exit 0. Launch procedure checked against tools/launch_live.sh (argument order, line 31, token store, key install, typed objective id via authorize_live.py, cam-live run with --authorization / --run-dir / --accept-ephemeral-storage, exit 3 on an existing state.json, set -e stop on exit 5, no --start-timeout / --yes), authorize_live.py (exit 3 for a non-live task, exit 4 for a wrong typed id, nothing written) and cam-live run (--start-timeout default 120). launch_live.sh refuses a non-interactive terminal before it writes anything. Nit: section 5's '24 = 16 values + the service and Discord items of section 8 + no authorized guild' is 7 of the 8 (the vault item is replaced by the unset credential name; REPRODUCE section 4 says it right).",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2final/probe_docs_commands.py",
+   "cam_live/docs/verification/repro/g2integration/docs/d02_operator_resources.py",
+   "cam_live/tools/launch_live.sh",
+   "cam_live/tools/authorize_live.py"
+  ]
+ },
  "IN-01": {
   "status": "verified",
   "by": "G2-final",
@@ -256,6 +313,33 @@
   "evidence": [
    "pytest <named acceptance tests> on git archive fdab7d3 (-m '(slow or browser or not browser) and not privileged and not gpu')",
    "cam_live/docs/verification/repro/g2learn/probe_agent_credit.py"
+  ]
+ },
+ "IN-05": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fa145e24046b18c39036b767594fd1af61b65036",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "REPRODUCE.md (f9bd494) against fdab7d3. d03: 87 commands, 81 HOLD, 7 BROKEN; each BROKEN line encodes the previous document (48/51 doctor, staging planning preflight exit 3, 215 runtime tests, 3 storage tests, one-process collection failing, docstrings naming missing commands) and the section-14 table maps each to the new statement, which my probe confirms. probe_docs_commands 120/0 on the HEAD extract: 75 --help checks of every cam-live subcommand, python -m module (+ subcommands of eval.cli, oe_runner, credentials, opctl), tools and evidence script named in REPRODUCE / OPERATOR_RESOURCES (secret_scan exit 2 and launch_live.sh header exit 2 as documented); collection per directory and the one-process total 1679 = sum; cam-live test --suite storage 4 passed; doctor 52 checks / 49 ok / live blocked only by persistent_storage; the whole preflight table of section 4 (7 task files, exit codes, item counts, staging items); inspect-harness --lab; run --preflight-only; validate --mode live exit 2; evaluate-transfer exit 0 (round 1 of this report). Installed package versions equal section 1.2.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2final/probe_docs_commands.py",
+   "cam_live/docs/verification/repro/g2integration/docs/d03_reproduce_commands.py",
+   "cam_live/docs/evidence/DOC/command_check.txt"
+  ]
+ },
+ "IN-06": {
+  "status": "verified",
+  "by": "G2-final",
+  "commit": "fa145e24046b18c39036b767594fd1af61b65036",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "KNOWN_FAILURES.md (997e142 + the 08:15 section) at fdab7d3. d04 9/10: the 9 'register: open, re-stated later' lines are rows of the append-only initial register whose later rows (final-register section 1) record them fixed, with evidence, and the remaining BROKEN line is the KF-E05 evidence string the register itself corrects in an erratum (KF-V36). Completeness, my check: all 73 G2 defect ids of the G2_*.md reports (G2R / G2I / G2L / G2D / G2F / R2-R5 ids) appear in the register, and all 27 requirements whose current G2 verdict is partial or failed (G2-final superseding) are named; KF-V35 / KF-G82..85 / KF-E24 state G2-final's results correctly (incl. the order-dependent MR-05 failure). Deployment blockers are summarised in final section 7. Nit: KF-D15 cites the doctor output as OPERATOR_RESOURCES.md section 6 (it is section 8 / 2.3). The ledger's own state lines and 'next steps' predate the latest rounds; the register is the current record.",
+  "evidence": [
+   "cam_live/docs/verification/repro/g2integration/docs/d04_known_failures.py",
+   "cam_live/docs/KNOWN_FAILURES.md"
   ]
  },
  "LX-01": {
