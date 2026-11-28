@@ -104,6 +104,9 @@ class LearnerSettings:
                                           # 5.4e-5 relative, real degradations 4.4e-4 to 0.2; docs/DX.md round 2)
     slow_guard_max_drift_rel: float = 0.02   # per-provider drift bound relative to its held-out loss (the bound is
                                              # max(slow_guard_max_drift, this * |loss|))
+    slow_backoff: float = 0.5            # a rejected slow step halves the next adapter step (lr factor) ...
+    slow_backoff_min: float = 1.0 / 16   # ... down to this factor; an accepted one grows it again by slow_recover
+    slow_recover: float = 1.5            # (ReduceLROnPlateau-like trust region driven by the held-out verdicts)
     slow_protect_readers: bool = True    # also keep the update from raising the loss of judged providers that read the
                                          # representation without training the adapters (COCOA's hindsight model)
     slow_balance: bool = True            # conflict-aware combination of the providers' adapter gradients (PCGrad
@@ -296,6 +299,8 @@ class ContinualLearner:
 
     def _set_lr(self, group: str) -> float:
         lr = self.lr[group] * self.lr_factor(self.sched_step[group])
+        if group == GROUP_ADAPTERS:
+            lr *= float(self.slow_guard_state.get("step_scale", 1.0))
         for pg in self.optimizers[group].param_groups:
             pg["lr"] = lr
         return lr
@@ -595,14 +600,16 @@ class ContinualLearner:
     @staticmethod
     def _fresh_guard_state() -> Dict[str, Any]:
         return {"drift": 0.0, "drift_by_provider": {}, "accepted": 0, "rejected": 0, "deferred": 0,
-                "reference": "start"}
+                "reference": "start", "step_scale": 1.0}
 
     def set_slow_reference(self, label: str = "") -> None:
         """The current adapters become the reference of the drift bound (``promote_learner`` calls this when a
         checkpoint is promoted and after a rollback to the promoted checkpoint)."""
         deferred = int(self.slow_guard_state.get("deferred", 0))
+        scale = float(self.slow_guard_state.get("step_scale", 1.0))
         self.slow_guard_state = self._fresh_guard_state()
         self.slow_guard_state["deferred"] = deferred
+        self.slow_guard_state["step_scale"] = scale                  # the trust region is not reset by a promotion
         self.slow_guard_state["reference"] = label or self.model_version
 
     def _provider_verdict(self, name: str, before: Dict[int, float], after: Dict[int, float]) -> Dict[str, Any]:
@@ -1070,6 +1077,7 @@ class ContinualLearner:
         with_grad = [p for p in params if p.grad is not None]
         rec.grad_norms[GROUP_ADAPTERS] = float(torch.nn.utils.clip_grad_norm_(with_grad, self.clip[GROUP_ADAPTERS]))
         notes.setdefault("lr", {})[GROUP_ADAPTERS] = self._set_lr(GROUP_ADAPTERS)
+        notes["step_scale"] = float(self.slow_guard_state.get("step_scale", 1.0))
         opt.step()
         self.sched_step[GROUP_ADAPTERS] += 1
         for p in params:
@@ -1099,6 +1107,8 @@ class ContinualLearner:
                     self.slow_guard_state["drift_by_provider"] = dp
                     self.slow_guard_state["drift"] = max(dp.values(), default=0.0)
                     self.slow_guard_state["accepted"] = int(self.slow_guard_state.get("accepted", 0)) + 1
+                    self.slow_guard_state["step_scale"] = min(1.0, float(self.slow_guard_state.get("step_scale", 1.0))
+                                                              * s.slow_recover)
                 else:                              # undo the step completely
                     with torch.no_grad():
                         for p, b in zip(params, before):
@@ -1116,6 +1126,8 @@ class ContinualLearner:
                         model.mark_adapters_updated()
                     self.counters["slow_reverted"] += 1
                     self.slow_guard_state["rejected"] = int(self.slow_guard_state.get("rejected", 0)) + 1
+                    self.slow_guard_state["step_scale"] = max(s.slow_backoff_min, float(
+                        self.slow_guard_state.get("step_scale", 1.0)) * s.slow_backoff)
                     notes["guard"]["reverted"] = True
                     rec.weight_delta = {GROUP_ADAPTERS: 0.0}
                     reverted = True

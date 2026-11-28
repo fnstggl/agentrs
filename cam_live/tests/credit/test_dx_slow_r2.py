@@ -170,3 +170,27 @@ def test_cocoa_reads_the_representation_and_the_update_does_not_raise_its_loss_t
     if True:
         up = notes["update_projection"]
         assert up["first_order_change_after"]["cocoa"] <= 1e-9 * max(1.0, abs(up["first_order_change_before"]["cocoa"]))
+
+
+def test_a_rejected_step_shrinks_the_next_adapter_step_and_accepted_ones_grow_it_back(lab_factory):
+    lab = _lab(lab_factory)
+    L, m = lab.learner, lab.model
+    probe = L.register(Linear("world", s=1400.0, eval_sign=-1.0))     # every step raises its held-out loss
+    L.refresh_eligibility(full=True)
+    scales, lrs = [], []
+    for _ in range(3):
+        rec, notes = _slow(L)
+        assert not notes["guard"]["accepted"]
+        scales.append(notes["step_scale"])
+        lrs.append(notes["lr"]["semantic_adapters"])
+    assert scales == [1.0, 0.5, 0.25] and abs(lrs[1] / lrs[0] - 0.5) < 1e-12
+    assert L.slow_guard_state["step_scale"] == 0.125
+    probe.eval_sign = 1.0                                              # now it helps: accepted, the step grows
+    rec, notes = _slow(L)
+    assert notes["guard"]["accepted"] and notes["step_scale"] == 0.125
+    assert L.slow_guard_state["step_scale"] == 0.125 * 1.5
+    assert L.state_dict()["slow_guard"]["step_scale"] == 0.125 * 1.5          # checkpointed with the schedules
+    L.slow_guard_state["step_scale"] = 1.0 / 16
+    probe.eval_sign = -1.0
+    rec, notes = _slow(L)
+    assert not notes["guard"]["accepted"] and L.slow_guard_state["step_scale"] == 1.0 / 16    # bounded below
