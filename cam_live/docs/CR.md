@@ -23,6 +23,9 @@ Every number below comes from a command named next to it; raw outputs are listed
   arm 60 %). (iii) In the integrated agent the comparison was impossible by construction (closed lifetimes only,
   lifetime units, one-unit experiments, every lifetime trained on). D's claim that the first-decision latent is
   identical across mechanisms is refuted (identical within a mechanism, distinct across).
+* **Round 2** (G3-core D-CR1 / D-CR2, 87b4f38 + CR-4 applied by ST in 8b232a3): rows a learned default has not
+  credited keep their simple per-decision credit; RUDDER's learning signal is its contribution (per decision) and
+  the selection validates exactly the learning signal of every estimator.
 * **What changed** (section 2, credit/ only): credit units inside an open objective (complete segments of K = 16
   decisions) so RUDDER / COCOA credit exists and is revised during one long objective and re-credited at closure; a
   blocked held-out split by segment; an estimand-matched pooled selection rule over held-out randomised units of any
@@ -31,11 +34,13 @@ Every number below comes from a command named next to it; raw outputs are listed
 * **Does better credit improve learning?** Controlled diagnostic (section 3.2): learning a consequence that no
   evidence links to the decision is impossible with the simple attribution (P stays 0.5) and works with every
   return-based signal (P(unlock) 0.93-0.94 in the last quarter, 6 informative mechanisms); RUDDER's learning signal
-  is no better than plain REINFORCE there. Integrated agent (section 3.1, one open objective, 64 decisions, 9 paired
-  seeds): forcing RUDDER as training default *lowered* competence (-66.8 +- 26.0 expected adopters per run, p ~ 0.03);
-  the evidence-based selection keeps `simple`, which tracks the true value of the agent's own actions best at this
-  amount of experience. Negative result for the learned estimators in the agent, with its diagnosis in section 3.
-* **Real configuration** (section 5, one GPU hold, Qwen3-4B + 50m, backbone candidates on): RUDDER credit on 28 of 39
+  is no better than plain REINFORCE there. Integrated agent, **round 2** (section 3.3: paired seeded arms, identical
+  until RUDDER credit first enters a policy update; the simple fallback of CR-4): forcing RUDDER's credit changed the
+  expected adopters of a 64-decision run by +3.4 +- 2.4 (n = 5) - no detectable effect in either direction (within two standard errors). The round-1
+  result (-66.8 +- 26.0, section 3.1) was confounded (G3-core D-CR1) and unpaired (G3A-3) and is withdrawn. The
+  evidence-based selection keeps `simple`, which tracks the true value of the agent's own actions best at this
+  amount of experience.
+* **Real configuration** (section 5, two GPU holds before round 2 - RUDDER's segment signal, no fallback; Qwen3-4B + 50m, backbone candidates on): RUDDER credit on 28 of 39
   records inside the open objective and 41 CR-3-replayed credited rows in the real policy update; COCOA credits
   nothing there (open-ended backbone candidates without tracked proposal probabilities are refused, as spec 9.3
   requires); no randomised experiment occurred, so no selection evidence. In the paired `simple` run CR-3 replayed 2
@@ -127,8 +132,9 @@ Findings (each measured, raw JSON in section 7):
 * **Estimand-matched pooled selection** (`credit/select.py`): every held-out randomised unit (any experiment size,
   one unit included) carries its arms, logged propensity, measured return-to-go and each estimator's value; the
   paired inverse-propensity term d_i = (e_i - y_i - c_i) w_i (per-decision credit) or x_i - (y_i - c_i) w_i
-  (per-unit contrast, COCOA) has expectation equal to the estimator's contrast bias at the unit's information state
-  (c_i a leave-one-out baseline). An estimator is validated when (a) the pooled average bias is equivalent to zero
+  (per-unit contrast; COCOA in round 1) has expectation equal to the estimator's contrast bias at the unit's
+  information state (c_i a leave-one-out baseline). Round 2 (D-CR2): every estimator, COCOA included, is validated on
+  its stored learning credit (per decision), and RUDDER's learning credit is its contribution. An estimator is validated when (a) the pooled average bias is equivalent to zero
   within 0.5 sd of the measured return (two one-sided tests, 90 % interval, >= 8 units) and (b) on every experiment
   with >= 5 held-out units per arm its paired z^2 are not jointly rejected (sum z^2 <= chi^2_K 0.99 quantile). The
   validated estimator with the tightest bias bound becomes the training default; a learned default that stops
@@ -140,7 +146,10 @@ Findings (each measured, raw JSON in section 7):
 
 ## 3. Does better credit improve learning from delayed consequences?
 
-### 3.1 The integrated agent: one long open objective, simple vs selected vs forced estimators
+### 3.1 Round 1 (superseded by 3.3): the integrated agent, simple vs forced estimators
+
+**Round-1 status:** this comparison is confounded (G3-core D-CR1: the forced arm also lost the simple per-decision credit of every row its estimator had not credited) and was not paired (G3A-3: same-seed agents drew random ids). Its numbers are kept as recorded; its conclusion and diagnosis are withdrawn - see 3.3 for the re-run.
+
 
 `python -m cam_live.credit.cr_agent_eval --condition {simple,rudder,cocoa} [--no-replay] --seed S --decisions 64
 --segment 8` on a snapshot of the code (`git archive` of dc1753c + CR's credit/ as of f937ce6 + CR-1 and CR-3 applied to the
@@ -165,9 +174,9 @@ Paired by seed against `simple` (expected adopters of the whole 64-decision run;
 
 Credit quality on the agent's own decisions (`cr_agent_eval.credit_quality`, last column): Pearson correlation of each stored credit with the ground-truth value (expected adopters) of the executed `lab.act`, averaged over the runs of the condition (each run stores every estimator's credit, whatever the training default).
 
-**Result.** Forcing RUDDER's credit as the training default *lowered* competence: paired by seed (n = 9), expected adopters over the run -66.8 +- 26.0 (t = 2.57, 8 df, p ~ 0.03) and per executed action in the second half -1.59 +- 0.64; the door was found in 1 of 9 RUDDER runs against 5 of 9 `simple` runs (Fisher p ~ 0.13). COCOA forced: -38.2 +- 47.1 over the run and -1.68 +- 0.87 per action (n = 6, not significant). With CR-3 the forced estimator reaches the policy update about 4x as often (credited rows 112-134 vs 28-35 without the line, seeds 0-2); without the line the forced estimator barely acts (rudder_norep - simple +4.3 +- 101, n = 3). The evidence-based selection kept `simple` in every `simple` run (0-2 held-out units per run; nothing can be promoted on fewer than 8).
+**Round-1 result (confounded, see 3.3).** Forcing RUDDER's credit as the training default *lowered* competence: paired by seed (n = 9), expected adopters over the run -66.8 +- 26.0 (t = 2.57, 8 df, p ~ 0.03) and per executed action in the second half -1.59 +- 0.64; the door was found in 1 of 9 RUDDER runs against 5 of 9 `simple` runs (Fisher p ~ 0.13). COCOA forced: -38.2 +- 47.1 over the run and -1.68 +- 0.87 per action (n = 6, not significant). With CR-3 the forced estimator reaches the policy update about 4x as often (credited rows 112-134 vs 28-35 without the line, seeds 0-2); without the line the forced estimator barely acts (rudder_norep - simple +4.3 +- 101, n = 3). The evidence-based selection kept `simple` in every `simple` run (0-2 held-out units per run; nothing can be promoted on fewer than 8).
 
-**Diagnosis.** In this world most of a decision's value is its own adopters, which its own declared query measures exactly: the simple attribution is the right per-decision credit for them (correlation with the true value 0.39 in `simple` runs). RUDDER's return-like credit is the segment's measured return-to-go minus the decomposer's prefix value: it attributes the adopters of *later* decisions to every earlier decision of the segment (waits and probes included) and its decomposer has seen only a few matured segments, so it tracks the true value worse (0.13-0.28; the contribution, -0.02-0.13). This is an empirical limitation of the amount of experience (and of a credit that is unbiased but high-variance), not a defect found in the code: the same estimators learn a delayed-only consequence in the controlled diagnostic (3.2). It is exactly the case spec 9.4 guards against ('do not let speculative counterfactual predictions dominate learning before they are validated'): the selection rule refused to promote them, and the measured harm of forcing them is the evidence that the refusal was right. Process replicates of seed 0 (ids carry os.urandom bytes, so runs of one seed differ): simple 75.5 vs 70.8, rudder 83.8 vs 86.4 expected adopters.
+**Round-1 diagnosis (withdrawn: it missed D-CR1, an integration defect).** In this world most of a decision's value is its own adopters, which its own declared query measures exactly: the simple attribution is the right per-decision credit for them (correlation with the true value 0.39 in `simple` runs). RUDDER's return-like credit is the segment's measured return-to-go minus the decomposer's prefix value: it attributes the adopters of *later* decisions to every earlier decision of the segment (waits and probes included) and its decomposer has seen only a few matured segments, so it tracks the true value worse (0.13-0.28; the contribution, -0.02-0.13). This is an empirical limitation of the amount of experience (and of a credit that is unbiased but high-variance), not a defect found in the code: the same estimators learn a delayed-only consequence in the controlled diagnostic (3.2). It is exactly the case spec 9.4 guards against ('do not let speculative counterfactual predictions dominate learning before they are validated'): the selection rule refused to promote them, and the measured harm of forcing them is the evidence that the refusal was right. Process replicates of seed 0 (ids carry os.urandom bytes, so runs of one seed differ): simple 75.5 vs 70.8, rudder 83.8 vs 86.4 expected adopters.
 
 ### 3.2 Controlled diagnostic: learning a delayed-only consequence with each credit signal
 
@@ -197,6 +206,41 @@ True effect of unlock per mechanism seed (forced-arm simulation, 150 lifetimes p
   a discounted return over the policy-update batch (the `return` row is the analogue, truncated to the batch).
 * With a real effect (6 mechanisms) every return-based signal ends near P(unlock) = 0.93-0.94; regret differences between them are within about one standard error (n = 6). RUDDER's learning signal (the agent's RUDDER key, unbiased for any decomposer) behaves like REINFORCE, consistent with D's measurement that it gives no variance reduction at the key decision. RUDDER's contribution, the quantity the selection validates, had the lowest regret in 5 of 6 informative mechanisms (low variance, biased only if the decomposer is) - a candidate learning signal once validated, which the agent cannot use today (`_credit_for` treats every learned estimator as return-like); not proposed as a change.
 * On the null mechanism (3000) the biased signals committed to `wait` (P = 0.03 / 0.15) and RUDDER's signal to `unlock` (0.93) while REINFORCE stayed at 0.71 AUC - all near-zero regret; it shows how quickly a biased signal commits without evidence.
+
+### 3.3 Round 2 (after G3-core D-CR1 / D-CR2 and G3-act G3A-3): the forced-estimator comparison re-run, paired
+
+The independent verifier found that the round-1 comparison (3.1) did not isolate RUDDER's credit and was not paired:
+
+* **D-CR1.** `CamLiveAgent._credit_for` returned only the default estimator's credit; with RUDDER forced, every row
+  whose segment had not matured lost its simple per-decision credit (the update fell back to predictions). The arm
+  differed in three things at once (RUDDER credit on matured rows, no credit on pending rows, batch composition), and
+  the loss was visible before RUDDER credit existed (G3-core: quarter 1 -5.6 +- 3.6). It would have occurred under an
+  evidence-based promotion too: an integration defect, not an empirical limitation as section 3.1 said.
+* **D-CR2.** The selection validated RUDDER's contribution while the agent would have trained on the segment return
+  minus the prefix value.
+* **G3A-3.** Two fresh agents with the same seed drew different ids (os.urandom), so "paired by seed" was not paired.
+
+Fixes (87b4f38, credit/; CR-4 for agent.py): `credit.providers.learning_credit` - the default's learning signal where
+the record has it, else the simple per-decision credit; RUDDER's learning signal is its contribution (per decision,
+`RETURN_LIKE[rudder] = False`); `VALIDATION_KEY == LEARNING_KEY` (COCOA validated on its stored learning credit).
+Re-run on `git archive` of 37cc25b (ST's seed fixes 831cc85 and b74b312, CR-1/2/3 integrated) with CR-4 applied to the copy (the same code ST committed in 8b232a3), explicit `agent.id_salt = pair-<seed>` in both arms, uuid4 ids from a seeded generator (`--seed-uuid`), unbounded runtime learning budget (`--learn-budget-s 1e9`):
+`cr_agent_eval --condition {simple,rudder} --seed S --decisions 64 --segment 8`, one run at a time.
+
+| seed | first differing decision | first learned-credit update after decision | expected adopters simple / rudder | unlock found simple / rudder |
+|---|---|---|---|---|
+| 0 | 30 | 15 | 69.3 / 66.6 | no / no |
+| 1 | 33 | 15 | 97.9 / 105.6 | no / no |
+| 2 | 32 | 15 | 32.5 / 36.1 | no / no |
+| 3 | 32 | 15 | 53.7 / 63.1 | no / no |
+| 4 | 31 | 15 | 96.5 / 95.4 | no / no |
+
+* **Pairing holds**: in every pair the two arms made identical decisions (chosen action and id, selection probabilities, time) until after the first policy update that consumed RUDDER credit (5 of 5 pairs; `docs/evidence/CR/round2_pairing_checks.json`).
+* **The confound is gone**: the first 16 executed actions (before RUDDER credit exists) rudder - simple = 0.0 +- 0.0 (n = 5); the forced arm keeps the simple per-decision credit on pending rows (credited rows in the first 4 policy updates: simple 16.2, rudder 16.2).
+* **Result**: expected adopters over the 64-decision run, rudder - simple = **3.4 +- 2.4** (n = 5 paired seeds; rudder better in 3 of 5); by block of 16 executed actions 0.0 +- 0.0, 1.7 +- 1.4, 1.4 +- 1.6, 0.2 +- 2.8. Unlock found: simple 0 / 5, rudder 0 / 5.
+* Credit quality on the agent's own `lab.act` decisions (Pearson with the true value, mean over runs; every run stores every estimator's credit): simple 0.46, RUDDER contribution 0.09 (in the simple arm); in the rudder arm simple 0.45, contribution 0.01.
+
+**Conclusion of round 2.** With the confound removed and the arms paired, forcing RUDDER's credit (its contribution, with the simple fallback) changed the expected adopters of a 64-decision run by +3.4 +- 2.4 (n = 5) - no detectable effect in either direction (within two standard errors). The round-1 conclusion ('forcing RUDDER lowered competence', -66.8 +- 26.0) is not reproduced: once the arms are paired and RUDDER no longer removes the simple credit of pending rows, the large deficit disappears - it came from the D-CR1 confound and from unpaired run-to-run variance. Learned credit neither helps nor hurts measurably at this amount of experience; the evidence-based selection keeps `simple` (no estimator validated), and the RUDDER contribution tracks the true action value worse than the simple attribution. Not run in round 2: COCOA forced, the segment-signal variant of RUDDER, more seeds (CPU rule: one run at a time, ~10 min each).
+
 
 ## 4. Evidence per capability (amendment item 8: correctness, runtime integration, causal influence, improvement)
 
@@ -236,15 +280,18 @@ True effect of unlock per mechanism seed (forced-arm simulation, 150 lifetimes p
 * (a) `test_cr.py::test_revised_credit_is_queued_for_replay_and_survives_a_checkpoint`.
 * (b)/(c) Integrated agent, RUDDER forced, same seeds, with vs without the CR-3 line (patched copy): RUDDER-credited
   rows consumed by the real policy update with the line 112 / 132 / 134 (seeds 0-2; 84-99 of them replayed earlier decisions), without it 28 / 35 / 35 of 234 rows; the line changes the input of every policy update after the first matured segment (causal influence on the update shown; on behaviour see 4.4).
-* (d) It amplifies whatever estimator is the training default: with a forced, unvalidated RUDDER the competence
-  dropped (section 3.1); with the evidence-selected `simple` it replays almost nothing (0-2 rows per run: simple
+* (d) It amplifies whatever estimator is the training default (round 1, confounded by D-CR1: with a forced RUDDER
+  the competence dropped, section 3.1; round 2 with the fallback: section 3.3); with the evidence-selected `simple` it replays almost nothing (0-2 rows per run: simple
   credit is final while a decision is still in the recent window). Its value is conditional on validated credit.
 
 ### 4.4 Does better credit improve learning from delayed, uncertain consequences? (simple vs selected / forced)
 * Controlled diagnostic (section 3.2, 7 mechanisms, 6 with a detectable effect): the simple attribution cannot learn a consequence no evidence links to the decision (P(unlock) stays 0.5 by construction; regret 0.5 x effect per lifetime). Every return-based signal learns it (P(unlock) 0.93-0.94 in the last quarter). On the two mechanisms where simple was run (1000 / 2000) regret per lifetime was simple 2.16 / 2.01, REINFORCE 0.60 / 0.50, RUDDER signal 0.60 / 0.36, COCOA 2.02 / 0.75, RUDDER contribution 1.50 / 0.26; on the four others simple's regret is 0.5 x effect = 16.7 / 5.5 / 6.6 / 8.4 (by construction, not run) against 0.92-4.19 for the return-based signals. Between the return-based signals the differences are within about one standard error (n = 6): RUDDER signal 1.87 +- 0.61, REINFORCE 1.88 +- 0.57, COCOA 2.05 +- 0.44, RUDDER contribution 1.25 +- 0.27.
-* Integrated agent (section 3.1): forcing RUDDER lowered competence (-66.8 +- 26.0 expected adopters per 64-decision run, n = 9 paired); COCOA -38.2 +- 47.1 (n = 6, n.s.). Diagnosis: an empirical limitation of the experience in 64 decisions of one objective (few matured segments to train the decomposer / hindsight model; the delayed-only consequence rarely experienced; in this world the simple attribution measures most of a decision's value exactly), not a defect found in the credit code - the same estimators learn the delayed consequence in the controlled diagnostic. The architectural defect that was found (revised credit not reaching the weights) is CR-3.
+* Integrated agent, round 2 (section 3.3, paired seeded arms, simple fallback): forcing RUDDER's contribution changed expected adopters by +3.4 +- 2.4 (n = 5): no detectable effect in either direction (within two standard errors).
+* Round 1 (withdrawn: confounded by D-CR1, unpaired by G3A-3): forcing RUDDER lowered competence (-66.8 +- 26.0 expected adopters per 64-decision run, n = 9 paired); COCOA -38.2 +- 47.1 (n = 6, n.s.). Round-1 diagnosis (withdrawn): an empirical limitation of the experience in 64 decisions of one objective (few matured segments to train the decomposer / hindsight model; the delayed-only consequence rarely experienced; in this world the simple attribution measures most of a decision's value exactly), not a defect found in the credit code - the same estimators learn the delayed consequence in the controlled diagnostic. The architectural defect that was found (revised credit not reaching the weights) is CR-3.
 
-## 5. Real configuration (Qwen3-4B + 50m core, backbone-written candidates on)
+## 5. Real configuration (Qwen3-4B + 50m core, backbone-written candidates on; round-1 code)
+
+These two runs predate round 2 (RUDDER's learning key was the segment signal; no per-decision fallback, D-CR1); they are integration evidence only. Not re-run (operator redirect: no further GPU holds for credit).
 
 `cr_agent_eval --condition {rudder,simple} --real --seed 0 --decisions 40 --segment 4 --max-wall-s 720` inside the shared GPU lock (two holds, 12:57-13:10 and 14:15-14:27 UTC, no other CPU job of CR running): Qwen3-4B (frozen, bf16) + 50m core on CUDA, backbone-written candidates on, the same patched snapshot as section 3.1 (credit/ learner.py and segments.py of e8dee3f, providers.py of f937ce6; CR-1 and CR-3 applied; nn/gpu.py of 9656770), one open LabWorld key-door objective; `rudder` forces RUDDER as training default, `simple` is the evidence-selected default.
 
@@ -258,7 +305,7 @@ True effect of unlock per mechanism seed (forced-arm simulation, 150 lifetimes p
 ## 6. Tests and runs
 
 * `cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live
-  --junitxml=cam_live/docs/evidence/test_results/CR_fix.xml`: **155 passed, 9 skipped, 0 failed, 213 s** (at 96f7272's code; earlier runs during the work: 153 / 154 passed, 0 failed, 10-16 min on the loaded machine). CR's own tests: `tests/credit/test_cr.py` 11, `test_cr_agent.py` 1 (slow); DX's `test_dx_selection.py` adapted (2 assertions: one-unit experiments now contribute pooled units).
+  --junitxml=cam_live/docs/evidence/test_results/CR_fix.xml`: **final run after round 2 (HEAD with ST's CR-4, 8b232a3 and later): tests/credit + tests/integration/test_int3a_audit.py 161 passed, 9 skipped, 0 failed, 226 s** (round 1: 155 passed). CR's own tests: `tests/credit/test_cr.py` 13, `test_cr_agent.py` 1 (slow); DX's `test_dx_selection.py` adapted (one-unit experiments contribute pooled units); `test_int3a_audit.py`'s two credit tests rewritten for round 2 (they fail without CR-4).
 * `-m slow tests/credit/test_cr_agent.py` (real agent + runtime, one open objective): 1 passed (125 s): the real CamLiveAgent + LiveRuntime through one open 20-decision LabWorld objective with segments of 4 - RUDDER credit on >= 8 records and COCOA credit before closure, revised credit, selection log rows with reasons.
 * Patched copy (CR-1 + CR-3 applied to agent.py at dc1753c): `tests/integration/test_int3a_audit.py`,
   `test_int2_wiring.py`, `test_agent_runtime.py`: test_int3a_audit 4/4 + tests/credit/test_cr.py 10/10 (59 s), test_int2_wiring + test_agent_runtime + test_int2_checkpoints 20/20 (364 s); an earlier run of the same files on the copy, stopped under the master's CPU rule, had one failure in test_int3a_audit that passed alone and in the full file afterwards (order / load dependent, KF-E24 pattern) (the copy's credit/learner.py and segments.py as of e8dee3f, providers.py as of f937ce6)
@@ -278,6 +325,8 @@ Scratch directory `/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce
 in `docs/evidence/CR/`.
 
 ## 8. Not done / limitations
+
+* Round 2 re-ran only simple vs forced RUDDER (n = 5 pairs; one run at a time, ~10 min each); COCOA forced and the segment-signal RUDDER variant were not re-run on the corrected code, the lab diagnosis of section 1 scored COCOA with its per-unit counterfactual contrast (before D-CR2's change to its stored learning credit).
 
 * agent.py hooks CR-1 (segment split) and CR-3 (revision replay) are change requests; until ST applies them the agent
   has segment credit (CreditAssigner default K = 16) but no held-out segments and revised credit mostly does not reach

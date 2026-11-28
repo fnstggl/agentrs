@@ -1,0 +1,57 @@
+[
+ {
+  "control": "simple_s0.json",
+  "treatment": "rudder_s0.json",
+  "decisions": [
+   64,
+   64
+  ],
+  "first_differing_decision": 30,
+  "first_learned_credit_update_after_decision": 15,
+  "identical_until_credit_can_differ": true
+ },
+ {
+  "control": "simple_s1.json",
+  "treatment": "rudder_s1.json",
+  "decisions": [
+   64,
+   64
+  ],
+  "first_differing_decision": 33,
+  "first_learned_credit_update_after_decision": 15,
+  "identical_until_credit_can_differ": true
+ },
+ {
+  "control": "simple_s2.json",
+  "treatment": "rudder_s2.json",
+  "decisions": [
+   64,
+   64
+  ],
+  "first_differing_decision": 32,
+  "first_learned_credit_update_after_decision": 15,
+  "identical_until_credit_can_differ": true
+ },
+ {
+  "control": "simple_s3.json",
+  "treatment": "rudder_s3.json",
+  "decisions": [
+   64,
+   64
+  ],
+  "first_differing_decision": 32,
+  "first_learned_credit_update_after_decision": 15,
+  "identical_until_credit_can_differ": true
+ },
+ {
+  "control": "simple_s4.json",
+  "treatment": "rudder_s4.json",
+  "decisions": [
+   64,
+   64
+  ],
+  "first_differing_decision": 31,
+  "first_learned_credit_update_after_decision": 15,
+  "identical_until_credit_can_differ": true
+ }
+]

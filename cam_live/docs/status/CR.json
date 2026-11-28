@@ -1,7 +1,7 @@
 {
  "workstream": "CR",
  "stage": "amendment 2026-11-28 item 4 (retrospective credit assignment)",
- "commit": "f18db675d24e248373dfe2528f18eccf60813e71",
+ "commit": "3d2cdf4a81bf6d745c8d46523b136039d70e91d7",
  "summary": "Diagnosis of the failed held-out estimator selection (seed-specific under-resolution of weakly heterogeneous mechanisms; a gate that rejects an ideal learner at realistic sizes; impossible by construction in the agent), learned credit inside one long open objective (segments), a blocked held-out split by segment, an estimand-matched pooled selection rule over held-out randomised units of any experiment size, a revision queue for the policy update (agent hook CR-3), a controlled policy-learning diagnostic and an integrated-agent ablation (simple vs forced RUDDER / COCOA). docs/CR.md.",
  "requirements": {
   "AM4-credit-inside-one-objective": {
@@ -50,7 +50,7 @@
     "tests/credit/test_cr.py::test_revised_credit_is_queued_for_replay_and_survives_a_checkpoint"
    ],
    "evidence": {
-    "b_runtime_c_causal": "RUDDER forced: credited policy-update rows 112 / 132 / 134 with the CR-3 line vs 28 / 35 / 35 without (seeds 0-2, 64 decisions); 3 of 96 rows in the 22-decision smoke run without it; real configuration: 80 of 179 rows credited, 41 replayed (RUDDER forced), 2 replayed under simple"
+    "b_runtime_c_causal": "RUDDER forced (round 1): credited policy-update rows 112 / 132 / 134 with the CR-3 line vs 28 / 35 / 35 without; real configuration 80 of 179 rows credited, 41 replayed"
    },
    "limitations": "a revision is replayed once; frequent small revisions of a still-training decomposer queue the same records repeatedly (bounded by half a policy batch)"
   },
@@ -69,7 +69,51 @@
    ]
   },
   "AM4-credit-improves-learning": {
-   "state": "measured: negative in the integrated agent, positive for return-based credit in the controlled diagnostic",
+   "state": "round 2: re-measured paired on seeded code with the simple fallback (G3-core D-CR1, G3A-3); see round2 below; round-1 forced-estimator numbers are confounded and withdrawn",
+   "round2": {
+    "rudder": {
+     "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+     ],
+     "total": {
+      "mean": 3.3678793121601887,
+      "se": 2.351992261430498,
+      "n": 5,
+      "sd": 5.259214579112051
+     },
+     "better_in": 3,
+     "quarters": [
+      {
+       "mean": 0.0,
+       "se": 0.0,
+       "n": 5,
+       "sd": 0.0
+      },
+      {
+       "mean": 1.7276796497128406,
+       "se": 1.4394724864392254,
+       "n": 5,
+       "sd": 3.2187583314187522
+      },
+      {
+       "mean": 1.4269259389478233,
+       "se": 1.6272522321213956,
+       "n": 5,
+       "sd": 3.6386466075617077
+      },
+      {
+       "mean": 0.21327372349952575,
+       "se": 2.7525956736972503,
+       "n": 5,
+       "sd": 6.154991040958882
+      }
+     ]
+    }
+   },
    "files": [
     "src/cam_live/credit/cr_agent_eval.py",
     "src/cam_live/credit/cr_diagnose.py"
@@ -560,6 +604,13 @@
     }
    }
   },
+  "AM4-round2-fixes": {
+   "state": "implemented (credit/ 87b4f38); agent hook CR-4 pending with ST",
+   "defects": {
+    "D-CR1": "fixed: credit.providers.learning_credit falls back to the simple per-decision credit on rows the default has not credited; tests/credit/test_cr.py::test_learning_credit_falls_back_to_the_simple_per_decision_credit_where_the_default_has_none; tests/integration/test_int3a_audit.py::test_without_credit_the_update_is_unchanged (fails without CR-4)",
+    "D-CR2": "fixed: LEARNING_KEY[rudder] = rudder_contribution (per decision), VALIDATION_KEY == LEARNING_KEY, COCOA validated on its stored learning credit; tests/credit/test_cr.py::test_the_selection_validates_exactly_the_signal_the_agent_trains_on; tests/integration/test_int3a_audit.py::test_stored_credit_changes_the_policy_update_target_and_gradient (fails without CR-4)"
+   }
+  },
   "RC-08": {
    "state": "partial (agent hooks pending)",
    "limitations": "with CR-1 the agent obtains held-out units inside one objective; too few in the runs measured to validate any estimator; default stays simple by evidence"
@@ -572,14 +623,14 @@
   "EstimatorSelector(..., min_units=8, margin_sd=0.5, alpha=0.05, calib_min_per_arm=5, calib_alpha=0.01): add_units(units), pooled_scores(); select() uses the pooled rule when unit evidence exists",
   "LearnerSettings.val_split='segment'; ContinualLearner.trained_units, segment_split_from_seq"
  ],
- "change_requests": "docs/change_requests/CR.md: CR-1 (agent learner split 'segment'), CR-2 (optional, segment length from configuration), CR-3 (replay of revised credit in the policy update)",
+ "change_requests": "docs/change_requests/CR.md: CR-1 (agent learner split 'segment'), CR-2 (segment length from configuration), CR-3 (replay of revised credit in the policy update) - integrated by ST (f983cea); CR-4 (_credit_for delegates to CreditAssigner.learning_credit: per-decision fallback, matched learning signal) - round 2",
  "measured": {
-  "tests_credit": "155 passed, 9 skipped, 0 failed, 213 s (docs/evidence/test_results/CR_fix.xml)",
-  "slow_test_cr_agent": "1 passed, 125 s",
-  "patched_copy_integration": "test_int3a_audit 4/4, test_int2_wiring + test_agent_runtime + test_int2_checkpoints 20/20 on a copy with CR-1 + CR-3",
-  "cr3": "RUDDER forced: credited policy-update rows 112 / 132 / 134 with the CR-3 line vs 28 / 35 / 35 without (seeds 0-2, 64 decisions); 3 of 96 rows in the 22-decision smoke run without it; real configuration: 80 of 179 rows credited, 41 replayed (RUDDER forced), 2 replayed under simple",
-  "integrated_rudder_minus_simple_expected_adopters": "-66.8 +- 26.0 (n = 9 paired seeds, p ~ 0.03)",
-  "integrated_cocoa_minus_simple_expected_adopters": "-38.2 +- 47.1 (n = 6, n.s.)",
+  "tests_credit_plus_int3a_audit": "161 passed, 9 skipped, 0 failed, 226 s (docs/evidence/test_results/CR_fix.xml, final run after round 2)",
+  "slow_test_cr_agent": "1 passed, 125 s (round 1 code)",
+  "int3a_audit_round2": "4 passed on a clean archive of 8b232a3 (ST CR-4) together with tests/credit/test_cr.py 13 passed; without CR-4 the two rewritten tests fail",
+  "round2_paired_forced_rudder_minus_simple_expected_adopters": "+3.4 +- 2.4 (n = 5 seeded pairs, rudder better in 3 of 5; arms identical until the first policy update with RUDDER credit in 5 of 5 pairs; first 16 executed actions 0.0 +- 0.0)",
+  "round1_forced_rudder_minus_simple_withdrawn": "-66.8 +- 26.0 (confounded by D-CR1, unpaired by G3A-3)",
+  "cr3": "RUDDER forced (round 1): credited policy-update rows 112 / 132 / 134 with the CR-3 line vs 28 / 35 / 35 without; real configuration 80 of 179 rows credited, 41 replayed",
   "lab_gate_mean_z2_seed0_48": {
    "rudder": 6.72,
    "cocoa": 10.89,
@@ -605,7 +656,7 @@
   },
   "power_pass_old_gate_calibrated_2_units_per_arm": 0.6,
   "power_pass_old_gate_ideal_learner_24_per_arm": 0.79,
-  "real_configuration": "two holds, Qwen3-4B + 50m, backbone candidates on, one open objective, seed 0: rudder forced 39 decisions (RUDDER credit on 28/39 records before closure, COCOA none: open-ended candidates refused, 80/179 policy rows credited, 41 replayed) and simple 40 decisions (74/140 rows credited, 2 replayed; credit-truth Pearson simple 0.64, RUDDER 0.51); no randomised experiment in either; one pair, no competence claim (docs/evidence/CR/real_*_s0.json)"
+  "real_configuration": "two holds on round-1 code (integration evidence only, not re-run after the operator redirect)"
  },
  "not_done": [
   "agent.py hooks CR-1 / CR-3 are change requests (ST)",
@@ -614,7 +665,7 @@
   "the contribution signal (validated quantity) as a per-decision learning signal would need an agent change (_credit_for treats every learned estimator as return-like); not proposed"
  ],
  "scientific_failures": [
-  "integrated agent: forcing RUDDER or COCOA credit did not improve competence over the evidence-selected simple attribution (paired differences in docs/CR.md section 3)",
+  "round 1 (withdrawn): the forced-RUDDER result -66.8 +- 26.0 was confounded by D-CR1 and unpaired (G3A-3); round 2 re-run in docs/CR.md 3.3",
   "RUDDER's learning signal was not better than plain REINFORCE in the controlled diagnostic (regret per lifetime within one standard error)",
   "learned credit tracks the true value of the agent's own lab.act decisions worse than simple attribution after 64 decisions (Pearson 0.22-0.25 vs 0.36; RUDDER contribution 0.04)"
  ]

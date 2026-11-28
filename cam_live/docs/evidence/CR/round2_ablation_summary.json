@@ -1,0 +1,433 @@
+{
+ "runs": {
+  "rudder": {
+   "0": {
+    "quarters": [
+     13.253245197933303,
+     16.704549489170628,
+     17.356328831432926,
+     19.29625674964946
+    ],
+    "total": 66.61038026818632,
+    "unlock_index": null,
+    "waits": 0,
+    "decisions": 64,
+    "credited_rows": 233,
+    "rows": 333,
+    "credited_rows_first4_updates": 15,
+    "rows_by_estimator": {
+     "simple": 99,
+     "rudder": 134
+    },
+    "replayed": 99,
+    "default_at_end": "rudder",
+    "rudder_learning_key": "default",
+    "credit_truth_pearson": {
+     "cocoa": 0.6714803663520732,
+     "rudder": 0.24339532012643963,
+     "rudder_contribution": 0.14327196549197366,
+     "rudder_rtg": 0.18484783263262566,
+     "simple": 0.6109894622193767
+    },
+    "wall_s": 589.3351767063141
+   },
+   "1": {
+    "quarters": [
+     20.789314314637526,
+     23.363788693395602,
+     39.4161284654871,
+     22.013258405664807
+    ],
+    "total": 105.58248987918503,
+    "unlock_index": null,
+    "waits": 0,
+    "decisions": 64,
+    "credited_rows": 252,
+    "rows": 332,
+    "credited_rows_first4_updates": 15,
+    "rows_by_estimator": {
+     "simple": 119,
+     "rudder": 133
+    },
+    "replayed": 98,
+    "default_at_end": "rudder",
+    "rudder_learning_key": "default",
+    "credit_truth_pearson": {
+     "cocoa": 0.614974000589153,
+     "rudder": 0.34169320925569074,
+     "rudder_contribution": 0.0754804788204824,
+     "rudder_rtg": 0.2769740630972414,
+     "simple": 0.6247946513731765
+    },
+    "wall_s": 623.0683965682983
+   },
+   "2": {
+    "quarters": [
+     10.834038283774994,
+     7.58049536145956,
+     9.058632962293718,
+     8.62540243039785
+    ],
+    "total": 36.09856903792612,
+    "unlock_index": null,
+    "waits": 0,
+    "decisions": 64,
+    "credited_rows": 222,
+    "rows": 332,
+    "credited_rows_first4_updates": 17,
+    "rows_by_estimator": {
+     "simple": 89,
+     "rudder": 133
+    },
+    "replayed": 98,
+    "default_at_end": "rudder",
+    "rudder_learning_key": "default",
+    "credit_truth_pearson": {
+     "cocoa": 0.28824969553203095,
+     "rudder": 0.19200248654489802,
+     "rudder_contribution": 0.014499589610138206,
+     "rudder_rtg": 0.1937852907716516,
+     "simple": 0.4596911863138041
+    },
+    "wall_s": 528.8889195919037
+   },
+   "3": {
+    "quarters": [
+     12.528654612030786,
+     16.740168850264364,
+     18.5630833228686,
+     15.221401757115842
+    ],
+    "total": 63.053308542279595,
+    "unlock_index": null,
+    "waits": 2,
+    "decisions": 64,
+    "credited_rows": 230,
+    "rows": 332,
+    "credited_rows_first4_updates": 16,
+    "rows_by_estimator": {
+     "simple": 96,
+     "rudder": 134
+    },
+    "replayed": 98,
+    "default_at_end": "rudder",
+    "rudder_learning_key": "default",
+    "credit_truth_pearson": {
+     "cocoa": 0.26130168058253517,
+     "rudder": 0.03735233876855634,
+     "rudder_contribution": -0.2554058649088358,
+     "rudder_rtg": -0.11167983748051136,
+     "simple": 0.25107539994132744
+    },
+    "wall_s": 578.0949554443359
+   },
+   "4": {
+    "quarters": [
+     21.924641293424106,
+     32.11721413280111,
+     38.0947197892871,
+     3.2739057960215456
+    ],
+    "total": 95.41048101153386,
+    "unlock_index": null,
+    "waits": 13,
+    "decisions": 64,
+    "credited_rows": 202,
+    "rows": 314,
+    "credited_rows_first4_updates": 18,
+    "rows_by_estimator": {
+     "simple": 91,
+     "rudder": 111
+    },
+    "replayed": 92,
+    "default_at_end": "rudder",
+    "rudder_learning_key": "default",
+    "credit_truth_pearson": {
+     "rudder": -0.22897957353444712,
+     "rudder_contribution": 0.05156952279462757,
+     "rudder_rtg": -0.025995195178144706,
+     "simple": 0.2820394568475365,
+     "cocoa": 0.16645567764792749
+    },
+    "wall_s": 564.322958946228
+   }
+  },
+  "simple": {
+   "0": {
+    "quarters": [
+     13.253245197933303,
+     16.809402615351544,
+     21.874524330102343,
+     17.33721747968037
+    ],
+    "total": 69.27438962306756,
+    "unlock_index": null,
+    "waits": 0,
+    "decisions": 64,
+    "credited_rows": 139,
+    "rows": 234,
+    "credited_rows_first4_updates": 15,
+    "rows_by_estimator": {
+     "simple": 139
+    },
+    "replayed": 0,
+    "default_at_end": "simple",
+    "rudder_learning_key": "default",
+    "credit_truth_pearson": {
+     "cocoa": 0.653461002462776,
+     "rudder": 0.1429656736469809,
+     "rudder_contribution": 0.04444556445249761,
+     "rudder_rtg": 0.06799996441575835,
+     "simple": 0.6399913723680051
+    },
+    "wall_s": 593.6173827648163
+   },
+   "1": {
+    "quarters": [
+     20.789314314637526,
+     23.363788693395602,
+     36.92680476076446,
+     16.81586355146957
+    ],
+    "total": 97.89577132026716,
+    "unlock_index": null,
+    "waits": 1,
+    "decisions": 64,
+    "credited_rows": 143,
+    "rows": 234,
+    "credited_rows_first4_updates": 15,
+    "rows_by_estimator": {
+     "simple": 143
+    },
+    "replayed": 0,
+    "default_at_end": "simple",
+    "rudder_learning_key": "default",
+    "credit_truth_pearson": {
+     "cocoa": 0.3928270725176019,
+     "rudder": 0.27259004850375795,
+     "rudder_contribution": 0.13464895968865587,
+     "rudder_rtg": 0.27783384388023324,
+     "simple": 0.5217872508991627
+    },
+    "wall_s": 726.859091758728
+   },
+   "2": {
+    "quarters": [
+     10.834038283774994,
+     7.58049536145956,
+     7.362719368321523,
+     6.717926466290205
+    ],
+    "total": 32.49517947984628,
+    "unlock_index": null,
+    "waits": 0,
+    "decisions": 64,
+    "credited_rows": 135,
+    "rows": 242,
+    "credited_rows_first4_updates": 17,
+    "rows_by_estimator": {
+     "simple": 135
+    },
+    "replayed": 8,
+    "default_at_end": "simple",
+    "rudder_learning_key": "default",
+    "credit_truth_pearson": {
+     "cocoa": 0.3762945722622075,
+     "rudder": 0.27860927167023253,
+     "rudder_contribution": 0.08130111490087126,
+     "rudder_rtg": 0.28499796116290854,
+     "simple": 0.5822477512573315
+    },
+    "wall_s": 590.2683053016663
+   },
+   "3": {
+    "quarters": [
+     12.528654612030786,
+     15.379588593087837,
+     13.1307305388587,
+     12.68972305203221
+    ],
+    "total": 53.72869679600954,
+    "unlock_index": null,
+    "waits": 1,
+    "decisions": 64,
+    "credited_rows": 125,
+    "rows": 238,
+    "credited_rows_first4_updates": 16,
+    "rows_by_estimator": {
+     "simple": 125
+    },
+    "replayed": 4,
+    "default_at_end": "simple",
+    "rudder_learning_key": "default",
+    "credit_truth_pearson": {
+     "cocoa": 0.49330981421434245,
+     "rudder": 0.05696624063018937,
+     "rudder_contribution": -0.04817619769950453,
+     "rudder_rtg": -0.006302830776442972,
+     "simple": 0.31648117545791804
+    },
+    "wall_s": 541.8657348155975
+   },
+   "4": {
+    "quarters": [
+     21.924641293424106,
+     24.734543015232518,
+     36.059484678583296,
+     13.80312597187952
+    ],
+    "total": 96.52179495911945,
+    "unlock_index": null,
+    "waits": 11,
+    "decisions": 64,
+    "credited_rows": 126,
+    "rows": 239,
+    "credited_rows_first4_updates": 18,
+    "rows_by_estimator": {
+     "simple": 126
+    },
+    "replayed": 5,
+    "default_at_end": "simple",
+    "rudder_learning_key": "default",
+    "credit_truth_pearson": {
+     "rudder": 0.04006155671391404,
+     "rudder_contribution": 0.21454887008507414,
+     "rudder_rtg": 0.2098640961063648,
+     "simple": 0.2457256207816867,
+     "cocoa": 0.29416591067823733
+    },
+    "wall_s": 564.5300750732422
+   }
+  }
+ },
+ "paired": {
+  "rudder": {
+   "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "total": {
+    "mean": 3.3678793121601887,
+    "se": 2.351992261430498,
+    "n": 5,
+    "sd": 5.259214579112051
+   },
+   "better_in": 3,
+   "quarters": [
+    {
+     "mean": 0.0,
+     "se": 0.0,
+     "n": 5,
+     "sd": 0.0
+    },
+    {
+     "mean": 1.7276796497128406,
+     "se": 1.4394724864392254,
+     "n": 5,
+     "sd": 3.2187583314187522
+    },
+    {
+     "mean": 1.4269259389478233,
+     "se": 1.6272522321213956,
+     "n": 5,
+     "sd": 3.6386466075617077
+    },
+    {
+     "mean": 0.21327372349952575,
+     "se": 2.7525956736972503,
+     "n": 5,
+     "sd": 6.154991040958882
+    }
+   ]
+  }
+ },
+ "by_condition": {
+  "rudder": {
+   "n": 5,
+   "total": {
+    "mean": 73.35104574782218,
+    "se": 12.378836089534367,
+    "n": 5,
+    "sd": 27.67991897852652
+   },
+   "unlock_found": 0,
+   "credited_rows_first4_updates": {
+    "mean": 16.2,
+    "se": 0.58309518948453,
+    "n": 5,
+    "sd": 1.3038404810405297
+   },
+   "credit_truth_pearson": {
+    "simple": {
+     "mean": 0.44571803133904425,
+     "se": 0.07882092376806733,
+     "n": 5,
+     "sd": 0.17624894359472743
+    },
+    "rudder": {
+     "mean": 0.11709275623222752,
+     "se": 0.09953234661343216,
+     "n": 5,
+     "sd": 0.2225610929877053
+    },
+    "rudder_contribution": {
+     "mean": 0.005883138361677201,
+     "se": 0.06861228454291109,
+     "n": 5,
+     "sd": 0.1534217323295073
+    },
+    "cocoa": {
+     "mean": 0.40049228414074395,
+     "se": 0.10153386218065048,
+     "n": 5,
+     "sd": 0.2270366178540295
+    }
+   }
+  },
+  "simple": {
+   "n": 5,
+   "total": {
+    "mean": 69.983166435662,
+    "se": 12.556814144491463,
+    "n": 5,
+    "sd": 28.07789000791378
+   },
+   "unlock_found": 0,
+   "credited_rows_first4_updates": {
+    "mean": 16.2,
+    "se": 0.58309518948453,
+    "n": 5,
+    "sd": 1.3038404810405297
+   },
+   "credit_truth_pearson": {
+    "simple": {
+     "mean": 0.4612466341528208,
+     "se": 0.0767015199627256,
+     "n": 5,
+     "sd": 0.17150981261421158
+    },
+    "rudder": {
+     "mean": 0.15823855823301497,
+     "se": 0.05100025440367727,
+     "n": 5,
+     "sd": 0.11404003571640538
+    },
+    "rudder_contribution": {
+     "mean": 0.08535366228551887,
+     "se": 0.043955401932342056,
+     "n": 5,
+     "sd": 0.09828726669904246
+    },
+    "cocoa": {
+     "mean": 0.4420116744270331,
+     "se": 0.061619213688914286,
+     "n": 5,
+     "sd": 0.13778475052849792
+    }
+   }
+  }
+ }
+}
