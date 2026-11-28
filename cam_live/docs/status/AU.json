@@ -184,17 +184,54 @@
   "au_tests": 54,
   "au_failures": 0,
   "au_skipped": 0,
-  "final_run_failed_ids": []
+  "final_run_failed_ids": [],
+  "learning_check_at_605f2bf": "test_runtime_executes_in_the_computer_environment_without_grant_refusals passed; 3 test_agent_runtime learning tests errored at setup by pytest-timeout (>2400 s, load 80-95), passed at fdab7d3 (INT3B_fix3.xml)",
+  "runtime_ablation_seed0_12steps": {
+   "standing": {
+    "decisions_with_results": 2,
+    "writes": 0,
+    "approvals_pending": 0,
+    "wall_s": 848.2
+   },
+   "no_standing": {
+    "decisions_with_results": 2,
+    "writes": 0,
+    "approvals_pending": 0,
+    "wall_s": 1126.5
+   },
+   "verdict": "uninformative: the debug agent attempted no write in either arm"
+  },
+  "live_planning_run_readonly": {
+   "record_standing_profile": false,
+   "policy_copy": "default-3",
+   "attempt1_writes_allowed_without_approval": {
+    "discord.modify_guild": 3,
+    "discord.create_channel": 1
+   },
+   "attempt2_writes_allowed_without_approval": {
+    "discord.modify_guild": 2
+   },
+   "operator_requests": [
+    "Access to a usable URL destination (permission, answered)",
+    "Manage roles (permission, granted)",
+    "Server Configuration Details (information, open)"
+   ]
+  }
  },
  "measured_commands": {
   "final_run_*": "see requirements.*.commands (JUnit docs/evidence/test_results/AU_fix.xml)",
-  "job_probe": "docs/evidence/AU/job_probe.py (unpatched / patched jobs.py)"
+  "job_probe": "docs/evidence/AU/job_probe.py (unpatched / patched jobs.py)",
+  "learning_check": "docs/evidence/AU/learning_check_summary.txt (PYTHONPATH = git archive of 605f2bf)",
+  "runtime_ablation": "docs/evidence/AU/runtime_probe.py 12 0 -> docs/evidence/AU/runtime_probe_out.txt"
  },
  "not_done": [
   "CR AU-1 (jobs.py) not applied (EC-owned file).",
   "No e-mail adapter (IMAP / SMTP); e-mail only through a provider's HTTP API as an approved integration.",
   "No live run with a standing record; the 2026-11-28 planning run is unaffected (record without a profile, policy copy read at its start).",
-  "Disclosure text for website publications is an operator policy setting, empty by default; AU did not add one."
+  "Disclosure text for website publications is an operator policy setting, empty by default; AU did not add one.",
+  "The live planning run's record has no standing profile: deletions in CAM's own server are pre-authorized there by the operator's explicit signature (retained rules apply only to standing records)."
  ],
- "scientific_failures": []
+ "scientific_failures": [
+  "Runtime-level ablation of the standing profile (debug agent, seed 0, 12 steps) uninformative: no write attempted in either arm."
+ ]
 }

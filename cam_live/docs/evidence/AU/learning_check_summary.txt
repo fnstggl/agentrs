@@ -1,0 +1,15 @@
+cam_live/tests/integration/test_agent_runtime.py::test_delayed_outcomes_link_to_their_decisions ERROR [ 25%]
+cam_live/tests/integration/test_agent_runtime.py::test_learning_changes_experiential_and_adapter_weights ERROR [ 50%]
+cam_live/tests/integration/test_agent_runtime.py::test_behaviour_changes_and_lives_in_the_weights ERROR [ 75%]
+cam_live/tests/integration/test_int2_wiring.py::test_runtime_executes_in_the_computer_environment_without_grant_refusals PASSED [100%]
+==================================== ERRORS ====================================
+_______ ERROR at setup of test_delayed_outcomes_link_to_their_decisions ________
+E       Failed: Timeout (>2400.0s) from pytest-timeout.
+___ ERROR at setup of test_learning_changes_experiential_and_adapter_weights ___
+E       Failed: Timeout (>2400.0s) from pytest-timeout.
+______ ERROR at setup of test_behaviour_changes_and_lives_in_the_weights _______
+E       Failed: Timeout (>2400.0s) from pytest-timeout.
+ERROR cam_live/tests/integration/test_agent_runtime.py::test_delayed_outcomes_link_to_their_decisions
+ERROR cam_live/tests/integration/test_agent_runtime.py::test_learning_changes_experiential_and_adapter_weights
+ERROR cam_live/tests/integration/test_agent_runtime.py::test_behaviour_changes_and_lives_in_the_weights
+=================== 1 passed, 3 errors in 2792.59s (0:46:32) ===================

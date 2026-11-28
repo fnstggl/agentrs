@@ -1,0 +1,3 @@
+{"standing": true, "seed": 0, "results": {"read/internal:ok": 2}, "approvals_pending": 0, "channels_created": 1, "wall_s": 848.2}
+{"standing": false, "seed": 0, "results": {"read/internal:ok": 2}, "approvals_pending": 0, "channels_created": 1, "wall_s": 1126.5}
+EXIT 0

@@ -1,0 +1,319 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="3" failures="0" skipped="0" tests="4" time="2792.588" timestamp="2026-11-28T10:07:57.621907+00:00" hostname="ebecdb7e42eb"><testcase classname="tests.integration.test_agent_runtime" name="test_delayed_outcomes_link_to_their_decisions" time="2400.083"><error message="failed on setup with &quot;Failed: Timeout (&gt;2400.0s) from pytest-timeout.&quot;">tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=&lt;pluggy._tracing.TagTracerSub object at 0x7f7c51649880&gt;, _basetemp=PosixPath('/tmp/pytest-of-root/pytest-685'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def session(tmp_path_factory):
+        root = str(tmp_path_factory.mktemp("integrated"))
+        clock = SimClock()
+        # policy updates every 6 rewarded decisions: each update's query window then holds ~6 decisions, enough for the
+        # importance-weighted meta estimator's effective-sample-size floor per lifetime (with 3 it was below the floor
+        # in every attempt that had enough independent groups: measured, docs/INTEGRATION.md §9)
+        agent = CamLiveAgent(agent_config(policy_update_every=6), os.path.join(root, "agent"), clock=clock)
+        rec = Recorder(agent)
+        probe = HeldOutProbe(agent)
+        p0, s0 = probe.distribution(), agent.model.trainable_state()
+        # attribution windows of 30 min (LabWorld default in this family: 6 h): the interventions' outcomes mature
+        # inside a test-sized lifetime whatever the agent chooses, instead of only when it happens to wait
+        lab = {"outcome_horizon_s": 1800.0, "mean_delay_s": (300.0, 900.0)}
+&gt;       lifetimes = [run_lifetime(rec, clock, root, seed, max_steps=40, max_decisions=22, lab_kw=lab) for seed in SEEDS]
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+cam_live/tests/integration/test_agent_runtime.py:61: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+cam_live/tests/integration/int_helpers.py:99: in run_lifetime
+    lt.cycles.append(rt.step())
+                     ^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/runtime/loop.py:1938: in step
+    self.start()
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/runtime/loop.py:345: in start
+    self._fresh()
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/runtime/loop.py:379: in _fresh
+    self._agent("set_objective", learner_view(self.task))
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/runtime/loop.py:781: in _agent
+    return getattr(self.agent, name)(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+cam_live/tests/integration/int_helpers.py:61: in call
+    return target(*a, **k)
+           ^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/agent.py:976: in set_objective
+    self.fast_records += self.promote(f"objective {self.task.objective_id} ended")
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/agent.py:2440: in promote
+    dec, info, rb = promote_learner(
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/credit/checkpoint.py:1146: in promote_learner
+    losses = learner.validate()
+             ^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/utils/_contextlib.py:158: in no_grad
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/credit/learner.py:563: in validate
+    batch = encode_decisions(self.model, self.store, recs, with_next=self.settings.with_next, grad=False)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/learning_api.py:70: in encode_decisions
+    out = model.core_forward(tokens, None)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/nn/model.py:171: in core_forward
+    return self.exp.core(tokens, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1798: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/nn/core.py:262: in forward
+    h = blk(h, neg_mask, tfeat, rot, slots_read)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1798: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/nn/core.py:150: in forward
+    h = h + self.drop(self.attn(self.n1(h), neg_mask, tfeat, rot))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1798: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/nn/core.py:109: in forward
+    bias = neg_mask + self.time_bias(tfeat).permute(0, 3, 1, 2)
+                      ^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1798: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Linear(in_features=28, out_features=4, bias=False)
+input = tensor([[[[ 1.0000e+00,  6.0653e-01,  1.3534e-01,  ...,  1.0000e+00,
+            1.0000e+00,  1.0000e+00],
+          [...000e+00],
+          [ 1.0000e+00,  6.0653e-01,  1.3534e-01,  ...,  1.0000e+00,
+            1.0000e+00,  1.0000e+00]]]])
+
+    def forward(self, input: Tensor) -&gt; Tensor:
+        """
+        Runs the forward pass.
+        """
+&gt;       return F.linear(input, self.weight, self.bias)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: Timeout (&gt;2400.0s) from pytest-timeout.
+
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/linear.py:134: Failed</error></testcase><testcase classname="tests.integration.test_agent_runtime" name="test_learning_changes_experiential_and_adapter_weights" time="0.001"><error message="failed on setup with &quot;Failed: Timeout (&gt;2400.0s) from pytest-timeout.&quot;">tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=&lt;pluggy._tracing.TagTracerSub object at 0x7f7c51649880&gt;, _basetemp=PosixPath('/tmp/pytest-of-root/pytest-685'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def session(tmp_path_factory):
+        root = str(tmp_path_factory.mktemp("integrated"))
+        clock = SimClock()
+        # policy updates every 6 rewarded decisions: each update's query window then holds ~6 decisions, enough for the
+        # importance-weighted meta estimator's effective-sample-size floor per lifetime (with 3 it was below the floor
+        # in every attempt that had enough independent groups: measured, docs/INTEGRATION.md §9)
+        agent = CamLiveAgent(agent_config(policy_update_every=6), os.path.join(root, "agent"), clock=clock)
+        rec = Recorder(agent)
+        probe = HeldOutProbe(agent)
+        p0, s0 = probe.distribution(), agent.model.trainable_state()
+        # attribution windows of 30 min (LabWorld default in this family: 6 h): the interventions' outcomes mature
+        # inside a test-sized lifetime whatever the agent chooses, instead of only when it happens to wait
+        lab = {"outcome_horizon_s": 1800.0, "mean_delay_s": (300.0, 900.0)}
+&gt;       lifetimes = [run_lifetime(rec, clock, root, seed, max_steps=40, max_decisions=22, lab_kw=lab) for seed in SEEDS]
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+cam_live/tests/integration/test_agent_runtime.py:61: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+cam_live/tests/integration/int_helpers.py:99: in run_lifetime
+    lt.cycles.append(rt.step())
+                     ^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/runtime/loop.py:1938: in step
+    self.start()
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/runtime/loop.py:345: in start
+    self._fresh()
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/runtime/loop.py:379: in _fresh
+    self._agent("set_objective", learner_view(self.task))
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/runtime/loop.py:781: in _agent
+    return getattr(self.agent, name)(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+cam_live/tests/integration/int_helpers.py:61: in call
+    return target(*a, **k)
+           ^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/agent.py:976: in set_objective
+    self.fast_records += self.promote(f"objective {self.task.objective_id} ended")
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/agent.py:2440: in promote
+    dec, info, rb = promote_learner(
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/credit/checkpoint.py:1146: in promote_learner
+    losses = learner.validate()
+             ^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/utils/_contextlib.py:158: in no_grad
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/credit/learner.py:563: in validate
+    batch = encode_decisions(self.model, self.store, recs, with_next=self.settings.with_next, grad=False)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/learning_api.py:70: in encode_decisions
+    out = model.core_forward(tokens, None)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/nn/model.py:171: in core_forward
+    return self.exp.core(tokens, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1798: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/nn/core.py:262: in forward
+    h = blk(h, neg_mask, tfeat, rot, slots_read)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1798: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/nn/core.py:150: in forward
+    h = h + self.drop(self.attn(self.n1(h), neg_mask, tfeat, rot))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1798: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/nn/core.py:109: in forward
+    bias = neg_mask + self.time_bias(tfeat).permute(0, 3, 1, 2)
+                      ^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1798: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Linear(in_features=28, out_features=4, bias=False)
+input = tensor([[[[ 1.0000e+00,  6.0653e-01,  1.3534e-01,  ...,  1.0000e+00,
+            1.0000e+00,  1.0000e+00],
+          [...000e+00],
+          [ 1.0000e+00,  6.0653e-01,  1.3534e-01,  ...,  1.0000e+00,
+            1.0000e+00,  1.0000e+00]]]])
+
+    def forward(self, input: Tensor) -&gt; Tensor:
+        """
+        Runs the forward pass.
+        """
+&gt;       return F.linear(input, self.weight, self.bias)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: Timeout (&gt;2400.0s) from pytest-timeout.
+
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/linear.py:134: Failed</error></testcase><testcase classname="tests.integration.test_agent_runtime" name="test_behaviour_changes_and_lives_in_the_weights" time="0.001"><error message="failed on setup with &quot;Failed: Timeout (&gt;2400.0s) from pytest-timeout.&quot;">tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=&lt;pluggy._tracing.TagTracerSub object at 0x7f7c51649880&gt;, _basetemp=PosixPath('/tmp/pytest-of-root/pytest-685'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def session(tmp_path_factory):
+        root = str(tmp_path_factory.mktemp("integrated"))
+        clock = SimClock()
+        # policy updates every 6 rewarded decisions: each update's query window then holds ~6 decisions, enough for the
+        # importance-weighted meta estimator's effective-sample-size floor per lifetime (with 3 it was below the floor
+        # in every attempt that had enough independent groups: measured, docs/INTEGRATION.md §9)
+        agent = CamLiveAgent(agent_config(policy_update_every=6), os.path.join(root, "agent"), clock=clock)
+        rec = Recorder(agent)
+        probe = HeldOutProbe(agent)
+        p0, s0 = probe.distribution(), agent.model.trainable_state()
+        # attribution windows of 30 min (LabWorld default in this family: 6 h): the interventions' outcomes mature
+        # inside a test-sized lifetime whatever the agent chooses, instead of only when it happens to wait
+        lab = {"outcome_horizon_s": 1800.0, "mean_delay_s": (300.0, 900.0)}
+&gt;       lifetimes = [run_lifetime(rec, clock, root, seed, max_steps=40, max_decisions=22, lab_kw=lab) for seed in SEEDS]
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+cam_live/tests/integration/test_agent_runtime.py:61: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+cam_live/tests/integration/int_helpers.py:99: in run_lifetime
+    lt.cycles.append(rt.step())
+                     ^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/runtime/loop.py:1938: in step
+    self.start()
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/runtime/loop.py:345: in start
+    self._fresh()
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/runtime/loop.py:379: in _fresh
+    self._agent("set_objective", learner_view(self.task))
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/runtime/loop.py:781: in _agent
+    return getattr(self.agent, name)(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+cam_live/tests/integration/int_helpers.py:61: in call
+    return target(*a, **k)
+           ^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/agent.py:976: in set_objective
+    self.fast_records += self.promote(f"objective {self.task.objective_id} ended")
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/agent.py:2440: in promote
+    dec, info, rb = promote_learner(
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/credit/checkpoint.py:1146: in promote_learner
+    losses = learner.validate()
+             ^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/utils/_contextlib.py:158: in no_grad
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/credit/learner.py:563: in validate
+    batch = encode_decisions(self.model, self.store, recs, with_next=self.settings.with_next, grad=False)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/learning_api.py:70: in encode_decisions
+    out = model.core_forward(tokens, None)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/nn/model.py:171: in core_forward
+    return self.exp.core(tokens, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1798: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/nn/core.py:262: in forward
+    h = blk(h, neg_mask, tfeat, rot, slots_read)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1798: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/nn/core.py:150: in forward
+    h = h + self.drop(self.attn(self.n1(h), neg_mask, tfeat, rot))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1798: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/AU/headsrc/cam_live/src/cam_live/nn/core.py:109: in forward
+    bias = neg_mask + self.time_bias(tfeat).permute(0, 3, 1, 2)
+                      ^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1798: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Linear(in_features=28, out_features=4, bias=False)
+input = tensor([[[[ 1.0000e+00,  6.0653e-01,  1.3534e-01,  ...,  1.0000e+00,
+            1.0000e+00,  1.0000e+00],
+          [...000e+00],
+          [ 1.0000e+00,  6.0653e-01,  1.3534e-01,  ...,  1.0000e+00,
+            1.0000e+00,  1.0000e+00]]]])
+
+    def forward(self, input: Tensor) -&gt; Tensor:
+        """
+        Runs the forward pass.
+        """
+&gt;       return F.linear(input, self.weight, self.bias)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: Timeout (&gt;2400.0s) from pytest-timeout.
+
+../agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/linear.py:134: Failed</error></testcase><testcase classname="tests.integration.test_int2_wiring" name="test_runtime_executes_in_the_computer_environment_without_grant_refusals" time="370.576" /></testsuite></testsuites>
