@@ -299,11 +299,19 @@ def _mean_n(res: Dict[str, Any], budget: int) -> Optional[float]:
     return sum(x["n_to_achieve"] for x in rows) / len(rows) if rows else None
 
 
+#: G3A-3 (independent verification, 2026-11-28): two fresh agents with the same seed are not the same experiment (the
+#: agent id is drawn from os.urandom), so arms are independent runs; comparisons are unpaired by default
+UNPAIRED_NOTE = ("unpaired: runs with the same seed are independent (agent id from os.urandom, G3A-3), so the "
+                 "difference of the arm means is reported with a bootstrap interval and a label-permutation p over the "
+                 "per-seed means (descriptive only, v3.5)")
+
+
 def paired_vs(a: Dict[int, Dict[str, Any]], b: Dict[int, Dict[str, Any]], budget: int,
-              keys: tuple = ("n_to_achieve",)) -> Dict[str, Any]:
-    """Seed-paired differences a - b of per-seed means (descriptive; v3.5)."""
+              keys: tuple = ("n_to_achieve",), *, paired: bool = False) -> Dict[str, Any]:
+    """Differences a - b of per-seed means over the seeds both arms have (descriptive; v3.5). ``paired`` treats equal
+    seeds as matched units (sign-flip test); the default does not (G3A-3: UNPAIRED_NOTE)."""
     seeds = sorted(set(a) & set(b))
-    out: Dict[str, Any] = {"paired_seeds": seeds}
+    out: Dict[str, Any] = {"seeds": seeds, "paired": paired, "pairing_note": "" if paired else UNPAIRED_NOTE}
     for k in keys:
         fa, fb = [], []
         for s in seeds:
@@ -312,7 +320,9 @@ def paired_vs(a: Dict[int, Dict[str, Any]], b: Dict[int, Dict[str, Any]], budget
             fa.append(sum(float(x[k]) for x in ra) / len(ra) if ra else None)
             fb.append(sum(float(x[k]) for x in rb) / len(rb) if rb else None)
         out[k] = {"a_per_seed": fa, "b_per_seed": fb,
-                  "a_minus_b": diff_ci(fa, fb, paired=True) if seeds else None}
+                  "a_mean": (sum(x for x in fa if x is not None) / max(1, sum(x is not None for x in fa))) if seeds else None,
+                  "b_mean": (sum(x for x in fb if x is not None) / max(1, sum(x is not None for x in fb))) if seeds else None,
+                  "a_minus_b": diff_ci(fa, fb, paired=paired) if seeds else None}
     return out
 
 
@@ -326,19 +336,19 @@ def build_report(results_dir: str, budget: int = 20, *, expect_commit: str = "",
     e = collect(results_dir, "x1").get("E", {})
     x3 = collect(results_dir, "x3")
     if e and x3:
-        report["x3_vs_E"] = {c: {"note": "E minus baseline, seed-paired (descriptive only, v3.5)",
+        report["x3_vs_E"] = {c: {"note": "E minus baseline (descriptive only, v3.5)",
                                  **paired_vs(e, runs, budget, ("n_to_achieve", "verified_value", "achieved"))}
                              for c, runs in x3.items()}
     x4 = collect(results_dir, "x4")
     if x4.get("skills") and x4.get("primitive"):
         report["x4_skills_vs_primitive"] = {
-            "note": "skills minus primitive, seed-paired (descriptive only, v3.5)",
+            "note": "skills minus primitive (descriptive only, v3.5)",
             **paired_vs(x4["skills"], x4["primitive"], budget,
                         ("n_to_achieve", "achieved", "primitive_ops_total", "wall_s", "inference_s"))}
     x5 = collect(results_dir, "x5")
     if e and x5.get("goalfree"):
-        report["x5_vs_E"] = {"note": "goal-free phase first minus without (X1 E), seed-paired, the goal-free phase "
-                                     "itself excluded (descriptive only, v3.5)",
+        report["x5_vs_E"] = {"note": "goal-free phase first minus without (X1 E), the goal-free phase itself excluded "
+                                     "(descriptive only, v3.5)",
                              **paired_vs(_drop_goalfree(x5["goalfree"]), e, budget,
                                          ("n_to_achieve", "verified_value", "achieved"))}
     if collect(results_dir, "x2"):
@@ -346,7 +356,7 @@ def build_report(results_dir: str, budget: int = 20, *, expect_commit: str = "",
     x1 = collect(results_dir, "x1")
     abl = {c: r for c, r in x1.items() if c != "E"}
     if e and abl:
-        report["x1_ablations"] = {c: {"note": f"E minus {c}, seed-paired (descriptive only, v3.5)",
+        report["x1_ablations"] = {c: {"note": f"E minus {c} (descriptive only, v3.5)",
                                       **paired_vs(e, runs, budget, ("n_to_achieve", "verified_value", "achieved"))}
                                   for c, runs in sorted(abl.items())}
     if baseline_dir:
@@ -356,10 +366,10 @@ def build_report(results_dir: str, budget: int = 20, *, expect_commit: str = "",
 
 def compare_trees(base_dir: str, new_dir: str, budget: int = 20) -> Dict[str, Any]:
     """The same experiment / condition on two snapshots (e.g. the pre-amendment baseline and the amended code),
-    paired by seed: counts of achieved / never reached / interrupted on each side and seed-paired differences
+    over the same seeds: counts of achieved / never reached / interrupted on each side and unpaired differences
     new minus baseline (descriptive only, v3.5)."""
     out: Dict[str, Any] = {"baseline_dir": os.path.abspath(base_dir), "new_dir": os.path.abspath(new_dir),
-                           "note": "new minus baseline, seed-paired; no test can reach p < 0.05 (v3.5)"}
+                           "note": "new minus baseline; no test can reach p < 0.05 (v3.5); " + UNPAIRED_NOTE}
     for exp in EXPERIMENTS + ("x2",):
         b, n = collect(base_dir, exp), collect(new_dir, exp)
         for c in sorted(set(b) & set(n)):
@@ -433,7 +443,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="snapshot commit every result must record (code_check.all_match)")
     ap.add_argument("--markdown", default="", help="also write per-objective tables to this Markdown file")
     ap.add_argument("--baseline-dir", dest="baseline_dir", default="",
-                    help="results tree of another snapshot to compare with, seed-paired (summary_amended_vs_baseline)")
+                    help="results tree of another snapshot to compare with, unpaired (summary_amended_vs_baseline)")
     a = ap.parse_args(argv)
     results_dir = a.results_dir
     if not results_dir:

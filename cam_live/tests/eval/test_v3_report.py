@@ -189,3 +189,13 @@ def test_ablation_overrides_reach_the_configuration():
     assert jobs["x1/Eimag0_s2"]["extra"] == oe_batch.IMAG0 and jobs["x1/Erpsi0_s0"]["extra"] == oe_batch.RPSI_FROZEN
     assert all(jobs[f"x1/{c}_s{s}"]["plan"] == jobs[f"x1/E_s{s}"]["plan"] for c in ("Eimag0", "Erpsi0") for s in (0, 1, 2))
     assert [n for n in jobs][-6:] == [f"x2/{v}_s{s}" for s in (0, 1, 2) for v in ("initial", "experienced")]
+
+
+def test_arm_comparisons_are_unpaired_by_default():
+    """G3A-3: equal seeds are not matched units (agent id from os.urandom), so arm differences use the unpaired test."""
+    a = {s: _res(s, [_obj(0, "rle", achieved=True, decisions=d)], "SW:rle") for s, d in ((0, 2), (1, 4), (2, 6))}
+    b = {s: _res(s, [_obj(0, "rle", achieved=True, decisions=d)], "SW:rle") for s, d in ((0, 8), (1, 10), (2, 12))}
+    u = R.paired_vs(a, b, 20)
+    assert u["paired"] is False and "G3A-3" in u["pairing_note"]
+    assert u["n_to_achieve"]["a_minus_b"]["paired"] is False and u["n_to_achieve"]["a_minus_b"]["mean"] == -6.0
+    assert R.paired_vs(a, b, 20, paired=True)["n_to_achieve"]["a_minus_b"]["paired"] is True
