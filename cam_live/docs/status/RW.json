@@ -1,7 +1,7 @@
 {
  "workstream": "RW",
- "commit": "4cc63a48237446d7f908b91a8699304cbb103b0c",
- "summary": "RW (amendment 2026-11-28 item 1, genuinely learned rewards). Audit: the mix stayed 1 because the promotion test compared single policy steps (power ~0 at realistic rates), existed only at applied meta-updates, and the outer estimator used only the 3-4 decisions between two live updates; defect: level readings were stored as the level. Changed (reward/): prospective anytime-valid validity evidence decides the mix (no margin, no held-out reservation); pooled first-order outer estimator ('auto' default, query-window fallback); outer utility default 'direct'; level readings as changes; ST-3 information value as a bootstrap input. Debug scale, one long LabWorld objective per seed vs a frozen R_psi (same seeds, controlled configuration without goal term): learning raised R_psi's prospective agreement with verified outcomes above the frozen R_psi's in 17/18 seed-configurations; with the final rule (pairs only within one psi) the evidence promoted R_psi in 3/3 600-decision objectives at reward lr 3e-3 and 2/6 at the agent's 1e-4 (frozen: 0 of 12), decisions changed 7-31 decisions later; afterwards the chosen actions' true value over the frozen counterfactual was +2.14 [1.63, 2.64] adopters/decision in the one objective with a long post-promotion period (319 decisions) and inconclusive in the four short ones (-2.89 .. +0.87, all intervals include 0): improvement not established. Integrated agent (debug, 120 decisions, agent configuration): 9/143 meta-updates applied, 47 pairs, no promotion. Real configuration (Qwen3-4B + 50m, backbone on, one GPU hold): 35 decisions, 4/36 meta-updates applied, 17 pairs, e-value 1.0, mix 1, R_psi weight 0 in all 11 live updates. Not shown: promotion or improvement on the real model; reliable improvement in general.",
+ "commit": "9469b8fd2322a7d58c9a8122b1d10ad8c52d1771",
+ "summary": "ROUND 2 (G3-core D-RW1, D-RW2): an unlearned R_psi of either sign could be promoted by the round-1 rule (a random initialisation is a random function of informative inputs; the round-1 null 'R_psi independent of outcomes' was the wrong one), so round 1's promotions did not show learning. Fix: lowering the mix also requires beating 20 never-trained control rewards (R_psi's own initialisation psi_0 + 19 seeded draws) and their negations (intersection-union test at alpha/2; validity_placebos). Measured on RW's controlled 600-decision configuration with G3-core's seeds: unlearned R_psi promoted 0 of 20 (frozen, both signs; the round-1 rule acted on 3), 0 of 10 drifting without learning, 0 of 6 frozen; learned 0 of 9 at 600 and 0 of 3 at 1200 decisions (best learned agreement 0.38 vs the best control's 0.26). D-RW2 justified (structural with a tied reward-time bootstrap) and reported as reason 'mixture_and_R_psi_rank_alike_at_reward_time'. || ROUND 1: RW (amendment 2026-11-28 item 1, genuinely learned rewards). Audit: the mix stayed 1 because the promotion test compared single policy steps (power ~0 at realistic rates), existed only at applied meta-updates, and the outer estimator used only the 3-4 decisions between two live updates; defect: level readings were stored as the level. Changed (reward/): prospective anytime-valid validity evidence decides the mix (no margin, no held-out reservation); pooled first-order outer estimator ('auto' default, query-window fallback); outer utility default 'direct'; level readings as changes; ST-3 information value as a bootstrap input. Debug scale, one long LabWorld objective per seed vs a frozen R_psi (same seeds, controlled configuration without goal term): learning raised R_psi's prospective agreement with verified outcomes above the frozen R_psi's in 17/18 seed-configurations; with the final rule (pairs only within one psi) the evidence promoted R_psi in 3/3 600-decision objectives at reward lr 3e-3 and 2/6 at the agent's 1e-4 (frozen: 0 of 12), decisions changed 7-31 decisions later; afterwards the chosen actions' true value over the frozen counterfactual was +2.14 [1.63, 2.64] adopters/decision in the one objective with a long post-promotion period (319 decisions) and inconclusive in the four short ones (-2.89 .. +0.87, all intervals include 0): improvement not established. Integrated agent (debug, 120 decisions, agent configuration): 9/143 meta-updates applied, 47 pairs, no promotion. Real configuration (Qwen3-4B + 50m, backbone on, one GPU hold): 35 decisions, 4/36 meta-updates applied, 17 pairs, e-value 1.0, mix 1, R_psi weight 0 in all 11 live updates. Not shown: promotion or improvement on the real model; reliable improvement in general.",
  "requirements": {
   "AM1-promotion-criterion (bootstrap transition, empirically grounded usefulness)": {
    "state": "implemented",
@@ -48,6 +48,26 @@
    ],
    "evidence": "review docs/RW.md 2.4",
    "still_fails": "not an R_psi input (its weight is not learned); myopic (next two decisions)"
+  },
+  "G3-core D-RW1 (unlearned R_psi promoted)": {
+   "state": "fixed (rule changed; power cost measured)",
+   "what_changed": "reward/validity.py placebo intersection-union test; reward/metalearner.py PlaceboRewards (psi_0 + 19 seeded draws, own lifetime contexts, R_psi's input statistics, checkpointed); reward/inner.py reward_step evaluates them on R_psi's inputs; MetaConfig.validity_placebos = 20",
+   "tests": [
+    "tests/reward/test_reward_rw.py::test_an_unlearned_r_psi_of_either_sign_is_never_promoted_however_well_it_agrees",
+    "tests/reward/test_reward_rw.py::test_a_learned_r_psi_better_than_every_unlearned_reward_is_promoted",
+    "tests/reward/test_reward_rw.py::test_placebo_zero_is_r_psi_s_own_initialisation_and_round_trips"
+   ],
+   "evidence": "G3-core's probe probe_rw_flipped_frozen.py on the fixed code, seeds 0-9: 0 of 20 promoted (round-1 rule: 3); drift control 0 of 10; docs/evidence/RW/round2_*.json",
+   "still_fails": "power: no learned R_psi promoted within 600-1200 debug decisions"
+  },
+  "G3-core D-RW2 (mix stops at 0.75 with a tied bootstrap)": {
+   "state": "justified, reported",
+   "what_changed": "decision reason 'mixture_and_R_psi_rank_alike_at_reward_time'; summary 'nonzero_increments_by_mix'",
+   "tests": [
+    "tests/reward/test_reward_rw.py::test_with_a_tied_bootstrap_the_walk_stops_at_the_first_step_and_says_why"
+   ],
+   "evidence": "docs/RW.md R2",
+   "still_fails": "update-time prospective scoring (the principled extension) not implemented"
   }
  },
  "public_api": [
@@ -69,7 +89,8 @@
   "tests_other_touched_by_defaults": "tests/integration/test_agent_runtime.py 11 passed; tests/integration/test_agent_recovery.py + tests/eval/test_meta_integrity.py 4 passed, 1 skipped (isolated copy 07303fe + RW)",
   "g2decision_probe_meta_path": "21/23 on RW code (the 2 failures are the probe's own analytic vs FD at derivative magnitudes 1.3e-8 / 1.6e-6; the code's gradient equals the probe's analytic one to 3e-15); HEAD: 23/23; the probe is not run-to-run reproducible (HEAD twice: |g| 0.258 / 0.249)",
   "live_checkpoint_compat": "ckpt_00000039 of the live planning run loads; restored_fresh = validity",
-  "real_model_run": "35 decisions, lock 657 s, GPU peak 10.5 GB, meta 4/36 applied, 17 validity pairs, mix 1.0, R_psi TV 0.0 in 11 live updates"
+  "real_model_run": "35 decisions, lock 657 s, GPU peak 10.5 GB, meta 4/36 applied, 17 validity pairs, mix 1.0, R_psi TV 0.0 in 11 live updates",
+  "round2": "unlearned frozen both signs 0/20, drift 0/10, frozen 0/6, learned 0/9 (600) and 0/3 (1200)"
  },
  "not_done": [
   "inner-loss return half-life not changed (diagnosed; also limits the bootstrap-only live policy in the controlled diagnostic)",
@@ -78,6 +99,7 @@
   "agent hooks RW-1/RW-2 pending with ST"
  ],
  "scientific_failures": [
+  "round 2: at debug scale meta-learning did not take R_psi's agreement clearly beyond the best of 40 random rewards within 1200 decisions (best margin ~0.12, needs ~800 informative pairs)",
   "R_psi's agreement with verified outcomes rises slowly: promotion after 281-568 decisions (debug), within 300 only 1 of 3 seeds, 2 of 6 at the agent's lr within 600",
   "improvement after promotion clear in 1 of 5 promoted objectives (+2.14 [1.63, 2.64]); the four short post-promotion periods inconclusive (-2.89 .. +0.87)",
   "real model: no promotion within one hold (17 pairs)"

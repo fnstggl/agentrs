@@ -44,6 +44,24 @@ def run(seed: int, arm: str, n_decisions: int, update_every: int, world_seed: in
     if arm == "frozen":
         ec.lr_reward = 0.0
     est = "query" if arm == "query" else "pooled_first_order"
+    restore = None
+    if arm == "drift":
+        # an R_psi that moves without learning (G3-core D-RW1 control): every applied outer step keeps its norm but
+        # gets a random direction (seeded), so psi changes as much as when it learns, carrying no outcome information
+        import cam_live.reward.metalearner as mlm
+        from cam_live.reward.meta import MetaGradient, MetaGradResult
+        real_apply = MetaGradient.apply
+        g_rng = torch.Generator().manual_seed(90_000 + seed)
+
+        def drift_apply(opt, reward, result, clip=None):
+            if result.supported and result.grad_norm > 0:
+                rnd = {k: torch.randn(v.shape, generator=g_rng).to(v) for k, v in result.grads.items()}
+                n = math.sqrt(sum(float((x ** 2).sum()) for x in rnd.values()))
+                rnd = {k: x * (result.grad_norm / n) for k, x in rnd.items()}
+                result = dataclasses.replace(result, grads=rnd)
+            return real_apply(opt, reward, result, clip=clip)
+        mlm.MetaGradient.apply = staticmethod(drift_apply)
+        restore = (mlm.MetaGradient, real_apply)
     model, store, clock, ml = dg.make_stack(seed, ec, mix=1.0, mix_step=mix_step, check_measurement=auth,
                                             estimator=est, utility=utility, half_life_s=half_life_s)
     lab = dict(ec.lab)
@@ -95,6 +113,8 @@ def run(seed: int, arm: str, n_decisions: int, update_every: int, world_seed: in
                                                          task=task, finish=False)
     annotate()
     ml.refresh_validity()
+    if restore is not None:
+        restore[0].apply = staticmethod(restore[1])
     val = ml.validity.summary()
     rec_pairs = list(ml.validity.recent)
     thirds = []
@@ -127,7 +147,7 @@ def run(seed: int, arm: str, n_decisions: int, update_every: int, world_seed: in
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--arm", choices=("pooled", "query", "frozen"), required=True)
+    ap.add_argument("--arm", choices=("pooled", "query", "frozen", "drift"), required=True)
     ap.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
     ap.add_argument("--decisions", type=int, default=120)
     ap.add_argument("--update-every", type=int, default=6)

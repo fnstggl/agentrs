@@ -43,7 +43,7 @@ import dataclasses
 import hashlib
 import math
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 import torch
 from torch import Tensor, nn
@@ -103,6 +103,8 @@ class MetaConfig:
                                          # held-out importance-weighted value of the two updated policies (LRN)
     validity_alpha: float = 0.05         # error level of the validity evidence's confidence sequences
     validity_same_version: bool = True   # pair only decisions rewarded by the same R_psi version (no psi-shift confound)
+    validity_placebos: int = 20          # never-trained control rewards R_psi must beat (each in both signs; D-RW1):
+                                         # an R_psi that moved without learning passes w.p. <= 1 / (2 n + 1)
     estimator: str = "auto"              # outer-gradient estimator: "query" (the decisions after each update event,
                                          # exact in the step), "pooled_first_order" (RW: the verified policy
                                          # gradient at the event's snapshot from every matured decision outside its
@@ -196,6 +198,85 @@ def _default_measurement_utility(rec: ExperienceRecord, q: OutcomeQuery, o: Outc
     return float(o.value) if (q.goal_relevant and o.value is not None) else None
 
 
+def _reinit_reward(m: IntrinsicReward, seed: int) -> None:
+    """Draw ``m``'s parameters afresh from R_psi's initialisation distribution (seeded, CPU)."""
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(int(seed))
+        for sub in m.modules():
+            if sub is not m and hasattr(sub, "reset_parameters"):
+                sub.reset_parameters()
+        std = float(getattr(m, "out_init_std", 0.02))
+        nn.init.normal_(m.out.weight, std=std)
+        nn.init.zeros_(m.out.bias)
+        nn.init.normal_(m.null_goal, std=0.02)
+
+
+class PlaceboRewards:
+    """Never-trained control rewards for the validity evidence (G3-core D-RW1). Index 0 is R_psi's own initialisation
+    psi_0 (copied when the meta-learner is built); 1.. are fresh, seeded draws from the same initialisation
+    distribution. Each sees exactly R_psi's inputs, with R_psi's input statistics (they do not depend on psi), and
+    carries its own lifetime context. They never receive a gradient and never enter any update."""
+
+    def __init__(self, reward: IntrinsicReward, n: int, seed: int = 0):
+        self.n, self.seed = int(n), int(seed)
+        self.seeds = [self.seed * 1_000_003 + 7919 * (j + 1) for j in range(self.n)]
+        dev = next(reward.parameters()).device
+        self.mods: List[IntrinsicReward] = []
+        for j in range(self.n):
+            m = copy.deepcopy(reward).cpu()
+            if j > 0:
+                _reinit_reward(m, self.seeds[j])
+                m.lifetime.new_lifetime()
+            for p in m.parameters():
+                p.requires_grad_(False)
+            self.mods.append(m.to(dev))
+
+    @torch.no_grad()
+    def values(self, reward: IntrinsicReward, b: Tensor, e_a: Tensor, b_next: Tensor, e_g: Optional[Tensor],
+               signals: Tensor, mask: Optional[Tensor]) -> List[float]:
+        out = []
+        for m in self.mods:
+            for src, dst in zip(reward._norms(), m._norms()):
+                dst.mean.copy_(src.mean)
+                dst.var.copy_(src.var)
+                dst.count.copy_(src.count)
+            r, _, _ = m.reward_sequence(b, e_a, b_next, e_g, signals, mask, advance=True)
+            out.append(float(r[0]))
+        return out
+
+    def new_lifetime(self) -> None:
+        for m in self.mods:
+            m.lifetime.new_lifetime()
+
+    def state_dict(self) -> Dict[str, Any]:
+        return {"n": self.n, "seed": self.seed, "seeds": list(self.seeds),
+                "psi0": {k: v.detach().cpu().clone() for k, v in self.mods[0].named_parameters()},
+                "life": [[m.lifetime.state.detach().cpu().clone(), int(m.lifetime.steps)] for m in self.mods]}
+
+    def load_state_dict(self, d: Mapping[str, Any], reward: IntrinsicReward) -> None:
+        if int(d["n"]) != self.n:
+            raise ValueError(f"{d['n']} placebos in the checkpoint, {self.n} configured")
+        self.seed, self.seeds = int(d["seed"]), [int(x) for x in d["seeds"]]
+        dev = next(reward.parameters()).device
+        mods = []
+        for j in range(self.n):
+            m = copy.deepcopy(reward).cpu()
+            if j == 0:
+                with torch.no_grad():
+                    for k, p in m.named_parameters():
+                        p.copy_(d["psi0"][k])
+            else:
+                _reinit_reward(m, self.seeds[j])
+            st, steps = d["life"][j]
+            with torch.no_grad():
+                m.lifetime.state.copy_(st)
+                m.lifetime.steps.fill_(int(steps))
+            for p in m.parameters():
+                p.requires_grad_(False)
+            mods.append(m.to(dev))
+        self.mods = mods
+
+
 class MetaLearner:
     def __init__(self, model: Any, store: ExperienceStore, cfg: Any, *, policy: Optional[nn.Module] = None,
                  reward: Optional[IntrinsicReward] = None,
@@ -246,7 +327,9 @@ class MetaLearner:
         # RW: prospective evidence on R_psi vs the bootstrap (collected under both rules; decides the mix under
         # "validity"); fed at reward time and when a decision's verified progress becomes final
         self.validity = ProspectiveValidity(step=self._grid_step(), alpha=mc.validity_alpha,
-                                            same_version=mc.validity_same_version)
+                                            same_version=mc.validity_same_version, n_placebo=mc.validity_placebos)
+        self.placebos = PlaceboRewards(reward, mc.validity_placebos, seed=int(getattr(cfg, "seed", 0) or 0)) \
+            if mc.validity_placebos > 0 else None
         self._val_reg: Dict[str, int] = {}                         # exp_id -> registration count when noted
         self.restored_fresh: List[str] = []                        # state absent from a loaded checkpoint
         self._life = 0
@@ -304,6 +387,8 @@ class MetaLearner:
         spans all its objectives (:meth:`new_objective`)."""
         self._life += 1
         self.reward.lifetime.new_lifetime()
+        if self.placebos is not None:
+            self.placebos.new_lifetime()
 
     def new_objective(self) -> None:
         """A new objective starts within the same lifetime (KF-E05; architecture section 4: ``life_ctx`` is a
@@ -401,14 +486,15 @@ class MetaLearner:
         """Step 13 of the loop: reward every new decision once (learned and bootstrap parts logged separately)."""
         new = self.observe(records)
         self.refresh_selection()
-        mixed = self.inner.reward_step(self.store, new, write=write)
+        mixed = self.inner.reward_step(self.store, new, write=write, placebos=self.placebos)
         for rec, m in zip(new, mixed):               # RW: both rewards as given before any outcome existed
             if verified_progress(rec) is not None:   # its verified progress was known when it was rewarded:
                 continue                             # not a prospective test of either reward
             self.validity.note(rec.exp_id, segment=self._life_of.get(rec.exp_id, self._life),
                                group=independence_key(rec), r_bootstrap=float(m.bootstrap[0]),
                                r_learned=float(m.learned[0]), ts=float(rec.decision.ts),
-                               version=f"psi-step-{self.mixer.meta_updates_applied}")   # psi, not its input statistics
+                               version=f"psi-step-{self.mixer.meta_updates_applied}",   # psi, not its input statistics
+                               r_placebo=m.placebo)
             self._val_reg[rec.exp_id] = self._n_registered
         self.refresh_validity()
         tot = [float(m.total[0]) for m in mixed]
@@ -1179,6 +1265,7 @@ class MetaLearner:
                 "selection": self.selection.state_dict(), "selection_pending": list(self._sel_pending),
                 "validity": self.validity.state_dict(), "validity_registered": dict(self._val_reg),
                 "pooled_done": sorted(self._pooled_done), "goal_metric": dict(self._goal_metric),
+                "placebos": self.placebos.state_dict() if self.placebos is not None else None,
                 "selection_registered": [self._n_registered, dict(self._reg_at)],
                 "records": [r.to_dict() for r in self.records[-256:]],
                 "events": [{"event_id": e.event_id, "ts": e.ts, "exp_ids": list(e.exp_ids), "inner_lr": e.inner_lr,
@@ -1234,15 +1321,25 @@ class MetaLearner:
         self.restored_fresh = []
         self._pooled_done = {int(x) for x in sd.get("pooled_done", [])}
         self._goal_metric = {str(k): str(v) for k, v in sd.get("goal_metric", {}).items()}
+        if self.placebos is not None:
+            try:
+                self.placebos.load_state_dict(sd["placebos"], self.reward)
+            except (KeyError, TypeError, ValueError) as e:      # older checkpoint: psi_0 := R_psi as loaded
+                self.placebos = PlaceboRewards(self.reward, self.mc.validity_placebos,
+                                               seed=int(getattr(self.cfg, "seed", 0) or 0))
+                self.restored_fresh.append(f"placebos (unlearned controls drawn now, psi_0 = R_psi as loaded: "
+                                           f"{type(e).__name__})")
         self.validity = ProspectiveValidity(step=self._grid_step(), alpha=self.mc.validity_alpha,
-                                            same_version=self.mc.validity_same_version)
+                                            same_version=self.mc.validity_same_version,
+                                            n_placebo=self.mc.validity_placebos)
         if "validity" in sd:                        # RW: checkpoints from before the validity evidence start empty
             try:
                 self.validity.load_state_dict(sd["validity"])
                 self._val_reg = {k: int(v) for k, v in sd.get("validity_registered", {}).items()}
             except ValueError as e:                 # another mix grid: the evidence does not apply, start afresh
                 self.validity = ProspectiveValidity(step=self._grid_step(), alpha=self.mc.validity_alpha,
-                                            same_version=self.mc.validity_same_version)
+                                            same_version=self.mc.validity_same_version,
+                                            n_placebo=self.mc.validity_placebos)
                 self._val_reg = {}
                 self.restored_fresh.append(f"validity ({e})")
         else:

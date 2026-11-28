@@ -611,8 +611,8 @@ class PolicyImprovementLoss:
 
     # --------------------------------------------------------------------------------------------- real-time step
     @torch.no_grad()
-    def reward_step(self, store: ExperienceStore, records: Sequence[ExperienceRecord], *, write: bool = True
-                    ) -> List[MixedReward]:
+    def reward_step(self, store: ExperienceStore, records: Sequence[ExperienceRecord], *, write: bool = True,
+                    placebos: Optional[Any] = None) -> List[MixedReward]:
         """Reward each new real decision once, in order: remember the lifetime state it saw, update the input
         statistics (unless frozen), advance the lifetime context and the noisy-TV gate, mix with the labelled
         bootstrap reward and (``write``) store ``intrinsic_reward`` / ``bootstrap_reward`` / ``reward_version``."""
@@ -626,6 +626,9 @@ class PolicyImprovementLoss:
                                                    advance=True)
             mixed = self.mixer.combine(ib.r_boot, rl, reward_version=self.reward.version,
                                        bootstrap_components=ib.boot_components, exp_ids=[rec.exp_id])
+            if placebos is not None:          # never-trained controls on the same inputs (validity evidence only)
+                mixed.placebo = placebos.values(self.reward, ib.b, ib.e_a_chosen, ib.b_next, e_g, ib.signals,
+                                                ib.signal_mask)
             if write:
                 for k, v in mixed.record_fields(0).items():
                     setattr(rec, k, v)

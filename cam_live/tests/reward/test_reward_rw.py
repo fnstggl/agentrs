@@ -422,3 +422,94 @@ def test_units_rewarded_by_different_r_psi_versions_are_not_paired():
     twin = ProspectiveValidity(step=0.5)
     twin.load_state_dict(v.state_dict())
     assert twin.same_version is False and twin.summary() == v.summary()
+
+
+# ------------------------------------------------------------------------------------------ G3-core D-RW1 / D-RW2
+def _feed_pl(v, n, rng, f_boot, f_learned, f_pl, *, start=0):
+    rows = []
+    for i in range(start, start + n):
+        y = float(rng.randint(0, 20))
+        v.note(f"e{i}", segment=0, group=f"dec:{i}", r_bootstrap=f_boot(y, rng), r_learned=f_learned(y, rng, i),
+               r_placebo=f_pl(y, rng, i))
+        rows.append((f"e{i}", y))
+    return [v.resolve(e, y) for e, y in rows]
+
+
+def test_an_unlearned_r_psi_of_either_sign_is_never_promoted_however_well_it_agrees():
+    """D-RW1: a frozen R_psi is its own placebo psi_0 (and its negation the negated placebo): the 'beats every
+    unlearned reward' half of the test has increments exactly 0 and can never pass, even when the frozen reward agrees
+    strongly with the verified outcomes and beats the bootstrap."""
+    for sign in (+1.0, -1.0):
+        rng = random.Random(21)
+        v, mixer = ProspectiveValidity(step=0.25, n_placebo=3), RewardMixer(step=0.25)
+        mixer.note_meta_update()
+        # placebo 0 = the initialisation, informative by chance; R_psi = that initialisation (sign +1) or its negation
+        init = {}
+
+        def pl(y, r, i):
+            init[i] = y + r.gauss(0, 1)
+            return [init[i], r.gauss(0, 1), r.gauss(0, 1)]
+        for t in range(150):
+            rows = []
+            for i in range(2 * t, 2 * t + 2):
+                y = float(rng.randint(0, 20))
+                p = pl(y, rng, i)
+                v.note(f"e{i}", segment=0, group=f"dec:{i}", r_bootstrap=rng.gauss(0, 1),
+                       r_learned=abs(sign) * p[0] if sign > 0 else -p[0], r_placebo=p)
+                rows.append((f"e{i}", y))
+            for e, y in rows:
+                v.resolve(e, y)
+            mixer.apply(v.decide(mixer.mix))
+        assert mixer.mix == 1.0 and v.n_pairs == 150
+        if sign > 0:          # it agrees, beats the bootstrap, and is still not promoted
+            assert v.up[0].rejected and not v.placebos_beaten()
+            assert v.decide(1.0).reason == "R_psi_not_shown_to_agree_better_than_every_unlearned_reward"
+        assert all(t.wealth == 1.0 for t in (v.pl_up[0] if sign > 0 else v.pl_upn[0],))
+
+
+def test_a_learned_r_psi_better_than_every_unlearned_reward_is_promoted():
+    rng = random.Random(23)
+    v, mixer = ProspectiveValidity(step=0.25, n_placebo=3), RewardMixer(step=0.25)
+    mixer.note_meta_update()
+    for t in range(120):
+        _feed_pl(v, 2, rng, lambda y, r: r.gauss(0, 1), lambda y, r, i: y + r.gauss(0, 1),
+                 lambda y, r, i: [0.3 * y + r.gauss(0, 4), r.gauss(0, 1), -0.3 * y + r.gauss(0, 4)], start=2 * t)
+        mixer.apply(v.decide(mixer.mix))
+    assert mixer.mix < 1.0 and v.placebos_beaten() and v.summary()["placebo"]["rejected"] == 6
+
+
+def test_with_a_tied_bootstrap_the_walk_stops_at_the_first_step_and_says_why():
+    """D-RW2: with the bootstrap tied at reward time every mixture below 1 ranks like R_psi alone, so reward-time
+    evidence cannot tell 0.75 from 0; the decision says so instead of reporting 'inconclusive'."""
+    rng = random.Random(29)
+    v, mixer = ProspectiveValidity(step=0.25), RewardMixer(step=0.25)
+    mixer.note_meta_update()
+    for t in range(80):
+        _feed(v, 2, rng, lambda y, r: 0.0, lambda y, r: y + r.gauss(0, 1), start=2 * t)
+        mixer.apply(v.decide(mixer.mix))
+    assert mixer.mix == 0.75
+    d = v.decide(mixer.mix)
+    assert d.action == "hold" and d.reason == "mixture_and_R_psi_rank_alike_at_reward_time"
+    assert v.summary()["nonzero_increments_by_mix"]["0.75"] == 0 and v.summary()["nonzero_increments_by_mix"]["1"] > 0
+
+
+def test_placebo_zero_is_r_psi_s_own_initialisation_and_round_trips():
+    ec = dg.ExperimentConfig()
+    model, store, clock, ml = dg.make_stack(0, ec, mix=1.0, mix_step=0.25)
+    assert ml.placebos is not None and len(ml.placebos.mods) == ml.mc.validity_placebos == 20
+    lt, _, _ = dg.lab_lifetime(ml, store, clock, ec, seed=4242, n_decisions=6, update_every=0)
+    rows = list(ml.validity.rows.values())
+    assert rows and all(len(r.rp) == 20 for r in rows)
+    assert all(abs(r.rp[0] - r.rl) < 1e-6 for r in rows)          # psi unchanged: placebo 0 gives R_psi's reward
+    assert any(abs(r.rp[1] - r.rl) > 1e-6 for r in rows)          # a fresh draw does not
+    sd = copy.deepcopy(ml.state_dict())
+    ml2 = dg.make_stack(0, ec, mix=1.0, mix_step=0.25)[3]
+    ml2.load_state_dict(sd)
+    assert ml2.restored_fresh == []
+    for a, b in zip(ml.placebos.mods, ml2.placebos.mods):
+        assert all(torch.equal(p, q) for p, q in zip(a.parameters(), b.parameters()))
+        assert torch.equal(a.lifetime.state, b.lifetime.state)
+    old = {k: v for k, v in sd.items() if k != "placebos"}
+    ml3 = dg.make_stack(0, ec, mix=1.0, mix_step=0.25)[3]
+    ml3.load_state_dict(old)
+    assert any(x.startswith("placebos") for x in ml3.restored_fresh)

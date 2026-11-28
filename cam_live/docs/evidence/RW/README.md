@@ -11,3 +11,4 @@ Scripts (run from `/workspace/camlive`; `PYTHONPATH=cam_live/src`, or a copy of 
 | `promotion_power_sim.py` -> `promotion_power.json` | pairs needed by the validity rule's own test before it lowers the mix |
 | `rw_pathway.py` -> `real_*.json`, `dbg_*.json` | the integrated agent (`CamLiveAgent` + `LiveRuntime`) in one long LabWorld staging objective; `--debug` = CPU plumbing check; without it the real configuration under the shared GPU lock; arms learned / frozen |
 | `check_hooks.py`, `check_hooks.log`, `rw_agent_hooks.diff` | change requests RW-1 / RW-2 tested on a patched copy |
+| `round2_run_all.sh`, `summarise_round2.py` -> `round2_*.json` | round 2 (G3-core D-RW1): G3-core's `probe_rw_flipped_frozen.py` (frozen initialisation, both signs) and RW's arms drift / learned / frozen under the rule with never-trained control rewards |

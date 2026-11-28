@@ -152,6 +152,7 @@ class MixedReward:
     label: str                    # "bootstrap" (mix == 1), "learned" (mix == 0) or "mixed"
     reward_version: str
     bootstrap_version: str = BOOTSTRAP_VERSION
+    placebo: List[float] = field(default_factory=list)   # never-trained control rewards (validity evidence only)
 
     def record_fields(self, i: int) -> Dict[str, Any]:
         """Fields of ``contracts.ExperienceRecord`` for row i."""

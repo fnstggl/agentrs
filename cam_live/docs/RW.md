@@ -12,7 +12,14 @@ the mechanism itself needs none).
 ## 0. Summary
 
 Item 1 asks that R_psi can be learned and *used* inside one long objective, on an empirically grounded criterion,
-without forcing the mix. What changed and what it showed:
+without forcing the mix. **Round 2 (G3-core D-RW1, D-RW2; §R2) corrects round 1:** an unlearned R_psi of either sign
+could be promoted by the round-1 rule (it is a random function of informative inputs and can agree with outcomes by
+chance), so round 1's promotions did not show learning. The rule now also requires R_psi to beat 40 never-trained
+control rewards (its own initialisation, 19 fresh draws, and their negations): 0 of 36 unlearned R_psi (frozen both
+signs, drifting without learning) are promoted, and 0 of 12 learned ones within 600-1200 decisions — at debug scale
+learning did not take R_psi's agreement clearly beyond what random rewards reach. The cap at 0.75 under a tied
+bootstrap (D-RW2) is structural and is now reported as such. What changed and what it showed (round 1 below, read
+with §R2):
 
 | | before (d1d06dc) | now |
 |---|---|---|
@@ -39,6 +46,87 @@ Diagnosed limits (§4, §6): the outer utility (fixed: `direct`) and the inner-l
 decisions an hour apart; not changed — it governs every live update) blur the credit R_psi receives; the anytime test
 needs tens of informative pairs, i.e. ~100+ matured decisions, more than one GPU hold provides; the planning phase of
 the live run has no verified contrast at all yet.
+
+## R2. Round 2 — G3-core's D-RW1 and D-RW2 (`docs/verification/G3_core.md` §1.2)
+
+### D-RW1: an unlearned R_psi was promoted (3 of 12 frozen initialisations, both signs)
+
+**Why the false-promotion rate in the long-objective setting was far above the simulated one.** Not dependence between
+pairs (the e-processes need only E[x | past] <= 0, which G3-core confirmed: 1.0 % / 0.5 % under exact nulls), not
+leakage of verified progress (a decision whose verified progress was known when it was rewarded is not a unit;
+`verified_progress_delta` at reward time counts only the decision's own readings, which arrive later), not the
+e-value on non-independent pairs. The simulation's null was the wrong one: an R_psi *independent of the outcomes*.
+A random initialisation is not that — it is a fixed random function of inputs (action embedding, latents, signals)
+that carry outcome information: unlearned rewards reach agreements of 0.2 and more with an anytime CS excluding 0,
+far beyond the ~0.06 typical of an outcome-independent function over ~200 informative pairs. Its expected agreement
+is therefore not 0 but a random number of either sign, so for half of the initialisations "R_psi agrees better than the (tied)
+bootstrap" is *true*, and the test correctly rejected that null. What the rule lacked was the comparison that
+attributes agreement to learning.
+
+**Fix (`reward/validity.py`, `reward/metalearner.py` `PlaceboRewards`, `reward/inner.py`).** Every decision is also
+rewarded by `validity_placebos` = 20 never-trained control rewards: R_psi's own initialisation psi_0 (copied when the
+meta-learner is built) and 19 fresh seeded draws from the same initialisation distribution, each with its own
+lifetime context and R_psi's input statistics, on exactly R_psi's inputs; they never enter any update. Lowering the
+mix now also requires that R_psi agrees better than each of them *and each of their negations* (40 one-sided
+e-processes at alpha/2; intersection-union test, so the level stays alpha/2). Consequences: a frozen R_psi is its own
+placebo psi_0 (and its negation the negated placebo), so its increments are exactly 0 and it can never be promoted;
+an R_psi that moved without learning is exchangeable with the 40 controls and is the best of 41 with probability
+1/41 ≈ 2.4 %, the upper bound of its promotion rate; a learned R_psi must agree better than the best of 40 random
+functions. Cost: 20 small forward passes per decision; the controls' state is checkpointed (psi_0's parameters, the
+others' seeds, every lifetime context); an older checkpoint loads and draws them afresh with psi_0 = R_psi as loaded
+(reported in `restored_fresh`).
+
+**Measured (debug, RW's controlled 600-decision configuration, same seeds and worlds as G3-core; run on an isolated
+copy of 07303fe + RW's files; `docs/evidence/RW/round2_*.json`, `summarise_round2.py`):**
+
+| R_psi (600-decision objectives) | runs | promoted, round-2 rule | R_psi alone better than the bootstrap at the end (e >= 40: what the round-1 rule acted on) | R_psi's agreement | best agreement among its 40 unlearned controls |
+|---|---|---|---|---|---|
+| frozen initialisation and its negation (G3-core's probe `probe_rw_flipped_frozen.py`, seeds 0-9) | 20 | **0** | 3 (the negated inits of seeds 2, 4, 5; e 3.5e4 / 9.1e3 / 293) | -0.21 .. +0.21 | (not recorded by the probe) |
+| frozen (RW's arm, seeds 0-5) | 6 | **0** | 0 | -0.21 .. +0.04 | 0.23 .. 0.36 |
+| **drift**: psi moves by every real step's size in a random direction (untrained, seeds 0-9) | 10 | **0** | 0 | -0.20 .. +0.17 | 0.15 .. 0.32 |
+| learned, reward step 3e-3 (seeds 0-2) | 3 | 0 | 1 | 0.39 / 0.16 / 0.12 | 0.25 / 0.24 / 0.27 |
+| learned, the agent's step 1e-4 (seeds 0-5) | 6 | 0 | 2 | -0.19 .. +0.19 | 0.21 .. 0.32 |
+| learned, reward step 3e-3, **1200** decisions (seeds 0-2) | 3 | 0 | 3 | 0.38 / 0.26 / 0.15 | 0.26 / 0.27 / 0.26 |
+
+Reading. The false promotions are gone: 0 of 36 unlearned R_psi (frozen both signs, drift) were promoted; the round-1
+rule would have lowered the mix for 3 of them. The price is power: unlearned rewards reach agreements of 0.15-0.36
+over 600 decisions, and only one learned R_psi (step 3e-3, seed 0: 0.39) agreed better than all 40 controls' best —
+it passed 39 of the 40 control tests and was still held at decision 600, and at decision 1200 (522 pairs; the last
+control test at e-value 5.4 of 40: an agreement margin of ~0.12 over the best control needs roughly 800 informative
+pairs). At the agent's own step none came close. So
+the round-1 promotions (§3.4) are, in hindsight, not evidence that R_psi *learned*; what learning achieved at debug
+scale is agreement in the range a random reward reaches by chance, except at the 30x reference step, where it exceeds
+that range by a margin the test needs more than 1200 decisions to establish.
+
+Trade-off (`MetaConfig.validity_placebos`): the frozen guarantee needs only psi_0 and its negation (n = 1); the
+bound for an R_psi that moves without learning is 1 / (2n + 1) — 1/3 at n = 1, 2.4 % at the default n = 20, below the
+nominal alpha/2 = 2.5 %. Fewer controls would promote sooner and would also promote untrained drifting rewards more
+often; the default keeps the nominal rate for both kinds of untrained reward.
+
+### D-RW2: with a bootstrap tied at reward time the mix stops at 0.75
+
+Justified, not changed; now said explicitly. With the bootstrap constant at reward time, every mixture below 1 ranks
+every pair exactly as R_psi alone, so the increments "R_psi alone vs the mixture at m_k < 1" are identically 0 and no
+reward-time evidence can distinguish 0.75 from 0. What a further step changes is the weight, in the live update, of
+the bootstrap's *update-time* terms — verified progress, learning progress, information value — which mature after
+the decision and are outcome-derived; agreement measured at reward time says nothing about replacing them, and
+measuring it at update time would score rewards that already contain the outcome. The decision now gives the reason
+`mixture_and_R_psi_rank_alike_at_reward_time` (instead of "inconclusive") and the summary counts the non-zero
+increments per mix level, so a cap at 0.75 is reported as structural
+(`test_with_a_tied_bootstrap_the_walk_stops_at_the_first_step_and_says_why`). Where the bootstrap does not tie (the
+real configuration: bootstrap agreement -0.06 over 17 pairs), the walk is not capped. A principled extension, not
+done: score, at each live update, the update-time rewards of the support decisions whose outcomes are still pending,
+once those outcomes mature — prospective for exactly the rewards the live update uses.
+
+### Tests
+
+Whole directory on an isolated copy of HEAD 0b429f0 + RW's round-2 files: **173 passed, 3 skipped** (208 s;
+`docs/evidence/test_results/RW_fix.xml`). New in `tests/reward/test_reward_rw.py`: `test_an_unlearned_r_psi_of_either_sign_is_never_promoted_however_well_it_agrees`
+(a frozen initialisation that agrees strongly and beats the bootstrap is held with reason
+`R_psi_not_shown_to_agree_better_than_every_unlearned_reward`, both signs), `test_a_learned_r_psi_better_than_every_
+unlearned_reward_is_promoted`, `test_with_a_tied_bootstrap_the_walk_stops_at_the_first_step_and_says_why`,
+`test_placebo_zero_is_r_psi_s_own_initialisation_and_round_trips` (placebo 0 reproduces R_psi's reward exactly while
+psi is unchanged; checkpoint round trip; an older checkpoint reports the controls as fresh).
 
 ## 1. Audit — why the bootstrap mix stayed at 1
 
@@ -97,8 +185,10 @@ their verified consequences. Two decisions taken one after the other share most 
   m_{k+1} only after the x+ tests at m_0..m_k were rejected (fixed-sequence procedure): P(any lowering although R_psi
   alone does not agree better) <= alpha/2; raises are Bonferroni-corrected: P(any wrong raise) <= alpha/2. alpha = 0.05.
   No margin, threshold or mix value is set by hand (constants: alpha, the grid = the old mixer step 0.25, bet cap
-  0.75). A reward merely as good as the bootstrap is not promoted; an uninformative one (random init, frozen psi) is
-  not promoted; a harmful one is reverted. Reported interval per comparison: predictable plug-in empirical-Bernstein
+  0.75). A reward merely as good as the bootstrap is not promoted; a harmful one is reverted. (Round 1 also claimed
+  "an uninformative one (random init, frozen psi) is not promoted" — refuted by G3-core D-RW1: a random
+  initialisation is not uninformative; since round 2 the rule also requires beating never-trained control rewards,
+  §R2.) Reported interval per comparison: predictable plug-in empirical-Bernstein
   confidence sequence (`ConfidenceSequence`).
 * **Where**: fed in `MetaLearner.internal_rewards` (both raw rewards of every new decision) and
   `refresh_validity()` (called from `internal_rewards` and `meta_update`: every decision whose verified progress
@@ -274,7 +364,10 @@ Reading, per level:
 * **(b) the real code path.** Every decision's two rewards were noted when it was rewarded and scored once its
   verified progress was final (149-150 pairs per 300 decisions, 83-108 informative); every live update event got one
   pooled outer step (48-49 applied per 300 decisions, 96-99 per 600); nothing was held out of the meta-update.
-* **(c) learning changes what R_psi rewards, and only evidence lets it act.** On the same decisions, the meta-learned
+* **(c) learning changes what R_psi rewards, and only evidence lets it act.** (Round-1 rule. G3-core D-RW1: the
+  frozen controls here used one sign of each initialisation and were mostly negative by chance, so "gain over the
+  frozen R_psi" does not show learning, and a negated frozen initialisation was promoted in 3 of 6 seeds; superseded
+  by §R2.) On the same decisions, the meta-learned
   R_psi agreed with the verified outcomes better than the frozen one in 17 of 18 seed-configurations with `direct`
   (300 decisions: 3 seeds each at lr 3e-3, lr 1e-4, half-life 600 s; 600 decisions: 3 seeds at lr 3e-3, 6 at lr 1e-4;
   gains -0.04 .. +0.46) and in 2 of 3 with `return_to_go`. While the mix is 1, R_psi has weight 0 in the live update
