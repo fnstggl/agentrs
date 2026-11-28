@@ -1,0 +1,39 @@
+[INFO] lifetimes (status): ['completed', 'failed', 'completed']
+[INFO] records: 31
+[INFO] matured declared outcomes / links / distinct linked outcomes: (21, 29, 29)
+[PASS] RC-01: every matured declared outcome of the agent's records is linked  21 matured, unlinked records []
+[PASS] RC-01: per outcome the link weights sum to at most 1  0 outcomes over 1: []
+[PASS] RC-07: no link to a decision made after its outcome  0
+[PASS] RC-07: no stored outcome is dated before the decision it is attached to  []
+[PASS] RC-07: the linker's leakage audit finds no context item dated after its decision  []
+[INFO] objectives / closed in the store: (3, 3)
+[PASS] RC-06: verified objective verdicts reach the store (put_objective_outcome by the agent)  3 of 3 closed
+[INFO] credit history entries by estimator: {'simple': 18, 'cocoa': 2, 'rudder': 4, 'rudder_contribution': 4, 'rudder_rtg': 4}
+[PASS] RC-06: learned (RUDDER / COCOA) credit is written retrospectively for decisions of closed objectives  4 of 31 records of closed objectives (0.13)
+[INFO] records whose credit was re-versioned (more than one version): 1
+[INFO] retrain queue entries left at the end: 5
+[INFO] decisions: open-ended candidate sets / tracked proposals / COCOA-supportable (closed or tracked): (0, 31, 31)
+[PASS] RC-05: no COCOA credit value for a decision with an open-ended untracked candidate set  0 such records carry COCOA credit: []
+[INFO] estimator selection log rows: 0
+[INFO] randomised experiments: in the store / decisions carrying an experiment id: (0, 8)
+[INFO] compare_with_experiment on the agent's own experiments (None = fewer than two held-out units per arm): []
+[INFO] objectives with randomised decisions / of them trained on by the learner (holdout_experiments=False): (2, 2)
+[INFO] credit default used by the agent's assigner: simple
+[INFO] learning updates by timescale (learner log): {'frequent': 34, 'slow_adapters': 11}
+[INFO] slow updates: attempted / applied-or-reverted / without a guard verdict / reverted: (11, 11, 3, 0)
+[INFO] guard verdicts of the guarded slow steps: [{'accepted': True, 'n_chunks': 1, 'paired_se': nan, 'tolerance': 5.540113985538482e-07, 'paired_change': -0.001929745078086853}, {'accepted': True, 'n_chunks': 1, 'paired_se': nan, 'tolerance': 1.942189598083496e-06, 'paired_change': -0.008026123046875}, {'accepted': True, 'n_chunks': 1, 'paired_se': nan, 'tolerance': 1.9414125442504883e-06, 'paired_change': -0.002521514892578125}, {'accepted': True, 'n_chunks': 1, 'paired_se': nan, 'tolerance': 1.9411659240722657e-06, 'paired_change': -0.0074024200439453125}, {'accepted': True, 'n_chunks': 1, 'paired_se': nan, 'tolerance': 1.9404123306274415e-06, 'paired_change': -0.002170562744140625}, {'accepted': True, 'n_chunks': 1, 'paired_se': nan, 'tolerance': 1.940180206298828e-06, 'paired_change': -0.0019512176513671875}, {'accepted': True, 'n_chunks': 1, 'paired_se': nan, 'tolerance': 1.939971160888672e-06, 'paired_change': -0.0057163238525390625}, {'accepted': True, 'n_chunks': 1, 'paired_se': nan, 'tolerance': 1.9393943786621093e-06, 'paired_change': -0.00555419921875}]
+[PASS] CL-03: adapter (slow) updates occur in the integrated agent  11
+[FAIL] CL-03: every applied slow step in the integrated agent carries a held-out guard verdict  3 of 11 applied slow steps ran without any held-out check (no validation cells)
+[PASS] CL-02: frequent updates change experiential weights in the integrated agent  34
+[INFO] frequent updates whose behavioural probe changed: (34, 34)
+[PASS] CL-02: frequent updates of the integrated agent change predictions or behaviour (probe)  34 of 34
+[INFO] frequent update triggers: {'matured_outcomes:2_independent/2_rows': 11, 'matured_outcomes:3_independent/3_rows': 11, 'matured_outcomes:22_independent/22_rows': 8, 'matured_outcomes:4_independent/4_rows': 2, 'matured_outcomes:5_independent/5_rows': 2}
+[INFO] learner.validate() at the end (held-out losses available to the slow guard and to promotion): {'bridge_grounding': 19.38840103149414}
+[INFO] runtime learning log (RunFiles.LEARNING): records whose notes JSON no longer parses: (47, 74)
+[INFO] promotions (decision, reasons): [(False, ['no independent validation metric supplied', 'no retention metric supplied']), (True, []), (True, [])]
+
+12 checks, 1 failed
+
+real	1m36.464s
+user	2m9.826s
+sys	0m26.790s

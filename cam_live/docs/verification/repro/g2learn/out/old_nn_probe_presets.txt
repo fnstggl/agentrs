@@ -1,0 +1,19 @@
+[PASS] preset 5m: instantiated count == claimed 5,044,741 and within 5 % of the target 5,000,000  5,044,741 (d_model 256, layers 4, d_ff 320; build 0.1 s)
+[PASS] preset 5m: forward + backward finite with the right shapes  
+[PASS] preset 20m: instantiated count == claimed 20,087,333 and within 5 % of the target 20,000,000  20,087,333 (d_model 512, layers 5, d_ff 576; build 0.3 s)
+[PASS] preset 20m: forward + backward finite with the right shapes  
+[PASS] preset 50m: instantiated count == claimed 50,953,765 and within 5 % of the target 50,000,000  50,953,765 (d_model 768, layers 6, d_ff 1024; build 0.6 s)
+[PASS] preset 50m: forward + backward finite with the right shapes  
+[PASS] preset 150m: instantiated count == claimed 151,022,853 and within 5 % of the target 150,000,000  151,022,853 (d_model 1024, layers 10, d_ff 2048; build 3.0 s)
+[PASS] preset 150m: forward + backward finite with the right shapes  
+[PASS] preset 500m: instantiated count == claimed 502,708,549 and within 5 % of the target 500,000,000  502,708,549 (d_model 1536, layers 14, d_ff 4096; build 9.4 s)
+[PASS] preset 500m: forward finite with the right shapes  
+[PASS] preset 1b: instantiated count == claimed 1,000,547,333 and within 5 % of the target 1,000,000,000  1,000,547,333 (d_model 2048, layers 16, d_ff 5504; build 16.4 s)
+[PASS] preset 1b: forward finite with the right shapes  
+[INFO] master config.SCALE_PRESETS d_ff values still differ from the corrected nn/presets.py ones (change request A-1): {'5m': (320, 320), '20m': (576, 576), '50m': (1024, 1024), '150m': (2048, 2048), '500m': (4096, 4096), '1b': (5504, 5504)}
+
+12 checks, 0 failed
+
+real	0m35.515s
+user	0m39.267s
+sys	0m5.698s

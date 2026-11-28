@@ -1,0 +1,14 @@
+[PASS] no frozen LM tensor in trainable_state()  118 tensors; frozen tensors in the model: 18
+[PASS] every trainable parameter in trainable_state()  
+
+2 checks, 0 failed
+[PASS] fresh process differs before loading  
+[PASS] fresh process: all outputs bit-identical after load_trainable_state(strict=True)  []
+[PASS] strict load into a model with another LoRA rank raises  
+[PASS] non-strict load reports the mismatched tensors and does not load them  8 mismatched
+[PASS] different architecture [lora_alpha 2 -> 8]: either the strict load fails, or arch_signature() differs, or outputs are unchanged  strict load accepted=True, outputs identical=False, arch_signature differs=True
+[PASS] different architecture [tap_layers (0.5, 0.75, 1.0) -> (0.5, 1.0, 1.0)]: either the strict load fails, or arch_signature() differs, or outputs are unchanged  strict load accepted=True, outputs identical=True, arch_signature differs=True
+[PASS] different architecture [max_text_tokens 48 -> 8]: either the strict load fails, or arch_signature() differs, or outputs are unchanged  strict load accepted=True, outputs identical=False, arch_signature differs=True
+[PASS] different architecture [seed 0 -> 1 (another frozen tiny LM)]: either the strict load fails, or arch_signature() differs, or outputs are unchanged  strict load accepted=True, outputs identical=False, arch_signature differs=True
+
+8 checks, 0 failed

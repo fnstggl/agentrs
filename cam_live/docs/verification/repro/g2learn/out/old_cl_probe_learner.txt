@@ -1,0 +1,202 @@
+[PASS] poll(): a plan exists after matured outcomes, counting independent units  ({"queued_rows": 67, "matured_rows": 36, "independent_units": 36, "threshold": 4})
+[PASS] poll(): no plan without matured outcomes (time / rows alone do not trigger)
+[PASS] frequent update changed experiential and heads  (['experiential', 'heads'])
+[PASS] frequent update left semantic adapters unchanged
+[PASS] reward group unchanged and without .grad
+[PASS] per-group clipping: the experiential optimizer stepped on a gradient of norm <= clip  (pre-clip 0.09089, seen by optimizer [0.000999988871626556])
+[PASS] behaviour probe changed after the frequent update  ({'latent_b': 0.007514113560318947, 'latent_z': 0.012698100879788399, 'world.pred_mean': 0.0008225291967391968, 'policy.action_probs': 2.0916677385685034e-05, 'max_abs': 0.012698100879788399})
+[PASS] slow adapter update runs after every adapter_every (=3) applied frequent updates  (timescales ['frequent', 'frequent', 'slow_adapters', 'frequent', 'frequent', 'frequent', 'slow_adapters'], counters {'frequent': 6, 'slow': 2, 'fast': 0, 'skipped': 0, 'slow_reverted': 0, 'triggers': 1})
+[PASS] slow update changed only semantic_adapters  (['semantic_adapters'])
+[PASS] fast update: no persistent parameter changed
+[PASS] fast update: the fast belief changed
+[PASS] guarded slow update was reverted (setup)  ({"accepted": false, "drift_after": -0.0010529702994972467, "drift_before": -0.0005042587872594595, "n_chunks": 8, "noise_tolerance": 9.768001237219528e-05, "paired_change": -0.0005487115122377872, "paired_se": 4.884000618609764e-05, "reasons": ["held-out loss rose by -0.0005487 (> tolerance -4.776)"], "reference": "start", "reverted": true, "tolerance": -4.776014447015159, "validation_after": 4.775470511522144, "validation_before": 4.776019223034382})
+[PASS] revert restores the adapter weights bit-exactly
+[PASS] revert also restores the adapter optimizer state (Adam moments / step)  (0 adapter parameters carry Adam state from the rejected step)
+[PASS] first checkpoint with validation + retention is promoted  ([])
+[PASS] a checkpoint that forgot (retention -0.5) is refused  (['retention lab/A/neg_nll dropped 0.5 (> 0.02): forgetting'])
+[PASS] refusal rolls the learner back to the promoted weights
+[PASS] ... and to the promoted optimizer state
+[PASS] no retention metric -> refused  (['no retention metric supplied'])
+[PASS] internal reward alone cannot promote  (['no independent validation metric supplied'])
+       a metric named 'heldout/neg_reward_return' is ignored? []
+[PASS] kill -9 during checkpoint writes (10 kills): newest intact checkpoint >= last acknowledged, loads, verifies  (acked per run [18, 24, 21, 24, 25, 15, 14, 28, 17, 17])
+[PASS] fresh process loads the weights-only export  (OK loaded 232, missing 0 [], unexpected 0 [], mismatched 0 []
+)
+[PASS] fresh-process predictions are bit-exact (belief, decision latent, world NLL, action probs)  ({'b': 0.0, 'z': 0.0, 'nll': 0.0, 'probs': 0.0})
+[PASS] export holds parameters and configuration only  (['config.json', 'weights.safetensors'])
+[PASS] optimizer state restored exactly into a fresh learner (by parameter name)  (0 differ)
+[PASS] weights restored exactly
+{
+ "groups": [
+  "backbone_frozen",
+  "semantic_adapters",
+  "experiential",
+  "reward",
+  "heads"
+ ],
+ "trigger_state": {
+  "queued_rows": 67,
+  "matured_rows": 36,
+  "independent_units": 36,
+  "threshold": 4
+ },
+ "frequent_record": {
+  "param_groups": [
+   "experiential",
+   "heads"
+  ],
+  "grad_norms": {
+   "experiential": 0.09088842570781708,
+   "heads": 5.349038124084473
+  },
+  "weight_delta": {
+   "experiential": 0.013010136783123016,
+   "heads": 0.008528387174010277
+  },
+  "prediction_change": {
+   "latent_b": 0.007514113560318947,
+   "latent_z": 0.012698100879788399,
+   "world.pred_mean": 0.0008225291967391968,
+   "policy.action_probs": 2.0916677385685034e-05,
+   "max_abs": 0.012698100879788399
+  }
+ },
+ "schedule": [
+  "frequent",
+  "frequent",
+  "slow_adapters",
+  "frequent",
+  "frequent",
+  "frequent",
+  "slow_adapters"
+ ],
+ "guard": {
+  "accepted": false,
+  "drift_after": -0.0010529702994972467,
+  "drift_before": -0.0005042587872594595,
+  "n_chunks": 8,
+  "noise_tolerance": 9.768001237219528e-05,
+  "paired_change": -0.0005487115122377872,
+  "paired_se": 4.884000618609764e-05,
+  "reasons": [
+   "held-out loss rose by -0.0005487 (> tolerance -4.776)"
+  ],
+  "reference": "start",
+  "reverted": true,
+  "tolerance": -4.776014447015159,
+  "validation_after": 4.775470511522144,
+  "validation_before": 4.776019223034382
+ },
+ "guard_optimizer_tensors_changed_after_revert": 0,
+ "promote_metric_named_reward_return": {
+  "promoted": true,
+  "ignored": []
+ },
+ "kill_checkpoint": [
+  {
+   "acked": 18,
+   "latest": "ckpt_000018_1a12b00d",
+   "last_ack": "ckpt_000018_1a12b00d",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 24,
+   "latest": "ckpt_000042_42f80d36",
+   "last_ack": "ckpt_000042_42f80d36",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 21,
+   "latest": "ckpt_000063_a1720b75",
+   "last_ack": "ckpt_000063_a1720b75",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 24,
+   "latest": "ckpt_000087_88064a9e",
+   "last_ack": "ckpt_000087_88064a9e",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 25,
+   "latest": "ckpt_000112_0a7bc652",
+   "last_ack": "ckpt_000112_0a7bc652",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 15,
+   "latest": "ckpt_000127_c5d7de5f",
+   "last_ack": "ckpt_000127_c5d7de5f",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 14,
+   "latest": "ckpt_000141_08b98bac",
+   "last_ack": "ckpt_000141_08b98bac",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 28,
+   "latest": "ckpt_000169_f5933e1a",
+   "last_ack": "ckpt_000169_f5933e1a",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 17,
+   "latest": "ckpt_000186_246ca5cd",
+   "last_ack": "ckpt_000186_246ca5cd",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  },
+  {
+   "acked": 17,
+   "latest": "ckpt_000203_2d75d276",
+   "last_ack": "ckpt_000203_2d75d276",
+   "problems": [],
+   "newest_ok": true,
+   "consistent": true,
+   "debris": []
+  }
+ ],
+ "export_max_abs_diff": {
+  "b": 0.0,
+  "z": 0.0,
+  "nll": 0.0,
+  "probs": 0.0
+ },
+ "export_files": [
+  "config.json",
+  "weights.safetensors"
+ ],
+ "export_has_optimizer_or_store": []
+}
+
+real	1m13.212s
+user	2m42.628s
+sys	0m20.777s

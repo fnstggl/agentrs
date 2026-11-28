@@ -1,0 +1,39 @@
+[INFO] lifetimes (status): ['completed', 'completed', 'completed']
+[INFO] records: 12
+[INFO] matured declared outcomes / links / distinct linked outcomes: (15, 24, 24)
+[PASS] RC-01: every matured declared outcome of the agent's records is linked  15 matured, unlinked records []
+[PASS] RC-01: per outcome the link weights sum to at most 1  0 outcomes over 1: []
+[PASS] RC-07: no link to a decision made after its outcome  0
+[PASS] RC-07: no stored outcome is dated before the decision it is attached to  []
+[PASS] RC-07: the linker's leakage audit finds no context item dated after its decision  []
+[INFO] objectives / closed in the store: (3, 3)
+[PASS] RC-06: verified objective verdicts reach the store (put_objective_outcome by the agent)  3 of 3 closed
+[INFO] credit history entries by estimator: {'simple': 13, 'cocoa': 5, 'rudder': 7, 'rudder_contribution': 7, 'rudder_rtg': 7}
+[PASS] RC-06: learned (RUDDER / COCOA) credit is written retrospectively for decisions of closed objectives  7 of 12 records of closed objectives (0.58)
+[INFO] records whose credit was re-versioned (more than one version): 2
+[INFO] retrain queue entries left at the end: 5
+[INFO] decisions: open-ended candidate sets / tracked proposals / COCOA-supportable (closed or tracked): (0, 12, 12)
+[PASS] RC-05: no COCOA credit value for a decision with an open-ended untracked candidate set  0 such records carry COCOA credit: []
+[INFO] estimator selection log rows: 0
+[INFO] randomised experiments: registered in the experience store / experiment ids on the agent's decisions: (0, 5)
+[INFO] compare_with_experiment on the agent's own experiments (None = fewer than two matured held-out units per arm): [('exp_69ca61b44e', 'arms on the decisions: [\'lab.act({"channel": 3, "effort": 3})\']'), ('exp_464f809f9a', 'arms on the decisions: [\'lab.act({"channel": 1, "effort": 3})\']'), ('exp_d55b129f8e', 'arms on the decisions: [\'lab.act({"channel": 1, "effort": 3})\']'), ('exp_14fcfdd49c', 'arms on the decisions: [\'lab.act({"channel": 1, "effort": 2})\']'), ('exp_42be0e973a', 'arms on the decisions: [\'lab.act({"channel": 0, "effort": 2})\']')]
+[INFO] objectives with randomised decisions / of them trained on by the learner (holdout_experiments=False): (3, 3)
+[INFO] credit default used by the agent's assigner: simple
+[INFO] learning updates by timescale (learner log): {'frequent': 16, 'slow_adapters': 5}
+[INFO] slow updates: attempted / applied-or-reverted / without a guard verdict / reverted: (5, 5, 1, 0)
+[INFO] guard verdicts of the guarded slow steps: [{'accepted': True, 'n_chunks': 1, 'paired_se': nan, 'tolerance': 5.499876946210861e-07, 'paired_change': -0.000925600528717041}, {'accepted': True, 'n_chunks': 1, 'paired_se': nan, 'tolerance': 1.9601533889770506e-06, 'paired_change': -0.00618743896484375}, {'accepted': True, 'n_chunks': 2, 'paired_se': 0.0032345205545425415, 'tolerance': 0.006469041109085083, 'paired_change': -0.010518684983253479}, {'accepted': True, 'n_chunks': 2, 'paired_se': 0.030218183994293213, 'tolerance': 0.01, 'paired_change': -0.03751188516616821}]
+[PASS] CL-03: adapter (slow) updates occur in the integrated agent  5
+[FAIL] CL-03: every applied slow step in the integrated agent carries a held-out guard verdict  1 of 5 applied slow steps ran without any held-out check (no validation cells)
+[PASS] CL-02: frequent updates change experiential weights in the integrated agent  16
+[INFO] frequent updates whose behavioural probe changed: (16, 16)
+[PASS] CL-02: frequent updates of the integrated agent change predictions or behaviour (probe)  16 of 16
+[INFO] frequent update triggers: {'matured_outcomes:2_independent/2_rows': 7, 'matured_outcomes:3_independent/3_rows': 5, 'matured_outcomes:5_independent/5_rows': 4}
+[INFO] learner.validate() at the end (held-out losses available to the slow guard and to promotion): {'rudder': 0.20295530557632446, 'cocoa': 1.7235124111175537, 'bridge_grounding': 19.494064331054688}
+[INFO] runtime learning log (RunFiles.LEARNING): records whose notes JSON no longer parses: (21, 40)
+[INFO] promotions (decision, reasons): [(False, ['no independent validation metric supplied', 'no retention metric supplied']), (False, ['no retention metric supplied'])]
+
+12 checks, 1 failed
+
+real	0m39.971s
+user	0m52.738s
+sys	0m11.130s

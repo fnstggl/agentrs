@@ -1,0 +1,37 @@
+[INFO] scale: debug
+[INFO] experiential_params: 202421
+[PASS] causality: h[:, :k] bit-identical when items >= k change (text, values, timestamps, kind, trust)  max|dh|=0.000e+00, max|dx|=0.000e+00
+[PASS] causality: h[:, :k] bit-identical when only timestamps of items >= k change  max|dh|=0.000e+00
+[PASS] causality: h of a truncated context equals the prefix of the full one (float32 tolerance 2e-5)  max|dh|=8.345e-07
+[PASS] causality: d h[i] / d x[j>i] is exactly zero  max future gradient=0.000e+00
+[PASS] padding invariance of b / h / slots (tol 2e-5)  db=7.15e-07 dh=1.19e-06 dslots=1.19e-07
+[PASS] padded positions of h are exactly zero  
+[PASS] batch-composition / batch-order invariance of b (tol 2e-5)  max|db|=0.00e+00
+[PASS] row 0 does not depend on the content of row 1 (tol 2e-5)  max diff=0.00e+00
+[PASS] candidate independence: e_a / z of candidate n do not depend on the other candidates (tol 2e-5)  de=8.64e-07 dz=1.43e-06
+[PASS] candidate axis is permutation-equivariant (tol 2e-5)  max|dz|=0.00e+00
+[PASS] candidate padding does not change a real candidate (tol 2e-5)  max|dz|=4.77e-07
+[INFO] z at padded candidate slots is non-zero (caller must mask with a_mask): 2.587878942489624
+[PASS] query independence of phi (tol 2e-5)  max|dphi|=1.49e-07
+[PASS] phi unit norm, constant last coordinate  
+[PASS] time: irregular gaps change the belief (time bias randomised)  relative change of b = 0.1894
+[PASS] time: absolute shift of all timestamps by 1.7e9 s leaves h / b unchanged (tol 2e-5)  db=0.00e+00 dh=0.00e+00
+[PASS] time: shift invariance with fractional timestamps (tol 1e-4)  db=2.38e-07
+[INFO] time: relative change of b between regular and irregular gaps AT INITIALISATION (only the token gap feature is live): 0.19346
+[PASS] time: out-of-order timestamps give finite outputs  
+[INFO] state: relative difference of b, streaming (6 + 4 items, state carried) vs one-shot (10 items): 0.1238
+[INFO] state: streaming is NOT equivalent to one-shot processing (slots are a lossy summary; no claim of equality in DESIGN.md): True
+[PASS] state: the second call's belief depends on the first call's content  relative change=0.2446
+[INFO] state: relative change of b, carried state vs fresh state: 0.1173
+[PASS] state: elapsed time since the previous call conditions the read  relative change=0.00646
+[PASS] state: save -> load -> continue is bit-exact  
+[PASS] state: core_forward does not mutate the state passed in  
+[PASS] state: 300 single-token calls keep the slots finite and bounded  slot rms after 1/100/300 calls: 0.123/0.831/0.831
+[INFO] state: relative change of h (per-token latents) with carried vs fresh state: 0.00766
+[PASS] double backward through core -> trunk -> features is finite and non-zero  
+
+23 checks, 0 failed
+
+real	0m4.969s
+user	0m9.402s
+sys	0m0.531s

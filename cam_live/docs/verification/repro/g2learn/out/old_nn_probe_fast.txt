@@ -1,0 +1,54 @@
+[PASS] gaussian (known noise): sequential posterior == closed form (1e-10)  |dmu|=8.88e-16 |dcov|=3.47e-17
+[PASS] gaussian: sum of one-step surprises == -log marginal likelihood (1e-8)  diff=4.26e-14
+[PASS] gaussian: kl_from_prior == closed-form KL(posterior || prior) (1e-8)  diff=3.55e-15
+[PASS] gaussian: order invariance of the posterior (1e-10)  |dmu|=1.11e-15 |dcov|=6.25e-17
+[PASS] gaussian: epistemic variance at a fixed query is non-increasing in the number of observations  1.4163 -> 0.02699
+[PASS] gaussian: 50k near-collinear updates stay symmetric PSD and equal to the closed form (1e-8)  |dcov|=2.79e-11
+[PASS] NIG: sequential posterior (mu, a, b, (b/a)V) == closed form (1e-9)  errors=['8.9e-16', '0.0e+00', '4.3e-14', '4.7e-16']
+[PASS] NIG: sum of Student-t surprises == -log marginal likelihood of the multivariate t (1e-7)  diff=2.84e-14
+[PASS] NIG: order invariance (1e-9)  max diff=2.84e-14
+[INFO] NIG predict() at the prior: epistemic + noise: 3.83255
+[INFO] NIG exact predictive variance of the Student-t (b/(a-1))(1+q): 3.83255
+[PASS] NIG: predict() variance (epi + noise) equals the exact predictive variance of its own Student-t (5 %)  reported/true = 1.000 (plug-in b/a instead of b/(a-1): under-states the variance by a/(a-1) = 2.00 at the prior)
+[PASS] GLM functional update (count, moderate data, dispersion 1, 12 Newton steps) == reference Laplace (1e-8)  |dmu|=3.33e-15 |dcov|=1.11e-15
+[PASS] GLM functional update (binary, moderate data, dispersion 1, 12 Newton steps) == reference Laplace (1e-8)  |dmu|=3.77e-15 |dcov|=1.33e-15
+[PASS] GLM functional update (time_to_event, moderate data, dispersion 1, 12 Newton steps) == reference Laplace (1e-8)  |dmu|=4.00e-15 |dcov|=1.33e-15
+[INFO] default learned dispersion applied to every GLM kind: 1.0
+[PASS] stateful update (binary) == exact (untempered) Laplace update of its stated likelihood (1e-8)  |dmu| vs exact=1.31e-10, vs dispersion-tempered=1.31e-10
+[PASS] stateful update (time_to_event) == exact (untempered) Laplace update of its stated likelihood (1e-8)  |dmu| vs exact=1.86e-10, vs dispersion-tempered=1.86e-10
+[PASS] stateful update (count) == exact (untempered) Laplace update of its stated likelihood (1e-8)  |dmu| vs exact=1.11e-10, vs dispersion-tempered=1.11e-10
+[PASS] count dispersion 7.39 (as after training on over-dispersed counts) leaves binary updates untouched  after 50 identical observations: eta 2.527 vs exact 2.527; posterior variance 0.1539 vs exact 0.1539 (x1.00)
+[PASS] count dispersion 7.39 (as after training on over-dispersed counts) leaves time_to_event updates untouched  after 50 identical observations: eta -2.814 vs exact -2.814; posterior variance 0.0840 vs exact 0.0840 (x1.00)
+[PASS] Laplace mode reached, stateful n_newton=12: count y=0, exposure 1e6  eta_ref=-11.383 eta_state=-11.383 (error +0.000 nats = x1 in rate); online_nll default n_newton=6: eta=-11.383 (error -0.000); surprise reported 77.4271 vs brute force 77.4271
+[PASS] Laplace mode reached, stateful n_newton=12: count y=0, exposure 1e9  eta_ref=-17.842 eta_state=-17.842 (error +0.000 nats = x1 in rate); online_nll default n_newton=6: eta=-17.842 (error -0.000); surprise reported 178.4697 vs brute force 178.4697
+[PASS] Laplace mode reached, stateful n_newton=12: count y=3, exposure 1e7 (3 events in 1e7 impressions)  eta_ref=-13.325 eta_state=-13.325 (error +0.000 nats = x1 in rate); online_nll default n_newton=6: eta=-13.325 (error +0.000); surprise reported 99.9440 vs brute force 99.9440
+[PASS] Laplace mode reached, stateful n_newton=12: count y=1e6 (page views), exposure 1  eta_ref=13.815 eta_state=13.815 (error -0.000 nats = x1 in rate); online_nll default n_newton=6: eta=13.815 (error +0.000); surprise reported 110.1685 vs brute force 110.1685
+[PASS] Laplace mode reached, stateful n_newton=12: count y=1e9, exposure 1  eta_ref=20.723 eta_state=20.723 (error +0.000 nats = x1 in rate); online_nll default n_newton=6: eta=20.723 (error +0.000); surprise reported 236.3691 vs brute force 236.5338
+[PASS] Laplace mode reached, stateful n_newton=12: time-to-event censored at 86400 s (1 day), unit 1 s  eta_ref=-9.153 eta_state=-9.153 (error +0.000 nats = x1 in rate); online_nll default n_newton=6: eta=-9.153 (error -0.000); surprise reported 52.1920 vs brute force 52.1920
+[PASS] Laplace mode reached, stateful n_newton=12: time-to-event censored at 2.6e6 s (30 days), unit 1 s  eta_ref=-12.264 eta_state=-12.264 (error +0.000 nats = x1 in rate); online_nll default n_newton=6: eta=-12.264 (error -0.000); surprise reported 88.7591 vs brute force 88.7591
+[PASS] Laplace mode reached, stateful n_newton=12: time-to-event event at 2.6e6 s (30 days), unit 1 s  eta_ref=-12.191 eta_state=-12.191 (error +0.000 nats = x1 in rate); online_nll default n_newton=6: eta=-12.191 (error +0.000); surprise reported 101.0205 vs brute force 101.0205
+[PASS] Laplace mode reached, stateful n_newton=12: time-to-event censored at 3.15e7 s (1 year), unit 1 s  eta_ref=-14.585 eta_state=-14.585 (error +0.000 nats = x1 in rate); online_nll default n_newton=6: eta=-14.585 (error +0.000); surprise reported 122.3225 vs brute force 122.3225
+[PASS] Laplace mode reached, stateful n_newton=12: binary 0 of 1e6 trials  eta_ref=-11.383 eta_state=-11.383 (error +0.000 nats = x1 in rate); online_nll default n_newton=6: eta=-11.271 (error +0.112); surprise reported 77.4270 vs brute force 77.4270
+[PASS] Laplace mode reached, stateful n_newton=12: binary 1e6 of 1e6 trials  eta_ref=11.383 eta_state=11.383 (error -0.000 nats = x1 in rate); online_nll default n_newton=6: eta=11.277 (error -0.106); surprise reported 77.4270 vs brute force 77.4270
+[PASS] GLM predictive NLL (adaptive Gauss-Hermite) == brute-force integral (1e-5)  max diff=2.59e-07
+[PASS] count predict(): mean / epistemic variance == Monte-Carlo lognormal-Poisson moments (3 %)  mean 3.297 vs 3.297; epi 18.683 vs 18.565
+[PASS] binary predict(): mean / epistemic variance == Monte-Carlo (1 %)  mean 0.5000 vs 0.5001; epi 0.0434 vs 0.0433
+[PASS] forget(): precision / natural-mean interpolation towards the prior (1e-9)  
+[PASS] forget(gamma=1) is a no-op and forget(gamma=0) returns the prior (1e-9)  
+[PASS] forgetting keeps a variance floor (static posterior keeps shrinking)  with forgetting 0.01471, without 0.000150
+[PASS] after an abrupt mechanism change forgetting / CUSUM track the new weights better than the static posterior  {'static': 3.713, 'forgetting': 1.772, 'cusum': 1.085}
+[PASS] calibration (known noise, data from the prior): 90 % interval coverage in [0.885, 0.915], E z^2 in [0.95, 1.05]  coverage=0.8997 E z^2=0.9917 (n=7500)
+[FAIL] calibration (NIG, data from the NIG prior): Student-t 90 % interval coverage in [0.885, 0.915]  coverage=0.9238
+[INFO] NIG predict() read as mean +- 1.645 sqrt(epi + noise): 90 % interval coverage by support size: {0: 0.92, 1: 0.925, 5: 0.9, 24: 0.892}
+[PASS] count: predictive mean after 300 observations is within 5 % of the true rate on average  mean relative bias=+0.0087
+[PASS] impossible observations (negative count / successes > trials / negative time) are rejected  
+[PASS] non-finite outcome (nan) rejected  
+[PASS] non-finite outcome (inf) rejected  
+[PASS] categorical outcome rejected by the fast layer (documented: change request A-5)  
+[PASS] fast state: state_dict -> torch.save -> load_state_dict -> next update is bit-exact  
+
+44 checks, 1 failed
+
+real	0m37.980s
+user	0m41.896s
+sys	0m0.896s

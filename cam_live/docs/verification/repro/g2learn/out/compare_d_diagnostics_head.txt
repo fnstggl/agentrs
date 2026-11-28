@@ -1,0 +1,13 @@
+recorded from e6f51c778a013142fbb214b322ad4d60bc56e78a | re-run on 55a0f4c8ab4539c3d5848e97a04d2b1e5b43a3b6 uncommitted: []
+learning: held-out NLL 2.980974 -> 2.290599 recorded | 2.980973 -> 2.290599 re-run
+learning counters recorded / re-run: {'fast': 8, 'frequent': 161, 'skipped': 0, 'slow': 20, 'slow_reverted': 0, 'triggers': 1} {'fast': 8, 'frequent': 161, 'skipped': 0, 'slow': 20, 'slow_reverted': 0, 'triggers': 1}
+credit rudder: mean z^2 6.608 / RMSE 3.402 recorded | 6.539 / 3.412 re-run; passes False / False
+credit cocoa: mean z^2 13.842 / RMSE 4.234 recorded | 11.318 / 3.828 re-run; passes False / False
+credit default recorded / re-run: simple simple
+credit hold-out recorded / re-run: {'experiment_lifetimes': 288, 'experiment_lifetimes_trained_on': {'cocoa': 0, 'learner': 0, 'rudder': 0}, 'experiment_records': 288, 'experiment_records_in_learner_training_split': 0, 'training_lifetimes': 288, 'training_lifetimes_trained_on_by_rudder': 248} {'experiment_lifetimes': 288, 'experiment_lifetimes_trained_on': {'cocoa': 0, 'learner': 0, 'rudder': 0}, 'experiment_records': 288, 'experiment_records_in_learner_training_split': 0, 'training_lifetimes': 288, 'training_lifetimes_trained_on_by_rudder': 248}
+retention nll_increase_on_A_naive: recorded 1.7675 re-run 1.7676
+retention nll_increase_on_A_retention: recorded 0.3575 re-run 0.3163
+retention se_naive: recorded 0.4257 re-run 0.4257
+retention se_retention: recorded 0.1345 re-run 0.1290
+retention decision_agreement_A_naive: recorded 0.3444 re-run 0.3444
+retention decision_agreement_A_retention: recorded 0.8556 re-run 0.8333

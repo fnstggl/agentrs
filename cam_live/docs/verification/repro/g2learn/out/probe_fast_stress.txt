@@ -1,0 +1,52 @@
+[FAIL] count: mode equals the float64 reference root on 2625 extreme problems (rel. error <= 1e-09)  max rel. error 6.75e+13 at {'eta0': -30.0, 's': 1000000.0, 'y': 1000000000.0, 'ex': 1e-12, 'ce': 0.0, 'disp': 0.3, 'xr': 48.35428695287493}
+[PASS] count: every mode search reports convergence  unconverged 0 of 2625; max iterations 7
+[PASS] count: the posterior mean moves to the mode (phi^T mu' = eta*)  max 3.34e-15
+[FAIL] count: implicit-function gradient d eta*/d eta0 equals the closed form (rel. 1e-06)  max rel. 0.75; worst case [(-30.0, 100.0, 1000000000.0, 1e-12, 2.9579029631279314e-307, 3.0000000006961873e-12), (-30.0, 1000000.0, 1000000000.0, 1e-12, 2.957902963128e-311, 3.000000000000086e-16), (-30.0, 1000000.0, 1000000000.0, 1e-12, 9.8596765437597e-311, 1.0000000000000707e-15)]
+[PASS] count: implicit-function gradient d eta*/d s equals the closed form (rel. 1e-06, |d|>1e-10)  max rel. 1.12e-14
+[INFO] count: iterations (median / max): (4.0, 7)
+[INFO] count: problems whose mode is wrong by > 1e-6 while 'converged' is True (eta0, s, count, exposure, disp, true mode, reported mode): [(-30.0, 100.0, 1000000000.0, 1e-12, 0.3, 48.3543, 333333333301.3333), (-30.0, 1000000.0, 1000000000.0, 1e-12, 0.3, 48.3543, 3333333333333301.5), (-30.0, 1000000.0, 1000000000.0, 1e-12, 1.0, 48.3543, 999999999999967.9), (-30.0, 1000000.0, 1000000000.0, 1e-12, 3.0, 48.3543, 333333333333301.3)]
+[FAIL] stateful FastBeliefState.update, count far above the prior predictor (prior eta -30, variance 100, dispersion 0.3, count 1e9 at exposure 1e-12): the mode is reached or non-convergence is reported  posterior eta 3.33333e+11 (true mode 48.3543), converged=True, iterations 6, next predicted count 2.354e+05
+[FAIL] stateful FastBeliefState.update, count far above the prior predictor (prior eta -30, variance 1e+06, dispersion 1.0, count 1e9 at exposure 1e-12): the mode is reached or non-convergence is reported  posterior eta 1e+15 (true mode 48.3543), converged=True, iterations 2, next predicted count 2.354e+05
+[PASS] time-to-event: mode equals the float64 reference root on 700 extreme problems (rel. error <= 1e-09)  max rel. error 8.97e-16 at {'eta0': 30.0, 's': 0.01, 'y': 3600.0, 'ex': 1.0, 'ce': 1.0, 'disp': 1.0, 'xr': -0.1764568912382467}
+[PASS] time-to-event: every mode search reports convergence  unconverged 0 of 700; max iterations 7
+[PASS] time-to-event: the posterior mean moves to the mode (phi^T mu' = eta*)  max 2.62e-15
+[PASS] time-to-event: implicit-function gradient d eta*/d eta0 equals the closed form (rel. 1e-06)  max rel. 3.62e-15
+[PASS] time-to-event: implicit-function gradient d eta*/d s equals the closed form (rel. 1e-06, |d|>1e-10)  max rel. 4.66e-15
+[INFO] time-to-event: iterations (median / max): (4.0, 7)
+[PASS] binary: mode equals the float64 reference root on 425 extreme problems (rel. error <= 1e-09)  max rel. error 5.05e-16 at {'eta0': -30.0, 's': 1000000.0, 'y': 500000.0, 'ex': 1000000.0, 'ce': 0.0, 'disp': 1.0, 'xr': -1.2000034298855187e-10}
+[PASS] binary: every mode search reports convergence  unconverged 0 of 425; max iterations 14
+[PASS] binary: the posterior mean moves to the mode (phi^T mu' = eta*)  max 5.12e-15
+[PASS] binary: implicit-function gradient d eta*/d eta0 equals the closed form (rel. 1e-06)  max rel. 9.42e-13
+[PASS] binary: implicit-function gradient d eta*/d s equals the closed form (rel. 1e-06, |d|>1e-10)  max rel. 7.92e-09
+[INFO] binary: iterations (median / max): (4.0, 14)
+[PASS] online_nll gradient w.r.t. the prior mean equals finite differences: time-to-event censored at a year in seconds  rel. 7.52e-11; total NLL 1313.6941
+[PASS] stateful FastBeliefState.update surprises equal online_nll per row: time-to-event censored at a year in seconds  max |diff| 0.00e+00
+[PASS] online_nll gradient w.r.t. the prior mean equals finite differences: count 0..3 with exposure 1e7  rel. 2.03e-10; total NLL 2758.1794
+[PASS] stateful FastBeliefState.update surprises equal online_nll per row: count 0..3 with exposure 1e7  max |diff| 0.00e+00
+[PASS] online_nll gradient w.r.t. the prior mean equals finite differences: count 0 with exposure 1e9  rel. 3.84e-10; total NLL 8023.3941
+[PASS] stateful FastBeliefState.update surprises equal online_nll per row: count 0 with exposure 1e9  max |diff| 0.00e+00
+[PASS] online_nll gradient w.r.t. the prior mean equals finite differences: binary 0 of 1e6 trials  rel. 1.50e-07; total NLL 1129.1177
+[PASS] stateful FastBeliefState.update surprises equal online_nll per row: binary 0 of 1e6 trials  max |diff| 0.00e+00
+[PASS] NIG predict(): epistemic + noise equals the Student-t variance (b/(a-1))(1+q)  ratio min 1.000000000000 max 1.000000000000
+[PASS] NIG predict(): epistemic variance equals the Monte-Carlo variance of phi^T w under sample_weights (200000 draws, 3 %)  max rel. diff 0.007 over 20 cases
+[PASS] NIG calibration on data from the prior: Student-t 90 % interval (scale (b/a)(1+q), dof 2a) covers 0.90 +- 3 se  coverage 0.9000 (n 10000, se 0.0030)
+[PASS] dispersion 3.13 leaves binary updates unchanged  max |dmu| 0
+[PASS] dispersion 3.13 leaves time_to_event updates unchanged  max |dmu| 0
+[PASS] dispersion 3.13 changes count updates (it is the count dispersion)  max |dmu| 0.0676
+[PASS] impossible observation refused, state untouched: negative count  raised=True unchanged=True
+[PASS] impossible observation refused, state untouched: count > 0 at zero exposure  raised=True unchanged=True
+[PASS] impossible observation refused, state untouched: negative exposure  raised=True unchanged=True
+[PASS] impossible observation refused, state untouched: successes > trials  raised=True unchanged=True
+[PASS] impossible observation refused, state untouched: negative successes  raised=True unchanged=True
+[PASS] impossible observation refused, state untouched: negative time  raised=True unchanged=True
+[PASS] impossible observation refused, state untouched: zero time unit  raised=True unchanged=True
+[PASS] impossible observation refused, state untouched: censoring flag 0.5  raised=True unchanged=True
+[PASS] impossible observation refused, state untouched: NaN exposure  raised=True unchanged=True
+[PASS] impossible observation refused, state untouched: infinite outcome  raised=True unchanged=True
+[PASS] possible boundary observation accepted with a finite update: count 0 at zero exposure  surprise 5.551e-17, converged True
+[PASS] possible boundary observation accepted with a finite update: 0 successes of 0 trials  surprise 5.551e-17, converged True
+[PASS] possible boundary observation accepted with a finite update: fractional successes 0.5 of 1  surprise 0.5548, converged True
+[PASS] possible boundary observation accepted with a finite update: time 0 with event  surprise -0.5, converged True
+[PASS] online_nll ignores impossible values in masked rows (0 NLL there)  [1.351482884225534, 0.0, 1.9006573632140862]
+
+46 checks, 4 failed

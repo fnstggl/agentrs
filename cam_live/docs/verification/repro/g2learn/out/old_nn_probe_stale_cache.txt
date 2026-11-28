@@ -1,0 +1,10 @@
+[PASS] in-place update under no_grad invalidates the embedding cache automatically  
+[PASS] a write through .data invalidates the embedding cache  cached embedding unchanged; max |fresh - cached| = 0.00
+[PASS] after a write through .data the inference (no_grad) path and the training path use the same adapter weights  max |logits(no_grad) - logits(grad mode)| = 0.000
+[INFO] after mark_adapters_updated(): max |embedding - fresh|, max |logits(no_grad) - logits(grad mode)| (the LoRA cast cache is keyed on the version counter and is not cleared by mark_adapters_updated): (0.0, 0.0)
+
+3 checks, 0 failed
+
+real	0m4.027s
+user	0m3.998s
+sys	0m0.644s

@@ -1,0 +1,3 @@
+run rep_d of probe_agent_credit.py (clean export): experiment ids on decisions: 5 ; units per experiment: [1, 1, 1, 1, 1]
+exploration of those decisions: {'randomized': 5}
+store.experiments(): 0

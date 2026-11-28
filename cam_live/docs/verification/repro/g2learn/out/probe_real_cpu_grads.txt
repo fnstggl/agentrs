@@ -1,0 +1,13 @@
+[INFO] load (s), backbone dtype on CPU: (108.9, 'torch.float32')
+[INFO] bridge output projections (zero at init): (6, 0.0)
+[INFO] embedding path: |dL/dB| autograd, finite differences along it (h: value): (1734.7903200021146, {0.01: 1734.906005859375, 0.003: 1734.2122395833333})
+[PASS] NA-09: embedding path -> LoRA-B gradient equals central finite differences to 2 % (float32 backbone, CPU)  FD / analytic = {0.01: 1.0000666857867067, 0.003: 0.9996667721671512}
+[PASS] NA-09: embed(with_grad=True) has the canonical (cached) value and the gradient of the pooled forward  value equal True, gradient rel. diff 7.76e-07
+[PASS] NA-09: all LoRA modules receive gradient from the embedding path  72 of 72
+[INFO] generation path at init: |d logp / d LoRA-B|, |d logp / d bridge output|: (64.50389134207971, 59.35954406732824)
+[PASS] NA-09 / NA-12: generation_logprob gives non-zero gradient to LoRA-B and to the zero-initialised bridge output  64.5, 59.36
+[PASS] NA-09 / NA-12: generation path gradient (LoRA-B + bridge output) equals finite differences to 2 %  FD / analytic = {0.01: 0.9994314218480863, 0.003: 0.9998908875311046}
+[INFO] greedy continuation: [['Red.']]
+[PASS] NA-01 / NA-12: generation returns text and is identical with and without a latent at initialisation  [['Red.']] vs [['Red.']]
+
+6 checks, 0 failed
