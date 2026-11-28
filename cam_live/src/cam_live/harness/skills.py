@@ -62,6 +62,8 @@ _VOLATILE = re.compile(r"(elapsed_s|_bytes|\.bytes|ratelimit|retry_after)|^d:(he
                        # observation-relative bookkeeping of a page observation (its diff to the previous observation,
                        # document / state ids, focus, scroll position): not the state of the world
                        r"|^d:(diff|full|base_obs_id|state_hash|doc|generation|focused|scroll|viewport)(/|$)")
+#: a measure of the size of content (its last name segment), not a count of things: what changes with the arguments
+_SIZE_KEY = re.compile(r"(?:^|[/_.:])(?:text_?len|len|length|size|bytes|n_bytes|chars|n_chars)$")
 #: transport metadata of an observation is not a value "produced by the step" and is never captured; neither is a
 #: position in a page's table of controls (controls are addressed by role and name, their options are a domain)
 _TRANSPORT_KEYS = ("method", "status", "headers", "truncated", "structure_hash", "redirects", "elements", "a11y",
@@ -1059,10 +1061,12 @@ class SkillInducer:
                 deltas = [float(A[t][k]) - float(B[t][k]) for t in range(T)]
                 if all(abs(d - deltas[0]) < 1e-9 for d in deltas) and float(deltas[0]).is_integer():
                     spec = dict(target, op="delta_eq", value=deltas[0])
-                    if T == 1 and abs(deltas[0]) != 1.0:
-                        # one example cannot tell an effect of the procedure from a change whose size depends on its
-                        # arguments (a text length, a byte count): a hypothesis that validation tests. A change by
-                        # exactly one (one more record, one fewer draft) is taken as the procedure's effect.
+                    if abs(deltas[0]) != 1.0 or _SIZE_KEY.search(k):
+                        # the examples cannot tell an effect of the procedure from a change whose size depends on its
+                        # arguments (a text length, a byte count; two examples of equal length agree by coincidence,
+                        # and a length can change by one): a hypothesis that validation with fresh arguments tests.
+                        # A count changing by exactly one (one more record, one fewer draft) is taken as the
+                        # procedure's effect.
                         spec["tentative"] = True
                     post.append(VerificationCondition(description=f"{k[2:]} changes by {deltas[0]:+g}", kind="metric",
                                                       spec=spec))
@@ -1393,6 +1397,7 @@ class SkillExecutor:
         self._obs_size = int(obs_index)
         self._state: Optional[Observation] = None          # the latest observed state (start state of a skill run)
         self._depth = 0                                    # nesting of skill.run inside skill.run (composition)
+        self._ops_total = 0                                # primitive operations executed by outermost skill runs
         self.min_applicability = float(min_applicability)  # confidently below this success probability: not run
         self.applicability_confidence = float(applicability_confidence)
         self.refine_after = int(refine_after)
@@ -1549,7 +1554,7 @@ class SkillExecutor:
         if action.operation == "skill.induce":
             return self._induce_action(action, ctx)
         if action.operation == "skill.discover":
-            return self._discover_action(action, ctx)
+            return self._with_validation_cost(self._discover_action, action, ctx)
         skill = self.library.get(action.arguments["skill_id"])
         return self.run_skill(skill, action.arguments.get("arguments", {}), ctx, action=action)
 
@@ -1643,6 +1648,8 @@ class SkillExecutor:
                             money=sum(s.get("money", 0.0) for s in step_log))
             res.artifacts.update(skill_id=skill.skill_id, skill_version=str(skill.version), termination=state["termination"])
             option["applicability"] = {"p": app.p(feats), "n": app.n}
+            if self._depth == 1:
+                self._ops_total += len(ops)
             if not validating and skill.status == STATUS_VALIDATED and state["termination"] not in (
                     "refused_stale", "invalid_arguments", "precondition_failed", "protected", "not_applicable"):
                 ok = status == ResultStatus.OK
@@ -2064,7 +2071,17 @@ class SkillExecutor:
 
     def _induce_action(self, action: ActionSpec, ctx: ExecContext) -> ActionResult:
         self._refresh_tools()
-        return self._induce_action_inner(action, ctx)
+        return self._with_validation_cost(self._induce_action_inner, action, ctx)
+
+    def _with_validation_cost(self, fn: Callable[[ActionSpec, ExecContext], ActionResult], action: ActionSpec,
+                              ctx: ExecContext) -> ActionResult:
+        """The primitive operations and the time the validation runs of an induce / discover action cost are its
+        cost (they were executed in the world)."""
+        n0, t0 = self._ops_total, ctx.clock.now()
+        res = fn(action, ctx)
+        res.cost.primitive_ops = int(res.cost.primitive_ops or 0) + (self._ops_total - n0)
+        res.cost.seconds = max(float(res.cost.seconds or 0.0), ctx.clock.now() - t0)
+        return res
 
     def _induce_action_inner(self, action: ActionSpec, ctx: ExecContext) -> ActionResult:
         a, clock, started = action.arguments, ctx.clock, ctx.clock.now()

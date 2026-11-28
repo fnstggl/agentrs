@@ -108,6 +108,11 @@ def test_grounded_traces_induce_a_re_executable_parameterised_procedure():
     post = [(c.kind, c.spec.get("path"), c.spec.get("op"), c.spec.get("value")) for c in sk.postconditions]
     assert ("metric", "tables/[0]/n_rows", "delta_eq", 1.0) in post
     assert not any(p and str(p).startswith("diff") for _, p, _, _ in post)
+    # a size change both examples share (equal-length names) is still only a hypothesis for validation to test:
+    # with a fresh, longer argument it differs (measured: 'text_len changes by +25' failed every validation)
+    size = [c for c in sk.postconditions if c.spec.get("path") == "text_len"]
+    assert size and all(c.spec.get("tentative") for c in size)
+    assert not any(c.spec.get("tentative") for c in sk.postconditions if c.spec.get("path") == "tables/[0]/n_rows")
     # the precondition is the element the procedure starts on, not one address
     pre = {c.kind: c.spec for c in sk.preconditions}
     assert pre["element_present"] == {"role": "textbox", "name": "Designation"} and "url_matches" not in pre
@@ -125,6 +130,13 @@ def test_a_single_trace_parameterises_what_the_procedure_puts_into_the_world():
     strict = [c.spec["path"] for c in sk.postconditions if c.spec.get("op") == "delta_eq" and not c.spec.get("tentative")]
     assert "tables/[0]/n_rows" in strict                                # one more record: the procedure's effect
     assert any(c.kind == "text_present" and not c.spec.get("tentative") for c in sk.postconditions)
+    # a length that happens to change by exactly one is still a size, not a count (measured on the records wizard:
+    # 'text_len changes by -1' failed validation with a fresh name)
+    t = grounded_trace("Another designation", "Parts", 2, ("e1", "e2", "e3"))
+    t.after[0].data["text_len"] = t.before[0].data["text_len"] - 1
+    sk2 = ind.induce([t])
+    assert all(c.spec.get("tentative") for c in sk2.postconditions if c.spec.get("path") == "text_len")
+    assert any(c.spec.get("path") == "text_len" for c in sk2.postconditions)
 
 
 def test_a_step_on_an_unknown_observation_cannot_become_a_skill():
@@ -297,6 +309,7 @@ def test_own_grounded_traces_become_a_validated_skill_that_is_reused(staging):
     sk = staging.skills.library.get(r.artifacts["skill_id"])
     assert sk.status == STATUS_VALIDATED and sorted(sk.arg_schema["properties"]) == ["label", "text"]
     assert len(staging.entries()) == n + 1                        # validation executed it with fresh arguments
+    assert r.cost.primitive_ops == 3                              # and that is the induce action's cost
     for i, label in enumerate(("Tools", "Misc")):
         _, r = staging.run("skill.run", {"skill_id": sk.skill_id, "arguments": {"text": f"Reused {i}", "label": label}})
         assert r.status == ResultStatus.OK and r.verified is True and len(r.ops) == 3, r.failure_detail
