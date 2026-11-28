@@ -326,3 +326,25 @@ learned estimates that now weight goal selection) ran in the real configuration.
 * goal-free ablation: `... cam_live/docs/evidence/SG/goalfree_ablation_lab.py --seeds 0,...,9 --free 8 --decisions 16 --out OUT.json`
 * real configuration: `docs/evidence/SG/real/sg_runner.py` (copied run script; `real_queue.sh` / `real_queue2.sh` show
   the exact plans), analysed with `docs/evidence/SG/analyse_real.py`.
+
+## 10. Integration conflict with AU's deployment-skill test (resolved; SG's side was wrong)
+
+The whole-suite run on the amendment freeze `6cba496` failed one test, deterministically:
+`tests/harness/autonomy/test_au_e2e_standing.py::test_a_skill_induced_from_successful_deployments_is_reused_without_operator_intervention`
+(`no skill registered: postconditions_met`). The procedure is legitimate — two authenticated `PUT`s (deploy a page,
+link it from the index) whose effect the hosting API only acknowledges per step (`201 {"stored": path}`); no
+observation of the final state shows the pages. SG's later rules had produced three *tentative* text conditions
+("the argument appears in the resulting state", for values not visible at induction), validation refuted them, and
+two SG rules then refused the skill: (1) a validation run had to confirm a non-trivial condition even when every
+non-trivial condition was only a hypothesis, (2) "nothing observable left" refused the skill. That made a refuted
+hypothesis worse than no hypothesis — a procedure without any derived condition was always accepted on its steps
+succeeding. Fixed in `harness/skills.py`: tentative conditions are not what a validation run must confirm, and a
+skill whose hypotheses were all refuted stands, like any procedure whose effect no final observation shows, on its
+steps succeeding, recorded as `provenance.effect_unobserved`; its runs report `verified` None (never True), so the
+false success of §2 (a wrong condition reporting verified) cannot return. The AU test was right and is unchanged. On a
+clean archive of `4585ef9` + this fix: `tests/harness/skills` + `tests/harness/autonomy` + `tests/reward/test_sg_*`:
+220 passed, 5 skipped, 0 failed (JUnit `docs/evidence/test_results/SG_fix.xml`). Consequence for §5.3: on layout B
+a skill would now be registered with `effect_unobserved` (runs unconfirmed) instead of refused; the browser test of
+layout B accepts either outcome and still pins that no run reports verified success without a stored entry.
+Limitation kept: conditions on intermediate step results (e.g. "the API's answer to step 0 names the page") are not
+derived; they would give such API skills an observable confirmation.

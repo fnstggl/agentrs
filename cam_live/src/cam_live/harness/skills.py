@@ -1924,7 +1924,8 @@ class SkillExecutor:
         if not arg_sets:
             arg_sets = [fresh_arguments(skill, self._rng) for _ in range(need)]
         runs = []
-        nontrivial = [c for c in skill.postconditions if c.spec.get("check") != "steps_ok"]
+        # what a validation run must confirm: the well-supported conditions; tentative ones are hypotheses it tests
+        nontrivial = [c for c in skill.postconditions if c.spec.get("check") != "steps_ok" and not c.spec.get("tentative")]
         for a in arg_sets:
             fresh = _args_sha(a) not in seen or not skill.arg_schema.get("properties")
             if not fresh:
@@ -1964,7 +1965,12 @@ class SkillExecutor:
             skill.postconditions = keep
             skill.provenance["postconditions_refuted"] = refuted
             if not [c for c in keep if c.spec.get("check") != "steps_ok"]:
-                passed = False                             # nothing observable confirms what the procedure does
+                # a refuted hypothesis is dropped; it must not make the skill worse than one that never had it. Like
+                # every procedure whose effect no observation of the final state shows (e.g. an API whose answer only
+                # acknowledges each step), it stands on its steps succeeding, and its runs say the effect was not
+                # observed (verified None, never True). Before this, such API skills were refused (AU's deployment
+                # skill: 'no skill registered: postconditions_met').
+                skill.provenance["effect_unobserved"] = True
         report = {"passed": passed, "n_ok": n_ok, "n_runs": len(runs), "runs": runs,
                   "reason": "" if passed else next((f"{r['termination']}: {r.get('detail', '')}" for r in runs if not r["ok"]),
                                                   "no observable postcondition was confirmed by the validation runs"
