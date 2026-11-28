@@ -41,6 +41,21 @@ What is refused (policy ids):
       bot integration (``discord.*`` tools, ``Authorization: Bot <token>``);
     * generated code that connects to Discord at all, or that uses self-bot libraries / user-token login.
 
+``X-PLATFORM-ADAPTER`` (G2-harness D1)
+    * any request to an integrated platform's data -- Discord's REST API, Gateway or attachment CDN -- that is not
+      an operation of the platform's own adapter (``discord.*``), by any modality (generic HTTP, browser, code,
+      skills): the adapter applies the data-use rules (message content, member list, personal data) and the
+      operator's scope, a generic request would bypass them (spec 12A.7: an access restriction is never a reason
+      to switch modalities). The adapter's own transport requests realise its operation and stay covered;
+    * a platform credential (by its vault scope or its known name, e.g. ``discord_bot_token``) named by any other
+      operation; the authorization service also refuses to *release* it except to an action that is, or contains,
+      an operation of that adapter.
+
+Human-verification tests are also recognised structurally (G2-harness D4): an answer key matches by substring
+(``captcha_input``, ``recaptcha_response_field``, ``captchaResponseToken``, ``human_check`` ...), the browser reports
+the accessible name of the element an input or click goes to ("CAPTCHA answer", "I am not a robot", "Verify you
+are human" are refused) and the field names of every form a page submits.
+
 The lists below are this module's data; they are deliberately not part of the operator-editable policy file.
 Anything they do not name is still subject to every rule of the policy (default deny of writes to destinations
 the operator does not own, approvals, rate limits ...): these constraints only add refusals.
