@@ -81,7 +81,10 @@ def plan(root: str, keep: int, keep_optim: int, drop_protected_optim: bool,
     actions: List[Tuple[str, str, int]] = []
     groups: Dict[str, List[str]] = {}
     for dirpath, dirnames, _files in os.walk(root):
-        found = [d for d in dirnames if is_checkpoint(os.path.join(dirpath, d))]
+        # a symlinked checkpoint (or anything reached through one) is never a removal candidate: its target may lie
+        # outside the tree (G2-integration storage probe)
+        found = [d for d in dirnames if not os.path.islink(os.path.join(dirpath, d))
+                 and is_checkpoint(os.path.join(dirpath, d))]
         for d in found:
             groups.setdefault(dirpath, []).append(os.path.join(dirpath, d))
         dirnames[:] = [d for d in dirnames if d not in found and not os.path.islink(os.path.join(dirpath, d))]
@@ -109,7 +112,9 @@ def plan(root: str, keep: int, keep_optim: int, drop_protected_optim: bool,
                 actions.append(("rm", c, dir_size(c)))
             elif i >= keep_optim and os.path.isdir(os.path.join(c, "optim")):
                 actions.append(("rm-optim", os.path.join(c, "optim"), dir_size(os.path.join(c, "optim"))))
-    return actions
+    real_root = os.path.realpath(root)
+    return [(act, p, b) for act, p, b in actions
+            if not os.path.islink(p) and os.path.commonpath([os.path.realpath(p), real_root]) == real_root]
 
 
 def main(argv=None) -> int:
@@ -133,7 +138,7 @@ def main(argv=None) -> int:
     print(f"{'APPLY' if a.apply else 'DRY RUN'}: {len(all_actions)} removals, {total / 2**30:.1f} GiB")
     done = []
     for act, path, size in all_actions:
-        if a.apply:
+        if a.apply and not os.path.islink(path):
             shutil.rmtree(path, ignore_errors=True)
         done.append({"action": act, "path": path, "bytes": size})
     if a.report:

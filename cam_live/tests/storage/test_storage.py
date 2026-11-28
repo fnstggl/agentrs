@@ -61,3 +61,22 @@ def test_dry_run_and_drop_groups(tmp_path):
     assert plan["removed"] == 2 and all(os.path.isdir(p) for p in plan["paths"])
     storage.apply_retention(str(tmp_path), keep=1, drop_groups=("*/lt[0-9][0-9]/checkpoints",))
     assert not any(os.path.isdir(p) for p in plan["paths"])
+
+
+def test_retention_never_follows_a_symlinked_checkpoint_out_of_the_tree(tmp_path):
+    import os
+    from cam_live.storage import apply_retention
+    outside = tmp_path / "outside" / "ckpt_00000009"
+    (outside / "optim").mkdir(parents=True)
+    (outside / "optim" / "adam.pt").write_bytes(b"x" * 10)
+    (outside / "weights").mkdir()
+    root = tmp_path / "runs" / "r1" / "checkpoints"
+    for i in (1, 2, 3):
+        d = root / f"ckpt_0000000{i}"
+        (d / "weights").mkdir(parents=True)
+        (d / "optim").mkdir()
+    os.symlink(str(outside), str(root / "ckpt_00000099"))
+    res = apply_retention(str(tmp_path / "runs"), keep=1, keep_optim=0)
+    assert (outside / "optim" / "adam.pt").exists()
+    assert all(not p.startswith(str(tmp_path / "outside")) for p in res["paths"])
+    assert os.path.islink(str(root / "ckpt_00000099"))

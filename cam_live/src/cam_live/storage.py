@@ -103,7 +103,8 @@ def apply_retention(root: str, *, keep: int = 2, keep_optim: int = 1, drop_prote
                              frozen_globs=frozen_globs, drop_groups=drop_groups)
     if not dry_run:
         for _act, path, _b in actions:
-            shutil.rmtree(path, ignore_errors=True)
+            if not os.path.islink(path):
+                shutil.rmtree(path, ignore_errors=True)
     return {"removed": len(actions), "bytes": sum(b for _a, _p, b in actions),
             "paths": [p for _a, p, _b in actions], "dry_run": dry_run}
 
