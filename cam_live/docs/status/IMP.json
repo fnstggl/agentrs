@@ -1,6 +1,6 @@
 {
  "workstream": "IMP",
- "commit": "8f15367",
+ "commit": "e6325aa",
  "summary": "Amendment 2026-11-28 item 2 (predictive imagination and multistep planning in decision-making). LatentPlanner searches imagined continuations of every candidate in the learned latent world model (transition + world-model goal values at imagined beliefs, coherent particles), reports information value; HorizonController value criterion; ImaginationCalibration learns the imagination weight of rule thompson_policy from verified multi-step windows; transition ensemble got zero-mean randomised priors (overconfidence defect); the ratio weight's amplification of unsupported imagination fixed. Imagination causally changes decisions on the runtime path (debug B2: share_tv 0.053, argmax changed 22/244); no reliable improvement measured; agent hook (change request IMP) applied by ST in dde7d2d.",
  "requirements": {
   "AM2-1 multi-step rollouts of candidate sequences": {
@@ -158,6 +158,16 @@
      "lo": -0.042933606582726026,
      "hi": 0.41325307381508036
     },
+    "fullsize_T1_pair": {
+     "on_progress": 0.024,
+     "off_progress": 0.11,
+     "share_tv": [
+      0.024,
+      0.021
+     ],
+     "argmax_changed": "0 of 13",
+     "code": "f7415f2"
+    },
     "P_from_exploration_checkpoint_progress_on_minus_off": {
      "n": 6,
      "mean": -0.012680173366157213,
@@ -178,6 +188,59 @@
     ]
    },
    "limitations": "beta_im ~ 0 on the verified windows available; the delayed dependency was rarely experienced; batch stopped at 42 of 120 lifetimes by the CPU rule"
+  },
+  "ST-request content-dependent self-supervised predictive target": {
+   "state": "implemented and integrated (trained by the learner, recorded per candidate); information gain not yet calibrated, not used by selection",
+   "files": [
+    "src/cam_live/predict/content.py",
+    "src/cam_live/predict/heads.py",
+    "src/cam_live/predict/providers.py",
+    "src/cam_live/predict/predictor.py"
+   ],
+   "integration_points": [
+    "cam_live.predict.content.ContentHead",
+    "cam_live.predict.content.ContentLoss",
+    "cam_live.predict.content.record_content_nll",
+    "Predictor.evaluate_candidates extras content_ig / content_epistemic"
+   ],
+   "tests": [
+    "tests/predict/test_imp_content.py (4)",
+    "tests/predict/test_providers.py"
+   ],
+   "evidence": [
+    "docs/evidence/IMP/content_prequential_debug.json",
+    "docs/evidence/IMP/content_diagnostic_debug.json",
+    "docs/IMP.md \u00a76"
+   ],
+   "measured": {
+    "prequential_content_nll_first_to_last_third": {
+     "act": [
+      6.62,
+      2.63
+     ],
+     "probe": [
+      6.79,
+      3.41
+     ],
+     "wait": [
+      12.72,
+      5.71
+     ],
+     "noise": [
+      18.79,
+      9.85
+     ]
+    },
+    "ig_last_third": {
+     "act": 5.17,
+     "probe": 4.29,
+     "wait": 5.0,
+     "noise": 3.28
+    },
+    "spearman_ig_vs_next_nll_drop": 0.1,
+    "n_pairs": 116
+   },
+   "limitations": "IG rises with experience for learnable actions and tracks the prediction improvement only weakly; realised IV noisy; debug scale only; no agent hook needed"
   },
   "COMPAT live checkpoints": {
    "state": "verified",
@@ -207,11 +270,12 @@
  ],
  "measured": {
   "suite_command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/IMP_fix.xml",
-  "final_run": "tests/predict on a clean export of HEAD 8f15367 (git archive HEAD cam_live): 188 tests, 177 passed, 10 skipped (gpu / browser / slow marks), 1 failed in 250 s; the failure tests/predict/test_int3a_eligibility.py::test_a_record_checked_before_its_verdict_becomes_eligible_for_the_evaluator is pre-existing (fails on a clean export of the start commit d1d06dc and of dde7d2d^, passed once at bb24f96; it depends on whether the lifetime ends with an achieved / failed verdict; run with planner=False, IMP code not exercised)",
+  "final_run": "tests/predict on a clean export of HEAD c874309 (git archive HEAD cam_live): 192 tests, 182 passed, 10 skipped (gpu / browser / slow marks), 0 failed in 228 s. tests/predict/test_int3a_eligibility.py::test_a_record_checked_before_its_verdict_becomes_eligible_for_the_evaluator is flaky and pre-existing: it failed on clean exports of the start commit d1d06dc, of dde7d2d^ and of 88a9f68, in the previous final run (8f15367), and passed here and at bb24f96; it runs with planner=False and depends on whether the lifetime ends with an achieved / failed verdict",
   "junit": "docs/evidence/test_results/IMP_fix.xml",
-  "imp_tests": "12 of 12 passed (tests/predict/test_imp_planning.py 10, tests/predict/test_imp_agent.py 2, the agent test now unskipped since ST's dde7d2d)"
+  "imp_tests": "16 of 16 passed (test_imp_planning 10, test_imp_agent 2, test_imp_content 4)"
  },
  "not_done": [
+  "content information gain uncalibrated and unused by selection",
   "experiments still designed on one-step outcomes",
   "transition trained on one-step latent NLL only (no value-consistency objective)",
   "no reliable improvement of decisions measured"
