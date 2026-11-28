@@ -109,6 +109,8 @@ class AgentSettings:
     proposer_expected: bool = False          # the output format has the action contract's "expected" field (the
                                              # observable result the action is expected to produce)
     proposer_raw_chars: int = 3000           # characters of each raw sample kept in the decision's diagnostics
+    id_salt: str = ""                        # G3A-3: mixed with the seed into the agent's id prefix (default: ids are
+                                             # a function of the seed alone, so same-seed agents are paired)
     information_value: bool = True           # ST: measure each executed decision's realised information value (the
                                              # world model's prediction loss on the next decisions' matured outcomes
                                              # without minus with the items the decision added to the context;
@@ -858,7 +860,12 @@ class CamLiveAgent:
         # ---- randomness (all checkpointed) ----
         self.gen = torch.Generator().manual_seed(int(cfg.seed) + 17)
         self.rng = random.Random(int(cfg.seed) + 23)
-        self.uid = os.urandom(3).hex()                    # per agent (checkpointed): ids of two agents never collide
+        # G3A-3: the agent's id prefix is a function of the configured seed (and the optional ``agent.id_salt``), not of
+        # os.urandom: action / decision / experience ids feed id-keyed steps (sampling, hashing), so two fresh agents
+        # with the same seed must draw the same ids to be the same experiment. Within one run directory ids stay
+        # unique through the decision counter (``_reserve_decision_number`` skips numbers already stored); runs that
+        # must not share ids with another run of the same seed set ``agent.id_salt`` (checkpointed with the agent).
+        self.uid = hashlib.sha256(f"cam-live-agent-uid|{int(cfg.seed)}|{s.id_salt}".encode()).hexdigest()[:6]
         self.max_context = int(s.max_context or cfg.core.max_context)
         # ---- per-lifetime state ----
         self.task: Optional[TaskSpec] = None
