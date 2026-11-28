@@ -294,6 +294,45 @@ def _content_text(observations: Sequence[Observation]) -> str:
     return "\n".join(parts)
 
 
+#: an announcement that says something did not happen (the page's own error / refusal text); ARIA ``alert`` regions are
+#: announcements of that kind whatever their language
+_ERROR_TEXT = re.compile(r"\b(could not|couldn't|cannot|can't|not (?:stored|saved|created|committed|recorded|sent|"
+                         r"allowed|accepted|found|possible)|error|errors|failed|failure|refused|denied|rejected|invalid|"
+                         r"is required|are required|unable|forbidden|unauthori[sz]ed)\b", re.I)
+
+
+def announcements(observations: Sequence[Observation]) -> List[Tuple[str, str]]:
+    """(role, text) of what a state announces: its alert / status / output regions (page outline and controls) and,
+    for a page observed as a diff, the text it added."""
+    out: List[Tuple[str, str]] = []
+    for o in observations:
+        d = o.data if isinstance(o.data, dict) else {}
+        for key in ("outline", "elements"):
+            items = d.get(key) if isinstance(d.get(key), list) else []
+            for e in items:
+                if not isinstance(e, dict):
+                    continue
+                role = str(e.get("role") or "")
+                if role in ("alert", "alertdialog", "status") or e.get("tag") == "output":
+                    t = str(e.get("text") or e.get("name") or "").strip()
+                    if t:
+                        out.append((role or "output", t))
+        diff = d.get("diff") if isinstance(d.get("diff"), dict) else {}
+        for t in diff.get("text_added") or []:
+            if isinstance(t, str) and t.strip():
+                out.append(("added", t.strip()))
+    return out
+
+
+def error_announcements(after: Sequence[Observation], before: Sequence[Observation] = ()) -> List[str]:
+    """New announcements of the resulting state that report a failure: an ARIA alert, or a text of the page's own
+    that says something could not be done / was refused / is invalid. A language-level heuristic over the page's
+    own words (not a site rule); what was already announced before the procedure does not count."""
+    seen = {t for _, t in announcements(before)}
+    return list(dict.fromkeys(t for role, t in announcements(after)
+                              if t not in seen and (role in ("alert", "alertdialog") or _ERROR_TEXT.search(t))))
+
+
 def state_leaves(observations: Sequence[Observation]) -> Dict[str, Any]:
     """Flat view of observed state: ``q:<quantity name>`` and ``d:<path>`` leaves (later observations win)."""
     out: Dict[str, Any] = {}
@@ -623,6 +662,7 @@ class Skill(Record):
     status_reason: str = ""
     run_history: List[Dict[str, Any]] = field(default_factory=list)
     applicability: Dict[str, Any] = field(default_factory=dict)    # ApplicabilityModel state (learned, SG)
+    unconfirmed_runs: int = 0                                      # executed, effect never observed (counted neither way)
     refined_at_successes: int = 0                                  # successes when refinement was last attempted
 
     def applicability_model(self) -> "ApplicabilityModel":
@@ -1349,10 +1389,20 @@ class SkillLibrary:
 
     def record_run(self, skill_id: str, *, ok: bool, failure_class: str = FailureClass.NONE,
                    termination: str = "", interface_changed: bool = False, detail: str = "",
-                   n_ops: int = 0, elapsed_s: float = 0.0) -> Skill:
+                   n_ops: int = 0, elapsed_s: float = 0.0, unconfirmed: bool = False) -> Skill:
         """Update monitoring after a run. Denials, platform restrictions, resource limits and transient network
-        faults are logged but say nothing about the skill; every other failure counts against its reliability."""
+        faults are logged but say nothing about the skill; every other failure counts against its reliability. An
+        ``unconfirmed`` run (executed, effect not observed, no failure announced) counts neither way."""
         s = self._skills[skill_id]
+        if unconfirmed:
+            s.runs += 1
+            s.unconfirmed_runs = int(getattr(s, "unconfirmed_runs", 0) or 0) + 1
+            s.run_history = (s.run_history + [{"ts": self.clock.now(), "ok": None, "unconfirmed": True,
+                                               "failure_class": FailureClass.NONE, "termination": termination,
+                                               "attributable": False, "n_ops": n_ops, "elapsed_s": elapsed_s,
+                                               "detail": detail[:200]}])[-50:]
+            self._save(s)
+            return s
         attributable = ok or failure_class in ATTRIBUTABLE
         s.runs += 1
         if attributable:
@@ -1469,6 +1519,7 @@ class SkillExecutor:
         self.min_applicability = float(min_applicability)  # confidently below this success probability: not run
         self.applicability_confidence = float(applicability_confidence)
         self.refine_after = int(refine_after)
+        self.settle_looks, self.settle_s = 4, 0.4          # looks at the state a skill leaves (until two agree)
 
     # ---- wiring --------------------------------------------------------------------------------------------
     def bind(self, env: Any) -> None:
@@ -1744,6 +1795,13 @@ class SkillExecutor:
             if not validating and skill.status == STATUS_VALIDATED and state["termination"] not in (
                     "refused_stale", "invalid_arguments", "precondition_failed", "protected", "not_applicable"):
                 ok = status == ResultStatus.OK
+                if state["termination"] == "effect_unconfirmed":
+                    # executed, nothing announced a failure, but no observation shows the effect: neither a success
+                    # nor a failure of the skill (reliability and applicability unchanged; logged as unconfirmed)
+                    self.library.record_run(skill.skill_id, ok=False, unconfirmed=True, termination=state["termination"],
+                                            detail="effect not observed", n_ops=len(ops),
+                                            elapsed_s=option["elapsed_s"])
+                    return res
                 if ok or failure_class in ATTRIBUTABLE:      # what says something about the skill in this state
                     self.library.record_applicability(skill.skill_id, feats, ok)
                 self.library.record_run(skill.skill_id, ok=ok, failure_class=failure_class,
@@ -1909,8 +1967,18 @@ class SkillExecutor:
                                         structure_hash_actual="changed" if state["interface_changed"] else "",
                                         detail="postcondition not met: " + "; ".join(c.description for c in failed)),
                         "postcondition_failed", None)
-        state["termination"] = "postconditions_met"
+        # every step succeeded, yet the resulting state may announce that the effect was refused (G3A-12: a site that
+        # refused every commit while the procedure's steps all "worked"): that is a failed run
+        errors = error_announcements(after, before or [])
+        if errors:
+            state["post"].append({"description": "the resulting state announces no failure", "kind": "announcement",
+                                  "result": False, "tentative": False, "announced": errors[:3]})
+            return fail(FailureEvidence(verified=False, executed_ok=True, outcome_mismatch=True,
+                                        detail="the resulting state announces a failure: " + " | ".join(errors[:3])[:300]),
+                        "failure_announced", None)
         checked = [r for c, r in results if r is True and c.spec.get("check") != "steps_ok"]
+        unconfirmed = not checked and bool(skill.provenance.get("effect_unobserved"))
+        state["termination"] = "effect_unconfirmed" if unconfirmed and not validating else "postconditions_met"
         return finish(None, ResultStatus.OK, FailureClass.NONE, "", True if checked else None)
 
     # ---- validation, registration, repair ------------------------------------------------------------------
@@ -2053,12 +2121,25 @@ class SkillExecutor:
         fn = getattr(env, "observe", None)
         if not callable(fn):
             return []
-        try:
-            obs = list(fn() or [])
-        except Exception:  # noqa: BLE001 — no second look; the last step's observation stands
-            return []
-        return [o for o in obs if o.kind not in ("error", "metric", "metrics") and isinstance(o.data, dict)
-                and "resources" not in o.data]
+        keep: List[Observation] = []
+        prev = None
+        for i in range(self.settle_looks):
+            # look until two looks agree (an in-page request started by the last step has answered), at most
+            # ``settle_looks`` times ``settle_s`` apart
+            if i:
+                _time.sleep(self.settle_s)
+            try:
+                obs = list(fn() or [])
+            except Exception:  # noqa: BLE001 — no further look; what was seen stands
+                break
+            surf = [o for o in obs if o.kind not in ("error", "metric", "metrics") and isinstance(o.data, dict)
+                    and "resources" not in o.data]
+            keep += surf
+            sig = [str(o.data.get("state_hash") or o.text) for o in surf]
+            if sig == prev:
+                break
+            prev = sig
+        return keep
 
     def _first_present_step(self, skill: Skill) -> Optional[int]:
         """Index of the first step addressing (by a constant role and name) an element the current state shows."""

@@ -18,12 +18,29 @@ import tempfile
 import torch
 
 
+def _determinism(seed):
+    """Same seed, same experiment (G3A-3): Python's hash seed is fixed by re-exec (``PYTHONHASHSEED=0``), the global
+    RNGs are seeded, and ``uuid.uuid4`` (every ``contracts.new_id``) draws from a seeded generator; the agent's own id
+    is a function of its seed once ST's fix is in agent.py (checked: ``uid`` is recorded per run)."""
+    import random
+    import uuid
+    rng = random.Random(seed)
+    random.seed(seed)
+    torch.manual_seed(seed)
+    uuid.uuid4 = lambda: uuid.UUID(int=rng.getrandbits(128), version=4)
+
+
 def main(argv=None):
+    if os.environ.get("PYTHONHASHSEED") != "0":
+        os.environ["PYTHONHASHSEED"] = "0"
+        os.execv(sys.executable, [sys.executable] + sys.argv)
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", default="0,1,2")
     ap.add_argument("--free", type=int, default=8)
     ap.add_argument("--decisions", type=int, default=16)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--repeat-check", action="store_true",
+                    help="run the first seed's 'none' arm twice and record whether both runs are identical")
     a = ap.parse_args(argv)
     torch.set_num_threads(4)
     here = os.path.dirname(os.path.abspath(__file__))
@@ -34,8 +51,12 @@ def main(argv=None):
     from cam_live.diagnostics.world import LabVerifier, LabWorld, lab_task
 
     rows = []
-    for s in [int(x) for x in a.seeds.split(",")]:
-        for arm in ("none", "goalfree"):
+    seeds = [int(x) for x in a.seeds.split(",")]
+    plan = [(seeds[0], "none", True)] if a.repeat_check else []
+    plan += [(s, arm, False) for s in seeds for arm in ("none", "goalfree")]
+    for s, arm, check in plan:
+        if True:
+            _determinism(s)
             clock = SimClock()
             agent = CamLiveAgent(agent_config(seed=s), tempfile.mkdtemp(prefix="sg_gfab_"), clock=clock)
             try:
@@ -64,7 +85,8 @@ def main(argv=None):
                 clock.advance(12 * 3600.0)
                 drive(agent, world, clock, verifier, st, 1)           # collect what matured
                 v = verifier.verify(task)
-                rows.append({"seed": s, "arm": arm, "free_decisions": len(free_ops), "free_ops": free_ops,
+                rows.append({"seed": s, "arm": arm, "repeat_check": check, "uid": getattr(agent, "uid", ""),
+                             "free_decisions": len(free_ops), "free_ops": free_ops,
                              "adopters_before": before, "adopters_after": float(v.value),
                              "gain": float(v.value) - before, "objective_ops": [d["operation"] for d in out],
                              "goal_free_goals": len(agent.goal_free.selector.history),
@@ -75,7 +97,13 @@ def main(argv=None):
                       flush=True)
             finally:
                 agent.close()
+    checks = [r for r in rows if r["repeat_check"]]
+    rows = [r for r in rows if not r["repeat_check"]]
     summ = {}
+    if checks:
+        twin = next(r for r in rows if r["seed"] == checks[0]["seed"] and r["arm"] == "none")
+        summ["repeat_check"] = {"seed": twin["seed"], "identical_ops": checks[0]["objective_ops"] == twin["objective_ops"],
+                                "gains": [checks[0]["gain"], twin["gain"]], "uids": [checks[0]["uid"], twin["uid"]]}
     for arm in ("none", "goalfree"):
         g = [r["gain"] for r in rows if r["arm"] == arm]
         summ[arm] = {"n": len(g), "mean_gain": statistics.mean(g) if g else None, "gains": g}

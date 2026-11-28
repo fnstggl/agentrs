@@ -15,8 +15,9 @@ import tempfile
 
 import pytest
 
-from cam_live.contracts import (ActionResult, ActionSpec, Cost, ExecContext, Level, Modality, Observation,
-                                PrimitiveOp, Provenance, ResultStatus, ToolDescriptor, Trust, WallClock, new_id)
+from cam_live.contracts import (ActionResult, ActionSpec, AuthorizationDecision, Cost, ExecContext, Level, Modality,
+                                Observation, PrimitiveOp, Provenance, ResultStatus, ToolDescriptor, Trust, WallClock,
+                                new_id)
 from cam_live.harness.skills import (ApplicabilityModel, Skill, SkillExecutor, SkillInducer, SkillInductionError,
                                      SkillLibrary, STATUS_VALIDATED, Trace, bind, element_of, observation_ref,
                                      protected_reasons, stable_arguments, state_features, without_step)
@@ -497,3 +498,128 @@ def test_observations_the_environment_shows_by_itself_are_indexed(tmp_path):
     assert t.context[0] is shown and t.before == [shown]
     ex.bind(env)                                                          # binding twice does not wrap twice
     assert getattr(env.observe, "_skills_indexed", False)
+
+
+@pytest.mark.browser
+def test_a_refused_effect_is_a_failed_run_and_an_unobserved_one_counts_neither_way(staging):
+    """G3A-12 (G3-act at bb4ab3b): a layout-B skill whose effect no observation shows ran 'ok' on 3 of 3 runs while the
+    site refused every commit, and its reliability rose 0.83 -> 0.88. Now the page's own refusal ('Could not commit:
+    ...') makes the run a failure (status and reliability), and runs whose effect is merely not observed are
+    unconfirmed: reliability and applicability unchanged."""
+    import time
+    v = staging.sc.sites.variants
+    v.set_layout("b")
+    base = staging.sc.sites.urls["variants"].rstrip("/")
+
+    def store_b(name, cls):
+        ids = []
+        _, r = staging.run("browser.navigate", {"url": base + "/app/"})
+        o = staging.page(r)
+        for name_, extra in (("Add entry", {}), ("Title", {"text": name}), (cls, {}), ("Commit", {})):
+            e = next(x for x in o.data["elements"] if x.get("name") == name_)
+            op = "browser.fill" if "text" in extra else "browser.click"
+            a, r = staging.run(op, dict({"ref": e["ref"], "obs_id": o.obs_id, "tab": o.data["tab"]}, **extra))
+            assert r.status == ResultStatus.OK, r.failure_detail
+            ids.append(a.action_id)
+            o = staging.page(r) or o
+        return ids
+    t1 = store_b("Bee one", "Parts")
+    time.sleep(1.0)
+    t2 = store_b("Bee two", "Misc")
+    _, r = staging.run("skill.induce", {"traces": [t1, t2]})
+    assert r.status == ResultStatus.OK, r.failure_detail
+    sid = r.artifacts["skill_id"]
+
+    def run(name, cls):
+        import re
+        rel0 = staging.skills.library.get(sid).reliability()["mean"]
+        for _ in range(3):                    # the site's rate limit (60 operations / 60 s) is waited out, not tested
+            _, rr = staging.run("skill.run", {"skill_id": sid, "arguments": {"text": name, "name": cls}})
+            m = re.search(r"rate limit .* retry in (\d+) s", rr.failure_detail or "")
+            if not m:
+                break
+            time.sleep(int(m.group(1)) + 1)
+        time.sleep(1.5)
+        stored = any(e["name"] == name for e in v.entries)
+        return rr, stored, rel0, staging.skills.library.get(sid).reliability()["mean"]
+    for i, cls in enumerate(("Tools", "Misc")):
+        rr, stored, rel0, rel1 = run(f"Normal {i}", cls)
+        assert stored and rr.status == ResultStatus.OK, rr.failure_detail
+        if rr.verified is not True:                                  # not observed: unconfirmed, counted neither way
+            assert rr.artifacts["termination"] == "effect_unconfirmed" and rel1 == pytest.approx(rel0)
+    orig = v._check
+    v._check = lambda *a, **k: "refused by the test"                 # the site refuses every commit
+    try:
+        failures = 0
+        for i, cls in enumerate(("Tools", "Misc", "Parts")):
+            rr, stored, rel0, rel1 = run(f"Refused {i}", cls)
+            assert not stored
+            assert rr.status != ResultStatus.OK and rr.verified is not True, (rr.status, rr.verified)
+            if rr.artifacts["termination"] == "refused_stale":       # monitoring took it out of use: not executed
+                assert staging.skills.library.get(sid).status == "stale" and failures >= 2
+                break
+            # the state is observed until it settles, so the refusal is seen: by the skill's own confirmed condition
+            # (its text never appears) or, for a skill whose effect is unobserved, by the page's refusal text
+            assert rr.artifacts["termination"] in ("postcondition_failed", "failure_announced"), rr.artifacts
+            assert rel1 < rel0                                       # a failure of the skill, not a success
+            failures += 1
+    finally:
+        v._check = orig
+    sk = staging.skills.library.get(sid)
+    assert sk.successes + sum(1 for h in sk.run_history if h.get("unconfirmed")) == 2 and failures >= 2
+
+
+def test_effect_unobserved_runs_are_unconfirmed_and_an_announced_refusal_fails_them(tmp_path):
+    """The G3A-12 path without browser timing: a skill accepted with ``effect_unobserved`` (its only hypothesis was
+    refuted in validation). A run after which the environment shows nothing new is unconfirmed (status ok, verified
+    None, reliability and applicability unchanged); a run after which the page announces a refusal is a failure."""
+    page = {"state": form_page("o0")}
+    tools = browser_tools()
+
+    class Env:
+        def observe(self):
+            return [page["state"]]
+
+        def discover_tools(self):
+            return list(tools.values())
+
+    def dispatch(step, ctx):
+        o = form_page(new_id("obs"))
+        return ActionResult(action_id=step.action_id, status=ResultStatus.OK, observations=[o],
+                            ops=[PrimitiveOp(op=step.operation, modality=step.modality, arguments=step.arguments)])
+    lib = SkillLibrary(str(tmp_path), WallClock())
+    ex = SkillExecutor(lib, [], dispatch=dispatch)
+    ex.inducer.set_tools(list(tools.values()))
+    ex.bind(Env())
+    ex.settle_looks = 1
+    sk = Skill(skill_id="sk_u", status=STATUS_VALIDATED, alpha=3.0, beta=1.0,
+               steps=[ActionSpec(action_id="sk_u.s0", operation="browser.click", modality=Modality.STRUCTURED_BROWSER,
+                                 arguments={"role": "button", "name": "Store entry"}),
+                      ActionSpec(action_id="sk_u.s1", operation="browser.click", modality=Modality.STRUCTURED_BROWSER,
+                                 arguments={"role": "button", "name": "Store entry"})],
+               arg_schema={"type": "object", "properties": {}, "required": []},
+               postconditions=[], provenance={"effect_unobserved": True},
+               validation_history=[{"ok": True, "fresh": True, "version": 1}])
+    lib.register(sk)
+    ctx = ExecContext(clock=WallClock(), check=lambda op, a=None: AuthorizationDecision("allow"), obs_sink=lambda o: None)
+
+    def run():
+        a = ActionSpec(action_id=new_id("act"), operation="skill.run", modality=Modality.SKILL, level=Level.PROCEDURE,
+                       arguments={"skill_id": "sk_u", "arguments": {}})
+        return ex.execute(a, ctx)
+    rel0, n_app0 = lib.get("sk_u").reliability()["mean"], lib.get("sk_u").applicability_model().n
+    r = run()
+    assert r.status == ResultStatus.OK and r.verified is None and r.artifacts["termination"] == "effect_unconfirmed"
+    s = lib.get("sk_u")
+    assert s.reliability()["mean"] == pytest.approx(rel0) and s.successes == 0 and s.unconfirmed_runs == 1
+    assert s.applicability_model().n == n_app0
+    refused = form_page("o_ref")
+    refused.data["outline"] = [{"tag": "output", "role": "status", "text": "Could not commit: refused by the site"}]
+    page["state"] = refused
+    r = run()
+    assert r.status != ResultStatus.OK and r.verified is not True
+    assert r.artifacts["termination"] == "failure_announced" and "Could not commit" in r.failure_detail
+    assert lib.get("sk_u").reliability()["mean"] < rel0
+    # an announcement that was already there before the run is not this run's failure
+    r = run()
+    assert r.artifacts["termination"] == "effect_unconfirmed"
