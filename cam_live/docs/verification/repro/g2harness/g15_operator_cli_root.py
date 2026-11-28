@@ -26,7 +26,7 @@ import sys
 import tempfile
 import time
 
-from _g2 import ROOT, Report  # noqa: I001
+from _g2 import ROOT, SRC, Report  # noqa: I001
 
 R = Report("g15_operator_cli_root")
 if os.geteuid() != 0:
@@ -47,7 +47,7 @@ def run_as(user, code, *args):
 
 def cli(*args):
     env = dict(os.environ)
-    env["PYTHONPATH"] = os.path.join(ROOT, "src")
+    env["PYTHONPATH"] = SRC                           # the code under test (G2H_SRC)
     return subprocess.run([sys.executable, "-m", "cam_live.runtime.cli", *args], cwd=CAMDIR, env=env,
                           capture_output=True, text=True, timeout=300)
 

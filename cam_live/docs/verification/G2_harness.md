@@ -510,3 +510,73 @@ Checked and holding:
 - The MAI-UI-2B GPU test.
 - Exploiting R4-C1 up to a root shell.
 - The root CLIs of the evaluation runners (not part of the live launch).
+
+---
+
+# Round 5 — re-check at 8f6c615 (2026-11-28)
+
+**Harness-security go / no-go for the live planning launch: GO.** Two minor items remain, and neither blocks the
+launch:
+- R5-m2: the plan report keeps terminal control characters. Read it with a pager that shows control characters
+  (`less -U`), not with `cat`.
+- R5-m1: when a checkpoint's MANIFEST names paths outside the checkpoint, root stats and hashes those files and
+  prints their sizes to the operator.
+
+Pinned commit: `8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052`, from `git log -1 --format=%H -- cam_live/src/cam_live/harness
+cam_live/src/cam_live/runtime`. HX's fixes are in 8f6c615, the bounded audit-race test in 5e57c7a and the claims in
+702054b (`docs/HX.md` "Round 5"). INT3B is changing `runtime/` concurrently. The working tree had uncommitted edits
+to `runtime/tasks.py`, `credit/*` and one harness test, so I tested an exact `git archive 8f6c615` extract wherever
+the service uids did not have to traverse the code. The harness source, the launcher, the CLI and safefs are
+identical between the working tree and 8f6c615. The privileged launches therefore ran from the working tree.
+
+**Verdicts (49):** 47 verified, 2 partial (CU-19, OP-04), 0 failed. Compared with round 4, CU-37 goes from failed to
+verified, and IH-07, CU-27, OP-07 and IH-16 go from partial to verified.
+
+**Incident (my error, now repaired).** A stray `shutil.copy(..., "/dev/null")` in the first run of my probe g18
+copied its source file's mode onto `/dev/null`, which went from 0666 to 0664. For about 6 minutes, roughly
+04:07–04:13 UTC, non-root processes could not open `/dev/null` read-write; root was not affected. I restored it with
+`chmod 0666 /dev/null` at 04:12:53 UTC and removed the line from g18. I then re-ran every probe and test that uses
+service uids. Other agents' runs that started non-root processes in that window may show spurious failures, typically
+`PermissionError: '/dev/null'` from `subprocess`.
+
+## R5.1 What I executed
+
+| What | Result |
+|---|---|
+| Harness suites, extract, `-m "browser or not (gpu or slow or network or privileged)"` | **619 passed**. The one other result is the separated browser test, which needs code the service uids can reach; it passes from the working tree |
+| Harness privileged tests, working tree (`-m privileged`, `-m "privileged and browser"`) | **12 + 3 passed** |
+| `tests/runtime`, extract | **247 passed, 1 skipped**. `test_rt_separated.py` (separated launch) **passes** from the working tree |
+| G-sec p01-p15, G-env probes, EB registered variant | all 0 defects, with unchanged counts (SEP-BROWSER is stale) |
+| g01-g17 | all hold: g01 30/0 … g15 **2/0**, g16 **3/0**, g17 5/0 |
+| New g18 (export path, plan-report location) | 8 / **2** |
+
+## R5.2 Round-4 defects re-checked
+
+| Defect | Re-check |
+|---|---|
+| R4-C1: export-checkpoint copied learner-chosen files anywhere | **Fixed.** The checkpoint is chosen by name (`ckpt_<digits>`) among the real directories of `<run>/checkpoints`. It is copied entry by entry with nothing followed into private staging, and the destination lies outside the run and is never merged into. g15 E1 holds. g18: a `ckpt_7` symlink to a root-only directory gives "no checkpoint". A symlink inside a checkpoint refuses the export. In 15 exports while the learner flipped `ckpt_8` between a directory and a symlink to the root-only directory, nothing of that directory was exported. A hard link to a root-owned file cannot be created (`fs.protected_hardlinks=1`). The default destination `<state root>/exports` is root 0775, not writable by the learner, and is outside the run. A learner MANIFEST that matches the learner's own content is accepted; it only proves integrity, since the content is CAM's model by design, and root places it only where the operator decided. |
+| R4-M1: plan-report wrote through a symlink | **Fixed.** g15 E2 holds. The default `<run>/plan_report.md` is written by root through safefs. The learner then gets PermissionError on replace, unlink and append, so it cannot swap the report the operator reads (g18 X6a). |
+| R4-m1: FIFO hang | **Fixed** (g16 F3: `read_json` of a FIFO returns the default at once). |
+| R4-m2: revoke unlink | **Fixed** (`safefs.unlink` relative to the directory fd; code read). |
+| Remaining commands | `doctor` reads the configuration and disk usage. `verify-completion` writes repository documents. `evaluate-transfer --checkpoint P` reads a path the operator gives: it loads with safetensors and `torch.load(weights_only=True)` (torch 2.15), uses no `trust_remote_code` and stages in private temp directories. None of them writes into the run directory, and they are not part of the planning launch. |
+
+## R5.3 New (minor)
+
+**R5-m1 — a learner MANIFEST may name files outside the checkpoint.** `credit/checkpoint.py` `verify_checkpoint`
+joins each MANIFEST key to the checkpoint path, and an absolute path or `../` escapes it. The export's
+verification therefore stats and hashes, as root, the files the learner names, and the refusal shows their sizes:
+"`/tmp/…/root_secret.txt: size 21 != 1`", "`../../../../../../etc/hostname: size 13 != 1`". The information reaches
+only the operator's terminal, so it is a size and hash oracle at most, plus a way to make root hash a huge file.
+Fix: reject MANIFEST keys that are absolute or contain `..`. Repro: `g18_round5_operator_cli.py` X4.
+
+**R5-m2 — the plan report keeps terminal control sequences.** A CAM note with an OSC title, conceal and
+clear-screen sequence appears in `plan_report.md` with its 4 ESC bytes intact. Text that reaches CAM's notes from
+untrusted pages can therefore hide or rewrite what the operator sees when reading the report with `cat`. The journal
+already strips control characters with `runtime/journal.py` `_CONTROL`, but the plan report does not. Repro:
+`g18_round5_operator_cli.py` X6b. Owner: runtime (plan report).
+
+## R5.4 Not checked
+
+- Live Discord (OP-04 is unchanged).
+- The MAI-UI-2B GPU test.
+- Commands of the evaluation runners outside the live launch.
