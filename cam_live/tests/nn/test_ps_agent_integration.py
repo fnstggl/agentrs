@@ -90,3 +90,44 @@ def test_checkpoint_without_the_chain_restores_closed(tmp_path):
             b_live = new.model.core_forward(new.model.tokenize([items]), None).b
         assert torch.equal(b_live, new.model.exp.core(new.model.tokenize([items]), None).b)
     new.close()
+
+
+def test_weights_carry_the_learned_behaviour_at_equal_chain_state_and_export_starts_initial(tmp_path):
+    """With the chain on: restoring the initial weights restores the initial decision distribution when both are read
+    at the initial chain state (the chain is experience-dependent state, like the fast beliefs); a weights-only export
+    rebuilt by ``load_exported_model`` computes the agent's distribution at the initial chain state."""
+    from cam_live.agent import register_agent_heads
+    from cam_live.credit.checkpoint import load_exported_model
+    from cam_live.validation import HeldOutProbe, weight_swap
+    torch.set_num_threads(4)
+    clock = SimClock(1.8e9)
+    agent = CamLiveAgent(_cfg(), str(tmp_path / "agent"), clock=clock)
+    probe = HeldOutProbe(agent)
+    p0, s0 = probe.distribution(), agent.model.trainable_state()        # nothing committed: the initial chain state
+    _lifetime(agent, str(tmp_path), clock, n=6)
+    assert agent.persist.n >= 2
+    with agent.persist.initial():
+        p1 = probe.distribution()
+    carried = probe.distribution()
+    assert float(0.5 * (p0 - p1).abs().sum()) > 1e-6                   # learning changed the weights' behaviour
+    s1 = agent.model.trainable_state()
+    weight_swap(agent.model, s0, ("experiential", "heads", "semantic_adapters", "reward"))
+    with agent.persist.initial():
+        assert float(0.5 * (probe.distribution() - p0).abs().sum()) < 1e-9
+    weight_swap(agent.model, s1, ("experiential", "heads", "semantic_adapters", "reward"))
+    assert float(0.5 * (probe.distribution() - carried).abs().sum()) < 1e-9
+    dest = str(tmp_path / "export")
+    agent.export_weights(dest)
+    holder = {}
+    ex = load_exported_model(dest, register_heads=lambda m: holder.setdefault("heads", register_agent_heads(m)),
+                             strict=True)
+    model, heads = ex.model, holder["heads"]
+    assert getattr(model, "persistent", None) is None                   # an export carries no chain
+    with torch.no_grad():
+        b = model.core_forward(model.tokenize([list(probe.items)]), None).b
+        e_a, _ = model.encode_actions([list(probe.candidates)])
+        z = model.decision_latent(b, e_a, model.encode_goals([probe.goal]))
+        mask = torch.ones(1, len(probe.candidates), dtype=torch.bool, device=z.device)
+        p_ex = heads.policy(z, mask, b).probs[0].double().cpu()
+    assert float((p_ex - p1).abs().max()) < 1e-6
+    agent.close()

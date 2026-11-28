@@ -99,7 +99,7 @@ def _one(a: Any, cfg: Any, source: str, cond: str, shared: Dict[str, Any]) -> Di
         store = SqliteExperienceStore(os.path.join(work, "experience.sqlite"), durable=False)
         chain = None
         if cond == "on":
-            chain = PersistentStateChain(model, store, PersistSettings(unroll=a.unroll))
+            chain = PersistentStateChain(model, store, PersistSettings(enabled=True, unroll=a.unroll))
             if a.rho_init is not None:
                 with torch.no_grad():
                     model.exp.core.persist_rho.fill_(float(a.rho_init))

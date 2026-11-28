@@ -31,6 +31,14 @@ and whenever a stored record of it is re-encoded for learning — is ``b = F(W, 
 * anchors are inputs, never targets: an anchor written by older weights is refreshed by ``K`` transitions of the
   current ones; staleness beyond that is a measured limitation (``status()["anchor_age"]``).
 
+**Initial state, reset, export.** The carried state is experience-dependent state, like the fast beliefs: a
+weights-only export (``credit.checkpoint.export_learner_weights``, spec 15.3) carries no chain, so a model rebuilt from
+it (``load_exported_model``) or a new agent loaded from it starts from the *initial chain state* (nothing committed:
+every belief from the fresh state). :meth:`PersistentStateChain.initial` evaluates the current model at that initial
+state without changing anything (what an export computes); :meth:`PersistentStateChain.reset` starts a new segment:
+the next decision is made from the fresh state and no recomputation crosses the boundary (earlier records keep their
+own states).
+
 The chain is opt-in per model: ``CamLiveModel.core_forward(tokens, None)`` resolves ``None`` through an attached chain
 (row by row: a stored context window -> its position's state, a stored post window -> the next position's state,
 any other window inside a :meth:`PersistentStateChain.live` block -> the next uncommitted position's state, anything
@@ -65,7 +73,7 @@ FP16_MAX = 6.0e4
 @dataclass
 class PersistSettings:
     """``cfg.section("persistent_state")`` (all optional)."""
-    enabled: bool = True
+    enabled: bool = False           # off by default: PS's evidence shows no measurable benefit yet (docs/PS.md)
     unroll: int = 2                 # K: transitions recomputed (with gradient) from the stored anchor
     anchor_cache: int = 2048        # anchors kept in memory (the database holds all of them)
     legacy_rho: float = 0.0         # retention given to a checkpoint written before PS (0 = compute as before)
@@ -132,6 +140,9 @@ class PersistentStateChain:
                         "NULL, objective_id TEXT, ts REAL, key_pre TEXT, key_post TEXT, refs TEXT, anchor BLOB, "
                         "anchor_time REAL, k INTEGER, d INTEGER, written_at REAL)")
         self.db.execute("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)")
+        self._initial_depth = 0
+        row = self.db.execute("SELECT v FROM meta WHERE k='boundaries'").fetchone()
+        self._boundaries: List[int] = sorted(int(x) for x in json.loads(row[0])) if row else []
         self._pre: Dict[str, int] = {}
         self._post: Dict[str, int] = {}
         self._by_decision: Dict[str, int] = {}
@@ -179,6 +190,37 @@ class PersistentStateChain:
                 self._live_depth -= 1
                 if self._live_depth == 0:
                     self._live_cache = None
+
+    @contextlib.contextmanager
+    def initial(self) -> Iterator["PersistentStateChain"]:
+        """Evaluate at the chain's initial state: inside the block every ``core_forward(tokens, None)`` reads the
+        fresh state, as a model rebuilt from a weights-only export does. Nothing is changed."""
+        with self._lock:
+            self._initial_depth += 1
+        try:
+            yield self
+        finally:
+            with self._lock:
+                self._initial_depth -= 1
+
+    def reset(self, reason: str = "") -> int:
+        """Start a new segment at the next position: the next decision is made from the fresh state and no state is
+        recomputed across the boundary; stored records before it keep their own states. Returns the boundary."""
+        with self._lock:
+            if self.n not in self._boundaries:
+                self._boundaries.append(self.n)
+                self.db.execute("INSERT OR REPLACE INTO meta (k, v) VALUES ('boundaries', ?)",
+                                (json.dumps(self._boundaries),))
+            self._live_cache = self._last_live = None
+            self.counters["resets"] += 1
+            return self.n
+
+    def _segment_start(self, q: int) -> int:
+        b = 0
+        for x in self._boundaries:
+            if x <= q:
+                b = max(b, x)
+        return b
 
     @property
     def is_live(self) -> bool:
@@ -271,7 +313,7 @@ class PersistentStateChain:
 
     def resolve(self, tokens: TokenBatch) -> Optional[CoreState]:
         """The core state for each row of ``tokens`` (None = every row fresh)."""
-        if not self.enabled:
+        if not self.enabled or self._initial_depth > 0:
             return None
         with self._lock:
             pos = self.row_positions(tokens)
@@ -312,7 +354,7 @@ class PersistentStateChain:
         qs = [int(q) for q in positions]
         if any(q < 0 or q > self.n for q in qs):
             raise IndexError(f"positions out of range 0..{self.n}: {qs}")
-        starts = [max(0, q - K) for q in qs]
+        starts = [max(self._segment_start(q), q - K) for q in qs]
         slots, times = [], []
         fresh = core.init_state(1, dev).slots[0]       # a fresh anchor is the *current* learned initial state
         for a in starts:
@@ -381,6 +423,7 @@ class PersistentStateChain:
         if self.n:
             last = self.db.execute("SELECT decision_id FROM positions WHERE pos=?", (self.n - 1,)).fetchone()[0]
         return {"version": PERSIST_VERSION, "n_positions": self.n, "last_decision_id": last, "path": self.path,
+                "boundaries": list(self._boundaries),
                 "settings": asdict(self.settings), "counters": dict(self.counters)}
 
     def load_state_dict(self, d: Optional[Dict[str, Any]]) -> Dict[str, Any]:

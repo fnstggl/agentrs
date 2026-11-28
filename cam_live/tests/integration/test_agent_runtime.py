@@ -16,6 +16,7 @@ LabWorld results are diagnostic evidence about plumbing and learning mechanics, 
 from __future__ import annotations
 
 import collections
+import contextlib
 import json
 import math
 import os
@@ -213,27 +214,38 @@ def test_meta_update_runs_with_a_nonzero_meta_gradient(session):
     assert all(m["skipped_reason"] for m in metas if not m["applied"])   # every skip says why
 
 
+def _at_initial_chain_state(agent, probe):
+    """The probe's distribution at the persistent core-state chain's initial state (nothing carried; ``nn.persist``,
+    PS): the chain is experience-dependent state like the fast beliefs, so what the weights carry is compared at equal
+    chain state. ``session["p0"]`` was taken before any decision, i.e. at that state too. Without a chain (the default)
+    this is ``probe.distribution()``."""
+    chain = getattr(agent, "persist", None)
+    with (chain.initial() if chain is not None else contextlib.nullcontext()):
+        return probe.distribution()
+
+
 def test_behaviour_changes_and_lives_in_the_weights(session):
     agent, probe, p0, s0 = session["agent"], session["probe"], session["p0"], session["s0"]
-    p1 = probe.distribution()
+    dist = lambda: _at_initial_chain_state(agent, probe)          # noqa: E731
+    p1 = dist()
     s1 = agent.model.trainable_state()
     assert _tv(p0, p1) > 1e-4, (p0, p1)
     try:
         weight_swap(agent.model, s0, TRAINABLE)                     # store, fast state, registries untouched
-        assert _tv(probe.distribution(), p0) < 1e-9
+        assert _tv(dist(), p0) < 1e-9
         weight_swap(agent.model, s1, TRAINABLE)
         weight_swap(agent.model, s0, ("experiential",))             # only the experiential group goes back
-        partial = probe.distribution()
+        partial = dist()
         assert _tv(partial, p1) > 1e-6                               # the experiential weights carry part of it
         weight_swap(agent.model, s1, ("experiential",))
-        assert _tv(probe.distribution(), p1) < 1e-9
+        assert _tv(dist(), p1) < 1e-9
         # in the other direction: the learned experiential weights alone change the old model's decisions, and
         # restoring only them restores the old distribution exactly
         weight_swap(agent.model, s0, TRAINABLE)
         weight_swap(agent.model, s1, ("experiential",))
-        assert _tv(probe.distribution(), p0) > 1e-6
+        assert _tv(dist(), p0) > 1e-6
         weight_swap(agent.model, s0, ("experiential",))
-        assert _tv(probe.distribution(), p0) < 1e-9
+        assert _tv(dist(), p0) < 1e-9
     finally:
         weight_swap(agent.model, s1, TRAINABLE)
 

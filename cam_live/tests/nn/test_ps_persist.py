@@ -67,7 +67,7 @@ def setup(tmp_path, cfg):
     torch.manual_seed(0)
     model = build_model(cfg)
     store = SqliteExperienceStore(str(tmp_path / "s.sqlite"), durable=False)
-    chain = PersistentStateChain(model, store, PersistSettings(unroll=2), path=str(tmp_path / "core_state.sqlite"))
+    chain = PersistentStateChain(model, store, PersistSettings(enabled=True, unroll=2), path=str(tmp_path / "core_state.sqlite"))
     return model, store, chain, Stream(model, store, chain)
 
 
@@ -131,7 +131,7 @@ def test_information_beyond_the_window_reaches_later_beliefs(tmp_path, cfg):
         torch.manual_seed(0)
         model = build_model(cfg)
         store = SqliteExperienceStore(str(tmp_path / f"s{secret}.sqlite"), durable=False)
-        chain = PersistentStateChain(model, store, PersistSettings(unroll=2))
+        chain = PersistentStateChain(model, store, PersistSettings(enabled=True, unroll=2))
         s = Stream(model, store, chain)
         s.decide([("the hidden setting is", secret)])
         _run(s, 6, tag="same")
@@ -205,7 +205,7 @@ def test_anchor_is_the_state_the_decision_used_and_survives_a_reopen(tmp_path, s
     sd = chain.state_dict()
     path = chain.path
     chain.close()
-    again = PersistentStateChain(model, store, PersistSettings(unroll=2), path=path)
+    again = PersistentStateChain(model, store, PersistSettings(enabled=True, unroll=2), path=path)
     rep = again.load_state_dict(sd)
     assert rep["consistent"] and rep["positions_at_checkpoint"] == 5 and again.n == 5
     assert torch.allclose(again.live_state().slots, live.slots, atol=1e-6)
@@ -232,7 +232,7 @@ def test_legacy_checkpoint_closes_the_retention_and_reproduces_the_old_beliefs(t
         rep = load_weights(other, w)
     assert rep.missing == ["exp.core.persist_rho"]                # reported, kept at its initial value (1)
     store = SqliteExperienceStore(str(tmp_path / "s.sqlite"), durable=False)
-    chain = PersistentStateChain(other, store, PersistSettings())
+    chain = PersistentStateChain(other, store, PersistSettings(enabled=True))
     out = chain.load_state_dict(None)
     assert out["legacy_checkpoint"] and out["rho"] == [0.0] * other.exp.core.n_slots
     s = Stream(other, store, chain)
@@ -260,3 +260,36 @@ def test_empty_core_call_keeps_the_carried_state(cfg):
     st = CoreState(torch.randn(1, model.exp.core.n_slots, model.d_model), torch.tensor([5.0], dtype=torch.float64), 3)
     out = model.exp.core(model.tokenize([[]]), st)
     assert torch.equal(out.state.slots, st.slots) and torch.equal(out.state.last_time, st.last_time)
+
+
+def test_initial_state_and_reset(setup, cfg):
+    """``initial()`` evaluates at the initial chain state (what a weights-only export computes) without changing the
+    chain; ``reset()`` starts a new segment: the next decision is made from the fresh state, nothing is recomputed
+    across the boundary, earlier records keep their states."""
+    model, store, chain, s = setup
+    _run(s, 5)
+    w = s.windows[4]
+    with torch.no_grad():
+        carried = s.replay(w)
+        with chain.initial():
+            at_initial = s.replay(w)
+            with chain.live():
+                live_initial = model.core_forward(model.tokenize([store.items(s.window())]), None).b
+        fresh = model.exp.core(model.tokenize([store.items(w)]), None).b
+        fresh_live = model.exp.core(model.tokenize([store.items(s.window())]), None).b
+        assert torch.equal(at_initial, fresh) and torch.equal(live_initial, fresh_live)
+        assert not torch.allclose(carried, fresh, atol=1e-5)
+        assert torch.equal(s.replay(w), carried)                       # nothing changed
+        before = [s.replay(x) for x in s.windows]
+        boundary = chain.reset("test")
+        assert boundary == 5 and chain.live_state().last_time.isnan().all()   # the next decision: fresh state
+        _run(s, 3, tag="after")
+        for t, x in enumerate(s.windows[:5]):                          # earlier records keep their own states
+            assert torch.allclose(s.replay(x), before[t], atol=1e-6)
+        st5 = chain.state_for([5])
+        assert torch.equal(st5.slots, model.exp.core.init_state(1).slots)    # the boundary position starts fresh
+        st6 = chain.state_for([6])            # K = 2 would reach window 4 and anchor 4; the boundary stops it at 5
+        chain._refs[4] = ["changed-but-before-the-boundary"]
+        assert torch.equal(chain.state_for([6]).slots, st6.slots)
+        chain._refs[4] = s.windows[4]
+    assert chain.state_dict()["boundaries"] == [5]

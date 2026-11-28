@@ -46,7 +46,7 @@ def run(cond: str, seed: int, steps: int, period: int, width: int, n_cls: int, b
     store = SqliteExperienceStore(os.path.join(d, "s.sqlite"), durable=False)
     chain = None
     if cond != "off":
-        chain = PersistentStateChain(model, store, PersistSettings(unroll=int(cond[1:])))
+        chain = PersistentStateChain(model, store, PersistSettings(enabled=True, unroll=int(cond[1:])))
         if rho_init is not None:                        # start at the pre-PS computation; learning may open it
             with torch.no_grad():
                 model.exp.core.persist_rho.fill_(float(rho_init))

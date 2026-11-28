@@ -8,6 +8,7 @@
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
@@ -109,7 +110,11 @@ def test_export_weights_reads_in_a_fresh_process(tmp_path):
         dest = str(tmp_path / "export")
         agent.export_weights(dest)
         assert sorted(os.listdir(dest)) == ["config.json", "weights.safetensors"]     # nothing but weights + config
-        p_ref = HeldOutProbe(agent).distribution().tolist()
+        # a weights-only export carries no persistent core-state chain (experience-dependent state, like the fast
+        # beliefs; nn.persist): the fresh-process model computes the agent's distribution at the initial chain state
+        chain = getattr(agent, "persist", None)
+        with (chain.initial() if chain is not None else contextlib.nullcontext()):
+            p_ref = HeldOutProbe(agent).distribution().tolist()
         got = _child(dest)
         assert max(abs(a - b) for a, b in zip(p_ref, got["probs"])) < 1e-6, (p_ref, got["probs"])
         hashes = agent.model.group_hashes()

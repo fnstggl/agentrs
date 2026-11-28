@@ -98,7 +98,7 @@ def main() -> int:
             nll_closed = agent._world_nll(sample)
             # counterfactual: the run's decisions replayed into a fresh in-memory chain, in order
             from cam_live.nn.persist import PersistentStateChain, PersistSettings
-            replay = PersistentStateChain(model, agent.store, PersistSettings(unroll=2))
+            replay = PersistentStateChain(model, agent.store, PersistSettings(enabled=True, unroll=2))
             for r in recs:
                 replay.commit(r.decision.decision_id, context_refs=r.context_item_refs, post_refs=r.post_item_refs,
                               objective_id=r.objective_id, ts=float(r.decision.ts))
