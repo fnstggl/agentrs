@@ -286,6 +286,12 @@ INTERIM: `docs/evidence/RW/rw_pathway.py --arm learned --decisions 80 --budget-s
   32 by the CPU rule): 0 applied — 32 `insufficient_independent_outcomes` (2-3 groups of 4), 3 ESS 1.28-1.31 with
   6-7 pool rows; the query-window fallback had no evidence either. This is the price of never using an outcome both
   in the inner update and in the outer estimate; it binds in the first few dozen decisions of an objective only.
+* **A lead beyond item 1: the inner-loss return half-life also limits the live policy's own learning** (debug, the
+  controlled configuration only). The frozen arms are bootstrap-only learners; with the configured 1-day half-life the
+  true value of their chosen actions in the last third of a 300-decision objective was 2.91 / 3.73 / 5.63 adopters per
+  decision (seeds 0-2), with a 600 s half-life 7.18 / 8.09 / 11.49 on the same worlds (first thirds 1.92-5.27 vs
+  1.99-5.72). In the agent configuration (goal term, trust region, replay) this was not measured; it is reported, not
+  acted on (`diag_long300hl_frozen_direct.json` vs `diag_long300_frozen_direct.json`).
 * **The live planning run has no verified contrast yet** (every member-count reading 0): neither the meta-gradient
   nor the validity evidence can learn anything from it, and the mix correctly stays 1.
 
