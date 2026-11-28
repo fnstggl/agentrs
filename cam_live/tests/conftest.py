@@ -22,13 +22,31 @@ for _d in ("credit", "runtime", "integration", "nn", os.path.join("harness", "en
     if os.path.isdir(_p) and _p not in sys.path:
         sys.path.append(_p)
 # ``from conftest import build_record`` (tests/credit) must always mean tests/credit/conftest.py, whichever conftest
-# files pytest has loaded before (in a whole-suite run another directory's conftest used to win: INT2-5 clash 2)
-if "conftest" not in sys.modules and os.path.exists(os.path.join(_TESTS, "credit", "conftest.py")):
+# files pytest has loaded before: pytest imports a conftest whose directory is on sys.path as the top-level module
+# ``conftest`` (harness/env, harness/auth, harness/skills), which replaced the credit one in a whole-suite run (INT2-5
+# clash 2). The credit module is set as ``conftest`` now (module-level imports at collection) and again before every
+# test of tests/credit (imports inside tests).
+_CREDIT_CONFTEST = None
+if os.path.exists(os.path.join(_TESTS, "credit", "conftest.py")):
     import importlib.util as _ilu
     _spec = _ilu.spec_from_file_location("conftest", os.path.join(_TESTS, "credit", "conftest.py"))
-    _mod = _ilu.module_from_spec(_spec)
-    sys.modules["conftest"] = _mod
-    _spec.loader.exec_module(_mod)
+    _CREDIT_CONFTEST = _ilu.module_from_spec(_spec)
+    sys.modules["conftest"] = _CREDIT_CONFTEST
+    _spec.loader.exec_module(_CREDIT_CONFTEST)
+
+
+def _credit_conftest_for(path) -> None:
+    if _CREDIT_CONFTEST is not None and os.path.join(_TESTS, "credit") + os.sep in str(path):
+        sys.modules["conftest"] = _CREDIT_CONFTEST
+
+
+def pytest_collect_file(file_path, parent):
+    _credit_conftest_for(file_path)                 # module-level ``from conftest import ...`` at collection
+    return None
+
+
+def pytest_runtest_setup(item):
+    _credit_conftest_for(item.path)                 # ``from conftest import ...`` inside a credit test
 os.environ.setdefault("HF_HOME", "/workspace/.hf_home")
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")

@@ -68,7 +68,10 @@ def test_backbone_program_takes_the_modality_of_the_program_tool(tmp_path):
     text = ('{"steps": [{"operation": "http.get", "arguments": {"url": "http://127.0.0.1:9/measure?x=1"}}, '
             '{"operation": "internal.note", "arguments": {"text": "measured"}}]}')
     progs = [a for a in parse_actions(text, tools, provenance="backbone", id_prefix="t").actions if a.steps]
-    assert progs and progs[0].modality == "api"             # what the parser gives it
+    # INT3A fixed INT2-9 in the parser itself (the composition gets the program tool's modality); the agent-side
+    # workaround below must keep it so, whichever modality a parser gives
+    assert progs and progs[0].modality == "internal"
+    progs[0].modality = "api"                               # what the parser gave it before INT3A's fix
     task = TaskSpec(objective_id="o", objective="measure", interfaces=["api", "internal"], mode="staging",
                     limits=Limits(duration_s=600, max_decisions=5))
     def judged(action, name):

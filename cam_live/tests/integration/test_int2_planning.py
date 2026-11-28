@@ -43,7 +43,8 @@ def test_planning_task_file():
     assert t.data_permissions["member_list"] is False and t.data_permissions["store_member_identifiers"] is False
     assert t.resources["publishing"]["approval_required"] is True
     problems = check_runnable(t)
-    assert len(problems) == 1 and problems[0].startswith("unset items:"), problems    # only the operator's items
+    # only the operator's items can be missing (the operator filled them in on 2026-11-27: then nothing is)
+    assert len(problems) <= 1 and all(p.startswith("unset items:") for p in problems), problems
     assert learner_view(t).objective == AMENDMENT_OBJECTIVE                           # CAM receives it verbatim
 
 
