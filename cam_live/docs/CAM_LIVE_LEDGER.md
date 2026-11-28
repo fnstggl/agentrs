@@ -214,6 +214,22 @@ Read at the start of every session, after `CAM_LIVE_SPEC.md` (operator specifica
 - Load reached ~95 on 48 cores (agent diagnostics) and starved every GPU holder; CPU rule issued to all agents
   (OMP_NUM_THREADS<=4, nice 10, one heavy job each); the container does not permit negative nice values.
 
+### 2026-11-28 — redirection (~18:00 UTC): fundamental intelligence and autonomy
+
+- Live planning attempts 1-3 (276 decisions): 0 websites visited, 0 notes / plans, repeated discord.modify_guild, many
+  operator requests (docs/evidence/live/planning_20261128/). Amendment results: RW (promotion now needs to beat 20
+  untrained controls; no learned reward earns it), IMP (imagination changes decisions when properly paired, share_tv
+  0.056, no outcome gain), PS (persistent state: no benefit, default off), CR (forced RUDDER result confounded; being
+  wrapped up), ST (hotfix; information value ~0 on the real model), SG (skills fixed; goal-free paired -5.3 [-14.7, 5.0]),
+  AU (standing profile; G3A-2 bypasses fixed, re-check pending). G3-act: same-seed runs were not paired (os.urandom
+  agent id; fixed 831cc85 / b74b312); the full-size predictor ignores its context (3.3e-4 relative belief change).
+- Operator redirection (docs/amendments/2026-11-28b_fundamental_intelligence_and_autonomy.md): critical path, zero
+  routine intervention, competent baseline, anti-repetition, simplified process.
+- Reorganised: evaluation batch (S2) stopped and written up; CR wraps up (CPU only); PS = primary research problem
+  (context insensitivity), GPU priority; new CB = competent baseline (frozen backbone vs CAM vs CAM after learning),
+  residual learning over a competent prior, operator requests out of the loop, generic anti-repetition, validation on
+  the full-size model; G3-act re-checks AU's fix on CPU only. Few concurrent GPU users (PS, CB).
+
 ## Active jobs
 
 | Started (UTC) | Job | Resume |
