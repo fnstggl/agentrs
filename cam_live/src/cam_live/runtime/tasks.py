@@ -30,6 +30,7 @@ import hashlib
 import math
 import os
 import re
+import unicodedata
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 import yaml
@@ -76,7 +77,8 @@ REJECTED_KEYS = tuple(TaskSpec.FORBIDDEN_KEYS) + (
 _SCHEMA_SAFE_KEYS = ("max_external_actions",)
 #: text patterns that read as a way of achieving the objective (label -> regex)
 REJECTED_TEXT: Dict[str, str] = {
-    "enumerated procedure": r"(?im)^\s*\d+[.)]\s+\S|\bstep\s*\d+\b|\b(?:first|second|third)(?:ly)?,",
+    "enumerated procedure": r"(?im)^\s*\d+[.)]\s+\S|\bstep\s*\d+\b|\b(?:first|second|third)(?:ly)?,"
+                            r"|\bstep\s+(?:one|two|three|four|five|six|seven|eight|nine|ten)\b",
     "ordered instruction": r"(?i)\bfirst\b[^.]{0,80}\b(?:then|next|after that|finally)\b|\bthen\s+(?:post|share|invite|run|"
                            r"open|ask|launch|write|publish|send)\b",
     "directive to the agent": r"(?i)\b(?:you|cam|the agent|the model|the learner)\s+(?:should|must|shall|ought to|"
@@ -154,9 +156,10 @@ _ID_RX = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@/+-]{0,199}$")           # ident
 _SLUG_RX = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 _NAME_RX = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")                    # destination / channel labels
 _NOSPACE_RX = re.compile(r"^\S{1,%d}$" % MAX_ID)
-_FAMILY_RX = re.compile(r"^[a-z0-9_-]+(?:/[a-z0-9_-]+)*$")
-_METRIC_RX = re.compile(r"^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$")
-_TOOL_RX = re.compile(r"^(?:\*|[a-z][a-z0-9_]*(?:\.(?:[a-z0-9_]+|\*))*(?:\.?\*)?)$")
+# G2R-1: bounded (a label, a metric name and a tool pattern are names, not sentences)
+_FAMILY_RX = re.compile(r"^(?=.{1,64}$)[a-z0-9_-]+(?:/[a-z0-9_-]+)*$")
+_METRIC_RX = re.compile(r"^(?=.{1,80}$)[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$")
+_TOOL_RX = re.compile(r"^(?=.{1,80}$)(?:\*|[a-z][a-z0-9_]*(?:\.(?:[a-z0-9_]+|\*))*(?:\.?\*)?)$")
 _SOURCE_RX = re.compile(r"^(?:jsonl?:\S{1,1000}|[A-Za-z_][\w.]{0,199}:[A-Za-z_]\w{0,99})$")
 _CONFIRM_RX = re.compile(r"^sha256:[0-9a-f]{64}$")
 _PERM_RX = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")                        # platform permission names (Discord scope)
@@ -358,6 +361,47 @@ def objective_confirmation(text: str) -> str:
     return "sha256:" + hashlib.sha256(str(text).encode("utf-8")).hexdigest()
 
 
+# ==============================================================================================================
+# normalisation before the content checks (G2R-1)
+# ==============================================================================================================
+#: characters that render as nothing or reorder text: zero-width, joiners, bidi controls, soft hyphen, BOM
+_INVISIBLE = re.compile("[\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e"
+                        "\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0]")
+#: separators inside identifiers, labels, metric names, tool patterns and URLs: read as spaces
+_ID_SEPARATORS = re.compile(r"[_\-.:/@+=?&#%~|\\]+")
+
+
+def invisible_characters(text: str) -> List[str]:
+    """Code points in ``text`` that render as nothing or change the direction of text (any format character)."""
+    return sorted({f"U+{ord(c):04X}" for c in str(text)
+                   if _INVISIBLE.match(c) or unicodedata.category(c) == "Cf"})
+
+
+def normalise_for_scan(text: str) -> str:
+    """What a reader sees: NFKC (full-width / compatibility forms folded), invisible and bidi-control characters
+    removed, identifier separators (``_ - . : / @ + = ? & # % ~ |``) and camelCase boundaries turned into spaces."""
+    t = unicodedata.normalize("NFKC", str(text))
+    t = "".join(c for c in t if not (_INVISIBLE.match(c) or unicodedata.category(c) == "Cf"))
+    t = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", t)
+    t = _ID_SEPARATORS.sub(" ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+_IMPERATIVE_RULES = [(l, r) for l, r in _OBJECTIVE_TEXT if l == "imperative steps"] + _INSTRUCTION_TEXT
+
+
+def _content_hits(value: str, *, ident: bool) -> List[str]:
+    """The content rules on the text as written and as normalised. ``ident``: a value without spaces (identifier,
+    label, metric, tool pattern, URL): read as words, it is also checked for commands when it has three or more."""
+    hits = _text_hits(value, _REJECTED_TEXT)
+    norm = normalise_for_scan(value)
+    if norm and norm != value:
+        hits += [h for h in _text_hits(norm, _REJECTED_TEXT) if h not in hits]
+    if ident and len(re.findall(r"[A-Za-z]{2,}", norm)) >= 3:
+        hits += [h for h in _text_hits(norm, _IMPERATIVE_RULES) if h not in hits]
+    return hits
+
+
 def _text_hits(text: str, rules: List[Tuple[str, "re.Pattern[str]"]]) -> List[str]:
     out = []
     for label, rx in rules:
@@ -368,10 +412,20 @@ def _text_hits(text: str, rules: List[Tuple[str, "re.Pattern[str]"]]) -> List[st
 
 
 def objective_flags(text: str) -> List[str]:
-    """Strategy-like content in an objective text (which CAM receives verbatim). [] = nothing flagged."""
+    """Strategy-like content in an objective text (which CAM receives verbatim). [] = nothing flagged. The text is
+    also checked as a reader sees it (NFKC, invisible / bidi-control characters removed); such characters are
+    themselves flagged (G2R-1)."""
     if not isinstance(text, str) or not text.strip():
         return []
-    return _text_hits(text, _REJECTED_TEXT) + _text_hits(text.strip(), _OBJECTIVE_TEXT)
+    out = _text_hits(text, _REJECTED_TEXT) + _text_hits(text.strip(), _OBJECTIVE_TEXT)
+    hidden = invisible_characters(text)
+    seen = unicodedata.normalize("NFKC", "".join(c for c in text if not (_INVISIBLE.match(c)
+                                                                        or unicodedata.category(c) == "Cf")))
+    if seen != text:
+        out += [h for h in _text_hits(seen, _REJECTED_TEXT) + _text_hits(seen.strip(), _OBJECTIVE_TEXT) if h not in out]
+    if hidden:
+        out.append(f"invisible or direction-control characters: {', '.join(hidden)}")
+    return out
 
 
 def _confirmed(raw: Dict[str, Any]) -> bool:
@@ -395,8 +449,11 @@ def strategy_findings(raw: Any) -> List[str]:
             hit = sorted(tokens & rejected)
             if hit:
                 out.append(f"{path}: key {key!r} is not allowed in a task file ({', '.join(hit)})")
-            for h in _text_hits(key, _REJECTED_TEXT):
+            for h in _content_hits(key, ident=True):
                 out.append(f"{path}: key {key!r} reads as a solution strategy ({h})")
+            for w in sorted(set(re.split(r"\s+", normalise_for_scan(key).lower())) & rejected - {k}):
+                if k not in _SCHEMA_SAFE_KEYS and w not in hit:
+                    out.append(f"{path}: key {key!r} is not allowed in a task file ({w})")
         if not isinstance(value, str) or is_unset(value):
             continue
         if path == "objective" and isinstance(raw, dict):
@@ -406,7 +463,7 @@ def strategy_findings(raw: Any) -> List[str]:
                            "objective verbatim, so it is refused unless the operator confirms this exact text with "
                            f"objective_confirmation: {objective_confirmation(value)}")
             continue
-        for h in _text_hits(value, _REJECTED_TEXT):
+        for h in _content_hits(value, ident=not re.search(r"\s", value.strip())):
             out.append(f"{path}: text reads as a solution strategy ({h})")
         if path in _FREE_TEXT_PATHS:
             for h in _text_hits(value.strip(), _INSTRUCTION_TEXT):
@@ -542,9 +599,16 @@ def structural_problems(raw: Any) -> List[str]:
             got = p.rsplit("(got ", 1)[-1].rstrip(")")
             p = f"unknown stop condition {got} (known: {', '.join(STOP_CONDITIONS)})"
         out.append(p)
-    for path, _k, v in _walk(raw):
+    for path, k, v in _walk(raw):
         if isinstance(v, str) and v.strip().lower() in PLACEHOLDERS:
             out.append(f"{path}: {v!r} looks like a placeholder; write REQUIRED (or the real value)")
+        # G2R-1: identifiers, labels and keys never contain characters a reader cannot see
+        if k and invisible_characters(k):
+            out.append(f"{path}: key contains invisible or direction-control characters "
+                       f"({', '.join(invisible_characters(k))})")
+        if isinstance(v, str) and path not in _FREE_TEXT_PATHS and invisible_characters(v):
+            out.append(f"{path}: contains invisible or direction-control characters "
+                       f"({', '.join(invisible_characters(v))})")
     if is_unset(raw.get("objective_id")):
         out.append("objective_id is required")
     if raw.get("objective") is not None and not isinstance(raw.get("objective"), str):
