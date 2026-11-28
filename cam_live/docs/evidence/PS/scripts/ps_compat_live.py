@@ -34,6 +34,7 @@ def main() -> int:
     ap.add_argument("--out", required=True)
     ap.add_argument("--records", type=int, default=24)
     ap.add_argument("--cpu", action="store_true")
+    ap.add_argument("--no-lock", action="store_true", help="the parent holds the shared GPU lock")
     a = ap.parse_args()
     t0 = time.time()
     src_learner = os.path.join(a.run_dir, "learner")
@@ -63,7 +64,7 @@ def main() -> int:
     sec["durable"] = False
     cfg.sections["agent"] = sec
     lock = None
-    if not a.cpu:
+    if not a.cpu and not a.no_lock:
         from cam_live.nn.gpu import gpu_lock
         lock = gpu_lock(timeout_s=4 * 3600.0, poll_s=1.0)
         lock.__enter__()

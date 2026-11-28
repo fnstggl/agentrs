@@ -201,6 +201,16 @@ F1 (retention) → codec T2 (held out), 8 decisions each, same seeds; `docs/evid
 | off_s1 | 2 | T1 | 0.292 | 2.876 (18) | 0.528 (17) | 1.470 (16) | - | - | - |
 | off_s1 | 3 | F1 | 0.000 | 0.470 (16) | 0.567 (16) | 0.595 (16) | - | - | - |
 | off_s1 | 4 | T2 | 1.000 | - | 0.710 (2) | 0.695 (1) | - | - | - |
+| off_s2 | 0 | F1 | 0.068 | 1.670 (25) | 0.595 (19) | 1.229 (19) | - | - | - |
+| off_s2 | 1 | F1 | 0.236 | 2.674 (25) | 0.542 (18) | 1.717 (19) | - | - | - |
+| off_s2 | 2 | T1 | 0.338 | 3.154 (21) | 0.509 (17) | 1.647 (16) | - | - | - |
+| off_s2 | 3 | F1 | 0.278 | 1.230 (18) | 0.423 (16) | 0.832 (17) | - | - | - |
+| off_s2 | 4 | T2 | 0.958 | - | 0.301 (8) | -2.555 (5) | - | - | - |
+| off_s3 | 0 | F1 | 0.034 | 1.115 (21) | 0.497 (18) | 0.964 (18) | - | - | - |
+| off_s3 | 1 | F1 | 0.118 | 1.644 (20) | 0.526 (16) | 1.100 (17) | - | - | - |
+| off_s3 | 2 | T1 | 0.062 | 4.255 (19) | 0.529 (16) | 3.903 (17) | - | - | - |
+| off_s3 | 3 | F1 | 0.000 | 0.457 (17) | 0.525 (16) | 0.594 (17) | - | - | - |
+| off_s3 | 4 | T2 | 0.958 | - | 0.359 (9) | -3.859 (4) | - | - | - |
 | on_rho0_s0 | 0 | F1 | 0.407 | 1.966 (16) | 0.560 (16) | 2.018 (16) | 0.0000 | 0.001 | 0.0021 |
 | on_rho0_s0 | 1 | F1 | 0.200 | 2.842 (18) | 0.565 (15) | 1.398 (15) | 0.0001 | 0.002 | 0.0044 |
 | on_rho0_s0 | 2 | T1 | 0.354 | 3.875 (19) | 0.554 (15) | 1.362 (16) | 0.0001 | 0.002 | 0.0044 |
@@ -221,22 +231,37 @@ F1 (retention) → codec T2 (held out), 8 decisions each, same seeds; `docs/evid
 | on_s2 | 2 | T1 | 0.246 | 2.258 (23) | 0.546 (17) | 1.347 (17) | 0.0148 | 0.258 | 0.9915 |
 | on_s2 | 3 | F1 | 0.111 | 1.016 (19) | 0.542 (17) | 0.868 (17) | 0.0083 | 0.242 | 0.9931 |
 | on_s2 | 4 | T2 | 1.000 | - | 0.611 (10) | 1.642 (7) | 0.0097 | 0.451 | 0.9946 |
+| on_s3 | 0 | F1 | 0.237 | 2.285 (27) | 0.503 (18) | 1.186 (18) | 0.0054 | 0.194 | 0.9969 |
+| on_s3 | 1 | F1 | 0.100 | 2.088 (18) | 0.508 (16) | 1.123 (16) | 0.0175 | 0.270 | 0.9932 |
+| on_s3 | 2 | T1 | 0.292 | 3.426 (21) | 0.518 (16) | 2.137 (17) | 0.0037 | 0.180 | 0.9929 |
+| on_s3 | 3 | F1 | 0.000 | 0.491 (16) | 0.542 (15) | 0.590 (16) | 0.0069 | 0.218 | 0.9942 |
+| on_s3 | 4 | T2 | 1.000 | - | 0.669 (2) | 0.690 (1) | 0.0192 | 0.574 | 0.9969 |
 
 | run | world-model NLL of the first phase's records after phase 0 / 1 / 2 / 3 | change 0 -> 3 |
 |---|---|---:|
 | off_s0 | 1.4309 / 1.4525 / 1.4714 / 1.5053 | +0.0744 (+5.2 %) |
 | off_s1 | 1.7992 / 1.8093 / 1.6932 / 1.7167 | -0.0825 (-4.6 %) |
+| off_s2 | 2.4190 / 2.3531 / 2.2495 / 2.1695 | -0.2495 (-10.3 %) |
+| off_s3 | 1.3576 / 1.3366 / 1.3502 / 1.4168 | +0.0593 (+4.4 %) |
 | on_rho0_s0 | 2.6638 / 2.5229 / 2.5668 / 2.5610 | -0.1028 (-3.9 %) |
 | on_s0 | 2.2796 / 2.2533 / 2.2842 / 2.3210 | +0.0414 (+1.8 %) |
 | on_s1 | 3.1417 / 3.1505 / 3.1756 / 3.2216 | +0.0799 (+2.5 %) |
 | on_s2 | 3.3557 / 3.1643 / 3.2106 / 3.3496 | -0.0061 (-0.2 %) |
+| on_s3 | 2.4687 / 2.2903 / 2.2928 / 2.4254 | -0.0433 (-1.8 %) |
 
 seed 0, LabWorld (F1/T1): progress on - off +0.252 (4); goal-relevant NLL on - off +0.454 (4); count NLL on - off +1.311 (4)
 seed 0, held-out T2: progress on - off -0.042 (1); goal-relevant NLL on - off -7.964 (1); count NLL on - off -
 seed 1, LabWorld (F1/T1): progress on - off +0.064 (4); goal-relevant NLL on - off +0.114 (4); count NLL on - off +0.323 (4)
 seed 1, held-out T2: progress on - off -0.019 (1); goal-relevant NLL on - off -4.509 (1); count NLL on - off -
+seed 2, LabWorld (F1/T1): progress on - off -0.046 (4); goal-relevant NLL on - off +0.002 (4); count NLL on - off -0.233 (4)
+seed 2, held-out T2: progress on - off +0.042 (1); goal-relevant NLL on - off +4.197 (1); count NLL on - off -
+seed 3, LabWorld (F1/T1): progress on - off +0.104 (4); goal-relevant NLL on - off -0.381 (4); count NLL on - off +0.205 (4)
+seed 3, held-out T2: progress on - off +0.042 (1); goal-relevant NLL on - off +4.549 (1); count NLL on - off -
 
-As explained in §4.3 these differences are dominated by trajectory divergence; they are reported, not interpreted.
+Over the 16 LabWorld lifetimes of seeds 0–3: verified progress on − off +0.094 (SD 0.144; on higher in 10 of 16),
+goal-relevant prospective NLL on − off +0.047 (SD 0.53; on lower in 6 of 16). As explained in §4.3 these on-line
+differences are dominated by trajectory divergence (the near-zero-effect run `on_rho0_s0` differs from `off_s0` by
++0.29 progress in its first objective); they are reported, not interpreted.
 
 **Debug scale, paired on a fixed experience stream** (`scripts/ps_replay.py`: prequential world-model NLL of every
 stored decision before training on it, then 2 AdamW steps of the agent's own world-model loss provider on a replay
@@ -270,6 +295,26 @@ the first block's records after the first -> last block; rho: mean retention at 
 on learning to predict** (on − off −0.004, SE 0.003, on better in 6 of 12), **none on retention** after the
 interfering block (−0.001), and a small, not significant advantage on the held-out codec block (−0.021, on better in
 9 of 12). The learner closed the retention slightly in every run (`ρ` 1 → 0.98).
+
+**Debug scale, long objectives as fixed streams** (`docs/evidence/PS/replay_long/`): two streams with a 40- and a
+16-decision LabWorld objective (F1) followed by a 20- / 11-decision interfering one (T1) — longer than the 48-item
+window holds — replayed with and without the chain, 3 model seeds each:
+
+| stream | model seed | scored | NLL on | NLL off | on - off | per block on/off | retention on | retention off | rho (on, end) |
+|---|---:|---:|---:|---:|---:|---|---|---|---|
+| off_s5 | 0 | 60 | 3.634 | 3.648 | -0.014 | lab/first 3.997/4.002; lab/door 2.910/2.939 | 1.898 -> 1.579 | 1.922 -> 1.601 | rho 0.9771 |
+| off_s5 | 1 | 60 | 3.616 | 3.626 | -0.010 | lab/first 4.021/4.034; lab/door 2.807/2.810 | 1.844 -> 1.495 | 1.841 -> 1.515 | rho 0.9785 |
+| off_s5 | 2 | 60 | 3.538 | 3.534 | +0.004 | lab/first 4.041/4.054; lab/door 2.530/2.494 | 1.831 -> 1.572 | 1.836 -> 1.577 | rho 0.9852 |
+| off_s6 | 0 | 27 | 5.922 | 5.956 | -0.034 | lab/first 7.377/7.398; lab/door 3.805/3.857 | 3.024 -> 2.808 | 3.053 -> 2.810 | rho 0.9868 |
+| off_s6 | 1 | 27 | 5.894 | 5.897 | -0.002 | lab/first 7.528/7.527; lab/door 3.518/3.525 | 2.876 -> 2.604 | 2.877 -> 2.586 | rho 0.9852 |
+| off_s6 | 2 | 27 | 5.876 | 5.869 | +0.008 | lab/first 7.405/7.411; lab/door 3.653/3.625 | 2.956 -> 2.753 | 2.955 -> 2.759 | rho 0.9868 |
+
+prequential NLL on - off: mean -0.008 (SE 0.006) over 6 pairs; on better in 4 of 6
+  block 0:lab/first: mean -0.010 over 6 (on better in 5)
+  block 1:lab/door: mean -0.005 over 6 (on better in 4)
+forgetting of the first block (on minus off, NLL change first->last block): mean +0.003 over 6 (on forgets less in 3)
+
+Again no significant effect (on − off −0.008, SE 0.006, on better in 4 of 6; first, long block −0.010, 5 of 6).
 
 **Synthetic memory (§4.1)**: where information outside the window matters, the carried state is learned and helps a
 lot (out-of-window accuracy 0.29 → 0.80 at K = 2); started closed (`ρ = 0`, `docs/evidence/PS/recall_rho0/`) the
