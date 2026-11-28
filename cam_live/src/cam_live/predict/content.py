@@ -9,8 +9,9 @@ what an action returns**:
     target y (K dims)  = P^T  mean_items e(text)  +  mean_items sum_q symlog(value_q) h(name_q) / sqrt(n_q)
 
 over the experience items the action added to the context (its result line and the observations it returned):
-``e`` is the frozen backbone's standardised semantic embedding of the item text (``model.embed_texts``; a fixed
-target, not one the learner can move), ``P`` a fixed random projection (seeded), ``h(name)`` a fixed pseudo-random
+``e`` is the standardised semantic embedding of the item text by the *frozen base* backbone, with the trainable LoRA
+adapters switched off (:meth:`ContentTarget.base_embeddings`; the backbone's own ``embed`` runs through the adapters,
+which the slow update trains, so it is not a fixed target — G3-core D-IMP2), ``P`` a fixed random projection (seeded), ``h(name)`` a fixed pseudo-random
 unit vector per quantity name (sha256 of the name) and ``symlog`` keeps exact numbers on a bounded scale. Nothing
 names a task, a tool or a metric.
 
@@ -49,6 +50,10 @@ def _symlog(x: float) -> float:
     return math.copysign(math.log1p(abs(x)), x)
 
 
+def _sha(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
 def _name_vector(name: str, k: int) -> Tensor:
     seed = int.from_bytes(hashlib.sha256(name.encode()).digest()[:8], "little") % (2 ** 62)
     v = torch.randn(k, generator=torch.Generator().manual_seed(seed), dtype=F64)
@@ -63,11 +68,47 @@ class ContentTarget:
         g = torch.Generator().manual_seed(1_000_003 + int(seed))
         self.proj = torch.randn(self.d_sem, self.k, generator=g, dtype=F64) / math.sqrt(self.d_sem)
         self._names: Dict[str, Tensor] = {}
+        self._base_cache: Dict[str, Tensor] = {}
+        self.max_cache = 200_000
+        self.fixed_target = True
 
     def _h(self, name: str) -> Tensor:
         if name not in self._names:
             self._names[name] = _name_vector(name, self.k)
         return self._names[name]
+
+    @torch.no_grad()
+    def base_embeddings(self, model: Any, texts: Sequence[str]) -> Tensor:
+        """[n, d_sem] float64 standardised semantic embeddings of the *frozen base* backbone — the LoRA adapters
+        switched off for the call (their output scale set to 0, so each adapted layer computes exactly its frozen
+        base) — cached by text. The backbone's own ``embed`` runs through the adapters, which the slow update trains,
+        so it would move the target of every record at every accepted slow step (G3-core D-IMP2: 2 % / 22 % for
+        adapter steps of 1e-3 / 1e-2). The standardisation statistics are set once from fixed calibration texts at
+        build time, before any adapter training. A model without that backbone interface falls back to
+        ``model.embed_texts`` (``fixed_target`` False then)."""
+        bb = getattr(model, "backbone", None)
+        mods = list(getattr(bb, "lora_modules", []) or [])
+        if bb is None or not all(hasattr(bb, n) for n in ("_pooled", "_standardise", "_text_ids", "cfg")):
+            self.fixed_target = False
+            return model.embed_texts(list(texts)).detach().to("cpu", F64)
+        self.fixed_target = True
+        cache = self._base_cache
+        todo = list(dict.fromkeys(t for t in texts if _sha(t) not in cache))
+        if todo:
+            saved = [m.scale for m in mods]
+            try:
+                for m in mods:
+                    m.scale = 0.0
+                rows = [bb._text_ids(t, bb.cfg.max_text_tokens) for t in todo]
+                emb = bb._standardise(bb._pooled(rows)).detach().to("cpu", F64)
+            finally:
+                for m, sc in zip(mods, saved):
+                    m.scale = sc
+            for t, e in zip(todo, emb):
+                cache[_sha(t)] = e
+            while len(cache) > self.max_cache:
+                cache.pop(next(iter(cache)))
+        return torch.stack([cache[_sha(t)] for t in texts], 0) if texts else torch.zeros(0, self.d_sem, dtype=F64)
 
     @torch.no_grad()
     def __call__(self, model: Any, groups: Sequence[Sequence[ExperienceItem]]) -> Tuple[Tensor, Tensor]:
@@ -76,7 +117,7 @@ class ContentTarget:
         y = torch.zeros(b, self.k, dtype=F64)
         mask = torch.zeros(b, dtype=torch.bool)
         texts = [it.text or "" for g in groups for it in g]
-        emb = model.embed_texts(texts).detach().to("cpu", F64) if texts else torch.zeros(0, self.d_sem, dtype=F64)
+        emb = self.base_embeddings(model, texts) if texts else torch.zeros(0, self.d_sem, dtype=F64)
         pos = 0
         for i, g in enumerate(groups):
             if not g:

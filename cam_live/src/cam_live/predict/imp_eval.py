@@ -100,27 +100,56 @@ def build_config(arm: str, seed: int, *, real: bool, backbone: bool, extra_predi
     return cfg
 
 
+def make_deterministic(seed: int) -> Dict[str, Any]:
+    """Everything outside the arm switch that made two same-seed runs differ (G3-core D-IMP1): identifiers from
+    ``uuid.uuid4`` (record, query, observation ids; bootstrap memberships are hashed from them) are drawn from a
+    seeded generator; the runtime's per-call learning budgets (wall-clock seconds) are lifted so every call runs its
+    planned steps (the steps themselves are bounded by the learner's plan); string hashing is fixed by the caller
+    (PYTHONHASHSEED=0, :func:`main` re-executes itself); the clock is simulated (:class:`contracts.SimClock`) so
+    time stamps, elapsed times and deadlines do not depend on how fast the machine is. Diagnostic runs only."""
+    import random as _random
+    import uuid
+    from ..eval import runner as R
+    rng = _random.Random(10_007 * int(seed) + 1)
+    uuid.uuid4 = lambda: uuid.UUID(int=rng.getrandbits(128), version=4)            # type: ignore[assignment]
+    orig = getattr(R.runtime_config, "_imp_orig", R.runtime_config)
+
+    def runtime_config(k: int = 16) -> Any:
+        c = orig(k)
+        c.learn_budget_s = c.meta_budget_s = 1e9
+        return c
+    runtime_config._imp_orig = orig                                                    # type: ignore[attr-defined]
+    R.runtime_config = runtime_config
+    return {"paired": True, "clock": "SimClock", "uuid4": f"seeded ({10_007 * int(seed) + 1})",
+            "learn_budget_s": 1e9, "pythonhashseed": os.environ.get("PYTHONHASHSEED")}
+
+
 def run(arm: str, seed: int, *, family: str, lifetimes: int, decisions: int, real: bool, backbone: bool,
         out: str, workdir: str, threads: int, world_base: Optional[int], extra_predict: Dict[str, Any],
-        budget_s: float, from_dir: str = "", save: bool = False, lifetime_wall_s: float = 0.0) -> Dict[str, Any]:
+        budget_s: float, from_dir: str = "", save: bool = False, lifetime_wall_s: float = 0.0,
+        paired: bool = True) -> Dict[str, Any]:
     from ..agent import CamLiveAgent
+    from ..contracts import SimClock
     from ..eval.runner import run_lifetime
     from ..validation import OffsetClock
     if threads:
         torch.set_num_threads(int(threads))
+    determinism = make_deterministic(seed) if paired else {"paired": False, "clock": "OffsetClock (wall)"}
     t0 = time.time()
     root = os.path.abspath(workdir)
     if os.path.exists(root):
         shutil.rmtree(root)
     os.makedirs(root)
     cfg = build_config(arm, seed, real=real, backbone=backbone, extra_predict=extra_predict)
-    clock = OffsetClock()
+    clock: Any = SimClock() if paired else OffsetClock()
     restored = None
     if from_dir:                                  # continue from an earlier run's experience and checkpoint
         shutil.copytree(os.path.join(from_dir, "agent"), os.path.join(root, "agent"))
         meta = json.load(open(os.path.join(from_dir, "saved.json")))
         clock.advance(max(0.0, float(meta["clock_now"]) - float(clock.now()) + 1.0))
     agent = CamLiveAgent(cfg, os.path.join(root, "agent"), clock=clock)
+    if paired and not from_dir:
+        agent.uid = f"{(int(seed) * 2654435761 + 12345) % 16 ** 6:06x}"    # os.urandom per agent otherwise
     if from_dir:
         agent.load(os.path.join(from_dir, "ckpt"))
         restored = {"from": from_dir, "checkpoint_id": agent.checkpoint_id, "planner": agent.planner.restore_info,
@@ -138,7 +167,7 @@ def run(arm: str, seed: int, *, family: str, lifetimes: int, decisions: int, rea
     res: Dict[str, Any] = {"arm": arm, "seed": seed, "family": family, "real": real, "backbone": backbone,
                            "decisions_per_lifetime": decisions, "code": _code(), "predict_overrides": extra_predict,
                            "backbone_name": cfg.backbone.name, "scale": cfg.core.scale, "lifetimes": [],
-                           "restored": restored}
+                           "restored": restored, "determinism": determinism}
     wb = (WORLD_BASE.get(family, 70_000) + 100 * int(seed)) if world_base is None else int(world_base)
     try:
         for i in range(lifetimes):
@@ -405,6 +434,47 @@ def _arm_stats(r: Dict[str, Any]) -> Dict[str, Any]:
             "imagination_calibration": r.get("imagination_calibration"), "wall_seconds": r.get("wall_seconds")}
 
 
+def _row_inputs_differ(x: Dict[str, Any], y: Dict[str, Any], tol: float = 1e-9) -> bool:
+    """Whether two decisions saw different candidates or recorded different one-step / imagined values."""
+    cx, cy = x.get("cands") or [], y.get("cands") or []
+    if len(cx) != len(cy) or any((a[0], a[1]) != (b[0], b[1]) for a, b in zip(cx, cy)):
+        return True
+    for a, b in zip(cx, cy):
+        for k in (2, 4):
+            if (a[k] is None) != (b[k] is None) or (a[k] is not None and abs(a[k] - b[k]) > tol):
+                return True
+    return False
+
+
+def pairing(on: Dict[str, Any], off: Dict[str, Any]) -> Dict[str, Any]:
+    """Is a pair paired? Over the decisions in order (all lifetimes): the first decision at which the inputs differ
+    (candidates, recorded one-step and imagined values), the first at which the executed action differs, and the first
+    at which imagination can affect the choice (the on arm's distributions with and without imagination differ,
+    share_tv > 0). Paired = the inputs are identical up to and including that decision (before it nothing but
+    the arm switch differs, and the switch acts only from there). Also the on arm's share_tv at that decision (the
+    probability that imagination changes the executed action there) and whether it did."""
+    xs = [r for lt in on["lifetimes"] for r in lt["decision_rows"]]
+    ys = [r for lt in off["lifetimes"] for r in lt["decision_rows"]]
+    first_in = first_act = first_inf = None
+    for i, (x, y) in enumerate(zip(xs, ys)):
+        if first_inf is None and (x.get("imagination") or {}).get("share_tv"):
+            first_inf = i
+        if first_in is None and _row_inputs_differ(x, y):
+            first_in = i
+        if first_act is None and (x["operation"], x["arguments"]) != (y["operation"], y["arguments"]):
+            first_act = i
+        if first_in is not None and first_act is not None and first_inf is not None:
+            break
+    n = min(len(xs), len(ys))
+    ok = first_in is None or (first_inf is not None and first_in > first_inf)
+    tv = (xs[first_inf].get("imagination") or {}).get("share_tv") if first_inf is not None else None
+    return {"decisions_compared": n, "first_input_difference": first_in, "first_action_difference": first_act,
+            "first_imagination_influence": first_inf, "paired_until_influence": bool(ok),
+            "share_tv_at_first_influence": tv,
+            "action_differs_at_first_influence": (first_act == first_inf) if first_inf is not None else None,
+            "action_differs_before_influence": (first_act is not None and (first_inf is None or first_act < first_inf))}
+
+
 def summarize(paths: Sequence[str]) -> Dict[str, Any]:
     runs = [json.load(open(p)) for p in paths]
     by = {}
@@ -430,7 +500,8 @@ def summarize(paths: Sequence[str]) -> Dict[str, Any]:
                     break
             row["paired"] = {"lifetimes": n, "progress_on_minus_off": sum(diff_progress) / max(n, 1),
                              "expected_adopters_on_minus_off": sum(diff_adopters) / max(n, 1),
-                             "first_divergence": first_div}
+                             "first_divergence": first_div, "pairing": pairing(arms["on"], arms["off"]),
+                             "by_lifetime_progress_on_minus_off": diff_progress}
             pairs.append(row["paired"])
         per_seed.append(row)
     out = {"runs": len(runs), "per_seed": per_seed,
@@ -438,7 +509,15 @@ def summarize(paths: Sequence[str]) -> Dict[str, Any]:
                                  "expected_adopters_on_minus_off":
                                      _mean_ci([p["expected_adopters_on_minus_off"] for p in pairs]),
                                  "seeds_diverged": sum(1 for p in pairs if p["first_divergence"] is not None),
-                                 "n_pairs": len(pairs)},
+                                 "n_pairs": len(pairs),
+                                 "pairs_paired_until_influence": sum(1 for p in pairs
+                                                                     if p["pairing"]["paired_until_influence"]),
+                                 "pairs_action_differs_before_influence":
+                                     sum(1 for p in pairs if p["pairing"]["action_differs_before_influence"]),
+                                 "actions_changed_at_first_influence": sum(
+                                     1 for p in pairs if p["pairing"]["action_differs_at_first_influence"]),
+                                 "expected_changes_at_first_influence": sum(
+                                     p["pairing"]["share_tv_at_first_influence"] or 0.0 for p in pairs)},
            "on_arm": {"imagination_tv_mean": _mean_ci([r["on"]["imagination_tv_mean"] for r in per_seed
                                                        if "on" in r and r["on"]["imagination_tv_mean"] is not None]),
                       "argmax_changed": sum(r["on"]["argmax_changed_by_imagination"] for r in per_seed if "on" in r),
@@ -482,6 +561,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     r.add_argument("--from-dir", default="", help="workdir of a run made with --save: continue from its checkpoint")
     r.add_argument("--save", action="store_true", help="save a checkpoint (and keep the experience) at the end")
     r.add_argument("--lifetime-wall-s", type=float, default=0.0, help="end a lifetime after this many seconds")
+    r.add_argument("--unpaired", action="store_true", help="wall clock, random ids (the pre-G3 behaviour)")
     rp = sub.add_parser("replay")
     rp.add_argument("--run-dir", required=True)
     rp.add_argument("--ckpt", required=True)
@@ -492,10 +572,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     s.add_argument("paths", nargs="+")
     s.add_argument("--out", required=True)
     a = ap.parse_args(argv)
+    if a.cmd == "run" and not a.unpaired and os.environ.get("PYTHONHASHSEED") != "0":
+        env = dict(os.environ, PYTHONHASHSEED="0")              # string hashing (set iteration order) fixed
+        args = list(argv) if argv is not None else sys.argv[1:]
+        os.execve(sys.executable, [sys.executable, "-m", "cam_live.predict.imp_eval", *args], env)
     if a.cmd == "run":
         kw = dict(family=a.family, lifetimes=a.lifetimes, decisions=a.decisions, real=a.real, backbone=a.backbone,
                   out=a.out, workdir=a.workdir, threads=a.threads, world_base=a.world_base,
-                  extra_predict=json.loads(a.predict), budget_s=a.budget_s, from_dir=a.from_dir, save=a.save, lifetime_wall_s=a.lifetime_wall_s)
+                  extra_predict=json.loads(a.predict), budget_s=a.budget_s, from_dir=a.from_dir, save=a.save, lifetime_wall_s=a.lifetime_wall_s,
+                  paired=not a.unpaired)
         if a.real:
             from ..nn.gpu import free_gpu_memory, gpu_lock
             with gpu_lock(timeout_s=3 * 3600.0):

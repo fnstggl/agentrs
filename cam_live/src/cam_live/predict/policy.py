@@ -301,9 +301,12 @@ class SelectionCalibration:
     PRIOR_MEAN = (0.0, 1.0, 0.0)
 
     def __init__(self, *, prior_sd_q: float = 0.5, prior_sd_pi: float = 0.5, forget: float = 0.99,
-                 max_obs: int = 1024, noise_dof: float = 2.0):
+                 max_obs: int = 1024, noise_dof: float = 2.0, obs_weight: float = 1.0):
         self.prior_sd_q, self.prior_sd_pi = float(prior_sd_q), float(prior_sd_pi)
         self.forget, self.max_obs, self.noise_dof = float(forget), int(max_obs), float(noise_dof)
+        # weight of one observation in the likelihood (1 for independent observations; the imagination calibration
+        # uses 1 / (h + 1) because its windows of h + 1 decisions overlap: an effective-sample-size correction)
+        self.obs_weight = float(obs_weight)
         self.obs: List[Tuple[float, float, float]] = []          # (z, c, y) in arrival order
         self.keys: List[str] = []
         self._seen: set = set()
@@ -388,7 +391,7 @@ class SelectionCalibration:
     # ---- weights ------------------------------------------------------------------------------------------------
     def _weights(self) -> Tensor:
         n = len(self.obs)
-        return torch.tensor([self.forget ** (n - 1 - k) for k in range(n)], dtype=torch.float64)
+        return torch.tensor([self.obs_weight * self.forget ** (n - 1 - k) for k in range(n)], dtype=torch.float64)
 
     @property
     def scale(self) -> Optional[float]:
@@ -446,7 +449,7 @@ class SelectionCalibration:
     def state_dict(self) -> Dict[str, Any]:
         return {"prior_sd_q": self.prior_sd_q, "prior_sd_pi": self.prior_sd_pi, "forget": self.forget,
                 "max_obs": self.max_obs, "noise_dof": self.noise_dof, "obs": [list(o) for o in self.obs],
-                "keys": list(self.keys), "seen": sorted(self._seen)}
+                "keys": list(self.keys), "seen": sorted(self._seen), "obs_weight": self.obs_weight}
 
     def load_state_dict(self, d: Dict[str, Any]) -> None:
         self.prior_sd_q, self.prior_sd_pi = float(d["prior_sd_q"]), float(d["prior_sd_pi"])
@@ -454,6 +457,7 @@ class SelectionCalibration:
         self.obs = [(float(a), float(b), float(c)) for a, b, c in d["obs"]]
         self.keys = list(d["keys"])
         self._seen = set(d.get("seen", self.keys))
+        self.obs_weight = float(d.get("obs_weight", 1.0))
         self._post = None
 
 
@@ -540,7 +544,10 @@ class ImaginationCalibration:
     gives the imagination weight of the rule, lambda_im = beta_im^+ / max(beta_q, 1) (:func:`imagination_weight`),
     drawn per Thompson sample. Imagination therefore starts with no systematic weight (prior mean 0, the exploratory spread
     of its prior), gains weight only where its imagined differences predicted verified multi-step progress beyond the
-    one-step model, and loses it again when they stop doing so. A new horizon starts from the prior: what was learned
+    one-step model, and loses it again when they stop doing so. Consecutive windows share h of their h + 1 terms,
+    so each observation has weight 1 / (h + 1) in the likelihood (an effective-sample-size correction: the evidence
+    of n overlapping windows counts as that of n / (h + 1) independent ones; G3-core D-IMP3 measured a 1.5x too
+    small posterior sd without it at h = 4 with an autocorrelated imagined preference). A new horizon starts from the prior: what was learned
     about h-step imagination says nothing about (h+1)-step imagination. No observation is invented: a window enters
     only when every decision in it has its final verified value, each decision once."""
 
@@ -556,7 +563,7 @@ class ImaginationCalibration:
         h = max(1, int(h))
         if h not in self.by_h:
             self.by_h[h] = SelectionCalibration(prior_sd_q=self.prior_sd_q, prior_sd_pi=self.prior_sd_im,
-                                                forget=self.forget, max_obs=self.max_obs)
+                                                forget=self.forget, max_obs=self.max_obs, obs_weight=1.0 / (h + 1))
         return self.by_h[h]
 
     def __len__(self) -> int:
@@ -607,6 +614,8 @@ class ImaginationCalibration:
         for k, s in (d.get("by_h") or {}).items():
             c = SelectionCalibration()
             c.load_state_dict(s)
+            c.obs_weight = 1.0 / (int(k) + 1)        # also for states saved before the overlap correction (G3 D-IMP3)
+            c._post = None
             self.by_h[int(k)] = c
         self.pending = {str(k): str(v) for k, v in (d.get("pending") or {}).items()}
         self.closed = list(d.get("closed") or [])
