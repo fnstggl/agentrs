@@ -305,7 +305,8 @@ def _gpu_peak() -> Optional[float]:
 # --------------------------------------------------------------------------------------------------------------
 # configuration
 # --------------------------------------------------------------------------------------------------------------
-def staging_config(cfg: Optional[CamLiveConfig], real_model: bool, seed: int) -> CamLiveConfig:
+def staging_config(cfg: Optional[CamLiveConfig], real_model: bool, seed: int,
+                   meta_min_independent: int = 4) -> CamLiveConfig:
     if real_model:
         cfg = cfg or CamLiveConfig.load()
         cfg.device = "cuda"
@@ -327,7 +328,7 @@ def staging_config(cfg: Optional[CamLiveConfig], real_model: bool, seed: int) ->
         learner = {"min_independent_outcomes": 2, "warmup_steps": 0, "slow_batch_size": 3, "grad_last": 2,
                    "adapter_every": 3}
     cfg.seed = int(seed)
-    cfg.optim.meta_min_independent_outcomes = 4
+    cfg.optim.meta_min_independent_outcomes = int(meta_min_independent)
     sec = dict(cfg.sections.get("agent", {}))
     sec.update({k: v for k, v in agent.items() if k not in sec})
     cfg.sections["agent"] = sec
@@ -376,7 +377,7 @@ def weight_swap(model: Any, state: Dict[str, torch.Tensor], groups: Sequence[str
 # --------------------------------------------------------------------------------------------------------------
 def phase_computer(agent: Any, clock: OffsetClock, root: str, n_decisions: int, budget_s: float, *,
                    key: str = "store_entry", approvals: bool = True, external_limit: int = 0,
-                   reject_every: int = 3) -> Dict[str, Any]:
+                   reject_every: int = 3, compute_limit_s: float = 0.0) -> Dict[str, Any]:
     """One objective of ``key`` in the computer environment (``StagingComputer``: every executor of the harness,
     Chromium, the real authorization service, the signing verifier reading the site's own state).
 
@@ -384,7 +385,8 @@ def phase_computer(agent: Any, clock: OffsetClock, root: str, n_decisions: int, 
     the validation acts as the operator (``PolicyService.resolve_approval``): every ``reject_every``-th request is
     rejected, the others approved — the runtime executes an approved action at most once, after re-checking the
     limits. ``external_limit``: the task's ``max_external_actions`` (the runtime and the authorization service refuse
-    beyond it)."""
+    beyond it). ``compute_limit_s``: the task's ``compute_s`` (learner time); when it is used up the runtime ends the
+    objective as exhausted and checkpoints — a resource limit reached before the decision budget (INT3B)."""
     from .runtime.loop import LiveRuntime, RuntimeConfig
     from .runtime.logs import RunReader
     sc = StagingComputer(os.path.join(root, "computer"), clock, approvals=approvals)
@@ -395,6 +397,8 @@ def phase_computer(agent: Any, clock: OffsetClock, root: str, n_decisions: int, 
             task.resources["preauthorized"] = []
         if external_limit:
             task.limits.max_external_actions = int(external_limit)
+        if compute_limit_s:
+            task.limits.compute_s = float(compute_limit_s)
         env, policy, verifier = sc.open(task, sc.start_url(key))
         agent.attach_verifier(verifier)
         rt = LiveRuntime(agent, env, policy, verifier, task, os.path.join(root, "computer", "runtime"), clock,
@@ -427,7 +431,10 @@ def phase_computer(agent: Any, clock: OffsetClock, root: str, n_decisions: int, 
                    metrics=[q.to_dict() for q in sc.metrics.read()],
                    chosen=[(x["data"]["decision"]["chosen"]["operation"], x["data"]["decision"]["chosen"]["provenance"])
                            for x in r.records(RunFiles.DECISIONS)][:80],
-                   journal=os.path.exists(os.path.join(rt.run_dir, "journal.md")))
+                   journal=os.path.exists(os.path.join(rt.run_dir, "journal.md")),
+                   limits={k: getattr(task.limits, k) for k in ("max_decisions", "max_external_actions", "compute_s",
+                                                                "money")},
+                   learning_skipped_for_compute=len(r.records(RunFiles.EVENTS, types=["learning_skipped"])))
     finally:
         sc.close()
     return out
@@ -438,7 +445,7 @@ def phase_computer(agent: Any, clock: OffsetClock, root: str, n_decisions: int, 
 # --------------------------------------------------------------------------------------------------------------
 def phase_lab(agent: Any, clock: OffsetClock, root: str, seeds: Sequence[int], per_lifetime: int,
               budget_s: float, target: Any = 24, *, restart: Optional[Any] = None,
-              lab_kw: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+              lab_kw: Optional[Dict[str, Any]] = None, drain: bool = True) -> Dict[str, Any]:
     """Lifetimes of the LabWorld family, each a new objective for the same agent. ``target`` is one value or one
     per seed (different targets give lifetimes whose verified achievement differs). ``restart(agent) -> agent``:
     in the second lifetime the runtime and the agent are discarded half-way without a final commit and rebuilt
@@ -464,7 +471,11 @@ def phase_lab(agent: Any, clock: OffsetClock, root: str, seeds: Sequence[int], p
         policy.register_task(task, "operator")
         # checkpoints only when forced (before the interruption, at the end): what happens in between is held by the
         # write-ahead journal alone, which the restart must replay
-        rcfg = RuntimeConfig(fsync=True, candidates_k=10, keep_checkpoints=2, checkpoint_every_s=1e12)
+        # drain (S-1) + settle (INT3B): after the decision budget the runtime keeps measuring the lifetime's due
+        # outcomes until the verifier's signed verdict is terminal (or the deadline), so every lifetime is an
+        # independent verified group for the meta-learner — no decision is added
+        rcfg = RuntimeConfig(fsync=True, candidates_k=10, keep_checkpoints=2, checkpoint_every_s=1e12,
+                             drain_after_exhaustion=bool(drain))
         rt = LiveRuntime(agent, world, policy, verifier, task, os.path.join(run, "runtime"), clock, rcfg)
         rt.start()
         t1, steps, rec = time.time(), 0, None
@@ -645,7 +656,8 @@ def run_staging(cfg: Optional[CamLiveConfig] = None, *, out_dir: Optional[str] =
                 budget_s: float = 780.0, lab_seeds: Sequence[int] = (101, 102, 103, 104),
                 computer_share: float = 0.25, lab_target: Any = (6, 30, 10, 40), computer_key: str = "store_entry",
                 approvals: bool = True, external_limit: int = 0, restart: bool = True,
-                lab_kw: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                lab_kw: Optional[Dict[str, Any]] = None, compute_limit_s: Optional[float] = None,
+                lab_drain: bool = True, meta_min_independent: int = 4) -> Dict[str, Any]:
     """Run the staging validation (spec Phase 4) and write its evidence file.
 
     observation -> latent -> prediction -> action -> consequence -> internal reward -> neural update -> changed
@@ -656,7 +668,7 @@ def run_staging(cfg: Optional[CamLiveConfig] = None, *, out_dir: Optional[str] =
     the time the GPU lock is held for the learning phases (at most ~15 minutes in total)."""
     from .agent import CamLiveAgent
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    cfg = staging_config(cfg, real_model, seed)
+    cfg = staging_config(cfg, real_model, seed, meta_min_independent)
     root = os.path.abspath(out_dir or os.path.join(cfg.resolved_home(), "validation", f"staging_{stamp}"))
     os.makedirs(root, exist_ok=True)
     lab_kw = dict(outcome_horizon_s=2 * 3600.0, mean_delay_s=(900.0, 3600.0)) if lab_kw is None else dict(lab_kw)
@@ -664,12 +676,17 @@ def run_staging(cfg: Optional[CamLiveConfig] = None, *, out_dir: Optional[str] =
     n_b = max(2, (n_decisions - n_a) // max(1, len(lab_seeds)))
     if not external_limit:
         external_limit = max(2, n_a // 4)
+    if compute_limit_s is None:
+        # learner time of the computer phase: about half of what its decision budget takes on the real configuration
+        # (measured 16 s per decision, staging_20261127T223510Z.json), so this limit, not the decision budget, ends it
+        compute_limit_s = 8.0 * n_a
     report: Dict[str, Any] = {"executed": False, "ok": False, "kind": "staging_validation", "started_utc": stamp,
                               "settings": {"n_decisions": n_decisions, "budget_s": budget_s, "lab_seeds": list(lab_seeds),
                                            "computer_share": computer_share, "lab_target": lab_target,
                                            "computer_decisions": n_a, "lab_decisions_per_lifetime": n_b,
                                            "computer_key": computer_key, "approvals": approvals,
                                            "external_limit": external_limit, "restart": restart, "lab_kw": lab_kw,
+                                           "computer_compute_limit_s": compute_limit_s, "lab_drain": lab_drain,
                                            "agent": cfg.section("agent"), "credit": cfg.section("credit"),
                                            "meta_min_independent_outcomes": cfg.optim.meta_min_independent_outcomes,
                                            "backbone": cfg.backbone.name, "scale": cfg.core.scale},
@@ -711,7 +728,8 @@ def run_staging(cfg: Optional[CamLiveConfig] = None, *, out_dir: Optional[str] =
             try:
                 report["phase_computer"] = phase_computer(agent, clock, root, n_a, left * computer_share,
                                                           key=computer_key, approvals=approvals,
-                                                          external_limit=external_limit)
+                                                          external_limit=external_limit,
+                                                          compute_limit_s=float(compute_limit_s or 0.0))
             except Exception as e:  # noqa: BLE001 — recorded honestly; phase B still runs
                 report["failures"].append({"phase": "computer", "error": f"{type(e).__name__}: {e}",
                                            "trace": traceback.format_exc(limit=12)})
@@ -719,7 +737,7 @@ def run_staging(cfg: Optional[CamLiveConfig] = None, *, out_dir: Optional[str] =
             # consequences mature within a lifetime (an action takes about an hour of the world's time), so the
             # query rows after a policy update have their verified measurements before the lifetime ends
             lab = phase_lab(agent, clock, root, lab_seeds, n_b, max(0.0, left - 45.0), target=lab_target,
-                            restart=rebuild if restart else None, lab_kw=lab_kw)
+                            restart=rebuild if restart else None, lab_kw=lab_kw, drain=lab_drain)
             agent = lab.pop("agent")
             report["phase_lab"] = lab
             probe.agent = agent
@@ -820,9 +838,13 @@ def checks(r: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
                                  and pa.get("executed_after_approval", 0) > 0,
                                  resolved=len(pa.get("approvals_resolved", [])),
                                  executed_after_approval=pa.get("executed_after_approval", 0)),
+        # a configured resource limit other than the decision budget was reached and enforced: an action refused for
+        # it, or the objective ended by it (the runtime checkpoints and stops deciding)
         "resource_limit_exercised": c(pa.get("resource_limit_refusals", 0) > 0
-                                      or "external_actions" in pa.get("reason", ""),
-                                      refusals=pa.get("resource_limit_refusals", 0), reason=pa.get("reason", "")),
+                                      or any(f"limit {k} exhausted" in pa.get("reason", "")
+                                             for k in ("max_external_actions", "compute_s", "money")),
+                                      refusals=pa.get("resource_limit_refusals", 0), reason=pa.get("reason", ""),
+                                      limits=pa.get("limits")),
         "recovery_exercised": c(bool(restarts) and all(x.get("resumed_status") == "running"
                                                        and x.get("resumed_events", 0) >= 1
                                                        and x.get("decisions_after_resume", 0)

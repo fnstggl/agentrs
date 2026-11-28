@@ -282,6 +282,8 @@ def cmd_validate(a: argparse.Namespace) -> int:
         kw["out_dir"] = os.path.abspath(a.out)
     if a.evidence_dir:
         kw["evidence_dir"] = os.path.abspath(a.evidence_dir)
+    if getattr(a, "budget_s", 0.0):
+        kw["budget_s"] = float(a.budget_s)
     report = run_staging(cfg, **_accepted(run_staging, kw))
     out = os.path.join(kw.get("out_dir") or os.path.join(cfg.resolved_home(), "validation"), "staging_report.json")
     atomic_write_json(out, report)
@@ -797,6 +799,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--decisions", type=int, default=0, help="number of decisions (0: the validation's default)")
     p.add_argument("--out", default="", help="directory for the run (default: <home>/validation/staging_<ts>)")
     p.add_argument("--evidence-dir", default="", help="also write the evidence file here")
+    p.add_argument("--budget-s", type=float, default=0.0, help="seconds the GPU lock may be held for the learning "
+                   "phases (0: the validation's default; keep it <= ~840 on a shared GPU)")
     p.add_argument("--seed", type=int, default=0)
     p = add("inspect-harness", cmd_inspect_harness, "list available tools, permissions and missing integrations")
     p.add_argument("--run-dir", default="")

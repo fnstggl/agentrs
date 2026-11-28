@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import fcntl
 import os
+import threading
 import time
 from typing import Any, Callable, Dict, Optional
 
@@ -52,23 +53,37 @@ class GpuLease:
 
     def acquire(self, should_abort: Optional[Callable[[], bool]] = None) -> Optional[float]:
         """Block until the lock is held (returns the seconds waited) or ``should_abort()`` says to stop waiting
-        (returns None). Non-blocking attempts every ``poll_s``: the waiting process stays responsive."""
+        (returns None). The wait is a *blocking* ``flock`` in a helper thread — a queued waiter the kernel wakes when
+        the holder releases, so a tenant that releases and immediately re-polls does not keep the lock forever —
+        while this thread stays responsive (``should_abort`` every ``poll_s``)."""
         if self.held:
             return 0.0
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         fh = open(self.path, "a+")
         t0 = time.time()
+        got = threading.Event()
+        state = {"abandoned": False}
+        lock = threading.Lock()
+
+        def wait() -> None:
+            fcntl.flock(fh, fcntl.LOCK_EX)
+            with lock:
+                if state["abandoned"]:                  # nobody wants it any more: give it straight back
+                    fcntl.flock(fh, fcntl.LOCK_UN)
+                    fh.close()
+                    return
+                got.set()
+
+        threading.Thread(target=wait, name="gpu-lock-wait", daemon=True).start()
         self.waiting_since = t0
         try:
-            while True:
-                try:
-                    fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            while not got.wait(self.poll_s):
+                if should_abort is not None and should_abort():
+                    with lock:
+                        if not got.is_set():
+                            state["abandoned"] = True
+                            return None
                     break
-                except BlockingIOError:
-                    if should_abort is not None and should_abort():
-                        fh.close()
-                        return None
-                    time.sleep(self.poll_s)
         finally:
             self.waiting_since = None
         self._fh, self.held_since = fh, time.time()

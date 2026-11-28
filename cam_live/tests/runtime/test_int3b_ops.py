@@ -338,3 +338,61 @@ def test_plan_report_is_written_wherever_the_operator_says(tmp_path, monkeypatch
     dj = tmp_path / "copy" / "report.json"
     assert cli.main(["plan-report", "--run-dir", w["run"], "--out", str(dj), "--json"]) == 0
     assert json.loads(dj.read_text())["notes"][0]["text"] == w["texts"][0]
+
+
+_GREEDY = """
+import fcntl, sys, time
+end = time.time() + float(sys.argv[2])
+n = 0
+while time.time() < end:
+    f = open(sys.argv[1], "a+")
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        f.close(); time.sleep(0.01); continue
+    n += 1
+    if n == 1:
+        open(sys.argv[3], "w").write("held")
+    time.sleep(0.3)                     # hold, release, and immediately try again
+    fcntl.flock(f, fcntl.LOCK_UN); f.close()
+"""
+
+
+def test_a_queued_waiter_gets_its_turn_from_a_tenant_that_re_polls_at_once(tmp_path):
+    lock, flag = str(tmp_path / "gpu.lock"), str(tmp_path / "greedy_started")
+    p = subprocess.Popen([sys.executable, "-c", _GREEDY, lock, "8", flag])
+    try:
+        end = time.time() + 20
+        while not os.path.exists(flag) and time.time() < end:
+            time.sleep(0.01)
+        lease = GpuLease(lock, hold_s=840.0, poll_s=0.05)
+        t0 = time.time()
+        waited = lease.acquire(lambda: time.time() - t0 > 6.0)
+        assert waited is not None and waited < 6.0 and lease.held     # the kernel queue gave it to the waiter
+        assert lease.release() >= 0.0 and not lease.held
+    finally:
+        p.kill()
+
+
+def test_a_resource_limit_counts_only_when_it_is_not_the_decision_budget():
+    from cam_live.validation import checks
+    def rep(reason, refusals=0):
+        return {"phase_computer": {"reason": reason, "resource_limit_refusals": refusals}}
+    assert checks(rep("limit compute_s exhausted"))["resource_limit_exercised"]["holds"]
+    assert checks(rep("limit max_external_actions exhausted"))["resource_limit_exercised"]["holds"]
+    assert checks(rep("limit max_decisions exhausted", refusals=1))["resource_limit_exercised"]["holds"]
+    assert not checks(rep("limit max_decisions exhausted"))["resource_limit_exercised"]["holds"]
+    assert not checks(rep("validation step budget reached"))["resource_limit_exercised"]["holds"]
+
+
+def test_validate_passes_the_lock_budget_through(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_run_staging(cfg, *, real_model=True, n_decisions=40, seed=0, out_dir=None, evidence_dir=None,
+                         budget_s=780.0):
+        seen.update(real_model=real_model, budget_s=budget_s, backbone=cfg.backbone.name)
+        return {"ok": False}
+    monkeypatch.setattr(cli, "load_hook", lambda spec, what: fake_run_staging)
+    monkeypatch.setenv("CAM_LIVE_HOME", str(tmp_path / "home"))
+    assert cli.main(["validate", "--mode", "staging", "--debug", "--budget-s", "600", "--out", str(tmp_path / "v")]) == 1
+    assert seen["budget_s"] == 600.0 and seen["real_model"] is False
