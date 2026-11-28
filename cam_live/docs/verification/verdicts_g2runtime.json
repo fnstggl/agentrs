@@ -2,463 +2,456 @@
  "CU-24": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Holds: waiting for delayed outcomes consumes no decisions and makes no environment call (G-rt p03: asleep for an outcome one hour away, 0 environment calls; tests); delayed outcomes reconcile exactly once, also across kill -9 during a wait and after an outcome record (p02 0/477 incl. in_wait_sleep, after_outcome_log; settle-phase kill points probe_settle_crash 9 of 10 hold, the 10th is G2R-8, a doubled objective_finished record, not a delayed outcome); learner-defined prediction queries are measured (p01 F1: 4 of 4 resolved); outcomes pending at an objective's end are measured inside the settle window with no new decision (probe_settle_crash 'no kill' rows; test_int3b_settle 6/6).",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). Waiting makes no environment call and consumes no decision (G-rt p03 0/15); delayed outcomes reconcile once across kill -9 (p02 0/477) and inside the settle phase (probe_settle_crash 15/15, G2R-8 fixed); learner-defined queries are measured (p01 F1, 0/36). [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)",
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)",
    ".venv/bin/python cam_live/docs/verification/repro/rt/p01_loop_steps.py  (0/36)",
-   ".venv/bin/python cam_live/docs/verification/repro/rt/p03_control.py  (0/15)",
    ".venv/bin/python cam_live/docs/verification/repro/rt/p02_crash.py  (0/477)",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_settle_crash.py  (1/15 broken: G2R-8)"
+   ".venv/bin/python cam_live/docs/verification/repro/rt/p03_control.py  (0/15)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_settle_crash.py  (0/15)"
   ]
  },
  "LX-01": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "tasks/discord_100.yaml is external configuration with the spec objective verbatim, independent success criteria (membership verifier, exclusions, confidence), authorized resources, interfaces, limits, measurement protocol and data permissions; 16 items REQUIRED; a live task with any unset item cannot be loaded for a run; `cam-live preflight` names every one of the 16 unset paths (probe_preflight 1). Acceptance tests pass. The verifier-side gaps of what this file configures are judged under LX-03 / LX-17.",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). The shipped Discord task is unchanged, loads only when filled, its mechanical scan is clean under the new normalisation (p05 0a), and preflight names all 16 REQUIRED paths (probe_preflight 1). [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_preflight.py  (check 1 holds)",
-   ".venv/bin/python cam_live/docs/verification/repro/rt/p05_tasks.py  (1/33: 1a hardcodes 17, there are 16)"
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_preflight.py  (0/7)",
+   ".venv/bin/python cam_live/docs/verification/repro/rt/p05_tasks.py  (1/33: 1a design)"
   ]
  },
  "LX-02": {
   "status": "partial",
   "by": "G2-runtime",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Holds: the three shipped task files contain no strategy (mechanical scan); all 19 disguises of G-rt p05 and plain controls are refused (closed schema, anchors / merge keys / duplicates refused). FAILS (G2R-1): 9 of 9 new disguises are accepted by load_task(for_run=True) with strategy_findings == [] and reach learner_view (what set_objective, run_started and task.json carry): prose joined with '_' / '-' in family, secondary_metrics, interfaces, authorized_tools, authorized_destinations, discord.channels labels and objective_id (tasks.py:153-159 identifier regexes; the \\b-delimited text rules at :78-100 never split '_'), and a one-sentence objective with zero-width spaces inside the matched words (no operator confirmation needed). The status claim 'prose cannot be hidden in an unlisted key, a list item or a label' is refuted.",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). Round-1 disguises G2R-1 are fixed: all 9 are refused (NFKC, invisible / bidi characters refused, identifiers split on separators and camelCase, every learner-visible string scanned, bounded labels). FAILS (G2R-1b): 9 of 9 new disguises are accepted by load_task(for_run=True) with strategy_findings == [] and reach learner_view — a one-sentence objective with Cyrillic homoglyphs inside the matched words (r<U+0435>ddit, <U+0435>very, give<U+0430>ways; letters, untouched by NFKC), the same objective in leetspeak (r3ddit, 3very d4y, g1veaways), an objective naming Discord listing sites the lists do not contain ('listing it on disboard and top.gg and bumping it whenever the cooldown allows'), the platform name spelled letter by letter, and words concatenated without a separator in a secondary metric (secondary.redditmarketingstrategywithdailygiveaways), the family label, discord.channels labels (postmemesdaily, invitegamerfriends, dmeverynewjoiner), the objective_id, and a homoglyph URL query in authorized_destinations (tasks.py: the rules match whole ASCII words only). Plain controls are refused. Still heuristic, as F.json says; the shipped files are clean. [Round 1 (257267c): partial.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_tasks_disguise.py  (9 broken of 14; controls hold)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_tasks_disguise.py  (9/23 broken: the 9 round-2 variants; round-1 variants and controls hold)",
    ".venv/bin/python cam_live/docs/verification/repro/rt/p05_tasks.py"
   ]
  },
  "LX-03": {
   "status": "partial",
   "by": "G2-runtime",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Holds: exclusions of bots, test accounts, flags (any case), duplicates, departed, linked accounts; uncertainty widens the interval and success is claimed only at the lower bound (G-rt p06 0/38 at both commits); signatures, measurement signatures, hash-chained log and restart refusal; separated uids (p11 copy: the learner uid cannot read the key / log, call operator-only methods or forge an outcome). FAILS (G2R-2): members who joined before the experiment began are counted — classify_members (verifier.py:449-537) never compares joined_at with measurement.window_start_ts; with the default live source (DiscordMembershipSource, fake REST client) 100 pre-existing members give a signed 'achieved', value 100, on day one; spec 13.1 asks for members the community attracts.",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). Holds: G2R-2 fixed for the passive case — members who joined before the experiment's start (window_start_ts, else the verifier's first reading, kept across a verifier restart) are not counted, with a count-only baseline (probe_verifier_live_source A, A3); the exclusion rules hold for members who joined after the start (bots, test accounts, duplicates, screening, flags in any case, link keys: probe_verifier_rules_after_start 9/9; G-rt p06 now fails 14/38 by construction — its members join before the first reading); signatures, log and separation as before (p11 copy). FAILS (G2R-2b, minor): a member who was in the guild at the start and leaves and rejoins during the experiment is counted as attracted — the baseline holds counts only and classify_members (verifier.py:579) compares the platform's current joined_at, which a rejoin resets (10 pre-existing members rejoin → value 10, nobody new). Note: without window_start_ts and with a late first reading, members attracted before it are not counted (conservative; A4). [Round 1 (257267c): partial.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_verifier_live_source.py  (A broken)",
-   ".venv/bin/python cam_live/docs/verification/repro/rt/p06_verifier.py  (0/38)",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_separated_p11copy.py  (1/39: 14 by design)",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)"
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_verifier_live_source.py  (A2, C3 broken)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_verifier_rules_after_start.py  (0/9)",
+   ".venv/bin/python cam_live/docs/verification/repro/rt/p06_verifier.py  (14/38: scenarios with members before the start)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_separated_p11copy.py  (1/39: 14 design)"
   ]
  },
  "LX-07": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. experiments.jsonl receives the learner's registry records (CamLiveAgent.drain_experiments) with the spec 14.2 fields (question, hypothesis, evidence refs, intervention, comparison / arms, predicted, cost, horizon, measurement uncertainty, supported, alternative explanations, next action) in a debug-configuration staging validation run of the integrated agent; a learner-reported 'actual' is kept apart as learner_reported_actual and actual outcomes are only the runtime's experiment_outcome records (p01 E2-E5 hold); appended in the common envelope with the global seq.",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). Experiment logging unchanged in substance: learner registry records with learner-reported actuals kept apart, actual outcomes only from the runtime (p01 E2-E5 hold; 0/36); appended with the common envelope. [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)",
-   ".venv/bin/python cam_live/docs/verification/repro/rt/p01_loop_steps.py  (0/36)",
-   "debug staging validation run (cam-live validate --mode staging --debug) records"
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)",
+   ".venv/bin/python cam_live/docs/verification/repro/rt/p01_loop_steps.py  (0/36)"
   ]
  },
  "LX-08": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. Every LearningUpdateRecord / MetaUpdateRecord the learner returns is appended (fsync'ed) to learning_updates.jsonl / meta_updates.jsonl in the common envelope (p01, tests). With the integrated agent (debug configuration) the records carry trigger, losses, parameter groups, gradient norms, weight-delta norms, hashes before / after, credit changes and prediction changes; 5 of 9 with non-zero weight deltas. Note (learner content, not the logging function): checkpoint_id is empty in all 9 learning records; checkpoint ids are in the runtime's checkpoint events and decision records.",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). Every learning / meta record the learner returns is logged (p01, tests); round-1 basis on the integrated agent's records unchanged (checkpoint_id empty in learning records: learner content). [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)",
-   "debug staging validation run records (learning_updates.jsonl, meta_updates.jsonl)"
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)",
+   ".venv/bin/python cam_live/docs/verification/repro/rt/p01_loop_steps.py  (0/36)"
   ]
  },
  "LX-09": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Journal derived mechanically from the logs: facts carry record ids, learning claims need a measured behavioural change, environment text cannot add [FACT] lines (D11), earlier objectives' records keep their provenance (D23): G-rt p13 0/8 at both commits; acceptance tests pass.",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). journal.py unchanged since round 1; G-rt p13 0/8 re-run at 257267c; the runtime suite passes. [Round 1 (a5ab772): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)",
-   ".venv/bin/python cam_live/docs/verification/repro/rt/p13_journal.py  (0/8)"
+   ".venv/bin/python cam_live/docs/verification/repro/rt/p13_journal.py  (0/8)",
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "LX-10": {
-  "status": "partial",
+  "status": "verified",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. Holds: text-only rendering and no planted markup executes in Chromium (G-rt p08 12, 13); operator actions need the operator credential (header only), the CSRF double-submit and same origin — viewing token alone, credential in the query or a cookie, missing / mismatched CSRF, cross-site, Origin null / foreign, a DNS-rebinding request and a wrong credential are refused and write no command (probe_dashboard 18/19); a camlearn process cannot approve (privileged test); signed control commands (probe_control_signed 9/9). FAILS: (G2R-4, major) the 'assign a subsequent objective' control cannot work with the verifier the run services build — verifier_service.py:85 / loop_service.py:94 pin it to the first task, verifier.py:305-312 refuses any other objective, LiveRuntime._switch_objective keeps it; the assigned objective never gets a signed outcome and the run pauses after 5 errors; (G2R-11, minor) a 500 response (state.json valid JSON but not an object) carries no CSP / nosniff / DENY (dashboard.py:398).",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). Dashboard: operator credential / CSRF / same-origin / service-uid peer and the security headers on every response, 500 included (G2R-11 fixed: probe_dashboard 19/19; G-rt p08 12-13 hold, 6 / 8 design; privileged camlearn test passes); signed commands (probe_control_signed 9/9); assigning a subsequent objective now works with the verifier the services build (G2R-4 fixed: probe_next_objective 1 with operator_dir = the run directory; unsigned, re-signed, foreign-key and changed-file assignments are refused by the verifier, U1-U4). The boundary-update path of the same control is judged under LX-14 (G2R-15). [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_next_objective.py  (1 broken)",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_dashboard.py  (1/19 broken)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_dashboard.py  (0/19)",
    ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_control_signed.py  (0/9)",
-   ".venv/bin/python cam_live/docs/verification/repro/rt/p08_dashboard.py  (2/18: 6, 8 by design)",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live -m 'privileged or browser'  (a5ab772 worktree 5 passed; 8f6c615: 8 passed in a copy + test_rt_separated passed in the worktree)"
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_next_objective.py",
+   ".venv/bin/python cam_live/docs/verification/repro/rt/p08_dashboard.py",
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "LX-12": {
-  "status": "partial",
+  "status": "verified",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. Holds: the shipped Discord task is BLOCKED with every unset item named; staging / diagnostic components and self-declared labels never make it READY in every path tested (G-rt p09 2a/2o/2p and 27 of 28; the Discord identity check accepts only an executor answering from a discord.com host); --accept-ephemeral-storage is accepted only from the command line, only for persistent_storage, only in mode live, recorded with the finding as 'operator (command line ...)', has no effect in staging and cannot come from an environment variable or a task file (probe_preflight 4a-4d, F's tests for run.json / supervisor / resume). FAILS (G2R-10, minor, defence in depth): the component cross-check (preflight.py:31, :114-134) is a spelling list — environment 'staging-discord' / 'Staging ', hosts 0.0.0.0, 'localhost.', ::ffff:127.0.0.1, 10.x, and keys other than base_url / url / endpoint are not named as blocking.",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). The live preflight blocks with every item named; --accept-ephemeral-storage operator-only, command-line-only, live-only and recorded (probe_preflight 4a-4d); G2R-10 fixed: all 7 round-1 spellings are recognised (probe_preflight 7/7), and of 16 further spellings only a DNS name that resolves to loopback (localtest.me), a bare 'host' key and a scheme-less 'endpoint' are not — the component cross-check is defence in depth; the binding checks (authorization record in mode live, live verifier source, the Discord executor's discord.com-only environment) are independent. [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_preflight.py  (1/7 broken: check 2)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_preflight.py  (0/7)",
    ".venv/bin/python cam_live/docs/verification/repro/rt/p09_preflight.py  (1/28: 1b design)",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)"
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "LX-13": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. A decision is journalled before its decision record and every decision has one record (p02 judge: no orphan decision in 477 kill checks); records carry timestamp, objective, the runtime's situation digest, candidates with predictions / uncertainty / value / VOI, probabilities, selected action, rationale built from the numbers, model version and checkpoint id (integrated agent, debug configuration); learner-filled resolutions are cleared (D10).",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). A decision record per decision, journalled first (p02 judge, 0/477); content as in round 1. [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)",
-   ".venv/bin/python cam_live/docs/verification/repro/rt/p02_crash.py  (0/477)",
-   ".venv/bin/python cam_live/docs/verification/repro/rt/p01_loop_steps.py  (0/36)"
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)",
+   ".venv/bin/python cam_live/docs/verification/repro/rt/p02_crash.py  (0/477)"
   ]
  },
  "LX-14": {
   "status": "partial",
   "by": "G2-runtime",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Holds: decisions, money (larger of the learner's and the tool's estimate), duration, compute and external actions of single actions end the objective as exhausted with a checkpoint; approved batches are re-checked (D4); NaN / inf / negative limits fail closed (D5); authorization_revoked stops the run (D13) — G-rt p04 0/11, p15 0/3. FAILS (G2R-5, major): multi-step programs bypass the runtime's external-action limit and accounting — _is_external (loop.py:1327-1330) judges only the top-level action and a program is internal / side effects none (harness/env.py:487-488), so 18 external executions ran under max_external_actions = 4 with the runtime counter at 0 and the objective never ended by that limit. The authorization service's own ledger counts program steps (harness/auth/policy.py:741-750), so with the real service excess steps are denied, but the runtime's enforcement, counters and exhaustion checkpoint do not happen.",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). Holds: G2R-5 fixed — every external step of a program counts, the runtime counter equals the world's executions, the objective ends by max_external_actions, approved programs are counted (probe_limits_program 1-3, 5); single-action limits, NaN / inf limits, approvals, authorization_revoked (p04 0/11, p15 0/3). FAILS: (G2R-15, major, new) the operator's extension of the running objective's duration (a signed assign_objective of the same objective, which the runtime accepts as 'task boundaries updated') is not seen by the pinned verifier: loop.py _assign skips verifier.assign_objective for the same objective id and the verifier refuses to replace the pinned task, so it judges the old deadline (start + old duration_s) and signs FAILED there — LabWorld, old duration 1 day, new 10 days: the run ends 'failed' after 2.1 days (probe_next_objective E1); (G2R-5b, minor, disclosed in F.json) a program started below the limit runs all its steps (limit 4, a 10-step program → 10 executions), as far as the authorization service's per-step ledger allows. [Round 1 (257267c): partial.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_limits_program.py  (3/3 broken)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_next_objective.py  (E1 broken)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_limits_program.py  (4 broken)",
    ".venv/bin/python cam_live/docs/verification/repro/rt/p04_limits.py  (0/11)",
-   ".venv/bin/python cam_live/docs/verification/repro/rt/p15_malformed_result.py  (0/3)",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)"
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "LX-15": {
-  "status": "partial",
+  "status": "verified",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. Holds: the 17 steps in order every cycle with a record per step (p01 0/36); kill -9 at 23 points + double crashes + disk-full: nothing executed twice, every result / outcome logged and delivered once, counters equal ground truth, seq intact (p02 0/477 at both commits); signed commands; settle-phase kills 9 of 10 hold. FAILS: (G2R-8, minor) kill -9 between the objective_finished record and the next state save (loop.py:1742-1775: the forced commit at :1746 precedes the status change and the record) makes the restarted runtime finish the objective again — two objective_finished records, the second without the settle summary; (G2R-13, minor) without environment de-duplication the over-count by one estimate occurs in 6 of 477 checks, not the 4 the status file states (also in the 30000-byte file-size-limit lifetime).",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). 17 steps in order with a record each (p01 0/36); kill -9 at 23 points, double crashes, disk-full: 0/477; settle phase 15/15 (G2R-8 fixed: objective_finished written once across a crash); signed commands 9/9. Without environment de-duplication the disclosed over-count by one estimate appears in 4 of 477 checks in this run (6 at a5ab772: the 30000-byte disk-full lifetime varies between runs) — the status file's 6 is the a5ab772 measurement. [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_settle_crash.py  (1/15 broken)",
    ".venv/bin/python cam_live/docs/verification/repro/rt/p02_crash.py  (0/477)",
-   ".venv/bin/python cam_live/docs/verification/repro/rt/p02_crash.py --no-dedup  (6/477)",
+   ".venv/bin/python cam_live/docs/verification/repro/rt/p02_crash.py --no-dedup  (4/477)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_settle_crash.py  (0/15)",
    ".venv/bin/python cam_live/docs/verification/repro/rt/p01_loop_steps.py  (0/36)",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)"
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "LX-16": {
-  "status": "verified",
+  "status": "partial",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. In-process: `cam-live run` detaches, status / pause / resume / export / stop act on the live process and resume after kill -9 restores the state (CLI probe 7a-7l). Separated: test_rt_separated passes (worktree at both commits); G-rt p11 copy 38/39 (14 encodes the old design); new evidence closing F's open limitation — a separated staging run, operator pause, SIGKILL of all 6 processes, `cam-live resume`: a new supervisor (pid recorded, alive), the learner back under camlearn with the persisted state, the pending signed resume applied, decisions continue, no duplicate action_result, stop works (probe_separated_resume 8/8 at both commits). R4-m1 (a FIFO state.json blocking root's reads) is fixed at 8f6c615 (HX privileged test passes). Not run with the real backbone or a live service.",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). Holds: detached in-process runs and the separated run with the stand-in learner (CLI probe 34/35, 0c is a pre-existing runs/ directory; test_rt_separated passes; probe_separated_resume 8/8: restart after SIGKILL of every process). FAILS at 257267c (G2R-16, major): the separated learner (camlearn) cannot take the shared GPU lock — the machine's lock file is root:root 0664 and GpuLease.acquire opened it 'a+' (gpu_cycle.py:62), so loop_service.run_service raised PermissionError before building the agent: a separated run with a pretrained backbone on CUDA (configs/cam_live.yaml, the live planning launch) could not start its learner (probe_gpu_lock_path 3 at 257267c). Fixed after the freeze in 59807fc (read-only fallback in nn.gpu.open_lock_file): as camlearn the lease then reaches the flock wait; harness/visual.py:152, grounding/bench.py:99 and cli.gpu_lock still open 'a+'. Also (G2R-17): the default lock path <repo>/runs/gpu_heavy.lock is an untracked symlink, so any git archive copy or fresh clone locks a private file and does not coordinate with the other tenant (probe_gpu_lock_path 2) unless CAM_LIVE_GPU_LOCK is exported. [Round 1 (257267c): partial.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_separated_resume.py  (0/8, root)",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_separated_p11copy.py  (1/39)",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live -m 'privileged or browser'  (a5ab772 worktree 5 passed; 8f6c615: 8 passed in a copy + test_rt_separated passed in the worktree)",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)"
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_gpu_lock_path.py  (2, 3 broken at 257267c, root, worktree)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_separated_resume.py  (0/8)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (34/35)",
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "LX-17": {
   "status": "partial",
   "by": "G2-runtime",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Holds: the secondary quantities are separate from the primary value (C6; tests). FAILS (G2R-3, major) with the evidence source the live objective uses (DiscordMembershipSource): seven-day retention is computed from the current member list only, so departures are invisible (10 joined, 5 left → 1.0); voluntary participation and consented feedback are never produced (the source has neither method); 'usefulness of community resources' is the verifier's own API request count (secondary.resource_use.discord.verifier.requests); operating cost is never reported because no run path passes cost_source (verifier_service.py:85, loop_service.py:94). Only time elapsed is measured as stated.",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). Holds: G2R-3 largely fixed with the live Discord source built as verifier_service.serve builds it — retention counts departures through the verifier's hourly cohorts (B: 0.5), participation from message authorship (C1), feedback reported 'Not measured' when the task does not permit it (C2), operating cost from the authorization ledger (C4), time (C5), primary value separate (C6). FAILS (G2R-3b, minor): 'usefulness of community resources' (spec 13.2) is still not measured and not reported as not measured — secondary.resource_use.* are CAM's own external actions, decisions and compute from the ledger (the verifier's request count moved to the log). [Round 1 (257267c): partial.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_verifier_live_source.py  (B, C1-C4 broken; C5, C6 hold)"
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_verifier_live_source.py  (C3 broken)"
   ]
  },
  "LX-19": {
-  "status": "partial",
+  "status": "verified",
   "by": "G2-runtime",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Holds: after a signed success nothing is proposed or executed, pending outcomes are settled inside a bounded window (never past the deadline), the learner state is checkpointed (forced commit) and the run waits for the operator (test_rt_loop / test_int3b_settle; probe_settle_crash 'no kill'). FAILS (G2R-4, major): 'enters a separately authorized next phase' through assign_objective cannot be verified with the verifier both run modes build (pinned to the first task): the next objective never gets a signed outcome and the run pauses after 5 verification errors.",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). After a signed success nothing is proposed or executed, pending outcomes are settled and the learner state is checkpointed (settle 15/15); a separately authorized next objective assigned with the operator's signed command is now verified by the run's (pinned) verifier and completes on its signed outcome (probe_next_objective 1, U1-U4). The duration extension of the same objective is G2R-15 (LX-14). [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_next_objective.py  (1 broken)",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_settle_crash.py",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)"
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_next_objective.py",
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_settle_crash.py  (0/15)",
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "LX-20": {
   "status": "partial",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. Holds: every record carries ts, seq, rid, run_id, provenance, source; consequential records fsync'ed; G-rt p07 0/62 at both commits; the journal, the exact resume state and pending approvals are sealed. FAILS (G2R-6, minor): written verbatim through RunLog — a JWT (text and bare value), HTTP Basic credentials, a ya29.* OAuth token, a 40-hex secret under an unlisted key, an integer member id under an unlisted key, a phone number without separators and an IPv6 address (logs.py:37-58, :197-227); over-redaction of prose: the assignment rule (logs.py:46) turns the runtime's own stop reason into 'authorization_revoked: [REDACTED:secret] …' in state.json / dashboard, the IPv4 rule eats version numbers.",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). Holds: G2R-6 fixed in the run logs — JWT, HTTP Basic, OAuth, hex secrets, integer ids, phone numbers without separators and IPv6 are redacted and prose after 'token:' / version numbers stay readable (probe_redaction 13/13; G-rt p07 0/62). FAILS (G2R-7b, minor, new): the plan report, which root writes into the run directory (0644), now exports CAM's notebook texts unredacted — a member's name#tag, e-mail address and Discord id in a CAM note appear in the clear although the task's store_member_identifiers is false and the run's logs hash them (plan_report.py build_report: clean() is the identity since 34e184a). [Round 1 (257267c): partial.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_redaction.py  (11/13 broken)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_redaction.py  (0/13)",
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_plan_report.py  (R2d broken)",
    ".venv/bin/python cam_live/docs/verification/repro/rt/p07_redaction.py  (0/62)",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)"
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "CM-13": {
   "status": "partial",
   "by": "G2-runtime",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "docs/REPRODUCE.md is the one place (dependencies, exact commands, each checked) and pyproject.toml lists the dependencies. FAILS (G2R-12): at the freeze it is stale — §14 describes the superseded GPU-lock design (hold, pause, exit, `cam-live resume`; 'none of these keys is set in configs/cam_live.yaml', while configs/cam_live.yaml:54-56 sets gpu_lock / gpu_hold_s / gpu_yield_s and INT3B replaced that design with in-process cycling); --accept-ephemeral-storage, which launching on this machine needs (tools/launch_live.sh), is not mentioned; §13 still lists `validate --mode staging --debug` as not a CPU run (fixed by INT3B item B).",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). G2R-12 not fixed: docs/REPRODUCE.md is unchanged since a5ab772 — §14 still describes the superseded GPU-lock design (hold, pause, exit, resume; 'none of these keys is set in configs/cam_live.yaml'), --accept-ephemeral-storage is not mentioned, §13 still lists `validate --debug` as not a CPU run; it now also names the agentrs lock path as the one in use while the default is <repo>/runs/gpu_heavy.lock (G2R-17: export CAM_LIVE_GPU_LOCK outside this worktree), and the new validate options (--lab-lifetimes, --compute-limit-s) are absent. [Round 1 (a5ab772): partial.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
    "cam_live/docs/REPRODUCE.md",
-   "cam_live/configs/cam_live.yaml"
+   "cam_live/src/cam_live/config.py (GPU_LOCK_PATH)"
   ]
  },
  "AE-06": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Two actors share one learner; actor separation is enforced; the RPC learner endpoint works across processes; an unreachable central learner is recorded as a cycle error and no longer raises out of step() — G-rt p14 0/11 at both commits; acceptance tests pass. JSON payloads over a unix socket only (disclosed).",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). multi.py unchanged since round 1; G-rt p14 0/11 re-run at 257267c; the runtime suite passes. [Round 1 (a5ab772): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)",
-   ".venv/bin/python cam_live/docs/verification/repro/rt/p14_multi.py  (0/11)"
+   ".venv/bin/python cam_live/docs/verification/repro/rt/p14_multi.py  (0/11)",
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "CM-01": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. `cam-live doctor` exits 0 with the sections hardware / storage / models / dependencies / sandbox / service_users / harness, `--strict` exits 1 while something blocks staging (CLI probe 1a, 1c); its persistent_storage finding (workspace_is_volume=False) is what the live preflight reports (probe_preflight 4).",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). `cam-live` at 257267c: doctor sections and --strict (1a, 1c); storage thresholds from the storage section. [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (G-rt p10 with 4a run separately)",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_preflight.py",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)"
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (257267c copy: 34/35; 0c lists runs/cam_live, runs/INT3A and runs/gpu_heavy.lock, made by others)",
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "CM-02": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. `cam-live init` with the default factory (cam_live.agent:build_agent, tiny configuration) and with a stand-in factory creates the state root, the resolved configuration, the 0600 dashboard token and the initial checkpoint (CLI probe 2a, 2b). Not run with the real backbone.",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). `cam-live` at 257267c: init with the default (tiny) and a stand-in factory (2a, 2b). [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (G-rt p10 with 4a run separately)",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)"
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (257267c copy: 34/35; 0c lists runs/cam_live, runs/INT3A and runs/gpu_heavy.lock, made by others)",
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "CM-03": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. `cam-live test --suite runtime -k …` runs pytest and writes JUnit; an unknown suite exits 2; a selection that runs nothing does not report success (CLI probe 3a-3c).",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). `cam-live` at 257267c: test runs pytest with JUnit, unknown suite exit 2, empty selection not success (3a-3c). [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (G-rt p10 with 4a run separately)"
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (257267c copy: 34/35; 0c lists runs/cam_live, runs/INT3A and runs/gpu_heavy.lock, made by others)",
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "CM-05": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. `cam-live inspect-harness` lists the LabWorld tools (--lab) and the in-process computer environment's tools with scopes / side effects / permissions, and names missing integrations tool by tool including Discord (CLI probe 5a-5c; D21 fixed).",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). `cam-live` at 257267c: tools, scopes, missing integrations incl. Discord (5a-5c). [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (G-rt p10 with 4a run separately)",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)"
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (257267c copy: 34/35; 0c lists runs/cam_live, runs/INT3A and runs/gpu_heavy.lock, made by others)",
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "CM-06": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. `cam-live run` refuses the shipped Discord task, a filled live task without --authorization, a live task in-process (also --foreground and the learner process directly) and a task with a strategy key (exit 3; CLI probe 6a-6f); starts a detached in-process staging run (7a) and a separated run (test_rt_separated, probe_separated_resume, p11 copy). A live start was not attempted (not allowed here).",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). `cam-live` at 257267c: every refusal (6a-6f), detached in-process start (7a), separated start (test_rt_separated, probe_separated_resume); a separated start with the real backbone is G2R-16 (LX-16). [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (G-rt p10 with 4a run separately)",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_separated_resume.py",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live -m 'privileged or browser'  (a5ab772 worktree 5 passed; 8f6c615: 8 passed in a copy + test_rt_separated passed in the worktree)",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (a5ab772: 240 passed 5 skipped; 8f6c615: 240 passed 9 skipped)"
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (257267c copy: 34/35; 0c lists runs/cam_live, runs/INT3A and runs/gpu_heavy.lock, made by others)",
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "CM-07": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. `cam-live status` reports objective, verified progress, learning state, resources, process liveness, GPU lease and accepted risks from the run directory (CLI probe 7b; F's tests); a FIFO in place of state.json no longer blocks it at 8f6c615 (R4-m1, HX privileged test).",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). `cam-live` at 257267c: status from the run directory (7b). [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (G-rt p10 with 4a run separately)",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live -m 'privileged or browser'  (a5ab772 worktree 5 passed; 8f6c615: 8 passed in a copy + test_rt_separated passed in the worktree)"
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (257267c copy: 34/35; 0c lists runs/cam_live, runs/INT3A and runs/gpu_heavy.lock, made by others)",
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "CM-08": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. `cam-live pause` is acknowledged with a learner checkpoint and no decision is taken while paused (CLI probe 7c-7d); an unsigned pause still applies (brake) and the separated pause works (probe_separated_resume 1).",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). `cam-live` at 257267c: pause acknowledged with a checkpoint, nothing decided while paused (7c, 7d). [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (G-rt p10 with 4a run separately)",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_control_signed.py",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_separated_resume.py"
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (257267c copy: 34/35; 0c lists runs/cam_live, runs/INT3A and runs/gpu_heavy.lock, made by others)",
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "CM-09": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. `cam-live resume` resumes a live process (7e), restarts an in-process run after kill -9 from the persisted state (7g), refuses a stopped run (7k; p11 13), and restarts a separated run after SIGKILL of all its processes with the supervisor pid recorded and the pending signed resume applied (probe_separated_resume 3-6, new).",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). `cam-live` at 257267c: resume live, after kill -9, refuses a stopped run, separated restart after SIGKILL (7e, 7g, 7k; probe_separated_resume). [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (G-rt p10 with 4a run separately)",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_separated_resume.py",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_separated_p11copy.py"
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (257267c copy: 34/35; 0c lists runs/cam_live, runs/INT3A and runs/gpu_heavy.lock, made by others)",
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "CM-10": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. `cam-live evaluate-transfer` dispatches to cam_live.eval.transfer (now installed) with every further option and refuses a missing checkpoint (exit 2; CLI probe 8a, 8b); executed here on a debug weights-only export (`--baseline` = same export, T1, seed 0, 1 lifetime, 2 decisions): exit 0, executed: true, 2 fresh-process runs, 0 failed, 83 s. Real-configuration transfer evaluation not run.",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). `cam-live` at 257267c: evaluate-transfer dispatches and refuses a missing checkpoint (8a, 8b), and executed on a debug weights-only export (T1, seed 0, 1 lifetime, 2 decisions): exit 0, executed: true, 2 fresh-process runs, 0 failed, 43 s. [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (G-rt p10 with 4a run separately)",
-   "cam-live evaluate-transfer --checkpoint X --baseline X --domains T1 --seeds 0 --lifetimes 1 --decisions 2 --out F (debug export)"
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (257267c copy: 34/35; 0c lists runs/cam_live, runs/INT3A and runs/gpu_heavy.lock, made by others)",
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "CM-11": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615. At a5ab772 this requirement FAILED on G2-harness R4-C1 (critical: root's offline export trusted the learner's state.json, un-normalised destination, copytree merge) — counted as a known defect, not re-derived. At 8f6c615: G2-harness's g15 E1 holds (root, worktree, runtime / harness sources = 8f6c615), HX's test_export_checkpoint_never_copies_learner_chosen_files_anywhere passes, and the command still works — export with the process alive (operator command, agent.save / export_weights) and with no process (committed checkpoint) write an export and its manifest (CLI probe 7f, 7i at 8f6c615; with the stand-in learner the offline export is a complete copy); the offline export of a real CamLiveAgent checkpoint (debug configuration, the committed ckpt_00000008 of a staging validation run) is weights-only (weights.safetensors + config.json, method export_weights_only) and credit.checkpoint.load_exported_model rebuilds the CamLiveModel (1.54 M parameters) in a fresh process.",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). `cam-live` at 257267c: export with the process alive and offline (7f, 7i); R4-C1 / R5-m1 fixes and the storage guard by the HX / INT3B privileged tests (9 passed). [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (G-rt p10 with 4a run separately)",
-   ".venv/bin/python cam_live/docs/verification/repro/g2harness/g15_operator_cli_root.py  (E1, E2 hold at 8f6c615)",
-   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live -m 'privileged or browser'  (a5ab772 worktree 5 passed; 8f6c615: 8 passed in a copy + test_rt_separated passed in the worktree)"
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (257267c copy: 34/35; 0c lists runs/cam_live, runs/INT3A and runs/gpu_heavy.lock, made by others)",
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "CM-12": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. `cam-live verify-completion` runs the completion checker bare and passes every option through (--only, --json PATH, --quiet; CLI probe 9a, 9b; D19 fixed).",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). `cam-live` at 257267c: verify-completion bare and with every option (9a, 9b). [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (G-rt p10 with 4a run separately)"
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (257267c copy: 34/35; 0c lists runs/cam_live, runs/INT3A and runs/gpu_heavy.lock, made by others)",
+   ".venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live  (257267c copy: 273 passed, 9 skipped; -m 'privileged or browser' in the worktree = 257267c: 9 passed)"
   ]
  },
  "CL-06": {
   "status": "partial",
   "by": "G2-runtime",
-  "commit": "a5ab7720f169c1bc23cc442be96a31310dfa29eb",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Holds at debug scale on the CPU: the manifest's 25 acceptance tests plus tests/runtime/test_int3b_settle.py (32 passed, 689 s, incl. the small CUDA checkpoint test): crash at every step of a save and kill -9 during a save leave a loadable checkpoint, the damaged newest falls back, learner state round-trips bit-exactly and continues identically, kill -9 mid-update resumes identically, replay loses no acknowledged record, the integrated agent's kill -9 restart executes no action twice and a save / fresh-process load gives identical decisions, settling resumes after a restart; runtime side: p02 0/477, settle-phase kills 9 of 10 (G2R-8 is a doubled record), and a real separated restart after SIGKILL of every process (probe_separated_resume). NOT verified: restart and recovery on the real configuration (Qwen3-4B on CUDA) — G-cl's finding that fresh-process predictions differ from the writer's by up to 0.053 through the embedding cache is, by M-int's own limitation, not addressed, and I ran no real-configuration restart (GPU-heavy, not needed for the runtime lens).",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). Holds at debug scale on the CPU (agent.py and credit/* changed since round 1): the manifest's 25 acceptance tests plus test_int3b_settle.py — 32 passed in 388 s (copy of 257267c; crash at every step of a save, kill -9 during a save and mid-update, bit-exact learner round trip, replay keeps acknowledged records, the integrated agent's kill -9 restart without a duplicate action, fresh-process load with identical decisions, settle restart); runtime side p02 0/477, settle-phase kills 15/15, separated restart after SIGKILL (probe_separated_resume 8/8). NOT verified by me: restart on the real configuration (Qwen3-4B on CUDA). Evidence of others: the real-configuration staging validation's recovery_exercised (one interruption and restart from disk, decisions continue; no comparison of predictions or decisions across it), and D's statement that fresh-process predictions no longer depend on inference caches since A's batch-invariant embeddings (e00d28f) — not re-executed here (GPU). [Round 1 (257267c): partial.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python -m pytest <the CL-06 acceptance test ids> cam_live/tests/runtime/test_int3b_settle.py -q --rootdir=cam_live -m 'gpu or slow or not (gpu or slow)'  (a5ab772 copy: 32 passed, 689 s)",
+   ".venv/bin/python -m pytest <the CL-06 acceptance test ids> cam_live/tests/runtime/test_int3b_settle.py -q --rootdir=cam_live -m 'gpu or slow or not (gpu or slow)'  (257267c copy, CAM_LIVE_GPU_LOCK = the machine lock: 32 passed, 388 s)",
    ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_separated_resume.py",
    ".venv/bin/python cam_live/docs/verification/repro/rt/p02_crash.py",
-   "cam_live/docs/verification/verdicts_cl.json (G-cl CL-06)"
+   "cam_live/docs/evidence/validation/staging_20261128T051702Z.json (recovery_exercised)"
   ]
  },
  "CM-04": {
   "status": "verified",
   "by": "G2-runtime",
-  "commit": "8f6c615cbaaed325e1d0c2dcce45cafb2c4b1052",
+  "commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
   "supersedes": [
    "all"
   ],
-  "notes": "Judged at 8f6c615 (HX's R4 fixes touch this requirement's files); every probe gave the same result at a5ab772. `cam-live validate --mode staging --debug --config <tiny backbone> --out D` executed to the end at 8f6c615 on the CPU (real_model false, GPU peak 0.0 GB, 737 s): it ran the computer phase and two LabWorld lifetimes, wrote staging_report.json and the evidence file, and exited 1 because 3 of 16 checks fail at debug scale (approvals_exercised, meta_update_applied, meta_step_changes_policy) — the documented exit code of a command that ran and reports a failure; 13 hold (incl. recovery_exercised, resource_limit_exercised, predictions_before_outcomes, weights changed, behaviour change explained by the weights). `--mode live` is refused (exit 2, CLI probe 4b). Whether the validation passes is LX-11, not this requirement; the real-model validation was not run by me (GPU).",
+  "notes": "Round 2 at the final freeze 257267c (every round-1 probe re-run there; G-rt p01-p15 re-run). `cam-live validate --mode staging --debug --config <tiny> --out D` ran to the end on the CPU at 257267c (real_model false, GPU peak 0.0 GB, 565 s; the new defaults: approvals objective, limit objective, six LabWorld lifetimes) and exited 1 with 15 of 16 checks holding — approvals_exercised failed in this run (INT3B's own CPU run held it: it depends on the learner choosing two interactions that need approval, change request INT3B-7) — the documented exit code of a command that ran and reports a failure; `--mode live` refused (CLI probe 4b). Whether the validation passes is LX-11. [Round 1 (257267c): verified.]",
   "evidence": [
    "cam_live/docs/verification/G2_runtime.md",
-   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (G-rt p10 with 4a run separately)",
-   "cam-live validate --mode staging --debug --config <tiny> --out D  (8f6c615 copy: exit 1, 13/16 checks, 737 s)"
+   ".venv/bin/python cam_live/docs/verification/repro/g2runtime/probe_cli_p10copy.py  (257267c copy: 34/35; 0c lists runs/cam_live, runs/INT3A and runs/gpu_heavy.lock, made by others)",
+   "cam-live validate --mode staging --debug --config <tiny> --out D  (257267c copy: exit 1, 15/16 checks, 565 s)"
   ]
  }
 }

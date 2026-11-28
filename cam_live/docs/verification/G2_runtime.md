@@ -277,3 +277,162 @@ actions 15 vs 14): the same disclosed mechanism (an interrupted action is booked
   tree and did not pursue it further. The copy was removed.
 * G-rt's p08 checks 6 / 8, p05 1a, p09 1b and p11 14 still encode the old design (change request F-8); I did not edit
   G-rt's probes. My `probe_preflight.py` check 1 and `probe_separated_resume.py` replace 1a / 1b and 14.
+
+---
+
+# Round 2 — at the final freeze 257267c1c31568b693adf0cbcd0e9f9b547e62e1
+
+2026-11-28 05:50–06:40 UTC. Frozen copy `git archive 257267c`; the root / service-uid probes ran in the worktree, whose
+runtime and harness sources were identical to 257267c (`git diff --stat 257267c -- cam_live/src` named only
+`eval/*` files of another workstream) — except the last check of `probe_gpu_lock_path.py`, see G2R-16. Claims judged:
+docs/INT3B.md §10 (commits 93533b5, b741142, 577d70e, 34e184a, 1f34590, 6ee6ffd, ceb5095, 47d5eb1, da6ebb6, c68e6d0),
+F.json, INT3B-6..8, and the master's 257267c. Every requirement whose files changed since my round-1 verdict commits was
+re-judged; LX-09, AE-06 and CM-13, whose files are unchanged, were re-checked and recorded at 257267c as well (p13
+0/8, p14 0/11; CM-13's REPRODUCE.md is unchanged, so G2R-12 stands). Every verdict now carries commit 257267c. GPU: nothing in this round loads a pretrained model; every run from a
+copy that could take the GPU lock exported `CAM_LIVE_GPU_LOCK=/workspace/agentrs/runs/cam_unified/gpu_heavy.lock`
+(the hazard is G2R-17 below).
+
+## Round 2 — what I ran
+
+| Command (257267c) | Result |
+|---|---|
+| `pytest cam_live/tests/runtime -q --rootdir=cam_live` (copy) | 273 passed, 9 skipped, 116 s |
+| `… -m 'privileged or browser'` (worktree) | 9 passed, 24 s |
+| CL-06 acceptance tests + `test_int3b_settle.py` (copy, `-m "gpu or slow or not (gpu or slow)"`) | 32 passed, 388 s (`CAM_LIVE_GPU_LOCK` = the machine lock) |
+| `cam-live validate --mode staging --debug` (copy, CPU) | ran to the end: exit 1, 15 of 16 checks (approvals_exercised fails in this run), 565 s, GPU peak 0.0 GB |
+| `cam-live evaluate-transfer` minimal (debug export, copy) | exit 0, `executed: true`, 2 fresh-process runs, 0 failed, 43 s |
+| G-rt p01 … p15 (copy) | p01 0/36, p02 0/477, p02 `--no-dedup` 4/477, p03 0/15, p04 0/11, p05 1/33 (1a design), **p06 14/38** (by construction, see LX-03), p07 0/62, p08 2/18 (design), p09 1/28 (design), p13 0/8, p14 0/11, p15 0/3 |
+| round-1 probes, re-run | redaction 0/13, control_signed 0/9, dashboard 0/19, preflight 0/7, settle_crash 0/15, gpu_lease 1/3 (check 1, disclosed), CLI p10 copy 34/35 (0c: others' files in runs/), separated_resume 0/8, p11 copy 1/39 (design) |
+| `probe_tasks_disguise.py` (+9 new variants) | round-1 variants 9/9 refused; **round-2 variants 9/9 accepted** |
+| `probe_verifier_live_source.py` (service-style construction, +A2–A4) | A, A3, B, C1, C2, C4–C6 hold; **A2, C3 broken**; A4 note |
+| `probe_verifier_rules_after_start.py` (new) | 0/9 |
+| `probe_next_objective.py` (+U1–U4, E1) | 1, U1–U4 hold; **E1 broken** |
+| `probe_limits_program.py` (+4, 5) | 1–3, 5 hold; 4 broken (disclosed overshoot) |
+| `probe_plan_report.py` (+R2a–R2d, fence-aware 1a/1b) | structure, controls, byte-exactness hold; **R2d broken** |
+| `probe_gpu_lock_path.py` (new, root, worktree) | 1 holds; **2, 3 broken** at 257267c (3 fixed in 59807fc) |
+
+## Round 2 — round-1 defects
+
+| Defect | At 257267c | Basis |
+|---|---|---|
+| G2R-1 task disguises | **fixed for the 9 round-1 variants; 9 new variants pass (G2R-1b)** | probe_tasks_disguise |
+| G2R-2 pre-existing members | **fixed (passive case); rejoin counts (G2R-2b)** | A, A2, A3 |
+| G2R-3 live secondary metrics | **fixed except usefulness of resources (G2R-3b)** | B, C1–C6 |
+| G2R-4 next objective unverifiable | fixed; forged / unsigned / foreign / changed-file assignments refused | probe_next_objective 1, U1–U4 |
+| G2R-5 programs and the external-action limit | fixed; a program started below the limit still runs all its steps (disclosed) | probe_limits_program 1–5 |
+| G2R-6 redaction shapes | fixed in the logs (13/13) | probe_redaction |
+| G2R-7 plan-report structure / editing | fixed (literal blocks, escapes, byte-exact JSON); the price is G2R-7b | probe_plan_report |
+| G2R-8 doubled objective_finished | fixed | probe_settle_crash 15/15 |
+| G2R-9 GPU holds | (b) fixed (no learner call without the lock); (a) a single long call still overruns (disclosed: not pre-empted) | probe_gpu_lease 2, 3 hold; 1 broken |
+| G2R-10 preflight spellings | fixed for my 7 spellings; of 16 more, `localtest.me`, a bare `host` key and a scheme-less `endpoint` are missed (defence in depth) | probe_preflight; inline check |
+| G2R-11 dashboard 500 | fixed | probe_dashboard 19/19 |
+| G2R-12 REPRODUCE.md stale | **not fixed** (file unchanged since a5ab772; it also still names the agentrs lock path as the one in use) | CM-13 |
+| G2R-13 `--no-dedup` count | the claim now says 6/477; this run gives 4/477 — the disk-full scenario varies between runs; same mechanism | p02 --no-dedup |
+
+## Round 2 — new defects
+
+**G2R-1b (LX-02, major as G2R-1) — disguises that survive the normalisation.** `runtime/tasks.py` `normalise_for_scan`
+/ `_content_hits` (NFKC, invisible characters, separator and camelCase splitting) then the same whole-ASCII-word rules:
+accepted by `load_task(for_run=True)` with no finding, and present in `learner_view` — a one-sentence objective with
+Cyrillic homoglyphs inside the matched words (U+0435 / U+0430 are letters; NFKC keeps them), the objective in leetspeak
+(`r3ddit`, `3very d4y`, `g1veaways`), an objective naming Discord listing sites the lists do not contain ("listing it on
+disboard and top.gg and bumping it whenever the cooldown allows"), the platform name spelled letter by letter, and words
+concatenated without a separator in `secondary_metrics`, `family`, `discord.channels` labels (`postmemesdaily`,
+`invitegamerfriends`, `dmeverynewjoiner`), `objective_id`, plus a homoglyph URL query in `authorized_destinations`.
+`.venv/bin/python $P/probe_tasks_disguise.py` (R2 rows).
+
+**G2R-15 (LX-14, major, new; pre-existing since round 1) — an extended duration of the running objective is not what
+the verifier judges.** `runtime/loop.py` `_assign`: for the same objective id the runtime updates its boundaries and
+does not call `verifier.assign_objective`; `runtime/verifier.py` `assign_objective` refuses to replace the pinned task
+anyway, and `_deadline` uses the pinned task's `duration_s`. LabWorld, the pinned `MetricThresholdVerifier` as the
+services build it: the operator's signed assignment of the same objective with `duration_s` 1 → 10 days is applied
+("task boundaries updated for the current objective"), then the verifier signs FAILED at the old deadline and the run
+ends `failed` after 2.1 days. `.venv/bin/python $P/probe_next_objective.py` (E1).
+
+**G2R-16 (LX-16, major at 257267c; fixed after the freeze in 59807fc) — the separated learner could not take the GPU
+lock.** `runtime/gpu_cycle.py:62` opened the lock `"a+"`; the machine's lock file is root:root 0664, so as camlearn
+`GpuLease(GPU_LOCK_PATH).acquire()` raised PermissionError (`probe_gpu_lock_path.py` 3), i.e. `loop_service.run_service`
+fails before the agent is built in every separated run with a pretrained backbone on CUDA — the configuration of the
+live planning launch. 59807fc (after the freeze) falls back to a read-only open in `nn.gpu.open_lock_file`; in the
+worktree at that commit a camlearn learner with `runtime.gpu_lock: on` reached the queued `flock` wait (another tenant
+held the lock) and was stopped after 60 s by me. Still opening `"a+"`: `harness/visual.py:152` (the visual executor's
+model lock; cambrowser in separated mode), `harness/grounding/bench.py:99`, `runtime/cli.py:156` (root only).
+
+**G2R-17 (LX-16, major for any run from a copy) — the default lock path is not the shared lock outside this worktree.**
+`config.py`: `GPU_LOCK_PATH` defaults to `<repo>/runs/gpu_heavy.lock`, which is an untracked symlink in this worktree
+only; in a `git archive` copy of the same commit (how the validations and verifiers run frozen code) or a fresh clone it
+does not exist and the first lease creates a private file — no exclusion with the other tenant
+(`probe_gpu_lock_path.py` 2). Every process of this worktree does resolve to the same inode as the machine lock
+(check 1: runtime lease, `nn.gpu.gpu_lock`, `cam-live`, tests). Mitigation: export `CAM_LIVE_GPU_LOCK` (as I did).
+
+**G2R-2b (LX-03, minor) — a rejoin counts.** The baseline holds counts only and `classify_members` compares the
+platform's current `joined_at` with the start (`verifier.py:579`), which a rejoin resets: 10 members present at the
+start leave and rejoin → value 10 with nobody new. (CAM with a kick permission, or a request to rejoin, would inflate
+the count by up to the number of members present at the start.) `probe_verifier_live_source.py` A2.
+
+**G2R-3b (LX-17, minor) — "usefulness of community resources" is still not measured.** What is reported as
+`secondary.resource_use.*` is CAM's own external actions / decisions / compute from the authorization ledger, and the
+"Not measured" note does not name usefulness. `probe_verifier_live_source.py` C3.
+
+**G2R-7b (LX-20, minor, new) — the plan report exports members' data in the clear.** Since 34e184a `build_report`
+no longer passes CAM's notebook / request texts through the run's redactor (`clean()` is the identity): a member's
+`name#1234`, e-mail address and Discord id in a CAM note appear in `plan_report.md` / `.json`, which root writes into
+the run directory with mode 0644, although the task's `store_member_identifiers` is false and the run's logs hash them.
+Byte-exactness and redaction conflict here; one form (e.g. the Markdown) could be redacted. `probe_plan_report.py` R2d.
+
+**G2R-18 (minor, code reading) — assigned task files are read twice.** `verifier.py` `_load_assigned_file` and
+`loop.py` `_assign` hash the file and then parse it again from the path; a task file in a directory the learner's
+group may write (e.g. the run directory) can be swapped between the two reads. The dashboard only assigns files of the
+repository's tasks directory; `OperatorControl.assign_objective` takes any path. After a verifier restart an assignment
+whose file was edited is not restored (`assignment_not_restored`), and verification of that objective is then refused.
+
+## Round 2 — what held under the new attacks
+
+* **Verifier switch** (probe_next_objective U1–U4): an unsigned `assign_objective` sent straight to the verifier (what
+  the learner's process could do over the socket), the operator's signature on altered arguments, a command signed with
+  another run's key, and the operator's command after its task file changed are all refused by the verifier itself.
+* **Baseline across a restart** (A3): without `window_start_ts` the start is the first reading, kept in the hash-chained
+  log; a restarted verifier counts exactly the members who joined after it.
+* **Programs across approvals** (probe_limits_program 5): approved programs are re-checked and every step counted
+  (runtime counter = world executions).
+* **Plan report** (R2a–R2c): a note with a longer backtick fence, a tag with backticks / pipe / newline, ANSI escapes,
+  a bidi override, CRLF, U+2028 and a non-BMP character neither add structure nor reach the file as controls; the JSON
+  form keeps every text byte-exact.
+
+## Round 2 — per requirement
+
+| Requirement | Verdict | Commit | Basis (round 2) |
+|---|---|---|---|
+| CU-24 | **verified** | 257267c | no environment call while waiting; outcomes once across kill -9 and settle (p02 0/477, settle 15/15) |
+| LX-01 | **verified** | 257267c | shipped task clean under the new scan; 16 REQUIRED paths named |
+| LX-02 | **partial** | 257267c | round-1 disguises refused; 9 new ones (homoglyphs, leetspeak, unlisted platforms, concatenation) accepted (G2R-1b) |
+| LX-03 | **partial** | 257267c | start baseline holds incl. restart; rules hold after the start; a rejoin of a pre-existing member counts (G2R-2b) |
+| LX-07 | **verified** | 257267c | experiment records, learner actuals apart (p01 0/36) |
+| LX-08 | **verified** | 257267c | every learning / meta record logged |
+| LX-09 | **verified** | 257267c | journal.py unchanged; p13 0/8 re-run |
+| LX-10 | **verified** | 257267c | credential / CSRF / origin / headers incl. 500 (19/19); signed next objective works; forged ones refused |
+| LX-12 | **verified** | 257267c | blocked with items named; accept-risk operator-only; spellings fixed (3 exotic misses, defence in depth) |
+| LX-13 | **verified** | 257267c | a record per decision, journalled first |
+| LX-14 | **partial** | 257267c | program steps counted (G2R-5 fixed); duration extension of the running objective ignored by the verifier (G2R-15) |
+| LX-15 | **verified** | 257267c | 17 steps, kill -9 0/477, settle 15/15 (G2R-8 fixed); --no-dedup 4/477 this run |
+| LX-16 | **partial** | 257267c | detached and separated runs; separated learner could not take the GPU lock at 257267c (G2R-16, fixed in 59807fc); copy uses a private lock (G2R-17) |
+| LX-17 | **partial** | 257267c | retention, participation, feedback status, cost, time now measured; usefulness of resources not (G2R-3b) |
+| LX-19 | **verified** | 257267c | stop with checkpoint; signed next objective verified |
+| LX-20 | **partial** | 257267c | log redaction 13/13; the plan report exports members' data unredacted (G2R-7b) |
+| CM-01 | **verified** | 257267c | doctor |
+| CM-02 | **verified** | 257267c | init |
+| CM-03 | **verified** | 257267c | test |
+| CM-04 | **verified** | 257267c | debug validation ran to the end (exit 1: 15 of 16, approvals not chosen by the learner) |
+| CM-05 | **verified** | 257267c | inspect-harness |
+| CM-06 | **verified** | 257267c | run refusals and starts |
+| CM-07 | **verified** | 257267c | status |
+| CM-08 | **verified** | 257267c | pause |
+| CM-09 | **verified** | 257267c | resume incl. separated restart |
+| CM-10 | **verified** | 257267c | dispatches and executes (debug export, exit 0) |
+| CM-11 | **verified** | 257267c | export alive and offline, R4-C1 / R5-m1 tests |
+| CM-12 | **verified** | 257267c | verify-completion with options |
+| CM-13 | **partial** | 257267c | REPRODUCE.md unchanged: G2R-12 stands (plus the lock path, new validate options) |
+| AE-06 | **verified** | 257267c | multi.py unchanged; p14 0/11 re-run |
+| CL-06 | **partial** | 257267c | 32 tests pass at debug scale; real configuration not verified by me |
+
+**Round 2 totals: 23 verified, 8 partial, 0 failed, 0 unverified** of 31.
