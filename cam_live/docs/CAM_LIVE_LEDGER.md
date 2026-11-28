@@ -193,6 +193,27 @@ Read at the start of every session, after `CAM_LIVE_SPEC.md` (operator specifica
 - Agents from ~08:55 UTC (report by ~16:30): RW, IMP, PS, CR, ST (agent.py owner + integrator), SG, AU. S2 finishes X0 / X1
   on 257267c as the pre-amendment baseline, then waits for the amended snapshot.
 
+### 2026-11-28 — live planning run, attempts 1 and 2 (09:00-10:50 UTC)
+
+- Attempt 1 (run dir runs/cam_live/live/discord-100-planning-20261128T083454Z, code = worktree at d1d06dc): 36
+  decisions, 8 external actions. ST's read-only analysis: 33 of 35 chosen actions from the schema walker, 14
+  `http.request` refused (not in authorized_tools, offered anyway), 4 navigations to the pattern "https://*/" refused;
+  the backbone's answer truncated in 34 of 35 decisions (256 tokens for 8 alternatives) so no note was ever proposed.
+  CAM made 2 operator requests ("Access to a usable URL destination"; "Manage roles") — answered / granted with facts
+  only. 3 x discord.modify_guild (default_message_notifications) executed under the operator's pre-authorization.
+  Paused at 09:31:50 (ckpt_00000038), then the supervisor was stopped (SIGTERM) because a queued stop was not applied
+  while paused; on restart the runtime applied that stale stop and the run became final (a stopped run is never
+  restarted, by design; same-objective re-assignment is applied only by a running runtime).
+- ST hotfix a0f3411 (only authorized tools offered, no wildcard values, 4 samples x 2 alternatives x 384 tokens).
+- Attempt 2 (run dir runs/cam_live/live/discord-100-planning-20261128T104208Z) started ~10:50 UTC from a clean
+  snapshot of a0f3411 (runs/cam_live/live/code_a0f3411), same signed record (bound to the task file; window to
+  16:34 UTC). The worktree's uncommitted agent WIP never reaches it.
+- Known runtime issues (to KNOWN_FAILURES): commands are applied only at step start (a pause took ~9 min under GPU
+  contention); a paused runtime did not apply a queued stop within 10 min; no warm start of a new run from a stopped
+  run's learner checkpoint (needed to carry learning into post-amendment re-runs).
+- Load reached ~95 on 48 cores (agent diagnostics) and starved every GPU holder; CPU rule issued to all agents
+  (OMP_NUM_THREADS<=4, nice 10, one heavy job each); the container does not permit negative nice values.
+
 ## Active jobs
 
 | Started (UTC) | Job | Resume |
