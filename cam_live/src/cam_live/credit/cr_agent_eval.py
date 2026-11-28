@@ -172,6 +172,13 @@ def run(condition: str, seed: int, decisions: int, work: str, *, real: bool = Fa
            "replay_cr3": bool(replay and has_replay), "agent_source": __import__("inspect").getsourcefile(type(agent)),
            "runtime_status": status, "steps": steps, "stopped_by_wall": stopped_by_wall, "counters": counters, "errors": errors,
            "summary": summarise(tap.rows, decisions), "truth_rows": tap.rows,
+           "decision_rows": [{"i": i, "chosen": (row["candidates"][row["chosen_index"]]["operation"],
+                                                 json.dumps(row["candidates"][row["chosen_index"]]["arguments"],
+                                                            sort_keys=True))
+                              if 0 <= row["chosen_index"] < len(row["candidates"]) else None,
+                              "probabilities": [round(float(x), 6) for x in row["probabilities"]],
+                              "exploration": row["exploration"], "t": row["t"]}
+                             for i, row in enumerate(dtap.rows)],
            "credit_keys": keys, "credit_versions_first64": hist,
            "default_at_end": agent.assigner.default, "policy_updates": consumed,
            "selection_log": sel_rows[-20:], "n_selection_rows": len(sel_rows),
@@ -199,6 +206,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--real", action="store_true")
     ap.add_argument("--no-backbone", action="store_true", help="real model without backbone-written candidates")
     ap.add_argument("--no-replay", action="store_true", help="disable CR-3 (replay of revised credit) in a patched agent")
+    ap.add_argument("--rudder-key", default="", help="ablation: RUDDER's learning key for this process (e.g. 'rudder', "
+                    "the segment-return signal used before CR round 2, return-like)")
     ap.add_argument("--threads", type=int, default=2)
     ap.add_argument("--max-wall-s", type=float, default=0.0, help="stop the run after this many seconds (GPU hold)")
     ap.add_argument("--gpu-timeout-s", type=float, default=3600.0, help="how long to wait for the shared GPU lock")
@@ -207,6 +216,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     a = ap.parse_args(argv)
     torch.set_num_threads(a.threads)
     torch.manual_seed(a.seed)
+    if a.rudder_key:                               # ablation of D-CR2's choice of RUDDER's learning signal
+        from . import providers as _p
+        _p.LEARNING_KEY[_p.RUDDER] = a.rudder_key
+        _p.RETURN_LIKE[_p.RUDDER] = a.rudder_key != _p.KEY_CONTRIB
     work = a.work or os.path.splitext(a.out)[0] + "_work"
     lock = contextlib.nullcontext()
     if a.real:
@@ -223,6 +236,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 os.remove(flag)
     from .diagnose import code_provenance
 
+    res["rudder_learning_key"] = a.rudder_key or "default"
     res["_code"] = code_provenance()
     res["_command"] = "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.cr_agent_eval " + " ".join(
         argv if argv is not None else __import__("sys").argv[1:])
