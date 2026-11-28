@@ -66,6 +66,30 @@ always builds the debug configuration (tiny backbone, debug core, CPU; only the 
 `run_staging` holds the GPU lock whenever the configuration it will build puts a pretrained backbone on CUDA,
 whatever `real_model` says. Tests in `tests/runtime/test_int3b_ops.py`.
 
+**D — staging sites as local services (HX-5).** `runtime.tasks.staging_local_services(task)`: the `host:port` of the
+task's own sites on this machine (`resources.staging_site`, `owned_site`, `owned_sites[].base_url`), staging mode
+only (always empty for a live or diagnostic task); `register_staging_sites(policy, task)` registers them at the
+authorization service (the operator's `opctl local-service add`) — in the supervisor right after `register_task`,
+before the learner may start, and in the in-process run. Tests: helper, a real `PolicyService`, and the supervisor
+path with fake launcher / client (staging task: registered; the live planning task: nothing registered).
+
+**E — redaction of numbers (G2-learn).** The log redactor hashed any free-standing 17-20 digit run as a Discord id,
+including the fraction of a float (`0.00875766109675169` -> `0.member:<hash>`), so JSON notes in
+`learning_updates.jsonl` stopped parsing. Now a fraction after `<digit>.`, a signed run and a run followed by a
+fraction / exponent are numbers; free-standing ids, `<@id>` mentions and ids inside dotted names (`member.<id>.x`)
+are still hashed. G2-learn's probe `probe_agent_credit.py --seeds 11`: "records whose notes JSON no longer parses:
+(0, 5)" (before: 34-42 of 56-65). `cam-live plan-report` passes the notebook and request texts through the run's own
+redactor (same salt and kept ids), so CAM's numbers stay intact and ids are hashed exactly as in the logs. Tests in
+`tests/runtime/test_int3b_ops.py` (the float test fails on the earlier code).
+
+**Approvals at the end of an objective.** An approval the operator resolved when its objective ends (measured in
+validation run 2: approved after the compute limit had ended the objective) stayed `approved` for ever, never
+executed and never reported to the learner. `_close_resolved_approvals` now reports it once (approved: not executed,
+`over_limit` / `cancelled`; rejected: denied); `objective_finished` records `approvals_closed_unexecuted` and
+`approvals_pending`. Test `test_int3b_settle.py::test_an_approval_resolved_when_the_objective_ends_is_reported_not_left_approved`
+(fails on the earlier code: `'approved' == 'reported'`). Still open: an approval resolved *after* the objective has
+finished is not reported (the run is terminal).
+
 ## 3. Planning-phase rehearsal in staging (OP-11 prerequisites)
 
 **Task** `tasks/staging/discord_100_planning_staging.yaml`: the operator's objective verbatim (same
@@ -226,9 +250,12 @@ streamed output read as `'phase one'` vs `'phase one\n'` under load; not mine). 
   in state `approved`, never executed nor reported back to the learner: a small runtime gap, not fixed). The
   meta-update checks hold with a staging-scale threshold (3 groups) and six lifetimes; with 4 lifetimes (run 1) they
   did not.
-* **Settle and promotions**: with the settle phase on, lifetimes run more learning cycles after their verdict; the
-  two-lifetime promotion scenario of `test_int2_checkpoints` / `test_int3a_lrn6` failed once each (first promotion
-  refused: "no independent validation metric supplied") and passed on repeats; a repeat study was started and stopped
-  (CPU contention with the rehearsal), so the failure rate with and without settle is not measured.
+* **Settle and promotions**: the two-lifetime promotion scenario of `test_int2_checkpoints` / `test_int3a_lrn6`
+  failed once each (first promotion refused: "no independent validation metric supplied") and passed on repeats.
+  G2-learn found that promotion depends on chance (a record-hash split over ids carrying `os.urandom` bytes), which
+  explains this; whether the settle phase changes the failure rate was not measured (a repeat study was stopped
+  because it starved the rehearsal of CPU).
+* The rehearsal and validation ran before HX's later harness changes (root sandbox host, X-PLATFORM-ADAPTER) and
+  before the redaction and approval fixes; they were not re-run.
 * `harness/compute/test_ec_jobs::test_status_is_observable_while_running_and_cancel_stops_the_job` failed once under
   load (not my code).
