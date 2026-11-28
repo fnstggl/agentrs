@@ -1,6 +1,6 @@
 {
  "workstream": "S",
- "commit": "2dfa6dbb32bcde3cf72d94be9b52f8f805e72449",
+ "commit": "0b48cfd178ed308d5c27e176a8c58261610771e8",
  "summary": "S2: pre-amendment baseline on ONE fixed snapshot 257267c (full-size agent, open-ended generation on): X0 5/9, X1 11/12 objectives achieved, X5 (goal-free first, eval overlay) 5/8; slow adapter steps now mostly kept (X0+X1 59 of 71, pre-fix 12 of 52); X6 meta checks: the learned reward does not act on the live inner update at the bootstrap mix 1.0. X2-X4 not run on 257267c (coordinator re-scope). Pre-fix batch (f54d8cc) archived separately. No significance claims (v3.5).",
  "requirements": {
   "SV-01": {
