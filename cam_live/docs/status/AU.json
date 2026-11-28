@@ -1,7 +1,7 @@
 {
  "workstream": "AU",
- "commit": "a571dd1 (final run); commits 6890c15 433fe07 663401a 6c6acb9 973512f 605f2bf a571dd1 and docs",
- "summary": "Operational autonomy (operator amendment 2026-11-28): capability audit of the nine 'verify that CAM can' bullets with executed checks; standing authorization (signed-record standing profile, policy standing section with retained-approval rules, code-network hosts) and its operator tool; scoped, revocable, expiring, operation-bound credentials entered by the operator, generated passwords never shown; credential-shaped API response fields redacted; generated code's scoped network made usable (hosts argument, T-CODE-CONNECT, per-connection declared-host check, job grant), pip in the sandbox and the host's unreadable site-packages pruned; request kinds account / verification; docs/AUTONOMY.md. No strategy, no agent-side change.",
+ "commit": "fcd8294 (round 2 final run); round 1: a571dd1",
+ "summary": "Operational autonomy (operator amendment 2026-11-28): capability audit of the nine 'verify that CAM can' bullets with executed checks; standing authorization (signed-record standing profile, policy standing section with retained-approval rules, code-network hosts) and its operator tool; scoped, revocable, expiring, operation-bound credentials entered by the operator, generated passwords never shown; credential-shaped API response fields redacted; generated code's scoped network made usable (hosts argument, T-CODE-CONNECT, per-connection declared-host check, job grant), pip in the sandbox and the host's unreadable site-packages pruned; request kinds account / verification; docs/AUTONOMY.md. No strategy, no agent-side change. Round 2 (G3-act G3A-2): under a standing profile routine is a positive declaration (policy routine_operations, record --routine manifest) and everything else asks; requests are read for effective method, money, irreversibility, identity creation, addressees and personal data; money asks on every live record; probe 0 of 47 violated.",
  "requirements": {
   "AU-AUDIT": {
    "state": "implemented",
@@ -27,7 +27,7 @@
    "limitations": "Bullet 9 (learning from consequences) is a property of the runtime / learner (other workstreams), checked by running their integration tests at the AU HEAD on CPU debug scale; bullets 2 and 6 contain judgements (suitability; whether a service explicitly permits automated registration) that the harness does not make."
   },
   "AU-STANDING": {
-   "state": "implemented",
+   "state": "implemented (round 2: routine only where declared; consequence default approval)",
    "files": [
     "src/cam_live/harness/auth/liveauth.py",
     "src/cam_live/harness/auth/schema.py",
@@ -43,22 +43,29 @@
     "PolicyService._task_ctx (standing_profile, code_network_hosts, retained)",
     "Evaluator._retained",
     "Evaluator.node (code network)",
-    "authorize_live.build_record(standing=...)"
+    "authorize_live.build_record(standing=...)",
+    "liveauth.parse_routine (record.standing.routine)",
+    "Evaluator._consequence",
+    "policy standing.routine_operations / consequence",
+    "authorize_live --routine"
    ],
    "tests": [
     "tests/harness/autonomy/test_au_standing.py",
     "tests/harness/autonomy/test_au_e2e_standing.py",
     "tests/harness/autonomy/test_au_separated.py",
-    "tests/harness/autonomy/test_au_operator_tools.py"
+    "tests/harness/autonomy/test_au_operator_tools.py",
+    "tests/harness/autonomy/test_au_consequence.py",
+    "docs/verification/repro/g3act/probe_au_standing.py"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness -q --rootdir=cam_live -m \"(privileged or browser or not privileged) and not network and not gpu\" --junitxml=cam_live/docs/evidence/test_results/AU_fix.xml"
    ],
    "evidence": [
     "docs/AUTONOMY.md",
-    "docs/evidence/test_results/AU_fix.xml"
+    "docs/evidence/test_results/AU_fix.xml",
+    "docs/evidence/AU/g3act_probe_round2.txt"
    ],
-   "limitations": "Retained classes are lexical (operation names, HTTP methods, URL paths, argument keys); an irreversible effect behind an innocuous name is not recognised. No live run with a standing record was made (the operator signs it). Records without a profile keep their old meaning (no retained rules)."
+   "limitations": "The guarantee is the default (an undeclared operation asks); the consequence vocabulary on declared routes is a second line that an endpoint doing something consequential under unknown words defeats; INTERACT cannot see what a click does; false positives on declared routes ask the operator. Records without a profile keep explicit pre-authorization (money asks on them). No live run with a standing record."
   },
   "AU-CREDENTIALS": {
    "state": "implemented",
@@ -216,13 +223,21 @@
     "Manage roles (permission, granted)",
     "Server Configuration Details (information, open)"
    ]
+  },
+  "round2": {
+   "g3act_probe": "0 VIOLATED of 47 (was 31)",
+   "g3act_e2e": "passed (nothing deleted)",
+   "everything_declared_manifest": "38 consequential attempts all ask, routine set of 7 allowed",
+   "final_run": "708 passed, 0 failed, 389 s at fcd8294",
+   "au_tests": 65
   }
  },
  "measured_commands": {
   "final_run_*": "see requirements.*.commands (JUnit docs/evidence/test_results/AU_fix.xml)",
   "job_probe": "docs/evidence/AU/job_probe.py (unpatched / patched jobs.py)",
   "learning_check": "docs/evidence/AU/learning_check_summary.txt (PYTHONPATH = git archive of 605f2bf)",
-  "runtime_ablation": "docs/evidence/AU/runtime_probe.py 12 0 -> docs/evidence/AU/runtime_probe_out.txt"
+  "runtime_ablation": "docs/evidence/AU/runtime_probe.py 12 0 -> docs/evidence/AU/runtime_probe_out.txt",
+  "g3act_probe": "PYTHONPATH=cam_live/src .venv/bin/python cam_live/docs/verification/repro/g3act/probe_au_standing.py -> docs/evidence/AU/g3act_probe_round2.txt"
  },
  "not_done": [
   "CR AU-1 (jobs.py) not applied (EC-owned file).",

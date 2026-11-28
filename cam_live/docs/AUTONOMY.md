@@ -46,30 +46,52 @@ A signed live record (`tools/authorize_live.py`) may carry `standing: {"profile"
 (`standing.profiles` in `configs/authorization.yaml`); the service refuses to register a record with an unknown
 profile and ignores one a later policy no longer knows (fail-closed). With the profile:
 
-* **Pre-authorized, no per-item approval** — the destinations of CAM's designated infrastructure, written into the
-  record's `owned` and `preauthorized` lists by `--standing`: the task's Discord server
-  (`account:discord:<guild>`, `channel:discord:*`), the task's owned sites, `--hosting` (operator-provided hosting or
-  deployment API), `--integration` (an approved integration's API). Routine operations there (Discord bot
-  messages, channels, invites, pins, role and channel settings; deployments by `PUT` / `POST` / `PATCH`; publishing
-  through the publishing adapter) run without approval, within the task's and the record's budgets and rate limits.
+* **Routine only where declared (round 2, G3-act G3A-2).** The designated destinations (the task's Discord server,
+  its owned sites, `--hosting`, `--integration`) are written into the record's `owned` and `preauthorized` lists by
+  `--standing`, but under the profile a pre-authorized destination does **not** make an operation routine. An
+  operation runs without per-item approval only when it is *declared* routine:
+  * a **typed adapter operation** in the policy's `standing.routine_operations` (Discord: send / edit message,
+    create / modify channel, create invite, pin / unpin, create event, create / modify role, set channel permissions,
+    modify server settings; publishing: submit / update) -- the adapter fixes its meaning;
+  * a **generic HTTP request or page interaction** matching the record's `standing.routine` manifest, which the
+    operator writes with `--routine 'METHODS URL'` (e.g. `--routine 'PUT https://api.host.example/sites/**'`; `*` is
+    one path segment, `**` any number; methods `GET HEAD PUT PATCH POST`, `INTERACT` for clicks / input on pages; a
+    `DELETE` is never routine). Reading the task's own sites (`GET HEAD <site>/**`) is declared automatically.
+
+  **Everything else on those destinations asks** (`R-NOT-ROUTINE`): an undeclared method or path, a sub-resource
+  outside a one-segment wildcard, any other adapter operation (deletions included), a click on a pre-authorized
+  page without `INTERACT`, an API read that is not declared. Routine operations run within the task's and the
+  record's budgets and rate limits.
 * **Public web reading** — `--read 'https://*'` as before (a read; input on sites the operator does not own keeps
   its approval).
 * **Sandboxed development** — always without approval and without network; with `code_network` hosts (e.g.
   `--code-host pypi.org --code-host files.pythonhosted.org`) generated code may reach exactly those hosts without a
   per-job approval. The record refuses wildcards (`*`, `https://*`, `*.com`); every connection is still checked.
-* **Approval retained whatever is pre-authorized** — the policy's `standing.retained_approval` rules, live mode,
-  for records with a profile (`harness/auth/evaluate.py:Evaluator._retained`):
-  * `R-IRREVERSIBLE` (`irreversible`): `*.delete*`, `*.destroy*`, `*.purge*`, `*.wipe*`, `*.erase*`,
-    `*.transfer*`, `*.revoke*`, `*.cancel_subscription*`, `*.close_account*`;
-  * `R-IRREVERSIBLE-HTTP`: any HTTP `DELETE`;
-  * `R-NEW-PERMISSION` (`new_external_permission`): registration, OAuth / consent, API keys / tokens / credentials,
-    invitations, members / collaborators / permissions, billing / subscriptions (operations and URL paths);
-  * `R-PERSON-MESSAGE` (`message_to_person`): a write whose arguments address a person (`to`, `cc`, `bcc`,
-    `recipient(s)`, `phone`, ...);
-  * unchanged rules of every mode: spending (`P-SPEND-APPROVAL`, any real money), data use (member lists, personal
-    data, message content only with the task's `data_permissions`), input on sites the operator does not own
-    (`P-INTERACT-APPROVAL`), the prohibited classes of spec 12.6, and the hard constraints `X-HUMAN-VERIFICATION`,
-    `X-USER-ACCOUNT`, `X-PLATFORM-ADAPTER`, which no record, task or approval can permit.
+* **Consequence read from what the request does** (`harness/auth/evaluate.py:Evaluator._consequence`, vocabulary in
+  the policy's `standing.consequence`). Even a declared-routine generic request asks when:
+  * its **effective method** differs from its declared one -- `X-HTTP-Method-Override` / `X-HTTP-Method` /
+    `X-Method-Override` headers (any case), `_method` / `method` fields with an HTTP verb in the body, JSON, form or
+    query (`R-IRREVERSIBLE-HTTP` for a DELETE, `R-METHOD-OVERRIDE` otherwise);
+  * its operation or path words (case-folded, camelCase / `-` / `_` split, singular and plural; the name of a file
+    being written is content and not read) name a deletion, transfer, cancellation (`R-IRREVERSIBLE`), or a key,
+    token, credential, account, user, member, team, access, invitation, webhook, OAuth / consent, permission or share
+    (`R-NEW-PERMISSION`), or messaging (`R-PERSON-MESSAGE`);
+  * it carries an **addressee** (`to`, `cc`, `bcc`, `recipient(s)`, `chat_id`, `user_id`, `email`, `phone`, ...,
+    also in the URL query) or **any value that is an e-mail address or a phone number** (`R-PERSON-MESSAGE`);
+  * it reads or sends **personal data** (customer / user / member / contact / subscriber / export routes, personal
+    fields in the request) that the task's `data_permissions.collect_personal_data` does not permit
+    (`R-PERSONAL-DATA`).
+* **Money asks on every live record**, profile or not (`P-SPEND-APPROVAL`): any write whose operation / path words
+  (purchase, buy, order, checkout, charge, payment, invoice, billing, subscription, upgrade, renew, transfer,
+  register, plan, ...) or fields (`amount`, `price`, `cost`, `total`, `currency`, `plan`, `sku`, `quantity`, ...) can
+  create a charge, order, purchase, subscription or transfer, whatever the money budget; `payment.*` operations as
+  before.
+* The **named retained rules** remain as additional class labels (`R-IRREVERSIBLE` for `*.delete*`-style
+  operations, `R-IRREVERSIBLE-HTTP` for any `DELETE`, `R-NEW-PERMISSION` for registration / OAuth / key operations,
+  `R-PERSON-MESSAGE` for addressee fields); unchanged in every mode: data use (member lists, personal data, message
+  content only with the task's `data_permissions`), input on sites the operator does not own
+  (`P-INTERACT-APPROVAL`), the prohibited classes of spec 12.6, and the hard constraints `X-HUMAN-VERIFICATION`,
+  `X-USER-ACCOUNT`, `X-PLATFORM-ADAPTER`, which no record, task or approval can permit.
 
   An approved retained operation is covered at execution only by the approved grant's own primitive; a retained
   primitive issued under a routine grant asks again (`::test_a_retained_operation_inside_a_routine_grant_asks_at_execution`).
@@ -83,11 +105,12 @@ profile and ignores one a later policy no longer knows (fail-closed). With the p
 bash cam_live/tools/launch_live.sh --accept-ephemeral-storage cam_live/tasks/<task>.yaml <HOURS> \
      --read 'https://*' --read 'http://*' --standing routine-reversible-1 \
      [--hosting 'https://<deploy API host>/*'] [--integration 'https://<approved API>/*'] \
+     [--routine 'PUT,PATCH https://<deploy API host>/<path>/**' ...] \
      [--code-host pypi.org --code-host files.pythonhosted.org]
 ```
 
 `launch_live.sh` passes these options to `authorize_live.py`, which prints what will be pre-authorized, the
-code-network hosts and every retained approval (read from the run policy) before the operator types the objective
+routine manifest, the code-network hosts and every retained approval (read from the run policy) before the operator types the objective
 id. The task's `resources.authorized_tools` still limits which tools exist for the run (the planning task lists
 `browser.*, sandbox.*, discord.*, internal.*, wait`: `http.*`, `publish.*`, `skill.*` need a task edit).
 
@@ -111,13 +134,13 @@ of an account for an automated agent; the approval preview shows the exact page 
 
 | Resource | Entered by | CAM can then, without per-item approval | Keeps approval / not possible |
 |---|---|---|---|
-| Hosting (static host or deploy API) | `python -m cam_live.harness.credentials set hosting_token --run-dir R --dest 'https://<api>/*' --op http.request --op skill.* --expires-hours 720` (hidden prompt or `--from-file` 0600) + `--hosting 'https://<api>/*'` at signing; or a directory served by the operator's web server as `resources.owned_sites` in the task file | deploy and update its sites through the API (`http.request` with `auth={secret: 'secret:hosting_token'}`), reuse deployment skills, read the site's analytics (publishing adapter, owned static site) | deleting a site (`DELETE`), new API tokens / members / billing on the host |
-| Domain / DNS | a DNS-API token the same way, bound to the DNS API host (`--dest`), the API as `--integration` | create and change records through the API | deleting records (`DELETE`), transfers, purchases (money) |
-| Scoped API tokens for other services | the same, one credential per service, `--dest` = that API, `--op` = the operations | call that API; build skills of the calls | the retained classes above |
+| Hosting (static host or deploy API) | `python -m cam_live.harness.credentials set hosting_token --run-dir R --dest 'https://<api>/*' --op http.request --op skill.* --expires-hours 720` (hidden prompt or `--from-file` 0600) + `--hosting 'https://<api>/*'` at signing; or a directory served by the operator's web server as `resources.owned_sites` in the task file | the operations the operator declares with `--routine` (e.g. `PUT` of site files): deploy and update its sites through the API (`http.request` with `auth={secret: 'secret:hosting_token'}`), reuse deployment skills; read the site's analytics (publishing adapter, owned static site) | every undeclared request; deletions (also as an overridden POST), new tokens / keys / members / access, billing and plan changes, anything that can charge |
+| Domain / DNS | a DNS-API token the same way, bound to the DNS API host (`--dest`), the API as `--integration` | the record operations the operator declares with `--routine` | every undeclared request; deleting records (any spelling: `DELETE`, override, a delete route), transfers, purchases, renewals (money) |
+| Scoped API tokens for other services | the same, one credential per service, `--dest` = that API, `--op` = the operations | the calls the operator declares with `--routine`; build skills of them | everything undeclared and the consequence classes of §3.1 |
 | Dedicated e-mail address | the address is not a secret: put it in the task's resources or answer CAM's request with it. Reading / sending mail needs a provider with an HTTP API: its token as a credential (`--dest` = the provider's API) and the API as an `--integration` | reading its own inbox through that API (e.g. a confirmation link) | sending mail to people (`R-PERSON-MESSAGE`); there is **no IMAP / SMTP adapter** (needs implementation if the operator's provider offers no HTTP API) |
 | An account on a service CAM may register itself | the operator approves the registration steps (row 6) after checking the service's terms; the password is generated with `credentials set <name> --dest 'https://<service>/*' --op browser.fill --generate` (never shown) | type it by reference into the service's password field; later log in the same way | every input on the service's pages while it is not CAM's (`P-INTERACT-APPROVAL`); CAPTCHA / phone / identity verification only by a person (request kind `verification`) |
 | Package registries | `--code-host <host>` at signing (names hosts, no wildcards) | install and test packages in the sandbox | other hosts per job (approval) |
-| Money | the task's `limits.money*` and the record's budgets | — | every real-money operation asks (`P-SPEND-APPROVAL`; `spending.auto_approve_below` is 0) |
+| Money | the task's `limits.money*` and the record's budgets | — | every write that can create a charge, order, purchase, subscription or transfer asks (`P-SPEND-APPROVAL`, every live record, whatever the budget; `spending.auto_approve_below` is 0); the detection reads operation / path words and money fields (§6) |
 
 Credentials are narrow and revocable: bound to destinations (required), optionally to operations and a lifetime
 (`--expires-hours`, at most 366 days), revoked with `credentials revoke <name>` or `opctl revoke secret:<name>`; a
@@ -141,7 +164,7 @@ work now works", measured on the harness, not on CAM's competence.
 
 | Capability | (a) correctness | (b) integration into the real code path | (c) causal influence | (d) measured improvement |
 |---|---|---|---|---|
-| Standing profile + retained approvals | `test_au_standing.py` 25 tests, `test_au_operator_tools.py` 12 | composed environment (`all_executors`) on the real `PolicyService`, record built by the operator tool (`test_au_e2e_standing.py`, 5, incl. publishing to an owned site with / without the profile); launcher-started service under its own uid over AuthRPC (`test_au_separated.py`, privileged) | same record without the profile: the same writes ask (`::test_the_same_writes_without_a_standing_profile_still_ask`); revoking the profile record: back to approval | approvals needed: 0 for 2 Discord writes, 2 deployments and 1 reused skill run (3 deployment steps) under the profile; without it each write asks (tested for a Discord message and a deployment); retained operations: 1 approval each, with or without the profile |
+| Standing profile + retained approvals | `test_au_standing.py` 25 tests, `test_au_consequence.py` 9, `test_au_operator_tools.py` 14 | composed environment (`all_executors`) on the real `PolicyService`, record built by the operator tool (`test_au_e2e_standing.py`, 5, incl. publishing to an owned site with / without the profile); launcher-started service under its own uid over AuthRPC (`test_au_separated.py`, privileged) | corrected after G3-act G3A-6: per-item approval is removed by the record's **pre-authorization** (which existed before AU); the **profile** restricts it -- with the profile an undeclared operation asks, without it the same pre-authorized record allows it (`::test_a_record_without_a_profile_keeps_the_meaning_of_its_explicit_pre_authorizations`); G3-act probe of 47 attempts: 31 allowed without approval before round 2, 0 after (`docs/evidence/AU/g3act_probe_round2.txt`) | approvals needed: 0 for 2 Discord writes, 2 deployments and 1 reused skill run (3 deployment steps) under the profile; without it each write asks (tested for a Discord message and a deployment); retained operations: 1 approval each, with or without the profile |
 | Scoped network for generated code, package installation | `test_au_standing.py` (connections, jobs) | privileged `test_au_sandbox_packages.py` (real sandbox uid, real egress broker, real service); `test_au_capabilities.py` | without `code_network` hosts the job waits for the operator; an undeclared host is refused per connection | before AU no scoped-network run could execute in the integrated system (0 of any); after: install + import + unit test pass |
 | Scoped credentials | `test_au_operator_tools.py` (binding, lifetime, generation, live pick-up) | `test_au_e2e_standing.py` (CLI-entered credential used by the HTTP executor and by a skill), browser registration test | revocation / expiry / operation binding refuse the release | — |
 | Account / verification requests | `test_au_operator_tools.py` | `test_au_capabilities.py` (through the environment, answer as an operator event) | — | — |
@@ -158,10 +181,16 @@ planning run is CAM's; AU added no prompt, hint or default that would steer it.
 
 ## 6. Limitations (open)
 
-* **Retained classes are lexical** (operation names, HTTP methods, URL paths, argument keys): an irreversible
-  effect behind an innocuous name (e.g. `POST /v1/sites/7/remove-all` — `remove` is not in the list) is not
-  recognised. The list is conservative policy data the operator can extend; pre-authorize only destinations whose
-  routine use is acceptable without per-item review.
+* **The guarantee is the default, not the vocabulary.** An undeclared operation always asks. The consequence
+  vocabulary (§3.1) is a second line on *declared* routes: an API whose declared-routine endpoint does something
+  consequential under a word the lists do not know (e.g. `PUT /sites/7` whose body flag `{"live": false}` takes the
+  site offline) is not recognised. Declare narrowly (`*` rather than `**` where sub-resources exist), and only
+  methods / paths whose every use is acceptable without per-item review.
+* **False positives on declared routes ask the operator**: a directory named after a listed word (e.g.
+  `PUT /sites/cam/members/index.html`), a `plan` or `quantity` field, an e-mail address in a JSON value. File names
+  with a content extension (`members.html`) are not read as words.
+* **`INTERACT` cannot see what a click does**: declare it only for pages whose every control is routine (e.g. a
+  preview of CAM's own site), never for an account's settings pages.
 * **Form submission on a site CAM does not own is a click** (navigation class, allowed); the data it sends was
   approved field by field. A form whose fields the site pre-filled itself would therefore submit without an approval.
 * A **code-network host receives whatever the program sends** to it: the broker sees host and port, not the content
@@ -181,6 +210,12 @@ planning run is CAM's; AU added no prompt, hint or default that would steer it.
   this work (no profile) and is unaffected (its policy copy and record are read once at start).
 
 ## 7. Final run
+
+* **Round 2** (`fcd8294`): the same command plus `docs/verification/repro/g3act/test_g3act_au_e2e.py`: **708 passed,
+  0 failed, 0 skipped, 4 deselected (network) in 389 s**, privileged and browser tests included; 65 AU tests
+  (standing 25, consequence 9, operator tools 14, capabilities 6, end to end 5, sandbox packages 3, browser
+  registration 2, separated 1). JUnit `docs/evidence/test_results/AU_fix.xml` (this run).
+* Round 1 (below) for the record.
 
 * `cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness -q --rootdir=cam_live -m "(privileged or
   browser or not privileged) and not network and not gpu" --junitxml=cam_live/docs/evidence/test_results/AU_fix.xml`
@@ -215,3 +250,23 @@ Read from `runs/cam_live/live/` without changing anything (records, audit, opera
 * **CAM's requests to the operator** (its own words): first attempt "Access to a usable URL destination"
   (permission, answered) and "Manage roles" (permission, granted); second attempt "Server Configuration Details"
   (information, open). The request channel of row 7 is in real use; no account / verification request yet.
+
+## 9. Round 2 (G3-act G3A-2, 2026-11-28)
+
+The verifier showed that a routine-profile record allowed 31 of 47 consequential attempts without approval
+(method-override deletions, purchases, orders, charges, transfers, messages to people, new keys / tokens, personal
+data reads), because the retained rules were a lexical deny-list over an allow-by-default pre-authorization. Fixed at
+the root: under a profile, routine is a positive declaration (adapter operations of the policy, the record's
+`--routine` manifest of method + path) and everything else asks; a declared request is read for its effective
+method, money, irreversibility, identity creation, addressees and personal data; money asks on every live record.
+Evidence: `docs/verification/repro/g3act/probe_au_standing.py` **0 VIOLATED of 47** (`docs/evidence/AU/g3act_probe_round2.txt`;
+every control holds, the routine PUT deployment still runs without approval); its end-to-end test
+`repro/g3act/test_g3act_au_e2e.py` passes (the method-override POST waits, nothing is deleted); the same 38
+consequential attempts under a manifest that declares *every* method and path of both hosts routine still ask, the
+routine set (file deployment, deployment start, project update, Discord message / channel, public read) still runs
+(`test_au_consequence.py::test_every_consequential_attempt_waits_and_the_routine_set_runs[everything-declared]`);
+an override approved by the operator covers its execution; money asks without a profile; personal data asks
+unless the task permits it; an older policy copy without `routine_operations` keeps every adapter write under
+approval. `code_network` now names hosts one by one (no `*.co.uk` / `*.github.io` / `*.ngrok.io`, no public IP
+literal, no single-label name; loopback only with its port). The live planning run's record has no profile and
+is unaffected.
