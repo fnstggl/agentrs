@@ -68,8 +68,12 @@ def test_a_challenge_may_be_loaded_but_never_answered(svc, lt):
     ]:
         d = decide(svc, lt, op, None, **args)
         assert refused(d, H), (op, args, d.verdict, d.policy_ids, d.reasons)
-    # the same requests without the challenge are allowed: the constraint is not a blanket refusal
-    assert decide(svc, lt, "http.post", None, url="https://owned.example/signup",
+    # the same requests without the challenge are not refused by the constraint: it is not a blanket refusal (a POST
+    # to a sign-up endpoint keeps the operator's approval as a new external permission, standing rule
+    # R-NEW-PERMISSION, AU; another path of the same owned, pre-authorized site is allowed outright)
+    d = decide(svc, lt, "http.post", None, url="https://owned.example/signup", json={"email": "a@owned.example"})
+    assert d.verdict == NEEDS and d.policy_ids == ["R-NEW-PERMISSION"], (d.verdict, d.policy_ids)
+    assert decide(svc, lt, "http.post", None, url="https://owned.example/contact",
                   json={"email": "a@owned.example"}).verdict == ALLOW
     assert decide(svc, lt, "browser.click", None, ref="e4", page_url="https://owned.example/form").verdict == ALLOW
     # at execution time: the page may load the challenge widget (a frame navigation is a read), but the

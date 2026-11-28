@@ -24,7 +24,10 @@ import threading
 import time
 from typing import Any, Dict, List, Optional
 
-KINDS = ("capability", "permission", "credential", "resource", "information", "decision")
+#: ``account``: an account the operator would create or that CAM may register only with the operator's approval;
+#: ``verification``: a step only a person may take (a human-verification challenge, an e-mail or phone confirmation,
+#: an identity check) -- CAM never answers those itself (hard constraint X-HUMAN-VERIFICATION)
+KINDS = ("capability", "permission", "credential", "resource", "information", "decision", "account", "verification")
 STATUSES = ("open", "granted", "denied", "answered", "withdrawn")
 FILE = "operator_requests.jsonl"
 

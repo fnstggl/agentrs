@@ -124,10 +124,10 @@ class InternalExecutor:
                             "required": ["text"], "additionalProperties": False},
                            Level.PRIMITIVE, "", "local", Cost()),
             ToolDescriptor("internal.request_operator", Modality.INTERNAL, "Ask the operator for something that "
-                           "cannot be obtained otherwise: a capability, permission, credential, resource, piece of "
-                           "information or decision. The request is recorded for the operator; nothing is sent "
-                           "anywhere and nothing is granted by asking. The operator's answer arrives later as an "
-                           "event.",
+                           "cannot be obtained otherwise: a capability, permission, credential, resource, account, "
+                           "a verification step only a person may take, a piece of information or a decision. The "
+                           "request is recorded for the operator; nothing is sent anywhere and nothing is granted by "
+                           "asking. The operator's answer arrives later as an event.",
                            {"type": "object", "properties": {
                                "kind": {"type": "string", "enum": list(REQUEST_KINDS)},
                                "title": {"type": "string", "minLength": 3, "maxLength": 200},

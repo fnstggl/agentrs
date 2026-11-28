@@ -192,6 +192,48 @@ def scrub(value: Any, secret_values: Iterable[str]) -> Any:
     return value
 
 
+#: JSON keys (lower case, without ``_`` / ``-``) whose values are credentials: an API that mints a token, a key or
+#: a password returns it in such a field, and its value never reaches the learner (spec 12.6 / 12A.13, operator
+#: amendment 2026-11-28 "keep secrets outside the learner's observations"). The operator stores such a value
+#: through ``cam_live.harness.credentials`` instead.
+_CREDENTIAL_KEYS = frozenset({
+    "password", "passwd", "passphrase", "secret", "clientsecret", "apikey", "apisecret", "privatekey", "accesstoken",
+    "refreshtoken", "idtoken", "authtoken", "bearertoken", "sessiontoken", "secretkey", "secretaccesskey",
+    "accesskeysecret", "token", "apitoken", "deploytoken", "webhooksecret", "signingsecret", "bottoken",
+    "personalaccesstoken", "sessionkey", "sessionid", "cookie", "setcookie", "authorization", "credentials",
+    "credential", "otp", "totpsecret", "recoverycodes", "backupcodes"})
+_CREDENTIAL_SUFFIXES = ("token", "secret", "password", "apikey", "privatekey", "accesskey")
+_NOT_CREDENTIAL = ("page", "cursor", "next", "continuation", "sync", "type", "expires", "count", "url", "length",
+                   "name", "id")
+REDACTED = "[redacted: credential-shaped field]"
+
+
+def _credential_key(key: Any) -> bool:
+    k = re.sub(r"[_\-\s.]", "", str(key).lower())
+    if k in _CREDENTIAL_KEYS:
+        return True
+    return k.endswith(_CREDENTIAL_SUFFIXES) and not any(w in k for w in _NOT_CREDENTIAL)
+
+
+def redact_credentials(value: Any, depth: int = 0) -> Tuple[Any, int]:
+    """``value`` with the values of credential-shaped keys replaced, and how many were replaced."""
+    if depth > 32:
+        return value, 0
+    if isinstance(value, dict):
+        out, n = {}, 0
+        for k, v in value.items():
+            if _credential_key(k) and v not in (None, "", [], {}) and not isinstance(v, bool):
+                out[k], n = REDACTED, n + 1
+            else:
+                out[k], m = redact_credentials(v, depth + 1)
+                n += m
+        return out, n
+    if isinstance(value, list):
+        items = [redact_credentials(v, depth + 1) for v in value]
+        return [v for v, _ in items], sum(m for _, m in items)
+    return value, 0
+
+
 def structure_hash(data: Any, depth: int = 6) -> str:
     """Hash of the *shape* of a JSON-like value (keys and value types, not values). Two responses or pages with the
     same fields have the same hash; a renamed or removed field changes it."""
@@ -639,8 +681,9 @@ class HttpApiExecutor:
                 parsed: Any, truncated: bool, info: RateLimitInfo, elapsed: float, secret_values: List[str],
                 clock: Any, hops: int) -> Observation:
         slug = path_slug(url)
+        redacted = 0
         if parsed is not None:
-            parsed = scrub(parsed, secret_values)
+            parsed, redacted = redact_credentials(scrub(parsed, secret_values))
             text = json.dumps(parsed, sort_keys=True, ensure_ascii=False)
         else:
             text = scrub(raw.decode("utf-8", errors="replace"), secret_values)
@@ -655,6 +698,8 @@ class HttpApiExecutor:
             "truncated": truncated or len(text) > self.max_text,
             "structure_hash": structure_hash(parsed) if parsed is not None else "",
         }
+        if redacted:
+            data["redacted_credential_fields"] = redacted
         if parsed is not None and len(text) <= 16 * self.max_text:
             data["json"] = parsed
         return Observation(

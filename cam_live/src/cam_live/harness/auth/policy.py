@@ -236,6 +236,12 @@ class PolicyService:
                 rec = liveauth.verify_live_authorization(record, pub)
                 for k in ("accounts", "owned", "read", "preauthorized", "interactive"):
                     D.parse_patterns(rec.get(k, []))
+                st = liveauth.standing(rec)
+                if st and (self.policy is None or st["profile"] not in self.policy.standing.profiles):
+                    raise liveauth.LiveAuthorizationError(
+                        f"record.standing.profile {st['profile']!r} is not a standing profile of the loaded policy "
+                        f"({', '.join(self.policy.standing.profiles) if self.policy else 'no valid policy'})")
+                D.parse_patterns(st.get("code_network", []))
             except (liveauth.LiveAuthorizationError, D.DestinationError) as e:
                 self._log("live_authorization_rejected", reason=str(e), record_id=str(record.get("record_id", ""))[:80]
                           if isinstance(record, dict) else "")
@@ -246,7 +252,10 @@ class PolicyService:
             self.store.x("DELETE FROM denied_intents WHERE task_id=?", (rec["task_id"],))
             self._log("live_authorization_registered", record_id=rec["record_id"], task_id=rec["task_id"],
                       task_hash=rec["task_hash"], not_before=rec["not_before"], not_after=rec["not_after"],
-                      issued_by=rec["issued_by"], operator=str(by))
+                      issued_by=rec["issued_by"], operator=str(by),
+                      standing=liveauth.standing(rec).get("profile", ""),
+                      preauthorized=list(rec.get("preauthorized", []))[:64],
+                      code_network=list(liveauth.standing(rec).get("code_network", []))[:16])
             return {"record_id": rec["record_id"], "task_id": rec["task_id"]}
 
     def _task_ctx(self, task: C.TaskSpec, now: float) -> Tuple[Optional[TaskCtx], List[Tuple[str, str]]]:
@@ -298,6 +307,7 @@ class PolicyService:
                 out.extend(D.parse_patterns(v))
             return out
 
+        profile, code_hosts = "", []
         try:
             deny = pats("deny", "denied_destinations")
             if record is not None:
@@ -310,6 +320,9 @@ class PolicyService:
                 budgets = record.get("budgets", {})
                 window = liveauth.window(record)
                 rate_req = record.get("rate_limits") or {}
+                st = liveauth.standing(record)
+                if st and st.get("profile") in pol.standing.profiles:     # unknown profile: ignored (fail-closed)
+                    profile, code_hosts = st["profile"], D.parse_patterns(st.get("code_network", []))
             else:
                 owned, read, pre, inter = list(mode.owned), list(mode.read), list(mode.preauthorized), []
                 if mode.honour_task_resources:
@@ -351,7 +364,9 @@ class PolicyService:
                        window=window, record_id=record["record_id"] if record else "",
                        file_base=os.path.join(self.run_dir, "sandbox"), local_services=local,
                        own_process=mode.own_process_services, rates=rates,
-                       tool_patterns=self._authorized_tools(task)), []
+                       tool_patterns=self._authorized_tools(task), standing_profile=profile,
+                       code_network_hosts=code_hosts,
+                       retained=list(pol.standing.retained) if mode.name in pol.standing.retained_modes else []), []
 
     @staticmethod
     def _authorized_tools(task: C.TaskSpec) -> Optional[List[str]]:
@@ -954,6 +969,8 @@ class PolicyService:
         tab = args.get("tab_id", "") if isinstance(args.get("tab_id", ""), str) else ""
         ne = self._eval.node(node, tc, self._location(tc.task_id, {"tab_id": tab}), primitive=True, parent=action)
         self._peer_check(ne, args, tc)
+        if ne.tool is not None and ne.tool.declared_hosts:
+            self._declared_hosts_check(ne, action, tc)
         info["effects"] = sorted({f"{c}:{d.key}" for c, d in ne.effects})[:16]
         info["tool"] = ne.tool.id if ne.tool is not None else ""
         circ = self._circumvention([ne], tc)
@@ -1127,6 +1144,26 @@ class PolicyService:
                 ne.deny.append(Finding("P-LOCAL-ADDRESS", f"{urls[0].key if urls else 'the destination'} resolved to "
                                                           f"{host} ({lk}), an address of this machine or its network",
                                        peer))
+
+    def _declared_hosts_check(self, ne: NodeEval, action: C.ActionSpec, tc: TaskCtx) -> None:
+        """A connection of a granted program run goes only to a host the run declared (``arguments.hosts`` of the
+        action or of the program step that carries the network flag): the job-level decision judged exactly those
+        hosts (reachability, deny list, local addresses, approval or the standing profile's code_network)."""
+        declared: List[D.Pattern] = []
+        nodes = [action] + [n for n in self._eval.flatten(action) if n is not action]
+        for n in nodes:
+            a = n.arguments if isinstance(n.arguments, dict) else {}
+            for k in ("hosts", "allowed_hosts", "network_hosts"):
+                v = a.get(k)
+                for h in (v if isinstance(v, list) else [v] if isinstance(v, str) else []):
+                    try:
+                        declared.append(D.parse_pattern(str(h)))
+                    except D.DestinationError:
+                        continue
+        for d in ne.dests:
+            if d.kind == "url" and D.match_any(d, declared) is None:
+                ne.deny.append(Finding("P-CODE-NETWORK", f"{d.key} is not among the hosts this program run declared "
+                                                         f"({', '.join(p.text for p in declared)[:200] or 'none'})", d))
 
     def _granted_effect(self, cls: str, d: D.Destination, ne: NodeEval, granted: List[Dict[str, Any]],
                         ) -> Optional[Dict[str, Any]]:
@@ -1517,14 +1554,17 @@ class PolicyService:
             if action.steps or not platform_constraints.adapter_op(action.operation, plat):
                 raise SecretError(f"secret {name!r} is the {plat} credential and is released only to the {plat} "
                                   f"adapter's operations, not to {action.operation!r}")
-        return self.vault.release(name, dest)
+        return self.vault.release(name, dest, now=now, operation=action.operation)
 
     def put_secret(self, name: str, value: str, destinations: Sequence[str], scopes: Sequence[str] = (),
-                   by: str = "operator", note: str = "") -> Dict[str, Any]:
+                   by: str = "operator", note: str = "", expires_at: Optional[float] = None,
+                   operations: Sequence[str] = ()) -> Dict[str, Any]:
         """Operator only."""
         with self._lock:
-            out = self.vault.put(name, value, list(destinations), list(scopes), by=str(by), note=note, ts=self.clock.now())
-            self._log("secret_stored", name=name, destinations=list(destinations), scopes=list(scopes), operator=str(by))
+            out = self.vault.put(name, value, list(destinations), list(scopes), by=str(by), note=note, ts=self.clock.now(),
+                                 expires_at=expires_at, operations=list(operations))
+            self._log("secret_stored", name=name, destinations=list(destinations), scopes=list(scopes), operator=str(by),
+                      expires_at=expires_at, operations=list(operations))
             return out
 
     def secret_names(self) -> List[Dict[str, Any]]:

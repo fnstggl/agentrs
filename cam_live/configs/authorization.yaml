@@ -5,7 +5,7 @@
 # change it. Rules are data. Nothing here says what the agent should do — only what it may not do without the
 # operator.
 version: 1
-policy_id: default-2
+policy_id: default-3
 
 grants:
   ttl_s: 120            # a grant must be presented to the executor within this time
@@ -205,6 +205,14 @@ tools:
     network_flags: [network, allow_network, net, internet]
     dests: [{kind: url, from: [arguments.hosts, arguments.allowed_hosts, arguments.network_hosts], multi: true},
             {kind: file, from: [arguments.cwd, arguments.workdir]}]
+  - id: T-CODE-CONNECT              # one outbound TCP connection of a program run with network='scoped' (the
+                                    # sandbox's egress broker asks for each); only to a host the run declared
+    ops: [net.connect]
+    modalities: [code, skill]
+    effect: external_read
+    counts_as_action: false         # part of the granted program run; rate limits still apply
+    declared_hosts: true
+    dests: [{kind: url, from: [arguments.dest, arguments.host], required: true}]
   - id: T-NET-REQUEST
     ops: [net.request, http.request, http.get, http.head, http.post, http.put, http.patch, http.delete,
           api.request, api.http, api.get, api.post, api.put, api.patch, api.delete, api.call]
@@ -306,6 +314,47 @@ tools:
 
 publishing:
   require_approval: unless_preauthorized      # or: always
+
+# ---------------------------------------------------------------------------------------------------------------
+# Standing authorization (operator amendment 2026-11-28, "OPERATIONAL AUTONOMY"; docs/AUTONOMY.md).
+# A signed live record may name one of these profiles (record.standing.profile). Routine, reversible operations on
+# the destinations the record pre-authorizes (record.preauthorized: CAM's own Discord server, operator-provided
+# hosting, approved integrations) then run without per-item approval, and generated code may reach the hosts of
+# record.standing.code_network (e.g. package registries) without a per-job approval. Nothing here says what CAM
+# should do. The rules below keep the operator's approval in the listed modes whatever a record pre-authorizes;
+# spending (P-SPEND-APPROVAL), data use (data_use), the prohibited classes and the hard platform constraints
+# (X-HUMAN-VERIFICATION, X-USER-ACCOUNT, X-PLATFORM-ADAPTER) apply unchanged.
+# A rule applies to an operation with an external write or input effect when any of its ops / methods / paths /
+# fields matches.
+# ---------------------------------------------------------------------------------------------------------------
+standing:
+  profiles: [routine-reversible-1]
+  retained_approval:
+    modes: [live]
+    rules:
+      - id: R-IRREVERSIBLE
+        class: irreversible
+        ops: ["*.delete", "*.delete_*", "*.destroy*", "*.purge*", "*.wipe*", "*.erase*", "*.transfer*",
+              "*.revoke*", "*.cancel_subscription*", "*.close_account*"]
+        reason: "a consequential operation that cannot be undone needs the operator's approval"
+      - id: R-IRREVERSIBLE-HTTP
+        class: irreversible
+        methods: [DELETE]
+        reason: "an HTTP DELETE on an external service needs the operator's approval"
+      - id: R-NEW-PERMISSION
+        class: new_external_permission
+        ops: ["*.register*", "*.signup*", "*.sign_up*", "*.create_account*", "*.oauth*", "*.authorize_app*",
+              "*.create_token*", "*.create_api_key*", "*.create_key*", "*.add_bot*", "*.invite_bot*", "*.grant*"]
+        paths: ["*/signup*", "*/sign-up*", "*/sign_up*", "*/register*", "*/registration*", "*/oauth*",
+                "*/authorize*", "*/consent*", "*/api-keys*", "*/api_keys*", "*/apikeys*", "*/tokens*",
+                "*/access-tokens*", "*/access_tokens*", "*/credentials*", "*/invitations*", "*/members*",
+                "*/collaborators*", "*/permissions*", "*/billing*", "*/subscriptions*"]
+        reason: "a new account, credential, permission or membership on an external service needs the operator's approval"
+      - id: R-PERSON-MESSAGE
+        class: message_to_person
+        fields: [to, cc, bcc, recipient, recipients, recipient_id, recipient_ids, rcpt, send_to, email_to, to_email,
+                 to_address, phone, phone_number, sms_to]
+        reason: "a message addressed to a person outside CAM's own infrastructure needs the operator's approval"
 
 spending:
   auto_approve_below: 0.0           # real money above this needs approval even when within the limits

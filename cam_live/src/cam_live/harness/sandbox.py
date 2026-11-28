@@ -84,7 +84,9 @@ class SandboxConfig:
     max_wall_s: float = 600.0             # ceiling for a foreground execution, whatever the action asks for
     uid_nproc: int = 256                  # k: RLIMIT_NPROC ceiling for the sandbox uid (all jobs together)
     workspace_max_mb: int = 2048          # harness: refuse new work when the workspace is larger than this
-    packages: Tuple[str, ...] = ("numpy", "PIL", "yaml")      # importable packages exposed read-only
+    # importable packages exposed read-only; ``pip`` lets a program install packages into its own workspace
+    # (``python -m pip install --target ...``) from the hosts a network='scoped' run declares
+    packages: Tuple[str, ...] = ("numpy", "PIL", "yaml", "pip")
     extra_read_paths: Tuple[str, ...] = ()                    # more read-only paths (toolchains, datasets)
     allow_same_uid: bool = False          # run without a uid drop when not root (weakest mode)
     landlock: bool = True                 # switching a layer off is reported by capabilities() as weak
@@ -117,6 +119,27 @@ def _seccomp_path() -> Optional[str]:
         if os.path.exists(cand):
             return cand
     return None
+
+
+def _locate_package(pkg: str) -> str:
+    """Directory of an importable package: the harness interpreter's own import path first, then the base
+    interpreter's site-packages (a layered virtual environment may not carry e.g. ``pip`` itself). ``""`` if none."""
+    try:
+        spec = importlib.util.find_spec(pkg)
+    except (ImportError, ValueError):
+        spec = None
+    if spec is not None and spec.submodule_search_locations:
+        return os.path.realpath(list(spec.submodule_search_locations)[0])
+    import sysconfig
+    for scheme_vars in ({"base": sys.base_prefix, "platbase": sys.base_prefix}, {}):
+        try:
+            purelib = sysconfig.get_paths(vars=scheme_vars)["purelib"]
+        except (KeyError, ValueError):
+            continue
+        cand = os.path.join(purelib, pkg)
+        if os.path.isfile(os.path.join(cand, "__init__.py")):
+            return os.path.realpath(cand)
+    return ""
 
 
 def _user(name: str) -> Optional[pwd.struct_passwd]:
@@ -1225,10 +1248,9 @@ class Sandbox:
                 f.write(digest)
         self._pkg_reads: List[str] = []
         for pkg in cfg.packages:
-            spec = importlib.util.find_spec(pkg)
-            if spec is None or not spec.submodule_search_locations:
+            src = _locate_package(pkg)
+            if not src:
                 continue
-            src = os.path.realpath(list(spec.submodule_search_locations)[0])
             dst = os.path.join(self.support, "pkgs", pkg)
             if not os.path.lexists(dst):
                 try:
@@ -1684,8 +1706,13 @@ _LIMIT_SCHEMA = {"type": "object", "additionalProperties": False, "properties": 
     "mem_total_mb": {"type": "integer", "minimum": 16}, "nproc": {"type": "integer", "minimum": 1},
     "nofile": {"type": "integer", "minimum": 16}, "fsize_mb": {"type": "integer", "minimum": 1},
     "out_bytes": {"type": "integer", "minimum": 256}}}
+#: hosts a program run with network='scoped' may connect to ("host" or "host:port"); the authorization layer judges
+#: them when the run is authorized and every connection is checked against them (policy tool T-CODE-CONNECT)
+_HOSTS_SCHEMA = {"type": "array", "items": {"type": "string", "minLength": 1}, "maxItems": 32,
+                 "description": "with network='scoped': the hosts (host or host:port) the program will connect to; "
+                                "a connection to any other host is refused"}
 _RUN_PROPS = {"timeout_s": {"type": "number", "exclusiveMinimum": 0},
-              "network": {"type": "string", "enum": ["none", "scoped"]},
+              "network": {"type": "string", "enum": ["none", "scoped"]}, "hosts": _HOSTS_SCHEMA,
               "cwd": {"type": "string"}, "stdin": {"type": "string"},
               "env": {"type": "object", "additionalProperties": {"type": "string"}}, "limits": _LIMIT_SCHEMA}
 
@@ -1722,7 +1749,7 @@ class SandboxExecutor:
                 available=ok, unavailable_reason="" if ok else why)
 
         run_note = (f"Runs confined to the sandbox workspace with no network unless network='scoped' is "
-                    f"authorized; default limits {lim.wall_s:g}s wall, {lim.cpu_s}s CPU, {lim.mem_mb} MB. Returns "
+                    f"authorized for the hosts it names (hosts=[...]); default limits {lim.wall_s:g}s wall, {lim.cpu_s}s CPU, {lim.mem_mb} MB. Returns "
                     f"exit code, stdout and stderr (truncated at {lim.out_bytes} bytes each).")
         out = [
             tool("sandbox.python", "Run a Python program given as source text. " + run_note,
@@ -1748,7 +1775,8 @@ class SandboxExecutor:
                  {"purpose": {"type": "string", "minLength": 1}, "kind": {"type": "string", "enum": ["python", "shell"]},
                   "code": {"type": "string"}, "args": {"type": "array", "items": {"type": "string"}},
                   "deadline_s": {"type": "number", "exclusiveMinimum": 0},
-                  "network": {"type": "string", "enum": ["none", "scoped"]}, "cwd": {"type": "string"},
+                  "network": {"type": "string", "enum": ["none", "scoped"]}, "hosts": _HOSTS_SCHEMA,
+                  "cwd": {"type": "string"},
                   "env": {"type": "object", "additionalProperties": {"type": "string"}}, "limits": _LIMIT_SCHEMA},
                  ["purpose", "kind", "code", "deadline_s"], seconds=0.1),
             tool("sandbox.job_status", "Report the state of one background job, or of all jobs when no id is given.",
@@ -1799,6 +1827,13 @@ class SandboxExecutor:
                 errs.append("content is not valid base64")
         if action.operation == "sandbox.job_start" and not str(a.get("purpose", "")).strip():
             errs.append("purpose must not be empty")
+        if a.get("network") == "scoped" and not a.get("hosts"):
+            errs.append("network='scoped' needs hosts: the hosts the program will connect to")
+        if a.get("hosts") and a.get("network", "none") != "scoped":
+            errs.append("hosts are only used with network='scoped'")
+        for i, h in enumerate(a.get("hosts") or []):
+            if not _HOST_RE.match(str(h)):
+                errs.append(f"hosts[{i}]: expected a host name or address, optionally with :port")
         return errs
 
     def close(self) -> None:
@@ -1904,7 +1939,9 @@ class SandboxExecutor:
         def authorize(host: str, port: int, ip: str, private: bool) -> Tuple[bool, str]:
             op = c.PrimitiveOp(op="net.connect", modality=self.modality,
                                arguments={"host": host, "port": port, "ip": ip, "private": private,
-                                          "url": f"tcp://{host}:{port}", "from": action.operation},
+                                          "url": f"tcp://{host}:{port}", "from": action.operation,
+                                          "dest": (f"[{host}]:{port}" if ":" in host and not host.startswith("[")
+                                                   else f"{host}:{port}")},
                                started=ctx.clock.now())
             verdict, reason = _authorize(ctx, op, action)
             op.ended = ctx.clock.now()
@@ -1944,9 +1981,11 @@ class SandboxExecutor:
             ceiling = min(ceiling, float(action.timeout_s))
         limits = self._limits(a, timeout, ceiling)
         op = c.PrimitiveOp(op=action.operation, modality=self.modality, started=t0,
-                           arguments={"sha256": hashlib.sha256(source.encode("utf-8", "replace")).hexdigest(),
-                                      "bytes": len(source.encode("utf-8", "replace")), "network": network,
-                                      "cwd": a.get("cwd", "."), "wall_s": limits.wall_s})
+                           arguments=dict({"sha256": hashlib.sha256(source.encode("utf-8", "replace")).hexdigest(),
+                                           "bytes": len(source.encode("utf-8", "replace")), "network": network,
+                                           "cwd": a.get("cwd", "."), "wall_s": limits.wall_s},
+                                          **({"hosts": [str(h) for h in a.get("hosts") or []]}
+                                             if network == "scoped" else {})))
         verdict, reason = _authorize(ctx, op, action)
         if verdict != c.AuthVerdict.ALLOW:
             return self._denied(action, ctx, t0, m0, verdict, reason, op)
@@ -2085,6 +2124,9 @@ class SandboxExecutor:
                         [c.Quantity("sandbox.entries", float(len(info["entries"])), "", c.OutcomeKind.COUNT)],
                         uri=f"sandbox:{info['path']}")
         return self._result(action, ctx, t0, m0, c.ResultStatus.OK, obs=obs, ops=[op])
+
+
+_HOST_RE = re.compile(r"^(\[[0-9a-fA-F:.]+\]|[A-Za-z0-9](?:[A-Za-z0-9\-_.]{0,252}[A-Za-z0-9])?)(?::\d{1,5})?$")
 
 
 def _check_type(name: str, value: Any, schema: Dict[str, Any]) -> List[str]:

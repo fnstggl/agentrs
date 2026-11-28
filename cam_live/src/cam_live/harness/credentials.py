@@ -15,6 +15,20 @@ never printed, and never written anywhere else. ``list`` prints names and bindin
     python -m cam_live.harness.credentials set discord_bot_token --run-dir R --from-file /root/.config/camlive/discord_bot_token
     python -m cam_live.harness.credentials list --run-dir R
     python -m cam_live.harness.credentials revoke discord_bot_token --run-dir R
+
+Narrow, revocable credentials for CAM's own infrastructure (operator amendment 2026-11-28; docs/AUTONOMY.md):
+
+    # a hosting / DNS / API token: bound to its API host, to the operations that may use it, for 30 days
+    python -m cam_live.harness.credentials set hosting_token --run-dir R --dest 'https://api.host.example/*' \
+        --op http.request --op http.get --expires-hours 720
+    # a password for an account CAM is permitted to register: generated here, never shown to anyone; the browser
+    # types it into the service's password field by reference (browser.fill secret='secret:<name>')
+    python -m cam_live.harness.credentials set svc_password --run-dir R --dest 'https://service.example/*' \
+        --op browser.fill --generate
+
+``--dest`` binds the value to destinations (required unless the name is a known kind), ``--op`` to operations of the
+granted action (globs), ``--expires-hours`` limits its lifetime; ``revoke`` ends it at once. A run that is already
+running picks a new or revoked credential up at its next use (the vault directory is re-read when it changes).
 """
 from __future__ import annotations
 
@@ -22,6 +36,7 @@ import argparse
 import getpass
 import json
 import os
+import secrets as _secrets
 import stat
 import sys
 import time
@@ -35,6 +50,13 @@ KNOWN: Dict[str, Dict[str, Any]] = {
     "discord_bot_token": {"dest": ["discord.com", "gateway.discord.gg", "*.discord.gg"], "scopes": ["discord"],
                           "verifier": True, "min_len": 50},
 }
+#: longest lifetime a credential may be given at entry (a longer-lived one is re-entered)
+MAX_EXPIRES_HOURS = 24 * 366.0
+
+
+def generate_value(nbytes: int = 32) -> str:
+    """A random credential value (URL-safe, no whitespace). Generated in this process and never printed."""
+    return _secrets.token_urlsafe(max(16, int(nbytes)))
 
 
 def _ids(role: str) -> Optional[tuple]:
@@ -66,9 +88,16 @@ def read_value(from_file: str = "", stream: Any = None) -> str:
 
 
 def store(run_dir: str, name: str, value: str, *, dest: Sequence[str] = (), scopes: Sequence[str] = (),
-          verifier: Optional[bool] = None, by: str = "operator", note: str = "") -> Dict[str, Any]:
+          verifier: Optional[bool] = None, by: str = "operator", note: str = "",
+          expires_hours: Optional[float] = None, operations: Sequence[str] = ()) -> Dict[str, Any]:
     """Store ``value`` in the run's vault (and, where needed, as the verifier's own copy). Returns names only."""
     known = KNOWN.get(name, {})
+    now = time.time()
+    expires_at = None
+    if expires_hours is not None:
+        if not (0 < float(expires_hours) <= MAX_EXPIRES_HOURS):
+            raise ValueError(f"--expires-hours must be in (0, {MAX_EXPIRES_HOURS:g}]")
+        expires_at = now + float(expires_hours) * 3600.0
     dest = list(dest) or list(known.get("dest", []))
     if not dest:
         raise ValueError("a credential must be bound to at least one destination (--dest)")
@@ -83,7 +112,7 @@ def store(run_dir: str, name: str, value: str, *, dest: Sequence[str] = (), scop
         os.makedirs(R, exist_ok=True)
     safefs.ensure_dir(vault_dir, 0o700)                    # refuses a planted symlink instead of following it
     out = SecretBroker(vault_dir).put(name, value, dest, list(scopes) or list(known.get("scopes", [])), by=by,
-                                      note=note, ts=time.time())
+                                      note=note, ts=now, expires_at=expires_at, operations=list(operations))
     _own(vault_dir, "auth", 0o700)
     _own(os.path.join(vault_dir, name + SUFFIX), "auth", 0o600)
     out["vault"] = os.path.join(vault_dir, name + SUFFIX)
@@ -136,6 +165,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--verifier", dest="verifier", action="store_true", default=None)
     ap.add_argument("--no-verifier", dest="verifier", action="store_false")
     ap.add_argument("--note", default="")
+    ap.add_argument("--op", action="append", default=[], help="operation (glob) the secret may be released for")
+    ap.add_argument("--expires-hours", type=float, default=None, help="lifetime of the credential")
+    ap.add_argument("--generate", action="store_true",
+                    help="generate a random value here instead of reading one (it is never printed)")
     a = ap.parse_args(argv)
     if a.command == "list":
         print(json.dumps(listing(a.run_dir), indent=1, sort_keys=True))
@@ -152,9 +185,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             pass
         print(json.dumps({"revoked": hit}))
         return 0
+    if a.generate and a.from_file:
+        ap.error("--generate and --from-file exclude each other")
     try:
-        out = store(a.run_dir, a.name, read_value(a.from_file), dest=a.dest, scopes=a.scope, verifier=a.verifier,
-                    by=getpass.getuser(), note=a.note)
+        value = generate_value() if a.generate else read_value(a.from_file)
+        out = store(a.run_dir, a.name, value, dest=a.dest, scopes=a.scope, verifier=a.verifier,
+                    by=getpass.getuser(), note=a.note, expires_hours=a.expires_hours, operations=a.op)
+        if a.generate:
+            out["generated"] = True
     except (ValueError, PermissionError, OSError) as e:
         print(f"not stored: {e}", file=sys.stderr)
         return 2

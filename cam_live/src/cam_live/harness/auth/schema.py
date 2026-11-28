@@ -148,6 +148,8 @@ class ToolRule:
     sets_location: bool = False  # an allowed primitive of this tool moves the tracked browser location
     counts_as_action: bool = True  # false: a primitive of this tool is not charged as an external action (a
                                    # subresource of a page the action already loads); rate limits still apply
+    declared_hosts: bool = False   # a primitive of this tool may reach only the hosts its granted action declared
+                                   # (the sandbox's per-connection check: arguments.hosts of the program run)
 
     def matches(self, op: str) -> bool:
         return any(fnmatch.fnmatchcase(op, p) for p in self.ops)
@@ -220,6 +222,30 @@ class ContentPattern:
 
 
 @dataclass
+class RetainedRule:
+    """An operation class whose approval no standing profile, pre-authorization or record removes. A rule applies to
+    a node with an external write or input effect when any of its ``ops`` (globs over the operation), ``methods``
+    (HTTP method of a by-method tool), ``paths`` (globs over a URL destination's path) or ``fields`` (argument keys
+    at any depth, normalised) matches."""
+    id: str
+    cls: str
+    reason: str
+    ops: List[str] = field(default_factory=list)
+    methods: List[str] = field(default_factory=list)
+    paths: List[str] = field(default_factory=list)
+    fields: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Standing:
+    """Standing authorization (operator amendment 2026-11-28): which record profiles the policy accepts, and the
+    approvals they never remove."""
+    profiles: List[str] = field(default_factory=list)
+    retained_modes: List[str] = field(default_factory=list)
+    retained: List[RetainedRule] = field(default_factory=list)
+
+
+@dataclass
 class Policy:
     policy_id: str
     sha256: str
@@ -254,6 +280,7 @@ class Policy:
     rate_write_global: Optional[RateRule] = None
     max_external_primitives_per_action: int = 0
     mention_patterns: List[Tuple[str, str, "re.Pattern[str]"]] = field(default_factory=list)   # (id, kind, regex)
+    standing: Standing = field(default_factory=Standing)
 
     def tool_for(self, op: str) -> Optional[ToolRule]:
         for t in self.tools:
@@ -305,7 +332,8 @@ def _tool(i: int, d: Any) -> ToolRule:
     w = f"tools[{i}]"
     d = _keys(d, w, required=("id", "ops", "modalities", "effect"),
               optional=("dests", "require_dest", "kind", "platform", "data", "content_from", "amount_from", "opaque",
-                        "network_flags", "interact_class", "modes", "sets_location", "counts_as_action"))
+                        "network_flags", "interact_class", "modes", "sets_location", "counts_as_action",
+                        "declared_hosts"))
     mods = _strs(d["modalities"], f"{w}.modalities")
     for m in mods:
         _choice(m, f"{w}.modalities", C.Modality.ALL)
@@ -333,7 +361,43 @@ def _tool(i: int, d: Any) -> ToolRule:
         interact_class=_choice(d.get("interact_class", "input"), f"{w}.interact_class", ("navigate", "input")),
         modes=[_choice(m, f"{w}.modes", MODES) for m in _strs(d.get("modes"), f"{w}.modes")],
         sets_location=_bool(d.get("sets_location", False), f"{w}.sets_location"),
-        counts_as_action=_bool(d.get("counts_as_action", True), f"{w}.counts_as_action"))
+        counts_as_action=_bool(d.get("counts_as_action", True), f"{w}.counts_as_action"),
+        declared_hosts=_bool(d.get("declared_hosts", False), f"{w}.declared_hosts"))
+
+
+_HTTP_METHODS = ("GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE", "CONNECT", "TRACE", "WRITE")
+
+
+def _standing(d: Any) -> Standing:
+    """The optional ``standing`` section. Absent: no profile is accepted and nothing is retained beyond the rules
+    every mode already has (a policy file written before the section existed keeps its meaning)."""
+    if d is None:
+        return Standing()
+    d = _keys(d, "standing", required=("profiles", "retained_approval"))
+    profiles = _strs(d["profiles"], "standing.profiles")
+    ra = _keys(d["retained_approval"], "standing.retained_approval", required=("modes", "rules"))
+    modes = [_choice(m, "standing.retained_approval.modes", MODES) for m in _strs(ra["modes"], "standing.retained_approval.modes")]
+    if not isinstance(ra["rules"], list):
+        raise PolicyError("standing.retained_approval.rules: expected a list")
+    rules, ids = [], set()
+    for i, r in enumerate(ra["rules"]):
+        w = f"standing.retained_approval.rules[{i}]"
+        r = _keys(r, w, required=("id", "class", "reason"), optional=("ops", "methods", "paths", "fields"))
+        rule = RetainedRule(id=_str(r["id"], f"{w}.id", allow_empty=False), cls=_str(r["class"], f"{w}.class",
+                                                                                      allow_empty=False),
+                            reason=_str(r["reason"], f"{w}.reason", allow_empty=False),
+                            ops=_strs(r.get("ops"), f"{w}.ops"),
+                            methods=[_choice(m.upper(), f"{w}.methods", _HTTP_METHODS)
+                                     for m in _strs(r.get("methods"), f"{w}.methods")],
+                            paths=_strs(r.get("paths"), f"{w}.paths"),
+                            fields=[norm_field(x) for x in _strs(r.get("fields"), f"{w}.fields")])
+        if not (rule.ops or rule.methods or rule.paths or rule.fields):
+            raise PolicyError(f"{w}: a rule needs at least one of ops, methods, paths, fields")
+        if rule.id in ids:
+            raise PolicyError(f"{w}: duplicate id {rule.id!r}")
+        ids.add(rule.id)
+        rules.append(rule)
+    return Standing(profiles=profiles, retained_modes=modes, retained=rules)
 
 
 def _rate(d: Any, w: str, with_match: bool = False) -> RateRule:
@@ -350,7 +414,8 @@ def _rate(d: Any, w: str, with_match: bool = False) -> RateRule:
 def compile_policy(doc: Any, *, run_dir: str = "", path: str = "", raw: bytes = b"") -> Policy:
     top = _keys(doc, "policy", required=("version", "policy_id", "grants", "approvals", "structure", "modes",
                                          "destinations", "tools", "publishing", "spending", "rate_limits", "limits",
-                                         "data_use", "platforms", "identity", "prohibited"))
+                                         "data_use", "platforms", "identity", "prohibited"),
+               optional=("standing",))
     if top["version"] != 1:
         raise PolicyError(f"policy.version: unsupported version {top['version']!r}")
     g = _keys(top["grants"], "grants", required=("ttl_s", "exec_window_s", "exec_slack_s"))
@@ -552,7 +617,7 @@ def compile_policy(doc: Any, *, run_dir: str = "", path: str = "", raw: bytes = 
         max_external_primitives_per_action=int(_num(lm.get("max_external_primitives_per_action",
                                                             lm["max_primitives_per_action"]),
                                                      "limits.max_external_primitives_per_action", lo=1, integer=True)),
-        mention_patterns=mps)
+        mention_patterns=mps, standing=_standing(top.get("standing")))
 
 
 def load_policy(path: Optional[str] = None, run_dir: str = "") -> Policy:

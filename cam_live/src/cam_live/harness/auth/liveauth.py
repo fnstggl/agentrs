@@ -12,7 +12,18 @@ Record (JSON object)::
      "budgets": {"money": 0, "money_per_action": 0, "money_per_day": 0, "compute_s": 0,
                  "max_external_actions": 0, "max_decisions": 0, "duration_s": 0},
      "not_before": 0.0, "not_after": 0.0, "issued_by": "name", "issued_at": 0.0, "signature": "<base64>",
-     "rate_limits": {"write": {"count": 10, "window_s": 3600}}}      # optional; clamped to the policy's live rate_caps
+     "rate_limits": {"write": {"count": 10, "window_s": 3600}},      # optional; clamped to the policy's live rate_caps
+     "standing": {"profile": "routine-reversible-1",                  # optional standing authorization (below)
+                  "code_network": ["pypi.org", "files.pythonhosted.org"]}}
+
+**Standing authorization** (operator amendment 2026-11-28, "OPERATIONAL AUTONOMY"). Routine, reversible operations
+inside CAM's designated infrastructure run without per-item approval when the record pre-authorizes their
+destinations (``preauthorized``). ``standing`` names the profile of the policy file under which that happens
+(``standing.profiles`` of the policy; an unknown profile makes the service ignore the block, fail-closed) and may
+list ``code_network``: hosts that generated code may reach through the sandbox's egress broker without a per-job
+approval (e.g. package registries). What the policy's ``standing.retained_approval`` rules name (irreversible
+operations, new external permissions, messages to people, ...) and every spending, data-use and hard platform
+constraint keep their approval or denial whatever a record says.
 """
 from __future__ import annotations
 
@@ -25,9 +36,14 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
+from . import destinations as D
+
 REQUIRED = ("record_id", "task_id", "task_hash", "accounts", "owned", "read", "preauthorized", "budgets",
             "not_before", "not_after", "issued_by", "issued_at")
-OPTIONAL = ("interactive", "opted_in_recipients", "signature", "note", "rate_limits")
+OPTIONAL = ("interactive", "opted_in_recipients", "signature", "note", "rate_limits", "standing")
+STANDING_KEYS = ("profile", "code_network", "note")
+#: most hosts a standing profile may open to generated code (each one is still checked per connection)
+MAX_CODE_NETWORK = 16
 BUDGET_KEYS = ("money", "money_per_action", "money_per_day", "compute_s", "max_external_actions", "max_decisions",
                "duration_s")
 LIST_KEYS = ("accounts", "owned", "read", "preauthorized", "interactive", "opted_in_recipients")
@@ -89,6 +105,28 @@ def validate_shape(record: Any) -> Dict[str, Any]:
     if not isinstance(rl, dict) or set(rl) - {"write", "write_global"} or any(
             not isinstance(v, dict) or set(v) - {"count", "window_s"} for v in rl.values()):
         raise LiveAuthorizationError("record.rate_limits may only set write / write_global as {count, window_s}")
+    st = record.get("standing")
+    if st is not None:
+        if not isinstance(st, dict) or set(st) - set(STANDING_KEYS) or "profile" not in st:
+            raise LiveAuthorizationError(f"record.standing must be an object with 'profile' and optionally "
+                                         f"{[k for k in STANDING_KEYS if k != 'profile']}")
+        if not isinstance(st["profile"], str) or not st["profile"]:
+            raise LiveAuthorizationError("record.standing.profile must be a non-empty string")
+        cn = st.get("code_network", [])
+        if not isinstance(cn, list) or any(not isinstance(x, str) or not x for x in cn) or len(cn) > MAX_CODE_NETWORK:
+            raise LiveAuthorizationError(f"record.standing.code_network must be a list of at most {MAX_CODE_NETWORK} "
+                                         f"host patterns")
+        for x in cn:
+            try:
+                pat = D.parse_pattern(x)
+            except D.DestinationError as e:
+                raise LiveAuthorizationError(f"record.standing.code_network: {e}") from e
+            host = pat.host[2:] if pat.host.startswith("*.") else pat.host
+            if pat.kind != "url" or not host or "*" in host or "?" in host or "." not in host:
+                raise LiveAuthorizationError(f"record.standing.code_network names hosts (optionally '*.' + a domain), "
+                                             f"not {x!r}")
+        if not isinstance(st.get("note", ""), str):
+            raise LiveAuthorizationError("record.standing.note must be a string")
     for k in ("not_before", "not_after", "issued_at"):
         if isinstance(record[k], bool) or not isinstance(record[k], (int, float)):
             raise LiveAuthorizationError(f"record.{k} must be a number")
@@ -124,3 +162,9 @@ def load_public_key(path: str) -> bytes:
 
 def window(record: Dict[str, Any]) -> Tuple[float, float]:
     return float(record["not_before"]), float(record["not_after"])
+
+
+def standing(record: Dict[str, Any]) -> Dict[str, Any]:
+    """The record's standing block (``{}`` when it has none)."""
+    st = record.get("standing") if isinstance(record, dict) else None
+    return dict(st) if isinstance(st, dict) else {}

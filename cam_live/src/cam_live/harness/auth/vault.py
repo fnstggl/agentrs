@@ -11,11 +11,18 @@ can carry a secret back into an ``Observation``, a log line or an RPC response.
 Secret file (JSON)::
 
     {"name": "site_token", "value": "...", "destinations": ["https://api.example.org/*"], "scopes": ["example"],
-     "created_at": 0.0, "created_by": "operator", "revoked_at": null, "note": ""}
+     "created_at": 0.0, "created_by": "operator", "revoked_at": null, "note": "",
+     "expires_at": null, "operations": ["http.request", "publish.*"]}
+
+``expires_at`` (optional): after this time the value is never released again (it is still scrubbed).
+``operations`` (optional): globs over the operations of the granted action the value may be released for; empty =
+any operation (the platform rules of the authorization service still apply). Together with the destination binding
+this keeps a credential as narrow as the operator wants it.
 """
 from __future__ import annotations
 
 import base64
+import fnmatch
 import json
 import os
 import re
@@ -77,12 +84,19 @@ class Secret:
     created_by: str = ""
     revoked_at: Optional[float] = None
     note: str = ""
+    expires_at: Optional[float] = None
+    operations: List[str] = field(default_factory=list)
     patterns: List[D.Pattern] = field(default_factory=list, repr=False)
     forms: List[str] = field(default_factory=list, repr=False)
 
     def public(self) -> Dict[str, Any]:
-        return {"name": self.name, "destinations": list(self.destinations), "scopes": list(self.scopes),
-                "created_at": self.created_at, "revoked": self.revoked_at is not None, "note": self.note}
+        out = {"name": self.name, "destinations": list(self.destinations), "scopes": list(self.scopes),
+               "created_at": self.created_at, "revoked": self.revoked_at is not None, "note": self.note}
+        if self.expires_at is not None:
+            out["expires_at"] = self.expires_at
+        if self.operations:
+            out["operations"] = list(self.operations)
+        return out
 
 
 class SecretBroker:
@@ -130,7 +144,9 @@ class SecretBroker:
                     s = Secret(name=name, value=value, destinations=[str(x) for x in d.get("destinations", [])],
                                scopes=[str(x) for x in d.get("scopes", [])], created_at=float(d.get("created_at", 0)),
                                created_by=str(d.get("created_by", "")), revoked_at=d.get("revoked_at"),
-                               note=str(d.get("note", "")))
+                               note=str(d.get("note", "")),
+                               expires_at=float(d["expires_at"]) if d.get("expires_at") is not None else None,
+                               operations=[str(x) for x in d.get("operations", [])])
                     s.patterns = D.parse_patterns(s.destinations)
                     s.forms = variants(value)
                     secrets[name] = s
@@ -145,6 +161,10 @@ class SecretBroker:
     def _write(self, s: Secret) -> None:
         body = {"name": s.name, "value": s.value, "destinations": s.destinations, "scopes": s.scopes,
                 "created_at": s.created_at, "created_by": s.created_by, "revoked_at": s.revoked_at, "note": s.note}
+        if s.expires_at is not None:
+            body["expires_at"] = s.expires_at
+        if s.operations:
+            body["operations"] = list(s.operations)
         # random O_EXCL|O_NOFOLLOW temporary and a rename within the vault directory's fd: the operator CLI writes
         # here as root, so nothing a service uid planted is ever followed (G2-harness R3-M1)
         from .. import safefs
@@ -152,7 +172,8 @@ class SecretBroker:
 
     # -- operator side ---------------------------------------------------------------------------------------
     def put(self, name: str, value: str, destinations: Sequence[str], scopes: Sequence[str] = (),
-            by: str = "operator", note: str = "", ts: float = 0.0) -> Dict[str, Any]:
+            by: str = "operator", note: str = "", ts: float = 0.0, expires_at: Optional[float] = None,
+            operations: Sequence[str] = ()) -> Dict[str, Any]:
         if not NAME_RE.match(name or ""):
             raise ValueError("secret names are 1-64 characters of [A-Za-z0-9_.-]")
         if not isinstance(value, str) or len(value) < MIN_SECRET_LEN:
@@ -160,8 +181,15 @@ class SecretBroker:
         if not destinations:
             raise ValueError("a secret must be bound to at least one destination pattern")
         D.parse_patterns(destinations)                 # malformed binding -> refuse to store
+        if expires_at is not None and (isinstance(expires_at, bool) or not isinstance(expires_at, (int, float))
+                                       or float(expires_at) <= float(ts)):
+            raise ValueError("expires_at must be a time after the moment the secret is stored")
+        ops = [str(x) for x in operations]
+        if any(not x or any(c.isspace() for c in x) for x in ops):
+            raise ValueError("operations are non-empty operation names or globs")
         s = Secret(name=name, value=value, destinations=[str(x) for x in destinations],
-                   scopes=[str(x) for x in scopes], created_at=float(ts), created_by=str(by), note=str(note))
+                   scopes=[str(x) for x in scopes], created_at=float(ts), created_by=str(by), note=str(note),
+                   expires_at=float(expires_at) if expires_at is not None else None, operations=ops)
         with self._lock:
             self._write(s)
             self._reload()
@@ -193,7 +221,8 @@ class SecretBroker:
             return [s.public() for s in self._secrets.values()]
 
     # -- release (called only by the policy service after it validated the grant) ------------------------------
-    def release(self, name: str, destination: D.Destination) -> str:
+    def release(self, name: str, destination: D.Destination, *, now: Optional[float] = None,
+                operation: str = "") -> str:
         with self._lock:
             self._fresh()
             s = self._secrets.get(name)
@@ -201,6 +230,10 @@ class SecretBroker:
                 raise SecretError(f"no secret named {name!r}")
             if s.revoked_at is not None:
                 raise SecretError(f"secret {name!r} is revoked")
+            if s.expires_at is not None and (now is None or float(now) >= s.expires_at):
+                raise SecretError(f"secret {name!r} has expired")
+            if s.operations and not any(fnmatch.fnmatchcase(str(operation), g) for g in s.operations):
+                raise SecretError(f"secret {name!r} is not released for operation {str(operation)[:80]!r}")
             if D.match_any(destination, s.patterns) is None:
                 raise SecretError(f"secret {name!r} is not bound to {destination.key}")
             return s.value

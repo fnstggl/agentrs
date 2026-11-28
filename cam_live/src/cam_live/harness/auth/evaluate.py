@@ -60,6 +60,9 @@ class TaskCtx:
     own_process: bool = False            # loopback ports served only by this process count as registered
     rates: Dict[str, RateRule] = field(default_factory=dict)            # effective write / write_global rules
     tool_patterns: Optional[List[str]] = None   # task.resources.authorized_tools (names, globs, modality names)
+    standing_profile: str = ""           # record.standing.profile, when the policy accepts it
+    code_network_hosts: List[D.Pattern] = field(default_factory=list)   # record.standing.code_network
+    retained: List[Any] = field(default_factory=list)   # policy.standing.retained_approval rules of this mode
 
     @property
     def task_id(self) -> str:
@@ -472,6 +475,7 @@ class Evaluator:
             else:
                 ne.effects.append(("input" if tool.interact_class == "input" else "read", d))
 
+        self._retained(ne, tc, args)
         if not [d for d in ne.dests if d.kind not in ("file", "skill", "sim")]:
             self._platform(ne, None, tool, base)
             if base == "external_write" and not any(f.pid.startswith("P-DEST") for f in ne.deny):
@@ -482,8 +486,15 @@ class Evaluator:
                 ne.deny.append(Finding("P-CODE-NETWORK", f"network access for generated code is not permitted in "
                                                          f"{tc.mode.name} mode"))
             elif tc.mode.code_network == "needs_approval":
-                ne.approve.append(Finding("P-CODE-NETWORK", "network access for generated code needs the operator's "
-                                                            "approval", None, "network"))
+                hosts = [d for d in ne.dests if d.kind == "url"]
+                standing = bool(hosts) and bool(tc.code_network_hosts) and all(
+                    D.match_any(d, tc.code_network_hosts) is not None for d in hosts)
+                if not standing:      # a standing profile opens only the hosts the signed record lists
+                    ne.approve.append(Finding("P-CODE-NETWORK", "network access for generated code needs the "
+                                                                "operator's approval" + (
+                                                                    " (a host is not among the standing profile's "
+                                                                    "code_network hosts)" if tc.code_network_hosts
+                                                                    else ""), None, "network"))
             if not [d for d in ne.dests if d.kind == "url"]:
                 ne.deny.append(Finding("P-CODE-NETWORK", "network access requested without naming the hosts"))
         if tool.opaque:
@@ -537,6 +548,28 @@ class Evaluator:
         return ne
 
     # -- helpers ---------------------------------------------------------------------------------------------
+    def _retained(self, ne: NodeEval, tc: TaskCtx, args: Dict[str, Any]) -> None:
+        """Approvals no standing profile or pre-authorization removes (policy ``standing.retained_approval``):
+        irreversible operations, new external permissions, messages addressed to people, ... An operator-approved
+        grant covers them at primitive level (class ``content``)."""
+        if not tc.retained:
+            return
+        outward = [d for c, d in ne.effects if c in ("write", "input") and d.kind not in ("file", "skill", "sim")]
+        if not outward:
+            return
+        keys: Optional[Set[str]] = None
+        op = ne.node.operation
+        for r in tc.retained:
+            hit = any(fnmatch.fnmatchcase(op, g) for g in r.ops) or bool(ne.method and ne.method in r.methods) or \
+                any(d.kind == "url" and any(fnmatch.fnmatchcase(d.path or "/", g) for g in r.paths) for d in outward)
+            if not hit and r.fields:
+                if keys is None:
+                    keys = {norm_field(k) for k, _ in walk_keys(expand(args))}
+                hit = bool(keys & set(r.fields))
+            if hit:
+                ne.approve.append(Finding(r.id, f"{r.reason} ({r.cls}: approval is retained whatever is "
+                                                f"pre-authorized)", outward[0], "content"))
+
     def secret_platform(self, name: str) -> str:
         """The integrated platform a stored credential belongs to (by its vault scopes or its known name)."""
         n = str(name or "")

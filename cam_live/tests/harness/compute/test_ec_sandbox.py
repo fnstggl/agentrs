@@ -645,8 +645,8 @@ def test_scoped_network_sends_every_connection_through_the_policy_check(sandbox,
             return c.AuthVerdict.ALLOW if ok else c.AuthVerdict.DENY
         return c.AuthVerdict.ALLOW
     policy = policy_cls(rule)
-    res = ex.execute(act("sandbox.python", code=FETCH, args=[str(allowed), str(blocked)], network="scoped"),
-                     make_ctx(policy))
+    res = ex.execute(act("sandbox.python", code=FETCH, args=[str(allowed), str(blocked)], network="scoped",
+                         hosts=[f"127.0.0.1:{allowed}"]), make_ctx(policy))
     assert res.status == c.ResultStatus.OK, data(res)
     out = json.loads(data(res)["stdout"])
     assert out["get"] == f"served /hello by {allowed}"
@@ -674,7 +674,7 @@ def test_scoped_network_refuses_private_destinations_unless_configured(sandbox, 
     policy = policy_cls()
     code = (f"import urllib.request\ntry:\n    print(urllib.request.urlopen('http://127.0.0.1:{allowed}/x', timeout=5).read())\n"
             f"except Exception as e:\n    print('refused', e)")
-    res = ex.execute(act("sandbox.python", code=code, network="scoped"), make_ctx(policy))
+    res = ex.execute(act("sandbox.python", code=code, network="scoped", hosts=[f"127.0.0.1:{allowed}"]), make_ctx(policy))
     assert "refused" in data(res)["stdout"] and "served" not in data(res)["stdout"]
     assert policy.ops("net.connect") == [] and data(res)["connections"][0]["status"] == "denied"
 
@@ -684,7 +684,7 @@ def test_scoped_network_reaches_children_started_by_the_job(sandbox, make_ctx, a
     ex = sbx.SandboxExecutor(sandbox=sandbox(allow_private_destinations=True))
     cmd = (f"python -c \"import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:{allowed}/child').read().decode())\"\n"
            f"curl -s -m 3 http://127.0.0.1:{allowed}/curl; echo curl_rc=$?")
-    res = ex.execute(act("sandbox.shell", command=cmd, network="scoped"), make_ctx())
+    res = ex.execute(act("sandbox.shell", command=cmd, network="scoped", hosts=[f"127.0.0.1:{allowed}"]), make_ctx())
     out = data(res)["stdout"]
     assert f"served /child by {allowed}" in out
     assert "served /curl" not in out and "curl_rc=0" not in out      # only Python gets the shim: stated in capabilities
