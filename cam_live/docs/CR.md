@@ -12,12 +12,12 @@ Every number below comes from a command named next to it; raw outputs are listed
 
 ## Summary
 
-* **Why the selection failed** (section 1): not one cause. (i) In D's lab the failure is seed-specific: with weakly
-  heterogeneous mechanisms (seed 0) both estimators under-resolve the mechanisms (slopes 0.36 / 0.19 against the true
-  effects) and fail; with strongly heterogeneous ones (seed 1) both *pass* the old gate (RUDDER 1.42, COCOA 2.73).
-  RUDDER was under-trained: with 4x the updates on the same data it reaches the ideal learner's level in both seeds
-  tried (seed 0: 6.72 -> 3.53, ideal 3.10; seed 2: 14.0 -> 2.28, passing); COCOA is unstable with training length
-  (seed 0: 10.9 -> 32.0; seed 2: 3.43 -> 2.81).
+* **Why the selection failed** (section 1): not one cause. (i) In D's lab it depends on the seed and on the training
+  budget: at D's 400 updates seed 0 (weakly heterogeneous mechanisms) fails because both estimators under-resolve the
+  mechanisms (slopes 0.36 / 0.19), seed 2 because of RUDDER's bias (14.0), and in seed 1 both *pass* the old gate
+  (RUDDER 1.42, COCOA 2.73). RUDDER was under-trained: with 4x the updates on the same data it reaches the ideal
+  learner's level in both seeds tried (seed 0: 6.72 -> 3.53, ideal 3.10; seed 2: 14.0 -> 2.28, passing both rules);
+  COCOA is unstable with training length (seed 0: 10.9 -> 32.0; seed 2: 3.43 -> 2.81).
   (ii) The gate rejects an ideal learner at realistic sizes (it ignores the estimator's own training error; ideal
   learner with as much training data as experiment data passes 79 %, a perfectly calibrated estimator at 2 units per
   arm 60 %). (iii) In the integrated agent the comparison was impossible by construction (closed lifetimes only,
@@ -69,7 +69,7 @@ Findings (each measured, raw JSON in section 7):
    code (the channels' features are observed). The estimand problem is real elsewhere: when experiments differ by a
    mechanism the decision cannot see, even the best estimate given the information state fails the per-experiment
    gate (`tests/credit/test_cr.py::test_the_per_experiment_gate_rejects_the_best_estimate_at_the_information_state_the_pooled_rule_does_not`).
-2. **The failure is seed-specific: low effect heterogeneity relative to noise.** In seed 0 the true effects span
+2. **At 400 updates the failure is seed-specific (low effect heterogeneity relative to noise in seed 0).** In seed 0 the true effects span
    3.9-8.7 (between-mechanism sd 1.8) while each experiment's measured difference has a standard error of 1.0-2.6;
    RUDDER and COCOA shrink strongly toward the average effect (slopes 0.36 and 0.19, correlation 0.44 and 0.40) and
    fail. In seed 1 the effects span 3.8-43 and **both pass the old gate** (RUDDER 1.42, COCOA 2.73; slopes 0.89 /
