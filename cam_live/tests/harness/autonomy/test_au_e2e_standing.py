@@ -208,3 +208,46 @@ def test_a_skill_induced_from_successful_deployments_is_reused_without_operator_
     assert "/sites/cam/faq.html" in w["files"] and "/sites/cam/faq.html" not in before
     assert "faq.html" in w["files"]["/sites/cam/index.html"].decode()
     assert not [x for x in w["svc"].approvals() if x["status"] == "pending"]
+
+
+@pytest.mark.parametrize("standing", [True, False])
+def test_publishing_to_the_operators_site_under_the_standing_profile(tmp_path, standing):
+    """The publishing adapter on an owned static site (a directory the operator's web server serves): with the
+    profile a previewed draft is published without approval; without it the same submission waits."""
+    root = tmp_path / "site"
+    root.mkdir()
+    run_dir = str(tmp_path / "run")
+    os.makedirs(run_dir)
+    base = "https://cam-site.example"
+    task = C.TaskSpec(objective_id=f"obj-au-pub-{int(standing)}", objective="publish on the owned site", mode="live",
+                      interfaces=["api", "internal"],
+                      resources={"owned_sites": [{"name": "site", "root": str(root), "base_url": base}]},
+                      limits=C.Limits(duration_s=3600, money=1.0, max_external_actions=20, max_decisions=20,
+                                      compute_s=60))
+    svc = PolicyService(run_dir, fsync=False)
+    priv = install_operator_key(svc, tmp_path)
+    rec = authorize_live.build_record(task, hours=1.0, owned=[] if standing else [base + "/*"], read=[],
+                                      preauthorized=[], accounts=[], issued_by="operator",
+                                      standing=PROFILE if standing else "")
+    assert (base + "/*" in rec["preauthorized"]) == standing
+    svc.register_live_authorization(liveauth.sign_live_authorization(rec, priv), "operator")
+    env = ComputerEnvironment(run_dir, svc, secrets=svc.secrets_handle(), provenance="staging")
+    for ex in all_executors(run_dir, env=env, policy=svc, task=task, browser_enabled=False,
+                            exclude=("code", "visual", "skill")):
+        env.register(ex)
+    w = dict(svc=svc, env=env, task=task)
+    try:
+        _, _, res = run(w, "publish.draft", destination="site", path="notes/today.html", content="<p>today</p>")
+        assert res.status == C.ResultStatus.OK, res.failure_detail
+        draft = res.observations[-1].data.get("draft_id") or res.artifacts.get("draft_id")
+        _, _, res = run(w, "publish.preview", draft_id=draft)
+        sub = res.observations[-1].data.get("submit_arguments") or {"draft_id": draft}
+        a, d, res = run(w, "publish.submit", expect=ALLOW if standing else NEEDS, **sub)
+        if standing:
+            assert res.status == C.ResultStatus.OK, (res.failure_class, res.failure_detail)
+            assert (root / "notes" / "today.html").read_text() == "<p>today</p>"
+        else:
+            assert "P-PUBLISH-APPROVAL" in d.policy_ids and not (root / "notes").exists()
+    finally:
+        env.close()
+        svc.close()
