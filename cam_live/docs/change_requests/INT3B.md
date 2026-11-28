@@ -49,3 +49,30 @@ In the whole suite run in ONE process (INT3B final run, 2026-11-28) `test_meta_c
 bound (1e-5 of the update norm) is tighter than the reduction-order noise of a different thread count.
 **Proposed.** Set the thread count inside the test (or a fixture) rather than at import, or bound by an absolute
 floating-point floor (e.g. `max(1e-5 * norm, 1e-6)`).
+
+## INT3B-6 (authorization service, `harness/auth/policy.py`, owner H): an approval's grant reserves, and the identical re-authorization reserves again (G2I-15)
+
+**Measured (G2-integration run B, `p08_approval_trace.py`).** `resolve_approval(..., approve=True)` ends in
+`authorize`, which issues a grant and reserves the action's budget (`grants.reserve_json`, counted by
+`limits.check` as "incl. reserved"). The runtime, told by the operator's notice that the approval was resolved,
+asked `authorize` again for the identical action: a second grant, a second reservation, and with
+`max_external_actions` 2 (one used by the harness's navigation) the service refused it — `used 2 incl. reserved,
+requested 1, limit 2` — so the approved action was never executed. The first grant stays reserved until its TTL.
+**Done in the runtime (INT3B, owned files).** `OperatorControl` (the path of `cam-live approve` / the dashboard)
+relays the approval's grant with its signed `approval_notice`; the runtime checks it with the service
+(`check_grant(..., consume=False)`) and executes the action with it, without a second `authorize`
+(`test_the_operators_approval_grant_is_used_so_the_budget_is_not_reserved_twice`). The run log names the relayed
+grant without copying its token.
+**Still open in the service.** An operator who approves with another tool that does not relay the grant (or a
+runtime that never received the notice) still re-authorizes and reserves twice. **Proposed.** In `_authorize`, when
+an APPROVED approval of the same binding already has an `issued`, unused grant, close (or return) that grant instead
+of issuing and reserving a second one; or release the unused grant's reservation when a newer grant for the same
+approval is issued.
+
+## INT3B-7 (validation, informational): what the default staging validation can and cannot guarantee
+
+`approvals_exercised` needs the learner to choose, in the approvals objective, at least two interactions with the
+staging site that need the operator's approval (the first is approved and must execute, the second is rejected).
+The validation never steers that choice (operator rule: CAM authors its own plan), so a run in which the learner
+makes fewer than two such requests fails the check honestly. The time box (G2I-11) cannot pre-empt a learner call
+once started: the first call of a kind, or one much slower than the five before it, can end after the deadline.

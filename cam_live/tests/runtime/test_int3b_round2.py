@@ -389,6 +389,57 @@ def test_an_approved_action_refused_at_re_authorization_is_not_reported_as_rejec
     lab.rt.close()
 
 
+def test_the_operators_approval_grant_is_used_so_the_budget_is_not_reserved_twice(tmp_path):
+    """G2I-15 (cause): `cam-live approve` resolves at the service, whose approval grant reserves the action's budget;
+    the runtime then asked the service again, and that second reservation hit the limit (run B, p08). The grant of
+    the approval now reaches the runtime with the operator's signed notice and the approved action executes."""
+    from cam_live.contracts import AuthorizationDecision, AuthVerdict
+    from cam_live.diagnostics.world import LabConfig
+    from cam_live.runtime.control import OperatorControl
+    from cam_live.runtime.logs import RunReader
+    from cam_live.runtime.loop import RuntimeConfig
+    from rt_helpers import ApprovalPolicy, make_lab
+
+    class ReservingPolicy(ApprovalPolicy):
+        def resolve_approval(self, approval_id, approve, by, note=""):
+            out = super().resolve_approval(approval_id, approve, by, note)
+            if approve and out.verdict == AuthVerdict.ALLOW:
+                self.queue[approval_id]["reserved"] = True
+                out.grant = "grant-of-the-approval"
+            return out
+
+        def authorize(self, action, task, context=None):
+            for e in self.queue.values():
+                if e["action_hash"] == action.content_hash() and e.get("reserved"):
+                    return AuthorizationDecision(AuthVerdict.DENY, e["action_hash"],
+                                                 ["resource: max_external_actions exhausted (used 2 incl. reserved, "
+                                                  "requested 1, limit 2)"], policy_ids=["L-EXTERNAL-ACTIONS"])
+            return super().authorize(action, task, context)
+
+        def check_grant(self, action, decision):
+            return decision.grant in ("diag", "grant-of-the-approval")
+    policy = ReservingPolicy(("lab.unlock",))
+    lab = make_lab(str(tmp_path / "run"), lab_cfg=LabConfig(seed=3, target=10000), policy=policy,
+                   agent_kw={"only_ops": ["lab.unlock", "lab.probe"]}, rt_cfg=RuntimeConfig(fsync=False))
+    for _ in range(40):
+        lab.rt.step()
+        if policy.queue:
+            break
+    (aid,) = list(policy.queue)
+    lab.agent.only_ops = {"lab.probe"}
+    OperatorControl(lab.run_dir, policy=policy).approve(aid, "ok")       # what `cam-live approve` does
+    for _ in range(6):
+        lab.rt.step()
+    r = RunReader(lab.run_dir)
+    res = [e["data"] for e in r.records(RunFiles.EVENTS, types=["action_result"]) if e["data"].get("approval_id") == aid
+           and e["data"]["kind"] != "queued"]
+    assert [d["kind"] for d in res] == ["execute"], res                  # a5ab772: refused (reserved twice)
+    logged = [e["data"]["args"] for e in r.records(RunFiles.EVENTS, types=["operator_command"])
+              if e["data"]["cmd"] == "approval_notice"]
+    assert logged and "grant-of-the-approval" not in str(logged)        # the token is not copied into the run log
+    lab.rt.close()
+
+
 def test_obstacles_unknown_class_is_informational_and_learning_links_need_use():
     from cam_live.contracts import ActionResult, ActionSpec, FailureClass, LearningUpdateRecord, ResultStatus, SimClock
     from cam_live.runtime.logs import RunLog
@@ -567,3 +618,52 @@ def test_exports_and_reports_are_disk_guarded_and_doctor_uses_the_storage_sectio
     c = CamLiveConfig.load(str(cfg))
     d = {x["name"]: x for x in doctor.storage_checks(c)}["disk"]
     assert d["ok"] is False and "minimum 1e+09 GB" in d["detail"]       # a5ab772: a fixed 20 GB
+
+
+# ---------------------------------------------------------------------------------------------------------- G2I-11
+def test_the_validation_holds_the_gpu_no_longer_than_its_budget_within_a_step(tmp_path):
+    """G2I-11: `budget_s` was checked only between runtime steps (run A: 1095 s held with 780). A learner that uses
+    the learning budget it is given (here up to 20 s) is now given at most the time left, and no step is started that
+    would not fit, so the phase ends close to its budget (2 s) instead of a whole step later."""
+    import time
+    from cam_live.validation import OffsetClock, phase_lab
+    from rt_lab_agent import LabAgent
+    clock = OffsetClock()
+    agent = LabAgent(clock)
+    agent.attach_verifier = lambda v: None
+    given = []
+    orig = agent.learn
+
+    def learn(budget_s):
+        given.append(float(budget_s))
+        time.sleep(min(float(budget_s), 20.0))
+        return orig(budget_s)
+    agent.learn = learn
+    t0 = time.time()
+    out = phase_lab(agent, clock, str(tmp_path / "lab"), [101, 102], 3, 2.0, target=6)
+    took = time.time() - t0
+    assert given and max(given) <= 2.0                 # a5ab772: the runtime's 30 s learning budget
+    assert took < 8.0, (took, given)                   # a5ab772: >= 20 s (one learning call of the first step)
+    assert out["lifetimes"] and out["lifetimes"][0]["status"] != "running"
+
+
+# ---------------------------------------------------------------------------------------------------------- G2I-3
+def test_validate_has_options_for_lifetimes_and_meta_evidence_and_working_defaults(monkeypatch, tmp_path):
+    """G2I-3: INT3B run 2's configuration (six lifetimes, 3 independent groups) was not reachable through
+    `cam-live validate`; the defaults now are that configuration, with the approvals before the limit."""
+    import inspect
+    from cam_live.runtime import cli
+    from cam_live.validation import run_staging
+    d = {k: p.default for k, p in inspect.signature(run_staging).parameters.items()}
+    assert d["meta_min_independent"] == 3 and d["budget_s"] <= 840.0 and d["n_decisions"] == 48   # a5ab772: 4, 780, 40
+    assert d["reject_every"] == 2 and d["lab_lifetimes"] == 0 and d["lab_seeds"] is None
+    seen = {}
+
+    def fake(cfg, **kw):
+        seen.update(kw)
+        return {"ok": False}
+    monkeypatch.setattr(cli, "load_hook", lambda spec, what: fake)
+    monkeypatch.setenv("CAM_LIVE_HOME", str(tmp_path / "home"))
+    assert cli.main(["validate", "--mode", "staging", "--debug", "--lab-lifetimes", "5", "--compute-limit-s", "40",
+                     "--meta-min-independent", "2", "--out", str(tmp_path / "v")]) == 1
+    assert seen["lab_lifetimes"] == 5 and seen["compute_limit_s"] == 40.0 and seen["meta_min_independent"] == 2

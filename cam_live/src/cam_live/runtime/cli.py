@@ -291,6 +291,10 @@ def cmd_validate(a: argparse.Namespace) -> int:
         kw["meta_min_independent"] = int(a.meta_min_independent)
     if getattr(a, "computer_share", 0.0):
         kw["computer_share"] = float(a.computer_share)
+    if getattr(a, "lab_lifetimes", 0):
+        kw["lab_lifetimes"] = int(a.lab_lifetimes)
+    if getattr(a, "compute_limit_s", 0.0):
+        kw["compute_limit_s"] = float(a.compute_limit_s)
     report = run_staging(cfg, **_accepted(run_staging, kw))
     out = os.path.join(kw.get("out_dir") or os.path.join(cfg.resolved_home(), "validation"), "staging_report.json")
     atomic_write_json(out, report)
@@ -993,13 +997,20 @@ def build_parser() -> argparse.ArgumentParser:
                    help="the configured backbone and core on the GPU (default)")
     g.add_argument("--debug", "--cpu", dest="debug", action="store_true",
                    help="tiny random backbone + debug core on the CPU (plumbing check, not evidence about learning)")
-    p.add_argument("--decisions", type=int, default=0, help="number of decisions (0: the validation's default)")
+    p.add_argument("--decisions", type=int, default=0, help="number of decisions (0: the validation's default, 48: "
+                   "12 in the computer environment - 8 with operator approvals, then 4 under a compute limit - and "
+                   "the rest shared by the LabWorld lifetimes)")
     p.add_argument("--out", default="", help="directory for the run (default: <home>/validation/staging_<ts>)")
     p.add_argument("--evidence-dir", default="", help="also write the evidence file here")
-    p.add_argument("--budget-s", type=float, default=0.0, help="seconds the GPU lock may be held for the learning "
-                   "phases (0: the validation's default; keep it <= ~840 on a shared GPU)")
+    p.add_argument("--budget-s", type=float, default=0.0, help="seconds the shared GPU lock is held at most, building "
+                   "the agent and the final measurements included (0: the validation's default, 840; keep it <= 840 "
+                   "on a shared GPU)")
     p.add_argument("--meta-min-independent", type=int, default=0, help="independent verified groups a reward "
-                   "meta-update needs in this validation (0: the validation's default, 4)")
+                   "meta-update needs in this validation (0: the validation's default, 3; one per LabWorld lifetime)")
+    p.add_argument("--lab-lifetimes", type=int, default=0, help="LabWorld lifetimes, each an independently verified "
+                   "objective (0: the validation's default, 6)")
+    p.add_argument("--compute-limit-s", type=float, default=0.0, help="learner seconds allowed to the computer "
+                   "environment's limit objective (0: the validation's default, 8 per decision of it)")
     p.add_argument("--computer-share", type=float, default=0.0, help="share of the decisions in the computer phase")
     p.add_argument("--seed", type=int, default=0)
     p = add("inspect-harness", cmd_inspect_harness, "list available tools, permissions and missing integrations")

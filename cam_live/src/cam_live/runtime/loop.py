@@ -161,6 +161,15 @@ def look_grant(policy: Any, action: ActionSpec, auth: AuthorizationDecision) -> 
     return bool(fn(action, auth, consume=False)) if takes else bool(fn(action, auth))
 
 
+def _logged_args(args: Any) -> Any:
+    """A command's arguments as the run log records them: a relayed grant (G2I-15) is named, not copied."""
+    if isinstance(args, dict) and "grant" in args:
+        g = args.get("grant") if isinstance(args.get("grant"), dict) else {}
+        return {**args, "grant": {"verdict": g.get("verdict", ""), "approval_id": g.get("approval_id", ""),
+                                  "token": "(signed grant of the authorization service; not logged)"}}
+    return args
+
+
 def action_signature(a: ActionSpec) -> str:
     """Identity of *what an action does* (independent of its id), used to recognise a re-proposal."""
     def core(x: ActionSpec) -> Dict[str, Any]:
@@ -843,7 +852,7 @@ class LiveRuntime:
             for k in list(self._control_results)[:-200]:
                 del self._control_results[k]
             self.log.event("operator_command", {"id": cid, "cmd": cmd, "by": by, "declared_by": c.get("by"),
-                                                "authenticated": signed, "args": c.get("args"), "ok": ok,
+                                                "authenticated": signed, "args": _logged_args(c.get("args")), "ok": ok,
                                                 "detail": detail},
                            consequential=True, trust=Trust.OPERATOR if signed else Trust.UNTRUSTED)
         if new:
@@ -873,6 +882,12 @@ class LiveRuntime:
                                         str(args.get("note", ""))[:200])
         if cmd == "approval_notice":
             self._triggers.append("approval_notice")
+            aid, grant = str(args.get("approval_id", "")), args.get("grant")
+            a = self.approvals.get(aid)
+            if (isinstance(grant, dict) and self._cmd_in_progress is not None and a is not None
+                    and a.get("status") == "pending"):
+                # G2I-15: the grant issued when the operator approved (signed notice only); checked at refresh
+                self._approval_raw.setdefault(aid, {})["notice_auth"] = dict(grant)
             return True, "approvals will be re-read from the authorization service"
         if cmd == "wake":
             self._triggers.append("operator_wake")
@@ -1023,9 +1038,22 @@ class LiveRuntime:
                 a.update(status="rejected", resolved_at=self.clock.now(), note=str((e or {}).get("note", ""))[:200])
                 changed = True
                 continue
-            # approved there, or no longer listed: the authorization service is asked again and is the only judge
+            # approved there, or no longer listed. G2I-15: the grant the service issued at the approval (relayed by
+            # the operator's signed notice) is used when the service confirms it for this exact action — asking
+            # again would issue a second grant and reserve the action's budget a second time; otherwise the
+            # authorization service is asked again and is the only judge
+            notice = raw.pop("notice_auth", None)
+            auth = None
+            if isinstance(notice, dict) and state in ("approved", "allow", "allowed", ""):
+                try:
+                    cand = AuthorizationDecision.from_dict(notice)
+                    if (cand.verdict == AuthVerdict.ALLOW and cand.action_hash == decision.chosen.content_hash()
+                            and look_grant(self.policy, decision.chosen, cand)):
+                        auth = cand
+                except Exception as ex:  # noqa: BLE001 — not usable: ask the service again
+                    self._note_error("authorization", "check_grant", ex)
             try:
-                auth = self.policy.authorize(decision.chosen, self.task, self._auth_context(decision))
+                auth = auth or self.policy.authorize(decision.chosen, self.task, self._auth_context(decision))
             except Exception as ex:  # noqa: BLE001
                 self._note_error("authorization", "authorize", ex)
                 continue

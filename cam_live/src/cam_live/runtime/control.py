@@ -315,8 +315,15 @@ class OperatorControl:
     def _resolve(self, approval_id: str, approve: bool, note: str) -> str:
         if self.policy is not None:
             decision = self.policy.resolve_approval(approval_id, approve, self.by, note)
+            extra: Dict[str, Any] = {}
+            to_dict = getattr(decision, "to_dict", None)
+            if approve and getattr(decision, "verdict", "") == "allow" and getattr(decision, "grant", "") and callable(to_dict):
+                # G2I-15: the grant the service issued (and reserved the action's budget for) when the operator
+                # approved goes to the runtime with the signed notice; the runtime executes the action with it after
+                # checking it, instead of asking the service again (a second grant would reserve the budget twice)
+                extra["grant"] = to_dict()
             return self._send("approval_notice", approval_id=approval_id, approved=bool(approve), note=note,
-                              verdict=getattr(decision, "verdict", ""))
+                              verdict=getattr(decision, "verdict", ""), **extra)
         return self._send("approve" if approve else "reject", approval_id=approval_id, note=note)
 
     def approve(self, approval_id: str, note: str = "") -> str:
