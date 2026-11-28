@@ -15,6 +15,8 @@ Every number below comes from a command named next to it; raw outputs are listed
 * **Why the selection failed** (section 1): not one cause. (i) In D's lab the failure is seed-specific: with weakly
   heterogeneous mechanisms (seed 0) both estimators under-resolve the mechanisms (slopes 0.36 / 0.19 against the true
   effects) and fail; with strongly heterogeneous ones (seed 1) both *pass* the old gate (RUDDER 1.42, COCOA 2.73).
+  RUDDER was under-trained: with 4x the updates on the same data it resolves the mechanisms like an ideal learner
+  (slope 1.25, mean z^2 3.53 vs the ideal learner's 3.10); COCOA instead degrades with longer training (32.0).
   (ii) The gate rejects an ideal learner at realistic sizes (it ignores the estimator's own training error; ideal
   learner with as much training data as experiment data passes 79 %, a perfectly calibrated estimator at 2 units per
   arm 60 %). (iii) In the integrated agent the comparison was impossible by construction (closed lifetimes only,
@@ -49,6 +51,7 @@ learner can know from the actual training data: the training lifetimes' arm diff
 | seed 0, 12 per mechanism | 4.28 / 7.71 / 2.37 / 0.41 / 7.73 | 0.48 / 0.15 / 1.77 |
 | seed 1, 48 per mechanism | **1.42 / 2.73** / 0.56 / 0.38 / 161 | 0.89 / 1.40 / 1.11 |
 | seed 0, 144 per mechanism | 6.00 / 5.17 / 2.37 / 2.35 / 7.73 | 0.59 / 0.48 / 1.26 |
+| seed 0, 48 per mechanism, **1600 updates** (D: 400) | **3.53** / 32.0 / 2.37 / 3.10 / 7.73 | **1.25** / -0.16 / 1.24 |
 
 Findings (each measured, raw JSON in section 7):
 
@@ -82,8 +85,14 @@ Findings (each measured, raw JSON in section 7):
 
    At the agent's minimum of 2 matured held-out units per arm, a perfectly calibrated estimator fails 40 % of the
    time (the paired SE rests on 1 degree of freedom per arm). Validation at 0.5 sd precision needs ~100+ units.
-4. **Estimator limitation, not a defect found:** where effects are distinguishable (seed 1) both estimators track
-   them; where they are not, they under-resolve the mechanism. COCOA additionally has a pooled bias of -1.48 in seed 0
+4. **RUDDER was under-trained; COCOA is unstable under longer training** (one run, seed 0, same 48 training
+   lifetimes, 1600 instead of 400 updates): RUDDER's slope rises from 0.36 to 1.25 (correlation 0.88; the ideal
+   learner's 1.24 / 0.85) and its mean z^2 falls from 6.72 to 3.53 - as close to the gate as the ideal learner on
+   the same data (3.10), so the remaining failure is the gate's (finding 3). COCOA degrades: its estimates turn
+   negative for five of six positive effects (mean z^2 32.0, pooled bias -6.15, refused by the pooled rule too): the
+   learned hindsight model overfits with training length - an estimator weakness, and the reason a fixed training
+   budget cannot be trusted to validate it once. Where effects are distinguishable (seed 1) both estimators track
+   them at 400 updates. COCOA additionally has a pooled bias of -1.48 in seed 0
    (90 % CI [-2.71, -0.25]) and underestimates the largest effect strongly (3.7 vs measured 11.9). RUDDER's pooled
    bias is +1.53 (CI [0.40, 2.67]) in seed 0, -2.49 (SE 1.86) in seed 1.
 5. **In the integrated agent the comparison could not run at all, by construction (KF-R14):** learned credit needed a
@@ -266,6 +275,6 @@ in `docs/evidence/CR/`.
 * The integrated ablation is debug scale (tiny random backbone, schema-walker candidates) and LabWorld only; the
   real-configuration runs are in section 5.
 * Under the master's CPU rule (10:50 UTC) the last 12 ablation runs were paused (SIGSTOP) and resumed one at a time;
-  the runtime uses a simulated clock, so only wall-clock learning budgets could be affected. A 1600-update lab run
-  (optimisation-limited vs data-limited) was stopped and is not reported.
+  the runtime uses a simulated clock, so only wall-clock learning budgets could be affected. The 1600-update lab run
+  (section 1, finding 4) is a single seed.
 * The live run's estimator selection is untouched until restart; no live-run directory was written.
