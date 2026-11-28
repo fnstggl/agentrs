@@ -1,4 +1,4 @@
-# cd cam_live && ../.venv/bin/python -I docs/evidence/DOC/scripts/math_check.py   (commit 5ae3b59, 2026-11-27T23:36:26Z)
+# cd cam_live && CUDA_VISIBLE_DEVICES= ../.venv/bin/python -I docs/evidence/DOC/scripts/math_check.py   (re-run at commit fdab7d3, 2026-11-28T07:16:41Z, exit 0: the five numbered lines are identical to the runs at 55a0f4c and 5ae3b59 (2026-11-27T23:36:26Z))
 1 nig var 0.5855510234832764 0.5855510196979249
 2 prior beta mean [1.002434234701451, 0.0005748406551640187] lambda mean 0.35654810302699363 share>0 0.49905
 3 floor [[0.985, 0.005, 0.005, 0.005]]
