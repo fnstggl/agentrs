@@ -177,8 +177,13 @@ run. This is an engineering diagnostic (debug model, synthetic stream), not evid
   record, decision-time rows resolved live, the learner's re-encodings resolved to stored positions, a stored
   decision re-encoded = its position's state to 1e-6; checkpoint → rebuilt agent → `load` → consistent restore and
   the same live state; a checkpoint written with the chain off restores with `legacy_checkpoint`, `ρ = 0`, and every
-  stored and decision-time belief bit-identical to the old agent's. Both pass in the final `tests/nn` run (JUnit
-  `docs/evidence/test_results/PS_fix.xml`: 119 passed, 13 skipped (`-m gpu` / `-m slow`), 0 failed, 79 s).
+  stored and decision-time belief bit-identical to the old agent's; a third test checks, with the chain on, that the
+  learned behaviour lives in the weights at equal (initial) chain state and that a weights-only export rebuilt by
+  `load_exported_model` matches the agent at the initial chain state. Final run on a clean snapshot of `551ff3b`
+  (default off): `tests/integration` + `tests/nn` 205 passed, 16 skipped (`-m gpu` / `-m slow`), 0 failed, 18 min
+  (JUnit `docs/evidence/test_results/PS_fix.xml`); the same snapshot with the default flipped on:
+  `test_agent_runtime.py`, `test_int2_checkpoints.py`, `test_agent_recovery.py` 15 passed
+  (`docs/evidence/PS/snapshot_551ff3b_chain_on_tests.xml`).
   `tests/integration/test_agent_recovery.py` (kill -9 mid-run and restart without duplicate actions; save → fresh
   process → load gives identical decisions to 1e-6) passes with the chain on: both tests on the patched copy, the
   kill -9 test also in the repository (ST reports the whole file passing on its integration snapshot). (An earlier failure of the kill -9 test on the patched copy was my artefact: that copy had
