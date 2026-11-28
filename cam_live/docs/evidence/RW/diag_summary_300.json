@@ -432,6 +432,147 @@
    ],
    "seeds_with_positive_gain": 3,
    "seeds_with_a_promotion": 0
+  },
+  "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/RW/diag/long300_query_direct_all.json": {
+   "arm": "query",
+   "utility": "direct",
+   "half_life_s": 86400.0,
+   "lr_reward": 0.003,
+   "runs": [
+    {
+     "seed": 0,
+     "decisions": 300,
+     "meta_applied": 22,
+     "mix_changes": [],
+     "mix_end": 1.0,
+     "label_end": "bootstrap",
+     "first_mix_change_decision": null,
+     "first_divergence_from_frozen": null,
+     "identical_to_frozen_before_first_mix_change": true,
+     "pairs": 149,
+     "informative_pairs": 99,
+     "concordance_learned": {
+      "mean": -0.087248322147651,
+      "lower": -0.33475339781660174,
+      "upper": 0.11618257665217979
+     },
+     "frozen_concordance_learned": {
+      "mean": -0.11409395973154363,
+      "lower": -0.3552908099017178,
+      "upper": 0.09404225053473825
+     },
+     "agreement_gain_over_frozen_init": 0.02684563758389262,
+     "concordance_bootstrap": {
+      "mean": 0.0,
+      "lower": -0.09903032091581032,
+      "upper": 0.09903032091581032
+     },
+     "learned_concordance_by_third_of_pairs": [
+      -0.1836734693877551,
+      -0.08163265306122448,
+      0.0
+     ],
+     "e_values_at_mix_1": {
+      "e_learned_vs_mix": 1.0,
+      "e_bootstrap_vs_mix": 1.0
+     },
+     "truth_chosen_mean_after_first_change": null,
+     "frozen_truth_chosen_mean_same_decisions": null,
+     "truth_difference_after_first_change": null,
+     "truth_difference_ci95_decisions": null
+    },
+    {
+     "seed": 1,
+     "decisions": 300,
+     "meta_applied": 28,
+     "mix_changes": [],
+     "mix_end": 1.0,
+     "label_end": "bootstrap",
+     "first_mix_change_decision": null,
+     "first_divergence_from_frozen": null,
+     "identical_to_frozen_before_first_mix_change": true,
+     "pairs": 149,
+     "informative_pairs": 108,
+     "concordance_learned": {
+      "mean": 0.0,
+      "lower": -0.23851668934694104,
+      "upper": 0.23539316603895188
+     },
+     "frozen_concordance_learned": {
+      "mean": 0.0,
+      "lower": -0.22348895499225296,
+      "upper": 0.24999006704957782
+     },
+     "agreement_gain_over_frozen_init": 0.0,
+     "concordance_bootstrap": {
+      "mean": 0.0,
+      "lower": -0.09903032091581032,
+      "upper": 0.09903032091581032
+     },
+     "learned_concordance_by_third_of_pairs": [
+      -0.10204081632653061,
+      0.16326530612244897,
+      -0.058823529411764705
+     ],
+     "e_values_at_mix_1": {
+      "e_learned_vs_mix": 0.27797900605643167,
+      "e_bootstrap_vs_mix": 1.0
+     },
+     "truth_chosen_mean_after_first_change": null,
+     "frozen_truth_chosen_mean_same_decisions": null,
+     "truth_difference_after_first_change": null,
+     "truth_difference_ci95_decisions": null
+    },
+    {
+     "seed": 2,
+     "decisions": 300,
+     "meta_applied": 23,
+     "mix_changes": [],
+     "mix_end": 1.0,
+     "label_end": "bootstrap",
+     "first_mix_change_decision": null,
+     "first_divergence_from_frozen": null,
+     "identical_to_frozen_before_first_mix_change": true,
+     "pairs": 150,
+     "informative_pairs": 83,
+     "concordance_learned": {
+      "mean": 0.12666666666666668,
+      "lower": -0.09215975220446238,
+      "upper": 0.32005691505096223
+     },
+     "frozen_concordance_learned": {
+      "mean": -0.22,
+      "lower": -0.4183627475715832,
+      "upper": -0.019527459463040353
+     },
+     "agreement_gain_over_frozen_init": 0.3466666666666667,
+     "concordance_bootstrap": {
+      "mean": 0.0,
+      "lower": -0.0983701187763717,
+      "upper": 0.0983701187763717
+     },
+     "learned_concordance_by_third_of_pairs": [
+      -0.06,
+      0.32,
+      0.12
+     ],
+     "e_values_at_mix_1": {
+      "e_learned_vs_mix": 5.581870180733333,
+      "e_bootstrap_vs_mix": 1.0
+     },
+     "truth_chosen_mean_after_first_change": null,
+     "frozen_truth_chosen_mean_same_decisions": null,
+     "truth_difference_after_first_change": null,
+     "truth_difference_ci95_decisions": null
+    }
+   ],
+   "agreement_gain_over_frozen_init": [
+    0.02684563758389262,
+    0.0,
+    0.3466666666666667
+   ],
+   "seeds_with_positive_gain": 2,
+   "seeds_with_a_promotion": 0
   }
  }
 }

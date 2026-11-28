@@ -190,6 +190,9 @@ c_0 of R_psi with its 95 % confidence sequence; "gain" = agreement minus the fro
 | pooled (direct, half-life 86400 s, lr 0.0001) | 0 | 300 | 49 | -0.27 / 0.04 / 0.20 | -0.01 [-0.27, 0.18] | 0.11 | - | 1.00 | - | - |
 | pooled (direct, half-life 86400 s, lr 0.0001) | 1 | 300 | 48 | 0.14 / 0.20 / -0.02 | 0.11 [-0.11, 0.35] | 0.11 | - | 1.00 | - | - |
 | pooled (direct, half-life 86400 s, lr 0.0001) | 2 | 300 | 49 | -0.22 / -0.20 / 0.16 | -0.09 [-0.32, 0.08] | 0.13 | - | 1.00 | - | - |
+| query (direct, half-life 86400 s, lr 0.003) | 0 | 300 | 22 | -0.18 / -0.08 / 0.00 | -0.09 [-0.33, 0.12] | 0.03 | - | 1.00 | - | - |
+| query (direct, half-life 86400 s, lr 0.003) | 1 | 300 | 28 | -0.10 / 0.16 / -0.06 | 0.00 [-0.24, 0.24] | 0.00 | - | 1.00 | - | - |
+| query (direct, half-life 86400 s, lr 0.003) | 2 | 300 | 23 | -0.06 / 0.32 / 0.12 | 0.13 [-0.09, 0.32] | 0.35 | - | 1.00 | - | - |
 | pooled (direct, half-life 600 s, lr 0.003) | 0 | 300 | 49 | 0.06 / 0.39 / 0.00 | 0.15 [-0.07, 0.41] | 0.11 | 221 | 0.75 | 229 | -0.05 [-0.79, 0.75] |
 | pooled (direct, half-life 600 s, lr 0.003) | 1 | 300 | 48 | -0.10 / 0.18 / 0.45 | 0.18 [-0.13, 0.36] | 0.20 | - | 1.00 | - | - |
 | pooled (direct, half-life 600 s, lr 0.003) | 2 | 300 | 49 | 0.10 / 0.14 / 0.24 | 0.16 [-0.07, 0.36] | 0.36 | - | 1.00 | - | - |
@@ -199,8 +202,9 @@ c_0 of R_psi with its 95 % confidence sequence; "gain" = agreement minus the fro
 
 Frozen arm (R_psi at its initialisation, same seeds): prospective agreement -0.11 / 0.00 / -0.22 (300 decisions) and
 no mix change in any of 9 frozen objectives (3 seeds x 300 at both half-lives, 3 x 600). `query / direct` (the old
-estimator with the new utility) was run for seed 0 only before the CPU rule stopped it: 22 applied steps (pooled: 49),
-agreement -0.09, no mix change.
+estimator with the new utility), 3 seeds: 22-28 applied steps per 300 decisions (pooled: 48-49), agreement gain over the
+frozen R_psi +0.03 / 0.00 / +0.35 (pooled: +0.41 / +0.09 / +0.27), no mix change — the reason `auto` tries the pooled
+estimator first.
 
 Reading, per level:
 
