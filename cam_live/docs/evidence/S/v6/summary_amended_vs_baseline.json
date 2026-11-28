@@ -1,0 +1,363 @@
+{
+ "executed": true,
+ "experiment": "amended_vs_baseline",
+ "results_dir": "/workspace/camlive/runs/cam_live/eval/v6/results/v3",
+ "baseline_dir": "/workspace/camlive/runs/cam_live/eval/v5/results/v3",
+ "new_dir": "/workspace/camlive/runs/cam_live/eval/v6/results/v3",
+ "note": "new minus baseline; no test can reach p < 0.05 (v3.5); unpaired: runs with the same seed are independent (agent id from os.urandom, G3A-3), so the difference of the arm means is reported with a bootstrap interval and a label-permutation p over the per-seed means (descriptive only, v3.5)",
+ "x0/E": {
+  "objectives_attempted": {
+   "baseline": 9,
+   "new": 9
+  },
+  "objectives_achieved": {
+   "baseline": 5,
+   "new": 6
+  },
+  "objectives_never_reached": {
+   "baseline": 4,
+   "new": 3
+  },
+  "objectives_interrupted": {
+   "baseline": 0,
+   "new": 0
+  },
+  "objectives_not_run": {
+   "baseline": 0,
+   "new": 0
+  },
+  "achieved_by_problem": {
+   "baseline": {
+    "7": "0/3",
+    "rle": "2/3",
+    "rpn": "3/3"
+   },
+   "new": {
+    "7": "0/3",
+    "rle": "3/3",
+    "rpn": "3/3"
+   }
+  },
+  "stops": {
+   "baseline": {
+    "achieved": 5,
+    "decision_budget": 4
+   },
+   "new": {
+    "achieved": 6,
+    "wall_budget": 3
+   }
+  },
+  "slow_steps": {
+   "baseline": {
+    "total": 37,
+    "kept": 34,
+    "reverted": 2,
+    "deferred": 1
+   },
+   "new": {
+    "total": 28,
+    "kept": 22,
+    "reverted": 4,
+    "deferred": 2
+   }
+  },
+  "meta_updates_applied": {
+   "baseline": "4/123",
+   "new": "4/96"
+  },
+  "seeds": [
+   0,
+   1,
+   2
+  ],
+  "paired": false,
+  "pairing_note": "unpaired: runs with the same seed are independent (agent id from os.urandom, G3A-3), so the difference of the arm means is reported with a bootstrap interval and a label-permutation p over the per-seed means (descriptive only, v3.5)",
+  "n_to_achieve": {
+   "a_per_seed": [
+    10.333333333333334,
+    13.0,
+    8.0
+   ],
+   "b_per_seed": [
+    13.666666666666666,
+    10.333333333333334,
+    14.0
+   ],
+   "a_mean": 10.444444444444445,
+   "b_mean": 12.666666666666666,
+   "a_minus_b": {
+    "paired": false,
+    "n_x": 3,
+    "n_y": 3,
+    "mean": -2.2222222222222214,
+    "lo": -4.999999999999998,
+    "hi": 0.6666666666666679,
+    "p": 0.295970402959704,
+    "test": "Monte-Carlo label permutation"
+   }
+  },
+  "verified_value": {
+   "a_per_seed": [
+    0.6666666666666666,
+    0.6666666666666666,
+    0.6666666666666666
+   ],
+   "b_per_seed": [
+    0.6666666666666666,
+    0.6666666666666666,
+    0.3333333333333333
+   ],
+   "a_mean": 0.6666666666666666,
+   "b_mean": 0.5555555555555555,
+   "a_minus_b": {
+    "paired": false,
+    "n_x": 3,
+    "n_y": 3,
+    "mean": 0.11111111111111116,
+    "lo": 0.0,
+    "hi": 0.3333333333333333,
+    "p": 1.0,
+    "test": "Monte-Carlo label permutation"
+   }
+  },
+  "achieved": {
+   "a_per_seed": [
+    0.6666666666666666,
+    0.6666666666666666,
+    0.6666666666666666
+   ],
+   "b_per_seed": [
+    0.6666666666666666,
+    0.6666666666666666,
+    0.3333333333333333
+   ],
+   "a_mean": 0.6666666666666666,
+   "b_mean": 0.5555555555555555,
+   "a_minus_b": {
+    "paired": false,
+    "n_x": 3,
+    "n_y": 3,
+    "mean": 0.11111111111111116,
+    "lo": 0.0,
+    "hi": 0.3333333333333333,
+    "p": 1.0,
+    "test": "Monte-Carlo label permutation"
+   }
+  },
+  "executable_fraction": {
+   "a_per_seed": [
+    0.8624999999999999,
+    0.8567251461988304,
+    0.9166666666666666
+   ],
+   "b_per_seed": [
+    0.9041666666666667,
+    0.9166666666666666,
+    0.9166666666666666
+   ],
+   "a_mean": 0.878630604288499,
+   "b_mean": 0.9125,
+   "a_minus_b": {
+    "paired": false,
+    "n_x": 3,
+    "n_y": 3,
+    "mean": -0.03386939571150094,
+    "lo": -0.05801656920077969,
+    "hi": 0.004166666666666652,
+    "p": 0.39166083391660833,
+    "test": "Monte-Carlo label permutation"
+   }
+  },
+  "backbone_chosen_fraction": {
+   "a_per_seed": [
+    0.7416666666666667,
+    0.5405179615705932,
+    0.5166666666666667
+   ],
+   "b_per_seed": [
+    0.4791666666666667,
+    0.45476190476190476,
+    0.35000000000000003
+   ],
+   "a_mean": 0.5996170983013088,
+   "b_mean": 0.4279761904761905,
+   "a_minus_b": {
+    "paired": false,
+    "n_x": 3,
+    "n_y": 3,
+    "mean": 0.17164090782511832,
+    "lo": 0.05358535226956279,
+    "hi": 0.3166666666666666,
+    "p": 0.09509049095090491,
+    "test": "Monte-Carlo label permutation"
+   }
+  }
+ },
+ "x1/E": {
+  "objectives_attempted": {
+   "baseline": 12,
+   "new": 2
+  },
+  "objectives_achieved": {
+   "baseline": 11,
+   "new": 2
+  },
+  "objectives_never_reached": {
+   "baseline": 1,
+   "new": 0
+  },
+  "objectives_interrupted": {
+   "baseline": 0,
+   "new": 0
+  },
+  "objectives_not_run": {
+   "baseline": 0,
+   "new": 2
+  },
+  "achieved_by_problem": {
+   "baseline": {
+    "merge": "3/3",
+    "rle": "2/3",
+    "rpn": "3/3",
+    "topk": "3/3"
+   },
+   "new": {
+    "rle": "1/1",
+    "rpn": "1/1"
+   }
+  },
+  "stops": {
+   "baseline": {
+    "decision_budget": 1,
+    "achieved": 11
+   },
+   "new": {
+    "achieved": 2
+   }
+  },
+  "slow_steps": {
+   "baseline": {
+    "total": 34,
+    "kept": 25,
+    "reverted": 8,
+    "deferred": 1
+   },
+   "new": {
+    "total": 1,
+    "kept": 1,
+    "reverted": 0,
+    "deferred": 0
+   }
+  },
+  "meta_updates_applied": {
+   "baseline": "4/110",
+   "new": "0/8"
+  },
+  "seeds": [
+   0
+  ],
+  "paired": false,
+  "pairing_note": "unpaired: runs with the same seed are independent (agent id from os.urandom, G3A-3), so the difference of the arm means is reported with a bootstrap interval and a label-permutation p over the per-seed means (descriptive only, v3.5)",
+  "n_to_achieve": {
+   "a_per_seed": [
+    3.0
+   ],
+   "b_per_seed": [
+    10.75
+   ],
+   "a_mean": 3.0,
+   "b_mean": 10.75,
+   "a_minus_b": {
+    "paired": false,
+    "n_x": 1,
+    "n_y": 1,
+    "mean": -7.75,
+    "lo": -7.75,
+    "hi": -7.75,
+    "p": 1.0,
+    "test": "Monte-Carlo label permutation"
+   }
+  },
+  "verified_value": {
+   "a_per_seed": [
+    1.0
+   ],
+   "b_per_seed": [
+    0.75
+   ],
+   "a_mean": 1.0,
+   "b_mean": 0.75,
+   "a_minus_b": {
+    "paired": false,
+    "n_x": 1,
+    "n_y": 1,
+    "mean": 0.25,
+    "lo": 0.25,
+    "hi": 0.25,
+    "p": 1.0,
+    "test": "Monte-Carlo label permutation"
+   }
+  },
+  "achieved": {
+   "a_per_seed": [
+    1.0
+   ],
+   "b_per_seed": [
+    0.75
+   ],
+   "a_mean": 1.0,
+   "b_mean": 0.75,
+   "a_minus_b": {
+    "paired": false,
+    "n_x": 1,
+    "n_y": 1,
+    "mean": 0.25,
+    "lo": 0.25,
+    "hi": 0.25,
+    "p": 1.0,
+    "test": "Monte-Carlo label permutation"
+   }
+  },
+  "executable_fraction": {
+   "a_per_seed": [
+    0.9
+   ],
+   "b_per_seed": [
+    0.93125
+   ],
+   "a_mean": 0.9,
+   "b_mean": 0.93125,
+   "a_minus_b": {
+    "paired": false,
+    "n_x": 1,
+    "n_y": 1,
+    "mean": -0.03125,
+    "lo": -0.03125,
+    "hi": -0.03125,
+    "p": 1.0,
+    "test": "Monte-Carlo label permutation"
+   }
+  },
+  "backbone_chosen_fraction": {
+   "a_per_seed": [
+    0.9
+   ],
+   "b_per_seed": [
+    0.5875
+   ],
+   "a_mean": 0.9,
+   "b_mean": 0.5875,
+   "a_minus_b": {
+    "paired": false,
+    "n_x": 1,
+    "n_y": 1,
+    "mean": 0.3125,
+    "lo": 0.3125,
+    "hi": 0.3125,
+    "p": 1.0,
+    "test": "Monte-Carlo label permutation"
+   }
+  }
+ }
+}
