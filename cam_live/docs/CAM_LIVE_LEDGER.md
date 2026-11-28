@@ -137,7 +137,7 @@ Read at the start of every session, after `CAM_LIVE_SPEC.md` (operator specifica
   operator values of tasks/discord_100_planning.yaml, sign the planning authorization (no publication
   pre-authorized), `cam-live run`, export CAM's own plan unedited with `cam-live plan-report` for the operator.
 
-### 2026-11-28 — session 4 (continued, ~03:40 UTC): freeze for decision / learning / evaluation
+### 2026-11-28 — session 4 (continued, ~02:40 UTC): freeze for decision / learning / evaluation
 
 - Done: INT3A (S-6b fixed: sandbox tools were unavailable in the probe root, required-marker and nested-schema
   causes; SW:rle achieved through the runtime in 2 decisions; KF-E01 credit now feeds training; info_gain key;
