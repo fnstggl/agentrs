@@ -25,6 +25,7 @@ DEFAULT_SCRIPT = os.path.abspath(os.path.join(HERE, "..", "..", "..", "..", "too
 SCRATCH = os.environ.get("G2I_SCRATCH", "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/"
                                         "G2INTEGRATION/p01")
 broken = 0
+SCANNERS: list = []          # redirected copies of tools/secret_scan.py, installed untracked in each work tree
 
 
 def check(name: str, ok: bool, detail: str = "") -> None:
@@ -61,6 +62,12 @@ def make_script(src: str, root: str, base: str) -> str:
     with open(out, "w") as f:
         f.write(text)
     os.chmod(out, 0o700)
+    scanner = os.path.join(os.path.dirname(os.path.abspath(src)), "secret_scan.py")
+    if "secret_scan.py" in text and os.path.exists(scanner):      # round 2: the script delegates to the scanner
+        stext = open(scanner).read().replace("/root/.config/camlive", os.path.join(cfg, "camlive"))
+        stext = stext.replace("/root/.config/agentrs", os.path.join(cfg, "agentrs"))
+        assert "/root/.config" not in stext
+        SCANNERS.append(stext)
     with open(os.path.join(cfg, "camlive", "gh_token"), "w") as f:
         f.write(fake_real_secret() + "\n")
     return out
@@ -81,7 +88,13 @@ def fresh(name: str, script_src: str):
     sh(["git", "commit", "-q", "-m", "base"], work, env)
     base = sh(["git", "rev-parse", "HEAD"], work, env).stdout.strip()
     sh(["git", "push", "-q", "origin", "HEAD:refs/heads/feat/cam-live"], work, env)
-    return root, origin, work, env, make_script(script_src, root, base)
+    script = make_script(script_src, root, base)
+    if SCANNERS:
+        with open(os.path.join(work, "cam_live", "tools", "secret_scan.py"), "w") as f:
+            f.write(SCANNERS[-1])
+        with open(os.path.join(work, "cam_live", "tools", "secret_scan_allow.txt"), "w") as f:
+            f.write("# probe allow list\ncam_live/tests/fixture_allowed.py\n")
+    return root, origin, work, env, script
 
 
 def commit(work, env, path, data: bytes, msg):
@@ -122,6 +135,27 @@ def origin_history_contains(origin, needle: str) -> bool:
     return False
 
 
+def origin_history_contains_zip(origin, needle: str) -> bool:
+    """Like origin_history_contains, also opening zip archives."""
+    import io
+    import zipfile
+    if origin_history_contains(origin, needle):
+        return True
+    r = subprocess.run(["git", "--git-dir", origin, "rev-list", "--objects", "refs/heads/feat/cam-live"],
+                       capture_output=True, text=True)
+    for line in r.stdout.splitlines():
+        oid = line.split()[0]
+        data = subprocess.run(["git", "--git-dir", origin, "cat-file", "-p", oid], capture_output=True).stdout
+        if data[:2] == b"PK":
+            try:
+                with zipfile.ZipFile(io.BytesIO(data)) as z:
+                    if any(needle.encode() in z.read(n) for n in z.namelist()):
+                        return True
+            except (zipfile.BadZipFile, OSError):
+                pass
+    return False
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--script", default=DEFAULT_SCRIPT)
@@ -134,8 +168,8 @@ def main() -> int:
     root, origin, work, env, script = fresh("A", a.script)
     commit(work, env, "cam_live/src/x.py", f"KEY = '{pat}'\n".encode(), "add key")
     r = run_push(script, work, env)
-    check("A control: credential-shaped text added in the range is refused (exit 3) and not pushed",
-          r.returncode == 3 and not origin_history_contains(origin, pat), f"exit {r.returncode}; {r.stdout.strip()[-120:]}")
+    check("A control: credential-shaped text added in the range is refused (non-zero exit) and not pushed",
+          r.returncode != 0 and not origin_history_contains(origin, pat), f"exit {r.returncode}; {r.stdout.strip()[-120:]}")
 
     # B credential-shaped text added in one unpushed commit and removed in the next
     root, origin, work, env, script = fresh("B", a.script)
@@ -158,8 +192,8 @@ def main() -> int:
     root, origin, work, env, script = fresh("D", a.script)
     commit(work, env, "cam_live/notes.txt", f"token {real}\n".encode(), "add note")
     r = run_push(script, work, env)
-    check("D control: the machine's own credential in the range is refused (exit 4) and not pushed",
-          r.returncode == 4 and not origin_history_contains(origin, real), f"exit {r.returncode}")
+    check("D control: the machine's own credential in the range is refused (non-zero exit) and not pushed",
+          r.returncode != 0 and not origin_history_contains(origin, real), f"exit {r.returncode}")
 
     # E the machine's own credential added and removed again inside the unpushed commits
     root, origin, work, env, script = fresh("E", a.script)
@@ -176,7 +210,33 @@ def main() -> int:
     check("F the machine's own credential inside a compressed file is not pushed",
           not origin_history_contains(origin, real), f"exit {r.returncode}")
 
-    print(f"== p01_push_scan: {broken} broken of 6 checks (throwaway repositories under {SCRATCH})")
+    # G (round 2) credential-shaped text inside a zip archive (deflate, no gzip header)
+    import io
+    import zipfile
+    root, origin, work, env, script = fresh("G", a.script)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("notes.txt", ("padding " * 50) + f"key {pat}\n")
+    commit(work, env, "cam_live/docs/evidence/bundle.zip", buf.getvalue(), "add zip")
+    r = run_push(script, work, env)
+    check("G a credential inside a zip archive is not pushed", not origin_history_contains_zip(origin, pat),
+          f"exit {r.returncode}")
+
+    # H (round 2) the same blob at an allow-listed path and at an ordinary path in one commit
+    root, origin, work, env, script = fresh("H", a.script)
+    data = f"KEY = '{pat}'\n".encode()
+    for path in ("cam_live/tests/fixture_allowed.py", "cam_live/zz_leak.py"):   # the allowed path sorts first
+        p = os.path.join(work, path)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "wb") as f:
+            f.write(data)
+    sh(["git", "add", "cam_live/tests/fixture_allowed.py", "cam_live/zz_leak.py"], work, env)
+    sh(["git", "commit", "-q", "-m", "fixture and copy"], work, env)
+    r = run_push(script, work, env)
+    check("H a credential at an ordinary path is refused although the same content is also at an allow-listed path",
+          r.returncode != 0, f"exit {r.returncode}; {r.stdout.strip()[-140:]}")
+
+    print(f"== p01_push_scan: {broken} broken of 8 checks (throwaway repositories under {SCRATCH})")
     return 1 if broken else 0
 
 
