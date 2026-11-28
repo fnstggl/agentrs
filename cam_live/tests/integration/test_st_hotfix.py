@@ -131,6 +131,7 @@ def test_independent_samples_each_with_its_own_budget_parsed_separately(tmp_path
         assert g["samples"] == 3 and g["n_backbone_valid"] == 2            # the same action from two samples: once
         assert [s["valid"] for s in g["per_sample"]] == [1, 1, 1]
         assert [s["last_line_rejected"] for s in g["per_sample"]] == [1, 0, 0]  # the cut line, recorded as such
+        assert [s["last_line_not_json"] for s in g["per_sample"]] == [1, 0, 0]  # ... as cut off, not invalid
         assert g["raw"][0].startswith(a1) and len(g["raw"]) == 3
         assert {x.action.operation for x in d.candidates if "backbone" in x.action.provenance} == {"web.get",
                                                                                                   "internal.note"}

@@ -109,6 +109,13 @@ class AgentSettings:
     proposer_expected: bool = False          # the output format has the action contract's "expected" field (the
                                              # observable result the action is expected to produce)
     proposer_raw_chars: int = 3000           # characters of each raw sample kept in the decision's diagnostics
+    information_value: bool = True           # ST: measure each executed decision's realised information value (the
+                                             # world model's prediction loss on the next decisions' matured outcomes
+                                             # without minus with the items the decision added to the context;
+                                             # annotation reward_signals.information_value); False: not measured
+    information_value_later: int = 2         # later decisions whose predictions measure it
+    proposer_rotate_samples: bool = False    # ST: sample i lists the same tools starting at position i * n / samples
+                                             # (one batched generate call over the rotated prompts; nothing hidden)
     proposer_per_tool: int = 12               # settings per tool from the schema walker (a small discrete
                                              # space, e.g. 4 channels x 3 efforts, is enumerated completely)
     proposer_max_obs_chars: int = 3000
@@ -585,6 +592,7 @@ class AgentProposer(BackboneProposer):
     expected: bool = True                       # the output format has the optional "expected" field
     samples: int = 1                            # independent continuations per call (num_return_sequences)
     raw_chars: int = 3000                       # characters of each continuation kept in the stats
+    rotate: bool = False                        # samples read the tool list from different starting positions
 
     def prompt(self, tools: Sequence[ToolDescriptor], observation_digest: str, objective: str = "",
                k: Optional[int] = None, memory: str = "") -> str:
@@ -615,8 +623,21 @@ class AgentProposer(BackboneProposer):
         seed = self._calls if seed is None else int(seed)
         prompt = self.prompt(tools, observation_digest, objective, k, memory=memory)
         n_seq = max(1, int(self.samples if num_return_sequences is None else num_return_sequences))
-        texts = self.model.generate([prompt], latent=latent, max_new_tokens=self.max_new_tokens,
-                                    temperature=self.temperature, num_return_sequences=n_seq, seed=seed)[0]
+        avail = [t for t in tools if t.available]
+        if self.rotate and n_seq > 1 and len(avail) > 1:
+            # ST: sample i reads the same complete tool list starting at a different position (deterministic
+            # rotation by i * n / samples; every tool stays listed): measured on the real model, n identical-prompt
+            # samples at temperature 0.7 wrote the same two actions in most decisions
+            step = max(1, len(avail) // n_seq)
+            prompts = [prompt] + [self.prompt(avail[i * step:] + avail[:i * step], observation_digest, objective, k,
+                                              memory=memory) for i in range(1, n_seq)]
+            lat = None if latent is None else latent.repeat(n_seq, *([1] * (latent.dim() - 1)))
+            texts = [r[0] for r in self.model.generate(prompts, latent=lat, max_new_tokens=self.max_new_tokens,
+                                                       temperature=self.temperature, num_return_sequences=1,
+                                                       seed=seed)]
+        else:
+            texts = self.model.generate([prompt], latent=latent, max_new_tokens=self.max_new_tokens,
+                                        temperature=self.temperature, num_return_sequences=n_seq, seed=seed)[0]
         actions: List[ActionSpec] = []
         rejections: List[Any] = []
         notes: Dict[str, int] = {}
@@ -649,9 +670,11 @@ class AgentProposer(BackboneProposer):
             actions += new
             rejections += res.rejections
             n_items += res.n_items
+            last_rej = bool(lines) and bool(res.rejections) and res.rejections[-1].fragment[:60] == lines[-1][:60]
             per_sample.append({"lines": len(lines), "items": res.n_items, "valid": len(res.actions),
-                               "last_line_rejected": int(bool(lines) and bool(res.rejections)
-                                                         and res.rejections[-1].fragment[:60] == lines[-1][:60])})
+                               "last_line_rejected": int(last_rej),
+                               # the budget ended inside the last line (cut off), not an invalid but complete action
+                               "last_line_not_json": int(last_rej and res.rejections[-1].reason == "not_json")})
         if not notes.get("duplicate_across_samples"):
             notes.pop("duplicate_across_samples", None)
         if validate is not None:
@@ -778,13 +801,17 @@ class CamLiveAgent:
         self.cocoa = HindsightProvider(self.model, self.store, beta=s.credit_beta, seed=cfg.seed)
         self.selector = EstimatorSelector(log_path=os.path.join(self.dir, "credit_selection.jsonl"), clock=self.clock)
         self.assigner = CreditAssigner(self.model, self.store, rudder=self.rudder, cocoa=self.cocoa,
-                                       selector=self.selector, beta=s.credit_beta, clock=self.clock)
+                                       selector=self.selector, beta=s.credit_beta, clock=self.clock,
+                                       segment_decisions=int(cfg.section("credit").get("segment_decisions", 16)))
         # the agent's experiments reach the experience store and credit-estimator selection runs on held-out
         # experiment lifetimes when they exist (RC-08, change request DX-1)
         self.assigner.attach_experiments(self.experiments)
         # ---- continual learner and its providers ----
         lsec = cfg.section("credit").get("learner", {})
-        lover = {} if "val_split" in lsec else {"val_split": "record"}   # a single live objective must train
+        # a single live objective must train, and its held-out blocks validate the credit estimators (CR-1): every
+        # 1/val_fraction-th segment of credit.segments' top-level decisions is held out as a whole (records stored
+        # before the learner first used the segment split keep the record split: live-run compatibility)
+        lover = {} if "val_split" in lsec else {"val_split": "segment"}
         if "holdout_experiments" not in lsec:
             # credit.learner holds out every lifetime that contains a randomised experiment (D-14). The agent runs
             # its experiments inside the objective it is learning from; holding that lifetime out would stop all
@@ -823,6 +850,7 @@ class CamLiveAgent:
         self.proposer.samples = max(1, int(s.proposer_samples))
         self.proposer.expected = bool(s.proposer_expected)
         self.proposer.raw_chars = int(s.proposer_raw_chars)
+        self.proposer.rotate = bool(s.proposer_rotate_samples)
         self.tool_meta: Dict[str, Tuple[str, str]] = {}  # operation -> (modality, side effects) as last discovered
         self.goal_free = GoalFreeMode(self.model, self.model.new_fast_state(),
                                       GoalFreeBudget(seconds=s.goal_free_seconds, decisions=s.goal_free_decisions),
@@ -846,6 +874,8 @@ class CamLiveAgent:
         self.exp_outcome_keys: set = set()
         self.unrewarded: List[str] = []
         self.lp_pending: List[str] = []                   # records whose learning progress is not measured yet
+        self.iv_pending: List[str] = []                   # records whose information value is not measured yet
+        self.iv_log: List[Dict[str, Any]] = []            # the latest measurements (status / diagnostics)
         self.rewarded_since_update: List[str] = []
         self.rewarded: List[str] = []
         self.buffer: List[OutcomeObservation] = []        # matured outcomes waiting for the fast update (step 5)
@@ -2154,6 +2184,8 @@ class CamLiveAgent:
             self.unrewarded.append(exp_id)
         if exp_id not in self.lp_pending:
             self.lp_pending = (self.lp_pending + [exp_id])[-LP_PENDING:]
+        if self.settings.information_value and exp_id not in self.iv_pending and result.status != ResultStatus.NEEDS_APPROVAL:
+            self.iv_pending = (self.iv_pending + [exp_id])[-LP_PENDING:]
         goal_m = self._goal_metric()
         if any(q.goal_relevant and q.metric != goal_m for q in result.expected_outcomes):
             self.attributing.add(decision.objective_id)
@@ -2300,6 +2332,73 @@ class CamLiveAgent:
             self._annotate(rec.exp_id, "epistemic_after", ep["epistemic_after"])
         self.predictor.forget_goal_view(decision_id)
 
+    def _information_value(self, max_records: int = 4) -> None:
+        """ST: the realised information value of executed decisions — does what an action brought into CAM's context
+        (its own action item and the observations of its result: a fetched document, a note it wrote, a tool's
+        output) change CAM's later predictions? For decision t, once ``information_value_later`` later decisions of
+        the same objective whose context windows contain those items have matured outcomes, the world model's mean
+        NLL of those later outcomes is computed with their recorded context and with t's items removed (same
+        weights, same targets, same carried state); the value is
+
+            IV_t = NLL(later outcomes | context without t's items) - NLL(later outcomes | recorded context)   [nats]
+
+        (> 0: the information improved CAM's later predictions; < 0: it misled them). Generic: it is computed from
+        the model's own predictions for every action, whatever its tool; written once as the record's
+        ``reward_signals.information_value`` annotation (D-14: added, never changed). Only the context pathway is
+        measured: what the persistent core state or a weight update carried is not removed."""
+        from .predict.providers import record_rows, record_world_nll
+        if not self.iv_pending:
+            return
+        later_n = max(1, int(self.settings.information_value_later))
+        done: List[str] = []
+        measured = 0
+        for exp_id in list(self.iv_pending):
+            if measured >= max_records:
+                break
+            rec = self.store.get(exp_id)
+            if rec is None or rec.result is None:
+                done.append(exp_id)
+                continue
+            new = set(rec.post_item_refs or []) - set(rec.context_item_refs or [])
+            if not new:
+                done.append(exp_id)
+                continue
+            later = [r for r in self.store.trajectory(rec.objective_id) if r.seq > rec.seq and r.result is not None
+                     and new & set(r.context_item_refs or []) and record_rows([r])[0]]
+            if len(later) < later_n:
+                if rec.objective_id != getattr(self.task, "objective_id", rec.objective_id):
+                    done.append(exp_id)              # its objective ended before enough later decisions existed
+                continue
+            later = later[:later_n]
+            cf = [dataclasses.replace(r, context_item_refs=[x for x in r.context_item_refs if x not in new])
+                  for r in later]
+            was = self.model.training
+            self.model.eval()
+            try:
+                with_ = self._world_nll_raw(later, record_world_nll)
+                without = self._world_nll_raw(cf, record_world_nll)
+            finally:
+                self.model.train(was)
+            pairs = [(a, b) for a, b in zip(with_, without) if a is not None and b is not None]
+            done.append(exp_id)
+            if not pairs:
+                continue
+            iv = sum(b - a for a, b in pairs) / len(pairs)
+            measured += 1
+            if self._annotate(exp_id, "information_value", iv):
+                self.iv_log = (self.iv_log + [{"exp_id": exp_id, "operation": rec.decision.chosen.operation,
+                                               "information_value": iv, "items": len(new),
+                                               "later": [r.exp_id for r in later]}])[-64:]
+        self.iv_pending = [x for x in self.iv_pending if x not in set(done)]
+
+    def _world_nll_raw(self, recs: Sequence[ExperienceRecord], fn: Any) -> List[Optional[float]]:
+        try:
+            with torch.no_grad():
+                return fn(self.model, self.heads, self.store, recs)
+        except Exception as e:  # noqa: BLE001 — a measurement; learning goes on without it
+            self.last["information_value_error"] = f"{type(e).__name__}: {e}"
+            return [None] * len(recs)
+
     def _lp_records(self) -> List[ExperienceRecord]:
         recs = [r for r in self.store.get_many(list(self.lp_pending)) if r is not None and r.result is not None]
         return recs[-LP_BATCH:]
@@ -2376,9 +2475,16 @@ class CamLiveAgent:
             self.frequent_since_promotion += n_freq
             if n_freq and lp_recs:
                 self._lp_after(lp_recs, lp_before)              # ... and after the frequent update
+        if self.settings.information_value and time.perf_counter() - t0 < budget_s:
+            self._information_value()                           # ST: realised information value of executed actions
         s = self.settings
         if len(self.rewarded_since_update) >= s.policy_update_every:
             ids = self.rewarded[-s.policy_update_batch:]
+            # CR-3: earlier decisions whose training-default credit was revised (outcomes matured, a segment or the
+            # lifetime closed, the estimator retrained) are replayed, so revised credit reaches the policy weights
+            done = set(self.rewarded)
+            ids = ids + [e for e in self.assigner.pop_revised(max(1, s.policy_update_batch // 2))
+                         if e in done and e not in ids]
             recs = sorted((r for r in self.store.get_many(ids) if r is not None), key=lambda r: r.seq)
             rec = self.meta.policy_update(recs, trigger=f"{len(self.rewarded_since_update)} newly rewarded decisions")
             if rec is not None:
@@ -2646,7 +2752,7 @@ class CamLiveAgent:
             "self_pending": self.self_pending, "query_owner": self.query_owner,
             "exp_outcome_keys": sorted([list(k) for k in self.exp_outcome_keys]), "unrewarded": self.unrewarded,
             "rewarded_since_update": self.rewarded_since_update, "rewarded": self.rewarded,
-            "lp_pending": self.lp_pending,
+            "lp_pending": self.lp_pending, "iv_pending": self.iv_pending, "iv_log": self.iv_log,
             "verified_log": self.verified_log, "failure_counts": self.failure_counts,
             "n_decisions": self.n_decisions, "n_since_planner": self.n_since_planner, "uid": self.uid,
             "objective_started_at": getattr(self, "objective_started_at", 0.0), "counters": dict(self.counters),
@@ -2673,6 +2779,8 @@ class CamLiveAgent:
         self.unrewarded, self.rewarded = list(d["unrewarded"]), list(d["rewarded"])
         self.rewarded_since_update = list(d["rewarded_since_update"])
         self.lp_pending = list(d.get("lp_pending") or [])
+        self.iv_pending = list(d.get("iv_pending") or [])            # absent in checkpoints before ST: empty
+        self.iv_log = list(d.get("iv_log") or [])
         self.verified_log = list(d["verified_log"])
         self.failure_counts = {k: dict(v) for k, v in d["failure_counts"].items()}
         self.n_decisions, self.n_since_planner = int(d["n_decisions"]), int(d["n_since_planner"])
@@ -2796,7 +2904,9 @@ class CamLiveAgent:
             "skills_known": len(self.skill_catalog), "surface": (self.surface or {}).get("url", ""),
             "proposal": {k: v for k, v in ((self.last.get("proposal") or {}).get("stats", {}) or {}).items()
                          if k != "raw"},
-            "persistent_state": self.persist.status() if self.persist is not None else {"enabled": False}})
+            "persistent_state": self.persist.status() if self.persist is not None else {"enabled": False},
+            "information_value": {"pending": len(self.iv_pending), "measured": int(self.counters.get(
+                "annotated_information_value", 0)), "latest": self.iv_log[-4:]}})
 
     # ============================================================================================ F-1 hooks
     def drain_experiments(self) -> List[ExperimentRecord]:

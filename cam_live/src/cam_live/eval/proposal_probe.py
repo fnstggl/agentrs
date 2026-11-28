@@ -221,6 +221,10 @@ def analyse_run(run_dir: str) -> Dict[str, Any]:
                                          _jsonl(os.path.join(R, "experiments.jsonl"))} - {None})
     out["result_status"] = dict(collections.Counter((results.get(d["decision_id"]) or {}).get("status", "none")
                                                     for d in decs))
+    ts = sorted(float(d.get("ts") or 0.0) for d in decs)
+    gaps = sorted(b - a for a, b in zip(ts, ts[1:]))
+    out["median_seconds_between_decisions"] = gaps[len(gaps) // 2] if gaps else None
+    out["seconds_first_to_last_decision"] = (ts[-1] - ts[0]) if len(ts) > 1 else None
     return out
 
 
