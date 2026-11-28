@@ -84,7 +84,7 @@ the next 2 decisions of the objective whose context windows contain the items t 
     IV_t = NLL_world(their outcomes | context without t's items) - NLL_world(their outcomes | recorded context)
 
 (same weights, same targets, nats; only the context pathway is removed), written once as
-`reward_signals.information_value`. Change request **ST-3** (RW) makes it a bootstrap input like learning progress
+`reward_signals.information_value`. Change request **ST-3** (RW; applied by RW in a055332) makes it a bootstrap input like learning progress
 (`w · tanh(IV)`), so the reward the live policy update uses values what an action's result did to CAM's own later
 predictions; its path into the selection is then the existing one (bootstrap reward -> `MetaLearner.policy_update` ->
 policy preference -> `thompson_policy`). A pre-action estimate (the unused `predict.voi.DownstreamValueEstimator`
@@ -106,8 +106,8 @@ constant text (`test_new_constant_text_carries_no_strategy`).
 Clean snapshot of HEAD 00f8913 + the integrated agent.py of dde7d2d: 33 passed, 1 skipped (`-m slow`), 0 failed
 (`test_st_hotfix`, `test_st_strategy`, `test_int2_prompts`, `test_int3a_prompt`, `test_imp_agent`,
 `test_ps_agent_integration`, `test_agent_recovery`). Clean snapshot of HEAD df1b46e + agent.py of f983cea (JUnit
-`docs/evidence/test_results/ST_fix.xml`): 70 tests — 67 passed, 1 skipped (`-m slow`), 2 failed (the two PS-1
-regressions below, identical on HEAD) — over `test_st_hotfix`, `test_st_strategy`, `test_st_iv`, `test_int2_prompts`,
+`docs/evidence/test_results/ST_fix.xml`): 70 tests — 68 passed (the `-m slow` slow-step test run separately and
+merged in: 1 passed, 33 s), 2 failed (the two PS-1 regressions below, identical on HEAD) — over `test_st_hotfix`, `test_st_strategy`, `test_st_iv`, `test_int2_prompts`,
 `test_int3a_prompt`, `test_int3a_audit`, `test_int3a_bootstrap_inputs`, `test_int3a_lrn6`, `test_agent_recovery`,
 `test_agent_runtime`, `test_int2_checkpoints`, `test_imp_agent`, `test_ps_agent_integration`, `tests/credit/test_cr.py`;
 1,232 s.
@@ -231,6 +231,24 @@ Backbone proposals over each run (offered candidates; `<scratch>/ST/reprop.py`):
   and bridge, an SGD step raises the rewarded line's log-likelihood in its context; it runs inside the learner's slow
   step on a runtime lifetime: `-m slow` test), but **not exercised on the real model** in these runs (no slow step),
   so its effect on behaviour is not established.
+
+### 5.5 Real-model measurement of the information value (long staging run)
+
+Condition **long** (scratch copy of a0f3411 + rotation + the agent-side information value + the ST-3 bootstrap
+patch, i.e. the pathway RW committed in a055332; settings of after_rot + `information_value`; one runtime process
+over two lease holds of <= 820 s; the staging task copy's decision limit raised to 90 and external-action limit to
+120 in the scratch copy only). LONG_RESULTS
+
+**Diagnosis of the near-zero information value — an architectural limitation of the prediction targets, measured.**
+The world model's matured targets in this run are only `action.succeeded`, three executor bookkeeping metrics
+(`observed.exec.modality.visual_heavy.{n, expected_cost, recovery_s}`) and the objective metric `membership.confirmed`
+(0 at every reading) — 26 / 22 / 22 / 22 / 22 targets in the first 43 records. None of them depends on what a page
+says or what a note contains, so removing an action's content from later contexts cannot change their likelihood:
+the information value is ~0 for every action type *by construction of what CAM predicts*, not because the pathway
+is missing. A generic remedy is a content-dependent self-supervised prediction target whose likelihood the
+information can change — e.g. the latent transition model's prediction of later beliefs, or the bridge-grounding
+model of observed consequence text once the bridge is trained — so that "this page made my later observations
+predictable" becomes measurable. Not built (predict/ is IMP's; the bridge is a no-op until slow steps train it).
 
 ## 6. What is not done
 

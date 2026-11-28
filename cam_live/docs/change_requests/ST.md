@@ -32,7 +32,7 @@ up to 0.64. The hotfix (a0f3411) removes unauthorized tools from the candidate s
 goal-value differences standardised by the spread of the posterior means — can single out any candidate while the
 objective metric has no variation (planning phase). Not changed by ST (predict/ is IMP's).
 
-## ST-3 (reward/assemble.py, reward/inner.py, reward/bootstrap.py, owner RW): realised information value as a bootstrap input
+## ST-3 (reward/assemble.py, reward/inner.py, reward/bootstrap.py, owner RW): realised information value as a bootstrap input — APPLIED by RW in a055332
 
 **What.** The agent writes, for every executed decision, `reward_signals.information_value` (ST,
 `CamLiveAgent._information_value`): the world model's mean NLL of the next 2 decisions' matured outcomes with the
