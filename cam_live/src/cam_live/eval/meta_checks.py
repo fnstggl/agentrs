@@ -266,3 +266,66 @@ def pathway_ablation(root: str) -> Dict[str, Any]:
     """Check 5 for a run without the meta pathway (D / E_unverified): which groups changed pre -> post."""
     hp, hq = group_hashes(os.path.join(root, "export_pre")), group_hashes(os.path.join(root, "export_post"))
     return {g: hp.get(g) != hq.get(g) for g in sorted(set(hp) | set(hq))}
+
+
+# ------------------------------------------------------------------------------------------------ Protocol v3 (X6)
+def oe_result_for_checks(res: Dict[str, Any]) -> Dict[str, Any]:
+    """A result of ``eval.oe_runner sequence`` in the form :func:`run_checks` reads: its meta-update records are
+    the concatenation of every objective's records; there are no ground-truth decision rows (the open-ended
+    families have no per-candidate truth), so the shadow evaluation reports ``n = 0``."""
+    metas = [m for o in res.get("objectives", []) for m in (o.get("meta_updates") or [])]
+    return {"condition": res.get("condition"), "seed": res.get("seed"), "extract": {"meta_updates": metas},
+            "decision_rows": []}
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    """``python -m cam_live.eval.meta_checks --root RUN_ROOT --result RESULT.json --out OUT.json``: the 16.5 checks
+    on one X1 run root (export_pre / export_post / ckpt_post / agent of ``oe_runner --save-exports``) under the
+    shared GPU lock (the experienced agent is rebuilt with the real backbone)."""
+    import argparse
+    import contextlib
+    import sys
+    import time
+    ap = argparse.ArgumentParser(prog="python -m cam_live.eval.meta_checks")
+    ap.add_argument("--root", required=True)
+    ap.add_argument("--result", required=True)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--max-support", dest="max_support", type=int, default=16)
+    ap.add_argument("--threads", type=int, default=6)
+    ap.add_argument("--lock-timeout-s", dest="lock_timeout_s", type=float, default=6 * 3600.0)
+    ap.add_argument("--min-free-gb", dest="min_free_gb", type=float, default=12.0)
+    a = ap.parse_args(list(sys.argv[1:] if argv is None else argv))
+    torch.set_num_threads(int(a.threads))
+    from .experiments import code_identity
+    with open(a.result) as f:
+        res = json.load(f)
+    with open(os.path.join(a.root, "export_post", "config.json")) as f:
+        ecfg = json.load(f)["config"]
+    # the lock only when the experienced agent is rebuilt on the GPU (a debug / tiny-backbone run stays on the CPU)
+    on_gpu = torch.cuda.is_available() and str(ecfg.get("device", "")).startswith("cuda") and \
+        (ecfg.get("backbone") or {}).get("name") != "tiny"
+    lock: Any = contextlib.nullcontext()
+    if on_gpu:
+        from ..nn.gpu import free_gpu_memory, gpu_lock
+        lock = gpu_lock(timeout_s=a.lock_timeout_s, min_free_gb=a.min_free_gb)
+    t0 = time.time()
+    with lock:
+        t_lock = time.time()
+        out = run_checks(os.path.abspath(a.root), oe_result_for_checks(res), max_support=a.max_support)
+        held = time.time() - t_lock
+        if on_gpu:
+            free_gpu_memory()
+    out.update({"root": os.path.abspath(a.root), "result": os.path.abspath(a.result), "gpu": on_gpu,
+                "lock_waited_s": t_lock - t0,
+                "lock_held_s": held, "code": code_identity(),
+                "run_code": res.get("code"), "plan": res.get("plan")})
+    os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
+    with open(a.out, "w") as f:
+        json.dump(out, f, indent=1, default=str)
+    print(json.dumps({k: out.get(k) for k in ("condition", "seed", "n_eligible", "skipped", "lock_held_s")}))
+    return 0
+
+
+if __name__ == "__main__":
+    import sys as _sys
+    _sys.exit(main())
