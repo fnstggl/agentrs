@@ -132,8 +132,34 @@ with `--only x0,x1` to finish X1 seed 2; no objective was interrupted.
 
 ## 6. X6 — meta-learning checks (16.5) on the X1 run roots
 
-*Running* (`python -m cam_live.eval.meta_checks` per X1 root under the shared GPU lock; results
-`docs/evidence/S/v3/x6/meta_x1_E_s<seed>.json`).
+`python -m cam_live.eval.meta_checks --root <X1 root> --result <X1 result>` (eval overlay cd34fd1 over the
+257267c agent code; the experienced agent is rebuilt from `ckpt_post` with the real backbone under the shared GPU
+lock, ~60 s per root; nothing written back). Results `docs/evidence/S/v3/x6/meta_x1_E_s<seed>.json`. Seeds 0 and
+1 done; **seed 2 is still waiting for the shared GPU lock** (the first attempt was stopped by its own 1 h timeout
+while the lock was held by other runs).
+
+| check (16.5) | seed 0 | seed 1 |
+|---|---|---|
+| eligible records (support / held-out batches from the X1 store) | 43 | 31 |
+| 1. reward parameters affect the inner update at the **live** mix 1.0: \|theta_K(psi_post) - theta_K(psi_pre)\| | **0.0** | **0.0** |
+| 1. same at mix 0 (the differentiated update), against update norm | 0.021 / 0.028 | 0.0 / 0.028 |
+| 1. noise floor (same psi repeated) | 0.0 | 0.0 |
+| 2. inner update changes the policy: mean total variation on held-out rows | 0.029 (max 0.039) | 0.0065 (max 0.013) |
+| 3. applied meta-updates with fewer than 4 independent verified outcome groups | 0 of 1 | 0 of 0 |
+| 4. applied meta-updates with non-zero gradient and changed reward version | 1 (norm 0.10) | 0 |
+| 4. reward group changed between the pre- and post-experience exports | yes | no |
+| 6. learned reward pre vs post, Spearman over held-out rows | 0.51 | 1.0 (unchanged) |
+| 6. pure magnitude change (rewards x 3) moves the update by | 1.4e-7 | 1.5e-7 |
+| shadow evaluation of the checkpoints (11.2) | n = 0 (no per-candidate ground truth on SW) | n = 0 |
+
+**Finding.** The meta-learning pathway is mechanically intact (deterministic inner update, the policy update
+changes the policy, no meta-update applied without enough independent verified outcomes, a pure magnitude change
+of the reward does not change the update), but **at the live bootstrap mix of 1.0 the learned reward psi has no
+influence on the inner policy update** (difference 0.0 in both roots): the policy update uses the bootstrap
+reward only, so whatever the meta-updates change in psi (1 applied update in seed 0, none in seed 1) does not
+reach behaviour in these runs. Only at mix 0 does psi act (seed 0: 0.021 against an update norm of 0.028). The
+same was seen in the v2 debug-scale diagnostics; the mix never left its cold-start value in any baseline
+objective. Check 5 (pathway removed in D / E_unverified) needs X3's D runs, which did not run on 257267c.
 
 ## 7. X6 — integrity battery and trivial-reward world (engineering diagnostic, CPU, debug configuration)
 

@@ -1,7 +1,7 @@
 {
  "workstream": "S",
- "commit": "dcb9592ff5ba3f9f8fab385b4a968d4025304ef8",
- "summary": "Protocol v3 (operator redirection) committed: all LabWorld / tiny-backbone / restricted-candidate runs are engineering diagnostics (docs/S/DIAGNOSIS.md, docs/evidence/S/diagnostics). Substantive families SW (hidden tests) and MECH (held-out R^2) built with independent signing verifiers; CU uses validation.StagingComputer. Substantive runs (real Qwen3-4B + 50m, open-ended generation on) are blocked by S-6: the proposer produced 0 valid backbone candidates in 15 decisions on SW (X0, snapshot 737996e). X0 seeds 1-2 and X4 (CU-33) queued; no substantive result yet.",
+ "commit": "2dfa6dbb32bcde3cf72d94be9b52f8f805e72449",
+ "summary": "S2: pre-amendment baseline on ONE fixed snapshot 257267c (full-size agent, open-ended generation on): X0 5/9, X1 11/12 objectives achieved, X5 (goal-free first, eval overlay) 5/8; slow adapter steps now mostly kept (X0+X1 59 of 71, pre-fix 12 of 52); X6 meta checks: the learned reward does not act on the live inner update at the bootstrap mix 1.0. X2-X4 not run on 257267c (coordinator re-scope). Pre-fix batch (f54d8cc) archived separately. No significance claims (v3.5).",
  "requirements": {
   "SV-01": {
    "state": "partial",
@@ -11,8 +11,10 @@
    "tests": [
     "tests/eval/"
    ],
-   "evidence": [],
-   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+   "evidence": [
+    "docs/evidence/S/diagnostics/v2_main_cpu_baselines.json"
+   ],
+   "limitations": "condition A implemented (eval.conditions.FrozenBackboneChooser). X3 (baselines A-D on the same architecture and action generation) did not run on the baseline snapshot 257267c: coordinator re-scope (257267c is the pre-amendment baseline; the comparison runs on the amended snapshot). Only debug-scale diagnostics exist (docs/evidence/S/diagnostics/v2_*)."
   },
   "SV-02": {
    "state": "partial",
@@ -22,8 +24,10 @@
    "tests": [
     "tests/eval/"
    ],
-   "evidence": [],
-   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+   "evidence": [
+    "docs/evidence/S/diagnostics/v2_main_cpu_baselines.json"
+   ],
+   "limitations": "condition B implemented. X3 (baselines A-D on the same architecture and action generation) did not run on the baseline snapshot 257267c: coordinator re-scope (257267c is the pre-amendment baseline; the comparison runs on the amended snapshot). Only debug-scale diagnostics exist (docs/evidence/S/diagnostics/v2_*)."
   },
   "SV-03": {
    "state": "partial",
@@ -33,8 +37,10 @@
    "tests": [
     "tests/eval/"
    ],
-   "evidence": [],
-   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+   "evidence": [
+    "docs/evidence/S/diagnostics/v2_main_cpu_baselines.json"
+   ],
+   "limitations": "condition C implemented (FastOnlyAgent). X3 (baselines A-D on the same architecture and action generation) did not run on the baseline snapshot 257267c: coordinator re-scope (257267c is the pre-amendment baseline; the comparison runs on the amended snapshot). Only debug-scale diagnostics exist (docs/evidence/S/diagnostics/v2_*)."
   },
   "SV-04": {
    "state": "partial",
@@ -44,8 +50,10 @@
    "tests": [
     "tests/eval/"
    ],
-   "evidence": [],
-   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+   "evidence": [
+    "docs/evidence/S/diagnostics/v2_main_cpu_baselines.json"
+   ],
+   "limitations": "condition D implemented. X3 (baselines A-D on the same architecture and action generation) did not run on the baseline snapshot 257267c: coordinator re-scope (257267c is the pre-amendment baseline; the comparison runs on the amended snapshot). Only debug-scale diagnostics exist (docs/evidence/S/diagnostics/v2_*)."
   },
   "SV-05": {
    "state": "partial",
@@ -55,8 +63,11 @@
    "tests": [
     "tests/eval/"
    ],
-   "evidence": [],
-   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+   "evidence": [
+    "docs/evidence/S/v3/summary_x0.json",
+    "docs/evidence/S/v3/summary_x1.json"
+   ],
+   "limitations": "prediction NLL of resolved predictions recorded per objective in X0 / X1 / X5 on 257267c (X0 mean 0.10, X1 1.55, ranges across seeds in RESULTS.md); no calibration analysis (reliability / ECE) of the substantive runs; calibration tables exist only for debug-scale diagnostics"
   },
   "SV-06": {
    "state": "partial",
@@ -66,19 +77,26 @@
    "tests": [
     "tests/eval/"
    ],
-   "evidence": [],
-   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+   "evidence": [
+    "docs/evidence/S/v3/summary_x0.json",
+    "docs/evidence/S/v3/summary_x1.json"
+   ],
+   "limitations": "RUDDER / COCOA credit run inside every substantive objective (loss providers recorded); no delayed-credit experiment on the substantive families"
   },
   "SV-07": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
     "src/cam_live/eval/"
    ],
    "tests": [
     "tests/eval/"
    ],
-   "evidence": [],
-   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+   "evidence": [
+    "docs/evidence/S/v3/x6/",
+    "docs/evidence/S/v3/summary_x1.json",
+    "docs/S/RESULTS.md"
+   ],
+   "limitations": "16.5 checks executed on the X1 run roots of 257267c (python -m cam_live.eval.meta_checks). Finding: at the live bootstrap mix 1.0 the learned reward has NO effect on the inner policy update (delta theta psi_post vs psi_pre = 0.0 in every root); it acts only at mix 0 (seed 0: 0.021 against an update norm of 0.028); 4 of 110 meta-update records applied in X1 (8 of 233 over X0 + X1), the rest skipped (insufficient independent outcomes, zero advantage)"
   },
   "SV-08": {
    "state": "partial",
@@ -88,8 +106,10 @@
    "tests": [
     "tests/eval/"
    ],
-   "evidence": [],
-   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+   "evidence": [
+    "docs/evidence/S/diagnostics/v5_257267c/"
+   ],
+   "limitations": "attack battery + trivial world executed on 257267c (CPU, debug configuration, engineering diagnostic): the battery's trigger occurred in 1 of 5 seeds (every delivered attack refused, verdict unchanged), 4 seeds tested nothing; no integrity experiment on the substantive families"
   },
   "SV-09": {
    "state": "partial",
@@ -99,8 +119,12 @@
    "tests": [
     "tests/eval/"
    ],
-   "evidence": [],
-   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+   "evidence": [
+    "docs/evidence/S/v3/summary_x0.json",
+    "docs/evidence/S/v3/summary_x1.json",
+    "docs/evidence/S/v3/summary_x5.json"
+   ],
+   "limitations": "N_q (decisions to verified achievement, censored at 20) measured: X0 per-seed means 13.7 / 10.3 / 14.0, X1 10.75 / 7.75 / 6.25; S_q not measured (X2 did not run: no initial / experienced pair); AULC not computed for the substantive runs"
   },
   "SV-10": {
    "state": "partial",
@@ -110,8 +134,24 @@
    "tests": [
     "tests/eval/"
    ],
-   "evidence": [],
-   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+   "evidence": [
+    "docs/evidence/S/v3/summary_x2.json"
+   ],
+   "limitations": "X2 not run on 257267c (re-scope): only initial_s0 2 of 3 held-out objectives ran (SW:unique achieved in 6, SW:base in 9); no experienced arm, no S_q"
+  },
+  "SV-11": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/eval/v3_report.py"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [
+    "docs/S/RESULTS.md",
+    "docs/evidence/S/v3/final_257267c/"
+   ],
+   "limitations": "every reported result comes from an executed run whose code identity is recorded (snapshot commit per run, eval code per objective, checked by v3_report --expect-commit); experiments that did not run are reported as not run; pre-fix results are reported separately and never pooled"
   },
   "SV-12": {
    "state": "partial",
@@ -122,9 +162,9 @@
     "tests/eval/"
    ],
    "evidence": [],
-   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+   "limitations": "scaling infrastructure exists (python -m cam_live.eval.cli scaling / large); no scaling run on 257267c"
   },
-  "CL-07": {
+  "SV-13": {
    "state": "partial",
    "files": [
     "src/cam_live/eval/"
@@ -133,7 +173,50 @@
     "tests/eval/"
    ],
    "evidence": [],
-   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+   "limitations": "X3 (baselines A-D on the same architecture and action generation) did not run on the baseline snapshot 257267c: coordinator re-scope (257267c is the pre-amendment baseline; the comparison runs on the amended snapshot). Only debug-scale diagnostics exist (docs/evidence/S/diagnostics/v2_*)."
+  },
+  "SV-14": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/eval/"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [
+    "docs/evidence/S/v3/summary_x0.json",
+    "docs/evidence/S/v3/summary_x1.json"
+   ],
+   "limitations": "action-quality measures recorded per objective on 257267c (executable fraction of chosen actions X0 0.91 / X1 0.96, backbone-written fraction, repeats of failed actions, distinct strategies); no controlled comparison of highly evaluated actions against alternatives on the substantive families (the shadow evaluation needs per-candidate ground truth, which SW / MECH lack)"
+  },
+  "SV-15": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/eval/"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [
+    "docs/evidence/S/v3/summary_x0.json",
+    "docs/evidence/S/v3/summary_x1.json",
+    "docs/evidence/S/v3/x6/",
+    "docs/S/RESULTS.md"
+   ],
+   "limitations": "X1 on 257267c: pre / post exports, weight-group changes per objective (adapters changed in 10 of 12 objectives), slow-step guard outcomes (25 kept / 8 reverted / 1 deferred of 34), prediction NLL, action quality and verified competence per objective; the sequence confounds position with problem and the runs are not reproducible from the seed, so no learning effect on competence is established"
+  },
+  "CL-07": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/eval/"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [
+    "docs/evidence/S/v3/final_257267c/x2/initial_s0.json"
+   ],
+   "limitations": "the fresh-process weights-only child ran on the real configuration (empty working directory and CAM_LIVE_HOME, store / registries / fast state empty, 500 tensors loaded strictly, group hashes match the export); the experienced arm and the comparison did not run on 257267c (re-scope)"
   },
   "AE-07": {
    "state": "partial",
@@ -143,32 +226,68 @@
    "tests": [
     "tests/eval/"
    ],
-   "evidence": [],
-   "limitations": "implementation executed in smoke / pilot runs only; main run in progress, not analysed"
+   "evidence": [
+    "docs/evidence/S/v3/x6/"
+   ],
+   "limitations": "meta_checks.shadow_checkpoints ran on the X1 roots but evaluates nothing on SW (n = 0: no per-candidate ground truth); shadow comparison exists only in the debug-scale diagnostics (v2_*_shadow.json)"
+  },
+  "CU-33": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/eval/"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [
+    "docs/evidence/S/v3/old_snapshot_48600c4/"
+   ],
+   "limitations": "X4 (skills vs primitive, learner in the loop) did not run on 257267c (re-scope); the only runs are on the superseded snapshot 48600c4"
+  },
+  "OP-10": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/eval/"
+   ],
+   "tests": [
+    "tests/eval/"
+   ],
+   "evidence": [
+    "docs/evidence/S/v3/summary_x0.json",
+    "docs/evidence/S/v3/summary_x1.json",
+    "docs/evidence/S/v3/summary_x5.json",
+    "docs/S/RESULTS.md"
+   ],
+   "limitations": "pre-amendment baseline on the full-size agent (Qwen3-4B + 50m core + adapters, open-ended generation on, 512 tokens) on the open-ended families SW and MECH with independent signing verifiers: X0 5 / 9 achieved, X1 11 / 12, X5 5 / 8 assigned objectives; MECH never achieved (0 / 3); X2-X4 not run on this snapshot; 2-3 seeds, no significance claims (Protocol v3.5)"
   }
  },
  "public_api": [
-  "python -m cam_live.eval.cli run|batch|transfer-batch|analyse|integrity|meta|scaling|large",
   "cam-live evaluate-transfer --checkpoint <ckpt> [--baseline <pre>] (cam_live.eval.transfer.main)",
-  "cam_live.eval.conditions.build_condition(cond, cfg, run_dir, seed=, clock=)"
+  "cam_live.eval.conditions.build_condition(cond, cfg, run_dir, seed=, clock=)",
+  "python -m cam_live.eval.cli run|batch|transfer-batch|analyse|integrity|meta|scaling|large",
+  "python -m cam_live.eval.meta_checks --root RUN_ROOT --result RESULT.json --out OUT.json (16.5 checks, X6)",
+  "python -m cam_live.eval.oe_batch --plan v3|v3x5 [--only x0,x1] (Protocol v3 batch under one GPU lease)",
+  "python -m cam_live.eval.v3_report --out-dir D [--results-dir R] [--expect-commit SHA] [--markdown T]"
  ],
  "change_requests": [
-  "docs/change_requests/S.md: S-1 runtime drain after decision budget, S-2 scaler not in weights-only export"
+  "docs/change_requests/S.md: S-1 runtime drain after decision budget, S-2 scaler not in weights-only export",
+  "docs/change_requests/S2.md: S2-1 a code snapshot's default GPU lock path is a private file (workaround CAM_LIVE_GPU_LOCK)"
  ],
  "measured": {
-  "tests": "tests/eval: test_stats_envs 9 passed; test_conditions_transfer 13 passed (incl. fresh-process evaluate-transfer via runtime CLI); test_analysis 3 passed; test_meta_integrity 2 passed, attack-battery test timed out at 900 s on a loaded machine (now slow-marked and smaller, not re-run)",
-  "pilot_excluded": "seeds 900-901, debug scale: all conditions near the uniform anchor (verified progress ~0.25-0.49 vs uniform 0.26, oracle 1.0); used only to set q and targets",
-  "real_backbone_smoke": "frozen Qwen3-4B letter chooser (A) runs: 4 decisions, GPU peak 8.5 GB"
+  "tests": "tests/eval on the frozen code (257267c agent code + eval / tests of this workstream, overlay runs/cam_live/eval/snapshots/257267c1c315+evaltesta0f341159c3f): 42 collected, 38 passed, 1 skipped, 3 failed in 4667 s at load ~80-90 (2 pytest timeouts at 900 s; 1 subprocess resolved the worktree's package: PYTHONPATH not set) -> docs/evidence/test_results/S2_fix.xml; the 3 rerun with PYTHONPATH on the overlay at lower load: 3 passed in 261 s -> S2_fix_rerun.xml. On the live worktree (other agents' uncommitted reward/ credit/ changes of the amendment) 4 failed / 37 passed / 1 skipped (ValueError 'step must be in (0, 1]' in reward/validity.py, unknown promotion_rule; not this workstream's code)",
+  "baseline_257267c": "X0 E s0-2: 5/9 achieved; X1 E s0-2: 11/12; X5 s0-1: 5/8 assigned; X2 initial_s0 2/3 (no pair); slow steps X0 34/2/1 of 37, X1 25/8/1 of 34 (kept/reverted/deferred)",
+  "pre_fix_f54d8cc": "X0 6/9, X1 11/12, X2 1 pair; slow steps X0 8/17/3 of 28, X1 4/17/3 of 24 (docs/evidence/S/v3/pre_fix_f54d8cc)",
+  "integrity_257267c_cpu": "attacks delivered in 1 of 5 seeds (all refused); trivial world tick share 0 %"
  },
  "not_done": [
-  "X0 remaining objectives/seeds and X4 CU-33 running in the GPU queue (scratchpad S/gpu_queue2.sh); X1-X3, X5 wait for S-6",
-  "docs/S/RESULTS.md, JUnit of tests/eval not yet written",
-  "integrity battery on current code running (diagnostic)"
+  "X2 (transfer), X3 (baselines A-D), X4 (CU-33) on 257267c: not run by coordinator re-scope; the comparison run on the amended snapshot is pending (coordinator sends the snapshot)",
+  "calibration (SV-05) and delayed-credit (SV-06) analyses of the substantive runs; AULC; shadow comparison on the open-ended families (AE-07)"
  ],
  "scientific_failures": [
-  "Diagnostic (v2, debug scale): no condition beats uniform by a detectable margin; selection ignores the world model (shadow: greedy-on-prediction 5.05 vs behaviour 1.42 expected adopters/decision); 70-73% of internal reward goes to zero-value actions (S-5)",
-  "Diagnostic (v2): in E the learned reward changes psi (9.1 applied meta-updates/run, 10/10 runs) but has no effect on live inner updates (bootstrap mix 1.0 throughout); only E_mix0 lets psi act",
-  "Diagnostic (v2): CPU transfer S_q 0.86 [0.67, 0.98] (T1) and 0.97 [0.68, 1.47] (T2): no positive transfer",
-  "Substantive X0 (real, open-ended): 0 valid backbone candidates in 15 decisions on SW:rle; pass fraction 0.0 (S-6)"
+  "Baseline 257267c: MECH (mechanism discovery) never achieved: 0 of 3 objectives, held-out R^2 0 in every seed",
+  "Baseline 257267c: the learned reward does not reach the live inner update (bootstrap mix 1.0 in every objective; meta checks: delta theta psi_post vs psi_pre = 0 at the live mix); 8 of 233 meta-update records applied",
+  "Baseline 257267c: real-model runs are not reproducible from the seed (same instance, same seed: achieved in 16 vs not reached, not reached vs 9); single-seed outcomes carry little information",
+  "Baseline 257267c: no benefit of a 20-decision goal-free period on X1's objectives (5/8 vs 7/8; confounded by 3 wall-budget stops)",
+  "Diagnostic (v2, debug scale; kept from S): selection ignored the world model; 70-73 % of internal reward to zero-value actions (S-5)"
  ]
 }

@@ -1,0 +1,91 @@
+{
+ "condition": "E",
+ "seed": 0,
+ "n_eligible": 43,
+ "live_mix": 1.0,
+ "1_reward_params_affect_inner_update": {
+  "live_mix": {
+   "mix": 1.0,
+   "delta_theta_psi_post_vs_psi_pre": 0.0,
+   "noise_floor_same_psi": 0.0,
+   "update_norm": 0.02825677404851546
+  },
+  "mix0_differentiated": {
+   "mix": 0.0,
+   "delta_theta_psi_post_vs_psi_pre": 0.021067702519487596,
+   "noise_floor_same_psi": 0.0,
+   "update_norm": 0.0282723830984327
+  }
+ },
+ "2_inner_update_changes_policy": {
+  "heldout_rows": 16,
+  "tv_mean": 0.028671902691712603,
+  "tv_max": 0.03851896710693836
+ },
+ "6_beyond_magnitude": {
+  "spearman_learned_reward_pre_vs_post": 0.5088235294117647,
+  "n_rows": 16,
+  "mean_abs_learned_pre": 0.019880702515365556,
+  "mean_abs_learned_post": 0.02437220723277278,
+  "delta_theta_output_scaled_x3_vs_post": 1.3876369354617924e-07,
+  "delta_theta_psi_pre_vs_post": 0.021067702519487596
+ },
+ "3_4_meta_updates": {
+  "n_records": 46,
+  "applied": 1,
+  "applied_nonzero_changed_version": 1,
+  "min_independent_required": 4,
+  "applied_with_fewer_independent_outcomes": 0,
+  "meta_grad_norms": [
+   0.10203785858138219
+  ],
+  "skip_reasons": {
+   "no_policy_update_recorded": 2,
+   "insufficient_independent_outcomes": 14,
+   "no_supported_episode": 2,
+   "zero_advantage": 27
+  }
+ },
+ "group_changed_pre_to_post": {
+  "buffers": true,
+  "experiential": true,
+  "heads": true,
+  "reward": true,
+  "semantic_adapters": true
+ },
+ "shadow_checkpoints": {
+  "n": 0
+ },
+ "root": "/workspace/camlive/runs/cam_live/eval/v5/oe/v3/x1_E_s0",
+ "result": "/workspace/camlive/runs/cam_live/eval/v5/results/v3/x1/E_s0.json",
+ "gpu": true,
+ "lock_waited_s": 1056.4964020252228,
+ "lock_held_s": 61.78789281845093,
+ "code": {
+  "cam_live_dir": "/workspace/camlive/runs/cam_live/eval/snapshots/257267c1c315+evalcd34fd10f503/cam_live/src/cam_live",
+  "snapshot": "/workspace/camlive/runs/cam_live/eval/snapshots/257267c1c315+evalcd34fd10f503",
+  "snapshot_commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1+eval:cd34fd10f503ef35e0883cabded5fc644dba51bc",
+  "agent.py": "7dfdd898c0458980",
+  "reward/metalearner.py": "ae41b8753f5af469",
+  "credit/learner.py": "3d27948091a37084",
+  "predict/predictor.py": "dab210bf908dce89",
+  "runtime/loop.py": "d2e68b21c7fe8f83",
+  "nn/model.py": "d2e2e4bb36914ddc",
+  "eval/conditions.py": "b9d2a82a70388055",
+  "eval/runner.py": "e829a782e3463f5b"
+ },
+ "run_code": {
+  "cam_live_dir": "/workspace/camlive/runs/cam_live/eval/snapshots/257267c1c315/cam_live/src/cam_live",
+  "snapshot": "/workspace/camlive/runs/cam_live/eval/snapshots/257267c1c315",
+  "snapshot_commit": "257267c1c31568b693adf0cbcd0e9f9b547e62e1",
+  "agent.py": "7dfdd898c0458980",
+  "reward/metalearner.py": "ae41b8753f5af469",
+  "credit/learner.py": "3d27948091a37084",
+  "predict/predictor.py": "dab210bf908dce89",
+  "runtime/loop.py": "d2e68b21c7fe8f83",
+  "nn/model.py": "d2e2e4bb36914ddc",
+  "eval/conditions.py": "b9d2a82a70388055",
+  "eval/runner.py": "e829a782e3463f5b"
+ },
+ "plan": "SW:rle,SW:rpn,SW:merge,SW:topk"
+}

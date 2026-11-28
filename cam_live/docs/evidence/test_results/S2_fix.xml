@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="1" tests="42" time="4664.101" timestamp="2026-11-28T09:36:27.048564+00:00" hostname="ebecdb7e42eb"><testcase classname="tests.eval.test_analysis" name="test_baselines_paired_difference_and_nq" time="1.770" /><testcase classname="tests.eval.test_analysis" name="test_shadow_behaviour_policy_is_consistent_and_greedy_on_good_predictions_wins" time="1.009" /><testcase classname="tests.eval.test_analysis" name="test_action_quality_detects_informative_predictions" time="0.090" /><testcase classname="tests.eval.test_conditions_transfer" name="test_eval_config_switches_only_the_named_pathways" time="0.001" /><testcase classname="tests.eval.test_conditions_transfer" name="test_every_condition_is_the_integrated_agent[A-FrozenBackboneChooser]" time="10.891" /><testcase classname="tests.eval.test_conditions_transfer" name="test_every_condition_is_the_integrated_agent[B-MemoryChooser]" time="1.885" /><testcase classname="tests.eval.test_conditions_transfer" name="test_every_condition_is_the_integrated_agent[C-FastOnlyAgent]" time="1.802" /><testcase classname="tests.eval.test_conditions_transfer" name="test_every_condition_is_the_integrated_agent[D-CamLiveAgent]" time="3.811" /><testcase classname="tests.eval.test_conditions_transfer" name="test_every_condition_is_the_integrated_agent[E-CamLiveAgent]" time="3.411" /><testcase classname="tests.eval.test_conditions_transfer" name="test_every_condition_is_the_integrated_agent[E_no_credit-NoCreditAgent]" time="4.696" /><testcase classname="tests.eval.test_conditions_transfer" name="test_every_condition_is_the_integrated_agent[E_unverified-UnverifiedAgent]" time="1.678" /><testcase classname="tests.eval.test_conditions_transfer" name="test_frozen_chooser_learns_nothing_and_logs_exact_probabilities" time="49.232" /><testcase classname="tests.eval.test_conditions_transfer" name="test_memory_chooser_writes_notes_into_its_prompt" time="53.758" /><testcase classname="tests.eval.test_conditions_transfer" name="test_fast_only_baseline_changes_beliefs_not_weights" time="364.346" /><testcase classname="tests.eval.test_conditions_transfer" name="test_full_agent_changes_weights_and_ground_truth_is_recorded" time="719.388" /><testcase classname="tests.eval.test_conditions_transfer" name="test_transfer_runs_in_fresh_processes_on_weights_only" time="701.976"><failure message="AssertionError: &#10;assert 1 == 0&#10; +  where 1 = CompletedProcess(args=['/workspace/camlive/.venv/bin/python', '-m', 'cam_live.runtime.cli', 'evaluate-transfer', '--ch.../tmp/pytest-of-root/pytest-661/test_transfer_runs_in_fresh_pr0/transfer.json'], returncode=1, stdout='{}\n', stderr='').returncode">tmp_path = PosixPath('/tmp/pytest-of-root/pytest-661/test_transfer_runs_in_fresh_pr0')
+
+    def test_transfer_runs_in_fresh_processes_on_weights_only(tmp_path):
+        from cam_live.eval.experiments import export_checkpoint
+        clock = OffsetClock()
+        ag = build_condition("E", base_config(real=False, seed=4), str(tmp_path / "w" / "agent"), seed=4, clock=clock)
+        pre = export_checkpoint(ag, str(tmp_path / "w" / "ckpt_pre"), str(tmp_path / "w" / "export_pre"), note="pre")
+        run_lifetime(Timed(ag), "F1", 10_004, str(tmp_path / "w" / "lt"), clock, max_decisions=6)
+        post = export_checkpoint(ag, str(tmp_path / "w" / "ckpt_post"), str(tmp_path / "w" / "export_post"), note="post")
+        ag.close()
+        assert sorted(os.listdir(post["export"])) == ["config.json", "weights.safetensors"]
+        out = tmp_path / "transfer.json"
+        p = subprocess.run([sys.executable, "-m", "cam_live.runtime.cli", "evaluate-transfer", "--checkpoint",
+                            str(tmp_path / "w" / "ckpt_post"), "--domains", "T2", "--seeds", "0", "--lifetimes", "1",
+                            "--decisions", "3", "--threads", "2", "--out", str(out)],
+                           capture_output=True, text=True, timeout=900)
+&gt;       assert p.returncode == 0, p.stderr[-3000:]
+E       AssertionError: 
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/workspace/camlive/.venv/bin/python', '-m', 'cam_live.runtime.cli', 'evaluate-transfer', '--ch.../tmp/pytest-of-root/pytest-661/test_transfer_runs_in_fresh_pr0/transfer.json'], returncode=1, stdout='{}\n', stderr='').returncode
+
+cam_live/tests/eval/test_conditions_transfer.py:116: AssertionError</failure></testcase><testcase classname="tests.eval.test_goal_free" name="test_goal_free_task_has_no_success_criterion_and_its_verifier_checks_nothing" time="0.001" /><testcase classname="tests.eval.test_goal_free" name="test_x5_plan_is_the_goal_free_period_then_x1s_plan" time="0.001" /><testcase classname="tests.eval.test_goal_free" name="test_integrity_verdict_check_is_not_applicable_when_no_attack_was_delivered" time="0.027" /><testcase classname="tests.eval.test_meta_integrity" name="test_meta_checks_on_a_saved_run" time="902.698"><failure message="Failed: Timeout (&gt;900.0s) from pytest-timeout.">tmp_path = PosixPath('/tmp/pytest-of-root/pytest-661/test_meta_checks_on_a_saved_ru0')
+
+    def test_meta_checks_on_a_saved_run(tmp_path):
+&gt;       res = run_condition("E_mix0", "F1", 7, n_lifetimes=2, max_decisions=10, save_dir=str(tmp_path / "run"),
+                            world_seed_base=10_700)
+
+cam_live/tests/eval/test_meta_integrity.py:15: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+cam_live/src/cam_live/eval/experiments.py:168: in run_condition
+    lt = run_lifetime(timed, family, wb + i, os.path.join(root, f"lt{i:02d}"), clock,
+cam_live/src/cam_live/eval/runner.py:155: in run_lifetime
+    rt.step()
+cam_live/src/cam_live/runtime/loop.py:2053: in step
+    updates = [u for u in (self._agent_try("learn", budget, default=[]) or []) if u is not None] \
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+cam_live/src/cam_live/runtime/loop.py:788: in _agent_try
+    out = self._agent(name, *args)
+          ^^^^^^^^^^^^^^^^^^^^^^^^
+cam_live/src/cam_live/runtime/loop.py:779: in _agent
+    return getattr(self.agent, name)(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+cam_live/src/cam_live/eval/conditions.py:339: in wrapped
+    return attr(*a, **kw)
+           ^^^^^^^^^^^^^^
+cam_live/src/cam_live/agent.py:2141: in learn
+    ups = self.learner.learn(dataclasses.replace(plan, budget_s=float(budget_s)))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+cam_live/src/cam_live/credit/learner.py:900: in learn
+    rec = self._frequent_update(plan, credit_changes if i == 0 else {})
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+cam_live/src/cam_live/credit/learner.py:972: in _frequent_update
+    losses, metrics, grads, rows_used = self._collect(providers, batch, params)
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+cam_live/src/cam_live/credit/learner.py:946: in _collect
+    grads[p.name] = list(torch.autograd.grad(p.weight * loss, params, retain_graph=i &lt; len(live) - 1,
+/workspace/agentrs/.venv/lib/python3.12/site-packages/torch/autograd/__init__.py:594: in grad
+    result = _engine_run_backward(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+t_outputs = (tensor(3.8895, grad_fn=&lt;MulBackward0&gt;),)
+args = ((tensor(1.),), True, False, (Parameter containing:
+tensor([ 4.7630e-01, -4.0027e-01, -1.0975e-01, -3.3849e-01,  1.239...0.4254],
+        [-0.0781, -0.1022, -0.2178,  ..., -0.5571,  0.3487,  0.1462]],
+       requires_grad=True), ...), True)
+kwargs = {'accumulate_grad': False}
+
+    def _engine_run_backward(
+        t_outputs: Sequence[torch.Tensor | GradientEdge],
+        *args: Any,
+        **kwargs: Any,
+    ) -&gt; tuple[torch.Tensor, ...]:
+        attach_logging_hooks = log.getEffectiveLevel() &lt;= logging.DEBUG
+        if attach_logging_hooks:
+            unregister_hooks = _register_logging_hooks_on_whole_graph(t_outputs)
+    
+        # Need to save the context so compiler config will be visible in device threads
+        torch._C._stash_obj_in_tls("context", contextvars.copy_context())
+    
+        try:
+&gt;           return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+                t_outputs, *args, **kwargs
+            )  # Calls into the C++ engine to run the backward pass
+E           Failed: Timeout (&gt;900.0s) from pytest-timeout.
+
+/workspace/agentrs/.venv/lib/python3.12/site-packages/torch/autograd/graph.py:1113: Failed</failure></testcase><testcase classname="tests.eval.test_meta_integrity" name="test_meta_pathway_removed_keeps_psi_bit_identical" time="900.003"><failure message="Failed: Timeout (&gt;900.0s) from pytest-timeout.">tmp_path = PosixPath('/tmp/pytest-of-root/pytest-661/test_meta_pathway_removed_keep0')
+
+    def test_meta_pathway_removed_keeps_psi_bit_identical(tmp_path):
+&gt;       run_condition("D", "F1", 8, n_lifetimes=2, max_decisions=8, save_dir=str(tmp_path / "d"), world_seed_base=10_800)
+
+cam_live/tests/eval/test_meta_integrity.py:35: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+cam_live/src/cam_live/eval/experiments.py:168: in run_condition
+    lt = run_lifetime(timed, family, wb + i, os.path.join(root, f"lt{i:02d}"), clock,
+cam_live/src/cam_live/eval/runner.py:152: in run_lifetime
+    rt.start()
+cam_live/src/cam_live/runtime/loop.py:344: in start
+    self._fresh()
+cam_live/src/cam_live/runtime/loop.py:378: in _fresh
+    self._agent("set_objective", learner_view(self.task))
+cam_live/src/cam_live/runtime/loop.py:779: in _agent
+    return getattr(self.agent, name)(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+cam_live/src/cam_live/agent.py:918: in set_objective
+    self.fast_records += self.promote(f"objective {self.task.objective_id} ended")
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+cam_live/src/cam_live/agent.py:2247: in promote
+    self._freeze_retention_set(self.task.objective_id, self.task.family)
+cam_live/src/cam_live/agent.py:2181: in _freeze_retention_set
+    self.retention_ref[key] = {"probs": [p.tolist() for p in self._record_action_probs(ids)]}
+                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/workspace/agentrs/.venv/lib/python3.12/site-packages/torch/utils/_contextlib.py:158: in no_grad
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+cam_live/src/cam_live/agent.py:2192: in _record_action_probs
+    batch = encode_decisions(self.model, self.store, recs[i:i + 16], grad=False)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+cam_live/src/cam_live/learning_api.py:71: in encode_decisions
+    e_a, a_mask = model.encode_actions([[c.action for c in r.decision.candidates] or [r.decision.chosen]
+cam_live/src/cam_live/nn/model.py:184: in encode_actions
+    x = x + tok.value_channel(ab["values"], ab["value_mask"], ab["name_ids"], ab["unit_ids"], ab["qkind"],
+cam_live/src/cam_live/nn/tokens.py:225: in value_channel
+    name = self.name_a(name_ids[..., 0]) + self.name_b(name_ids[..., 1]) + self.unit_emb(unit_ids)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/workspace/agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/workspace/agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1798: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/workspace/agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/sparse.py:189: in forward
+    return F.embedding(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+input = tensor([[[ 55,  39,   0,  ...,   0,   0,   0],
+         [ 80, 119,   0,  ...,   0,   0,   0],
+         [ 55,  40,   0,...,  ...,   0,   0,   0],
+         [ 55, 187, 128,  ...,   0,   0,   0],
+         [ 80, 156,   0,  ...,   0,   0,   0]]])
+weight = Parameter containing:
+tensor([[ 0.6198,  0.0138,  0.2970,  ..., -0.0119,  0.2630,  0.0857],
+        [-0.5413,  0.4376,...7,  0.2225, -0.8311],
+        [ 0.7168, -0.0647,  0.4089,  ..., -1.3817, -0.3122,  0.1027]],
+       requires_grad=True)
+padding_idx = -1, max_norm = None, norm_type = 2.0, scale_grad_by_freq = False
+sparse = False
+
+    def embedding(
+        input: Tensor,
+        weight: Tensor,
+        padding_idx: int | None = None,
+        max_norm: float | None = None,
+        norm_type: float = 2.0,
+        scale_grad_by_freq: bool = False,
+        sparse: bool = False,
+    ) -&gt; Tensor:
+        r"""Generate a simple lookup table that looks up embeddings in a fixed dictionary and size.
+    
+        This module is often used to retrieve word embeddings using indices.
+        The input to the module is a list of indices, and the embedding matrix,
+        and the output is the corresponding word embeddings.
+    
+        See :class:`torch.nn.Embedding` for more details.
+    
+        .. note::
+            Note that the analytical gradients of this function with respect to
+            entries in :attr:`weight` at the row specified by :attr:`padding_idx`
+            are expected to differ from the numerical ones.
+    
+        .. note::
+            Note that `:class:`torch.nn.Embedding` differs from this function in
+            that it initializes the row of :attr:`weight` specified by
+            :attr:`padding_idx` to all zeros on construction.
+    
+        Args:
+            input (LongTensor): Tensor containing indices into the embedding matrix
+            weight (Tensor): The embedding matrix (must be 2-D) with number of rows equal to the maximum possible index + 1,
+                and number of columns equal to the embedding size
+            padding_idx (int, optional): If specified, the entries at :attr:`padding_idx` do not contribute to the gradient;
+                                         therefore, the embedding vector at :attr:`padding_idx` is not updated during training,
+                                         i.e. it remains as a fixed "pad".
+            max_norm (float, optional): If given, each embedding vector with norm larger than :attr:`max_norm`
+                                        is renormalized to have norm :attr:`max_norm`.
+                                        Note: this will modify :attr:`weight` in-place.
+            norm_type (float, optional): The p of the p-norm to compute for the :attr:`max_norm` option. Default ``2``.
+            scale_grad_by_freq (bool, optional): If given, this will scale gradients by the inverse of frequency of
+                                                    the words in the mini-batch. Default ``False``.
+            sparse (bool, optional): If ``True``, gradient w.r.t. :attr:`weight` will be a sparse tensor. See Notes under
+                                     :class:`torch.nn.Embedding` for more details regarding sparse gradients.
+    
+        Shape:
+            - Input: LongTensor of arbitrary shape containing the indices to extract
+            - Weight: Embedding matrix of floating point type with shape `(V, embedding_dim)`,
+              where V = maximum index + 1 and embedding_dim = the embedding size
+            - Output: `(*, embedding_dim)`, where `*` is the input shape
+    
+        Examples::
+    
+            &gt;&gt;&gt; # a batch of 2 samples of 4 indices each
+            &gt;&gt;&gt; input = torch.tensor([[1, 2, 4, 5], [4, 3, 2, 9]])
+            &gt;&gt;&gt; # an embedding matrix containing 10 tensors of size 3
+            &gt;&gt;&gt; embedding_matrix = torch.rand(10, 3)
+            &gt;&gt;&gt; # xdoctest: +IGNORE_WANT("non-deterministic")
+            &gt;&gt;&gt; F.embedding(input, embedding_matrix)
+            tensor([[[ 0.8490,  0.9625,  0.6753],
+                     [ 0.9666,  0.7761,  0.6108],
+                     [ 0.6246,  0.9751,  0.3618],
+                     [ 0.4161,  0.2419,  0.7383]],
+    
+                    [[ 0.6246,  0.9751,  0.3618],
+                     [ 0.0237,  0.7794,  0.0528],
+                     [ 0.9666,  0.7761,  0.6108],
+                     [ 0.3385,  0.8612,  0.1867]]])
+    
+            &gt;&gt;&gt; # example with padding_idx
+            &gt;&gt;&gt; weights = torch.rand(10, 3)
+            &gt;&gt;&gt; weights[0, :].zero_()
+            &gt;&gt;&gt; embedding_matrix = weights
+            &gt;&gt;&gt; input = torch.tensor([[0, 2, 0, 5]])
+            &gt;&gt;&gt; F.embedding(input, embedding_matrix, padding_idx=0)
+            tensor([[[ 0.0000,  0.0000,  0.0000],
+                     [ 0.5609,  0.5384,  0.8720],
+                     [ 0.0000,  0.0000,  0.0000],
+                     [ 0.6262,  0.2438,  0.7471]]])
+        """
+        if has_torch_function_variadic(input, weight):
+            return handle_torch_function(
+                embedding,
+                (input, weight),
+                input,
+                weight,
+                padding_idx=padding_idx,
+                max_norm=max_norm,
+                norm_type=norm_type,
+                scale_grad_by_freq=scale_grad_by_freq,
+                sparse=sparse,
+            )
+        if padding_idx is not None:
+            if padding_idx &gt; 0:
+                if padding_idx &gt;= weight.size(0):
+                    raise AssertionError("Padding_idx must be within num_embeddings")
+            elif padding_idx &lt; 0:
+                if padding_idx &lt; -weight.size(0):
+                    raise AssertionError("Padding_idx must be within num_embeddings")
+                padding_idx = weight.size(0) + padding_idx
+        else:
+            padding_idx = -1
+        if max_norm is not None:
+            # Note [embedding_renorm contiguous]
+            # `embedding_renorm_` will call .contiguous() on input anyways, so we
+            # call it here and take advantage of the improved locality in the
+            # `embedding` call below too.
+            input = input.contiguous()
+            # Note [embedding_renorm set_grad_enabled]
+            # XXX: equivalent to
+            # with torch.no_grad():
+            #   torch.embedding_renorm_
+            # remove once script supports set_grad_enabled
+            _no_grad_embedding_renorm_(weight, input, max_norm, norm_type)
+&gt;       return torch.embedding(weight, input, padding_idx, scale_grad_by_freq, sparse)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: Timeout (&gt;900.0s) from pytest-timeout.
+
+/workspace/agentrs/.venv/lib/python3.12/site-packages/torch/nn/functional.py:2621: Failed</failure></testcase><testcase classname="tests.eval.test_meta_integrity" name="test_attack_battery_detects_every_delivered_attack" time="0.001"><skipped type="pytest.skip" message="run with -m slow">/workspace/camlive/runs/cam_live/eval/snapshots/257267c1c315+evaltesta0f341159c3f/cam_live/tests/eval/test_meta_integrity.py:40: run with -m slow</skipped></testcase><testcase classname="tests.eval.test_openended" name="test_hidden_tests_accept_a_correct_program_and_reject_others[rle]" time="1.030" /><testcase classname="tests.eval.test_openended" name="test_hidden_tests_accept_a_correct_program_and_reject_others[base]" time="0.763" /><testcase classname="tests.eval.test_openended" name="test_hidden_test_runner_is_isolated_and_time_limited" time="1.008" /><testcase classname="tests.eval.test_openended" name="test_every_problem_has_a_statement_without_its_solution" time="0.001" /><testcase classname="tests.eval.test_openended" name="test_mechanism_service_and_held_out_verifier" time="2.104" /><testcase classname="tests.eval.test_stats_envs" name="test_mean_ci_covers_and_degenerates" time="1.872" /><testcase classname="tests.eval.test_stats_envs" name="test_paired_sign_flip_exact_p" time="0.018" /><testcase classname="tests.eval.test_stats_envs" name="test_unpaired_permutation_detects_shift_and_not_noise" time="1.290" /><testcase classname="tests.eval.test_stats_envs" name="test_n_to_threshold_and_censoring" time="0.072" /><testcase classname="tests.eval.test_stats_envs" name="test_speedup_ratio_and_interval" time="0.141" /><testcase classname="tests.eval.test_stats_envs" name="test_wilson_and_calibration_metrics" time="0.001" /><testcase classname="tests.eval.test_stats_envs" name="test_codec_world_is_real_software_and_verifier_reruns" time="1.963" /><testcase classname="tests.eval.test_stats_envs" name="test_truth_tap_records_hidden_rate_and_efficiency" time="0.087" /><testcase classname="tests.eval.test_stats_envs" name="test_anchors_bracket_the_competence_scale" time="30.914" /><testcase classname="tests.eval.test_v3_report" name="test_stop_class_names_how_each_objective_ended" time="0.001" /><testcase classname="tests.eval.test_v3_report" name="test_slow_step_outcomes_from_the_learning_log" time="0.019" /><testcase classname="tests.eval.test_v3_report" name="test_summary_counts_achieved_censored_interrupted_not_run_and_code" time="0.068" /><testcase classname="tests.eval.test_v3_report" name="test_transfer_pairs_and_report_files" time="0.210" /><testcase classname="tests.eval.test_v3_report" name="test_oe_results_reach_the_meta_checks_with_every_meta_record" time="0.001" /><testcase classname="tests.eval.test_v3_report" name="test_meta_checks_cli_on_a_cpu_oe_run" time="883.667" /></testsuite></testsuites>
