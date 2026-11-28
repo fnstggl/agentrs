@@ -1,0 +1,39 @@
+{
+ "checkpoint": "ckpt_00000039",
+ "keys_in_checkpoint": [
+  "base_at",
+  "by_objective",
+  "events",
+  "gate",
+  "ledger_head",
+  "life",
+  "life_of",
+  "life_states",
+  "mixer",
+  "n_events",
+  "objective_origins",
+  "objective_seen",
+  "optimizer",
+  "promo",
+  "promo_scale",
+  "records",
+  "selection",
+  "selection_pending",
+  "selection_registered",
+  "stats",
+  "tried",
+  "u_ema",
+  "used"
+ ],
+ "restored_fresh": [
+  "validity (not in the checkpoint)"
+ ],
+ "mix": 1.0,
+ "events": 9,
+ "ledger_entries": 12,
+ "promotion_rule": "validity",
+ "estimator": "auto",
+ "utility": "direct",
+ "meta_records": 35,
+ "validity_units": 0
+}

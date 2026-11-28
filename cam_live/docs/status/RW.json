@@ -1,0 +1,80 @@
+{
+ "workstream": "RW",
+ "commit": "21bde3a4633ac3fdfcd9c72cf7df5a11c1cbf569",
+ "summary": "RW (amendment 2026-11-28 item 1, genuinely learned rewards). Audit: the mix stayed 1 because the promotion test compared single policy steps (power ~0 at realistic rates), existed only at applied meta-updates, and the outer estimator used only the 3-4 decisions between two live updates; defect: level readings were stored as the level. Changed (reward/): prospective anytime-valid validity evidence decides the mix (no margin, no held-out reservation); pooled first-order outer estimator ('auto'); outer utility 'direct'; level readings as changes. Debug scale, one long LabWorld objective per seed vs a frozen R_psi (same seeds): learning raised R_psi's prospective agreement with verified outcomes in 12/12 seed-configurations; the evidence promoted R_psi in 2/3 600-decision objectives (never a frozen one), decisions changed 9-17 decisions later, chosen-action true value +2.06 [1.58, 2.54] adopters/decision afterwards in one seed (+2.05 [-0.92, 5.08] in the other, 27 decisions); 1/3 within 300 decisions; 0/3 at the agent's reward lr 1e-4. Real model: see real_* evidence and docs/RW.md section 5. Not shown: reliable improvement; promotion inside one GPU hold.",
+ "requirements": {
+  "AM1-promotion-criterion (bootstrap transition, empirically grounded usefulness)": {
+   "state": "implemented",
+   "what_changed": "reward/validity.py ProspectiveValidity + BettingTest + ConfidenceSequence; RewardMixer.apply; MetaLearner.refresh_validity; MetaConfig.promotion_rule='validity' (default; the LRN rule stays as 'value'); heldout_fraction default 0 under 'validity'.",
+   "tests": [
+    "tests/reward/test_reward_rw.py (sequential statistics, validity, mixer, wiring, compatibility)"
+   ],
+   "evidence": "simulation docs/evidence/RW/promotion_power.json (type-I 1.75 % at nominal 2.5 %; median 129/52/24/18 pairs at 70/80/90/100 % correct order); debug long objectives docs/evidence/RW/diag_summary_*.json (frozen arms: 0 mix changes in 9 objectives; learned: 4 lowerings, 0 raises)",
+   "still_fails": "needs tens of informative pairs (~100+ matured decisions) before an R_psi of realistic quality is promoted; sign-only scores"
+  },
+  "AM1-learning within one objective (scarcity of groups, dependence on completed lifetimes, meta-gradient effectiveness)": {
+   "state": "implemented, partially effective",
+   "what_changed": "MetaLearner._pooled_meta_update / _pool (estimator 'pooled_first_order', default 'auto' with query-window fallback), MetaConfig.utility default 'direct', pool_size 64",
+   "tests": [
+    "test_pooled_first_order_meta_update_moves_only_psi_along_the_first_order_outer_gradient (FD 5 %)",
+    "test_pooled_estimator_refuses_without_enough_independent_verified_groups",
+    "test_auto_estimator_falls_back_to_the_query_windows_with_one_record",
+    "test_the_agent_configuration_uses_the_rw_defaults"
+   ],
+   "evidence": "debug: 48-49 applied per 300 decisions (query estimator 22 / 13-14 per 120); credit probe docs/evidence/RW/credit_probe_*.json (credit to R_psi vs row's verified progress: -0.11 with return_to_go, 0.41 with direct)",
+   "still_fails": "in the agent configuration the newest update's support covers the newest ~28 decisions (12 + 16 replayed), so the pool is empty early in an objective (debug agent run, 32 decisions: 0 applied); inner return half-life smears the credit (not changed)"
+  },
+  "AM1-level-utility defect": {
+   "state": "fixed",
+   "what_changed": "OutcomeLedger.admit_measurement(level_key=) with LEVEL_CHANGE; MetaLearner.register_objective remembers the success metric",
+   "tests": [
+    "test_readings_of_the_objective_level_are_admitted_as_changes_never_twice",
+    "test_meta_learner_admits_goal_metric_readings_as_level_changes"
+   ],
+   "evidence": "regression tests fail on d1d06dc (no level_key; stored utility = level)",
+   "still_fails": "not exercised on an objective whose level moves (the live planning run's readings are all 0)"
+  },
+  "AM1-pathway experience -> meta-update -> weighted R_psi -> changed live update -> changed decisions, with ablation": {
+   "state": "shown at debug scale; real model: see section 5",
+   "evidence": "docs/evidence/RW/diag_summary_600.json: seeds 0/1 promoted at decisions 252/573, first decision unlike the frozen arm 269/582; seed 2 not promoted; frozen never",
+   "still_fails": "real configuration: interim, waiting for the GPU lock (docs/RW.md section 5)"
+  }
+ },
+ "public_api": [
+  "cam_live.reward.validity.ProspectiveValidity",
+  "cam_live.reward.validity.BettingTest",
+  "cam_live.reward.validity.ConfidenceSequence",
+  "cam_live.reward.bootstrap.RewardMixer.apply",
+  "cam_live.reward.metalearner.MetaLearner.refresh_validity",
+  "cam_live.reward.metalearner.MetaConfig.promotion_rule / estimator / utility / pool_size / validity_alpha",
+  "cam_live.reward.integrity.OutcomeLedger.admit_measurement(level_key=)",
+  "cam_live.reward.integrity.LEVEL_CHANGE"
+ ],
+ "change_requests": [
+  "docs/change_requests/RW.md: RW-1 restore report meta_restored_fresh, RW-2 status() reward_validity (reporting only; tested on a patched copy)"
+ ],
+ "extra_packages": [],
+ "measured": {
+  "tests_reward": "166 passed, 4 skipped (162 s), snapshot 07303fe + RW files",
+  "tests_other_touched_by_defaults": "tests/integration/test_agent_runtime.py 11 passed; tests/integration/test_agent_recovery.py + tests/eval/test_meta_integrity.py 4 passed, 1 skipped (isolated copy 07303fe + RW)",
+  "g2decision_probe_meta_path": "21/23 on RW code (the 2 failures are the probe's own analytic vs FD at derivative magnitudes 1.3e-8 / 1.6e-6; the code's gradient equals the probe's analytic one to 3e-15); HEAD: 23/23; the probe is not run-to-run reproducible (HEAD twice: |g| 0.258 / 0.249)",
+  "live_checkpoint_compat": "ckpt_00000039 of the live planning run loads; restored_fresh = validity"
+ },
+ "not_done": [
+  "inner-loss return half-life not changed (diagnosed)",
+  "promotion inside one real-model hold not reachable at measured evidence rates",
+  "query/direct arm only seed 0 (stopped by the CPU rule)",
+  "frozen real-model arm not run if no promotion (identical by construction)"
+ ],
+ "scientific_failures": [
+  "R_psi's agreement with verified outcomes rises but reaches the promotion bar only after ~250-570 decisions in 2 of 3 seeds (debug); at the agent's reward lr 1e-4 not within 300",
+  "no reliable improvement shown: one seed with a long post-promotion period"
+ ],
+ "measured_commands": {
+  "suite": "cd <snapshot> && PYTHONPATH=<snapshot>/cam_live/src .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=.../RW_fix.xml",
+  "long objective diagnostics": "PYTHONPATH=cam_live/src .venv/bin/python cam_live/docs/evidence/RW/rw_meta_diag.py --arm pooled|frozen|query --utility direct|return_to_go [--half-life-s 600] [--lr-reward 1e-4] --seeds 0 1 2 --decisions 300|600 --out X.json; summarise_diag.py --frozen F.json --arm A.json --out S.json; table_diag.py S.json",
+  "credit probe": "rw_credit_probe.py [--utility direct] --out credit_probe.json",
+  "power": "promotion_power_sim.py > promotion_power.json",
+  "real model": "CAM_LIVE_GPU_LOCK=/workspace/agentrs/runs/cam_unified/gpu_heavy.lock rw_pathway.py --arm learned --decisions 80 --budget-s 800 --out real_learned.json"
+ }
+}
