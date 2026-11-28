@@ -138,3 +138,35 @@ def test_a_dominant_loss_no_longer_pushes_the_adapters_against_another_providers
             assert world <= 1e-6 and g["by_provider"]["grounding"]["paired_change"] < 0
             assert g["accepted"] and _moved(w0, m)
             assert notes["slow_balance"]["conflicts"]                # the gradients did conflict
+
+
+def test_cocoa_reads_the_representation_and_the_update_does_not_raise_its_loss_to_first_order(lab_factory):
+    """COCOA's hindsight model trains on detached latents (no adapter gradient), but its held-out loss rose 1-22 %
+    with the adapter steps (G2-learn round 2). Its sensitivity gradient (attached latents, its own training records
+    only, never a training step of COCOA) now constrains the applied update."""
+    cfg = CamLiveConfig.debug()
+    cfg.optim.lr_adapters = 1e-3
+    torch.manual_seed(0)
+    lab = lab_factory(n_worlds=8, n_decisions=6, cfg=cfg, world=False, policy=False, credit=True, bridge=True,
+                      settings=LearnerSettings.from_cfg(cfg, slow_guard=True, val_split="record", val_fraction=0.3,
+                                                        slow_batch_size=4, warmup_steps=0))
+    L, m, cocoa = lab.learner, lab.model, lab.cocoa
+    L.refresh_eligibility(full=True)
+    from cam_live.learning_api import TIMESCALE_FREQUENT
+    for _ in range(4):                      # a trained hindsight model (at initialisation its residual is zero)
+        L.learn(UpdatePlan(trigger="test", timescales=(TIMESCALE_FREQUENT,), max_steps=2))
+    trained_before = set(cocoa.trained_objectives)
+    rng = torch.get_rng_state()
+    batch_recs = lab.store.get_many(lab.store.sample_ids(4, loss=cocoa.name, seed=1))
+    from cam_live.credit.learner import encode_with_adapter_grad
+    batch = encode_with_adapter_grad(m, lab.store, batch_recs, grad_last=4)
+    loss = cocoa.adapter_sensitivity_loss(m, batch, lab.store)
+    assert loss is not None and loss.requires_grad
+    g = torch.autograd.grad(loss, m.param_groups()[GROUP_ADAPTERS], allow_unused=True)
+    assert any(x is not None and float(x.abs().sum()) > 0 for x in g)        # it does depend on the adapters
+    assert torch.equal(rng, torch.get_rng_state()) and cocoa.trained_objectives == trained_before
+    rec, notes = _slow(L)
+    assert notes.get("protected_readers", {}).get("cocoa", 0) > 0, {k: notes.get(k) for k in ("skipped", "guard")}
+    if True:
+        up = notes["update_projection"]
+        assert up["first_order_change_after"]["cocoa"] <= 1e-9 * max(1.0, abs(up["first_order_change_before"]["cocoa"]))

@@ -261,15 +261,20 @@ class TrajectoryEncoder:
         return self.store.trajectory(objective_id)
 
     def encode(self, objective_id: str, records: Optional[Sequence[ExperienceRecord]] = None, *, grad: bool = False,
-               full: bool = False) -> Optional[EncodedTrajectory]:
+               full: bool = False, semantic: bool = False, last: Optional[int] = None,
+               grad_last: Optional[int] = None) -> Optional[EncodedTrajectory]:
         """Latents of the objective's top-level decisions: the newest ``max_len`` (training) or all (``full``:
-        credit assignment, so that no decision of a long trajectory is left without credit)."""
+        credit assignment, so that no decision of a long trajectory is left without credit). ``semantic``: with a
+        graph into the semantic adapters (newest ``grad_last`` context items) for the newest ``last`` decisions,
+        never cached (the slow step's protection of readers of the representation, ``learner``)."""
         recs = [r for r in (records if records is not None else self.records(objective_id)) if is_top_level(r)]
         if not full:
-            recs = recs[-self.max_len:]
+            recs = recs[-(int(last) if last else self.max_len):]
         if not recs:
             return None
         key = (objective_id, len(recs))
+        if semantic:
+            grad = True
         if not grad:
             fp = self.fingerprint()
             if fp != self._fp:
@@ -281,8 +286,9 @@ class TrajectoryEncoder:
                 self.stats["hits"] += 1
                 return hit
         parts: List[DecisionBatch] = []
+        kw: Dict[str, Any] = {"with_grad_semantic": True, "grad_last": grad_last} if semantic else {}
         for i in range(0, len(recs), self.chunk):
-            parts.append(encode_decisions(self.model, self.store, recs[i:i + self.chunk], grad=grad))
+            parts.append(encode_decisions(self.model, self.store, recs[i:i + self.chunk], grad=grad, **kw))
         n = max(p.e_a.shape[1] for p in parts)
 
         def pad(t: Tensor) -> Tensor:
@@ -297,7 +303,7 @@ class TrajectoryEncoder:
             open_ended=[candidate_set_open_ended(r) for r in recs], tracked=[proposals_tracked(r) for r in recs],
             arms=[candidate_arms(r) for r in recs])
         self.stats["encoded"] += len(recs)
-        if not grad:
+        if not grad and not semantic:
             if len(self._cache) >= self.max_cached:
                 self._cache.clear()
             self._cache[key] = enc
@@ -560,7 +566,8 @@ class HindsightProvider:
                     out.append((t, k))
         return out
 
-    def _rows(self, enc: EncodedTrajectory, tr: TrajectoryReturn, pairs: Sequence[Tuple[int, int]]) -> Dict[str, Tensor]:
+    def _rows(self, enc: EncodedTrajectory, tr: TrajectoryReturn, pairs: Sequence[Tuple[int, int]],
+              detach: bool = True) -> Dict[str, Tensor]:
         dev = self.model.device
         t = torch.tensor([p[0] for p in pairs], dtype=torch.long, device=dev)
         vals = torch.tensor([tr.events[p[1]].value for p in pairs], dtype=torch.float64, device=dev)
@@ -573,7 +580,8 @@ class HindsightProvider:
                              device=dev).clamp_min(0.0)
         secs = (when - enc.ts[t]).clamp_min(0.0)
         probs = enc.probs[t]
-        return {"b": enc.b[t].detach(), "u": outcome_features(vals).to(dev), "cand": enc.e_a[t].detach(),
+        b, cand = (enc.b[t].detach(), enc.e_a[t].detach()) if detach else (enc.b[t], enc.e_a[t])
+        return {"b": b, "u": outcome_features(vals).to(dev), "cand": cand,
                 "mask": enc.a_mask[t], "logp": probs.clamp_min(1e-30).log(), "taken": enc.chosen[t],
                 "elapsed": torch.stack([secs, steps], -1), "value": vals, "secs": secs, "t": t}
 
@@ -595,6 +603,19 @@ class HindsightProvider:
                     self.trained_objectives.add(oid)
         if not rows:
             return None, {"n_pairs": 0.0}
+        b, u, cand, mask, logp, taken, el = self._stack_rows(rows)
+        ok = (logp.masked_fill(~mask, float("-inf")).exp().sum(1) - 1.0).abs() < 1e-3      # a recorded distribution
+        if int(ok.sum()) == 0:
+            return None, {"n_pairs": 0.0}
+        idx = torch.nonzero(ok).flatten()
+        if idx.numel() > self.max_pairs:
+            idx = idx[torch.randperm(idx.numel(), device=idx.device)[:self.max_pairs]]
+        loss, m = self.hindsight.loss(b[idx], u[idx], cand[idx], mask[idx], taken[idx], logp[idx], el[idx])
+        m.update({"n_pairs": float(idx.numel()), "n_trajectories": float(n_traj)})
+        return loss / len(self.hindsight.members), m
+
+    @staticmethod
+    def _stack_rows(rows: Sequence[Dict[str, Tensor]]) -> Tuple[Tensor, ...]:
         n = max(r["cand"].shape[1] for r in rows)
 
         def cat(k: str) -> Tensor:
@@ -607,16 +628,38 @@ class HindsightProvider:
                 parts.append(t)
             return torch.cat(parts)
 
-        b, u, cand, mask, logp, taken, el = (cat(k) for k in ("b", "u", "cand", "mask", "logp", "taken", "elapsed"))
-        ok = (logp.masked_fill(~mask, float("-inf")).exp().sum(1) - 1.0).abs() < 1e-3      # a recorded distribution
-        if int(ok.sum()) == 0:
-            return None, {"n_pairs": 0.0}
-        idx = torch.nonzero(ok).flatten()
-        if idx.numel() > self.max_pairs:
-            idx = idx[torch.randperm(idx.numel(), device=idx.device)[:self.max_pairs]]
-        loss, m = self.hindsight.loss(b[idx], u[idx], cand[idx], mask[idx], taken[idx], logp[idx], el[idx])
-        m.update({"n_pairs": float(idx.numel()), "n_trajectories": float(n_traj)})
-        return loss / len(self.hindsight.members), m
+        return tuple(cat(k) for k in ("b", "u", "cand", "mask", "logp", "taken", "elapsed"))
+
+    def adapter_sensitivity_loss(self, model: LatentModelAPI, batch: DecisionBatch, store: Any, *,
+                                 train_ok: Optional[Callable[[str], bool]] = None, max_trajectories: int = 2,
+                                 max_len: int = 8, grad_last: Optional[int] = 8) -> Optional[Tensor]:
+        """The hindsight loss with a graph into the semantic adapters (beliefs and candidate embeddings attached),
+        on the newest ``max_len`` decisions of at most ``max_trajectories`` matured objectives of ``batch``, over
+        pairs whose decision is training data (``train_ok(exp_id)``). It never trains the hindsight model and is not
+        training data of COCOA: the slow step uses its gradient only to keep its update from raising this loss (the
+        hindsight model reads the representation the adapters change; DX round 2). No random draw."""
+        rows: List[Dict[str, Tensor]] = []
+        for oid in _batch_objectives(batch, max_trajectories):
+            tr = self.returns.get(oid)
+            if not tr.matured:
+                continue
+            enc = self.encoder.encode(oid, semantic=True, last=max_len, grad_last=grad_last)
+            if enc is None:
+                continue
+            pairs = [p for p in self._pairs(enc, tr) if enc.has_probs[p[0]]
+                     and (train_ok is None or train_ok(enc.exp_ids[p[0]]))]
+            if pairs:
+                rows.append(self._rows(enc, tr, pairs, detach=False))
+        if not rows:
+            return None
+        b, u, cand, mask, logp, taken, el = self._stack_rows(rows)
+        ok = (logp.masked_fill(~mask, float("-inf")).exp().sum(1) - 1.0).abs() < 1e-3
+        idx = torch.nonzero(ok).flatten()[:self.max_pairs]
+        if idx.numel() == 0:
+            return None
+        loss, _ = self.hindsight.loss(b[idx], u[idx], cand[idx], mask[idx], taken[idx], logp[idx], el[idx],
+                                      bootstrap=False)
+        return loss / len(self.hindsight.members)
 
     # ---- credit ---------------------------------------------------------------------------------------------
     def credit(self, objective_ids: Sequence[str]) -> Dict[str, CocoaCredit]:

@@ -996,6 +996,23 @@ class CheckpointManager:
 
 
 # ------------------------------------------------------------------------------------------------ complete learner state
+#: TaskSpec fields that make up the authorization configuration as the learner receives it (``runtime.tasks.
+#: learner_view``): what it may use, where, how much, under which data permissions and stop conditions, in which mode
+AUTH_FIELDS = ("resources", "interfaces", "limits", "data_permissions", "stop_conditions", "mode", "origin")
+
+
+def auth_config_hash(task: Any) -> str:
+    """``"sha256:<hex>"`` of the authorization-relevant fields of a task (a ``TaskSpec`` or its dict; ``""`` for
+    None), for ``capture_learner(auth_config_hash=...)`` and ``restore_learner(expected_auth_hash=...)`` (CL-10). The
+    authorization service's own records (operator authorization, credentials) are never visible to the learner and
+    are not part of it."""
+    if task is None:
+        return ""
+    d = task.to_dict() if hasattr(task, "to_dict") else dict(task)
+    part = {k: d.get(k) for k in AUTH_FIELDS}
+    return "sha256:" + hashlib.sha256(json.dumps(part, sort_keys=True, default=str).encode()).hexdigest()
+
+
 def capture_learner(learner: Any, *, extra_optimizers: Optional[Dict[str, torch.optim.Optimizer]] = None,
                     generators: Optional[Dict[str, torch.Generator]] = None, lifetime_context: Any = None,
                     current_task: Optional[Dict[str, Any]] = None, auth_config_hash: str = "", reward_version: str = "",
@@ -1012,7 +1029,10 @@ def capture_learner(learner: Any, *, extra_optimizers: Optional[Dict[str, torch.
         opts[k] = o
     credit = getattr(learner, "credit", None)
     if credit is not None and getattr(credit, "evaluates_experiments", False):
-        credit.record_experiments()           # the caller's experiment registry is in the store, hence checkpointed
+        try:                                   # the caller's experiment registry is in the store, hence checkpointed
+            credit.record_experiments()
+        except Exception as e:  # noqa: BLE001 — a checkpoint is never lost over the copy; the store keeps the last one
+            warnings.warn(f"experiment records not copied before the checkpoint: {type(e).__name__}: {e}")
     fast = learner.fast_state.state_dict() if getattr(learner, "fast_state", None) is not None else None
     aux = {"providers": {p.name: p.state_dict() for p in learner.providers if hasattr(p, "state_dict")}}
     ex = dict(extra or {})

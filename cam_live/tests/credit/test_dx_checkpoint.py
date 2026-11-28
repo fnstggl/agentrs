@@ -146,3 +146,22 @@ def test_a_checkpoint_written_before_dx_still_loads(lab_factory, tmp_path):
     assert old.experiments == [] and old.pending_outcomes == []
     rep = C.restore_learner(lab.learner, old, rng=False)
     assert "store_records" not in rep
+
+
+def test_auth_config_hash_is_the_tasks_authorization_fields_and_a_change_is_reported(lab_factory, tmp_path):
+    """CL-10 / DX-2: the hash the agent is asked to pass (change request DX-2)."""
+    import dataclasses
+    lab, run = _lab_with_everything(lab_factory)
+    task = run.task
+    h = C.auth_config_hash(task)
+    assert h.startswith("sha256:") and h == C.auth_config_hash(task.to_dict()) and C.auth_config_hash(None) == ""
+    assert C.auth_config_hash(dataclasses.replace(task, objective="other words")) == h      # not authorization
+    changed = dataclasses.replace(task, interfaces=list(task.interfaces) + ["code"])
+    assert C.auth_config_hash(changed) != h
+    state = C.capture_learner(lab.learner, current_task=task.to_dict(), auth_config_hash=h)
+    C.save_checkpoint(str(tmp_path / "ck"), state)
+    loaded = C.load_checkpoint(str(tmp_path / "ck"))
+    assert loaded.auth_config_hash == h
+    assert C.restore_learner(lab.learner, loaded, rng=False, expected_auth_hash=h)["auth_config_changed"] is False
+    assert C.restore_learner(lab.learner, loaded, rng=False,
+                             expected_auth_hash=C.auth_config_hash(changed))["auth_config_changed"] is True

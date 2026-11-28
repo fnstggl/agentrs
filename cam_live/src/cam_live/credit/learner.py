@@ -104,6 +104,8 @@ class LearnerSettings:
                                           # 5.4e-5 relative, real degradations 4.4e-4 to 0.2; docs/DX.md round 2)
     slow_guard_max_drift_rel: float = 0.02   # per-provider drift bound relative to its held-out loss (the bound is
                                              # max(slow_guard_max_drift, this * |loss|))
+    slow_protect_readers: bool = True    # also keep the update from raising the loss of judged providers that read the
+                                         # representation without training the adapters (COCOA's hindsight model)
     slow_balance: bool = True            # conflict-aware combination of the providers' adapter gradients (PCGrad
                                          # projection) and the max_share cap, as for the experiential group
     slow_guard_max_drift: float = 0.02   # bound on the summed held-out change of accepted slow steps since the last
@@ -735,6 +737,37 @@ class ContinualLearner:
         new.update(out)
         return new, info
 
+    def _reader_sensitivity(self, batch: DecisionBatch, params: Sequence[torch.nn.Parameter], validated: set,
+                            have: set) -> Dict[str, List[Optional[Tensor]]]:
+        """Adapter gradients of judged providers that read the representation but do not train the adapters (they
+        define ``adapter_sensitivity_loss``), evaluated in eval mode on their own training records only."""
+        out: Dict[str, List[Optional[Tensor]]] = {}
+        model, st = self.model, self.store
+        for p in self.providers:
+            if p.name not in validated or p.name in have or not hasattr(p, "adapter_sensitivity_loss"):
+                continue
+            memo: Dict[str, bool] = {}
+
+            def train_ok(exp_id: str, _name: str = p.name) -> bool:
+                if exp_id not in memo:
+                    r = st.get(exp_id)
+                    memo[exp_id] = bool(r is not None and r.eligible.get(_name, False))
+                return memo[exp_id]
+
+            was = model.training
+            model.eval()
+            try:
+                with torch.enable_grad():
+                    loss = p.adapter_sensitivity_loss(model, batch, st, train_ok=train_ok, grad_last=self.settings.grad_last)
+                    if loss is None or not loss.requires_grad or not math.isfinite(float(loss.detach())):
+                        continue
+                    g = list(torch.autograd.grad(p.weight * loss, params, allow_unused=True))
+            finally:
+                model.train(was)
+            if _norm(g) > 0 and all(x is None or bool(torch.isfinite(x).all()) for x in g):
+                out[p.name] = g
+        return out
+
     @torch.no_grad()
     def _project_update(self, params: Sequence[torch.nn.Parameter], before: Sequence[Tensor],
                         protect: Dict[str, List[Optional[Tensor]]], passes: int = 4) -> Dict[str, Any]:
@@ -818,7 +851,10 @@ class ContinualLearner:
         credit_changes: Dict[str, float] = {}
         evaluates = bool(getattr(self.credit, "evaluates_experiments", False))
         if evaluates:              # the caller's experiments reach the store before the held-out split is refreshed
-            self.credit.record_experiments()
+            try:                   # never lets the copy fail a learning update (recorded, not silent)
+                self.credit.record_experiments()
+            except Exception as e:  # noqa: BLE001
+                self.credit_selection = {"ran": False, "error": f"record_experiments: {type(e).__name__}: {e}"[:300]}
         if self.credit is not None and plan.exp_ids:
             up = self.credit.assign(plan.exp_ids, reason=plan.trigger)
             credit_changes = dict(up.changes)
@@ -1000,6 +1036,11 @@ class ContinualLearner:
                 return self._defer(rec, notes, f"no loss that reaches the adapters has held-out validation records "
                                                f"({', '.join(unvalidated)}): the slow step is deferred")
         protect = {k: g for k, g in grads.items() if _norm(g) > 0}      # the providers' own adapter gradients
+        if s.slow_balance and s.slow_protect_readers:
+            extra = self._reader_sensitivity(batch, params, validated, set(protect))
+            if extra:
+                notes["protected_readers"] = {k: _norm(g) for k, g in extra.items()}
+                protect.update(extra)
         if s.slow_balance:
             grads, notes["slow_balance"] = self._balance_adapter_grads(grads)
         for j, p in enumerate(params):
