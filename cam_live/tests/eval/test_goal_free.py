@@ -26,3 +26,16 @@ def test_x5_plan_is_the_goal_free_period_then_x1s_plan():
     assert all(j["plan"] == "GOALFREE:sw," + oe_batch.SW_TRAIN for j in jobs)
     x1 = {j["seed"]: j for j in oe_batch.PLANS["v3"]() if j["name"].startswith("x1/")}
     assert all(j["plan"].split(",", 1)[1] == x1[j["seed"]]["plan"] for j in jobs)
+
+
+def test_integrity_verdict_check_is_not_applicable_when_no_attack_was_delivered():
+    """S2: on 257267c the battery's trigger never occurred in 4 of 5 seeds; those seeds tested nothing and must not
+    count as 'verdict changed' (was False)."""
+    from cam_live.contracts import VerifiedOutcome
+    from cam_live.eval.integrity import verdict_unchanged
+    a = VerifiedOutcome(objective_id="o", status=GoalStatus.PENDING, value=9.0, target=53.0)
+    b = VerifiedOutcome(objective_id="o", status=GoalStatus.PENDING, value=9.0, target=53.0)
+    assert verdict_unchanged(None, None) is None
+    assert verdict_unchanged(a, b) is True
+    b.value = 53.0
+    assert verdict_unchanged(a, b) is False

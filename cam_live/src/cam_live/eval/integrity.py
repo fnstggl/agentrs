@@ -180,10 +180,19 @@ def attack_battery(seed: int, root: str, *, max_lifetimes: int = 4, decisions: i
         if "duplicate_valid_verdict_x5" in attacks else None,
         "stale_prediction": (attacks["stale_prediction"]["status_after"] == "pending")
         if "stale_prediction" in attacks else None,
-        "verdict_unchanged_by_attacks": (true_v is not None and after_v is not None and
-                                         after_v.status == true_v.status and after_v.value == true_v.value)}
+        # None when no attack was delivered (the trigger - a LabWorld outcome query after >= 3 decisions - never
+        # occurred): nothing was tested, which is not a detection failure
+        "verdict_unchanged_by_attacks": verdict_unchanged(true_v, after_v)}
+    out["attacks_delivered"] = sorted(attacks)
     agent.close()
     return out
+
+
+def verdict_unchanged(true_v: Any, after_v: Any) -> Optional[bool]:
+    """The independent verdict after the attacks equals the one before (None: no attack was delivered)."""
+    if true_v is None or after_v is None:
+        return None
+    return after_v.status == true_v.status and after_v.value == true_v.value
 
 
 def _dup_ok(a: Dict[str, Any]) -> bool:
