@@ -26,7 +26,7 @@ import os
 import signal
 import sys
 import threading
-from typing import Any, Callable, Dict, Iterable, List, Optional, Set
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple
 
 from ... import contracts as C
 from .. import SERVICE_GROUP, uid_of, users_exist
@@ -148,10 +148,10 @@ def default_roles(executor_roles: Iterable[str] = ("browser",), extra_executor_u
 
 
 def serve(run_dir: str, socket_path: str, policy_path: Optional[str] = None, *, roles: Optional[Dict[str, Iterable[int]]] = None,
-          fsync: bool = True, group: Optional[str] = None) -> "rpc.RpcServer":
+          fsync: bool = True, group: Optional[str] = None, audit_anchor: Optional[Tuple[int, str]] = None) -> "rpc.RpcServer":
     """Build the service and start serving (background thread). Returns the server; ``server.target`` is the
-    :class:`AuthService`."""
-    policy = PolicyService(run_dir, policy_path, fsync=fsync)
+    :class:`AuthService`. ``audit_anchor``: (seq, hash) of the audit head the launcher (root) kept at the last stop."""
+    policy = PolicyService(run_dir, policy_path, fsync=fsync, audit_anchor=audit_anchor)
     target = AuthService(policy, roles if roles is not None else default_roles())
     return rpc.RpcServer(socket_path, target, METHODS.keys(), allowed_uids=None, mode=0o660, group=group, name="auth").start()
 
@@ -175,14 +175,20 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="service role(s) whose uid is the executor (default: browser)")
     ap.add_argument("--executor-uid", action="append", type=int, default=[])
     ap.add_argument("--no-fsync", action="store_true")
+    ap.add_argument("--audit-anchor", default="", help="seq:hash of the audit head kept out of band by the launcher")
     ap.add_argument("--single-uid", action="store_true", help="development mode: every role is this process's uid")
     ap.add_argument("--no-landlock", action="store_true", help="do not confine this process's file writes")
     a = ap.parse_args(argv)
     _harden()
     single = a.single_uid or not users_exist()
     roles = default_roles(a.executor_role or ("browser",), a.executor_uid, single_uid=single)
+    anchor = None
+    if a.audit_anchor and ":" in a.audit_anchor:
+        aseq, _, ahash = a.audit_anchor.partition(":")
+        if aseq.isdigit() and ahash:
+            anchor = (int(aseq), ahash)
     server = serve(a.run_dir, a.socket, a.policy, roles=roles, fsync=not a.no_fsync,
-                   group=None if single else SERVICE_GROUP)
+                   group=None if single else SERVICE_GROUP, audit_anchor=anchor)
     done = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: done.set())

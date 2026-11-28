@@ -145,14 +145,10 @@ class SecretBroker:
     def _write(self, s: Secret) -> None:
         body = {"name": s.name, "value": s.value, "destinations": s.destinations, "scopes": s.scopes,
                 "created_at": s.created_at, "created_by": s.created_by, "revoked_at": s.revoked_at, "note": s.note}
-        tmp = self._path(s.name) + f".{os.getpid()}.tmp"
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
-        try:
-            os.write(fd, json.dumps(body, sort_keys=True).encode())
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-        os.rename(tmp, self._path(s.name))
+        # random O_EXCL|O_NOFOLLOW temporary and a rename within the vault directory's fd: the operator CLI writes
+        # here as root, so nothing a service uid planted is ever followed (G2-harness R3-M1)
+        from .. import safefs
+        safefs.write_atomic(self._path(s.name), json.dumps(body, sort_keys=True).encode(), 0o600, durable=True)
 
     # -- operator side ---------------------------------------------------------------------------------------
     def put(self, name: str, value: str, destinations: Sequence[str], scopes: Sequence[str] = (),

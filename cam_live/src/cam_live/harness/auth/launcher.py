@@ -36,9 +36,11 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import grp
+import json
 import importlib.util
 import os
 import pwd
+import re
 import secrets as _secrets
 import shutil
 import signal
@@ -166,23 +168,31 @@ def _ids(role: str) -> Tuple[int, int]:
 
 
 def _mk(path: str, is_dir: bool, uid: int, gid: int, mode: int, chown: bool) -> None:
-    """Create (or adopt) one entry without ever following a symlink planted in a directory others can write."""
+    """Create (or adopt) one entry without ever following a symlink planted in a directory others can write: the
+    parent is reached component by component with O_NOFOLLOW (``safefs.open_dir``), the entry is created / opened
+    relative to that fd, and owner / mode are set on the entry's own fd (G2-harness R3-M1)."""
+    from .. import safefs
+    d, name = safefs.split(path)
+    dfd = safefs.open_dir(d)
     try:
-        st = os.lstat(path)
-    except FileNotFoundError:
-        st = None
-    if st is not None and (stat.S_ISLNK(st.st_mode) or stat.S_ISDIR(st.st_mode) != is_dir):
-        raise RuntimeError(f"refusing to use {path}: it is a symlink or of the wrong type")
-    if is_dir:
-        if st is None:
-            os.mkdir(path, 0o700)
-        fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    elif st is None:
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-    else:
-        # no O_CREAT on an existing file: with fs.protected_regular the kernel refuses even root an O_CREAT open of
-        # another uid's file inside a sticky directory
-        fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW)
+        try:
+            st = os.stat(name, dir_fd=dfd, follow_symlinks=False)
+        except FileNotFoundError:
+            st = None
+        if st is not None and (stat.S_ISLNK(st.st_mode) or stat.S_ISDIR(st.st_mode) != is_dir):
+            raise RuntimeError(f"refusing to use {path}: it is a symlink or of the wrong type")
+        if is_dir:
+            if st is None:
+                os.mkdir(name, 0o700, dir_fd=dfd)
+            fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=dfd)
+        elif st is None:
+            fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=dfd)
+        else:
+            # no O_CREAT on an existing file: with fs.protected_regular the kernel refuses even root an O_CREAT open
+            # of another uid's file inside a sticky directory
+            fd = os.open(name, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW, dir_fd=dfd)
+    finally:
+        os.close(dfd)
     try:
         if chown:
             os.fchown(fd, uid, gid)
@@ -192,16 +202,10 @@ def _mk(path: str, is_dir: bool, uid: int, gid: int, mode: int, chown: bool) -> 
 
 
 def _write_private(path: str, data: bytes, uid: int, gid: int, chown: bool, mode: int = 0o600) -> None:
-    flags = os.O_WRONLY | os.O_TRUNC | os.O_NOFOLLOW
-    fd = os.open(path, flags if os.path.lexists(path) else flags | os.O_CREAT | os.O_EXCL, mode)
-    try:
-        os.write(fd, data)
-        os.fsync(fd)
-        if chown:
-            os.fchown(fd, uid, gid)
-        os.fchmod(fd, mode)
-    finally:
-        os.close(fd)
+    """Replace ``path`` with ``data`` (random O_EXCL|O_NOFOLLOW temporary, fchown / fchmod on the fd, rename within
+    the parent's fd): never through a symlink a service uid planted in its own directory (R3-M1)."""
+    from .. import safefs
+    safefs.write_atomic(path, data, mode, uid=uid if chown else None, gid=gid if chown else None, durable=True)
 
 
 def can_traverse(path: str, uid: int, gids: Sequence[int]) -> Optional[str]:
@@ -229,7 +233,10 @@ def prepare_run_dir(run_dir: str, separated: bool, roles: Optional[Dict[str, str
     """Create the run directory layout (idempotent). Returns the layout: paths, owners, the policy copy."""
     R = os.path.abspath(run_dir)
     roles = dict(DEFAULT_ROLES, **(roles or {}))
-    os.makedirs(R, exist_ok=True)
+    if not os.path.isdir(R):
+        os.makedirs(os.path.dirname(R), exist_ok=True)
+        from .. import safefs
+        safefs.ensure_dir(R, 0o700)
     me = (os.getuid(), os.getgid())
     if separated:
         if os.geteuid() != 0:
@@ -374,6 +381,35 @@ class LaunchHandle:
         env.update(spec.env)
         return env
 
+    def _anchor_path(self) -> str:
+        return os.path.join(self.run_dir, "logs", "audit.anchor")
+
+    def _audit_anchor(self) -> str:
+        """seq:hash the launcher kept (root-only file in <run>/logs) when the authorization service last stopped."""
+        if not self.separated:
+            return ""
+        from .. import safefs
+        try:
+            v = safefs.read_nofollow(self._anchor_path(), 4096).decode().strip()
+        except (OSError, UnicodeDecodeError):
+            return ""
+        return v if ":" in v else ""
+
+    def keep_audit_anchor(self) -> None:
+        """Copy the audit head (seq:hash) into a root-only file the services cannot write (G2-harness R3-m1): a
+        tail removed while the authorization service is down, also by the auth uid together with its head, is
+        reported at the next start."""
+        if not self.separated:
+            return
+        from .. import safefs
+        try:
+            h = json.loads(safefs.read_nofollow(os.path.join(self.run_dir, "auth", "audit.head"), 65536).decode())
+            seq, hsh = int(h["seq"]), str(h["hash"])
+        except (OSError, ValueError, KeyError, TypeError, UnicodeDecodeError):
+            return
+        if seq > 0 and re.fullmatch(r"[0-9a-f]{64}", hsh):
+            safefs.write_atomic(self._anchor_path(), f"{seq}:{hsh}".encode(), 0o600, uid=0, gid=0)
+
     def _argv(self, spec: ServiceSpec) -> List[str]:
         cmd = list(spec.argv) if spec.argv is not None else [self.cfg.python, "-m", spec.module]
         cmd += ["--run-dir", self.run_dir]
@@ -382,6 +418,9 @@ class LaunchHandle:
         if spec.argv is None:
             if spec.name == "auth":
                 cmd += ["--policy", self.layout["policy"], "--executor-role", self.cfg.roles.get("exec", "browser")]
+                anchor = self._audit_anchor()
+                if anchor:
+                    cmd += ["--audit-anchor", anchor]
                 if not self.separated:
                     cmd += ["--single-uid"]
         cmd += list(spec.args) + list(self.cfg.extra_args.get(spec.name, []))
@@ -506,6 +545,11 @@ class LaunchHandle:
                 pass
         svc.state, svc.reason, svc.ready = state, reason, False
         self._event("terminate", service=svc.spec.name, state=state, reason=reason)
+        if svc.spec.name == "auth":
+            try:
+                self.keep_audit_anchor()             # the head as the stopped service left it (R3-m1)
+            except OSError as e:
+                self._event("audit_anchor_failed", error=str(e)[:200])
 
     # -- lifecycle -------------------------------------------------------------------------------------------
     def _start_all(self) -> None:

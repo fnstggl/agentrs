@@ -56,8 +56,11 @@ class AuditVerification:
 
 class AuditLog:
     def __init__(self, path: str, key: Optional[bytes] = None, head_path: Optional[str] = None,
-                 scrub: Optional[Callable[[Any], Any]] = None, fsync: bool = True):
+                 scrub: Optional[Callable[[Any], Any]] = None, fsync: bool = True,
+                 anchor: Optional[Tuple[int, str]] = None):
         self.path, self.key, self.fsync = path, key, fsync
+        self.anchor = anchor
+        self._discontinuity: Optional[Dict[str, Any]] = None
         self.head_path = head_path or (path + ".head")
         self.scrub = scrub
         self._lock = threading.Lock()
@@ -101,7 +104,86 @@ class AuditLog:
 
     def _open(self) -> None:
         self._resync()
-        self._reconcile_head()
+        self._discontinuity = self._check_head_at_open()
+        if self._discontinuity is None:
+            self._reconcile_head()
+        elif self._discontinuity.get("persisted") is not True:
+            self._discontinuity["persisted"] = True
+            self._write_head()
+
+    def _read_head(self) -> Optional[Dict[str, Any]]:
+        try:
+            with open(self.head_path, "rb") as f:
+                return json.loads(f.read().decode())
+        except FileNotFoundError:
+            return None
+        except (OSError, ValueError, UnicodeDecodeError):
+            return {"unreadable": True}
+
+    def _check_head_at_open(self) -> Optional[Dict[str, Any]]:
+        """What the head said when the service opened the log, if it does not describe this log (G2-harness
+        R3-m1). A restart used to rewrite the head from the log as found, so a tail removed while the service was
+        down passed every later verification. Now a head that is ahead of the log, names an entry the log does not
+        have, is unreadable or has a bad MAC, or is missing although the log has entries, or a log whose
+        ``anchor`` (seq, hash, kept out of band by the launcher as root) is not in it, is recorded as a
+        *discontinuity* in every later head (MAC'd), and verification reports it until the operator resolves it.
+        A head merely behind the log is left to :meth:`_reconcile_head` (bounded, chain- and MAC-checked)."""
+        if not self.key:
+            return None
+        h = self._read_head()
+        log = {"seq": self._seq, "hash": self._prev}
+        if isinstance(h, dict) and isinstance(h.get("discontinuity"), dict):
+            return dict(h["discontinuity"], persisted=True)            # already recorded: keep it
+        found: Optional[Dict[str, Any]] = None
+        if h is None:
+            if self._seq > 0:
+                found = {"why": "the head file was missing although the log has entries"}
+        elif h.get("unreadable"):
+            found = {"why": "the head file was unreadable"}
+        else:
+            try:
+                hseq, hhash = int(h["seq"]), str(h["hash"])
+                ok_mac = hmac.compare_digest(_mac(self.key, f"{hseq}:{hhash}"), str(h.get("mac", "")))
+            except (KeyError, TypeError, ValueError):
+                hseq, hhash, ok_mac = -1, "", False
+            if not ok_mac:
+                found = {"why": "the head file's MAC is not valid"}
+            elif hseq > self._seq:
+                found = {"why": f"the head said {hseq} entries but the log has {self._seq} (truncated or rolled back "
+                                f"while the service was down)", "head_seq": hseq, "head_hash": hhash}
+            elif hseq > 0 and self._entry_hash_at(hseq) != hhash:
+                found = {"why": f"entry {hseq} of the log is not the one the head named (replaced while the service "
+                                f"was down)", "head_seq": hseq, "head_hash": hhash}
+            elif self._seq - hseq > 64:
+                found = {"why": f"the head was {self._seq - hseq} entries behind the log (more than a stop can leave)",
+                         "head_seq": hseq, "head_hash": hhash}
+        if found is None and self.anchor is not None and self.anchor[0] > 0:
+            aseq, ahash = self.anchor
+            if aseq > self._seq or self._entry_hash_at(aseq) != ahash:
+                found = {"why": f"the out-of-band anchor (entry {aseq}) is not in the log (truncated or replaced while "
+                                f"the service was down)", "anchor_seq": aseq, "anchor_hash": ahash}
+        if found is not None:
+            found.update(log_seq=log["seq"], log_hash=log["hash"])
+        return found
+
+    def _entry_hash_at(self, seq: int) -> str:
+        try:
+            with open(self.path, "rb") as f:
+                for raw in f:
+                    if not raw.strip():
+                        continue
+                    try:
+                        e = json.loads(raw.decode())
+                    except (ValueError, UnicodeDecodeError):
+                        continue
+                    if int(e.get("seq", -1)) == seq:
+                        return str(e.get("hash", ""))
+        except OSError:
+            return ""
+        return ""
+
+    def discontinuity(self) -> Optional[Dict[str, Any]]:
+        return dict(self._discontinuity) if self._discontinuity else None
 
     def _reconcile_head(self) -> None:
         """An entry is written and synced before the head file is replaced, so a stop or kill between the two
@@ -151,7 +233,11 @@ class AuditLog:
 
     def _write_head(self) -> None:
         tmp = f"{self.head_path}.{os.getpid()}.tmp"
-        body = {"seq": self._seq, "hash": self._prev, "mac": _mac(self.key, f"{self._seq}:{self._prev}")}
+        body: Dict[str, Any] = {"seq": self._seq, "hash": self._prev, "mac": _mac(self.key, f"{self._seq}:{self._prev}")}
+        disc = getattr(self, "_discontinuity", None)
+        if disc:
+            body["discontinuity"] = disc
+            body["discontinuity_mac"] = _mac(self.key, "discontinuity:" + json.dumps(disc, sort_keys=True))
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
         try:
             os.write(fd, json.dumps(body, sort_keys=True).encode())
@@ -283,6 +369,13 @@ def verify_audit_log(path: str, key: Optional[bytes] = None, head_path: Optional
                                   f"log has {n} ending in {prev[:12]} (truncated or extended outside the service)")
             if key and not hmac.compare_digest(_mac(key, f"{h['seq']}:{h['hash']}"), str(h.get("mac", ""))):
                 res.errors.append("head file: bad MAC")
+            disc = h.get("discontinuity")
+            if isinstance(disc, dict):
+                res.errors.append(f"discontinuity recorded when the service opened the log: {disc.get('why', '?')} "
+                                  f"(log then at entry {disc.get('log_seq')}); entries before it may be missing")
+                if key and not hmac.compare_digest(_mac(key, "discontinuity:" + json.dumps(disc, sort_keys=True)),
+                                                   str(h.get("discontinuity_mac", ""))):
+                    res.errors.append("head file: bad MAC of the recorded discontinuity")
         except (ValueError, KeyError, TypeError, OSError, UnicodeDecodeError):
             res.errors.append("head file is unreadable")
     elif require_head or (n and head_path):

@@ -53,18 +53,25 @@ class SandboxHost:
         self.client_uids = set(client_uids or []) | {0}
         self.workspace = workspace or os.path.join(self.run_dir, "sandbox")
         self.executor = executor or SandboxExecutor(workspace=self.workspace)
+        from . import safefs
         self.jobs_dir = os.path.join(self.run_dir, "sandbox_host")
-        os.makedirs(self.jobs_dir, mode=0o700, exist_ok=True)
-        os.makedirs(os.path.dirname(socket_path), exist_ok=True)
+        # the run directory is writable by the learner's group: the host's own directory is created without
+        # following a planted entry and owned by root alone (G2-harness R3-M1)
+        safefs.ensure_dir(self.jobs_dir, 0o700, 0 if os.geteuid() == 0 else None, 0 if os.geteuid() == 0 else None)
+        if not os.path.isdir(os.path.dirname(socket_path)):
+            os.makedirs(os.path.dirname(socket_path), exist_ok=True)
         if os.path.lexists(socket_path):
             os.unlink(socket_path)
         self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self._sock.bind(socket_path)
-        os.chmod(socket_path, 0o660)
+        old_mask = os.umask(0o117)               # the socket is created 0660: no chmod by path afterwards
+        try:
+            self._sock.bind(socket_path)
+        finally:
+            os.umask(old_mask)
         try:
             import grp
             from . import SERVICE_GROUP
-            os.chown(socket_path, -1, grp.getgrnam(SERVICE_GROUP).gr_gid)
+            safefs.chown_chmod_nofollow(socket_path, None, grp.getgrnam(SERVICE_GROUP).gr_gid, None)
         except (KeyError, PermissionError, ImportError):
             pass
         self._sock.listen(16)

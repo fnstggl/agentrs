@@ -64,7 +64,8 @@ class PolicyService:
     """See module docstring. Thread-safe; one instance per run directory per process."""
 
     def __init__(self, run_dir: str, policy_path: Optional[str] = None, clock: Optional[C.Clock] = None, *,
-                 caller: Optional[Callable[[], str]] = None, fsync: bool = True):
+                 caller: Optional[Callable[[], str]] = None, fsync: bool = True,
+                 audit_anchor: Optional[Tuple[int, str]] = None):
         self.run_dir = os.path.abspath(run_dir)
         self.clock: C.Clock = clock or C.WallClock()
         self.caller = caller or (lambda: "inproc")
@@ -81,7 +82,7 @@ class PolicyService:
         self.audit = AuditLog(os.path.join(self.run_dir, C.RunFiles.AUDIT),
                               key=load_or_create_key(os.path.join(self.keys_dir, "audit.key")),
                               head_path=os.path.join(self.auth_dir, "audit.head"), scrub=self.vault.scrub_obj,
-                              fsync=fsync)
+                              fsync=fsync, anchor=audit_anchor)
         self.approvals_q = ApprovalQueue(self.store, 86400.0)
         self.ledger = LimitLedger(self.store)
         self.policy_path = policy_path or run_policy_path()

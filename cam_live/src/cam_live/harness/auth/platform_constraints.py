@@ -122,41 +122,61 @@ TOKEN_FIELDS = frozenset((
 #: parts of a normalised key (argument, body field, URL query, form field) that make it a human-verification
 #: answer: matched as substrings, so ``captcha_input``, ``recaptcha_response_field``, ``captchaResponseToken``,
 #: ``human_check`` are recognised without an exact list (G2-harness D4)
-TOKEN_KEY_PARTS = ("captcha", "cfturnstile", "turnstileresponse", "turnstiletoken", "humanverif", "humancheck",
-                   "notarobot", "imnotarobot", "proofofhuman", "arkosetoken", "geetest", "frccaptcha")
-#: precise (G2-harness R2-M1): generic words such as "challenge", "security", "bot", "antibot", "turnstile" alone are
-#: NOT markers -- honeypots (botcheck), Drupal Antibot keys, quiz answers and turnstile counts are ordinary fields.
-#: Accessible names that are about proving one is human, on any element
+TOKEN_KEY_PARTS = ("cfturnstile", "turnstileresponse", "turnstiletoken", "humanverif", "humancheck", "notarobot",
+                   "imnotarobot", "proofofhuman", "arkosetoken", "fctoken", "geetestvalidate", "geetestseccode",
+                   "frccaptchasolution", "mtcaptchaverifiedtoken")
+#: a key with "captcha" is an ANSWER only together with one of these (R3-m2): configuring one's own site's CAPTCHA
+#: (enable_captcha, captcha_provider, require_captcha_on_signup, captcha_site_key) is ordinary
+_CAPTCHA_ANSWER_WORDS = ("answer", "response", "resp", "token", "input", "solution", "solved", "code", "text",
+                         "value", "field", "result", "challenge", "guess", "entry", "reply", "verify", "verification")
+#: precise (G2-harness R2-M1, R3-m2): generic words such as "challenge", "security", "bot", "antibot", "turnstile"
+#: alone are NOT markers. Accessible names that are about proving one is human -- on a control that answers
 _HUMAN_TEST_TEXT = re.compile(
     r"(?i)\bhuman[\s_\-]*(verification|check)\b|\bverify\s+(that\s+)?you(\s+are|'re)\s+(a\s+)?(human|real\s+person|not\s+a\s+(ro)?bot)"
     r"|\bprove\s+(that\s+)?you(\s+are|'re)\s+(a\s+)?(human|real\s+person|not\s+a\s+(ro)?bot)|(i\s*am|i'm)\s+not\s+a\s+(ro)?bot"
-    r"|\bare\s+you\s+(a\s+)?(human|(ro)?bot)\s*\?|\bnot\s+a\s+robot\b|\btype\s+the\s+(characters|letters|text|code|word)s?"
-    r"\s+(you\s+see|shown|in\s+the\s+(image|picture))|\bselect\s+all\s+(images|squares)\s+with\b")
+    r"|\bnot\s+a\s+robot\b|\btype\s+the\s+(characters|letters|text|code|word)s?\s+(you\s+see|shown)\s+(in\s+the\s+"
+    r"(image|picture|box)|above|below)|\bselect\s+all\s+(images|squares)\s+with\b")
+#: "are you a robot?" asks for an answer only on a control that gives one (not an FAQ link)
+_ARE_YOU_TEXT = re.compile(r"(?i)\bare\s+you\s+(a\s+)?(human|(ro)?bot)\s*\??")
+_ANSWER_CONTROLS = ("checkbox", "radio", "button", "switch", "textbox", "searchbox", "combobox", "spinbutton")
 #: a CAPTCHA control: "captcha" together with what one does with a challenge
 _CAPTCHA_CONTROL = re.compile(
-    r"(?i)(re|h)?captcha.{0,40}\b(answer|code|response|solution|solve|verify|submit|text|characters|audio|refresh|reload|"
-    r"challenge|enter|input)\b|\b(answer|code|response|solution|solve|verify|enter|type|new|another|get|refresh|reload|play|listen|skip)\b.{0,40}"
-    r"(re|h)?captcha")
-#: element roles that take an answer: any "captcha" in their name is a CAPTCHA field
-_ANSWER_ROLES = ("textbox", "searchbox", "combobox", "spinbutton", "checkbox", "radio", "slider")
+    r"(?i)(re|h)?captcha.{0,40}\b(answer|response|solution|solve|verify|submit|characters|audio|refresh|reload|"
+    r"challenge|input)\b|\b(answer|response|solution|solve|verify|enter|type|new|another|refresh|reload|play|listen|"
+    r"skip)\b.{0,40}(re|h)?captcha")
+#: element roles that take a typed answer: "captcha" in their name makes them a CAPTCHA field, unless the name is
+#: about configuring a CAPTCHA (site key, secret, provider, settings)
+_TYPED_ROLES = ("textbox", "searchbox", "combobox", "spinbutton")
+_CAPTCHA_CONFIG = re.compile(r"(?i)\b(site\s*key|secret|provider|settings?|enable|disable|threshold|score|keys?)\b")
 
 
 def is_token_key(key: str) -> bool:
-    """A normalised key that names a human-verification answer (substring match on :data:`TOKEN_KEY_PARTS`)."""
+    """A normalised key that names a human-verification answer: "captcha" with an answer word
+    (``captcha_input``, ``recaptcha_response_field``, ``captchaResponseToken``, ``g-recaptcha-response``), the key
+    ``captcha`` itself, or a provider / humanity marker (``cf-turnstile-response``, ``human_check``)."""
     k = re.sub(r"[^a-z0-9]", "", str(key).lower())
-    return k in TOKEN_FIELDS or any(part in k for part in TOKEN_KEY_PARTS)
+    if k in ("captcha", "recaptcha", "hcaptcha"):
+        return True
+    if "captcha" in k and any(w in k for w in _CAPTCHA_ANSWER_WORDS):
+        return True
+    return any(part in k for part in TOKEN_KEY_PARTS)
 
 
 def is_human_test_label(text: str, role: str = "") -> bool:
     """An element (accessible name / label, role) that is a human-verification test, precisely: a phrase about
-    proving one is human, a CAPTCHA control ("captcha" with answer / verify / refresh ...), or an answer field
-    (textbox, checkbox ...) named like a CAPTCHA. "Run security check" or "Turnstile counts" are not."""
+    proving one is human, a CAPTCHA control ("captcha" with answer / verify / refresh ...), "are you a robot?" on a
+    control that answers, or a typed-answer field named like a CAPTCHA (not one that configures a CAPTCHA).
+    "Run security check", "Enable CAPTCHA on sign-up", "Get reCAPTCHA keys", an "Are you a bot?" FAQ link or "Type
+    the code shown in the e-mail" are not."""
     t = str(text or "")
+    r = str(role or "").lower()
     if not t:
         return False
     if _HUMAN_TEST_TEXT.search(t) or _CAPTCHA_CONTROL.search(t):
         return True
-    return str(role or "").lower() in _ANSWER_ROLES and re.search(r"(?i)captcha", t) is not None
+    if r in _ANSWER_CONTROLS and _ARE_YOU_TEXT.search(t):
+        return True
+    return r in _TYPED_ROLES and re.search(r"(?i)captcha", t) is not None and not _CAPTCHA_CONFIG.search(t)
 
 
 #: normalised operation-name parts that make an operation a human-verification "solver"

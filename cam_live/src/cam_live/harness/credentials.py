@@ -45,10 +45,10 @@ def _ids(role: str) -> Optional[tuple]:
 
 
 def _own(path: str, role: str, mode: int) -> None:
-    os.chmod(path, mode)
+    """Mode and owner without following a symlink (root runs this in directories service uids own; R3-M1)."""
+    from . import safefs
     who = _ids(role)
-    if who is not None:
-        os.chown(path, who[0], who[1])
+    safefs.chown_chmod_nofollow(path, who[0] if who else None, who[1] if who else None, mode)
 
 
 def read_value(from_file: str = "", stream: Any = None) -> str:
@@ -76,9 +76,12 @@ def store(run_dir: str, name: str, value: str, *, dest: Sequence[str] = (), scop
         raise ValueError(f"that value is too short to be a {name}")
     if any(c.isspace() for c in value):
         raise ValueError("the value contains whitespace; paste the credential alone")
+    from . import safefs
     R = os.path.abspath(run_dir)
     vault_dir = os.path.join(R, "vault")
-    os.makedirs(vault_dir, mode=0o700, exist_ok=True)
+    if not os.path.isdir(R):
+        os.makedirs(R, exist_ok=True)
+    safefs.ensure_dir(vault_dir, 0o700)                    # refuses a planted symlink instead of following it
     out = SecretBroker(vault_dir).put(name, value, dest, list(scopes) or list(known.get("scopes", [])), by=by,
                                       note=note, ts=time.time())
     _own(vault_dir, "auth", 0o700)
@@ -87,19 +90,15 @@ def store(run_dir: str, name: str, value: str, *, dest: Sequence[str] = (), scop
     if verifier if verifier is not None else bool(known.get("verifier")):
         vdir = os.path.join(R, "verifier")
         sdir = os.path.join(vdir, "secrets")
-        os.makedirs(sdir, mode=0o700, exist_ok=True)
-        if not os.path.exists(os.path.join(R, "auth")):          # run directory not prepared yet: own what we made
+        prepared = os.path.lexists(os.path.join(R, "auth"))
+        safefs.ensure_dir(vdir, 0o700) if not prepared else None
+        safefs.ensure_dir(sdir, 0o700)
+        if not prepared:                                          # run directory not prepared yet: own what we made
             _own(vdir, "verifier", 0o700)
         _own(sdir, "verifier", 0o700)
         path = os.path.join(sdir, name)
-        fd = os.open(path + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
-        try:
-            os.write(fd, value.encode())
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-        os.rename(path + ".tmp", path)
-        _own(path, "verifier", 0o600)
+        who = _ids("verifier")
+        safefs.write_atomic(path, value.encode(), 0o600, uid=who[0] if who else None, gid=who[1] if who else None)
         out["verifier_copy"] = path
     return out
 

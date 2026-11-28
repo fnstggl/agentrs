@@ -240,23 +240,17 @@ def fsync_dir(path: str) -> None:
 
 def atomic_write_text(path: str, text: str, mode: int = 0o644, durable: bool = True) -> None:
     """tmp file in the same directory -> fsync -> rename -> fsync directory. ``durable=False`` keeps the atomic
-    rename but skips the fsyncs (safe against a process crash, not against power loss; used by fast tests)."""
+    rename but skips the fsyncs (safe against a process crash, not against power loss; used by fast tests).
+
+    Symlink- and race-safe (G2-harness R3-M1): root writes into the run directory, which the learner's group may
+    write, so the temporary file has a random name created O_CREAT|O_EXCL|O_NOFOLLOW relative to the directory's fd,
+    the directory is reached without following a symlink another uid could have planted, and a target that exists
+    but is not a regular file (a planted symlink) is refused (``cam_live.harness.safefs.write_atomic``)."""
+    from ..harness import safefs
     d = os.path.dirname(os.path.abspath(path))
-    os.makedirs(d, exist_ok=True)
-    tmp = os.path.join(d, f".{os.path.basename(path)}.{os.getpid()}.{threading.get_ident()}.tmp")
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(text)
-            f.flush()
-            if durable:
-                os.fsync(f.fileno())
-        os.replace(tmp, path)
-    finally:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
-    if durable:
-        fsync_dir(d)
+    if not os.path.isdir(d):
+        os.makedirs(d, exist_ok=True)
+    safefs.write_atomic(path, text.encode(), mode, durable=durable, umask=True)
 
 
 def atomic_write_json(path: str, obj: Any, mode: int = 0o644, durable: bool = True) -> None:
@@ -264,10 +258,12 @@ def atomic_write_json(path: str, obj: Any, mode: int = 0o644, durable: bool = Tr
 
 
 def read_json(path: str, default: Any = None) -> Any:
+    """Parsed JSON of a regular file, read without following a symlink in the path (``default`` when missing,
+    unparsable, or a symlink / not a regular file: what root reads from the run directory is never redirected)."""
+    from ..harness import safefs
     try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+        return json.loads(safefs.read_nofollow(path).decode())
+    except (FileNotFoundError, NotADirectoryError, json.JSONDecodeError, UnicodeDecodeError, safefs.UnsafePath):
         return default
 
 
