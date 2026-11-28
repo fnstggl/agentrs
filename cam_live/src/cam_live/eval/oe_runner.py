@@ -171,6 +171,8 @@ def run_objective(agent: Any, oc: Any, family: str, problem: str, wseed: int, ob
                      "status": r.result.status if r.result else None,
                      "failure": r.result.failure_class if r.result else None,
                      "detail": (r.result.failure_detail or "")[:200] if r.result else "",
+                     "primitive_ops": int(r.result.cost.primitive_ops or 0) if r.result else 0,
+                     "seconds": float(r.result.cost.seconds or 0.0) if r.result else 0.0,
                      "signature": _sig(ch), "n_candidates": len(r.decision.candidates),
                      "n_backbone_candidates": sum(1 for c in r.decision.candidates
                                                   if "backbone" in c.action.provenance.split("+")),
@@ -190,6 +192,10 @@ def run_objective(agent: Any, oc: Any, family: str, problem: str, wseed: int, ob
             "backbone_chosen_fraction": (sum(1 for x in rows if "backbone" in x["provenance"].split("+")) /
                                          len(rows)) if rows else None,
             "repeats_of_failed_actions": repeats, "distinct_strategies": len({x["signature"] for x in rows}),
+            "primitive_ops_total": sum(x["primitive_ops"] for x in rows),
+            "skill_runs": sum(1 for x in rows if x["operation"] == "skill.run"),
+            "skill_runs_ok": sum(1 for x in rows if x["operation"] == "skill.run" and x["ok"]),
+            "eval_code": os.environ.get("CAM_LIVE_EVAL_COMMIT", ""),
             "mean_prediction_nll": (sum(p.nll for p in preds) / len(preds)) if preds else None,
             "n_predictions_resolved": len(preds), "verifier_history": hist[-50:], "first_verified_hit": first_hit,
             "compute": {"seconds": dict(timed.seconds), "cpu_seconds": dict(timed.cpu_seconds)},
