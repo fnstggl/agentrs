@@ -1,0 +1,6 @@
+decision 0: on-rep1 lab.probe {"channel": 2} | on-rep2 lab.probe {"channel": 2} | off lab.probe {"channel": 2}
+   on vs on: max|d one-step| 2.66e-06 max|d im_cont| 4.52e-05 | on vs off: max|d one-step| 8.99e-06 max|d im_cont| 1.69e-04
+decision 1: on-rep1 lab.act {"channel": 2, "effort": 3} | on-rep2 lab.act {"channel": 2, "effort": 3} | off lab.act {"channel": 2, "effort": 3}
+   on vs on: max|d one-step| 2.23e-04 max|d im_cont| 6.52e-04 | on vs off: max|d one-step| 1.69e-04 max|d im_cont| 5.92e-04
+decision 2: on-rep1 lab.act {"channel": 4, "effort": 3} | on-rep2 lab.act {"channel": 4, "effort": 3} | off lab.act {"channel": 4, "effort": 3}
+   on vs on: max|d one-step| 1.20e-02 max|d im_cont| 7.92e-02 | on vs off: max|d one-step| 1.57e-02 max|d im_cont| 2.34e-02

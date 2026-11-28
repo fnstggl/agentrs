@@ -1,0 +1,40 @@
+{
+ "probe": "rw_validity_procedure",
+ "reps": 200,
+ "pairs_per_run": 1000,
+ "nominal_lowering_error": 0.025,
+ "results": {
+  "iid": {
+   "share_ever_lowered": 0.01,
+   "median_pairs_to_first_lowering": 31
+  },
+  "tied_boot": {
+   "share_ever_lowered": 0.005,
+   "median_pairs_to_first_lowering": 33
+  },
+  "boot_anti": {
+   "share_ever_lowered": 1.0,
+   "median_pairs_to_first_lowering": 27
+  },
+  "tied_boot_perfect_R_psi_300_pairs": {
+   "final_mix_values": [
+    0.75
+   ],
+   "share_ending_at_0.75": 1.0,
+   "e_values_at_mix_0.75": {
+    "learned_minus_mix": {
+     "lower": -0.04918505938818585,
+     "upper": 0.04918505938818574,
+     "mean": 0.0,
+     "e": 1.0
+    },
+    "bootstrap_minus_mix": {
+     "lower": -0.5494492857424618,
+     "upper": -0.45055071425753823,
+     "mean": -0.5,
+     "e": 1.0
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,15 @@
+seed 0: simple by quarter [19.5, 15.7, 18.2, 22.1] rudder [12.8, 14.5, 30.1, 26.4]
+seed 1: simple by quarter [14.1, 30.7, 30.5, 22.1] rudder [12.5, 21.8, 25.9, 19.4]
+seed 2: simple by quarter [7.9, 29.2, 103.1, 66.0] rudder [9.8, 10.3, 11.6, 11.5]
+seed 3: simple by quarter [21.7, 38.9, 16.1, 102.4] rudder [12.1, 8.6, 18.9, 23.5]
+seed 4: simple by quarter [23.3, 28.1, 39.2, 114.4] rudder [21.1, 26.1, 21.2, 31.5]
+seed 5: simple by quarter [61.9, 53.5, 94.7, 105.4] rudder [31.5, 19.0, 27.6, 95.5]
+seed 6: simple by quarter [15.8, 23.6, 39.3, 25.9] rudder [23.8, 39.7, 34.7, 53.2]
+seed 7: simple by quarter [18.9, 28.0, 39.3, 29.7] rudder [17.1, 28.7, 30.6, 49.3]
+seed 8: simple by quarter [35.7, 36.0, 81.3, 125.4] rudder [27.5, 34.3, 40.0, 54.6]
+quarter 1: paired rudder - simple -5.61 +- 3.58 (n=9), rudder better in 2
+quarter 2: paired rudder - simple -8.97 +- 5.39 (n=9), rudder better in 2
+quarter 3: paired rudder - simple -24.57 +- 11.63 (n=9), rudder better in 2
+quarter 4: paired rudder - simple -27.61 +- 14.66 (n=9), rudder better in 3
+simple seed 1 policy updates (index, rows, credit_rows, return_like_rows, replayed_rows): [(0, 3, 2, 0, 0), (1, 6, 3, 0, 0), (2, 9, 3, 0, 0), (3, 12, 6, 0, 0), (4, 12, 6, 0, 0), (5, 12, 5, 0, 0), (6, 12, 5, 0, 0), (7, 12, 5, 0, 0)]
+rudder seed 1 policy updates (index, rows, credit_rows, return_like_rows, replayed_rows): [(0, 3, 0, 0, 0), (1, 6, 0, 0, 0), (2, 9, 0, 0, 0), (3, 12, 0, 0, 0), (4, 15, 8, 8, 3), (5, 16, 6, 6, 4), (6, 18, 6, 6, 6), (7, 18, 10, 10, 6)]

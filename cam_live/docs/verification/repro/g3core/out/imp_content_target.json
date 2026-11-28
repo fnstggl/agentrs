@@ -1,0 +1,12 @@
+{
+ "probe": "imp_content_target",
+ "lora_tensors": 8,
+ "lora_rank": 2,
+ "repeat_identical": true,
+ "relative_change_of_target_by_adapter_step_size": {
+  "0.001": 0.02227469967146267,
+  "0.01": 0.21946566208880244
+ },
+ "target_requires_grad": false,
+ "verdict": "target MOVES with the adapters (not fixed)"
+}

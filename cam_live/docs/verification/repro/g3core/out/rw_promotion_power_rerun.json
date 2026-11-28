@@ -1,0 +1,59 @@
+{
+ "alpha_half": 0.025,
+ "cap": 0.75,
+ "tie_share": 0.1,
+ "runs": 400,
+ "results": [
+  {
+   "p_correct_order": 0.5,
+   "share_promoted_within_400_pairs": 0.0175,
+   "median_pairs_to_promotion": 25,
+   "q10_q90_pairs": null
+  },
+  {
+   "p_correct_order": 0.6,
+   "share_promoted_within_400_pairs": 0.295,
+   "median_pairs_to_promotion": 212,
+   "q10_q90_pairs": [
+    26,
+    362
+   ]
+  },
+  {
+   "p_correct_order": 0.7,
+   "share_promoted_within_400_pairs": 0.985,
+   "median_pairs_to_promotion": 129,
+   "q10_q90_pairs": [
+    32,
+    263
+   ]
+  },
+  {
+   "p_correct_order": 0.8,
+   "share_promoted_within_400_pairs": 1.0,
+   "median_pairs_to_promotion": 52,
+   "q10_q90_pairs": [
+    18,
+    114
+   ]
+  },
+  {
+   "p_correct_order": 0.9,
+   "share_promoted_within_400_pairs": 1.0,
+   "median_pairs_to_promotion": 24,
+   "q10_q90_pairs": [
+    15,
+    53
+   ]
+  },
+  {
+   "p_correct_order": 1.0,
+   "share_promoted_within_400_pairs": 1.0,
+   "median_pairs_to_promotion": 18,
+   "q10_q90_pairs": [
+    12,
+    24
+   ]
+  }
+ ]
+}

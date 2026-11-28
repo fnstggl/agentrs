@@ -1,0 +1,386 @@
+{
+ "MR-01": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Every decision gets R_psi and a labelled bootstrap reward (assemble/inner), noted prospectively for the validity evidence; acceptance tests pass. Under the default the learned part had weight 0 in every integrated and real run (mix 1, see MR-03).",
+  "evidence": [
+   "pytest cam_live/tests/reward on git archive 6cba496 (169 passed, 3 skipped)",
+   "pytest the 4 acceptance tests of cam_live/tests/integration/test_agent_runtime.py on git archive 6cba496 (4 passed, 292 s)",
+   "cam_live/docs/verification/G3_core.md section 1"
+  ]
+ },
+ "MR-02": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Trainable: FD tests of the meta-gradient pass (incl. the pooled first-order estimator); meta-updates applied from verified outcomes inside one objective at full size (RW real run: 4 of 36, query-window fallback). The slow test_three_learners passes on the freeze.",
+  "evidence": [
+   "pytest cam_live/tests/reward on git archive 6cba496 (169 passed, 3 skipped)",
+   "pytest -m slow on git archive 6cba496: credit/test_evidence.py (5), reward/test_reward_experiment.py::test_three_learners_with_equal_experience_in_labworld, predict/test_learning_evidence.py::test_value_of_information_fast_path_ignores_the_noisy_gauge, credit/test_cr_agent.py: 8 passed (654 s)",
+   "cam_live/docs/evidence/RW/real_learned_20261128.json",
+   "cam_live/docs/verification/G3_core.md section 1"
+  ]
+ },
+ "MR-03": {
+  "status": "partial",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Mechanism exists and is tested (cutting the pathway gives exactly 0; FD). Amendment standard not met: under the default the bootstrap mix stayed 1 in every integrated and real-configuration run, so R_psi had exactly zero weight in live inner updates (RW: TV 0.0 on 11 real live updates). Influence occurred only in the controlled diagnostic after an evidence-based lowering to 0.75, and D-RW2 shows the validity walk cannot go below 0.75 where the bootstrap ties at reward time (probe: 50/50 runs with a perfect R_psi stop at 0.75). D-RW1: in RW's own controlled configuration an equally likely UNLEARNED R_psi (negated output layer, reward step 0) was promoted in 3 of 12 cases (learned at the agent's step 1e-4: 2 of 6), with post-promotion effects -0.77 [-2.10, 0.60] and +1.04 [0.71, 1.39]; so neither promotion nor its effect is attributable to meta-learning at the agent's step.",
+  "evidence": [
+   "pytest cam_live/tests/reward on git archive 6cba496 (169 passed, 3 skipped)",
+   "cam_live/docs/verification/repro/g3core/probe_rw_validity_procedure.py (out/rw_validity_procedure.json)",
+   "cam_live/docs/verification/repro/g3core/probe_rw_flipped_frozen.py (out/rw_flipped_frozen.json)",
+   "cam_live/docs/verification/G3_core.md section 1.2"
+  ]
+ },
+ "MR-04": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Differentiable inner update tests pass on the freeze (checkpointed = full unroll, FD on the real adaptable subset, per-group clip). The gpu cost test was not re-run (no GPU hold).",
+  "evidence": [
+   "pytest cam_live/tests/reward on git archive 6cba496 (169 passed, 3 skipped)"
+  ]
+ },
+ "MR-05": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Outer meta-gradient: FD-checked (query and pooled first-order estimators); the pooled estimator excludes support rows and their outcome groups (metalearner._pool); applied in the integrated agent (debug: 9 of 143) and at full size (4 of 36, query fallback; the pool was empty there).",
+  "evidence": [
+   "pytest cam_live/tests/reward on git archive 6cba496 (169 passed, 3 skipped)",
+   "pytest the 4 acceptance tests of cam_live/tests/integration/test_agent_runtime.py on git archive 6cba496 (4 passed, 292 s)",
+   "cam_live/docs/evidence/RW/dbg_agent_learned_120.json",
+   "cam_live/docs/verification/G3_core.md section 1.1"
+  ]
+ },
+ "MR-06": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Only signed verifier readings write verified_progress_delta (agent.py:1207-1262, _check_measurement); ledger utilities are hash-chained; level readings of the success metric are admitted as changes per objective|metric (A5 fixed, regression tests pass); information value annotation uses its own key and cannot clobber it.",
+  "evidence": [
+   "pytest cam_live/tests/reward on git archive 6cba496 (169 passed, 3 skipped)",
+   "cam_live/docs/verification/G3_core.md section 1.1"
+  ]
+ },
+ "MR-07": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Meta-gradient FD / relative-error / K in 1,2,4,8 tests pass on the freeze.",
+  "evidence": [
+   "pytest cam_live/tests/reward on git archive 6cba496 (169 passed, 3 skipped)"
+  ]
+ },
+ "MR-08": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Labelled bootstrap mode is the default (mix 1) and the agent learns from it; bootstrap tests pass. The validity rule replaces the value rule for leaving bootstrap mode (see MR-03 / D-RW1, D-RW2 for its limits).",
+  "evidence": [
+   "pytest cam_live/tests/reward on git archive 6cba496 (169 passed, 3 skipped)"
+  ]
+ },
+ "MR-09": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Reward-integrity tests exist and execute: 17 of 18 acceptance tests run and pass on the freeze; the gpu-marked semantic-goal embedding test was not re-run (no GPU hold).",
+  "evidence": [
+   "pytest cam_live/tests/reward on git archive 6cba496 (169 passed, 3 skipped)"
+  ]
+ },
+ "MR-10": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Meta-learning begins inside one objective: pooled first-order estimator over every matured decision of the objective plus the query-window fallback; applied at decision 33 (debug agent) and at decisions 16-35 of one real-configuration objective. Promotion inside one objective needs ~100+ matured decisions (RW, reproduced power numbers).",
+  "evidence": [
+   "pytest cam_live/tests/reward on git archive 6cba496 (169 passed, 3 skipped)",
+   "cam_live/docs/evidence/RW/real_learned_20261128.json",
+   "cam_live/docs/verification/repro/g3core/out/rw_promotion_power_rerun.json"
+  ]
+ },
+ "MR-11": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Isolation tests pass (optimizers disjoint, no grad path, psi guard, ledger chain). Nothing in RW's changes gives the policy a path to psi.",
+  "evidence": [
+   "pytest cam_live/tests/reward on git archive 6cba496 (169 passed, 3 skipped)"
+  ]
+ },
+ "PI-07": {
+  "status": "partial",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Planner search over candidate sequences with value-criterion horizon, calibration-gated weight in thompson_policy: implemented, tested and on the runtime path (agent.py:1959-1969). Within-decision causal influence small (debug share_tv 0.053, full size 0.024 / argmax 0 of 13); imagined continuations do not distinguish CAM's real candidates (sd 0.0012 vs particle sd 0.26); no improvement. D-IMP1: the B2 'paired' ablation is not paired (inputs differ at decision 0; 5/10 pairs diverge at decision 0 vs 0.53 expected), so divergence is not causal evidence. D-IMP3 (latent): overlapping calibration windows make the posterior overconfident under autocorrelated imagined preferences.",
+  "evidence": [
+   "pytest cam_live/tests/predict on git archive 6cba496 (181 passed, 1 failed: test_int3a_eligibility, 10 skipped)",
+   "cam_live/docs/verification/repro/g3core/analyse_imp_b2_pairing.py (out/imp_b2_pairing.txt)",
+   "cam_live/docs/verification/repro/g3core/probe_imp_overlapping_windows.py (out/imp_overlapping_windows.json)",
+   "cam_live/docs/verification/G3_core.md section 2"
+  ]
+ },
+ "PI-11": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Error attribution acceptance test passes on the freeze; not changed by the amendment work.",
+  "evidence": [
+   "pytest cam_live/tests/predict on git archive 6cba496 (181 passed, 1 failed: test_int3a_eligibility, 10 skipped)"
+  ]
+ },
+ "SE-06": {
+  "status": "partial",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "VOI tests pass; the new content information gain is recorded per candidate but read by no selection rule; D-IMP2: the content target moves with the LoRA adapters (2.2 % / 21.9 % relative change for adapter steps 1e-3 / 1e-2), contrary to 'a fixed target'; realised information value at full size is ~0 (ST). The slow VOI fast-path test passes on the freeze.",
+  "evidence": [
+   "pytest cam_live/tests/predict on git archive 6cba496 (181 passed, 1 failed: test_int3a_eligibility, 10 skipped)",
+   "pytest -m slow on git archive 6cba496: credit/test_evidence.py (5), reward/test_reward_experiment.py::test_three_learners_with_equal_experience_in_labworld, predict/test_learning_evidence.py::test_value_of_information_fast_path_ignores_the_noisy_gauge, credit/test_cr_agent.py: 8 passed (654 s)",
+   "cam_live/docs/verification/repro/g3core/probe_imp_content_target.py (out/imp_content_target.json)",
+   "cam_live/docs/verification/G3_core.md section 2.2"
+  ]
+ },
+ "NA-06": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "test_behaviour_changes_and_lives_in_the_weights passes on the freeze. In the amendment runs the experiential components measurably change real decisions: policy head share of the selection up to TV 0.25 per decision on the full-size agent (RW real run), persistent state TV 0.004 (when enabled), imagination share_tv 0.02-0.05; learned rewards had no influence under the default (MR-03).",
+  "evidence": [
+   "pytest the 4 acceptance tests of cam_live/tests/integration/test_agent_runtime.py on git archive 6cba496 (4 passed, 292 s)",
+   "cam_live/docs/verification/G3_core.md sections 0-4"
+  ]
+ },
+ "RC-01": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Linking tests pass on the freeze (fractional links with uncertainty, attribution key, no leakage); test_delayed_outcomes_link_to_their_decisions passes on the freeze.",
+  "evidence": [
+   "pytest cam_live/tests/credit on git archive 6cba496 (155 passed, 9 skipped)",
+   "pytest the 4 acceptance tests of cam_live/tests/integration/test_agent_runtime.py on git archive 6cba496 (4 passed, 292 s)"
+  ]
+ },
+ "RC-02": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "RUDDER redistribution implemented and tested; segment credit inside an open objective (test_cr) and on the real configuration (28 of 39 records, CR). Its training signal is not the quantity the selection validates (D-CR2).",
+  "evidence": [
+   "pytest cam_live/tests/credit on git archive 6cba496 (155 passed, 9 skipped)",
+   "pytest -m slow on git archive 6cba496: credit/test_evidence.py (5), reward/test_reward_experiment.py::test_three_learners_with_equal_experience_in_labworld, predict/test_learning_evidence.py::test_value_of_information_fast_path_ignores_the_noisy_gauge, credit/test_cr_agent.py: 8 passed (654 s)",
+   "cam_live/docs/verification/G3_core.md section 4"
+  ]
+ },
+ "RC-03": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Conservation tests pass, per segment < 1e-6 (test_cr).",
+  "evidence": [
+   "pytest cam_live/tests/credit on git archive 6cba496 (155 passed, 9 skipped)",
+   "pytest -m slow on git archive 6cba496: credit/test_evidence.py (5), reward/test_reward_experiment.py::test_three_learners_with_equal_experience_in_labworld, predict/test_learning_evidence.py::test_value_of_information_fast_path_ignores_the_noisy_gauge, credit/test_cr_agent.py: 8 passed (654 s)"
+  ]
+ },
+ "RC-04": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "COCOA reference tests pass. On the real configuration COCOA refuses open-ended backbone candidates (correct per 9.3) and so credits nothing there.",
+  "evidence": [
+   "pytest cam_live/tests/credit on git archive 6cba496 (155 passed, 9 skipped)"
+  ]
+ },
+ "RC-05": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Support checks and refusal tested; refusal observed on the real configuration (CR section 5).",
+  "evidence": [
+   "pytest cam_live/tests/credit on git archive 6cba496 (155 passed, 9 skipped)",
+   "pytest -m slow on git archive 6cba496: credit/test_evidence.py (5), reward/test_reward_experiment.py::test_three_learners_with_equal_experience_in_labworld, predict/test_learning_evidence.py::test_value_of_information_fast_path_ignores_the_noisy_gauge, credit/test_cr_agent.py: 8 passed (654 s)"
+  ]
+ },
+ "RC-06": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Retrospective revision: segment credit revised as segments mature and at closure (credit history keeps every version); CR-3 replays revised records into the real policy update (agent.py:2483-2488; 41 rows at full size).",
+  "evidence": [
+   "pytest cam_live/tests/credit on git archive 6cba496 (155 passed, 9 skipped)",
+   "pytest -m slow on git archive 6cba496: credit/test_evidence.py (5), reward/test_reward_experiment.py::test_three_learners_with_equal_experience_in_labworld, predict/test_learning_evidence.py::test_value_of_information_fast_path_ignores_the_noisy_gauge, credit/test_cr_agent.py: 8 passed (654 s)",
+   "cam_live/docs/verification/G3_core.md section 4"
+  ]
+ },
+ "RC-07": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "No-leakage tests pass on the freeze.",
+  "evidence": [
+   "pytest cam_live/tests/credit on git archive 6cba496 (155 passed, 9 skipped)",
+   "pytest -m slow on git archive 6cba496: credit/test_evidence.py (5), reward/test_reward_experiment.py::test_three_learners_with_equal_experience_in_labworld, predict/test_learning_evidence.py::test_value_of_information_fast_path_ignores_the_noisy_gauge, credit/test_cr_agent.py: 8 passed (654 s)"
+  ]
+ },
+ "RC-08": {
+  "status": "partial",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Estimand-matched pooled selection implemented and its IPW bias identity holds; but in the integrated agent it never had the 8 held-out units it needs (0-2 per 64 decisions; none at full size), so no estimator was ever selected by evidence. D-CR2: it validates rudder_contribution while the agent would train on the rudder signal. D-CR1: the forced-RUDDER ablation (-66.8) is confounded with the loss of per-decision simple credit for pending rows (agent._credit_for has no fallback), which would also follow an evidence-based promotion.",
+  "evidence": [
+   "pytest cam_live/tests/credit on git archive 6cba496 (155 passed, 9 skipped)",
+   "cam_live/docs/verification/repro/g3core/analyse_cr_forced_rudder.py (out/cr_forced_rudder_by_quarter.txt)",
+   "cam_live/docs/verification/G3_core.md section 4.2"
+  ]
+ },
+ "CL-01": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Replay store tests (19) pass on the freeze.",
+  "evidence": [
+   "pytest cam_live/tests/credit on git archive 6cba496 (155 passed, 9 skipped)"
+  ]
+ },
+ "CL-02": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Learner tests pass; the slow test_stored_experience_changes_experiential_weights_and_improves_held_out_prediction passes on the freeze.",
+  "evidence": [
+   "pytest cam_live/tests/credit on git archive 6cba496 (155 passed, 9 skipped)",
+   "pytest -m slow on git archive 6cba496: credit/test_evidence.py (5), reward/test_reward_experiment.py::test_three_learners_with_equal_experience_in_labworld, predict/test_learning_evidence.py::test_value_of_information_fast_path_ignores_the_noisy_gauge, credit/test_cr_agent.py: 8 passed (654 s)"
+  ]
+ },
+ "CL-03": {
+  "status": "partial",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "CPU adapter-update tests pass; the gpu real-configuration frequent+slow adapter test was not re-run (no GPU hold); in the amendment's real-configuration runs every slow step reported was reverted by the held-out guard (ST, CR).",
+  "evidence": [
+   "pytest cam_live/tests/credit on git archive 6cba496 (155 passed, 9 skipped)"
+  ]
+ },
+ "CL-04": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Retention tests function on the freeze, including the slow test_forgetting_is_measured_and_the_retention_mechanism_reduces_it. PS's replay retention comparisons show no effect of the persistent state (not a CL-04 failure).",
+  "evidence": [
+   "pytest cam_live/tests/credit on git archive 6cba496 (155 passed, 9 skipped)",
+   "pytest -m slow on git archive 6cba496: credit/test_evidence.py (5), reward/test_reward_experiment.py::test_three_learners_with_equal_experience_in_labworld, predict/test_learning_evidence.py::test_value_of_information_fast_path_ignores_the_noisy_gauge, credit/test_cr_agent.py: 8 passed (654 s)"
+  ]
+ },
+ "CL-05": {
+  "status": "verified",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Promotion / rollback tests pass on the freeze.",
+  "evidence": [
+   "pytest cam_live/tests/credit on git archive 6cba496 (155 passed, 9 skipped)"
+  ]
+ },
+ "CL-10": {
+  "status": "partial",
+  "by": "G3-core",
+  "commit": "6cba496359da28a9742bcd04fa4a558fdec19160",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Checkpoint round-trip / crash / replay-index tests pass; the amendment's new state (validity evidence, imagination calibration, persistent-chain bookkeeping, revised-credit queue) round-trips in its owners' tests; transition priors are regenerated deterministically from the seed. The gpu test 'stored on CPU' was not re-run (no GPU hold).",
+  "evidence": [
+   "pytest cam_live/tests/credit on git archive 6cba496 (155 passed, 9 skipped)",
+   "pytest cam_live/tests/nn on git archive 6cba496 (123 passed, 13 skipped)",
+   "pytest cam_live/tests/predict on git archive 6cba496 (181 passed, 1 failed: test_int3a_eligibility, 10 skipped)",
+   "pytest cam_live/tests/reward on git archive 6cba496 (169 passed, 3 skipped)"
+  ]
+ }
+}

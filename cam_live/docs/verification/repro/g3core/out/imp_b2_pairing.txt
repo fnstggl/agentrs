@@ -1,0 +1,12 @@
+decision 0 of lifetime 0: executed action per arm, on-arm share_tv, max |difference| of recorded inputs
+seed 0: on lab.act {"channel": 0, "effort": 1} | off lab.act {"channel": 0, "effort": 1} | executed differ: False | share_tv(on) 0.062 | max|d one-step value| 1.4e-03 | max|d imagined continuation| 0.001
+seed 1: on lab.act {"channel": 1, "effort": 1} | off lab.probe {"channel": 2} | executed differ: True | share_tv(on) 0.000 | max|d one-step value| 1.5e-04 | max|d imagined continuation| 1.514
+seed 2: on wait {"seconds": 194415.0} | off wait {"seconds": 194415.0} | executed differ: False | share_tv(on) 0.000 | max|d one-step value| 3.1e-04 | max|d imagined continuation| 0.001
+seed 3: on lab.probe {"channel": 0} | off lab.act {"channel": 3, "effort": 2} | executed differ: True | share_tv(on) 0.094 | max|d one-step value| 8.5e-04 | max|d imagined continuation| 0.001
+seed 4: on lab.act {"channel": 1, "effort": 3} | off lab.act {"channel": 1, "effort": 3} | executed differ: False | share_tv(on) 0.094 | max|d one-step value| 9.6e-04 | max|d imagined continuation| 0.005
+seed 5: on wait {"seconds": 259200.0} | off wait {"seconds": 259200.0} | executed differ: False | share_tv(on) 0.062 | max|d one-step value| 5.8e-04 | max|d imagined continuation| 0.018
+seed 6: on lab.act {"channel": 3, "effort": 3} | off lab.probe {"channel": 1} | executed differ: True | share_tv(on) 0.062 | max|d one-step value| 1.3e-03 | max|d imagined continuation| 0.400
+seed 7: on lab.unlock {} | off wait {"seconds": 259200.0} | executed differ: True | share_tv(on) 0.094 | max|d one-step value| 1.7e-03 | max|d imagined continuation| 4.690
+seed 8: on wait {"seconds": 60.0} | off lab.probe {"channel": 4} | executed differ: True | share_tv(on) 0.031 | max|d one-step value| 1.6e-01 | max|d imagined continuation| 0.100
+seed 9: on wait {"seconds": 259200.0} | off wait {"seconds": 259200.0} | executed differ: False | share_tv(on) 0.031 | max|d one-step value| 2.9e-03 | max|d imagined continuation| 0.014
+diverged at decision 0: 5 of 10; expected if only imagination caused it: 0.53; P(>= 5) = 5.0e-05 (Poisson-binomial over share_tv)
