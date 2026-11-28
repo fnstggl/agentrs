@@ -1106,14 +1106,18 @@ class CreditAssigner:
         pd: Dict[str, float] = {}
         ps: Dict[str, float] = {}
         pn: Dict[str, int] = {}
+        last_of_unit = {r.exp_id for arm in (treatment, control) for r in arms[arm]
+                        if (returns.get(self.unit_of(r)).exp_ids or [None])[-1] == r.exp_id}
         for name, key in VALIDATION_KEY.items():
-            a = [r.credit[key] for r in arms[treatment] if key in r.credit]
-            b = [r.credit[key] for r in arms[control] if key in r.credit]
+            # a unit's last decision: RUDDER's contribution contains the residual (the measured outcome; CR)
+            ok = (lambda r: key in r.credit and not (name == RUDDER and r.exp_id in last_of_unit))
+            a = [r.credit[key] for r in arms[treatment] if ok(r)]
+            b = [r.credit[key] for r in arms[control] if ok(r)]
             d = arm_difference(a, b)
             if d is not None:
                 est[name], se[name] = d.diff, d.se
             units = [(arm, float(r.credit[key]), G[r.exp_id]) for arm in (treatment, control) for r in arms[arm]
-                     if key in r.credit]
+                     if ok(r)]
             pc = paired_comparison(units, treatment, control, kind=ARM_DIFFERENCE)
             if pc is not None:
                 pd[name], ps[name], pn[name] = pc
@@ -1218,7 +1222,14 @@ class CreditAssigner:
         for r, arm, p, y in rows:
             vals: Dict[str, float] = {}
             kinds: Dict[str, str] = {}
+            # RUDDER's contribution of a unit's *last* decision contains the residual G - F(whole), i.e. the measured
+            # outcome itself: compared with that outcome it would validate nothing (in-sample). Such units carry no
+            # RUDDER value (a first decision's offset F(empty) depends on the goal only and cancels in the contrast).
+            unit_top = returns.get(self.unit_of(r)).exp_ids
+            last = bool(unit_top) and unit_top[-1] == r.exp_id
             for name, key in VALIDATION_KEY.items():
+                if name == RUDDER and last:
+                    continue
                 v = r.credit.get(key)
                 if v is not None and math.isfinite(float(v)):
                     vals[name], kinds[name] = float(v), PER_DECISION

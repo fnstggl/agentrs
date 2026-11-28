@@ -324,3 +324,24 @@ def test_revised_credit_is_queued_for_replay_and_survives_a_checkpoint(tmp_path)
         assert lab.assigner.pop_revised(100, RUDDER) == []
     finally:
         lab.close()
+
+
+def test_a_units_last_decision_carries_no_rudder_value_because_its_contribution_holds_the_measured_residual(tmp_path):
+    lab = _long_lab(tmp_path, K=4, val_split="segment", val_fraction=0.5, name="last.sqlite")
+    try:
+        run = _run_open_objective(lab, 24, experiment_every=1)
+        run.mature()
+        recs = lab.store.trajectory(run.task.objective_id)
+        lab.learner.refresh_eligibility(full=True)
+        lab.assigner.assign([r.exp_id for r in recs])
+        units, _ = lab.assigner.experiment_units("x-long", treatment="unlock", control="wait")
+        assert units
+        u = lab.assigner.units
+        pos = {r.exp_id: u.top_position(r) for r in recs}
+        lasts = [x for x in units if pos[x.exp_id] % 4 == 3]
+        others = [x for x in units if pos[x.exp_id] % 4 != 3]
+        assert lasts and others
+        assert all(RUDDER not in x.values for x in lasts)
+        assert all(RUDDER in x.values for x in others)
+    finally:
+        lab.close()

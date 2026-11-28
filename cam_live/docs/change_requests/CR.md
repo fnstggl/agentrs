@@ -30,13 +30,14 @@ trained on (`trained_units`), so nothing the live run trained on can become held
 before CR loads (no `trained_units` / `segment_split_from_seq`: both derived as above;
 `tests/credit/test_cr.py::test_switching_to_the_segment_split_keeps_older_records_on_the_record_split`).
 
-**Cost.** Short lifetimes (eval runs of 16-20 decisions) lose INT3A-5's guarantee "an objective with >= 7 records
-has a held-out record": with blocks of 16 decisions an objective needs >= 7 blocks for that guarantee; across
-lifetimes the held-out fraction stays 0.15. A run that needs the old behaviour sets
+**Cost.** None for short lifetimes: each objective's first segment (its first 16 decisions) keeps the record split,
+so a lifetime shorter than K decisions trains exactly as with `"record"` and keeps INT3A-5's held-out records; whole
+segments are held out from the second segment on (fraction `val_fraction`). A run that needs the old behaviour sets
 `credit.learner.val_split: record` in its configuration (the line above keeps a configured value).
 
-**Tested** on a copy of the working tree with the line applied through the configuration
-(`credit.learner.val_split: segment`, which the agent already honours): `credit/cr_agent_eval.py` runs (docs/CR.md).
+**Tested** on a copy of agent.py with CR-1 and CR-3 applied (`git archive` of dc1753c + CR's credit/ files; docs/CR.md §6):
+`tests/integration/test_int3a_audit.py` 4/4 and `tests/credit/test_cr.py` 10/10 on the patched copy; the other
+integration files named in docs/CR.md §6; the integrated ablation runs of docs/CR.md §3.
 
 ## CR-2 (optional, src/cam_live/agent.py): segment length from the configuration
 

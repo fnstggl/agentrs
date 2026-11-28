@@ -1,0 +1,145 @@
+{
+ "_code": {
+  "clean": false,
+  "commit": "a88f5fe4b6f45a38c6f805c041edc425087053a8",
+  "python_hash_seed": "random",
+  "threads": 1,
+  "torch": "2.15.0+cu132",
+  "uncommitted": [
+   " M cam_live/src/cam_live/nn/persist.py"
+  ]
+ },
+ "_command": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.cr_diagnose power --reps 2000 --out /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/CR/diag/power.json",
+ "effects": [
+  3.3,
+  6.0,
+  2.8,
+  -0.5,
+  6.0,
+  11.8
+ ],
+ "reps": 2000,
+ "rows": [
+  {
+   "estimator": "truth",
+   "n_train_per_arm": null,
+   "pass_chi2_99": 0.5765,
+   "pass_old_gate": 0.601,
+   "pass_pooled": 0.0015,
+   "units_per_arm": 2
+  },
+  {
+   "estimator": "train_ideal_same_size",
+   "n_train_per_arm": 2,
+   "pass_chi2_99": 0.337,
+   "pass_old_gate": 0.3575,
+   "pass_pooled": 0.0005,
+   "units_per_arm": 2
+  },
+  {
+   "estimator": "train_ideal_4x",
+   "n_train_per_arm": 8,
+   "pass_chi2_99": 0.5125,
+   "pass_old_gate": 0.538,
+   "pass_pooled": 0.0025,
+   "units_per_arm": 2
+  },
+  {
+   "estimator": "truth",
+   "n_train_per_arm": null,
+   "pass_chi2_99": 0.8175,
+   "pass_old_gate": 0.838,
+   "pass_pooled": 0.0655,
+   "units_per_arm": 3
+  },
+  {
+   "estimator": "train_ideal_same_size",
+   "n_train_per_arm": 3,
+   "pass_chi2_99": 0.5065,
+   "pass_old_gate": 0.55,
+   "pass_pooled": 0.019,
+   "units_per_arm": 3
+  },
+  {
+   "estimator": "train_ideal_4x",
+   "n_train_per_arm": 12,
+   "pass_chi2_99": 0.7335,
+   "pass_old_gate": 0.755,
+   "pass_pooled": 0.0405,
+   "units_per_arm": 3
+  },
+  {
+   "estimator": "truth",
+   "n_train_per_arm": null,
+   "pass_chi2_99": 0.919,
+   "pass_old_gate": 0.9325,
+   "pass_pooled": 0.481,
+   "units_per_arm": 5
+  },
+  {
+   "estimator": "train_ideal_same_size",
+   "n_train_per_arm": 5,
+   "pass_chi2_99": 0.652,
+   "pass_old_gate": 0.682,
+   "pass_pooled": 0.2675,
+   "units_per_arm": 5
+  },
+  {
+   "estimator": "train_ideal_4x",
+   "n_train_per_arm": 20,
+   "pass_chi2_99": 0.876,
+   "pass_old_gate": 0.9,
+   "pass_pooled": 0.3995,
+   "units_per_arm": 5
+  },
+  {
+   "estimator": "truth",
+   "n_train_per_arm": null,
+   "pass_chi2_99": 0.9675,
+   "pass_old_gate": 0.9745,
+   "pass_pooled": 0.8885,
+   "units_per_arm": 10
+  },
+  {
+   "estimator": "train_ideal_same_size",
+   "n_train_per_arm": 10,
+   "pass_chi2_99": 0.738,
+   "pass_old_gate": 0.7725,
+   "pass_pooled": 0.7295,
+   "units_per_arm": 10
+  },
+  {
+   "estimator": "train_ideal_4x",
+   "n_train_per_arm": 40,
+   "pass_chi2_99": 0.9195,
+   "pass_old_gate": 0.9365,
+   "pass_pooled": 0.853,
+   "units_per_arm": 10
+  },
+  {
+   "estimator": "truth",
+   "n_train_per_arm": null,
+   "pass_chi2_99": 0.9895,
+   "pass_old_gate": 0.9935,
+   "pass_pooled": 0.9995,
+   "units_per_arm": 24
+  },
+  {
+   "estimator": "train_ideal_same_size",
+   "n_train_per_arm": 24,
+   "pass_chi2_99": 0.7505,
+   "pass_old_gate": 0.7905,
+   "pass_pooled": 0.9825,
+   "units_per_arm": 24
+  },
+  {
+   "estimator": "train_ideal_4x",
+   "n_train_per_arm": 96,
+   "pass_chi2_99": 0.9555,
+   "pass_old_gate": 0.963,
+   "pass_pooled": 0.997,
+   "units_per_arm": 24
+  }
+ ],
+ "sd_y": 5.5
+}

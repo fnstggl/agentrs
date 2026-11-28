@@ -1,0 +1,61 @@
+{
+ "checkpoint": "/workspace/camlive/runs/cam_live/live/discord-100-planning-20261128T083454Z/checkpoints/ckpt_00000038/state.json",
+ "record": {
+  "load_report": {
+   "providers_missing": [
+    "world_model",
+    "fast_prior",
+    "evaluator",
+    "world_model_adapters",
+    "evaluator_adapters",
+    "retention",
+    "bridge_grounding"
+   ],
+   "providers_new": []
+  },
+  "default": "simple",
+  "selector_units": 0,
+  "evidence": 0,
+  "revised": 0,
+  "trained_objectives": 1,
+  "trained_units_superset": true,
+  "segment_split_from_seq": null,
+  "state_roundtrip_keys": [
+   "segment_split_from_seq",
+   "trained_units"
+  ],
+  "assigner_new_keys": [
+   "revised",
+   "segment_decisions"
+  ]
+ },
+ "segment": {
+  "load_report": {
+   "providers_missing": [
+    "world_model",
+    "fast_prior",
+    "evaluator",
+    "world_model_adapters",
+    "evaluator_adapters",
+    "retention",
+    "bridge_grounding"
+   ],
+   "providers_new": []
+  },
+  "default": "simple",
+  "selector_units": 0,
+  "evidence": 0,
+  "revised": 0,
+  "trained_objectives": 1,
+  "trained_units_superset": true,
+  "segment_split_from_seq": 1,
+  "state_roundtrip_keys": [
+   "segment_split_from_seq",
+   "trained_units"
+  ],
+  "assigner_new_keys": [
+   "revised",
+   "segment_decisions"
+  ]
+ }
+}
