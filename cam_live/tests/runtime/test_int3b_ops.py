@@ -249,7 +249,7 @@ def test_validation_takes_the_gpu_lock_whenever_the_backbone_is_on_cuda():
     body = ast.get_source_segment(src, fn)
     # the lock decision is the configuration's (pretrained backbone on CUDA), not the real_model flag
     assert 'cfg.backbone.name != "tiny" and cfg.resolved_device() == "cuda"' in body
-    assert "lock = gpu_lock(" in body
+    assert "lock = shared_gpu(" in body
 
 
 # ---------------------------------------------------------------------------------------------------------- plan report

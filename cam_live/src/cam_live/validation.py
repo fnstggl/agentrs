@@ -28,7 +28,7 @@ import statistics
 import subprocess
 import time
 import traceback
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple
 
 import torch
 
@@ -296,6 +296,24 @@ def _stats(xs: Sequence[float]) -> Dict[str, float]:
         return {"n": 0}
     return {"n": len(xs), "mean": statistics.fmean(xs), "max": max(xs), "min": min(xs),
             "nonzero": sum(1 for x in xs if x > 0)}
+
+
+@contextlib.contextmanager
+def shared_gpu(min_free_gb: float = 0.0) -> Iterator[None]:
+    """The machine's shared GPU lock for one bounded job: a queued wait (``runtime.gpu_cycle.GpuLease``), then the
+    free-memory check of ``nn.gpu.gpu_lock``; the caller bounds how long it holds it (``budget_s``)."""
+    from .nn.gpu import GpuUnavailable
+    from .runtime.gpu_cycle import GpuLease
+    lease = GpuLease(hold_s=0.0)
+    lease.acquire()
+    try:
+        if min_free_gb and torch.cuda.is_available():
+            free = torch.cuda.mem_get_info()[0] / 2 ** 30
+            if free < min_free_gb:
+                raise GpuUnavailable(f"only {free:.1f} GB GPU memory free, need {min_free_gb}")
+        yield
+    finally:
+        lease.release()
 
 
 def _gpu_peak() -> Optional[float]:
@@ -696,9 +714,9 @@ def run_staging(cfg: Optional[CamLiveConfig] = None, *, out_dir: Optional[str] =
     if real_model and not torch.cuda.is_available():
         raise RuntimeError("real_model=True needs a CUDA GPU (use real_model=False for the CPU plumbing check)")
     if cfg.backbone.name != "tiny" and cfg.resolved_device() == "cuda":
-        # any configuration that puts the pretrained backbone on the GPU holds the shared lock while it does
-        from .nn.gpu import gpu_lock
-        lock = gpu_lock(min_free_gb=18.0)
+        # any configuration that puts the pretrained backbone on the GPU holds the shared lock while it does; the
+        # wait is the queued one of runtime.gpu_cycle (no timeout: a tenant that re-polls at once cannot starve it)
+        lock = shared_gpu(min_free_gb=18.0)
         torch.cuda.reset_peak_memory_stats()
     t_start = time.time()
     probes: List[MetaStepProbe] = []
