@@ -1,7 +1,7 @@
 {
  "workstream": "RW",
- "commit": "21bde3a4633ac3fdfcd9c72cf7df5a11c1cbf569",
- "summary": "RW (amendment 2026-11-28 item 1, genuinely learned rewards). Audit: the mix stayed 1 because the promotion test compared single policy steps (power ~0 at realistic rates), existed only at applied meta-updates, and the outer estimator used only the 3-4 decisions between two live updates; defect: level readings were stored as the level. Changed (reward/): prospective anytime-valid validity evidence decides the mix (no margin, no held-out reservation); pooled first-order outer estimator ('auto'); outer utility 'direct'; level readings as changes. Debug scale, one long LabWorld objective per seed vs a frozen R_psi (same seeds): learning raised R_psi's prospective agreement with verified outcomes in 12/12 seed-configurations; the evidence promoted R_psi in 2/3 600-decision objectives (never a frozen one), decisions changed 9-17 decisions later, chosen-action true value +2.06 [1.58, 2.54] adopters/decision afterwards in one seed (+2.05 [-0.92, 5.08] in the other, 27 decisions); 1/3 within 300 decisions; 0/3 at the agent's reward lr 1e-4. Real model: see real_* evidence and docs/RW.md section 5. Not shown: reliable improvement; promotion inside one GPU hold.",
+ "commit": "a055332080864f46c35f2720cc1584f54780a2ad",
+ "summary": "RW (amendment 2026-11-28 item 1, genuinely learned rewards). Audit: the mix stayed 1 because the promotion test compared single policy steps (power ~0 at realistic rates), existed only at applied meta-updates, and the outer estimator used only the 3-4 decisions between two live updates; defect: level readings were stored as the level. Changed (reward/): prospective anytime-valid validity evidence decides the mix (no margin, no held-out reservation); pooled first-order outer estimator ('auto' default, query-window fallback); outer utility default 'direct'; level readings as changes; ST-3 information value as a bootstrap input. Debug scale, one long LabWorld objective per seed vs a frozen R_psi (same seeds, controlled configuration without goal term): learning raised R_psi's prospective agreement with verified outcomes in 17/18 seed-configurations; the evidence promoted R_psi in 4 of 9 600-decision objectives (frozen: 0 of 12), decisions changed 7-31 decisions later, and in each of the four the chosen actions' true value afterwards exceeded the frozen counterfactual (+2.06 [1.58, 2.54], +2.05 [-0.92, 5.08], +1.01 [0.37, 1.71], +1.71 [0.22, 3.29] adopters per decision; one seed each). Integrated agent (debug, 120 decisions, agent configuration): 9/143 meta-updates applied, 47 pairs, no promotion. Real configuration (Qwen3-4B + 50m, backbone on, one GPU hold): 35 decisions, 4/36 meta-updates applied, 17 pairs, e-value 1.0, mix 1, R_psi weight 0 in all 11 live updates. Not shown: promotion or improvement on the real model; reliable improvement in general.",
  "requirements": {
   "AM1-promotion-criterion (bootstrap transition, empirically grounded usefulness)": {
    "state": "implemented",
@@ -35,9 +35,19 @@
    "still_fails": "not exercised on an objective whose level moves (the live planning run's readings are all 0)"
   },
   "AM1-pathway experience -> meta-update -> weighted R_psi -> changed live update -> changed decisions, with ablation": {
-   "state": "shown at debug scale; real model: see section 5",
-   "evidence": "docs/evidence/RW/diag_summary_600.json: seeds 0/1 promoted at decisions 252/573, first decision unlike the frozen arm 269/582; seed 2 not promoted; frozen never",
-   "still_fails": "real configuration: interim, waiting for the GPU lock (docs/RW.md section 5)"
+   "state": "shown at debug scale (controlled configuration); integrated agent and real model: up to the evidence, no promotion",
+   "evidence": "docs/evidence/RW/diag_summary_600.json (promotions at decisions 252/573 (lr 3e-3) and 494/545 (lr 1e-4), first decisions unlike frozen 269/582/525/552); dbg_agent_learned_120.json; real_learned_20261128.json",
+   "still_fails": "real model: 35 decisions per hold, 17 pairs, no promotion (needs ~50-130 informative pairs); the agent configuration's pooled estimator starts only after ~28 decisions"
+  },
+  "ST-3 realised information value as a bootstrap input": {
+   "state": "applied (a055332)",
+   "what_changed": "assemble/inner/bootstrap: information_value annotation -> bootstrap component tanh(IV), weight 1, BOOTSTRAP_VERSION bootstrap-2; R_psi schema unchanged",
+   "tests": [
+    "tests/reward/test_reward_rw.py::test_realised_information_value_is_a_bounded_bootstrap_input_and_not_an_input_of_r_psi",
+    "tests/reward/test_reward_bootstrap.py::test_bootstrap_reward_is_labelled_bounded_and_made_of_its_named_components"
+   ],
+   "evidence": "review docs/RW.md 2.4",
+   "still_fails": "not an R_psi input (its weight is not learned); myopic (next two decisions)"
   }
  },
  "public_api": [
@@ -55,16 +65,17 @@
  ],
  "extra_packages": [],
  "measured": {
-  "tests_reward": "166 passed, 4 skipped (162 s), snapshot 07303fe + RW files",
+  "tests_reward": "167 passed, 4 skipped (138 s), isolated copy 07303fe + RW files incl. ST-3",
   "tests_other_touched_by_defaults": "tests/integration/test_agent_runtime.py 11 passed; tests/integration/test_agent_recovery.py + tests/eval/test_meta_integrity.py 4 passed, 1 skipped (isolated copy 07303fe + RW)",
   "g2decision_probe_meta_path": "21/23 on RW code (the 2 failures are the probe's own analytic vs FD at derivative magnitudes 1.3e-8 / 1.6e-6; the code's gradient equals the probe's analytic one to 3e-15); HEAD: 23/23; the probe is not run-to-run reproducible (HEAD twice: |g| 0.258 / 0.249)",
-  "live_checkpoint_compat": "ckpt_00000039 of the live planning run loads; restored_fresh = validity"
+  "live_checkpoint_compat": "ckpt_00000039 of the live planning run loads; restored_fresh = validity",
+  "real_model_run": "35 decisions, lock 657 s, GPU peak 10.5 GB, meta 4/36 applied, 17 validity pairs, mix 1.0, R_psi TV 0.0 in 11 live updates"
  },
  "not_done": [
-  "inner-loss return half-life not changed (diagnosed)",
-  "promotion inside one real-model hold not reachable at measured evidence rates",
-  "query/direct arm only seed 0 (stopped by the CPU rule)",
-  "frozen real-model arm not run if no promotion (identical by construction)"
+  "inner-loss return half-life not changed (diagnosed; also limits the bootstrap-only live policy in the controlled diagnostic)",
+  "promotion inside one real-model hold not reachable at measured evidence rates; real frozen arm not run (identical by construction at mix 1)",
+  "information value not an R_psi input",
+  "agent hooks RW-1/RW-2 pending with ST"
  ],
  "scientific_failures": [
   "R_psi's agreement with verified outcomes rises but reaches the promotion bar only after ~250-570 decisions in 2 of 3 seeds (debug); at the agent's reward lr 1e-4 not within 300",

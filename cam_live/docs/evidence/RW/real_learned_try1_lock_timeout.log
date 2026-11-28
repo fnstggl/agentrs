@@ -1,0 +1,19 @@
+Traceback (most recent call last):
+  File "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/RW/snap/cam_live/src/cam_live/nn/gpu.py", line 49, in gpu_lock
+    fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+BlockingIOError: [Errno 11] Resource temporarily unavailable
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/RW/rw_pathway_real.py", line 270, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/RW/rw_pathway_real.py", line 133, in main
+    lock.__enter__()
+  File "/venv/main/lib/python3.12/contextlib.py", line 137, in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+  File "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/RW/snap/cam_live/src/cam_live/nn/gpu.py", line 53, in gpu_lock
+    raise GpuUnavailable(f"shared GPU lock not acquired within {timeout_s:.0f} s")
+cam_live.nn.gpu.GpuUnavailable: shared GPU lock not acquired within 1800 s

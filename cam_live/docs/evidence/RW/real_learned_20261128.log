@@ -1,0 +1,38 @@
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 5478.59it/s]
+decision 1 mix 1.00 meta applied 0 pairs 0 wall 17s
+decision 2 mix 1.00 meta applied 0 pairs 0 wall 27s
+decision 3 mix 1.00 meta applied 0 pairs 1 wall 36s
+decision 4 mix 1.00 meta applied 0 pairs 1 wall 51s
+decision 5 mix 1.00 meta applied 0 pairs 2 wall 59s
+decision 6 mix 1.00 meta applied 0 pairs 2 wall 70s
+decision 7 mix 1.00 meta applied 0 pairs 3 wall 80s
+decision 8 mix 1.00 meta applied 0 pairs 3 wall 98s
+decision 9 mix 1.00 meta applied 0 pairs 3 wall 109s
+decision 10 mix 1.00 meta applied 0 pairs 3 wall 119s
+decision 11 mix 1.00 meta applied 0 pairs 3 wall 135s
+decision 12 mix 1.00 meta applied 0 pairs 3 wall 147s
+decision 13 mix 1.00 meta applied 0 pairs 3 wall 166s
+decision 14 mix 1.00 meta applied 0 pairs 3 wall 177s
+decision 15 mix 1.00 meta applied 0 pairs 4 wall 195s
+decision 16 mix 1.00 meta applied 1 pairs 4 wall 208s
+decision 17 mix 1.00 meta applied 1 pairs 5 wall 230s
+decision 18 mix 1.00 meta applied 1 pairs 5 wall 251s
+decision 19 mix 1.00 meta applied 1 pairs 6 wall 263s
+decision 20 mix 1.00 meta applied 1 pairs 6 wall 291s
+decision 21 mix 1.00 meta applied 1 pairs 7 wall 303s
+decision 22 mix 1.00 meta applied 1 pairs 7 wall 324s
+decision 23 mix 1.00 meta applied 1 pairs 8 wall 346s
+decision 24 mix 1.00 meta applied 1 pairs 8 wall 360s
+decision 25 mix 1.00 meta applied 1 pairs 9 wall 381s
+decision 26 mix 1.00 meta applied 1 pairs 9 wall 393s
+decision 27 mix 1.00 meta applied 1 pairs 10 wall 417s
+decision 28 mix 1.00 meta applied 2 pairs 10 wall 440s
+decision 29 mix 1.00 meta applied 2 pairs 11 wall 452s
+decision 30 mix 1.00 meta applied 2 pairs 11 wall 476s
+decision 31 mix 1.00 meta applied 2 pairs 12 wall 502s
+decision 32 mix 1.00 meta applied 3 pairs 12 wall 537s
+decision 33 mix 1.00 meta applied 3 pairs 13 wall 564s
+decision 34 mix 1.00 meta applied 3 pairs 13 wall 587s
+decision 35 mix 1.00 meta applied 3 pairs 14 wall 612s
+{
+}

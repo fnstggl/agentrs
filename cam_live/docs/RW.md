@@ -33,7 +33,9 @@ counterfactual's on the same decisions: +2.06 adopters per decision [1.58, 2.54]
 [-0.92, 5.08] (27), +1.01 [0.37, 1.71] (106), +1.71 [0.22, 3.29] (55) — one seed each, correlated decisions. Within
 300 decisions only 1 of 3. In the integrated agent's own configuration (debug, 120 decisions) the evidence did not
 move the mix.
-Real configuration: INTERIM — the real-model run of the integrated agent has been waiting for the shared GPU lock since 09:34 UTC (one attempt timed out after 30 min); section 5 is updated when it has run.
+Real configuration (Qwen3-4B + 50m, backbone proposals on, one long staging objective, one GPU hold): 35 decisions, 4 of 36
+meta-updates applied to R_psi from verified outcomes, 17 validity pairs, e-value 1.0 — the mix stayed 1 and R_psi had
+no influence on any of the 11 live updates (TV 0.0); the pathway is shown up to the evidence, not beyond it.
 Diagnosed limits (§4, §6): the outer utility (fixed: `direct`) and the inner-loss return half-life (1 day against
 decisions an hour apart; not changed — it governs every live update) blur the credit R_psi receives; the anytime test
 needs tens of informative pairs, i.e. ~100+ matured decisions, more than one GPU hold provides; the planning phase of
@@ -312,7 +314,29 @@ and goal returns of every live policy update and was therefore not changed (§3.
 
 ## 5. Full-size agent: one long staging objective on the real configuration
 
-INTERIM: `docs/evidence/RW/rw_pathway.py --arm learned --decisions 80 --budget-s 800` (one long LabWorld staging objective, real configuration, backbone proposals on, the RW defaults) is queued on the shared GPU lock (first attempt: `GpuUnavailable` after 1800 s, 10:24 UTC; second attempt waiting with a 2 h limit). Expectation stated before the run, from the measured evidence rates: within one ~14-minute hold (~40 decisions) the agent configuration's pooled estimator has no pool yet (§6) and the validity evidence ~10-20 pairs, so the mix stays 1 and R_psi has weight 0 in every live update; the frozen arm would then take the same decisions by construction and is run only if the learned arm's mix moves.
+`docs/evidence/RW/rw_pathway.py --arm learned --decisions 80 --budget-s 800` on the real configuration (Qwen3-4B
+frozen bf16 + LoRA + bridge + 50m core on the GPU under the shared lock; backbone proposals on, `thompson_policy`,
+the agent's configuration with the RW defaults `auto` / `direct` / `validity`, reward step 1e-4); one long LabWorld
+staging objective (target never reached; budget and deadline beyond the run); code = isolated copy of dc1753c + RW's
+`reward/` of 2dfa6db (ST-3 not included) + the fixed `nn/gpu.py` of 9656770. The first attempt waited 30 min and
+timed out (`real_learned_try1_lock_timeout.log`; the old lock poller); the second got the lock at 12:24 UTC after
+~16 min in the queue. Output `docs/evidence/RW/real_learned_20261128.json` / `.log`.
+
+| quantity | measured |
+|---|---|
+| decisions in the hold | 35 (stopped by the hold budget: 616 s used, longest step 35 s; lock held 657 s; GPU peak 10.5 GB) |
+| meta-update calls / applied | 36 / **4** (all query-window importance-weighted through the `auto` fallback, at decisions 16, 28, 32, 35, 4-9 groups, gradient norms 0.05-2.9); the pooled estimator never had a pool (27 `insufficient_independent_outcomes`, 2 ESS, 1 zero advantage, 2 before the first update) |
+| validity evidence | 17 scored pairs (11 informative); R_psi's agreement -0.18 [-1.00, 0.82], the bootstrap's -0.06 [-1.00, 0.95]; e-value of "R_psi alone agrees better than mix 1": 1.0 (threshold 40) |
+| bootstrap mix / R_psi's weight in the live updates | 1.0 throughout; recomputing each of the 11 live updates at mix 1 changes the policy by TV **0.0** (R_psi had no say) |
+| behaviour | 27 `lab.act`, 4 `lab.probe`, 2 `wait`, 1 `lab.unlock`, 1 `lab.noise`; 259 verified adopters; the policy head's share of the selection up to TV 0.25 per decision |
+
+Reading: (b) every link of the pathway up to the evidence ran on the full-size agent — rewards noted and scored
+prospectively, meta-updates applied to R_psi from verified outcomes inside the objective, the mix decided by the
+evidence; (c)/(d) not reached: in 35 decisions the evidence could not support giving R_psi weight (the expectation
+stated before the run: an R_psi of the quality the debug runs reached needs 50-130 informative pairs, the hold gave
+11), so R_psi did not influence a single live update and the frozen arm — identical by construction while the mix is
+1 — was not run (it would only have measured GPU nondeterminism). No further GPU hold was used: one hold supplies
+~35 decisions, the debug-scale promotions came after 221-573.
 
 ## 6. Negative results and their diagnosis
 
