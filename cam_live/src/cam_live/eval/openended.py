@@ -424,6 +424,41 @@ def mech_task(service: MechanismService, objective_id: str, *, max_decisions: in
                     data_permissions={"aggregate_metrics": True}, mode="staging")
 
 
+# ================================================================================================ GOAL-FREE (X5)
+GOAL_FREE_TEXT = ("No objective is assigned for this period and nothing is checked. The code sandbox and its tools "
+                  "are available.")
+
+
+def goal_free_task(objective_id: str, *, max_decisions: int, duration_s: float = 6 * 3600.0) -> TaskSpec:
+    """Protocol v3.4 X5 / spec 11.4: a period with no success criterion on the same computer (``success`` empty:
+    the runtime verifies nothing and the agent's goal-free mode chooses its own learning goals)."""
+    return TaskSpec(objective_id=objective_id, objective=GOAL_FREE_TEXT, success={}, family="openended/goal_free",
+                    interfaces=["code", "internal"], resources={"owned": [], "preauthorized": [], "read": []},
+                    limits=Limits(duration_s=duration_s, money=1.0, compute_s=0.0,
+                                  max_external_actions=10 * max_decisions, max_decisions=int(max_decisions)),
+                    data_permissions={"aggregate_metrics": True}, mode="staging")
+
+
+class NoCriterionVerifier(_Signer):
+    """Verifier of a goal-free period: there is nothing to check, so every verdict is ``pending`` with value 0
+    (signed like the others) and every measurement is unobservable."""
+
+    def __init__(self, clock: Any, *, secret: bytes = b"goal-free-verifier-key"):
+        super().__init__(secret)
+        self.clock = clock
+        self.history: List[Dict[str, Any]] = []
+
+    def verify(self, task: TaskSpec) -> VerifiedOutcome:
+        o = VerifiedOutcome(objective_id=task.objective_id, status=GoalStatus.PENDING, value=0.0, target=0.0,
+                            evaluated_at=float(self.clock.now()), notes="goal-free period: no success criterion")
+        o.signature = self._sign(o)
+        return o
+
+    def measure(self, queries: Sequence[OutcomeQuery]) -> List[OutcomeObservation]:
+        return [OutcomeObservation(q.query_id, OutcomeStatus.UNOBSERVABLE, source="verifier:goal_free")
+                for q in queries]
+
+
 # ================================================================================================ environment
 #: operation prefixes of executors registered by the harness that none of these families authorizes (no Discord
 #: or publishing resources exist here): hidden from discovery so that they are not offered as actions
@@ -479,6 +514,9 @@ class OpenEndedComputer:
             self.service = MechanismService(seed)
             task = mech_task(self.service, objective_id, max_decisions=max_decisions)
             verifier = HeldOutVerifier(self.workspace, self.service, seed, self.clock)
+        elif family == "GOALFREE":
+            task = goal_free_task(objective_id, max_decisions=max_decisions)
+            verifier = NoCriterionVerifier(self.clock)
         else:
             raise KeyError(family)
         if self.policy is None:

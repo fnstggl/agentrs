@@ -120,7 +120,8 @@ class UnavailableTools(RuntimeError):
 _MODALITY_OF_INTERFACE = {"browser": "structured_browser"}
 #: the tools each family cannot be attempted without (all unavailable permitted tools are recorded either way; e.g. the
 #: publishing tools are legitimately unavailable where no publishing destination exists)
-ESSENTIAL_PREFIXES = {"SW": ("sandbox.",), "MECH": ("sandbox.", "http."), "CU": ("browser.",)}
+ESSENTIAL_PREFIXES = {"SW": ("sandbox.",), "MECH": ("sandbox.", "http."), "CU": ("browser.",),
+                      "GOALFREE": ("sandbox.",)}
 
 
 def unavailable_permitted_tools(env: Any, task: Any) -> List[Dict[str, str]]:
@@ -180,8 +181,9 @@ def run_objective(agent: Any, oc: Any, family: str, problem: str, wseed: int, ob
     preds = [p for p in agent.predictions.records() if p.nll is not None and p.decision_id.startswith("dec_")
              and p.query.query_id in {q.query_id for r in recs for q in r.queries}]
     hist = getattr(verifier, "history", [])
-    first_hit = next((i for i, h in enumerate(hist) if (h.get("pass_fraction", h.get("value", 0.0)) or 0.0) >=
-                      float(task.success["target"])), None)
+    target = task.success.get("target") if task.success else None        # a goal-free period has none (X5)
+    first_hit = None if target is None else next(
+        (i for i, h in enumerate(hist) if (h.get("pass_fraction", h.get("value", 0.0)) or 0.0) >= float(target)), None)
     return {"family": family, "problem": problem, "world_seed": wseed, "objective_id": objective_id,
             "unavailable_permitted_tools": unavailable, "n_tools": len(env.discover_tools()),
             "runtime_status": rt.status, "reason": rt.status_reason[:200], "verified_status": final.status,
@@ -343,7 +345,10 @@ def cmd_sequence(a: argparse.Namespace) -> int:
                                                                    os.path.join(root, "export_pre"),
                                                                    note="before any experience")}
             h0 = agent.model.group_hashes()
-            wseed = 1000 * (i + 1) + a.seed
+            # world seeds by position among the assigned objectives (a goal-free period before them - X5 - does
+            # not shift them, so X5's objectives are the same instances as X1's)
+            k = i - sum(1 for f, _ in plan[:i] if f == "GOALFREE")
+            wseed = 1000 * (k + 1) + a.seed
             if fam == "MECH" and prob:
                 wseed = int(prob) * 100 + a.seed
             ob = run_objective(agent, computer, fam, prob, wseed, f"obj_{fam}_{prob}_{i}_s{a.seed}",

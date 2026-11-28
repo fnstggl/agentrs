@@ -48,7 +48,13 @@ def _jobs_v3() -> List[Dict[str, Any]]:
     return jobs
 
 
-PLANS = {"v3": _jobs_v3}
+def _jobs_v3x5() -> List[Dict[str, Any]]:
+    """X5 (Protocol v3.4): a goal-free period of 20 decisions on the SW computer, then X1's plan; E, seeds 0-1.
+    The comparison arm (E without the goal-free period) is X1 ``x1/E_s{0,1}``."""
+    return [dict(name=f"x5/goalfree_s{s}", condition="E", seed=s, plan="GOALFREE:sw," + SW_TRAIN) for s in (0, 1)]
+
+
+PLANS = {"v3": _jobs_v3, "v3x5": _jobs_v3x5}
 
 
 def _n_plan(job: Dict[str, Any]) -> int:
