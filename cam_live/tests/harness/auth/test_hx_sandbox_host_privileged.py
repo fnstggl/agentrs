@@ -29,8 +29,11 @@ try:
 except OSError as e:
     print(json.dumps({"connect": type(e).__name__})); sys.exit(0)
 data = json.dumps({"op": "ping"}).encode()
-s.sendall(struct.pack(">I", len(data)) + data)
-head = s.recv(4)
+try:
+    s.sendall(struct.pack(">I", len(data)) + data)
+    head = s.recv(4)
+except (BrokenPipeError, ConnectionResetError) as e:      # the host closed the connection at once (under load the
+    print(json.dumps({"closed": type(e).__name__})); sys.exit(0)   # refusal can arrive before the request is sent)
 n = struct.unpack(">I", head)[0] if len(head) == 4 else 0
 print(json.dumps({"answer": json.loads(s.recv(n).decode()) if n else None}))
 """
@@ -96,7 +99,7 @@ def test_generated_code_runs_as_the_sandbox_uid_in_the_separated_deployment(depl
     path = os.path.join(D, "sock", "sandbox.sock")
     for role in ("learner", "sandbox"):
         out = jout(run_as({"learner": "camlearn", "sandbox": "camsbx"}[role], PING, path))
-        refused = out.get("connect") or "may not use" in json.dumps(out.get("answer"))
+        refused = out.get("connect") or out.get("closed") or "may not use" in json.dumps(out.get("answer"))
         assert refused, (role, out)
     # a denied program is not run: the host asks the environment, which asks the authorization service
     stopped = C.ActionSpec(action_id=C.new_id("hx"), operation="sandbox.python", modality=C.Modality.CODE,
