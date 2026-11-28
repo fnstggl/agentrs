@@ -75,6 +75,12 @@ RUN_TAG_ENV, SERVICE_ENV = "CAM_LIVE_RUN_TAG", "CAM_LIVE_SERVICE"
 _TRAMPOLINE = ("import ctypes,os,sys\n"
                "ctypes.CDLL(None,use_errno=True).prctl(38,1,0,0,0)\n"
                "os.execv(sys.argv[1],sys.argv[1:])\n")
+#: How a separated service's Python starts (G2-harness R2-C1): ``python -I service_boot.py <roots> -m <module>``
+#: with cwd "/": isolated mode (no PYTHON* variable, no user site, neither the cwd nor a script's directory on
+#: sys.path), then exactly the launcher's import roots in front of sys.path (cam_live.harness.service_boot)
+_BOOT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "service_boot.py")
+#: PATH of services that run as root: system directories only (none of them writable by a service uid)
+ROOT_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 
 @dataclass
@@ -132,6 +138,10 @@ class LauncherConfig:
 # ---------------------------------------------------------------------------------------------------------------
 # run directory
 # ---------------------------------------------------------------------------------------------------------------
+def _is_python(exe: str) -> bool:
+    return os.path.basename(exe).startswith("python")
+
+
 def _src_root() -> str:
     import cam_live
     return os.path.dirname(os.path.dirname(os.path.abspath(cam_live.__file__)))
@@ -355,6 +365,10 @@ class LaunchHandle:
         env["PYTHONUNBUFFERED"] = "1"
         env["HOME"] = os.path.join(self.run_dir, {"auth": "auth", "verifier": "verifier", "learner": "learner",
                                                   "browser": "browser_profile", "sandbox": "sandbox"}.get(spec.role, "exec"))
+        if spec.role == "root":
+            # a root service gets nothing from a directory a service uid owns (R2-C1)
+            env["HOME"] = "/root" if os.path.isdir("/root") else "/"
+            env["PATH"] = ROOT_PATH
         env[RUN_TAG_ENV], env[SERVICE_ENV] = self.tag, spec.name
         env.update(self.cfg.extra_env)
         env.update(spec.env)
@@ -372,8 +386,12 @@ class LaunchHandle:
                     cmd += ["--single-uid"]
         cmd += list(spec.args) + list(self.cfg.extra_args.get(spec.name, []))
         if self.separated:
-            exe = shutil.which(cmd[0]) or cmd[0]
-            cmd = [self.cfg.python, "-I", "-c", _TRAMPOLINE, exe] + cmd[1:]
+            exe = os.path.abspath(shutil.which(cmd[0]) or cmd[0])     # absolute, not resolved: a venv is its symlink
+            if _is_python(exe):
+                roots = os.pathsep.join([_src_root()] + list(self.cfg.pythonpath))
+                cmd = [self.cfg.python, "-I", "-c", _TRAMPOLINE, exe, "-I", _BOOT_PATH, roots] + cmd[1:]
+            else:
+                cmd = [self.cfg.python, "-I", "-c", _TRAMPOLINE, exe] + cmd[1:]
         return cmd
 
     def _spawn(self, svc: _Svc) -> None:
@@ -394,7 +412,8 @@ class LaunchHandle:
         svc.log_path = os.path.join(self.run_dir, "logs", f"{spec.name}.log")
         logfd = os.open(svc.log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o640)
         kw: Dict[str, Any] = dict(stdin=subprocess.DEVNULL, stdout=logfd, stderr=subprocess.STDOUT, close_fds=True,
-                                  start_new_session=True, env=self._env(spec), cwd=self.run_dir)
+                                  start_new_session=True, env=self._env(spec),
+                                  cwd="/" if self.separated else self.run_dir)    # R2-C1: never a writable cwd
         if self.separated and spec.role != "root":
             kw.update(user=svc.uid, group=svc.gid, extra_groups=[self.layout["shared_gid"]], umask=0o077)
         try:

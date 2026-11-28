@@ -103,3 +103,94 @@ def test_generated_code_runs_as_the_sandbox_uid_in_the_separated_deployment(depl
                            arguments={"code": "print('RAN')"}, timeout_s=30.0)
     res4 = env.execute(stopped, C.AuthorizationDecision(C.AuthVerdict.ALLOW, grant="forged"))
     assert res4.status != C.ResultStatus.OK and "RAN" not in " ".join(o.text for o in res4.observations)
+
+
+PLANT = r"""
+import os, sys
+with open(MARK, "a") as f:
+    f.write(f"{os.geteuid()} {' '.join(sys.argv[1:3])}\n")
+_here = os.path.dirname(os.path.abspath(__file__))
+sys.path[:] = [p for p in sys.path if os.path.abspath(p or ".") != _here]
+del sys.modules["argparse"]
+import importlib as _il
+_real = _il.import_module("argparse")
+sys.modules["argparse"] = _real
+globals().update(_real.__dict__)
+"""
+
+
+def _pid_of(run_dir, module):
+    for p in os.listdir("/proc"):
+        if not p.isdigit():
+            continue
+        try:
+            cmd = open(f"/proc/{p}/cmdline", "rb").read().split(b"\0")
+        except OSError:
+            continue
+        if module.encode() in cmd and run_dir.encode() in b" ".join(cmd) and b"-c" not in cmd[:3]:
+            return int(p)
+    return None
+
+
+def test_root_services_never_import_what_a_service_uid_can_write(deployment):
+    """G2-harness R2-C1: a module the learner uid plants in the run directory is not imported by the root sandbox
+    host (or any service) when it restarts; root services run isolated (-I), with cwd /, HOME /root, a system PATH,
+    and nothing on their import path is writable by a service uid. Fails on 0a30cd8 (the host imported it as root)."""
+    import stat
+    import pwd
+    import grp
+    import subprocess
+    import sys
+    from cam_live.harness import SERVICE_USERS
+    D, h = deployment
+    mark_dir = tempfile.mkdtemp(prefix="hxmark", dir="/tmp")
+    os.chmod(mark_dir, 0o1777)
+    mark = os.path.join(mark_dir, "imported_by")
+    try:
+        assert _pid_of(D, "cam_live.harness.sandbox_host"), "sandbox host not found"
+        # the learner plants argparse.py in the run directory (its group may create files there) ...
+        planted = os.path.join(D, "argparse.py")
+        cp = run_as("camlearn", "import sys\nopen(sys.argv[1], 'w').write(sys.argv[2])\n", planted,
+                    f"MARK = {mark!r}\n" + PLANT)
+        assert cp.returncode == 0, cp.stderr
+        # ... and the host and the authorization service crash and are restarted by the supervisor
+        for module, name in (("cam_live.harness.sandbox_host", "sandbox"), ("cam_live.harness.auth.service", "auth")):
+            old = _pid_of(D, module)
+            os.kill(old, 9)
+            deadline = time.time() + 60
+            while time.time() < deadline and (_pid_of(D, module) in (None, old)
+                                              or h.status()["services"][name]["state"] != "running"):
+                time.sleep(0.3)
+            assert _pid_of(D, module) not in (None, old), module
+        time.sleep(2.0)
+        marks = open(mark).read().split("\n") if os.path.exists(mark) else []
+        assert not [m for m in marks if m.strip()], marks          # nothing imported it, as root or otherwise
+        # the root host's process context
+        pid = _pid_of(D, "cam_live.harness.sandbox_host")
+        assert os.stat(f"/proc/{pid}").st_uid == 0
+        cmd = open(f"/proc/{pid}/cmdline", "rb").read().split(b"\0")
+        env = dict(x.split("=", 1) for x in open(f"/proc/{pid}/environ").read().split("\0") if "=" in x)
+        from cam_live.harness.auth.launcher import ROOT_PATH, _BOOT_PATH, _src_root
+        assert os.readlink(f"/proc/{pid}/cwd") == "/" and b"-I" in cmd[:3], cmd[:4]
+        assert env.get("HOME") in ("/root", "/") and env.get("PATH") == ROOT_PATH
+        # nothing on the import path of a launched root service is writable by a service uid
+        probe = os.path.join(mark_dir, "path_probe.py")
+        with open(probe, "w") as f:
+            f.write("import sys, json; print(json.dumps(sys.path))\n")
+        out = subprocess.run([sys.executable, "-I", _BOOT_PATH, _src_root(), probe], cwd="/",
+                             env={"PATH": ROOT_PATH, "PYTHONPATH": D}, capture_output=True, text=True, timeout=60)
+        paths = json.loads(out.stdout.strip().splitlines()[-1])
+        assert D not in paths and "" not in paths and mark_dir not in paths, paths
+        uids = {pwd.getpwnam(u).pw_uid for u in SERVICE_USERS.values()}
+        gids = {pwd.getpwnam(u).pw_gid for u in SERVICE_USERS.values()} | {
+            g.gr_gid for g in grp.getgrall() if set(g.gr_mem) & set(SERVICE_USERS.values())}
+        for p in paths:
+            cur = p
+            while cur and cur != "/" and os.path.exists(cur):
+                st = os.stat(cur)
+                writable = st.st_uid in uids or (st.st_mode & stat.S_IWGRP and st.st_gid in gids) or \
+                    (st.st_mode & stat.S_IWOTH and not st.st_mode & stat.S_ISVTX)
+                assert not writable, (p, cur, oct(st.st_mode), st.st_uid, st.st_gid)
+                cur = os.path.dirname(cur)
+    finally:
+        shutil.rmtree(mark_dir, ignore_errors=True)

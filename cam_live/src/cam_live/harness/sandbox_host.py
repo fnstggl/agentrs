@@ -98,11 +98,13 @@ class SandboxHost:
         try:
             _pid, uid, _gid = struct.unpack("3i", conn.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED,
                                                                  struct.calcsize("3i")))
-            req = rpc._recv(conn)
-            if req is None:
-                return
-            if uid not in self.client_uids:
+            if uid not in self.client_uids:          # refused before anything is read from the peer
                 rpc._send(conn, {"error": f"uid {uid} may not use the sandbox host"})
+                return
+            conn.settimeout(30.0)                    # a client that connects and sends nothing does not hold a thread
+            req = rpc._recv(conn)
+            conn.settimeout(None)
+            if req is None:
                 return
             op = req.get("op")
             if op == "ping":
@@ -119,7 +121,7 @@ class SandboxHost:
                 self._execute(conn, req)
             else:
                 rpc._send(conn, {"error": f"unknown operation {op!r}"})
-        except (ConnectionError, OSError, ValueError):
+        except (ConnectionError, OSError, ValueError, socket.timeout):
             return
         finally:
             try:
