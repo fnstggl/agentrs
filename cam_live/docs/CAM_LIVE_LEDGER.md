@@ -137,6 +137,28 @@ Read at the start of every session, after `CAM_LIVE_SPEC.md` (operator specifica
   operator values of tasks/discord_100_planning.yaml, sign the planning authorization (no publication
   pre-authorized), `cam-live run`, export CAM's own plan unedited with `cam-live plan-report` for the operator.
 
+### 2026-11-28 — session 4 (continued, ~03:40 UTC): freeze for decision / learning / evaluation
+
+- Done: INT3A (S-6b fixed: sandbox tools were unavailable in the probe root, required-marker and nested-schema
+  causes; SW:rle achieved through the runtime in 2 decisions; KF-E01 credit now feeds training; info_gain key;
+  LRN-3; INT2-9; G2L-8 cause), INT3B (settling of pending outcomes, GPU lease cycling 840 s, operator flag
+  --accept-ephemeral-storage, plan-report, HX-5, float redaction, planning rehearsal in staging: 30 decisions,
+  5 operator requests, 3 Discord writes queued none executed, 0 notes written by CAM; staging validation 15/16),
+  HX rounds 1-3 (OP-09 hard constraints, IH-15 data use, X-PLATFORM-ADAPTER, root sandbox host, isolated service
+  boot), DX (G2L-1..5, CL-10, INT3A-5; DX-1 agent hook not applied: flaky wiring test 5/28, selection would still
+  not run), DOC (DL-02, DL-04, DL-20, IN-05, IN-06), G2-learn round 1 (24 verified / 2 partial), G2-harness rounds
+  1-3 (now 44 verified / 5 partial / 0 failed; R3-M1 root write symlink race open).
+- Freeze for decision, learning and evaluation: **f54d8cc**. Running: S (Protocol v3 X0-X6 on f54d8cc, results by
+  2026-11-29 16:00 UTC), G2-decision (B, C, RC-01/02/08), G2-learn round 2 (DX changes), HX round 4 (R3-M1 root
+  write race, audit anchor across restarts, OP-09 false refusals; may touch runtime/logs.py atomic writes,
+  supervisor writes in runtime/cli.py, harness/credentials.py).
+- After HX round 4: G2-harness round 4, then G2-runtime (F + CL-06) and G2-integration (M + docs) at the harness
+  freeze; then the operator launches the planning phase (`tools/launch_live.sh --accept-ephemeral-storage
+  tasks/discord_100_planning.yaml 8 --read 'https://*' --read 'http://*'`; signing is the operator's act — the
+  permission system refused agent-signed records).
+- Default config: nn.max_prompt_tokens 6144 (a7b8fa4). History rewrite of unpushed c0b408b..8172929 (fake canary
+  literal, push protection); map in docs/evidence/commit_map.tsv.
+
 ## Active jobs
 
 | Started (UTC) | Job | Resume |
