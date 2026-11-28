@@ -342,6 +342,9 @@ def test_reuse_on_an_unfamiliar_path_and_composition_from_another_page(staging):
     n = len(staging.entries())
     _, r = staging.run("skill.run", {"skill_id": sk_id, "arguments": {"text": "Wrong page", "label": "Tools"}})
     assert r.artifacts["termination"] == "precondition_failed" and len(staging.entries()) == n and len(r.ops) == 0
+    sk = staging.skills.library.get(sk_id)
+    assert sk.status == STATUS_VALIDATED and sk.runs == 1           # not counted against its reliability ...
+    n_app = sk.applicability_model().n                               # ... but against its applicability here
     # composition: "go to the entry book, then run the skill", executed twice from elsewhere, becomes a composite
     ids = []
     for i in range(2):
@@ -350,6 +353,7 @@ def test_reuse_on_an_unfamiliar_path_and_composition_from_another_page(staging):
         a2, r2 = staging.run("skill.run", {"skill_id": sk_id, "arguments": {"text": f"Composed {i}", "label": "Misc"}})
         assert r2.status == ResultStatus.OK, r2.failure_detail
         ids.append([a1.action_id, a2.action_id])
+    assert staging.skills.library.get(sk_id).applicability_model().n == n_app + 2            # the two composed runs
     staging.run("browser.navigate", {"url": other})
     _, r = staging.run("skill.induce", {"traces": ids})
     assert r.status == ResultStatus.OK, r.failure_detail

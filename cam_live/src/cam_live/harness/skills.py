@@ -1650,6 +1650,11 @@ class SkillExecutor:
             option["applicability"] = {"p": app.p(feats), "n": app.n}
             if self._depth == 1:
                 self._ops_total += len(ops)
+            if not validating and skill.status == STATUS_VALIDATED and state["termination"] == "precondition_failed":
+                # the state does not offer what the procedure starts from: evidence about *where* it applies (not
+                # about its reliability where it does), so the learned applicability is told
+                self.library.record_applicability(skill.skill_id, feats, False)
+                self.library._save(self.library.get(skill.skill_id))
             if not validating and skill.status == STATUS_VALIDATED and state["termination"] not in (
                     "refused_stale", "invalid_arguments", "precondition_failed", "protected", "not_applicable"):
                 ok = status == ResultStatus.OK

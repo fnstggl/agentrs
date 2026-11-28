@@ -127,7 +127,7 @@ def main(argv=None):
     t2, _ = store_primitive(b, "Source two", "Misc")
     _, r, s = b.run("skill.induce", {"traces": [t1, t2]})
     sid = r.artifacts.get("skill_id")
-    acq = {"ok": r.status == ResultStatus.OK, "latency_s": s, "primitive_ops": len(r.ops), "skill_id": sid,
+    acq = {"ok": r.status == ResultStatus.OK, "latency_s": s, "primitive_ops": r.cost.primitive_ops, "skill_id": sid,
            "source_decisions": 8, "detail": r.failure_detail[:300]}
     print("store_entry acquisition", acq, flush=True)
     if not sid:
@@ -171,7 +171,7 @@ def main(argv=None):
     t2, _ = record_primitive(b, "Source item two", "Misc")
     _, r, s = b.run("skill.induce", {"traces": [t1, t2]})
     sid = r.artifacts.get("skill_id")
-    acq = {"ok": r.status == ResultStatus.OK, "latency_s": s, "primitive_ops": len(r.ops), "skill_id": sid,
+    acq = {"ok": r.status == ResultStatus.OK, "latency_s": s, "primitive_ops": r.cost.primitive_ops, "skill_id": sid,
            "source_decisions": 12, "detail": r.failure_detail[:300]}
     sk = []
     if sid:
