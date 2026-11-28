@@ -72,3 +72,10 @@ shows the selection running on held-out lifetimes.
 
 The stratified record split and the explicit "no held-out evidence" promotion reason are implemented in
 `credit/learner.py` / `credit/checkpoint.py` (docs/DX.md, section INT3A-5). No change is needed in agent.py.
+
+**Master decision on DX-1 (2026-11-28 ~03:30 UTC): not applied at the freeze.** With the line, the integration test
+`tests/integration/test_int2_wiring.py::test_runtime_executes_in_the_computer_environment_without_grant_refusals`
+failed 5 of 28 runs (the agent's choices change: in failing runs no `api` action succeeded within 16 steps); without it
+0 of 10 (snapshot of HEAD with its own tests). DX measured that even with the line the selection does not run inside the
+agent (every agent experiment has one unit; `holdout_experiments=False`), so the line would change behaviour without
+making RC-08 hold. RC-08 stays partial; the credit-side API (`attach_experiments` / `evaluate_experiments`) is in place.
