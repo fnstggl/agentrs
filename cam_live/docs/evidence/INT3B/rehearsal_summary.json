@@ -1,0 +1,319 @@
+{
+ "kind": "planning-phase rehearsal in staging (INT3B)",
+ "task": "tasks/staging/discord_100_planning_staging.yaml",
+ "configuration": "configs/cam_live.yaml (Qwen3-4B frozen bf16 + LoRA + bridge + 50m core, agent defaults: backbone proposals on, proposer_k 8, thompson_policy) + runtime.policy_file (staging policy without loopback owned / pre-authorized) + runtime.gpu_hold_s 840; segment B also nn.max_prompt_tokens 6144",
+ "how": "tools/planning_rehearsal.py prepare / serve; cam-live run --task tasks/staging/discord_100_planning_staging.yaml --run-dir R --config C --inproc; cam-live stop; planning_rehearsal.py check; cam-live plan-report",
+ "segments": {
+  "A": {
+   "run": "separate run directory, 12 decisions, stopped by the operator",
+   "decision_times": {
+    "first_utc": "00:03:03",
+    "last_utc": "00:08:02",
+    "median_gap_s": 24.66407322883606,
+    "max_gap_s": 66.42892861366272
+   },
+   "generation": [
+    {
+     "n_backbone_valid": 0,
+     "prompt_tokens": 4112,
+     "window": 2048,
+     "over_window": true
+    },
+    {
+     "n_backbone_valid": 0,
+     "prompt_tokens": 4112,
+     "window": 2048,
+     "over_window": true
+    },
+    {
+     "n_backbone_valid": 0,
+     "prompt_tokens": 4112,
+     "window": 2048,
+     "over_window": true
+    },
+    {
+     "n_backbone_valid": 0,
+     "prompt_tokens": 4112,
+     "window": 2048,
+     "over_window": true
+    },
+    {
+     "n_backbone_valid": 0,
+     "prompt_tokens": 4112,
+     "window": 2048,
+     "over_window": true
+    },
+    {
+     "n_backbone_valid": 0,
+     "prompt_tokens": 4112,
+     "window": 2048,
+     "over_window": true
+    },
+    {
+     "n_backbone_valid": 0,
+     "prompt_tokens": 4112,
+     "window": 2048,
+     "over_window": true
+    },
+    {
+     "n_backbone_valid": 0,
+     "prompt_tokens": 4112,
+     "window": 2048,
+     "over_window": true
+    },
+    {
+     "n_backbone_valid": 0,
+     "prompt_tokens": 4112,
+     "window": 2048,
+     "over_window": true
+    },
+    {
+     "n_backbone_valid": 0,
+     "prompt_tokens": 4112,
+     "window": 2048,
+     "over_window": true
+    },
+    {
+     "n_backbone_valid": 0,
+     "prompt_tokens": 4112,
+     "window": 2048,
+     "over_window": true
+    },
+    {
+     "n_backbone_valid": 0,
+     "prompt_tokens": 4112,
+     "window": 2048,
+     "over_window": true
+    }
+   ],
+   "gpu_lock_events": []
+  },
+  "B": {
+   "run": "fresh run directory, 30 decisions (decision budget), then stopped",
+   "decision_times": {
+    "first_utc": "00:11:52",
+    "last_utc": "00:48:19",
+    "median_gap_s": 21.82357358932495,
+    "max_gap_s": 787.9292991161346
+   },
+   "generation": [
+    {
+     "n_backbone_valid": 6,
+     "prompt_tokens": 4369,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 6,
+     "prompt_tokens": 4694,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 0,
+     "prompt_tokens": 4757,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 0,
+     "prompt_tokens": 4979,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 3,
+     "prompt_tokens": 5023,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 6,
+     "prompt_tokens": 4861,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 3,
+     "prompt_tokens": 4875,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 3,
+     "prompt_tokens": 4970,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 3,
+     "prompt_tokens": 4981,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 3,
+     "prompt_tokens": 4881,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 3,
+     "prompt_tokens": 4867,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 2,
+     "prompt_tokens": 4911,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 3,
+     "prompt_tokens": 4862,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 5,
+     "prompt_tokens": 5053,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 5,
+     "prompt_tokens": 4848,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 3,
+     "prompt_tokens": 5229,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 2,
+     "prompt_tokens": 4915,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 4,
+     "prompt_tokens": 5271,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 5,
+     "prompt_tokens": 5303,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 5,
+     "prompt_tokens": 4875,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 0,
+     "prompt_tokens": 4915,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 3,
+     "prompt_tokens": 4891,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 3,
+     "prompt_tokens": 4875,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 2,
+     "prompt_tokens": 4905,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 3,
+     "prompt_tokens": 4898,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 1,
+     "prompt_tokens": 4876,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 3,
+     "prompt_tokens": 4886,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 3,
+     "prompt_tokens": 4869,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 5,
+     "prompt_tokens": 4865,
+     "window": 6144,
+     "over_window": false
+    },
+    {
+     "n_backbone_valid": 3,
+     "prompt_tokens": 4882,
+     "window": 6144,
+     "over_window": false
+    }
+   ],
+   "gpu_lock_events": [
+    {
+     "decisions": 3,
+     "held_s": 775.4,
+     "hold_s": 840.0,
+     "what": "released",
+     "why": "the bounded hold would be exceeded by the next cycle"
+    },
+    {
+     "decisions": 3,
+     "waited_s": 85.1,
+     "what": "acquired",
+     "why": "before the next cycle"
+    },
+    {
+     "decisions": 25,
+     "held_s": 1234.4,
+     "hold_s": 840.0,
+     "what": "released",
+     "why": "the bounded hold would be exceeded by the next cycle"
+    },
+    {
+     "decisions": 25,
+     "waited_s": 119.3,
+     "what": "acquired",
+     "why": "before the next cycle"
+    },
+    {
+     "decisions": 30,
+     "held_s": 171.0,
+     "until": null,
+     "what": "released",
+     "why": "the runtime sleeps"
+    }
+   ]
+  }
+ },
+ "token_check": "grep of the staging Discord token over every file of both run directories outside vault/ and verifier/: 0 matches"
+}

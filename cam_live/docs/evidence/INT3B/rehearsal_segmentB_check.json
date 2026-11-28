@@ -1,0 +1,110 @@
+{
+ "approvals": {
+  "rows": 3,
+  "statuses": [
+   "pending"
+  ]
+ },
+ "checked_at": 1795826954.760922,
+ "chosen_operations": {
+  "browser.navigate": 1,
+  "browser.read": 1,
+  "browser.scroll": 1,
+  "browser.wait_for": 1,
+  "discord.get_audit_summary": 1,
+  "discord.list_channels": 1,
+  "discord.list_events": 1,
+  "discord.list_roles": 1,
+  "discord.listen_events": 1,
+  "discord.modify_guild": 3,
+  "http.get": 6,
+  "http.request": 3,
+  "internal.inspect": 3,
+  "internal.request_operator": 6
+ },
+ "chosen_provenance": {
+  "backbone": 8,
+  "schema_walker": 22
+ },
+ "decisions": 30,
+ "discord_observations_logged": 4,
+ "discord_writes_and_publications_chosen": 4,
+ "executed_without_approval": [],
+ "experience_store": {
+  "discord_observations_in_store": 4,
+  "experience_records": 30,
+  "experience_records_of_discord_actions": 8,
+  "items": 130,
+  "links": 19,
+  "outcomes": 94
+ },
+ "experiment_records": 6,
+ "final_reason": "rehearsal segment B complete (decision budget used up)",
+ "final_status": "stopped",
+ "gated": [
+  {
+   "approval_id": "apr_2e8678c00d544e51",
+   "kind": "queued",
+   "operation": "discord.modify_guild",
+   "status": "needs_approval"
+  },
+  {
+   "approval_id": "apr_d67beb611c2b40ac",
+   "kind": "queued",
+   "operation": "discord.modify_guild",
+   "status": "needs_approval"
+  },
+  {
+   "approval_id": "",
+   "kind": "denied",
+   "operation": "discord.listen_events",
+   "status": "denied"
+  },
+  {
+   "approval_id": "apr_57ca89a0963a45e2",
+   "kind": "queued",
+   "operation": "discord.modify_guild",
+   "status": "needs_approval"
+  }
+ ],
+ "learning_updates": {
+  "by_timescale": {
+   "fast": 27,
+   "frequent": 15,
+   "slow_adapters": 1
+  },
+  "count": 43,
+  "nonzero_weight_delta": 16
+ },
+ "meta_updates": {
+  "applied": 0,
+  "count": 31
+ },
+ "notes": {
+  "count": 0,
+  "tags": []
+ },
+ "objective_verbatim": {
+  "every_decision_record": true,
+  "run_started": true,
+  "task_json_learner_view": true
+ },
+ "operator_requests": {
+  "count": 5,
+  "statuses": [
+   "open"
+  ],
+  "with_justification": 4
+ },
+ "predictions_registered": 2380,
+ "predictions_resolved": 95,
+ "result_kinds": {
+  "denied:denied": 8,
+  "execute:failed": 3,
+  "execute:ok": 16,
+  "queued:needs_approval": 3
+ },
+ "run_dir": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/INT3B/rehearsal_gpu2/run",
+ "staging_discord_requests": 65,
+ "write_requests_received_by_staging_discord": 0
+}

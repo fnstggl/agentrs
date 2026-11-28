@@ -1,0 +1,90 @@
+{
+ "approvals": {
+  "rows": 1,
+  "statuses": [
+   "pending"
+  ]
+ },
+ "checked_at": 1795824546.2416916,
+ "chosen_operations": {
+  "browser.navigate": 1,
+  "browser.read": 2,
+  "browser.scroll": 2,
+  "browser.wait_for": 1,
+  "discord.listen_events": 1,
+  "discord.modify_guild": 1,
+  "http.get": 1,
+  "http.request": 1,
+  "internal.inspect": 2
+ },
+ "chosen_provenance": {
+  "schema_walker": 12
+ },
+ "decisions": 12,
+ "discord_observations_logged": 0,
+ "discord_writes_and_publications_chosen": 2,
+ "executed_without_approval": [],
+ "experience_store": {
+  "discord_observations_in_store": 0,
+  "experience_records": 12,
+  "experience_records_of_discord_actions": 2,
+  "items": 52,
+  "links": 7,
+  "outcomes": 36
+ },
+ "experiment_records": 8,
+ "final_reason": "rehearsal segment A ends: the proposer prompt exceeded the 2048-token window in every decision (no backbone proposal); segment B continues with nn.max_prompt_tokens 6144",
+ "final_status": "stopped",
+ "gated": [
+  {
+   "approval_id": "apr_414efc7c19ac44a8",
+   "kind": "queued",
+   "operation": "discord.modify_guild",
+   "status": "needs_approval"
+  },
+  {
+   "approval_id": "",
+   "kind": "denied",
+   "operation": "discord.listen_events",
+   "status": "denied"
+  }
+ ],
+ "learning_updates": {
+  "by_timescale": {
+   "fast": 10,
+   "frequent": 6
+  },
+  "count": 16,
+  "nonzero_weight_delta": 6
+ },
+ "meta_updates": {
+  "applied": 0,
+  "count": 12
+ },
+ "notes": {
+  "count": 0,
+  "tags": []
+ },
+ "objective_verbatim": {
+  "every_decision_record": true,
+  "run_started": true,
+  "task_json_learner_view": true
+ },
+ "operator_requests": {
+  "count": 0,
+  "statuses": [],
+  "with_justification": 0
+ },
+ "predictions_registered": 955,
+ "predictions_resolved": 35,
+ "result_kinds": {
+  "denied:denied": 3,
+  "execute:failed": 1,
+  "execute:ok": 6,
+  "execute:timeout": 1,
+  "queued:needs_approval": 1
+ },
+ "run_dir": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/INT3B/rehearsal_gpu/run",
+ "staging_discord_requests": 16,
+ "write_requests_received_by_staging_discord": 0
+}
