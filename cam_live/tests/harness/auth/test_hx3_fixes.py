@@ -195,15 +195,20 @@ def test_verifying_while_the_service_appends_never_raises_a_false_alarm(tmp_path
     stop = threading.Event()
 
     def writer():
-        i = 0
-        while not stop.is_set():
+        for i in range(400):                   # bounded: each verification reads the whole log
+            if stop.is_set():
+                break
             log.append("decision", float(i), n=i, pad="x" * 200)
-            i += 1
 
     t = threading.Thread(target=writer, daemon=True)
     t.start()
     try:
-        bad = [v.errors for v in (verify_audit_log(path, key, head_path=head) for _ in range(300)) if not v.ok]
+        bad, n = [], 0
+        while (t.is_alive() or n < 20) and n < 300:
+            v = verify_audit_log(path, key, head_path=head)
+            n += 1
+            if not v.ok:
+                bad.append(v.errors)
     finally:
         stop.set()
         t.join(5)
