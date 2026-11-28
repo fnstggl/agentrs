@@ -1,0 +1,2 @@
+{"decision": 0, "objective": "obj_SW_rle_0_s0", "position": 0, "n_candidates": 10, "tv": 0.0, "argmax_changed": false, "rel_db": 0.0, "p_success_on": 0.4981173574924469, "p_success_off": 0.4981173574924469, "rho_mean": 1.0}
+{"decision": 1, "objective": "obj_SW_rle_0_s0", "position": 1, "n_candidates": 10, "tv": 0.0022971928119659424, "argmax_changed": true, "rel_db": 0.14905227720737457, "p_success_on": 0.4980560839176178, "p_success_off": 0.4981306493282318, "rho_mean": 1.0}

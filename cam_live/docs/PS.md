@@ -378,34 +378,47 @@ Again no significant effect (on − off −0.008, SE 0.006, on better in 4 of 6;
 lot (out-of-window accuracy 0.29 → 0.80 at K = 2); started closed (`ρ = 0`, `docs/evidence/PS/recall_rho0/`) the
 learner opens it (mean `ρ` 0 → 0.33–0.44 in 300 steps) and reaches 0.60 (0.47 / 0.83 / 0.48).
 
-**Full size, paired on fixed real experience** (Qwen3-4B + 50m core on the GPU, one hold of 329 s,
-`docs/evidence/PS/full_size/replay_real.json`): the same prequential replay on three stores written by the
+**Full size, paired on fixed real experience** (Qwen3-4B + 50m core on the GPU; holds of 329 s and ~10 min;
+`docs/evidence/PS/full_size/replay_real*.json`): the same prequential replay on three stores written by the
 full-size agent — two substantive-evaluation runs (`x0_E_s0`: SW:rle → SW:rpn → MECH; `x1_E_s0`: four SW
 objectives) and CAM's own live planning run (36 real decisions of the Discord 100-member objective, before it was
-stopped) — model seed 0:
+stopped) — model seeds 0–2:
 
 | stream | model seed | scored | NLL on | NLL off | on - off | per block on/off | retention on | retention off | rho (on, end) |
 |---|---:|---:|---:|---:|---:|---|---|---|---|
 | x0_E_s0 | 0 | 41 | 2.365 | 2.384 | -0.019 | openended/sw/rle 3.521/3.559; openended/sw/rpn 1.912/1.964; openended/mech 1.553/1.549 | 1.074 -> 1.209 | 1.090 -> 1.471 | rho 0.9981 |
+| x0_E_s0 | 1 | 41 | 2.280 | 2.300 | -0.020 | openended/sw/rle 3.576/3.601; openended/sw/rpn 2.132/2.189; openended/mech 1.281/1.288 | 1.151 -> 1.308 | 1.187 -> 1.372 | rho 0.9885 |
+| x0_E_s0 | 2 | 41 | 2.196 | 2.191 | +0.005 | openended/sw/rle 3.517/3.512; openended/sw/rpn 1.846/1.825; openended/mech 1.226/1.226 | 1.115 -> 1.534 | 1.113 -> 1.469 | rho 0.9876 |
 | x1_E_s0 | 0 | 43 | 2.662 | 2.653 | +0.009 | openended/sw/rle 3.502/3.517; openended/sw/rpn 2.014/2.048; openended/sw/merge 1.807/1.595; openended/sw/topk 1.379/1.399 | 1.215 -> 1.019 | 1.198 -> 0.949 | rho 1.0 |
+| x1_E_s0 | 1 | 43 | 2.696 | 2.674 | +0.022 | openended/sw/rle 3.661/3.645; openended/sw/rpn 2.103/2.055; openended/sw/merge 1.250/1.271; openended/sw/topk 1.539/1.580 | 1.298 -> 1.518 | 1.282 -> 1.557 | rho 1.0 |
+| x1_E_s0 | 2 | 43 | 2.702 | 2.733 | -0.031 | openended/sw/rle 3.570/3.581; openended/sw/rpn 2.016/2.037; openended/sw/merge 1.822/1.946; openended/sw/topk 1.577/1.627 | 1.326 -> 1.250 | 1.334 -> 1.124 | rho 1.0 |
 | live | 0 | 36 | 0.712 | 0.716 | -0.004 | community/membership 0.712/0.716 | 0.307 -> 0.307 | 0.253 -> 0.253 | rho 0.9821 |
+| live | 1 | 36 | 0.710 | 0.693 | +0.017 | community/membership 0.710/0.693 | 0.354 -> 0.354 | 0.277 -> 0.277 | rho 0.9908 |
+| live | 2 | 36 | 0.656 | 0.684 | -0.028 | community/membership 0.656/0.684 | 0.339 -> 0.339 | 0.233 -> 0.233 | rho 0.996 |
 
-prequential NLL on - off: mean -0.004 (SE 0.007) over 3 pairs; on better in 2 of 3
-  block 0:openended/sw/rle: mean -0.026 over 2 (on better in 2)
-  block 1:openended/sw/rpn: mean -0.043 over 2 (on better in 2)
-  block 2:openended/mech: mean +0.005 over 1 (on better in 0)
-  block 2:openended/sw/merge: mean +0.212 over 1 (on better in 0)
-  block 3:openended/sw/topk: mean -0.020 over 1 (on better in 1)
-  block 0:community/membership: mean -0.004 over 1 (on better in 1)
-forgetting of the first block (on minus off, NLL change first->last block): mean -0.096 over 2 (on forgets less in 1)
+prequential NLL on - off: mean -0.006 (SE 0.006) over 9 pairs; on better in 5 of 9
+  block 0:openended/sw/rle: mean -0.011 over 6 (on better in 4)
+  block 1:openended/sw/rpn: mean -0.016 over 6 (on better in 4)
+  block 2:openended/mech: mean -0.001 over 3 (on better in 1)
+  block 2:openended/sw/merge: mean +0.022 over 3 (on better in 2)
+  block 3:openended/sw/topk: mean -0.037 over 3 (on better in 3)
+  block 0:community/membership: mean -0.005 over 3 (on better in 2)
+forgetting of the first block (on minus off, NLL change first->last block): mean -0.013 over 6 (on forgets less in 3)
 
-No measurable effect on learning to predict at full size either (on − off −0.019, +0.009, −0.004). Retention is
-mixed: after the unfamiliar MECH block the first (SW:rle) block's NLL rose by 0.135 with the carried state and by
-0.381 without it (x0); in x1 (SW only) without the chain it improved slightly more (1.198 → 0.949 vs 1.215 → 1.019).
-One model seed; seeds 1-2 and the on-line paired objectives are in the holds below. Cost at full size: an on run took
-70–74 s against 24–27 s off (the K-step refresh in every replayed row and the anchor recomputation at every commit).
+**No measurable effect on learning to predict at full size either**: on − off −0.006 (SE 0.006) over 9 pairs, on
+better in 5. Retention is mixed (forgetting of the first block −0.013 on − off, 3 of 6); in x0, after the unfamiliar
+MECH block, the first block's NLL rose less with the chain in seeds 0 and 2. On the live run's stream the chain's
+model ends with a worse fit of the stream it trained on (0.31–0.35 vs 0.23–0.28 nats). Cost at full size: an on run
+took 70–74 s against 23–28 s off (the K-step refresh in every replayed row and the anchor recomputation at every
+commit).
 
-The on-line paired substantive objectives (scripts/ps_oe_paired.py) were queued for the shared GPU lock at the time of this version.
+**Full size, on-line, both arms in one hold** (`scripts/ps_oe_paired.py`: the substantive protocol of
+`eval.oe_runner` — condition E, open-ended generation on, sandboxed SW objective — one shared backbone, each arm's
+own checkpoint; `docs/evidence/PS/full_size/paired.json`, `paired_causal_on.jsonl`): SW:rle was achieved by both
+arms in 2 decisions (verified value 1.0; on 39 s, off 37 s; prospective NLL 1.891 vs 1.896). The within-decision
+counterfactual at the one decision with carried state (position 1): TV 0.0023 between the policy distributions with
+and without it, **the policy's most probable candidate changed**, belief changed by 14.9 % relative, the evaluator's
+success probability by 7e-5. MECH:7 (the next hold) was still queued for the shared GPU lock at the time of this version.
 
 ### 4.5 Compatibility with the live run's checkpoints
 
@@ -437,7 +450,7 @@ numeric mechanism is stationary and is accumulated over the whole objective by t
 never truncated within an objective; across objectives LabWorld draws a new hidden mechanism per world, so what the
 state carries over is at best family-level knowledge, which the weights also learn. On identical experience the two arms
 then learn to predict equally well (debug replay: −0.005 ± 0.003 over 28 pairs; long objectives −0.008 ± 0.006;
-full size on three real streams −0.019 / +0.009 / −0.004) and the learner slightly closes the retention. (iii) The
+full size on three real streams −0.006 ± 0.006 over 9 pairs) and the learner slightly closes the retention. (iii) The
 held-out codec block, a different domain after four LabWorld objectives, is the one place with a consistent sign in
 favour of the carried state (21 of 28 pairs, p = 0.012 / 0.05 Bonferroni) but the effect is tiny (−0.027 nats,
 0.2–0.5 % of the block's NLL); the interfering LabWorld block leans the other way (10 of 28, n.s.). Where the

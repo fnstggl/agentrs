@@ -1,0 +1,52 @@
+[13:39:49] lock held
+[13:39:49] run (820 s left): /workspace/camlive/.venv/bin/python /workspace/camlive/cam_live/docs/evidence/PS/scripts/ps_replay.py --real --no-lock --source /workspace/camlive/runs/cam_live/eval/v5/oe/v3/x0_E_s0/agent/learner/experience.sqlite,/workspace/camlive/runs/cam_live/eval/v5/oe/v3/x1_E_s0/a
+  warn_once(FP_FUSION_DEFAULT_WARNING)
+{"after_block": 0, "family": "openended/sw/rle", "first_block_nll": 1.1513459472358227, "n": 16}
+{"after_block": 1, "family": "openended/sw/rpn", "first_block_nll": 1.0103059863159434, "n": 16}
+{"after_block": 2, "family": "openended/mech", "first_block_nll": 1.3078622443741188, "n": 16}
+{"source": "/workspace/camlive/runs/cam_live/eval/v5/oe/v3/x0_E_s0/agent/learner/experience.sqlite", "cond": "on", "seed": 1, "prequential_nll": 2.280493403414219, "n_scored": 41, "seconds": 72.28123450279236}
+{"after_block": 0, "family": "openended/sw/rle", "first_block_nll": 1.187317376709543, "n": 16}
+{"after_block": 1, "family": "openended/sw/rpn", "first_block_nll": 1.0202687740698457, "n": 16}
+{"after_block": 2, "family": "openended/mech", "first_block_nll": 1.3722353291790932, "n": 16}
+{"source": "/workspace/camlive/runs/cam_live/eval/v5/oe/v3/x0_E_s0/agent/learner/experience.sqlite", "cond": "off", "seed": 1, "prequential_nll": 2.300416968223162, "n_scored": 41, "seconds": 23.89093518257141}
+{"after_block": 0, "family": "openended/sw/rle", "first_block_nll": 1.2978053390681743, "n": 20}
+{"after_block": 1, "family": "openended/sw/rpn", "first_block_nll": 1.4419342910349369, "n": 20}
+{"after_block": 2, "family": "openended/sw/merge", "first_block_nll": 1.462349877923727, "n": 20}
+{"after_block": 3, "family": "openended/sw/topk", "first_block_nll": 1.5179694582633674, "n": 20}
+{"source": "/workspace/camlive/runs/cam_live/eval/v5/oe/v3/x1_E_s0/agent/learner/experience.sqlite", "cond": "on", "seed": 1, "prequential_nll": 2.6956104982540356, "n_scored": 43, "seconds": 70.26290202140808}
+{"after_block": 0, "family": "openended/sw/rle", "first_block_nll": 1.2820052123069763, "n": 20}
+{"after_block": 1, "family": "openended/sw/rpn", "first_block_nll": 1.304243713416159, "n": 20}
+{"after_block": 2, "family": "openended/sw/merge", "first_block_nll": 1.558475641604513, "n": 20}
+{"after_block": 3, "family": "openended/sw/topk", "first_block_nll": 1.557142293099314, "n": 20}
+{"source": "/workspace/camlive/runs/cam_live/eval/v5/oe/v3/x1_E_s0/agent/learner/experience.sqlite", "cond": "off", "seed": 1, "prequential_nll": 2.6740447038533386, "n_scored": 43, "seconds": 27.70988655090332}
+{"after_block": 0, "family": "community/membership", "first_block_nll": 0.3541831356411179, "n": 36}
+{"source": "/workspace/camlive/runs/cam_live/live/discord-100-planning-20261128T083454Z/learner/experience.sqlite", "cond": "on", "seed": 1, "prequential_nll": 0.7096006162278354, "n_scored": 36, "seconds": 71.79795217514038}
+{"after_block": 0, "family": "community/membership", "first_block_nll": 0.27691498258047637, "n": 36}
+{"source": "/workspace/camlive/runs/cam_live/live/discord-100-planning-20261128T083454Z/learner/experience.sqlite", "cond": "off", "seed": 1, "prequential_nll": 0.6928321238689953, "n_scored": 36, "seconds": 27.255022287368774}
+exit 0
+[13:44:46] run (524 s left): /workspace/camlive/.venv/bin/python /workspace/camlive/cam_live/docs/evidence/PS/scripts/ps_replay.py --real --no-lock --source /workspace/camlive/runs/cam_live/eval/v5/oe/v3/x0_E_s0/agent/learner/experience.sqlite,/workspace/camlive/runs/cam_live/eval/v5/oe/v3/x1_E_s0/a
+  warn_once(FP_FUSION_DEFAULT_WARNING)
+{"after_block": 0, "family": "openended/sw/rle", "first_block_nll": 1.114695966243744, "n": 16}
+{"after_block": 1, "family": "openended/sw/rpn", "first_block_nll": 1.053297561518848, "n": 16}
+{"after_block": 2, "family": "openended/mech", "first_block_nll": 1.534468215694651, "n": 16}
+{"source": "/workspace/camlive/runs/cam_live/eval/v5/oe/v3/x0_E_s0/agent/learner/experience.sqlite", "cond": "on", "seed": 2, "prequential_nll": 2.1959562976349414, "n_scored": 41, "seconds": 72.68056130409241}
+{"after_block": 0, "family": "openended/sw/rle", "first_block_nll": 1.113390163294971, "n": 16}
+{"after_block": 1, "family": "openended/sw/rpn", "first_block_nll": 1.0528874010778964, "n": 16}
+{"after_block": 2, "family": "openended/mech", "first_block_nll": 1.4692249851697123, "n": 16}
+{"source": "/workspace/camlive/runs/cam_live/eval/v5/oe/v3/x0_E_s0/agent/learner/experience.sqlite", "cond": "off", "seed": 2, "prequential_nll": 2.1910013055946767, "n_scored": 41, "seconds": 23.297252655029297}
+{"after_block": 0, "family": "openended/sw/rle", "first_block_nll": 1.3262223968058824, "n": 20}
+{"after_block": 1, "family": "openended/sw/rpn", "first_block_nll": 1.0312957829535008, "n": 20}
+{"after_block": 2, "family": "openended/sw/merge", "first_block_nll": 1.3483895180169494, "n": 20}
+{"after_block": 3, "family": "openended/sw/topk", "first_block_nll": 1.2503962579518557, "n": 20}
+{"source": "/workspace/camlive/runs/cam_live/eval/v5/oe/v3/x1_E_s0/agent/learner/experience.sqlite", "cond": "on", "seed": 2, "prequential_nll": 2.701556703462157, "n_scored": 43, "seconds": 69.82264113426208}
+{"after_block": 0, "family": "openended/sw/rle", "first_block_nll": 1.3340901597738266, "n": 20}
+{"after_block": 1, "family": "openended/sw/rpn", "first_block_nll": 1.0527863106541335, "n": 20}
+{"after_block": 2, "family": "openended/sw/merge", "first_block_nll": 1.1421789690647275, "n": 20}
+{"after_block": 3, "family": "openended/sw/topk", "first_block_nll": 1.1244089492931963, "n": 20}
+{"source": "/workspace/camlive/runs/cam_live/eval/v5/oe/v3/x1_E_s0/agent/learner/experience.sqlite", "cond": "off", "seed": 2, "prequential_nll": 2.7330505060491177, "n_scored": 43, "seconds": 26.41086483001709}
+{"after_block": 0, "family": "community/membership", "first_block_nll": 0.33889787810958094, "n": 36}
+{"source": "/workspace/camlive/runs/cam_live/live/discord-100-planning-20261128T083454Z/learner/experience.sqlite", "cond": "on", "seed": 2, "prequential_nll": 0.6556255766045715, "n_scored": 36, "seconds": 72.47098278999329}
+{"after_block": 0, "family": "community/membership", "first_block_nll": 0.233327993746433, "n": 36}
+{"source": "/workspace/camlive/runs/cam_live/live/discord-100-planning-20261128T083454Z/learner/experience.sqlite", "cond": "off", "seed": 2, "prequential_nll": 0.6836784508907132, "n_scored": 36, "seconds": 28.198548316955566}
+exit 0
+[13:49:42] released after 593 s
