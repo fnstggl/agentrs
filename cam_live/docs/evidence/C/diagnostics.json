@@ -1,6 +1,7 @@
 {
  "code_commit": "8f5339b",
  "command": "PYTHONPATH=<git archive of 8f5339b>/cam_live/src .venv/bin/python -m cam_live.reward.diagnose --out <dir with the previous diagnostics.json> --seeds 10,11,12,13,14,15,16,17,18,19 --rerun-kinds learned,mixed --workers 20",
+ "command_checks": "PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.diagnose --skip-experiment   (checks re-run, stored experiment runs re-summarised)",
  "experiment": {
   "action_frequency_first_quarter": {
    "bootstrap": {
@@ -1874,18 +1875,6 @@
     },
     "final_quarter_verdict": "helped"
    }
-  },
-  "rerun": {
-   "command": "PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.reward.diagnose --seeds 10,11,12,13,14,15,16,17,18,19 --rerun-kinds learned,mixed",
-   "kept_kinds": [
-    "bootstrap",
-    "verified_pg"
-   ],
-   "kinds": [
-    "learned",
-    "mixed"
-   ],
-   "seconds": 920.3721082210541
   },
   "reward_pays_for": {
    "learned": {
@@ -54631,136 +54620,136 @@
   },
   "reward_scaling": {
    "output_x10": {
-    "cosine": 1.0000050067901611,
+    "cosine": 1.0000030994415283,
+    "max_abs_diff": 2.9802322387695312e-08,
+    "update_norm_ratio": 0.9999998807907104
+   },
+   "output_x1000": {
+    "cosine": 1.0000028610229492,
     "max_abs_diff": 2.9802322387695312e-08,
     "update_norm_ratio": 1.0
    },
-   "output_x1000": {
-    "cosine": 1.0000052452087402,
-    "max_abs_diff": 2.9802322387695312e-08,
-    "update_norm_ratio": 0.9999998211860657
-   },
    "pre_bound_x10": {
     "bound": 1.0,
-    "cosine": 0.999972939491272,
-    "max_abs_reward": 0.6379082202911377,
-    "update_norm_ratio": 1.001016616821289
+    "cosine": 0.999236524105072,
+    "max_abs_reward": 0.5232164859771729,
+    "update_norm_ratio": 1.0131851434707642
    },
    "pre_bound_x1000": {
     "bound": 1.0,
-    "cosine": 0.9913421869277954,
+    "cosine": 0.8904154896736145,
     "max_abs_reward": 1.0,
-    "update_norm_ratio": 0.9561192393302917
+    "update_norm_ratio": 1.210842251777649
    }
   },
   "update_norm_bound_per_step": 0.14142135623730953,
-  "update_norm_unscaled": 0.046539951115846634
+  "update_norm_unscaled": 0.03343217074871063
  },
  "meta_gradient": {
   "K": {
    "1": {
-    "directional_autograd": -4.923358518560488e-05,
-    "directional_fd": -4.923358484787421e-05,
-    "directional_rel_error": 6.859761925496099e-09,
+    "directional_autograd": -5.611347542100886e-05,
+    "directional_fd": -5.611347581035986e-05,
+    "directional_rel_error": 6.9386362950664616e-09,
     "every_tensor_nonzero": true,
-    "grad_norm": 0.020567552402880086,
+    "grad_norm": 0.055710667288790726,
     "grad_norm_per_tensor": {
-     "body.1.bias": 0.0009139824793269776,
-     "body.1.weight": 0.0035959752697025866,
-     "latent_in.bias": 0.0003775883382656386,
-     "latent_in.weight": 0.008588069163959626,
-     "life_in.bias": 0.0003718086317362761,
-     "life_in.weight": 0.0006573421857475741,
-     "lifetime.cell.bias_hh": 4.9238116774256834e-05,
-     "lifetime.cell.bias_ih": 6.416495544808254e-05,
-     "lifetime.cell.weight_hh": 9.380475630554284e-05,
-     "lifetime.cell.weight_ih": 0.0004549585867654767,
-     "null_goal": 9.584602066117232e-05,
-     "out.bias": 0.011510289607866417,
-     "out.weight": 0.014077907845053982,
-     "signal_in.bias": 0.0003775883382656386,
-     "signal_in.weight": 0.0019343269271647554
+     "body.1.bias": 0.0006534036537717407,
+     "body.1.weight": 0.011245492868048025,
+     "latent_in.bias": 0.0006563672742660498,
+     "latent_in.weight": 0.031352065007995825,
+     "life_in.bias": 0.0006351294435781537,
+     "life_in.weight": 0.0019137553095887833,
+     "lifetime.cell.bias_hh": 0.00015950897744718815,
+     "lifetime.cell.bias_ih": 0.0002198267980634129,
+     "lifetime.cell.weight_hh": 0.00036871321902276553,
+     "lifetime.cell.weight_ih": 0.0017355983955107013,
+     "null_goal": 0.0005710430581357832,
+     "out.bias": 4.2153982871221546e-05,
+     "out.weight": 0.04435773843177182,
+     "signal_in.bias": 0.0006563672742660498,
+     "signal_in.weight": 0.00421332344434977
     },
     "grad_norm_reward_detached": 0.0,
-    "max_abs_error_sampled_coords": 8.8220644414716e-08,
-    "min_tensor_norm": 4.9238116774256834e-05,
+    "max_abs_error_sampled_coords": 2.0465665290930746e-09,
+    "min_tensor_norm": 4.2153982871221546e-05,
     "n_coords": 57,
-    "policy_prob_max_abs_change_support": 0.002045936171876872,
-    "policy_prob_mean_abs_change_query": 0.004012231230375486,
-    "policy_prob_mean_abs_change_support": 0.004788340715600798,
+    "policy_prob_max_abs_change_support": 0.0025048954351920977,
+    "policy_prob_mean_abs_change_query": 0.003811948244518847,
+    "policy_prob_mean_abs_change_support": 0.004596667191071163,
     "rel_error_if_value_baseline_plainly_detached": 0.0,
-    "rel_error_sampled_coords": 7.422530016637259e-06,
-    "seconds_autograd": 0.08334946632385254,
+    "rel_error_sampled_coords": 2.035073535528551e-07,
+    "seconds_autograd": 0.06708216667175293,
     "surrogate_has_graph_when_theta_K_detached": false
    },
    "2": {
-    "directional_autograd": -9.816009980369054e-05,
-    "directional_fd": -9.81600997707055e-05,
-    "directional_rel_error": 3.36033022952127e-10,
+    "directional_autograd": -0.00010534675571684894,
+    "directional_fd": -0.00010534675645712532,
+    "directional_rel_error": 7.027044865217113e-09,
     "every_tensor_nonzero": true,
-    "grad_norm": 0.03995001277484787,
+    "grad_norm": 0.10891759853486174,
     "grad_norm_per_tensor": {
-     "body.1.bias": 0.00175305515814137,
-     "body.1.weight": 0.00701931474813853,
-     "latent_in.bias": 0.0007283843816517686,
-     "latent_in.weight": 0.016823365877242667,
-     "life_in.bias": 0.0007173168305790885,
-     "life_in.weight": 0.0012856139874436406,
-     "lifetime.cell.bias_hh": 9.609452565375001e-05,
-     "lifetime.cell.bias_ih": 0.00012520298358081067,
-     "lifetime.cell.weight_hh": 0.00018367741335706595,
-     "lifetime.cell.weight_ih": 0.0008904183366053825,
-     "null_goal": 0.00018944334590554986,
-     "out.bias": 0.022045167277698206,
-     "out.weight": 0.02750590844299962,
-     "signal_in.bias": 0.0007283843816517686,
-     "signal_in.weight": 0.0037354630858868077
+     "body.1.bias": 0.0012778145663758218,
+     "body.1.weight": 0.021997410468036042,
+     "latent_in.bias": 0.001289151503516062,
+     "latent_in.weight": 0.06126044030887095,
+     "life_in.bias": 0.0012445784931168589,
+     "life_in.weight": 0.0037306134389671316,
+     "lifetime.cell.bias_hh": 0.00031214329108485454,
+     "lifetime.cell.bias_ih": 0.0004312218300511333,
+     "lifetime.cell.weight_hh": 0.0007235000223863691,
+     "lifetime.cell.weight_ih": 0.0034072743031359613,
+     "null_goal": 0.0011122800230854895,
+     "out.bias": 8.1771378477178e-05,
+     "out.weight": 0.08673715587923851,
+     "signal_in.bias": 0.001289151503516062,
+     "signal_in.weight": 0.00830049103108994
     },
     "grad_norm_reward_detached": 0.0,
-    "max_abs_error_sampled_coords": 1.694403702033609e-07,
-    "min_tensor_norm": 9.609452565375001e-05,
+    "max_abs_error_sampled_coords": 3.779626084332577e-09,
+    "min_tensor_norm": 8.1771378477178e-05,
     "n_coords": 57,
-    "policy_prob_max_abs_change_support": 0.003984115498137222,
-    "policy_prob_mean_abs_change_query": 0.007891719477142635,
-    "policy_prob_mean_abs_change_support": 0.009434540799357813,
-    "rel_error_if_value_baseline_plainly_detached": 0.025305005065637372,
-    "rel_error_sampled_coords": 7.4318634918479034e-06,
-    "seconds_autograd": 0.04639101028442383,
+    "policy_prob_max_abs_change_support": 0.004871553398417133,
+    "policy_prob_mean_abs_change_query": 0.007489530961650257,
+    "policy_prob_mean_abs_change_support": 0.009083590141557827,
+    "rel_error_if_value_baseline_plainly_detached": 0.023774855464919163,
+    "rel_error_sampled_coords": 1.9465982917260412e-07,
+    "seconds_autograd": 0.043555498123168945,
     "surrogate_has_graph_when_theta_K_detached": false
    },
    "4": {
-    "directional_autograd": -0.0001967095585987922,
-    "directional_fd": -0.00019670955933581702,
-    "directional_rel_error": 3.74676660347604e-09,
+    "directional_autograd": -0.00014528314045997035,
+    "directional_fd": -0.00014528314190576097,
+    "directional_rel_error": 9.951537379032662e-09,
     "every_tensor_nonzero": true,
-    "grad_norm": 0.07791795313410642,
+    "grad_norm": 0.21869942134735612,
     "grad_norm_per_tensor": {
-     "body.1.bias": 0.0033547146029597116,
-     "body.1.weight": 0.013796218634498177,
-     "latent_in.bias": 0.0014063107695203526,
-     "latent_in.weight": 0.033186703424951385,
-     "life_in.bias": 0.0013852386873698867,
-     "life_in.weight": 0.002528758825074387,
-     "lifetime.cell.bias_hh": 0.00018833011140042681,
-     "lifetime.cell.bias_ih": 0.00024511209045432135,
-     "lifetime.cell.weight_hh": 0.00036132046935200197,
-     "lifetime.cell.weight_ih": 0.0017517735798001561,
-     "null_goal": 0.0003756923774562779,
-     "out.bias": 0.042084092296378994,
-     "out.weight": 0.05412287032181752,
-     "signal_in.bias": 0.0014063107695203526,
-     "signal_in.weight": 0.007224927540710336
+     "body.1.bias": 0.002565008796611685,
+     "body.1.weight": 0.04426422752892465,
+     "latent_in.bias": 0.0026141490188847758,
+     "latent_in.weight": 0.12291694984779813,
+     "life_in.bias": 0.00252121584251744,
+     "life_in.weight": 0.00743246835538351,
+     "lifetime.cell.bias_hh": 0.0006257608290924395,
+     "lifetime.cell.bias_ih": 0.0008667512164480588,
+     "lifetime.cell.weight_hh": 0.0014526465270668285,
+     "lifetime.cell.weight_ih": 0.006856551931866499,
+     "null_goal": 0.002201577533568642,
+     "out.bias": 0.00016403021953548258,
+     "out.weight": 0.17417162350089108,
+     "signal_in.bias": 0.0026141490188847758,
+     "signal_in.weight": 0.016994115465659432
     },
     "grad_norm_reward_detached": 0.0,
-    "max_abs_error_sampled_coords": 3.233480543318734e-07,
-    "min_tensor_norm": 0.00018833011140042681,
+    "max_abs_error_sampled_coords": 6.985580027624172e-09,
+    "min_tensor_norm": 0.00016403021953548258,
     "n_coords": 57,
-    "policy_prob_max_abs_change_support": 0.00810438391200173,
-    "policy_prob_mean_abs_change_query": 0.015755001109567575,
-    "policy_prob_mean_abs_change_support": 0.018978882424517,
-    "rel_error_if_value_baseline_plainly_detached": 0.08074545397168299,
-    "rel_error_sampled_coords": 7.411325698271074e-06,
-    "seconds_autograd": 0.09350156784057617,
+    "policy_prob_max_abs_change_support": 0.009751566210281906,
+    "policy_prob_mean_abs_change_query": 0.015195270825554462,
+    "policy_prob_mean_abs_change_support": 0.01864886141753091,
+    "rel_error_if_value_baseline_plainly_detached": 0.07326157110992487,
+    "rel_error_sampled_coords": 1.8206867032224083e-07,
+    "seconds_autograd": 0.09461522102355957,
     "surrogate_has_graph_when_theta_K_detached": false
    }
   },
@@ -54774,13 +54763,13 @@
   "n_theta": 62211
  },
  "psi_isolation": {
-  "loss": -0.2742046117782593,
+  "loss": -0.25032854080200195,
   "loss_has_grad_path_to_psi": false,
   "mix": 0.5,
-  "policy_prob_mean_abs_change_policy_update": 0.004823913797736168,
+  "policy_prob_mean_abs_change_policy_update": 0.010387832298874855,
   "policy_update_weight_delta": {
-   "experiential": 0.019880336626089238,
-   "heads": 0.05440383317017971
+   "experiential": 0.01836234299236095,
+   "heads": 0.05636979759933192
   },
   "psi_bit_identical_after_optimizer_step": true,
   "psi_bit_identical_after_policy_update": true,
@@ -54789,5 +54778,5 @@
  },
  "rerun_note": "Experiment re-run after the G-pr fixes. bootstrap and verified_pg runs: full re-run on a git-archive snapshot of 0536a74 (they never call the meta-update, unchanged since); learned and mixed runs: re-run on 8f5339b after zero / non-finite meta-gradients stopped being applied (M-int staging run 2: in the run on 0536a74 167 of 1391 recorded updates had an exactly zero gradient and Adam still moved psi). Superseded final-quarter achievement of the stored run before the fixes: bootstrap 0.472, learned 0.263, mixed 0.445, verified_pg 0.471.",
  "scale": "CamLiveConfig.debug(): tiny random backbone, debug core, CPU; LabWorld (diagnostic provenance)",
- "seconds_checks": 13.140769958496094
+ "seconds_checks": 13.237158298492432
 }

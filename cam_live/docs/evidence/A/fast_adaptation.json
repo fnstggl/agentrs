@@ -219,7 +219,7 @@
      "methods": {
       "learned_prior_bayes": {
        "params": 8610,
-       "train_s": 400.6,
+       "train_s": 204.5,
        "train_curve": [
         0.9817,
         0.5861,
@@ -360,7 +360,7 @@
       },
       "blr_raw": {
        "params": 39,
-       "train_s": 74.6,
+       "train_s": 105.3,
        "train_curve": [
         0.9011,
         0.9084,
@@ -501,7 +501,7 @@
       },
       "gru": {
        "params": 17986,
-       "train_s": 149.3,
+       "train_s": 132.9,
        "train_curve": [
         1.4357,
         0.932,
@@ -642,7 +642,7 @@
       },
       "running_stats": {
        "params": 11,
-       "train_s": 68.6,
+       "train_s": 66.6,
        "train_curve": [
         1.5019,
         1.5022,
@@ -789,7 +789,7 @@
      "methods": {
       "learned_prior_bayes": {
        "params": 8610,
-       "train_s": 268.3,
+       "train_s": 247.3,
        "train_curve": [
         0.9874,
         0.6007,
@@ -930,7 +930,7 @@
       },
       "blr_raw": {
        "params": 39,
-       "train_s": 84.9,
+       "train_s": 73.9,
        "train_curve": [
         0.9055,
         0.8971,
@@ -1071,7 +1071,7 @@
       },
       "gru": {
        "params": 17986,
-       "train_s": 137.8,
+       "train_s": 136.6,
        "train_curve": [
         1.434,
         0.8965,
@@ -1212,7 +1212,7 @@
       },
       "running_stats": {
        "params": 11,
-       "train_s": 65.5,
+       "train_s": 66.8,
        "train_curve": [
         1.5075,
         1.5048,
@@ -1533,7 +1533,7 @@
      "methods": {
       "learned_prior_bayes": {
        "params": 8610,
-       "train_s": 445.3,
+       "train_s": 529.8,
        "train_curve": [
         2.4286,
         2.2608,
@@ -1654,7 +1654,7 @@
          "16": {
           "nll": 2.589,
           "nll_se": 0.0714,
-          "rmse": 13.8829
+          "rmse": 13.883
          },
          "24": {
           "nll": 2.5536,
@@ -1674,7 +1674,7 @@
       },
       "blr_raw": {
        "params": 39,
-       "train_s": 250.8,
+       "train_s": 369.4,
        "train_curve": [
         2.8164,
         2.4591,
@@ -1815,7 +1815,7 @@
       },
       "gru": {
        "params": 17986,
-       "train_s": 135.5,
+       "train_s": 172.0,
        "train_curve": [
         4.243,
         2.8905,
@@ -2096,14 +2096,14 @@
        }
       }
      },
-     "stateful_vs_functional_max_abs_nll_diff": 7.993605777301127e-15
+     "stateful_vs_functional_max_abs_nll_diff": 2.042810365310288e-14
     },
     {
      "seed": 1,
      "methods": {
       "learned_prior_bayes": {
        "params": 8610,
-       "train_s": 883.7,
+       "train_s": 372.3,
        "train_curve": [
         2.4462,
         2.2784,
@@ -2194,7 +2194,7 @@
          "1": {
           "nll": 2.9732,
           "nll_se": 0.0612,
-          "rmse": 20.1176
+          "rmse": 20.1175
          },
          "2": {
           "nll": 2.894,
@@ -2244,7 +2244,7 @@
       },
       "blr_raw": {
        "params": 39,
-       "train_s": 2715.3,
+       "train_s": 259.1,
        "train_curve": [
         3.3204,
         3.3439,
@@ -2385,7 +2385,7 @@
       },
       "gru": {
        "params": 17986,
-       "train_s": 142.3,
+       "train_s": 139.1,
        "train_curve": [
         4.7614,
         2.7029,
@@ -2526,7 +2526,7 @@
       },
       "running_stats": {
        "params": 2,
-       "train_s": 3.6,
+       "train_s": 3.7,
        "train_curve": [
         5.3745,
         5.1647,
@@ -2666,7 +2666,7 @@
        }
       }
      },
-     "stateful_vs_functional_max_abs_nll_diff": 2.3092638912203256e-14
+     "stateful_vs_functional_max_abs_nll_diff": 3.197442310920451e-14
     }
    ]
   }
@@ -2675,6 +2675,6 @@
   "gaussian": "held-out families: winner = learned_prior_bayes; ranking = ['learned_prior_bayes', 'blr_raw', 'gru', 'running_stats']; learned prior WINS",
   "count": "held-out families: winner = learned_prior_bayes; ranking = ['learned_prior_bayes', 'gru', 'blr_raw', 'running_stats']; learned prior WINS"
  },
- "runtime_s": 5831.9,
- "command": "python -m cam_live.nn.fast_compare --steps 2000 --seeds 0 1 --threads 12 --out /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/A/fast_adaptation.json"
+ "runtime_s": 2885.4,
+ "command": "python -m cam_live.nn.fast_compare --steps 2000 --seeds 0 1 --threads 8"
 }
