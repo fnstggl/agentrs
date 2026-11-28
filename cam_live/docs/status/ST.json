@@ -1,0 +1,97 @@
+{
+ "workstream": "ST",
+ "commit": "f983cea (hotfix a0f3411, integration dde7d2d, information value + CR-1/2/3 f983cea)",
+ "summary": "Amendment item 5 (autonomous strategic invention) and integration of agent.py. Investigation of the live planning run (first 35 decisions): truncated generation (34/35 decisions), unauthorized tools and authorization patterns offered (18/35 chosen actions refused), no memory of own work in the generator's context, goal-value selection without outcome variation, no generator learning. Hotfix a0f3411 (authorized tools, no pattern vocabulary, independent samples with their own budget) runs in the live planning run since 10:42 UTC: cut-off lines 35/36 decisions -> 1/39, refusals 18/35 -> 4/39. Item-5 mechanisms in the code, off by default: OWN RECORDS prompt section, expected field, ProposalLearningProvider (generator learning from CAM's own reward), per-sample tool-order rotation. Real-model staging (30 decisions per condition, one seed): no note, plan or written hypothesis emerged in any condition (negative result; diagnosis in docs/ST.md 5.4). Change requests IMP, PS-1, RW-1/2, SG-1..3 integrated (dde7d2d); CR-1..3 integrated after CR committed credit/.",
+ "requirements": {
+  "AMEND-5-investigation": {
+   "state": "done",
+   "what_changed": "docs/ST.md section 1: five causes with evidence from the live run's records",
+   "evidence": [
+    "python -m cam_live.eval.proposal_probe analyse-run runs/cam_live/live/discord-100-planning-20261128T083454Z"
+   ]
+  },
+  "AMEND-5-hotfix-action-space": {
+   "state": "implemented, integrated, measured",
+   "files": [
+    "src/cam_live/agent.py"
+   ],
+   "tests": [
+    "tests/integration/test_st_hotfix.py"
+   ],
+   "evidence": "refused actions live 18/35 -> 4/39 (live run 2), staging 1/30",
+   "still_fails": "the walker still offers semantically arbitrary settings of authorized tools (by design: coverage)"
+  },
+  "AMEND-5-hotfix-generation-budget": {
+   "state": "implemented, integrated, measured",
+   "files": [
+    "src/cam_live/agent.py"
+   ],
+   "tests": [
+    "tests/integration/test_st_hotfix.py"
+   ],
+   "evidence": "cut-off lines 35/36 decisions (live 1) -> 1/39 (live 2), 0/120 samples (staging hotfix)",
+   "still_fails": "the 4 samples are mostly identical (3.9-5.6 distinct valid proposals of 8)"
+  },
+  "AMEND-5-own-records": {
+   "state": "implemented, integrated (off by default); no improvement established",
+   "files": [
+    "src/cam_live/agent.py",
+    "src/cam_live/predict/candidates.py"
+   ],
+   "tests": [
+    "tests/integration/test_st_strategy.py"
+   ],
+   "evidence": "staging after vs after_nomem: 0 notes in both; proposal mix differs; repeats 6 vs 0 (one seed)"
+  },
+  "AMEND-5-expected-field": {
+   "state": "implemented, integrated (off by default)",
+   "tests": [
+    "tests/integration/test_st_strategy.py"
+   ],
+   "evidence": "6/30 and 10/30 chosen actions carry the generator's own prediction (0 without)"
+  },
+  "AMEND-5-proposal-learning": {
+   "state": "implemented and tested at debug scale; registered in the real agent; not exercised on the real model (0 slow steps in 30 decisions)",
+   "files": [
+    "src/cam_live/predict/candidates.py",
+    "src/cam_live/agent.py"
+   ],
+   "tests": [
+    "tests/integration/test_st_strategy.py (incl. -m slow slow-step test)"
+   ]
+  },
+  "AMEND-5-emergent-research-notes-plans": {
+   "state": "not achieved",
+   "evidence": "0 notes executed or proposed in 2 live runs (75 decisions) and 4 staging conditions (92 decisions)",
+   "diagnosis": "frozen generator prior + no learned path into the generator at this experience volume + selection without outcome variation (docs/ST.md 5.4)"
+  },
+  "AGENT-INTEGRATION": {
+   "state": "IMP, PS-1, RW-1/2, SG-1..3 applied (dde7d2d); CR-1..3 applied (f983cea) after CR committed credit/ (e8dee3f)",
+   "tests": [
+    "docs/evidence/test_results/ST_fix.xml: 70 tests, 67 passed, 1 skipped, 2 failed (PS-1 regressions, identical on HEAD; pass with persistent_state disabled)"
+   ],
+   "still_fails": "tests/integration/test_agent_runtime.py::test_behaviour_changes_and_lives_in_the_weights, tests/integration/test_int2_checkpoints.py::test_export_weights_reads_in_a_fresh_process (PS's carried state is not in the weights; reported to the master)"
+  },
+  "AMEND-5-information-value": {
+   "state": "implemented and integrated in the agent (annotation); bootstrap input = change request ST-3 to RW (not applied by ST)",
+   "files": [
+    "src/cam_live/agent.py"
+   ],
+   "tests": [
+    "tests/integration/test_st_iv.py (3; the ST-3 test is skipped until RW applies it, passes on a patched copy)"
+   ],
+   "what_changed": "realised information value IV_t = NLL(next 2 decisions' matured outcomes | context without t's items) - NLL(... | recorded context), written once as reward_signals.information_value",
+   "evidence": "debug-scale tests; real-model measurement in the long staging run (docs/ST.md 5.2)"
+  }
+ },
+ "change_requests": [
+  "docs/change_requests/ST.md ST-1 (nn.max_prompt_tokens 8192, owner M)",
+  "ST-2 informational (IMP)",
+  "ST-3 (RW: realised information value as a bootstrap input; exact diff)"
+ ],
+ "not_done": [
+  "a real-model run long enough for slow steps with proposal learning",
+  "repeated seeds of the staging ablation",
+  "learned operation-level steering of the generator (designed, not built)"
+ ]
+}
