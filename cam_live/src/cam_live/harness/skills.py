@@ -46,7 +46,11 @@ STATUS_CANDIDATE, STATUS_VALIDATED, STATUS_STALE, STATUS_RETIRED = "candidate", 
 
 #: nothing a skill does may address the authorization system, the credential store or the independent verifier
 PROTECTED_OPERATION_PREFIXES = ("auth.", "authorization.", "policy.", "approval.", "approvals.", "verifier.",
-                                "verify.", "secret.", "secrets.", "vault.", "audit.", "credential.", "skill.")
+                                "verify.", "secret.", "secrets.", "vault.", "audit.", "credential.")
+#: the one operation of the skill library a skill may contain (composition, spec 12A.9: "select and compose
+#: procedures"); the library's own management operations (induce, discover, list, describe) never
+COMPOSABLE_SKILL_OPERATIONS = ("skill.run",)
+MAX_COMPOSITION_DEPTH = 3
 PROTECTED_SCOPE_PREFIXES = ("auth", "policy", "approval", "verifier", "secret", "vault", "audit", "credential")
 PROTECTED_PATH_MARKERS = (RunFiles.AUDIT, RunFiles.VERIFIER, RunFiles.CONTROL, "/vault/", "/vault", "harness/auth",
                           "verifier_service", "auth.sock", "verify.sock", "verifier.key", "policy.yaml")
@@ -54,9 +58,14 @@ PROTECTED_PATH_MARKERS = (RunFiles.AUDIT, RunFiles.VERIFIER, RunFiles.CONTROL, "
 ATTRIBUTABLE = (FailureClass.PAGE_CHANGED, FailureClass.WRONG_SITE_ASSUMPTION, FailureClass.STALE_OBSERVATION,
                 FailureClass.INVALID_ARGUMENTS, FailureClass.VISUAL_GROUNDING, FailureClass.UNKNOWN,
                 FailureClass.STRATEGIC)
-_VOLATILE = re.compile(r"(elapsed_s|_bytes|\.bytes|ratelimit|retry_after)|^d:(headers|truncated|structure_hash|redirects)(/|$)")
-#: transport metadata of an observation is not a value "produced by the step" and is never captured
-_TRANSPORT_KEYS = ("method", "status", "headers", "truncated", "structure_hash", "redirects")
+_VOLATILE = re.compile(r"(elapsed_s|_bytes|\.bytes|ratelimit|retry_after)|^d:(headers|truncated|structure_hash|redirects)(/|$)"
+                       # observation-relative bookkeeping of a page observation (its diff to the previous observation,
+                       # document / state ids, focus, scroll position): not the state of the world
+                       r"|^d:(diff|full|base_obs_id|state_hash|doc|generation|focused|scroll|viewport)(/|$)")
+#: transport metadata of an observation is not a value "produced by the step" and is never captured; neither is a
+#: position in a page's table of controls (controls are addressed by role and name, their options are a domain)
+_TRANSPORT_KEYS = ("method", "status", "headers", "truncated", "structure_hash", "redirects", "elements", "a11y",
+                   "outline", "diff")
 _MISSING = object()
 
 
@@ -329,6 +338,13 @@ def evaluate_condition(cond: VerificationCondition, observations: Sequence[Obser
             return bool(_OPS[op](now, want))
         except (KeyError, TypeError):
             return None
+    if kind == "element_present":
+        lists = [o.data["elements"] for o in observations
+                 if isinstance(o.data, dict) and isinstance(o.data.get("elements"), list)]
+        if not lists:
+            return None
+        return any(isinstance(e, dict) and e.get("role") == spec.get("role") and e.get("name") == spec.get("name")
+                   for e in lists[-1])
     if kind == "program":
         check = spec.get("check")
         if check == "steps_ok":
@@ -346,6 +362,8 @@ def protected_reasons(step: ActionSpec) -> List[str]:
     op = step.operation.lower()
     if op.startswith(PROTECTED_OPERATION_PREFIXES):
         why.append(f"operation {step.operation!r} belongs to a protected service")
+    if op.startswith("skill.") and op not in COMPOSABLE_SKILL_OPERATIONS:
+        why.append(f"operation {step.operation!r} manages the skill library itself")
     if step.auth_scope and step.auth_scope.lower().startswith(PROTECTED_SCOPE_PREFIXES):
         why.append(f"scope {step.auth_scope!r} is a protected scope")
     blob = json.dumps([step.target, step.arguments], default=str).lower()
@@ -356,6 +374,186 @@ def protected_reasons(step: ActionSpec) -> List[str]:
     for sub in step.steps:
         why.extend(protected_reasons(sub))
     return why
+
+
+# --------------------------------------------------------------------------------------------------------------
+# Observation-bound references (why the agent's own grounded traces never validated, SG)
+# --------------------------------------------------------------------------------------------------------------
+# An element reference is valid only in the observation it was read from: a grounded action names ``ref`` plus the
+# observation id (``obs_id`` or ``ref@obs``), and the environment refuses it once that observation is outdated ("inspect
+# the page again"). Replayed verbatim, every step of a procedure induced from such a trace therefore failed, and a
+# reference that differed between two traces became a "parameter" whose fresh value was a malformed ref (both measured:
+# docs/SG.md §2). A procedure must address an element by what the observation says it *is* — its accessible role and
+# name, and its position among equally named elements — whenever the tool accepts such a locator. These are properties
+# of the observation format (``data.elements`` with ``ref`` / ``role`` / ``name``), not of any site or task.
+_HANDLE_ARGS = ("ref", "obs_id")
+
+
+def observation_ref(action: ActionSpec) -> str:
+    """Id of the observation an action's element reference was read from ('' when it names none)."""
+    a = action.arguments if isinstance(action.arguments, dict) else {}
+    ref = str(a.get("ref") or "")
+    if "@" in ref:
+        return ref.partition("@")[2]
+    return str(a.get("obs_id") or "") if ref or a.get("obs_id") else ""
+
+
+def _elements(obs: Optional[Observation]) -> List[Dict[str, Any]]:
+    els = obs.data.get("elements") if obs is not None and isinstance(obs.data, dict) else None
+    return [e for e in els if isinstance(e, dict)] if isinstance(els, list) else []
+
+
+def element_of(action: ActionSpec, obs: Optional[Observation]) -> Optional[Dict[str, Any]]:
+    """The element record (role, name, options, ...) the action's ``ref`` names in ``obs``, with ``nth`` = its index
+    among the elements of that observation with the same role and name."""
+    ref = str((action.arguments or {}).get("ref") or "").partition("@")[0]
+    if not ref:
+        return None
+    els = _elements(obs)
+    hit = next((e for e in els if str(e.get("ref", "")) == ref), None)
+    if hit is None:
+        return None
+    same = [e for e in els if e.get("role") == hit.get("role") and e.get("name") == hit.get("name")]
+    return dict(hit, nth=next(i for i, e in enumerate(same) if e is hit), n_same=len(same))
+
+
+def stable_arguments(action: ActionSpec, obs: Optional[Observation], tool: Optional[ToolDescriptor]
+                     ) -> Optional[Dict[str, Any]]:
+    """The action's arguments with its observation-bound element reference replaced by the element's role and name
+    (and ``nth`` when several elements share them), if the tool accepts those locator arguments and the element is
+    known; ``None`` otherwise."""
+    if tool is None or not observation_ref(action):
+        return None
+    props = (tool.arg_schema or {}).get("properties") or {}
+    if "role" not in props or "name" not in props:
+        return None
+    e = element_of(action, obs)
+    if e is None or not str(e.get("role") or "") or e.get("name") in (None, ""):
+        return None
+    out = {k: v for k, v in action.arguments.items() if k not in _HANDLE_ARGS}
+    out["role"], out["name"] = str(e["role"]), str(e["name"])
+    if e.get("n_same", 1) > 1 and "nth" in props:
+        out["nth"] = int(e["nth"])
+    return out
+
+
+_NUM = re.compile(r"\d+")
+
+
+def _norm(s: Any, n: int = 48) -> str:
+    return _NUM.sub("#", str(s).strip().lower())[:n]
+
+
+def state_features(observations: Sequence[Observation], limit: int = 128) -> List[str]:
+    """Generic description of an observed state for the learned applicability of a skill: the kind of observation,
+    host and path segments of its address (digits folded), title words, the role:name of its interactive elements and
+    the names of its quantities. Nothing site- or task-specific; the model learns which of them matter."""
+    from urllib.parse import urlsplit
+    feats: List[str] = ["bias"]
+    obs = [o for o in observations if o is not None and o.kind != "error"][-1:]
+    for o in obs:
+        d = o.data if isinstance(o.data, dict) else {}
+        feats.append("kind:" + _norm(o.kind))
+        url = str(d.get("url") or o.provenance.uri or "")
+        if "://" in url:
+            u = urlsplit(url)
+            segs = [s for s in u.path.split("/") if s]
+            feats += ["host:" + _norm(u.netloc), "path:/" + "/".join(_norm(s, 24) for s in segs)]
+            feats += ["seg:" + _norm(s, 24) for s in segs[:6]]
+        feats += ["title:" + w for w in _norm(d.get("title") or "", 80).split()[:8]]
+        for e in _elements(o)[:64]:
+            feats.append(f"el:{_norm(e.get('role', ''), 16)}:{_norm(e.get('name', ''), 32)}")
+        feats += ["q:" + _norm(q.name, 48) for q in o.quantities[:16]]
+    seen: Dict[str, None] = {}
+    for f in feats:
+        seen.setdefault(f, None)
+    return list(seen)[:limit]
+
+
+def _phi(t: float) -> float:
+    return math.exp(-0.5 * t * t) / math.sqrt(2.0 * math.pi)
+
+
+def _Phi(t: float) -> float:
+    return 0.5 * (1.0 + math.erf(t / math.sqrt(2.0)))
+
+
+def _probit(p: float) -> float:
+    lo, hi = -40.0, 40.0
+    for _ in range(100):
+        mid = 0.5 * (lo + hi)
+        if _Phi(mid) < p:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
+
+
+class ApplicabilityModel:
+    """When a skill works: Bayesian probit regression of P(success | state features) with a factorised Gaussian
+    posterior over feature weights, updated by assumed-density filtering (the closed-form moment-matching update of
+    Graepel et al., ICML 2010). Prior: every weight N(0, ``prior_var``), so an unseen state has P = 1/2 with the full
+    prior uncertainty; :meth:`sample` is a Thompson draw, so a skill keeps being tried where the evidence is thin."""
+
+    def __init__(self, prior_var: float = 0.25, beta: float = 1.0, max_features: int = 2048):
+        self.prior_var, self.beta, self.max_features = float(prior_var), float(beta), int(max_features)
+        self.mu: Dict[str, float] = {}
+        self.var: Dict[str, float] = {}
+        self.n = 0
+        self.n_ok = 0
+
+    def _moments(self, feats: Sequence[str]) -> Tuple[float, float]:
+        return (sum(self.mu.get(f, 0.0) for f in feats), sum(self.var.get(f, self.prior_var) for f in feats))
+
+    def p(self, feats: Sequence[str]) -> float:
+        m, v = self._moments(feats)
+        return _Phi(m / math.sqrt(self.beta ** 2 + v))
+
+    def sample(self, feats: Sequence[str], rng: random.Random) -> float:
+        s = sum(rng.gauss(self.mu.get(f, 0.0), math.sqrt(self.var.get(f, self.prior_var))) for f in feats)
+        return _Phi(s / self.beta)
+
+    def p_below(self, feats: Sequence[str], tau: float) -> float:
+        """Posterior probability that the success probability in this state is below ``tau``:
+        P(Phi(w.x / beta) < tau) = Phi((beta * Phi^-1(tau) - m) / sqrt(v))."""
+        m, v = self._moments(feats)
+        z = _probit(min(max(tau, 1e-9), 1.0 - 1e-9))
+        return _Phi((self.beta * z - m) / math.sqrt(max(v, 1e-12)))
+
+    def update(self, feats: Sequence[str], ok: bool) -> None:
+        if not feats:
+            return
+        y = 1.0 if ok else -1.0
+        m, v = self._moments(feats)
+        s2 = self.beta ** 2 + v
+        s = math.sqrt(s2)
+        t = y * m / s
+        cdf = max(_Phi(t), 1e-12)
+        vv = _phi(t) / cdf
+        ww = vv * (vv + t)
+        for f in feats:
+            var = self.var.get(f, self.prior_var)
+            self.mu[f] = self.mu.get(f, 0.0) + y * var / s * vv
+            self.var[f] = var * max(1e-6, 1.0 - var / s2 * ww)
+        self.n += 1
+        self.n_ok += int(ok)
+        if len(self.mu) > self.max_features:              # keep the features that carry the most evidence
+            keep = sorted(self.mu, key=lambda f: (self.var[f] / self.prior_var) - abs(self.mu[f]))[:self.max_features]
+            self.mu = {f: self.mu[f] for f in keep}
+            self.var = {f: self.var[f] for f in keep}
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"prior_var": self.prior_var, "beta": self.beta, "n": self.n, "n_ok": self.n_ok,
+                "mu": dict(self.mu), "var": dict(self.var)}
+
+    @classmethod
+    def from_dict(cls, d: Optional[Dict[str, Any]]) -> "ApplicabilityModel":
+        m = cls(float((d or {}).get("prior_var", 1.0)), float((d or {}).get("beta", 1.0)))
+        if d:
+            m.mu = {str(k): float(v) for k, v in (d.get("mu") or {}).items()}
+            m.var = {str(k): float(v) for k, v in (d.get("var") or {}).items()}
+            m.n, m.n_ok = int(d.get("n", 0)), int(d.get("n_ok", 0))
+        return m
 
 
 # --------------------------------------------------------------------------------------------------------------
@@ -391,6 +589,11 @@ class Skill(Record):
     repair_attempts: int = 0
     status_reason: str = ""
     run_history: List[Dict[str, Any]] = field(default_factory=list)
+    applicability: Dict[str, Any] = field(default_factory=dict)    # ApplicabilityModel state (learned, SG)
+    refined_at_successes: int = 0                                  # successes when refinement was last attempted
+
+    def applicability_model(self) -> "ApplicabilityModel":
+        return ApplicabilityModel.from_dict(self.applicability)
 
     def reliability(self, level: float = 0.9) -> Dict[str, float]:
         lo, hi = beta_interval(self.alpha, self.beta, level)
@@ -416,13 +619,14 @@ class Trace:
     before: List[Observation] = field(default_factory=list)
     after: List[Observation] = field(default_factory=list)
     trace_id: str = ""
+    context: List[Optional[Observation]] = field(default_factory=list)   # per step: the observation it addressed
 
     @classmethod
     def from_pairs(cls, pairs: Sequence[Tuple[ActionSpec, ActionResult]], inputs: Optional[Dict[str, Any]] = None,
                    before: Optional[Sequence[Observation]] = None, after: Optional[Sequence[Observation]] = None,
-                   trace_id: str = "") -> "Trace":
+                   trace_id: str = "", context: Optional[Sequence[Optional[Observation]]] = None) -> "Trace":
         return cls([TraceStep(a, r) for a, r in pairs], dict(inputs or {}), list(before or []), list(after or []),
-                   trace_id or new_id("trace"))
+                   trace_id or new_id("trace"), list(context or []))
 
     @classmethod
     def from_result(cls, action: ActionSpec, result: ActionResult, inputs: Optional[Dict[str, Any]] = None,
@@ -485,13 +689,26 @@ _TOKEN = re.compile(r"([/?&=#]+)")          # address-like strings are split her
 class _Abstraction:
     """State of one induction: the aligned steps of every trace and the parameters found so far."""
 
-    def __init__(self, segs: List[List[TraceStep]], inputs: List[Dict[str, Any]]):
+    def __init__(self, segs: List[List[TraceStep]], inputs: List[Dict[str, Any]],
+                 flow: Optional[Tuple[List[str], List[str]]] = None):
         self.T = len(segs)
         self.inputs = inputs
         self.data = [[_obs_data(s.result.observations) for s in seg] for seg in segs]
         self.leaves = [[_flatten(d) for d in row] for row in self.data]
         self.params: Dict[str, Tuple] = {}            # name -> value in each trace
         self.where: Dict[str, str] = {}               # name -> where it was first used
+        self.domains: Dict[str, List[Any]] = {}       # name -> the options the observation offered for it
+        self.flow = flow                              # (text of the state before, text after) per trace
+
+    def flows_into_result(self, values: Sequence[Any]) -> bool:
+        """With one trace there is no variation to learn parameters from; a value the procedure *put into the
+        world* — absent from the state before it, present in the state after it — is an input of the procedure
+        (e.g. the text it stored), not a constant of it."""
+        if self.flow is None:
+            return False
+        before, after = self.flow
+        return all(isinstance(v, str) and len(v.strip()) >= 3 and v not in before[t] and v in after[t]
+                   for t, v in enumerate(values))
 
     # -- parameters ------------------------------------------------------------------------------------------
     def _unique(self, base: str) -> str:
@@ -586,6 +803,8 @@ class _Abstraction:
         atom = self._atom(values, j, single_ok=True)
         if atom is not None:
             return atom
+        if self.T == 1 and self.flows_into_result(values):
+            return {"$param": self.new_param(values, hint, where)}
         if all(isinstance(v, str) and re.search(r"\s", v) is None for v in values):
             toks = [_TOKEN.split(v) for v in values]
             if len(toks[0]) > 1 and all(len(t) == len(toks[0]) for t in toks):
@@ -622,22 +841,53 @@ class _Abstraction:
 class SkillInducer:
     """Turns successful traces into a candidate :class:`Skill` (status ``candidate``; not yet usable)."""
 
-    def __init__(self, clock: Clock, tools: Sequence[ToolDescriptor] = (), *, min_steps: int = 2, max_steps: int = 24):
+    def __init__(self, clock: Clock, tools: Sequence[ToolDescriptor] = (), *, min_steps: int = 2, max_steps: int = 24,
+                 skill_scopes: Optional[Callable[[str], Optional[List[str]]]] = None):
         self.clock, self.min_steps, self.max_steps = clock, min_steps, max_steps
         self.tools = {t.name: t for t in tools}
+        #: skill id -> required scopes of a *validated* skill (None: no such skill) — composition needs it
+        self.skill_scopes = skill_scopes
 
     def set_tools(self, tools: Sequence[ToolDescriptor]) -> None:
         self.tools = {t.name: t for t in tools}
+
+    # ---- observation-bound references -> stable locators ---------------------------------------------------
+    def _stabilise(self, trace: Trace, keep: List[int]) -> Tuple[List[TraceStep], List[Optional[Dict[str, Any]]]]:
+        """Copies of the kept steps whose element references are rewritten to stable locators, with the element
+        record each rewritten step addressed (None for the others). A step that names an observation the
+        environment no longer knows, through a tool without a stable locator, cannot be made re-executable."""
+        out: List[TraceStep] = []
+        els: List[Optional[Dict[str, Any]]] = []
+        for i in keep:
+            st = trace.steps[i]
+            ctx = trace.context[i] if i < len(trace.context) else None
+            oid = observation_ref(st.action)
+            if not oid:
+                out.append(st)
+                els.append(None)
+                continue
+            new = stable_arguments(st.action, ctx, self.tools.get(st.action.operation))
+            if new is None:
+                raise SkillInductionError(
+                    f"step {st.action.operation} addresses an element of observation {oid}, which "
+                    + ("is not known here" if ctx is None else "does not describe it by role and name")
+                    + ": the step cannot be re-executed outside that observation")
+            a = ActionSpec.from_dict(st.action.to_dict())
+            a.arguments = new
+            out.append(TraceStep(a, st.result))
+            els.append(element_of(st.action, ctx))
+        return out, els
 
     def induce(self, traces: Sequence[Trace], *, name: str = "", description: str = "",
                probe: Optional[ActionSpec] = None, skill_id: str = "") -> Skill:
         traces = list(traces)
         if not traces:
             raise SkillInductionError("no traces")
-        clean = [[s for s in t.steps if s.result.status == ResultStatus.OK and s.result.verified is not False]
-                 for t in traces]
-        for seg in clean:
-            for s in seg:
+        kept = [[i for i, s in enumerate(t.steps) if s.result.status == ResultStatus.OK and s.result.verified is not False]
+                for t in traces]
+        for t, keep in zip(traces, kept):
+            for i in keep:
+                s = t.steps[i]
                 why = protected_reasons(s.action)
                 if why:
                     raise SkillInductionError("protected: " + "; ".join(why))
@@ -645,6 +895,19 @@ class SkillInducer:
                     raise SkillInductionError("argument keys starting with '$' cannot be abstracted")
         if probe is not None and protected_reasons(probe):
             raise SkillInductionError("protected: " + "; ".join(protected_reasons(probe)))
+        stab = [self._stabilise(t, keep) for t, keep in zip(traces, kept)]
+        clean = [c for c, _ in stab]
+        elinfo = [e for _, e in stab]
+        # a tab handle used throughout a trace is the session's handle, not part of the procedure: the procedure acts
+        # in whatever tab is active when it runs
+        for seg in clean:
+            tabs = {str(s.action.arguments.get("tab")) for s in seg if "tab" in (s.action.arguments or {})}
+            if len(tabs) == 1:
+                for k, s in enumerate(seg):
+                    if "tab" in s.action.arguments:
+                        a = ActionSpec.from_dict(s.action.to_dict())
+                        a.arguments = {x: v for x, v in a.arguments.items() if x != "tab"}
+                        seg[k] = TraceStep(a, s.result)
         if len(clean) == 1:
             length, starts = len(clean[0]), [0]
         else:
@@ -654,10 +917,15 @@ class SkillInducer:
                                       f"common to the {len(clean)} trace(s)")
         length = min(length, self.max_steps)
         segs = [seg[st:st + length] for seg, st in zip(clean, starts)]
-        ab = _Abstraction(segs, [t.inputs for t in traces])
+        segel = [e[st:st + length] for e, st in zip(elinfo, starts)]
         skill_id = skill_id or new_id("skill")
+        before_obs = [t.before or [c for c in t.context[:1] if c is not None] for t in traces]
+        after_obs = [t.after or seg[-1].result.observations for t, seg in zip(traces, segs)]
+        ab = _Abstraction(segs, [t.inputs for t in traces],
+                          flow=([_obs_text(b) for b in before_obs], [_obs_text(a) for a in after_obs]))
         steps: List[ActionSpec] = []
         fingerprints: List[str] = []
+        sub_scopes: List[str] = []
         for j in range(length):
             src = [seg[j].action for seg in segs]
             tree: Dict[str, Any] = {}
@@ -668,10 +936,31 @@ class SkillInducer:
                 vals = [_arg_leaves(a.arguments).get(path, _MISSING) for a in src]
                 if any(v is _MISSING for v in vals):
                     raise SkillInductionError(f"step {j}: argument {'.'.join(path)} is not present in every trace")
-                _set_leaf(tree, path, ab.abstract(vals, j, path[-1], f"step {j} ({src[0].operation}) {'.'.join(path)}"))
+                tmpl = ab.abstract(vals, j, path[-1], f"step {j} ({src[0].operation}) {'.'.join(path)}")
+                if isinstance(tmpl, dict) and set(tmpl) == {"$param"}:
+                    opts = [e[j].get("options") for e in segel if e[j] is not None]
+                    if len(opts) == len(segs) and all(isinstance(o, list) and o for o in opts) and \
+                            all(any(_same(v, x) for x in o) for v, o in zip(vals, opts)):
+                        common = [x for x in opts[0] if all(any(_same(x, y) for y in o) for o in opts[1:])]
+                        if common:
+                            ab.domains[tmpl["$param"]] = common
+                _set_leaf(tree, path, tmpl)
             target = ab.abstract([a.target for a in src], j, "target", f"step {j} target") if src[0].target else ""
             tool = self.tools.get(src[0].operation)
             scope = src[0].auth_scope or (tool.auth_scope if tool else "")
+            if src[0].operation in COMPOSABLE_SKILL_OPERATIONS:
+                ids = {str(a.arguments.get("skill_id", "")) for a in src}
+                sid = ids.pop() if len(ids) == 1 else ""
+                if not sid:
+                    raise SkillInductionError(f"step {j}: a composed skill must call one fixed skill")
+                if sid == skill_id:
+                    raise SkillInductionError(f"step {j}: a skill cannot contain itself")
+                scopes = self.skill_scopes(sid) if self.skill_scopes is not None else None
+                if scopes is None:
+                    raise SkillInductionError(f"step {j}: {sid} is not a validated skill of the library")
+                tree["skill_id"] = sid
+                scope = " ".join(scopes)
+                sub_scopes += list(scopes)
             verify = src[0].verify if all(a.verify == src[0].verify for a in src) else VerificationCondition()
             steps.append(ActionSpec(action_id=f"{skill_id}.s{j}", operation=src[0].operation, modality=src[0].modality,
                                     level=Level.PRIMITIVE, target=target if isinstance(target, str) else "",
@@ -684,9 +973,21 @@ class SkillInducer:
         for n, vals in ab.params.items():
             props[n] = dict(_json_type(vals), description=ab.where.get(n, "named input of the source trace"),
                             examples=[v for v in vals[:3]])
+            if n in ab.domains:
+                props[n]["enum"] = list(ab.domains[n])
+            elif all(isinstance(v, str) and re.fullmatch(r"-?\d+", v) for v in vals):
+                props[n]["pattern"] = r"^-?\d+$"                   # typed as a number into a text field
         schema = {"type": "object", "properties": props, "required": sorted(props), "additionalProperties": False}
-        pre, post = self._conditions(traces, segs, bindings, steps)
-        scopes = sorted({s.auth_scope for s in steps + ([probe] if probe else []) if s.auth_scope})
+        pre, post = self._conditions(traces, segs, bindings, steps, before_obs, after_obs)
+        first = segel[0][0] if segel and segel[0] else None
+        if first is not None and all(e[0] is not None and e[0].get("role") == first.get("role")
+                                     and e[0].get("name") == first.get("name") for e in segel):
+            pre = [c for c in pre if c.kind != "url_matches"]   # the element it starts on, not one address
+            pre.insert(1, VerificationCondition(description=f"the {first.get('role')} \"{first.get('name')}\" the "
+                                                            f"procedure starts on is present", kind="element_present",
+                                                spec={"role": first.get("role"), "name": first.get("name")}))
+        scopes = sorted({x for s in steps + ([probe] if probe else []) for x in (s.auth_scope or "").split() if x}
+                        | {x for x in sub_scopes if x})
         n = float(len(segs))
         cost = Cost(seconds=sum(s.result.cost.seconds or max(0.0, s.result.ended - s.result.started)
                                 for seg in segs for s in seg) / n,
@@ -705,7 +1006,8 @@ class SkillInducer:
                 {"when": "step_failed", "meaning": "a step returned a status other than ok; execution stops there"},
                 {"when": "postcondition_false", "meaning": "the resulting state does not satisfy a postcondition"},
                 {"when": "binding_failed", "meaning": "an earlier step no longer yields a value a later step needs"},
-                {"when": "interface_changed", "meaning": "the structure of a step's observation differs from the validated one"}],
+                {"when": "interface_changed", "meaning": "the structure of a step's observation differs from the validated one"},
+                {"when": "not_applicable", "meaning": "the learned applicability of the skill in the current state is low"}],
             recovery=[
                 {"on": "stale", "action": "repair", "how": "re-induce from new successful traces, bump the version, validate again"},
                 {"on": "repair_failed", "action": "retire", "how": "the skill is kept on disk as retired and never executed"}],
@@ -713,15 +1015,20 @@ class SkillInducer:
                         "trace_ids": [t.trace_id for t in traces],
                         "action_ids": [[s.action.action_id for s in seg] for seg in segs],
                         "segment_offsets": starts, "source_args_sha256": [_args_sha(b) for b in bindings],
+                        "stable_locators": sum(1 for e in segel[0] if e is not None) if segel else 0,
+                        "composed_of": sorted({s.arguments.get("skill_id") for s in steps
+                                               if s.operation in COMPOSABLE_SKILL_OPERATIONS}),
                         "induced_at": now},
             created_at=now, updated_at=now)
 
     # ---- conditions from the observed before / after states --------------------------------------------------
     def _conditions(self, traces: List[Trace], segs: List[List[TraceStep]], bindings: List[Dict[str, Any]],
-                    steps: List[ActionSpec]) -> Tuple[List[VerificationCondition], List[VerificationCondition]]:
+                    steps: List[ActionSpec], before: Optional[List[List[Observation]]] = None,
+                    after: Optional[List[List[Observation]]] = None
+                    ) -> Tuple[List[VerificationCondition], List[VerificationCondition]]:
         T = len(traces)
-        before = [t.before for t in traces]
-        after = [t.after or seg[-1].result.observations for t, seg in zip(traces, segs)]
+        before = before if before is not None else [t.before for t in traces]
+        after = after if after is not None else [t.after or seg[-1].result.observations for t, seg in zip(traces, segs)]
         B, A = [state_leaves(b) for b in before], [state_leaves(a) for a in after]
         pre = [VerificationCondition(description="the operations the procedure uses are available", kind="program",
                                      spec={"check": "tools", "operations": sorted({s.operation for s in steps})})]
@@ -751,8 +1058,14 @@ class SkillInducer:
             elif numeric and have_before and all(isinstance(B[t][k], (int, float)) for t in range(T)):
                 deltas = [float(A[t][k]) - float(B[t][k]) for t in range(T)]
                 if all(abs(d - deltas[0]) < 1e-9 for d in deltas) and float(deltas[0]).is_integer():
+                    spec = dict(target, op="delta_eq", value=deltas[0])
+                    if T == 1 and abs(deltas[0]) != 1.0:
+                        # one example cannot tell an effect of the procedure from a change whose size depends on its
+                        # arguments (a text length, a byte count): a hypothesis that validation tests. A change by
+                        # exactly one (one more record, one fewer draft) is taken as the procedure's effect.
+                        spec["tentative"] = True
                     post.append(VerificationCondition(description=f"{k[2:]} changes by {deltas[0]:+g}", kind="metric",
-                                                      spec=dict(target, op="delta_eq", value=deltas[0])))
+                                                      spec=spec))
             elif (T >= 2 and observed_before and not positional and not isinstance(A[0][k], float)
                   and all(_same(A[0][k], A[t][k]) for t in range(1, T))):
                 post.append(VerificationCondition(description=f"{k[2:]} becomes {A[0][k]!r}", kind="metric",
@@ -767,7 +1080,7 @@ class SkillInducer:
                     all(str(vals[t]) in texts_a[t] and (not before[t] or str(vals[t]) not in texts_b[t]) for t in range(T)):
                 post.append(VerificationCondition(description=f"the argument {n} appears in the resulting state",
                                                   kind="text_present", spec={"text": {"$param": n}}))
-        post = post[:12]
+        post = sorted(post, key=lambda c: bool(c.spec.get("tentative")))[:12]     # well-supported ones first
         post.append(VerificationCondition(description="every step reported success", kind="program",
                                           spec={"check": "steps_ok"}))
         return pre[:8], post
@@ -783,7 +1096,12 @@ def fresh_arguments(skill: Skill, rng: random.Random) -> Dict[str, Any]:
     for name, sch in skill.arg_schema.get("properties", {}).items():
         ex = (sch.get("examples") or [None])[0]
         t = sch.get("type")
-        if t == "string":
+        if sch.get("enum"):                                  # a choice among the options the interface offered
+            others = [v for v in sch["enum"] if not any(_same(v, e) for e in sch.get("examples") or [])]
+            out[name] = rng.choice(others or list(sch["enum"]))
+        elif t == "string" and sch.get("pattern") == r"^-?\d+$":
+            out[name] = str(rng.randint(2, 9) + (int(ex) if isinstance(ex, str) and ex.lstrip("-").isdigit() else 0))
+        elif t == "string":
             out[name] = f"{str(ex or name)[:24]}-{rng.getrandbits(32):08x}"
         elif t == "integer":
             out[name] = int(ex or 0) + rng.randint(1000, 9999)
@@ -794,6 +1112,66 @@ def fresh_arguments(skill: Skill, rng: random.Random) -> Dict[str, Any]:
         else:
             out[name] = ex
     return out
+
+
+def _renumber(t: Any, j: int) -> Any:
+    """A template with step ``j`` removed: references to later steps move down by one; a reference to ``j`` itself
+    means the step is needed (SkillInductionError)."""
+    if isinstance(t, dict):
+        if _is_dynamic(t):
+            kind, spec = next(iter(t.items()))
+            if kind in ("$capture", "$lookup"):
+                if int(spec["step"]) == j:
+                    raise SkillInductionError(f"a later step uses what step {j} returned")
+                out = dict(spec, step=int(spec["step"]) - (1 if int(spec["step"]) > j else 0))
+                if kind == "$lookup":
+                    out["where"] = {g: _renumber(v, j) for g, v in spec["where"].items()}
+                return {kind: out}
+            if kind == "$tpl":
+                return {"$tpl": [_renumber(x, j) for x in spec]}
+            return t
+        return {k: _renumber(v, j) for k, v in t.items()}
+    if isinstance(t, list):
+        return [_renumber(v, j) for v in t]
+    return t
+
+
+def _params_used(t: Any, out: Optional[set] = None) -> set:
+    out = set() if out is None else out
+    if isinstance(t, dict):
+        if _is_dynamic(t) and "$param" in t:
+            out.add(t["$param"])
+        for v in t.values():
+            _params_used(v, out)
+    elif isinstance(t, list):
+        for v in t:
+            _params_used(v, out)
+    return out
+
+
+def without_step(skill: Skill, j: int) -> Skill:
+    """A candidate copy of ``skill`` without step ``j`` (status candidate, no validation history); parameters no
+    other step or condition uses are dropped from the argument schema."""
+    new = Skill.from_dict(json.loads(skill.to_json()))
+    if not 0 <= j < len(new.steps) or len(new.steps) <= 1:
+        raise SkillInductionError("no such removable step")
+    gone = new.steps.pop(j)
+    if j < len(new.step_fingerprints):
+        new.step_fingerprints.pop(j)
+    for k, st in enumerate(new.steps):
+        st.arguments = _renumber(st.arguments, j)
+        st.action_id = f"{new.skill_id}.s{k}"
+    used = _params_used([st.arguments for st in new.steps] + [st.target for st in new.steps]
+                        + [c.spec for c in new.preconditions + new.postconditions])
+    props = {n: v for n, v in (new.arg_schema.get("properties") or {}).items() if n in used}
+    new.arg_schema = dict(new.arg_schema, properties=props, required=sorted(props))
+    new.required_scopes = sorted({x for st in new.steps + ([new.probe] if new.probe else [])
+                                  for x in (st.auth_scope or "").split() if x})
+    new.expected_cost.primitive_ops = max(1, int(new.expected_cost.primitive_ops) - 1)
+    new.status, new.status_reason, new.validation_history = STATUS_CANDIDATE, "", []
+    new.provenance = dict(new.provenance, dropped_steps=list(new.provenance.get("dropped_steps", []))
+                          + [{"operation": gone.operation, "index": j}])
+    return new
 
 
 # --------------------------------------------------------------------------------------------------------------
@@ -932,6 +1310,15 @@ class SkillLibrary:
         self._save(s)
         return s
 
+    def record_applicability(self, skill_id: str, feats: Sequence[str], ok: bool) -> Skill:
+        """Update the learned applicability of a skill with the outcome of a run that started in a state with
+        these features (saved with the next ``record_run`` / ``_save``)."""
+        s = self._skills[skill_id]
+        m = s.applicability_model()
+        m.update(feats, ok)
+        s.applicability = m.to_dict()
+        return s
+
     def mark_stale(self, skill_id: str, reason: str) -> Skill:
         s = self._skills[skill_id]
         if s.status != STATUS_RETIRED:
@@ -976,6 +1363,10 @@ _INDUCE_SCHEMA = {"type": "object", "additionalProperties": False, "required": [
     "probe": _STEP_SCHEMA,
     "validation_arguments": {"type": "array", "items": {"type": "object"}, "maxItems": 4},
     "repair_skill_id": {"type": "string"}}}
+_DISCOVER_SCHEMA = {"type": "object", "additionalProperties": False, "properties": {
+    "min_occurrences": {"type": "integer", "minimum": 2, "maximum": 8,
+                        "description": "how often a procedure must have recurred among the executed actions"},
+    "refine": {"type": "boolean", "description": "also try shorter versions of skills with enough successful runs"}}}
 
 
 class SkillExecutor:
@@ -985,14 +1376,26 @@ class SkillExecutor:
 
     def __init__(self, library: SkillLibrary, executors: Sequence[Any] = (), *,
                  dispatch: Optional[Callable[[ActionSpec, ExecContext], ActionResult]] = None,
-                 inducer: Optional[SkillInducer] = None, trace_buffer: int = 512, seed: int = 0):
+                 inducer: Optional[SkillInducer] = None, trace_buffer: int = 512, seed: int = 0,
+                 min_applicability: float = 0.15, applicability_confidence: float = 0.75, refine_after: int = 3,
+                 obs_index: int = 256):
         self.library, self.executors = library, list(executors)
         self._dispatch_fn = dispatch
         self.inducer = inducer or SkillInducer(library.clock)
+        if self.inducer.skill_scopes is None:
+            self.inducer.skill_scopes = self._validated_scopes
         if not self.inducer.tools:
             self.inducer.set_tools([t for e in self.executors for t in e.tools()])
         self._buffer: Dict[str, Tuple[ActionSpec, ActionResult]] = {}
         self._buffer_size, self._rng = trace_buffer, random.Random(seed)
+        #: observations of executed actions by id (bounded): what an element reference of a buffered step was read from
+        self._obs: Dict[str, Observation] = {}
+        self._obs_size = int(obs_index)
+        self._state: Optional[Observation] = None          # the latest observed state (start state of a skill run)
+        self._depth = 0                                    # nesting of skill.run inside skill.run (composition)
+        self.min_applicability = float(min_applicability)  # confidently below this success probability: not run
+        self.applicability_confidence = float(applicability_confidence)
+        self.refine_after = int(refine_after)
 
     # ---- wiring --------------------------------------------------------------------------------------------
     def bind(self, env: Any) -> None:
@@ -1004,7 +1407,8 @@ class SkillExecutor:
         env = getattr(self, "_env", None)
         if env is not None:
             try:
-                self.inducer.set_tools([t for t in env.discover_tools() if t.modality != Modality.SKILL])
+                self.inducer.set_tools([t for t in env.discover_tools() if t.modality != Modality.SKILL
+                                        or t.name in COMPOSABLE_SKILL_OPERATIONS])
             except Exception:  # noqa: BLE001 — keep the tools known so far
                 pass
 
@@ -1016,12 +1420,44 @@ class SkillExecutor:
             self.inducer.set_tools(tools)
 
     def observe_execution(self, action: ActionSpec, result: ActionResult) -> None:
-        """Called by the environment after each executed action; successful non-skill executions become material
-        for induction (referenced by action id in ``skill.induce``)."""
-        if result.status == ResultStatus.OK and action.modality != Modality.SKILL:
+        """Called by the environment after each executed action; successful executions of primitive operations and
+        of ``skill.run`` (composition) become material for induction (referenced by action id in ``skill.induce``,
+        mined by ``skill.discover``). Every observation is indexed by id, so that an element reference of a buffered
+        step can be resolved to the element it named; the latest one is the state a skill run starts from."""
+        self._note_observations(result.observations)
+        if result.status == ResultStatus.OK and (action.modality != Modality.SKILL
+                                                 or action.operation in COMPOSABLE_SKILL_OPERATIONS):
             self._buffer[action.action_id] = (action, result)
             while len(self._buffer) > self._buffer_size:
                 self._buffer.pop(next(iter(self._buffer)))
+
+    def _note_observations(self, observations: Sequence[Observation]) -> None:
+        for o in observations:
+            if o.kind == "error" or not o.obs_id:
+                continue
+            self._obs.pop(o.obs_id, None)
+            self._obs[o.obs_id] = o
+            if isinstance(o.data, dict) and o.data and o.provenance.source != "skill_library":
+                self._state = o
+        while len(self._obs) > self._obs_size:
+            self._obs.pop(next(iter(self._obs)))
+
+    def _validated_scopes(self, skill_id: str) -> Optional[List[str]]:
+        s = self.library.get(skill_id)
+        return list(s.required_scopes) if s is not None and s.status == STATUS_VALIDATED else None
+
+    def trace_of(self, ids: Sequence[str], inputs: Optional[Dict[str, Any]] = None) -> Trace:
+        """A trace of buffered executions, with the observation each step addressed (when indexed) and, as the
+        state before it, the observation its first step addressed."""
+        pairs = [self._buffer[i] for i in ids]
+        ctx = [self._obs.get(observation_ref(a)) if observation_ref(a) else None for a, _ in pairs]
+        before = [ctx[0]] if ctx and ctx[0] is not None else []
+        if not before and pairs:                           # the latest state observed before the first step
+            t0 = pairs[0][1].started
+            prior = [o for o in self._obs.values() if o.ts <= t0 and isinstance(o.data, dict) and o.data
+                     and o.provenance.source != "skill_library"]
+            before = prior[-1:]
+        return Trace.from_pairs(pairs, inputs=inputs, before=before, context=ctx)
 
     def _operations(self) -> Optional[List[str]]:
         ops = [t.name for e in self.executors for t in e.tools() if t.available] or sorted(self.inducer.tools)
@@ -1066,15 +1502,21 @@ class SkillExecutor:
                                        "action ids), execute it with fresh arguments to validate it, and add it to "
                                        "the library if validation succeeds. With repair_skill_id, replaces a stale "
                                        "skill by a new version."),
+            ToolDescriptor(name="skill.discover", modality=Modality.SKILL, level=Level.PROCEDURE,
+                           arg_schema=_DISCOVER_SCHEMA, side_effects="external_write",
+                           description="Find procedures that recurred among the executed actions and are not yet "
+                                       "skills, abstract the most frequent one into a skill, validate it by executing "
+                                       "it with fresh arguments and register it if validation succeeds; also try "
+                                       "shorter validated versions of skills that have run successfully several times."),
         ]
 
     def validate(self, action: ActionSpec) -> List[str]:
         schema = {"skill.run": _RUN_SCHEMA, "skill.list": _LIST_SCHEMA, "skill.describe": _DESCRIBE_SCHEMA,
-                  "skill.induce": _INDUCE_SCHEMA}.get(action.operation)
+                  "skill.induce": _INDUCE_SCHEMA, "skill.discover": _DISCOVER_SCHEMA}.get(action.operation)
         if schema is None:
             return [f"unknown operation {action.operation!r} for the skill executor"]
         errs = schema_errors(schema, action.arguments)
-        if errs or action.operation in ("skill.list", "skill.induce"):
+        if errs or action.operation in ("skill.list", "skill.induce", "skill.discover"):
             return errs
         s = self.library.get(action.arguments["skill_id"], action.arguments.get("version"))
         if s is None:
@@ -1106,15 +1548,24 @@ class SkillExecutor:
             return self._info(action, ctx, [d])
         if action.operation == "skill.induce":
             return self._induce_action(action, ctx)
+        if action.operation == "skill.discover":
+            return self._discover_action(action, ctx)
         skill = self.library.get(action.arguments["skill_id"])
         return self.run_skill(skill, action.arguments.get("arguments", {}), ctx, action=action)
 
     # ---- read-only tools -----------------------------------------------------------------------------------
     def _summary(self, s: Skill) -> Dict[str, Any]:
+        m = s.applicability_model()
+        recent = [h for h in s.run_history if h.get("ok")][-5:]
         return {"skill_id": s.skill_id, "name": s.name, "description": s.description, "version": s.version,
                 "status": s.status, "status_reason": s.status_reason, "arg_schema": s.arg_schema,
                 "required_scopes": s.required_scopes, "operations": s.operations(),
-                "expected_cost": s.expected_cost.to_dict(), "reliability": s.reliability(), "runs": s.runs}
+                "expected_cost": s.expected_cost.to_dict(), "reliability": s.reliability(), "runs": s.runs,
+                "applicability": {"p_here": m.p(state_features([self._state] if self._state is not None else [])),
+                                  "n": m.n},
+                "efficiency": {"steps": len(s.steps), "successes": s.successes,
+                               "mean_ops_recent": (sum(h.get("n_ops", 0) for h in recent) / len(recent)) if recent else None},
+                "composed_of": list(s.provenance.get("composed_of") or [])}
 
     def _info(self, action: ActionSpec, ctx: ExecContext, items: List[Dict[str, Any]]) -> ActionResult:
         now = ctx.clock.now()
@@ -1122,7 +1573,9 @@ class SkillExecutor:
              Quantity("skill.library.validated", float(len(self.library.list(STATUS_VALIDATED))), kind=OutcomeKind.COUNT)]
         for it in items[:8]:
             q.append(Quantity(f"skill.{it['skill_id']}.reliability", it["reliability"]["mean"]))
-        text = "; ".join(f"{it['skill_id']} v{it['version']} [{it['status']}] {it['name']}: {it['description']}"
+            q.append(Quantity(f"skill.{it['skill_id']}.applicability", it["applicability"]["p_here"]))
+        text = "; ".join(f"{it['skill_id']} v{it['version']} [{it['status']}] {it['name']}: {it['description']} "
+                         f"(applicable here: {it['applicability']['p_here']:.2f} after {it['applicability']['n']} runs)"
                          for it in items)[:4000] or "the skill library is empty"
         obs = Observation(obs_id=new_id("obs"), ts=now, kind="tool_result", text=text, quantities=q,
                           provenance=Provenance(source="skill_library", retrieved_at=now, trust=Trust.SELF),
@@ -1139,8 +1592,16 @@ class SkillExecutor:
                                       level=Level.PROCEDURE, target=skill.skill_id,
                                       arguments={"skill_id": skill.skill_id, "arguments": args},
                                       auth_scope=" ".join(skill.required_scopes), provenance="skill_library")
-        with acting_under(ctx, action):       # executors of the steps ask the secret broker in this action's name
-            return self._run_skill(skill, args, ctx, action, validating)
+        if self._depth >= MAX_COMPOSITION_DEPTH:
+            rep = classify(FailureEvidence(arg_errors=[f"skills nested deeper than {MAX_COMPOSITION_DEPTH} levels"],
+                                           modality=Modality.SKILL, level=Level.PROCEDURE))
+            return failed_result(action, rep, ctx.clock, ctx.clock.now())
+        self._depth += 1
+        try:
+            with acting_under(ctx, action):   # executors of the steps ask the secret broker in this action's name
+                return self._run_skill(skill, args, ctx, action, validating)
+        finally:
+            self._depth -= 1
 
     def _run_skill(self, skill: Skill, args: Dict[str, Any], ctx: ExecContext, action: ActionSpec,
                    validating: bool) -> ActionResult:
@@ -1149,6 +1610,9 @@ class SkillExecutor:
         observations: List[Observation] = []
         step_log: List[Dict[str, Any]] = []
         state = {"termination": "", "interface_changed": False, "start_obs": "", "end_obs": "", "post": []}
+        start_state = [self._state] if self._state is not None else []
+        feats = state_features(start_state)
+        app = skill.applicability_model()
 
         def finish(base: Optional[ActionResult], status: str, failure_class: str, detail: str, verified: Optional[bool]) -> ActionResult:
             now, elapsed = clock.now(), _time.perf_counter() - t_wall
@@ -1178,9 +1642,13 @@ class SkillExecutor:
                             compute_s=sum(s.get("compute_s", 0.0) for s in step_log),
                             money=sum(s.get("money", 0.0) for s in step_log))
             res.artifacts.update(skill_id=skill.skill_id, skill_version=str(skill.version), termination=state["termination"])
+            option["applicability"] = {"p": app.p(feats), "n": app.n}
             if not validating and skill.status == STATUS_VALIDATED and state["termination"] not in (
-                    "refused_stale", "invalid_arguments", "precondition_failed", "protected"):
-                self.library.record_run(skill.skill_id, ok=status == ResultStatus.OK, failure_class=failure_class,
+                    "refused_stale", "invalid_arguments", "precondition_failed", "protected", "not_applicable"):
+                ok = status == ResultStatus.OK
+                if ok or failure_class in ATTRIBUTABLE:      # what says something about the skill in this state
+                    self.library.record_applicability(skill.skill_id, feats, ok)
+                self.library.record_run(skill.skill_id, ok=ok, failure_class=failure_class,
                                         termination=state["termination"], interface_changed=state["interface_changed"],
                                         detail=detail, n_ops=len(ops), elapsed_s=option["elapsed_s"])
             return res
@@ -1208,6 +1676,16 @@ class SkillExecutor:
             why = protected_reasons(st)
             if why:
                 return fail(FailureEvidence(exception=PermissionError("; ".join(why))), "protected")
+        # 1b. learned applicability: not run where the posterior is confident (>= ``applicability_confidence``) that
+        # the success probability in the current state is below ``min_applicability``; while the evidence is thin
+        # the skill keeps being tried. A validation run is never gated.
+        if not validating and app.n > 0:
+            below = app.p_below(feats, self.min_applicability)
+            if below >= self.applicability_confidence:
+                return fail(FailureEvidence(target_missing=True,
+                                            detail=f"not applicable here: learned P(success | state) = "
+                                                   f"{app.p(feats):.3f} after {app.n} runs; P(p < "
+                                                   f"{self.min_applicability}) = {below:.3f}"), "not_applicable")
 
         def run_step(tmpl: ActionSpec, label: str, data: List[Any]) -> Tuple[Optional[ActionResult], Optional[ActionResult]]:
             """-> (step result, terminal result). Every step is checked, then executed by its own modality."""
@@ -1235,6 +1713,7 @@ class SkillExecutor:
                 state["termination"] = "denied" if refused.status == ResultStatus.DENIED else "needs_approval"
                 return None, finish(refused, refused.status, refused.failure_class, refused.failure_detail, None)
             sub = self._dispatch(step, ctx)
+            self._note_observations(sub.observations)     # nested skills start from the state the steps produced
             if sub.ops:
                 ops.extend(sub.ops)
             else:
@@ -1249,9 +1728,10 @@ class SkillExecutor:
                 return None, finish(None, sub.status, sub.failure_class, sub.failure_detail, None)
             return sub, None
 
-        # 2. observe the start state and check the preconditions
+        # 2. observe the start state and check the preconditions (without a probe: the latest observed state)
         info = {"operations": self._operations(), "steps_ok": None}
-        before: Optional[List[Observation]] = None
+        before: Optional[List[Observation]] = start_state or None
+        state["start_obs"] = start_state[-1].obs_id if start_state else ""
         if skill.probe is not None:
             sub, terminal = run_step(skill.probe, "probe0", [])
             if terminal is not None:
@@ -1312,8 +1792,12 @@ class SkillExecutor:
         state["end_obs"] = after[-1].obs_id if after else ""
         info["steps_ok"] = True
         results = [(c, evaluate_condition(c, after, args, before=before, info=info)) for c in skill.postconditions]
-        state["post"] = [{"description": c.description, "kind": c.kind, "result": r} for c, r in results]
-        failed = [c for c, r in results if r is False]
+        state["post"] = [{"description": c.description, "kind": c.kind, "result": r,
+                          "tentative": bool(c.spec.get("tentative"))} for c, r in results]
+        self._last_post = state["post"]
+        # a tentative condition (derived from a single example) is a hypothesis that validation tests: refuted, it is
+        # dropped by validate_candidate instead of failing the run
+        failed = [c for c, r in results if r is False and not (validating and c.spec.get("tentative"))]
         if failed:
             return fail(FailureEvidence(verified=False, executed_ok=True,
                                         structure_hash_expected="validated" if state["interface_changed"] else "",
@@ -1342,19 +1826,44 @@ class SkillExecutor:
                 runs.append({"ts": ctx.clock.now(), "ok": False, "fresh": False, "version": skill.version,
                              "args_sha256": _args_sha(a), "termination": "not_fresh", "failure_class": FailureClass.NONE})
                 continue
+            feats = state_features([self._state] if self._state is not None else [])
             res = self.run_skill(skill, a, ctx, validating=True, action=action)
             confirmed = res.verified is True or not nontrivial
+            if res.status == ResultStatus.OK or res.failure_class in ATTRIBUTABLE:
+                m = skill.applicability_model()
+                m.update(feats, res.status == ResultStatus.OK and confirmed)
+                skill.applicability = m.to_dict()
+            post = list(getattr(self, "_last_post", []) or []) if res.artifacts.get("termination") == \
+                "postconditions_met" else []
+            self._last_post = []
             runs.append({"ts": ctx.clock.now(), "ok": res.status == ResultStatus.OK and confirmed,
-                         "fresh": True, "version": skill.version, "args_sha256": _args_sha(a),
+                         "fresh": True, "version": skill.version, "args_sha256": _args_sha(a), "post": post,
                          "termination": res.artifacts.get("termination", ""), "failure_class": res.failure_class,
                          "detail": res.failure_detail[:300], "n_ops": len(res.ops), "elapsed_s": res.cost.seconds,
                          "verified": res.verified, "environment": environment})
         skill.validation_history.extend(runs)
         n_ok = sum(1 for r in runs if r["ok"])
         passed = n_ok >= need and all(r["ok"] for r in runs if r["fresh"])
+        if passed and any(c.spec.get("tentative") for c in skill.postconditions):
+            # keep the tentative conditions every validation run confirmed; drop the refuted / undecidable ones
+            verdicts = [{p["description"]: p["result"] for p in r.get("post", [])} for r in runs if r["fresh"]]
+            keep, refuted = [], []
+            for c in skill.postconditions:
+                if not c.spec.get("tentative"):
+                    keep.append(c)
+                elif verdicts and all(v.get(c.description) is True for v in verdicts):
+                    keep.append(VerificationCondition(description=c.description, kind=c.kind,
+                                                      spec={k: v for k, v in c.spec.items() if k != "tentative"}))
+                else:
+                    refuted.append(c.description)
+            skill.postconditions = keep
+            skill.provenance["postconditions_refuted"] = refuted
+            if not [c for c in keep if c.spec.get("check") != "steps_ok"]:
+                passed = False                             # nothing observable confirms what the procedure does
         report = {"passed": passed, "n_ok": n_ok, "n_runs": len(runs), "runs": runs,
                   "reason": "" if passed else next((f"{r['termination']}: {r.get('detail', '')}" for r in runs if not r["ok"]),
-                                                  "not enough validation runs")}
+                                                  "no observable postcondition was confirmed by the validation runs"
+                                                  if runs and all(r["ok"] for r in runs) else "not enough validation runs")}
         if passed:
             skill.status, skill.status_reason = STATUS_VALIDATED, ""
             skill.alpha, skill.beta = 1.0 + n_ok, 1.0
@@ -1370,12 +1879,164 @@ class SkillExecutor:
             skill = self.inducer.induce(traces, name=name, description=description, probe=probe)
         except SkillInductionError as e:
             return None, {"passed": False, "reason": f"induction failed: {e}", "runs": []}
-        report = self.validate_candidate(skill, ctx, validation_arguments, environment=environment, action=action)
+        skill, report = self._validate_dropping_observations(skill, ctx, validation_arguments, environment, action)
         if not report["passed"]:
-            self.library.log_rejected(skill, report)
             return None, report
         self.library.register(skill)
         return skill, report
+
+    def read_only(self, step: ActionSpec) -> bool:
+        """A step that only observes (its tool declares no side effects): removing it cannot change the world."""
+        t = self.inducer.tools.get(step.operation)
+        return t is not None and t.side_effects in ("none", "external_read") and \
+            step.operation not in COMPOSABLE_SKILL_OPERATIONS
+
+    def _validate_dropping_observations(self, skill: Skill, ctx: ExecContext, validation_arguments: Any,
+                                        environment: str, action: Optional[ActionSpec], attempts: int = 2
+                                        ) -> Tuple[Skill, Dict[str, Any]]:
+        """Validate; when the run failed *at* a step that only observes (e.g. a wait for a text the source trace
+        showed once) and no later step uses what it returned, validate the procedure without it (at most
+        ``attempts`` times). Every rejected candidate is logged."""
+        report = self.validate_candidate(skill, ctx, validation_arguments, environment=environment, action=action)
+        dropped = 0
+        while not report["passed"] and dropped < attempts:
+            self.library.log_rejected(skill, report)
+            j = next((int(r["termination"].split(":")[1]) for r in report["runs"]
+                      if str(r.get("termination", "")).startswith("step_failed:")), None)
+            if j is None or j >= len(skill.steps) or not self.read_only(skill.steps[j]):
+                return skill, report
+            try:
+                skill = without_step(skill, j)
+            except SkillInductionError:
+                return skill, report
+            dropped += 1
+            report = self.validate_candidate(skill, ctx, validation_arguments, environment=environment, action=action)
+            report["dropped_observation_steps"] = dropped
+        if not report["passed"]:
+            self.library.log_rejected(skill, report)
+        return skill, report
+
+    # ---- discovery of recurring procedures and refinement by experience ----------------------------------
+    def changes_world(self, step: ActionSpec) -> bool:
+        t = self.inducer.tools.get(step.operation)
+        return step.operation in COMPOSABLE_SKILL_OPERATIONS or (t is not None and t.side_effects not in ("none", "external_read"))
+
+    def recurring_procedures(self, *, min_occurrences: int = 2, max_len: int = 8) -> List[Dict[str, Any]]:
+        """Segments of the executed (successful) actions, in execution order, that recur with the same operations
+        and argument names at least ``min_occurrences`` times without overlapping, change something in the world,
+        and are not already a validated skill — best (most repetitions x length) first."""
+        ids = list(self._buffer)
+        sig = [_signature(self._buffer[i][0]) for i in ids]
+        usable = [not protected_reasons(self._buffer[i][0]) for i in ids]
+        covered = {tuple(s.operations()) for s in self.library.list(STATUS_VALIDATED)}
+        lo = max(2, self.inducer.min_steps)
+        found: List[Dict[str, Any]] = []
+        for L in range(min(max_len, len(ids) // 2), lo - 1, -1):
+            starts: Dict[Tuple, List[int]] = {}
+            for st in range(len(ids) - L + 1):
+                if all(usable[st:st + L]):
+                    starts.setdefault(tuple(sig[st:st + L]), []).append(st)
+            for w, sts in starts.items():
+                occ, end = [], -1
+                for st in sts:
+                    if st > end:
+                        occ.append(st)
+                        end = st + L - 1
+                ops = tuple(x[0] for x in w)
+                if len(occ) < min_occurrences or ops in covered:
+                    continue
+                if not any(self.changes_world(self._buffer[ids[st + k]][0]) for k in range(L) for st in occ[:1]):
+                    continue
+                found.append({"operations": list(ops), "length": L, "occurrences": len(occ),
+                              "score": (len(occ) - 1) * L, "traces": [ids[st:st + L] for st in occ]})
+        found.sort(key=lambda d: (-d["score"], -d["length"]))
+        return found
+
+    def refine(self, skill_id: str, ctx: ExecContext, *, action: Optional[ActionSpec] = None,
+               environment: str = "staging") -> Tuple[Optional[Skill], Dict[str, Any]]:
+        """Efficiency from experience: once a skill has ``refine_after`` successful runs since it was last examined,
+        try the procedure without each step that only observes and whose result no later step uses; the first
+        shorter version that validates with fresh arguments becomes the next version."""
+        s = self.library.get(skill_id)
+        if s is None or s.status != STATUS_VALIDATED:
+            return None, {"passed": False, "reason": "not a validated skill"}
+        if s.successes - s.refined_at_successes < self.refine_after:
+            return None, {"passed": False, "reason": f"{s.successes - s.refined_at_successes} successful runs since "
+                                                     f"the last examination (needs {self.refine_after})"}
+        tried = []
+        for j in [k for k, st in enumerate(s.steps) if self.read_only(st)]:
+            try:
+                cand = without_step(s, j)
+            except SkillInductionError as e:
+                tried.append({"step": j, "reason": str(e)})
+                continue
+            cand.version, cand.parent_version = s.version + 1, s.version
+            cand.alpha, cand.beta, cand.runs, cand.successes = 1.0, 1.0, 0, 0
+            cand.applicability = dict(s.applicability)
+            rep = self.validate_candidate(cand, ctx, environment=environment, action=action)
+            tried.append({"step": j, "operation": s.steps[j].operation, "passed": rep["passed"],
+                          "reason": rep.get("reason", "")})
+            if rep["passed"]:
+                cand.provenance["refined_from_version"] = s.version
+                cand.refined_at_successes = 0
+                self.library.register(cand)
+                return cand, {"passed": True, "tried": tried, "primitive_steps": [len(s.steps), len(cand.steps)]}
+            self.library.log_rejected(cand, rep)
+        s.refined_at_successes = s.successes
+        self.library._save(s)
+        return None, {"passed": False, "tried": tried, "reason": "no shorter version validated"}
+
+    def _discover_action(self, action: ActionSpec, ctx: ExecContext) -> ActionResult:
+        """``skill.discover``: the library's own improvement from experience — the best recurring procedure of the
+        executed actions not yet covered is induced, validated and registered; skills with enough successful runs
+        are refined. One call executes validation runs, through the normal authorized path."""
+        self._refresh_tools()
+        a, started = action.arguments, ctx.clock.now()
+        found = self.recurring_procedures(min_occurrences=int(a.get("min_occurrences", 2)))
+        registered, reports = None, []
+        for cand in found[:3]:
+            for traces_ids in (cand["traces"][-4:], cand["traces"][-2:]):
+                try:
+                    traces = [self.trace_of(ids) for ids in traces_ids]
+                except KeyError:
+                    continue
+                skill, rep = self.induce_validate_register(traces, ctx, action=action)
+                reports.append({"operations": cand["operations"], "occurrences": cand["occurrences"],
+                                "passed": bool(skill), "reason": rep.get("reason", "")})
+                if skill is not None:
+                    registered = skill
+                    break
+            if registered is not None:
+                break
+        refined = []
+        if a.get("refine", True):
+            for s in self.library.list(STATUS_VALIDATED):
+                new, rep = self.refine(s.skill_id, ctx, action=action)
+                if new is not None:
+                    refined.append({"skill_id": new.skill_id, "version": new.version,
+                                    "steps": rep.get("primitive_steps")})
+        now = ctx.clock.now()
+        q = [Quantity("skill.discover.recurring", float(len(found)), kind=OutcomeKind.COUNT),
+             Quantity("skill.registered", 1.0 if registered else 0.0, kind=OutcomeKind.BINARY),
+             Quantity("skill.discover.refined", float(len(refined)), kind=OutcomeKind.COUNT)]
+        text = (f"{len(found)} recurring procedure(s) not yet in the library; "
+                + (f"skill {registered.skill_id} v{registered.version} registered" if registered else "none registered")
+                + (f"; refined {', '.join(r['skill_id'] for r in refined)}" if refined else ""))
+        data = {"recurring": [{k: v for k, v in c.items() if k != "traces"} for c in found[:8]], "attempts": reports,
+                "registered": bool(registered), "skill": self._summary(registered) if registered else None,
+                "refined": refined}
+        obs = Observation(obs_id=new_id("obs"), ts=now, kind="tool_result", text=text[:600], quantities=q,
+                          provenance=Provenance(source="skill_library", retrieved_at=now, trust=Trust.SELF),
+                          parent_action_id=action.action_id, data=data)
+        denied = any("denied" in str(r.get("reason", "")) or "needs_approval" in str(r.get("reason", "")) for r in reports)
+        if registered is None and not refined and found:
+            rep = classify(FailureEvidence(auth_verdict=AuthVerdict.DENY if denied else "", target_missing=not denied,
+                                           modality=Modality.SKILL, level=Level.PROCEDURE, detail=text))
+            return failed_result(action, rep, ctx.clock, started, observations=[obs],
+                                 status=ResultStatus.DENIED if denied else ResultStatus.FAILED)
+        return ActionResult(action_id=action.action_id, status=ResultStatus.OK, started=started, ended=now,
+                            observations=[obs], verified=True if (registered or refined) else None,
+                            artifacts={"skill_id": registered.skill_id} if registered else {})
 
     def repair(self, skill_id: str, traces: Sequence[Trace], ctx: ExecContext, *,
                validation_arguments: Optional[Sequence[Dict[str, Any]]] = None, probe: Optional[ActionSpec] = None,
@@ -1394,9 +2055,8 @@ class SkillExecutor:
         new.version, new.parent_version, new.created_at = old.version + 1, old.version, old.created_at
         new.provenance["repaired_from_version"] = old.version
         new.provenance["repair_reason"] = old.status_reason
-        report = self.validate_candidate(new, ctx, validation_arguments, environment=environment, action=action)
+        new, report = self._validate_dropping_observations(new, ctx, validation_arguments, environment, action)
         if not report["passed"]:
-            self.library.log_rejected(new, report)
             self.library.note_repair_failed(skill_id, report["reason"])
             return None, report
         self.library.register(new)
@@ -1417,7 +2077,7 @@ class SkillExecutor:
         if len(inputs) != len(a["traces"]):
             rep = classify(FailureEvidence(arg_errors=["arguments.inputs: one entry per trace"], modality=Modality.SKILL))
             return failed_result(action, rep, clock, started)
-        traces = [Trace.from_pairs([self._buffer[i] for i in ids], inputs=inp) for ids, inp in zip(a["traces"], inputs)]
+        traces = [self.trace_of(ids, inputs=inp) for ids, inp in zip(a["traces"], inputs)]
         probe = None
         if a.get("probe"):
             tool = self.inducer.tools.get(a["probe"]["operation"])
@@ -1433,6 +2093,10 @@ class SkillExecutor:
         else:
             skill, report = self.induce_validate_register(traces, ctx, name=a.get("name", ""),
                                                           description=a.get("description", ""), **kw)
+            if skill is None and len(traces) > 1 and "no reusable segment" in str(report.get("reason", "")):
+                # the traces do not share a procedure: the newest one alone
+                skill, report = self.induce_validate_register(traces[-1:], ctx, name=a.get("name", ""),
+                                                              description=a.get("description", ""), **kw)
         now = clock.now()
         runs = report.get("runs", [])
         q = [Quantity("skill.validation.runs", float(len(runs)), kind=OutcomeKind.COUNT),

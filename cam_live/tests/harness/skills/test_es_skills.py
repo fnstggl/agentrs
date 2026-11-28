@@ -285,7 +285,9 @@ def test_skill_generation_cannot_touch_authorization_or_the_verifier(tmp_path, n
         ActionSpec(action_id="x6", operation="sandbox.python", modality=Modality.CODE,
                    arguments={"path": "/srv/run/verifier.jsonl"}),
         ActionSpec(action_id="x7", operation="fs.write", modality=Modality.CODE, target="/var/cam/vault/discord_bot_token"),
-        ActionSpec(action_id="x8", operation="skill.run", modality=Modality.SKILL, arguments={"skill_id": skill.skill_id}),
+        # the library's own management operations stay out of skills; skill.run is composable (SG, spec 12A.9)
+        ActionSpec(action_id="x8", operation="skill.induce", modality=Modality.SKILL, arguments={"traces": [["a"]]}),
+        ActionSpec(action_id="x9", operation="skill.discover", modality=Modality.SKILL, arguments={}),
     ]
     for step in protected:
         assert protected_reasons(step), step.operation
@@ -449,7 +451,8 @@ def test_skill_tools_induce_list_describe(tmp_path, notes):
     http, lib, ex = setup(tmp_path)
     ctx = make_ctx(ScopedPolicy())
     assert {t.name: t.level for t in ex.tools()} == {"skill.run": Level.PROCEDURE, "skill.list": Level.PRIMITIVE,
-                                                      "skill.describe": Level.PRIMITIVE, "skill.induce": Level.PROCEDURE}
+                                                      "skill.describe": Level.PRIMITIVE, "skill.induce": Level.PROCEDURE,
+                                                      "skill.discover": Level.PROCEDURE}
     ids = []
     for title, body in (("first title", "first body"), ("second title", "second body")):
         pairs, _, _ = create_and_publish(http, ctx, notes.url, title, body)
