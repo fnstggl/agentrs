@@ -26,8 +26,10 @@ restored model then computes bit-identically what it computed before, tested) an
 where carrying the state lowers the losses. The chain's anchors live durably in `<run_dir>/learner/core_state.sqlite`
 (12 KB per decision at the 50m preset), the checkpoint records only its length and last decision id.
 
-**Configuration.** New optional section `persistent_state` (`enabled` true, `unroll` 2, `anchor_cache` 2048,
-`legacy_rho` 0.0); `nn` section and `arch_signature` unchanged.
+**Configuration.** New optional section `persistent_state` (`enabled`, `unroll` 2, `anchor_cache` 2048,
+`legacy_rho` 0.0); `nn` section and `arch_signature` unchanged. **Since `551ff3b` the default is `enabled: false`**
+(no measurable benefit on the evaluated experience, `docs/PS.md` §4.4; master's decision after ST found two
+integration properties that the carried state changes; they now hold at equal chain state, see `docs/PS.md` §3).
 
 **Tested** on a patched copy of the tree at e8af02c (this diff applied to agent.py, nothing else), PYTHONPATH pointing
 at it: `docs/PS.md` §3 (runtime path, checkpoint across rebuilds, existing agent / runtime test directories).

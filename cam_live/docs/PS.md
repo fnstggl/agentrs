@@ -20,7 +20,9 @@ effect; the one detectable effect is tiny — at debug scale the held-out codec 
 pairs (−0.027 nats, p = 0.012). The diagnosis (§5): in this experience what the predictions need is already held by the context window or, in
 longer objectives, by the per-objective fast posterior; the mechanism's benefit needs non-stationary or one-off
 information needed long after it left the window, which the evaluated experience does not contain — an empirical
-limitation of the evidence, not a defect found in the mechanism.
+limitation of the evidence, not a defect found in the mechanism. Accordingly the chain is **off by default**
+(`persistent_state.enabled: false`, §3): implemented, integrated, tested and one configuration line away, but not
+switched on without evidence that it helps.
 
 ## 1. Does the design before PS satisfy the specification? (audit at 87eab34)
 
@@ -90,6 +92,12 @@ restored with `ρ = 0` (`PersistentStateChain.load_state_dict(None)`, reported a
 it computed before, and learning opens `ρ` where carrying the state lowers the losses. 8 new
 parameters (n_slots) in the `experiential` group: 50m 50,953,773 (was 50,953,765); `arch_signature` unchanged.
 
+**Initial state, reset, export** (`initial()`, `reset()`). The carried state is experience-dependent state like the
+fast beliefs: a weights-only export carries no chain, so a model rebuilt from it starts at the initial chain state
+(every belief from the fresh state). `initial()` evaluates the live model at that state without changing anything;
+`reset()` starts a new segment (the next decision from the fresh state, no recomputation across the boundary, earlier
+records keep their states; boundaries are persisted with the chain).
+
 **Other change in the core.** The elapsed time between calls now runs from the previous call's newest event to this
 call's newest event (it used this call's first event, which in an overlapping re-encoded window predates the previous
 call's end, so it was always clamped to 0). Only carried states see it; fresh states are bit-identical.
@@ -97,7 +105,7 @@ call's end, so it was always clamped to 0). Only carried states see it; fresh st
 ## 3. Integration into the runtime (agent side: change request PS-1, applied by ST in `dde7d2d`)
 
 The agent-side threading is the exact diff in `docs/change_requests/PS.md` (PS-1, 11 hunks against agent.py at
-87eab34): the chain is attached in `__init__` (`persistent_state.enabled`, default on; file
+87eab34): the chain is attached in `__init__` (`persistent_state.enabled`; file
 `<run_dir>/learner/core_state.sqlite`), `_live()` blocks around `_belief`, `update_beliefs`' `belief_value`, and
 `evaluate`'s `evaluate_candidates` and `planner.plan`; `commit` in `record_result` (idempotent per decision id: the
 re-delivery of an approved result and the re-entry of journalled decisions after a restart (F-6) are handled); the
@@ -105,8 +113,19 @@ chain's bookkeeping in the agent checkpoint (`aux_state["agent"]["persistent_sta
 `status()["persistent_state"]`; `close()`. ST applied all hunks in `dde7d2d` (checked by grep at the time of
 writing). Nothing in predict/, credit/, reward/, runtime/ or learning_api.py changes: those modules call
 `core_forward(tokens, None)` and the model resolves it. Configuration: optional section `persistent_state`
-(`enabled` true, `unroll` 2, `anchor_cache` 2048, `legacy_rho` 0.0); the `nn` section and `arch_signature` are
-unchanged.
+(`enabled`, `unroll` 2, `anchor_cache` 2048, `legacy_rho` 0.0); the `nn` section and `arch_signature` are unchanged.
+
+**Default: off** (`enabled: false`, `551ff3b`). PS-1 first shipped with the chain on by default; ST then found two
+integration properties that the carried state changes (restoring the initial weights restores the initial decision
+distribution; a weights-only export read in a fresh process gives the agent's distribution). The master's decision:
+the chain state is experience-dependent state, like the fast beliefs, which a weights-only export (spec 15.3)
+deliberately excludes, so both properties hold *at equal chain state*: `PersistentStateChain.initial()` evaluates at
+the initial chain state (what an export computes) and `reset()` starts a new segment; the two tests compare at the
+initial chain state (edited with the master's permission), and a PS test checks both properties with the chain on
+(`test_weights_carry_the_learned_behaviour_at_equal_chain_state_and_export_starts_initial`). The default stays on
+only if the evidence shows the persistent state helps; §4.4 shows it does not measurably help on the evaluated
+experience, so the default is off. Turning it on is one configuration line; a run that turns it on later starts from
+the initial chain state (a checkpoint without chain bookkeeping takes the legacy path, `ρ = 0`).
 
 ## 4. Evidence (amendment item 8: correctness, integration, causal influence, measured improvement)
 
