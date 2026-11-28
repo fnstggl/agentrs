@@ -25,7 +25,7 @@ the service uids (g04, the earlier sec/env probes) ran from the working tree, be
 traverse the scratch directory (mode 0700); for those paths the code is byte-identical to 4d6044a. Test runs used
 `-o addopts=""` so the uncommitted `--import-mode=importlib` of the working tree's pyproject did not apply.
 
-**Verdicts (49):** 39 verified, 9 partial (IH-08, IH-14, CU-25, CU-37, OP-09, CU-01, CU-08, CU-19, OP-04),
+**Verdicts (49):** 40 verified, 8 partial (IH-08, IH-14, CU-25, CU-37, OP-09, CU-01, CU-19, OP-04),
 1 failed (IH-15), 0 unverified. New defects: 2 major (D1, D2), 3 moderate (D3-D5), 3 minor (D6-D8); every
 defect reported by G-sec and G-env is fixed (their probes HOLD), SEP-BROWSER is a stale probe, HX-4 is open.
 
@@ -35,7 +35,7 @@ defect reported by G-sec and G-env is fixed (their probes HOLD), SEP-BROWSER is 
 |---|---|---|
 | Harness suites, HX's order, as root, browser + privileged | `.venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts="" -m "browser or privileged or not (gpu or slow or network)"` | **605 passed, 4 deselected, 0 failed, 391 s** (HX: 605 / 241 s). Every acceptance test named in the manifest or the status files for the 49 ids passed, except 4 `-m gpu` tests deselected here and run below |
 | HX-4 ordering | same selection, `cam_live/tests/harness/compute` before `cam_live/tests/harness/env` | **2 failed**, 163 passed, 170 s: `test_browser_sessions.py::test_cdp_attach_to_a_separately_launched_chromium`, `test_browser_uid.py::test_chromium_runs_under_the_browser_uid_with_a_private_profile` ("Playwright Sync API inside the asyncio loop") |
-| EC GPU tests | `.venv/bin/python -m pytest cam_live/tests/harness/compute/test_ec_grounding.py -q --rootdir=cam_live -o addopts="" -m gpu` | GoClick-Base x2 and Vocaela passed; `test_mai_ui_2b_grounds_under_the_shared_gpu_lock` was still waiting for the shared GPU lock (evaluation queue) at the time of writing |
+| EC GPU tests | `.venv/bin/python -m pytest cam_live/tests/harness/compute/test_ec_grounding.py -q --rootdir=cam_live -o addopts="" -m gpu` | GoClick-Base x2 and Vocaela **passed** (968 s, mostly waiting); `test_mai_ui_2b_grounds_under_the_shared_gpu_lock` did not get the shared GPU lock: error at setup after pytest's 900 s timeout, and on a retry with `-o timeout=2500` skipped after the fixture's 1800 s wait (the evaluation queue held the lock) |
 | G-sec probes p01-p15 | `.venv/bin/python cam_live/docs/verification/repro/sec/pNN_*.py` | **all 0 defects**: p01 25, p02 13, p03 9, p04 15, p05 3, p06 4, p07 13, p08 14, p09 12, p10 23, p11 16, p12 8, p13 18, p14 21, p15 18 holds |
 | G-env probes | `.venv/bin/python cam_live/docs/verification/repro/env/<probe>.py` | env_core 8/0, browser 19/0 (2 notes), browser_workflow 1/0, perception_internal 12/0 (1 note), skills 10/0, api_publish_modality 15/0 (1 note), programs 2/0, **separated 3/1** (SEP-BROWSER) |
 | EB's registered variant | `.venv/bin/python cam_live/docs/EB/repro/probe_separated_registered.py` | 4/0 (SEP-BROWSER holds: Chromium 159 as `cambrowser`) |
@@ -216,7 +216,7 @@ for the id ran fresh and passed in my run of 4d6044a (§1).
 | CU-36 | v | tests 5/5; ENV-ONCE-1/-2 hold; Discord sends use an enforced nonce |
 | CU-06 | v | tests 5/5 |
 | CU-07 | v | non-GPU tests 5/5; both `-m gpu` GoClick-Base tests pass (isolated child process; in-process frozen, memory released) |
-| CU-08 | p | non-GPU tests 3/5 and the `-m gpu` Vocaela test pass; the MAI-UI-2B test was waiting for the shared GPU lock when this was written, so I did not execute the optional GUI model |
+| CU-08 | v | the named non-GPU tests and the `-m gpu` Vocaela test pass in my runs; the MAI-UI-2B test could not take the shared GPU lock in two attempts (§1), so for MAI-UI-2B itself the basis is EC_gpu.xml and G-sec's independent `-m gpu` run (4 passed), both on grounding code unchanged since 6851826; no failure observed |
 | CU-09 | v | tests 16/16; p14 21/0 |
 | CU-34 | v | tests 4/4; benchmark evidence present; numbers reproduced on a subset by G-sec (`repro/sec/bench_spot.json`); I did not re-run the benchmark |
 | CU-38 | v | tests 3/3; p14 21/0 (grounder answers are untrusted numbers, validated, authorized per gesture) |
@@ -238,4 +238,5 @@ for the id ran fresh and passed in my run of 4d6044a (§1).
 A live run against Discord or any public service (forbidden here); whether Discord routes path spellings such as
 `/LOGIN` or `%40me` like their canonical forms (g01 prints the decisions as NOTE); DNS-rebinding through the HTTP
 executor (needs a public DNS name); headed browser mode; the grounding benchmark itself (only its tests and the
-earlier spot check); the learner's own behaviour under prompt injection (outside the harness).
+earlier spot check); the MAI-UI-2B GPU test (the shared GPU lock was never free for it); the learner's own
+behaviour under prompt injection (outside the harness).

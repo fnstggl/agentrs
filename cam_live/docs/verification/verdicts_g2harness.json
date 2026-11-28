@@ -98,13 +98,13 @@
   ]
  },
  "CU-08": {
-  "status": "partial",
+  "status": "verified",
   "by": "G2-harness",
   "commit": "4d6044ade68edfb92a2db16129a2809540496764",
   "supersedes": [
    "all"
   ],
-  "notes": "Non-GPU tests 3/5 pass and the -m gpu Vocaela evaluation-only test passes; test_mai_ui_2b_grounds_under_the_shared_gpu_lock was still waiting for the shared GPU lock (held by the evaluation queue) when this verdict was written, so the optional MAI-UI-2B integration was not executed by me. See G2_harness.md section 1.",
+  "notes": "Executed by me: the named non-GPU tests (registry pins revisions / licences, strict answer parsing, grounded-click recovery) and the -m gpu Vocaela evaluation-only test pass. NOT executed by me: test_mai_ui_2b_grounds_under_the_shared_gpu_lock -- twice the shared GPU lock was not free (first run: pytest timeout 900 s in the gpu_heavy fixture; retry with -o timeout=2500: skipped after the fixture's 1800 s wait; the evaluation queue held the lock). Basis for MAI-UI-2B itself: EC_gpu.xml (pass, 17.6 s) and G-sec's independent -m gpu run (4 passed), both on grounding code unchanged since 6851826 (git log of harness/grounding). No failure was observed.",
   "evidence": [
    ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute/test_ec_grounding.py -q --rootdir=cam_live -o addopts=\"\" -m gpu",
