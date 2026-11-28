@@ -182,3 +182,47 @@ def test_settling_resumes_after_a_restart(tmp_path):
     assert len(fin) == 1 and fin[0]["data"]["pending_outcomes_carried"] == 0
     assert not [e for e in events if e["type"] == "action_start" and e["seq"] > _first_achieved_seq(events)]
     rt2.close()
+
+
+def test_an_approval_resolved_when_the_objective_ends_is_reported_not_left_approved(tmp_path):
+    """INT3B (measured in the real-configuration staging validation run 2): an approval the operator approved after
+    the objective's compute limit was used up stayed 'approved' for ever — never executed (correct) and never
+    reported to the learner. Now it is reported once as not executed when the objective ends."""
+    from rt_helpers import ApprovalPolicy
+
+    def edit(task):
+        task.limits.max_decisions = 4
+
+    policy = ApprovalPolicy(("lab.unlock",))
+    lab = make_lab(str(tmp_path / "run"), lab_cfg=LabConfig(seed=3, target=10000), task_edit=edit, policy=policy,
+                   agent_kw={"only_ops": ["lab.unlock", "lab.probe"]},
+                   rt_cfg=RuntimeConfig(fsync=False, settle_after_finish_s=0.0))
+    rt = lab.rt
+    for _ in range(40):
+        rt.step()
+        if policy.queue:
+            break
+    (aid,) = list(policy.queue)
+    lab.agent.only_ops = {"lab.probe"}
+    for _ in range(40):                                   # the decision budget is used up, the approval pending
+        if rt.counters["decisions"] >= 4:
+            break
+        rt.step()
+    assert rt.counters["decisions"] == 4 and rt.status == "running"
+    policy.resolve_approval(aid, True, "operator")        # approved at the service once nothing may run any more
+    for _ in range(40):
+        rt.step()
+        if rt.status != "running":
+            break
+    assert rt.status == EXHAUSTED
+    st = RunReader(lab.run_dir).state()
+    assert st["approvals"][aid]["status"] == "reported"   # before INT3B: left 'approved' for ever
+    action_id = [a for a, s in lab.agent.results if s == "needs_approval"][0]
+    assert [s for a, s in lab.agent.results if a == action_id] == ["needs_approval", "failed"]   # reported once
+    assert lab.world._unlocked_at is None                 # and not executed
+    fin = [e for e in RunReader(lab.run_dir).records(RunFiles.EVENTS) if e["type"] == "objective_finished"][-1]
+    assert fin["data"]["approvals_closed_unexecuted"] == 1 and fin["data"]["approvals_pending"] == 0
+    res = [e["data"] for e in RunReader(lab.run_dir).records(RunFiles.EVENTS, types=["action_result"])
+           if e["data"]["action_id"] == action_id]
+    assert res[-1]["kind"] == "over_limit" and "objective ended first" in res[-1]["failure_detail"]
+    rt.close()

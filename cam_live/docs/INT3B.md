@@ -140,11 +140,95 @@ executor's notebook / request file; output anywhere the operator says, Markdown 
 
 ## 5. Staging validation (LX-11, CM-04)
 
-(filled in below from the executed run)
+Changes (`validation.py`): the computer phase gets a compute limit (`compute_limit_s`, default 8 s per decision of
+its budget: about half of the 16 s per decision measured on the real configuration in staging_20261127T223510Z) that
+ends it before its decision budget — a resource limit legitimately reached first, checkpointed by the runtime;
+`resource_limit_exercised` holds for any enforced limit except the decision budget (an action refused for it, or the
+objective ended by it); LabWorld lifetimes drain (S-1) and settle, so each lifetime ends with the verifier's signed
+terminal verdict (an independent verified group for the meta-learner) without one more decision;
+`meta_min_independent` is a parameter (default 4, the earlier value); `cam-live validate` passes `--budget-s`,
+`--meta-min-independent`, `--computer-share`; the lock wait is the queued lease (the 1800 s polling timeout of
+`nn.gpu.gpu_lock` expired once behind another tenant).
+
+**Run 1** (`docs/evidence/validation/staging_20261128T004747Z.json`; `cam-live validate --mode staging --real-model
+--decisions 40 --budget-s 840 --meta-min-independent 3 --computer-share 0.2`, code fc96aeb; lock 546 s, peak
+18.5 GB): **13 of 16 checks hold, not passed.** Now holding: `resource_limit_exercised` (computer phase ended by
+`limit compute_s exhausted`, 71 s of 64 s at decision 4 of 8). Holding as before: computer-environment decisions, no
+grant refusals, recovery (interruption + restart from disk in lifetime 2), logging, 4 verified lifetimes (3 closed:
+failed 5/6, achieved 32/30, achieved 13/10; one still pending at its step budget), predictions before outcomes (167
+resolved), internal rewards, experiential (51 non-zero) and adapter (13) weight changes, 52 delayed-outcome links,
+behaviour change on the held-out context (TV 0.60) explained by the weights (TV 0.0 after restoring them).
+Failing: `approvals_exercised` — none of the 4 computer decisions chose an action that needed approval (0 requested;
+the compute limit shortened the phase); `meta_update_applied` / `meta_step_changes_policy` — 0 applied: 34 skips for
+fewer than 3 independent groups, 5 effective-sample-size-too-small, 2 no policy update yet.
+
+**Run 2** (`docs/evidence/validation/staging_20261128T005844Z.json`; the same entry point called with more
+independent lifetimes: `run_staging(real_model=True, n_decisions=46, budget_s=840, computer_share=0.22,
+lab_seeds=(101..106), lab_target=(6, 30, 10, 40, 8, 20), meta_min_independent=3, compute_limit_s=140)`; worktree at
+3e29595 = INT3B fc96aeb + INT3A's later agent commits; lock 809 s, peak 18.7 GB, wall 892 s): **15 of 16 checks
+hold, not passed.** Now holding as well: `meta_update_applied` — 2 reward meta-updates applied with non-zero
+meta-gradients (norms 40.7 and 15.4, importance-weighted, 3 independent groups each; reward-parameter deltas 0.097
+and 0.062; 50 skips for insufficient groups, 5 ESS too small) — and `meta_step_changes_policy` — the inner update
+recomputed with psi after vs before the step changes the policy on the support decisions (mean TV 0.22 / 0.011, max
+probability difference 0.24 / 0.019). 6 lifetimes, 5 closed by signed verdicts (2 achieved, 3 failed), one stopped
+by the budget. Still failing: `approvals_exercised` — one approval was requested and approved by the validation's
+operator, but the computer phase's compute limit ended the objective before the runtime processed it (an approved
+action is executed only while no limit is exhausted), so nothing was executed after an approval; no rejection was
+resolved by the operator. Configuration used for the meta checks, documented: `meta_min_independent_outcomes` 3 (the
+live default is 8; 4 in the earlier validations) and six lifetimes of 6 decisions, each drained to a signed verdict.
 
 ## 6. Whole suite in one process (INT2-5)
 
-`cam_live/pyproject.toml`: `addopts = "--import-mode=importlib"`; `tests/conftest.py` appends the helper directories
-(`credit`, `runtime`, `integration`, `nn`, `harness/env`, `harness/auth`, `harness/skills`) to `sys.path` and loads
-`tests/credit/conftest.py` as the module `conftest` (the credit tests' `from conftest import build_record`). No file
-was renamed. (Results below.)
+`cam_live/pyproject.toml`: `addopts = "--import-mode=importlib"` (module names from the path: the two
+`test_providers.py` no longer clash); `tests/conftest.py` appends the helper directories (`credit`, `runtime`,
+`integration`, `nn`, `harness/env`, `harness/auth`, `harness/skills`) to `sys.path` and makes `tests/credit/conftest.py`
+the module `conftest` at import, at the collection of every credit file and before every credit test (pytest itself
+imports a conftest whose directory is on `sys.path` as top-level `conftest`: the first whole-suite run had 5 credit
+failures `cannot import name 'build_record' from 'conftest' (tests/harness/skills/conftest.py)`). No file was renamed.
+`pytest cam_live/tests --collect-only`: 1501 collected, 0 errors (before: 1492 collected, 1 error).
+
+First whole-suite run (scratch, before the conftest fix): 1414 passed, 93 skipped, 9 failed in 2328 s — 5 the conftest
+clash (fixed), 2 INT2 tests outdated by INT3A's parser fix of INT2-9 and by the operator's filled planning task
+(updated), `test_int3a_lrn6` (INT3A's; the first promotion of its two-lifetime scenario was refused for want of a
+held-out validation metric — the same scenario failed once and passed twice in `test_int2_checkpoints` with the
+settle phase on, and passed with it off: trajectory-dependent, see §8), and `harness/compute/test_ec_jobs` (a job's
+streamed output read as `'phase one'` vs `'phase one\n'` under load; not mine). Final run: see §9.
+
+## 7. Claims (status F.json, M-int.json)
+
+* **LX-07** experiment logging — implemented: experiments.jsonl from the integrated agent's `drain_experiments`
+  (6 registry records in rehearsal B), learner-reported actuals kept apart (D10 test), plan report exports them.
+* **LX-17** secondary metrics separate — implemented (verifier test); in staging only resource use and time exist.
+* **LX-19** after verified success: stop with the learner state checkpointed (settle, forced commit) or the next
+  queued objective — implemented, LabWorld tests only.
+* **LX-20** durable, timestamped, provenance, redacted — implemented (tests; rehearsal token scan 0 matches; loopback
+  IPv4 over-redacted).
+* **CL-06** restart — runtime side: settle state restored, kill -9 tests, validation recovery check; G-cl's real-model
+  embedding-cache difference not addressed (partial stays as D / M-int had it).
+* **OP-05** Discord observations into the experience pipeline — partial: shown in staging (4 observations as store
+  items, 8 records of Discord actions, learned from in the same run's frequent updates); nothing live.
+* **OP-11** planning phase — partial: prerequisites rehearsed in staging (objective verbatim, requests, queued writes,
+  learning); the live planning run was not started (not mine to start; needs the operator).
+* **LX-11** staging validation — partial (run 2: 15 of 16 checks; approvals not exercised); **CM-04** — implemented.
+
+## 8. Not done / limits
+
+* **No live run.** The planning phase itself (`tasks/discord_100_planning.yaml`, live) was not started; nothing
+  contacted discord.com. The rehearsal is staging only.
+* **CAM wrote no notes** in 30 decisions of segment B (no plan, hypotheses or lessons); its operator requests are its
+  only planning output. Whether more decisions or another configuration change this is not measured.
+* **Open-ended generation needs a wider prompt window** than the default on the planning task (INT3B-4; INT3A has
+  since shortened tool descriptions when the tool list alone exceeds the window — not re-measured by me).
+* **Decision speed** on the real configuration: median 22 s, but single cycles took up to 13 minutes under load (the
+  learner was CPU-bound; GPU 0-25 % busy). A GPU hold can overrun `gpu_hold_s` by one such cycle (measured 1234 s).
+* **Staging validation not passed**: 15 of 16 checks in run 2; `approvals_exercised` fails (the one approved action
+  came after the compute limit ended the objective — an approved action still waiting when an objective ends is left
+  in state `approved`, never executed nor reported back to the learner: a small runtime gap, not fixed). The
+  meta-update checks hold with a staging-scale threshold (3 groups) and six lifetimes; with 4 lifetimes (run 1) they
+  did not.
+* **Settle and promotions**: with the settle phase on, lifetimes run more learning cycles after their verdict; the
+  two-lifetime promotion scenario of `test_int2_checkpoints` / `test_int3a_lrn6` failed once each (first promotion
+  refused: "no independent validation metric supplied") and passed on repeats; a repeat study was started and stopped
+  (CPU contention with the rehearsal), so the failure rate with and without settle is not measured.
+* `harness/compute/test_ec_jobs::test_status_is_observable_while_running_and_cancel_stops_the_job` failed once under
+  load (not my code).

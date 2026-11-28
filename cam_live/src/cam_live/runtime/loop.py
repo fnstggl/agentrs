@@ -1709,9 +1709,40 @@ class LiveRuntime:
             return False
         return self.clock.now() >= float(s["until"]) or self._maturing_by(float(s["until"])) == 0
 
+    def _close_resolved_approvals(self, status: str, reason: str) -> int:
+        """An objective that ends while the operator has already resolved some of its approvals: each is reported
+        to the learner once — an approved one as not executed (the objective ended first; nothing runs after the
+        end of an objective), a rejected one as denied — so none stays 'approved' in the record forever. Approvals
+        still pending at the authorization service are left as they are (counted in ``objective_finished``)."""
+        self._refresh_approvals()
+        n = 0
+        for aid in list(self.approvals):
+            a = self.approvals.get(aid)
+            if a is None or a["status"] not in ("approved", "rejected"):
+                continue
+            raw = self._approval_raw.get(aid) or {}
+            if not raw.get("decision"):
+                continue
+            decision = Decision.from_dict(raw["decision"])
+            action, preds = decision.chosen, list(raw.get("preds") or [])
+            if a["status"] == "approved":
+                limit = status == EXHAUSTED
+                res = self._synthetic(action, ResultStatus.FAILED if limit else ResultStatus.CANCELLED,
+                                      FailureClass.RESOURCE_LIMIT if limit else FailureClass.NONE,
+                                      f"approved by the operator, but the objective ended first ({reason}); "
+                                      "not executed")
+                self._complete(decision, res, "over_limit" if limit else "cancelled", preds, aid, new_decision=False)
+            else:
+                self._complete(decision, self._synthetic(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
+                                                         f"the operator rejected approval {aid}"),
+                               "rejected", preds, aid, new_decision=False)
+            n += 1
+        return n
+
     def _finish(self, status: str, reason: str) -> None:
         self._finish_wait()
         settle, self._settle = self._settle, None
+        closed = self._close_resolved_approvals(status, reason)
         self._commit(force=True)
         self.status, self.status_reason = status, reason
         self._set_activity("finished", reason)
@@ -1729,7 +1760,11 @@ class LiveRuntime:
                                               "settle": None if settle is None else
                                               {k: settle[k] for k in ("since", "until", "pending_at_end",
                                                                       "maturing_in_window", "measured", "cycles")},
-                                              "pending_outcomes_carried": carried}, consequential=True)
+                                              "pending_outcomes_carried": carried,
+                                              "approvals_closed_unexecuted": closed,
+                                              "approvals_pending": sum(1 for a in self.approvals.values()
+                                                                       if a.get("status") == "pending")},
+                       consequential=True)
         self._journal()
         self._save_state()
         if self._next_tasks:
