@@ -610,7 +610,10 @@ class HindsightProvider:
         idx = torch.nonzero(ok).flatten()
         if idx.numel() > self.max_pairs:
             idx = idx[torch.randperm(idx.numel(), device=idx.device)[:self.max_pairs]]
-        loss, m = self.hindsight.loss(b[idx], u[idx], cand[idx], mask[idx], taken[idx], logp[idx], el[idx])
+        # bootstrap weights (Poisson draws from the global generator) only for a training step: a held-out
+        # evaluation is deterministic, so the guard's paired before / after comparison measures the step (DX round 2)
+        loss, m = self.hindsight.loss(b[idx], u[idx], cand[idx], mask[idx], taken[idx], logp[idx], el[idx],
+                                      bootstrap=_training_call())
         m.update({"n_pairs": float(idx.numel()), "n_trajectories": float(n_traj)})
         return loss / len(self.hindsight.members), m
 

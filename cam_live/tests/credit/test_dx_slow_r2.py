@@ -194,3 +194,53 @@ def test_a_rejected_step_shrinks_the_next_adapter_step_and_accepted_ones_grow_it
     probe.eval_sign = -1.0
     rec, notes = _slow(L)
     assert not notes["guard"]["accepted"] and L.slow_guard_state["step_scale"] == 1.0 / 16    # bounded below
+
+
+class _Scaler:
+    def __init__(self):
+        self.stats = {"loc": 0.0}
+
+    def state(self):
+        return {"stats": dict(self.stats)}
+
+    def load_state(self, s):
+        self.stats = dict(s["stats"])
+
+
+class _Heads:
+    def __init__(self):
+        self.scaler = _Scaler()
+
+
+class Normalised(Linear):
+    """Like predict.providers' world loss: evaluated with gradients it updates running statistics (a scaler of the
+    targets and a model buffer) that the held-out loss is measured in."""
+
+    def __init__(self, name, s, buf, **kw):
+        super().__init__(name, s, **kw)
+        self.heads, self.buf = _Heads(), buf
+
+    def loss(self, model, batch, store):
+        v, m = super().loss(model, batch, store)
+        if torch.is_grad_enabled():
+            self.heads.scaler.stats["loc"] += 1.0
+            with torch.no_grad():
+                self.buf += 1.0
+        return v * (1.0 + 0.05 * self.heads.scaler.stats["loc"]) * (1.0 + 0.05 * float(self.buf)), m
+
+
+def test_the_slow_step_does_not_move_running_statistics_so_the_guard_measures_the_adapter_change(lab_factory):
+    """G2-learn round 2's world-model 'degradations' of 1-8 % per slow step: the step's own loss evaluation updated
+    the world model's KindNormaliser buffers and the target scaler, so the held-out loss after the step was measured
+    in other units. A loss that does not depend on the adapters (s = 0) must show a paired change of exactly 0."""
+    lab = _lab(lab_factory)
+    L, m = lab.learner, lab.model
+    m.register_buffer("dx_running", torch.zeros(()))
+    L.register(Linear("driver", s=1400.0))
+    p = L.register(Normalised("normalised", s=0.0, buf=m.dx_running))
+    L.refresh_eligibility(full=True)
+    rec, notes = _slow(L)
+    g = notes["guard"]
+    assert g["by_provider"]["normalised"]["paired_change"] == 0.0 and g["accepted"]
+    assert set(notes["running_state_restored"]) >= {"dx_running", "_Scaler"}
+    assert p.heads.scaler.stats["loc"] == 0.0 and float(m.dx_running) == 0.0

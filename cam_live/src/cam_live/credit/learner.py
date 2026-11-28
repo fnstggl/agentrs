@@ -744,6 +744,34 @@ class ContinualLearner:
         new.update(out)
         return new, info
 
+    def _running_state(self) -> Dict[str, Any]:
+        """Running statistics that a loss evaluated with gradients updates as a side effect: every model buffer
+        (e.g. the world model's ``KindNormaliser`` loss scales) and the providers' ``heads.scaler`` (the real-valued
+        target normaliser). A slow step computes the losses only for their adapter gradient; without restoring these,
+        the held-out losses after the step were measured in shifted units, which G2-learn round 2 saw as world-model
+        "degradations" of 1-8 % that no adapter change caused (DX round 2)."""
+        bufs = {n: b.detach().clone() for n, b in self.model.named_buffers()}
+        scalers = {}
+        for p in self.providers:
+            sc = getattr(getattr(p, "heads", None), "scaler", None)
+            if sc is not None and hasattr(sc, "state") and hasattr(sc, "load_state") and id(sc) not in scalers:
+                scalers[id(sc)] = (sc, sc.state())
+        return {"buffers": bufs, "scalers": scalers}
+
+    @torch.no_grad()
+    def _restore_running_state(self, snap: Dict[str, Any]) -> List[str]:
+        changed = []
+        for n, b in self.model.named_buffers():
+            old = snap["buffers"].get(n)
+            if old is not None and old.shape == b.shape and not torch.equal(old.to(b.device), b):
+                b.copy_(old.to(b.device))
+                changed.append(n)
+        for sc, st in snap["scalers"].values():
+            if sc.state() != st:
+                sc.load_state(st)
+                changed.append(f"{type(sc).__name__}")
+        return changed
+
     def _reader_sensitivity(self, batch: DecisionBatch, params: Sequence[torch.nn.Parameter], validated: set,
                             have: set) -> Dict[str, List[Optional[Tensor]]]:
         """Adapter gradients of judged providers that read the representation but do not train the adapters (they
@@ -1022,11 +1050,13 @@ class ContinualLearner:
         probe_before = self.probe()
         was = model.training
         model.train()
+        running = self._running_state()          # the slow step changes the adapters only (see _running_state)
         try:
             batch = encode_with_adapter_grad(model, self.store, records, grad_last=s.grad_last, with_next=s.with_next)
             losses, metrics, grads, rows_used = self._collect(providers, batch, params)
         finally:
             model.train(was)
+            notes["running_state_restored"] = self._restore_running_state(running)
         if FAULT_HOOK is not None:
             FAULT_HOOK(TIMESCALE_SLOW, "after_backward")
         rec.losses, rec.n_experiences, rec.exp_ids = losses, len(records), [r.exp_id for r in records]
