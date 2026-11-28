@@ -161,3 +161,4 @@ class CreditUnits:
             return True
         u = int(hashlib.sha1(f"{seed}|segment-split|{objective_id}".encode()).hexdigest()[:8], 16) / 2.0 ** 32
         return math.floor(u + (k + 1) * f) > math.floor(u + k * f)
+        # (the learner applies this from k = 1 on; segment 0 keeps the record split, credit/learner.py)

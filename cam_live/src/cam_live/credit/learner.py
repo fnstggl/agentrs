@@ -387,9 +387,10 @@ class ContinualLearner:
             self.trained_units |= self._unit_ids(recs)
 
     def _segment_held_out(self, rec: ExperienceRecord) -> Optional[bool]:
-        """Blocked split (``val_split="segment"``): the record's segment (``credit.segments``) is held out as a
-        whole, every 1/f-th segment of the objective. None (record split instead) when the assigner has no segments,
-        the record is older than the switch, or its position is unknown."""
+        """Blocked split (``val_split="segment"``): from the second segment on, the record's segment
+        (``credit.segments``) is held out as a whole, every 1/f-th segment of the objective. None (record split
+        instead) for the first segment, when the assigner has no segments, the record is older than the switch, or its
+        position is unknown."""
         u = self._units()
         if u is None or int(rec.seq or 0) < self._segment_switch():
             return None
@@ -399,7 +400,9 @@ class ContinualLearner:
         if hit is not None:
             return hit
         k = u.segment_index(rec)
-        if k is None:
+        if k is None or k == 0:
+            # the first segment keeps the record split: a short lifetime (fewer than K decisions) trains and still has
+            # held-out records (INT3A-5's guarantee); blocks are held out from the second segment on
             return None
         out = u.held_out_segment(rec.objective_id, k, s.val_fraction, s.seed)
         if len(self._val_cache) > 200_000:

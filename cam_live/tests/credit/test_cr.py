@@ -253,9 +253,10 @@ def test_segment_split_holds_out_whole_segments_and_their_randomised_decisions_a
         by_seg = {}
         for r in recs:
             by_seg.setdefault(u.segment_index(r), set()).add(lab.learner.is_validation(r))
-        assert all(len(v) == 1 for v in by_seg.values())               # a segment is on one side only
-        held = sorted(k for k, v in by_seg.items() if True in v)
-        assert len(held) == 10 // 4 or len(held) in (2, 3)               # every 4th of 10 segments
+        assert by_seg[0] == {True, False}                              # segment 0 keeps the record split
+        assert all(len(v) == 1 for k, v in by_seg.items() if k)        # later segments: one side each
+        held = sorted(k for k, v in by_seg.items() if k and True in v)
+        assert len(held) in (2, 3)                                     # every 4th of segments 1-9
         lab.learner.refresh_eligibility(full=True)
         lab.assigner.assign([r.exp_id for r in recs])
         for _ in range(3):
