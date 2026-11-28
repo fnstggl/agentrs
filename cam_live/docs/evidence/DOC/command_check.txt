@@ -1,10 +1,13 @@
-# CAM Live — command check for docs/REPRODUCE.md (DOC agent, 2026-11-27 23:15-23:40 UTC)
-# Worktree /workspace/camlive at d3ce519 (help + executed checks; later commits d086a55 / 55a0f4c add tools/launch_live.sh and
-# tasks/discord_launch_check.yaml, checked separately below). Interpreter /workspace/camlive/.venv/bin/python (3.12.15).
-# CAM_LIVE_HOME=<DOC scratch>/repro/home for every command; run from /workspace/camlive. No command contacted an external
-# service; no live run, no service started as root, push_milestone.sh not run, no secret read or printed.
-# Columns: exit code | id | command | first output line (help checks) / duration + first line (executed checks).
-# Scratch paths are shortened to <S> = /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/DOC/repro.
+# CAM Live — command check for docs/REPRODUCE.md (DOC agent, 2026-11-28)
+# Code: worktree /workspace/camlive, branch feat/cam-live, HEAD fdab7d3 (no later commit touches cam_live/src, tools,
+# configs, tasks or pyproject.toml). Interpreter /workspace/camlive/.venv/bin/python (3.12.15).
+# Produced by cam_live/docs/evidence/DOC/scripts/check_help.sh (07:21-07:22 UTC) and check_exec.sh (07:41:36-07:47:39 UTC);
+# CAM_LIVE_HOME=<S>/home for every command; run from /workspace/camlive. No command contacted an external service;
+# no live run, no service started as root, nothing pushed, push_milestone.sh not run, authorize_live.py only --help,
+# no secret read or printed. Model-building commands ran with CUDA_VISIBLE_DEVICES= and CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock.
+# <S> = /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/DOC/r3_re
+# Columns: exit code | id | command | first non-empty output line (help) /
+#          exit code | id | duration | command | first output line | last line matching the check's pattern (exec)
 
 ## 1. --help checks (argparse parses --help before any work)
 0	cam-live	.venv/bin/cam-live --help	usage: cam-live [-h]
@@ -23,10 +26,11 @@
 0	cam-live_reject	.venv/bin/cam-live reject --help	usage: cam-live reject [-h] [--config CONFIG] [--run-dir RUN_DIR]
 0	cam-live_export-checkpoint	.venv/bin/cam-live export-checkpoint --help	usage: cam-live export-checkpoint [-h] [--config CONFIG] [--run-dir RUN_DIR]
 0	cam-live_journal	.venv/bin/cam-live journal --help	usage: cam-live journal [-h] [--config CONFIG] [--run-dir RUN_DIR]
+0	cam-live_plan-report	.venv/bin/cam-live plan-report --help	usage: cam-live plan-report [-h] [--config CONFIG] [--run-dir RUN_DIR]
 0	cam-live_dashboard	.venv/bin/cam-live dashboard --help	usage: cam-live dashboard [-h] [--config CONFIG] [--run-dir RUN_DIR]
 0	cam-live_evaluate-transfer	.venv/bin/cam-live evaluate-transfer --help	usage: cam-live evaluate-transfer [-h] [--config CONFIG] [--json] --checkpoint
 0	cam-live_verify-completion	.venv/bin/cam-live verify-completion --help	usage: cam-live verify-completion [-h] [--merge-status] [--only ONLY]
-0	cli_module	.venv/bin/python -m cam_live.runtime.cli --help	usage: cam-live [-h]
+0	cam_live.runtime.cli	.venv/bin/python -m cam_live.runtime.cli --help	usage: cam-live [-h]
 0	cam_live.runtime.loop_service	.venv/bin/python -m cam_live.runtime.loop_service --help	usage: cam_live.runtime.loop_service [-h] --run-dir RUN_DIR [--socket SOCKET]
 0	cam_live.runtime.verifier_service	.venv/bin/python -m cam_live.runtime.verifier_service --help	usage: cam_live.runtime.verifier_service [-h] --run-dir RUN_DIR
 0	cam_live.harness.credentials	.venv/bin/python -m cam_live.harness.credentials --help	usage: cam_live.harness.credentials [-h] --run-dir RUN_DIR [--dest DEST]
@@ -34,15 +38,19 @@
 0	cam_live.harness.auth.launcher	.venv/bin/python -m cam_live.harness.auth.launcher --help	usage: cam_live.harness.auth.launcher [-h] --run-dir RUN_DIR
 0	cam_live.harness.auth.service	.venv/bin/python -m cam_live.harness.auth.service --help	usage: cam_live.harness.auth.service [-h] --run-dir RUN_DIR --socket SOCKET
 0	cam_live.harness.service	.venv/bin/python -m cam_live.harness.service --help	usage: python -m cam_live.harness.service [-h] --run-dir RUN_DIR --socket
+0	cam_live.harness.sandbox_host	.venv/bin/python -m cam_live.harness.sandbox_host --help	usage: cam_live.harness.sandbox_host [-h] --run-dir RUN_DIR --socket SOCKET
 0	cam_live.harness.operator_requests	.venv/bin/python -m cam_live.harness.operator_requests --help	usage: cam_live.harness.operator_requests [-h] --run-dir RUN_DIR [--note NOTE]
 0	cam_live.harness.staging	.venv/bin/python -m cam_live.harness.staging --help	usage: __main__.py [-h] [--base-port BASE_PORT]
 0	cam_live.harness.browser	.venv/bin/python -m cam_live.harness.browser --help	usage: python -m cam_live.harness.browser [-h] [--install-shared]
 0	cam_live.harness.grounding.bench	.venv/bin/python -m cam_live.harness.grounding.bench --help	usage: bench.py [-h] [--grounders GROUNDERS] [--per-family PER_FAMILY]
 0	cam_live.eval.cli	.venv/bin/python -m cam_live.eval.cli --help	usage: python -m cam_live.eval.cli [-h]
 0	cam_live.eval.oe_runner	.venv/bin/python -m cam_live.eval.oe_runner --help	usage: python -m cam_live.eval.oe_runner [-h] {sequence,transfer} ...
-0	cam_live.eval.proposal_probe	.venv/bin/python -m cam_live.eval.proposal_probe --help	usage: proposal_probe.py [-h] [--family FAMILY] [--problem PROBLEM]
+0	cam_live.eval.oe_batch	.venv/bin/python -m cam_live.eval.oe_batch --help	usage: python -m cam_live.eval.oe_batch [-h] [--plan {v3,v3x5}] [--only ONLY]
+0	cam_live.eval.proposal_probe	.venv/bin/python -m cam_live.eval.proposal_probe --help	usage: proposal_probe.py [-h] [--plan PLAN] [--family FAMILY]
 0	cam_live.eval.transfer	.venv/bin/python -m cam_live.eval.transfer --help	usage: cam-live evaluate-transfer [-h] [--checkpoint CHECKPOINT]
 0	cam_live.eval.report	.venv/bin/python -m cam_live.eval.report --help	usage: report.py [-h] [--tag TAG]
+0	cam_live.eval.v3_report	.venv/bin/python -m cam_live.eval.v3_report --help	usage: v3_report.py [-h] --out-dir OUT_DIR [--budget BUDGET]
+0	cam_live.eval.meta_checks	.venv/bin/python -m cam_live.eval.meta_checks --help	usage: python -m cam_live.eval.meta_checks [-h] --root ROOT --result RESULT
 0	cam_live.verify_completion	.venv/bin/python -m cam_live.verify_completion --help	usage: cam-live verify-completion [-h] [--merge-status] [--only ONLY]
 0	cam_live.nn.bench	.venv/bin/python -m cam_live.nn.bench --help	usage: bench.py [-h] [--skip-gpu] [--config CONFIG] [--out OUT]
 0	cam_live.nn.fast_compare	.venv/bin/python -m cam_live.nn.fast_compare --help	usage: fast_compare.py [-h] [--steps STEPS] [--seeds SEEDS [SEEDS ...]]
@@ -50,9 +58,11 @@
 0	cam_live.reward.diagnose	.venv/bin/python -m cam_live.reward.diagnose --help	usage: diagnose.py [-h] [--out OUT] [--seeds SEEDS] [--lifetimes LIFETIMES]
 0	cam_live.reward.evidence	.venv/bin/python -m cam_live.reward.evidence --help	usage: evidence.py [-h] --out OUT [--device DEVICE] [--reps REPS]
 0	cam_live.credit.diagnose	.venv/bin/python -m cam_live.credit.diagnose --help	usage: diagnose.py [-h] [--only ONLY] [--out OUT] [--work WORK] [--real]
+0	opctl_init-operator-key	.venv/bin/python -m cam_live.harness.auth.opctl init-operator-key --help	usage: cam_live.harness.auth.opctl [-h] [--run-dir RUN_DIR] [--note NOTE]
 0	eval.cli_run	.venv/bin/python -m cam_live.eval.cli run --help	usage: python -m cam_live.eval.cli run [-h] --condition CONDITION
 0	eval.cli_anchors	.venv/bin/python -m cam_live.eval.cli anchors --help	usage: python -m cam_live.eval.cli anchors [-h] [--family FAMILY]
 0	eval.cli_batch	.venv/bin/python -m cam_live.eval.cli batch --help	usage: python -m cam_live.eval.cli batch [-h] --plan {main_cpu,pilot}
+0	eval.cli_transfer-batch	.venv/bin/python -m cam_live.eval.cli transfer-batch --help	usage: python -m cam_live.eval.cli transfer-batch [-h] --name NAME
 0	eval.cli_analyse	.venv/bin/python -m cam_live.eval.cli analyse --help	usage: python -m cam_live.eval.cli analyse [-h] [--plan PLAN] [--tag TAG]
 0	eval.cli_integrity	.venv/bin/python -m cam_live.eval.cli integrity --help	usage: python -m cam_live.eval.cli integrity [-h] [--seeds SEEDS]
 0	eval.cli_meta	.venv/bin/python -m cam_live.eval.cli meta --help	usage: python -m cam_live.eval.cli meta [-h] [--plan PLAN] [--seeds SEEDS]
@@ -63,54 +73,111 @@
 0	tools_authorize_live	.venv/bin/python cam_live/tools/authorize_live.py --help	usage: authorize_live.py [-h] --task TASK --private PRIVATE --out OUT --hours
 0	tools_discord_live_check	.venv/bin/python cam_live/tools/discord_live_check.py --help	usage: discord_live_check [-h] [--run-dir RUN_DIR] [--task TASK]
 0	tools_prune_runs	.venv/bin/python cam_live/tools/prune_runs.py --help	usage: prune_runs.py [-h] [--keep KEEP] [--keep-optim KEEP_OPTIM]
-0	eval.cli_transfer-batch	.venv/bin/python -m cam_live.eval.cli transfer-batch --help	usage: python -m cam_live.eval.cli transfer-batch [-h] --name NAME
+0	tools_planning_rehearsal	.venv/bin/python cam_live/tools/planning_rehearsal.py --help	usage: planning_rehearsal.py [-h] {prepare,serve,holds,check} ...
+0	planning_rehearsal_prepare	.venv/bin/python cam_live/tools/planning_rehearsal.py prepare --help	usage: planning_rehearsal.py prepare [-h] --root ROOT [--config CONFIG]
+0	planning_rehearsal_serve	.venv/bin/python cam_live/tools/planning_rehearsal.py serve --help	usage: planning_rehearsal.py serve [-h] --root ROOT
+0	planning_rehearsal_holds	.venv/bin/python cam_live/tools/planning_rehearsal.py holds --help	usage: planning_rehearsal.py holds [-h] --root ROOT [--decisions DECISIONS]
+0	planning_rehearsal_check	.venv/bin/python cam_live/tools/planning_rehearsal.py check --help	usage: planning_rehearsal.py check [-h] --root ROOT [--out OUT]
+2	tools_secret_scan	.venv/bin/python cam_live/tools/secret_scan.py --help	    python3 cam_live/tools/secret_scan.py BASE SHA
+2	tools_launch_live_noargs	bash cam_live/tools/launch_live.sh	# Operator tool: start a live CAM Live task (separated services). RUN BY THE OPERATOR, not by an agent:
+0	run_separated	.venv/bin/python cam_live/docs/evidence/validation/separated/run_separated.py --help	usage: run_separated.py [-h] --out OUT [--decisions DECISIONS]
+0	run_live_observe	.venv/bin/python cam_live/docs/evidence/validation/discord_live/run_live_observe.py --help	usage: run_live_observe.py [-h] --out OUT [--decisions DECISIONS]
+0	playwright_version	.venv/bin/python -m playwright --version	Version 1.65.2
 
 ## 2. executed checks (read-only or scratch-only, offline)
-0	doctor	5s	.venv/bin/cam-live doctor	[hardware]
-0	doctor_strict	4s	.venv/bin/cam-live doctor --strict	[hardware]
-3	preflight_planning	4s	.venv/bin/cam-live preflight --task cam_live/tasks/discord_100_planning.yaml	preflight for cam_live/tasks/discord_100_planning.yaml (objective discord-100-planning, mode live)
-3	preflight_discord100	4s	.venv/bin/cam-live preflight --task cam_live/tasks/discord_100.yaml	preflight for cam_live/tasks/discord_100.yaml (objective discord-100, mode live)
-0	preflight_lab	0s	.venv/bin/cam-live preflight --task cam_live/tasks/lab_staging.yaml --no-doctor	preflight for cam_live/tasks/lab_staging.yaml (objective lab-staging, mode diagnostic)
-0	init_no_agent	1s	.venv/bin/cam-live init --no-agent --home <S>/home	home: <S>/home
-0	inspect_harness_lab	0s	.venv/bin/cam-live inspect-harness --lab	harness: diagnostic LabWorld (in-process)
-0	browser_find	1s	.venv/bin/python -m cam_live.harness.browser --find cambrowser	/workspace/camlive/.venv/share/cam_live/ms-playwright/chromium-1255/chrome-linux64/chrome
-0	playwright_version	0s	.venv/bin/python -m playwright --version	Version 1.65.2
-0	prune_dry_scratch	0s	.venv/bin/python cam_live/tools/prune_runs.py <S>/home	DRY RUN: 0 removals, 0.0 GiB
-1	verify_completion_only	6s	.venv/bin/cam-live verify-completion --only IN-05,CM-13,DL-02 --quiet	requirements: 3  complete: 0  implemented-needs-reverification: 0  partial: 2  missing: 1  failed: 0
-1	status_no_run	1s	.venv/bin/cam-live status --run-dir <S>/home/runs/none	cam-live status: no runtime state in <S>/home/runs/none
-0	collect_runtime	2s	.venv/bin/python -m pytest cam_live/tests/runtime --collect-only -q --rootdir=cam_live	tests/runtime/test_int2_storage_drain.py::test_runtime_pauses_instead_of_checkpointing_when_disk_is_low
-0	collect_storage	2s	.venv/bin/python -m pytest cam_live/tests/storage --collect-only -q --rootdir=cam_live	tests/storage/test_storage.py::test_guard_refuses_before_writing_and_warns
-0	help_run_separated	0s	.venv/bin/python cam_live/docs/evidence/validation/separated/run_separated.py --help	usage: run_separated.py [-h] --out OUT [--decisions DECISIONS]
-0	help_run_live_observe	0s	.venv/bin/python cam_live/docs/evidence/validation/discord_live/run_live_observe.py --help	usage: run_live_observe.py [-h] --out OUT [--decisions DECISIONS]
-0	exec_cam-live_test_storage	2s	.venv/bin/cam-live test --suite storage --results-dir <S>/out	$ /workspace/camlive/.venv/bin/python -m pytest /workspace/camlive/cam_live/tests/storage -q --rootdir=/workspace/camlive/cam_live --junitxml=/tmp/cla
-0	exec_pytest_storage_junit	2s	.venv/bin/python -m pytest cam_live/tests/storage -q --rootdir=cam_live --junitxml=<S>/out/storage.xml	...                                                                      [100%]
-2	exec_collect_all_one_process	30s	.venv/bin/python -m pytest cam_live/tests --collect-only -q --rootdir=cam_live	tests/credit/test_checkpoint.py::test_round_trip_is_bit_exact_and_training_continues_identically
-0	exec_status	1s	.venv/bin/cam-live status --run-dir <S>/val_cpu/lab_101/runtime	run:        <S>/val_cpu/lab_101/runtime
-0	exec_journal	0s	.venv/bin/cam-live journal --run-dir <S>/val_cpu/lab_101/runtime	<S>/val_cpu/lab_101/runtime/journal.md
-0	exec_export	3s	.venv/bin/cam-live export-checkpoint --run-dir <S>/val_cpu/lab_101/runtime --out <S>/export_lab101	exported checkpoint ckpt_00000003 to <S>/export_lab101 (cam_live.credit
-2	exec_launch_live_noargs	0s	bash cam_live/tools/launch_live.sh	# Operator tool: start a live CAM Live task (separated services). RUN BY THE OPERATOR, not by an agent:
+0	doctor	6s	.venv/bin/cam-live doctor	[hardware]	49/52 checks ok; failed: persistent_storage, kernel_network_filtering, user_namespaces; unknown: none
+0	doctor_strict	7s	.venv/bin/cam-live doctor --strict	[hardware]	49/52 checks ok; failed: persistent_storage, kernel_network_filtering, user_namespaces; unknown: none
+0	doctor_json	5s	.venv/bin/cam-live doctor --json	{	
+0	doctor_lock_absent	6s	env CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock .venv/bin/cam-live doctor	[hardware]	blocking for live:    persistent_storage, gpu_lock
+3	preflight_discord_100_planning	5s	.venv/bin/cam-live preflight --task cam_live/tasks/discord_100_planning.yaml	preflight for cam_live/tasks/discord_100_planning.yaml (objective discord-100-planning, mode live)	STAGING: ready
+3	preflight_discord_100	4s	.venv/bin/cam-live preflight --task cam_live/tasks/discord_100.yaml	preflight for cam_live/tasks/discord_100.yaml (objective discord-100, mode live)	STAGING: ready
+3	preflight_discord_launch_check	3s	.venv/bin/cam-live preflight --task cam_live/tasks/discord_launch_check.yaml	preflight for cam_live/tasks/discord_launch_check.yaml (objective discord-100-planning-launch-check, mode live)	STAGING: ready
+0	preflight_lab_staging	4s	.venv/bin/cam-live preflight --task cam_live/tasks/lab_staging.yaml	preflight for cam_live/tasks/lab_staging.yaml (objective lab-staging, mode diagnostic)	STAGING: ready
+3	preflight_utility_staging	4s	.venv/bin/cam-live preflight --task cam_live/tasks/utility_staging.yaml	preflight for cam_live/tasks/utility_staging.yaml (objective staging-utility, mode staging)	STAGING: not ready — 2 item(s)
+0	preflight_staging_discord_100_planning_staging	4s	.venv/bin/cam-live preflight --task cam_live/tasks/staging/discord_100_planning_staging.yaml	preflight for cam_live/tasks/staging/discord_100_planning_staging.yaml (objective discord-100-planning-staging, mode staging)	STAGING: ready
+3	preflight_planning_accept	4s	.venv/bin/cam-live preflight --task cam_live/tasks/discord_100_planning.yaml --accept-ephemeral-storage	preflight for cam_live/tasks/discord_100_planning.yaml (objective discord-100-planning, mode live)	STAGING: ready
+3	preflight_launch_check_accept	4s	.venv/bin/cam-live preflight --task cam_live/tasks/discord_launch_check.yaml --accept-ephemeral-storage	preflight for cam_live/tasks/discord_launch_check.yaml (objective discord-100-planning-launch-check, mode live)	STAGING: ready
+0	run_preflight_only_lab	0s	.venv/bin/cam-live run --task cam_live/tasks/lab_staging.yaml --preflight-only --no-doctor	preflight for cam_live/tasks/lab_staging.yaml (objective lab-staging, mode diagnostic)	STAGING: ready
+0	init_no_agent	0s	.venv/bin/cam-live init --no-agent --home <S>/home	home: <S>/home	dashboard_token_file: <S>/home/dashboard.token
+0	inspect_harness_lab	1s	.venv/bin/cam-live inspect-harness --lab	harness: diagnostic LabWorld (in-process)	  - discord: the first live objective needs the Discord integration, but no Discord tool is registered in this environment (no Discord executor configured: runtime.executors / laun
+0	browser_find	0s	.venv/bin/python -m cam_live.harness.browser --find cambrowser	/workspace/camlive/.venv/share/cam_live/ms-playwright/chromium-1255/chrome-linux64/chrome	
+1	status_no_run	1s	.venv/bin/cam-live status --run-dir <S>/home/runs/none	cam-live status: no runtime state in <S>/home/runs/none	
+2	validate_live_refused	0s	.venv/bin/cam-live validate --mode live	cam-live validate exercises the controlled staging services only. Live readiness is established by `cam-live preflight` / `cam-live run`, ne	
+1	verify_completion_only	7s	.venv/bin/cam-live verify-completion --only IN-05,CM-13,DL-02 --quiet	requirements: 3  complete: 0  implemented-needs-reverification: 3  partial: 0  missing: 0  failed: 0	requirements: 3  complete: 0  implemented-needs-reverification: 3  partial: 0  missing: 0  failed: 0
+2	launch_live_noargs	0s	bash cam_live/tools/launch_live.sh	# Operator tool: start a live CAM Live task (separated services). RUN BY THE OPERATOR, not by an agent:	
+0	run_lab_inproc	68s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/cam-live run --task cam_live/tasks/lab_staging.yaml --inproc --foreground --max-iterations 4 --config <S>/debug.yaml --run-dir <S>/run_lab --no-doctor	learner: run ended with status running	learner: run ended with status running
+0	status_run	1s	.venv/bin/cam-live status --run-dir <S>/run_lab	run:        <S>/run_lab	checkpoint: ckpt_00000004
+0	journal_run	0s	.venv/bin/cam-live journal --run-dir <S>/run_lab	<S>/run_lab/journal.md	
+0	plan_report_run	0s	.venv/bin/cam-live plan-report --run-dir <S>/run_lab --out <S>/plan_report_lab.md	<S>/plan_report_lab.md	
+0	export_checkpoint_run	2s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/cam-live export-checkpoint --run-dir <S>/run_lab --out <S>/export_lab	exported checkpoint ckpt_00000004 to <S>/export_lab (cam_live	
+0	prune_dry_home	1s	.venv/bin/python cam_live/tools/prune_runs.py <S>/home	DRY RUN: 0 removals, 0.0 GiB	DRY RUN: 0 removals, 0.0 GiB
+0	prune_dry_run	0s	.venv/bin/python cam_live/tools/prune_runs.py <S>/run_lab	DRY RUN: 0 removals, 0.0 GiB	DRY RUN: 0 removals, 0.0 GiB
+0	evaluate_transfer_cpu	11s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/cam-live evaluate-transfer --checkpoint <S>/export_lab --baseline <S>/export_lab --domains T1 --seeds 0 --lifetimes 1 --decisions 2 --jobs 2 --out <S>/transfer_cpu.json	{"T1": {"S_q": 1.0, "reached_initial": 0, "reached_experienced": 0}}	{"T1": {"S_q": 1.0, "reached_initial": 0, "reached_experienced": 0}}
+0	dashboard_view_only	-	.venv/bin/cam-live dashboard --run-dir R --port 18787 --view-only	no token: 401; ?token=: 200; Bearer /api/status: 200	stopped
+1	validate_debug	114s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/cam-live validate --mode staging --debug --decisions 12 --out <S>/val_debug	{	report: <S>/val_debug/staging_report.json
+0	collect_credit	6s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/python -m pytest cam_live/tests/credit --collect-only -q -p no:cacheprovider --rootdir=cam_live	tests/credit/test_checkpoint.py::test_round_trip_is_bit_exact_and_training_continues_identically	152 tests collected in 3.81s
+0	collect_diagnostics	4s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/python -m pytest cam_live/tests/diagnostics --collect-only -q -p no:cacheprovider --rootdir=cam_live	tests/diagnostics/test_collect.py::test_collects_complete_honest_records	8 tests collected in 2.70s
+0	collect_eval	7s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/python -m pytest cam_live/tests/eval --collect-only -q -p no:cacheprovider --rootdir=cam_live	tests/eval/test_analysis.py::test_baselines_paired_difference_and_nq	42 tests collected in 4.31s
+0	collect_harness	8s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/python -m pytest cam_live/tests/harness --collect-only -q -p no:cacheprovider --rootdir=cam_live	tests/harness/auth/test_ea_approvals.py::test_request_approve_execute_once	629 tests collected in 6.48s
+0	collect_harness_auth	3s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/python -m pytest cam_live/tests/harness/auth --collect-only -q -p no:cacheprovider --rootdir=cam_live	tests/harness/auth/test_ea_approvals.py::test_request_approve_execute_once	305 tests collected in 2.13s
+0	collect_harness_compute	2s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/python -m pytest cam_live/tests/harness/compute --collect-only -q -p no:cacheprovider --rootdir=cam_live	tests/harness/compute/test_ec_grounding.py::test_reference_grounder_finds_literal_labels_and_plain_colours	74 tests collected in 1.13s
+0	collect_harness_env	2s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/python -m pytest cam_live/tests/harness/env --collect-only -q -p no:cacheprovider --rootdir=cam_live	tests/harness/env/test_adapter_contract.py::test_adapter_satisfies_the_environment_contract[computer_environment]	99 tests collected in 1.42s
+0	collect_harness_skills	5s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/python -m pytest cam_live/tests/harness/skills --collect-only -q -p no:cacheprovider --rootdir=cam_live	tests/harness/skills/test_e_fix_api.py::test_a_post_that_may_have_been_applied_is_not_re_sent	151 tests collected in 4.41s
+0	collect_integration	8s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/python -m pytest cam_live/tests/integration --collect-only -q -p no:cacheprovider --rootdir=cam_live	tests/integration/test_agent_recovery.py::test_save_fresh_process_load_gives_identical_decisions	68 tests collected in 5.59s
+0	collect_nn	6s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/python -m pytest cam_live/tests/nn --collect-only -q -p no:cacheprovider --rootdir=cam_live	tests/nn/test_api.py::test_api_shapes_and_dtypes	122 tests collected in 2.10s
+0	collect_predict	10s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/python -m pytest cam_live/tests/predict --collect-only -q -p no:cacheprovider --rootdir=cam_live	tests/predict/test_calibration.py::test_per_item_scores	176 tests collected in 4.17s
+0	collect_reward	8s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/python -m pytest cam_live/tests/reward --collect-only -q -p no:cacheprovider --rootdir=cam_live	tests/reward/test_reward_bootstrap.py::test_learning_progress_is_improvement_on_the_same_targets_not_raw_error	146 tests collected in 2.61s
+0	collect_runtime	4s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/python -m pytest cam_live/tests/runtime --collect-only -q -p no:cacheprovider --rootdir=cam_live	tests/runtime/test_hx4_safe_writes.py::test_the_learner_cannot_redirect_roots_run_directory_writes_through_a_race	299 tests collected in 3.22s
+0	collect_storage	3s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/python -m pytest cam_live/tests/storage --collect-only -q -p no:cacheprovider --rootdir=cam_live	tests/storage/test_storage.py::test_guard_refuses_before_writing_and_warns	4 tests collected in 1.28s
+0	collect_test_secret_scan	1s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/python -m pytest cam_live/tests/test_secret_scan.py --collect-only -q -p no:cacheprovider --rootdir=cam_live	tests/test_secret_scan.py::test_a_credential_added_and_removed_inside_the_range_is_found	6 tests collected in 0.57s
+0	collect_test_verify_completion	2s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/python -m pytest cam_live/tests/test_verify_completion.py --collect-only -q -p no:cacheprovider --rootdir=cam_live	tests/test_verify_completion.py::test_complete_needs_a_fresh_pass_and_a_verdict_issued_after_the_last_change	27 tests collected in 0.61s
+0	collect_all_one_process	18s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/python -m pytest cam_live/tests --collect-only -q -p no:cacheprovider --rootdir=cam_live	tests/credit/test_checkpoint.py::test_round_trip_is_bit_exact_and_training_continues_identically	1679 tests collected in 16.65s
+0	cam-live_test_storage	1s	env CUDA_VISIBLE_DEVICES= CAM_LIVE_GPU_LOCK=<S>/no_such_gpu.lock OMP_NUM_THREADS=8 .venv/bin/cam-live test --suite storage --results-dir <S>/junit	$ /workspace/camlive/.venv/bin/python -m pytest /workspace/camlive/cam_live/tests/storage -q --rootdir=/workspace/camlive/cam_live --junitxm	suite storage: pytest exit code 0; JUnit XML: <S>/junit/cli_storage.xml
+0	secret_scan_patterns_only	0s	.venv/bin/python -I -c import sys; sys.path.insert(0, 'cam_live/tools'); import secret_scan as s; s.real_secrets = lambda: []; sys.exit(s.main(['fdab7d3~3', 'fdab7d3']))	secret scan: 19 blobs of fdab7d3~3..fdab7d3 scanned (every commit, decompressed)	secret scan: 19 blobs of fdab7d3~3..fdab7d3 scanned (every commit, decompressed)
 
-## 3. executed longer checks
-0	staging_validation_cpu_library	80s	.venv/bin/python -c "from cam_live.validation import run_staging; run_staging(None, real_model=False, n_decisions=12, seed=0, out_dir='<S>/val_cpu')"	executed=true ok=false: 14 of 16 checks hold; approvals_exercised false (1 approval resolved, 0 executed after approval), resource_limit_exercised false (max_decisions exhausted first); git_head of the run 55a0f4c
-0	evaluate_transfer_cpu_minimal	13s	.venv/bin/cam-live evaluate-transfer --checkpoint <S>/export_lab101 --baseline <S>/export_lab101 --domains T1 --seeds 0 --lifetimes 1 --decisions 2 --jobs 2 --out <S>/out/transfer_cpu.json	executed=true; both versions the same debug export (plumbing check only): S_q 1.0, neither version reached q
-0	dashboard_view_only	~5s	.venv/bin/cam-live dashboard --run-dir <S>/val_cpu/lab_101/runtime --port 18787 --view-only ; curl / (no token) -> 401 ; curl /?token=<dashboard.token> -> 200 ; curl -H 'Authorization: Bearer <token>' /api/status -> 200 (then stopped)
+## 3. probe d03 (cam_live/docs/verification/repro/g2integration/docs/d03_reproduce_commands.py /workspace/camlive <S>/d03)
+help summary: 66/66 exit 0
+BROKEN  doctor: REPRODUCE 4: '48/51 ok' -> got: ['47/52 checks ok; failed: gpu, persistent_storage, kernel_network_filtering, user_namespaces, gpu_lock; unknown: none']
+BROKEN  preflight_staging_planning: REPRODUCE 14: exit 3, 9 live items, mode staging (exit 0; ['LIVE: BLOCKED — 9 item(s) missing'])
+BROKEN  docstrings_name_missing_commands: REPRODUCE 13 / KF-E12: the eval docstrings still name the missing commands
+BROKEN  collect_runtime: REPRODUCE 3: runtime 215 tests (exit 0: ['299 tests collected in 1.89s'])
+BROKEN  collect_storage: REPRODUCE 3: storage 3 tests (exit 0)
+BROKEN  collect_all_fails: REPRODUCE 3 / KF-E10: one-process collection fails, exit 2 (exit 0: ['tests/runtime/test_rt_fix_tasks.py::test_invalid_yaml_is_a_task_validation_error', '1679 tests collected in 16.54s'])
+BROKEN  cam-live_test_storage: REPRODUCE 3: exit 0, 3 passed (exit 0)
+commands run: 87; results in <S>/d03/d03_results.tsv
+exit 0
+# 81 HOLDS, 7 BROKEN; every BROKEN line encodes a claim of the previous REPRODUCE.md that is false of the code and that
+# the refreshed document no longer makes (REPRODUCE.md section 14).
 
-## 4. findings
-- cam-live validate --mode staging --debug: the CLI always passes the loaded default configuration (configs/cam_live.yaml) to
-  validation.run_staging, and staging_config(cfg, real_model=False) keeps a given cfg, so --debug/--cpu builds Qwen/Qwen3-4B + 50m on
-  device auto (cuda) WITHOUT the shared GPU lock (only real_model=True takes it). Measured: staging_config(_cfg(''), False, 0) ->
-  Qwen/Qwen3-4B 50m auto cuda; staging_config(None, False, 0) -> tiny debug cpu. Workaround: the library call of section 3.
-- Whole default suite in ONE pytest process: collection error (INT2-5, tests/predict/test_providers.py vs tests/credit/test_providers.py):
-  '1459 tests collected, 1 error' (exit 2). cam-live test without --suite runs exactly that and fails the same way.
-- Documented commands that do not exist at d3ce519/55a0f4c: 'cam-live plan-report' (ledger, session 4: planned by INT3B);
-  'python -m cam_live.eval.oe_runner fresh' (oe_runner docstring; the parser has sequence / transfer, the 16.8 child is
-  'sequence --from-export'); 'python -m cam_live.eval.cli batch --plan baselines_cpu' (cli docstring; choices main_cpu, pilot);
-  'python -m cam_live.eval.cli continual | shadow | skills' (cli docstring; not subcommands; transfer-batch exists but is not in the docstring).
-- Live launch needs the operator public key at <run>/auth/keys/operator.pub: configs/cam_live.yaml has no launcher.operator_pubkey,
-  so a bare 'cam-live run --authorization F' fails in the supervisor (register_live_authorization: 'operator public key not
-  installed'); tools/launch_live.sh (d086a55) installs it before cam-live run.
-- runtime / loop_service do not take the shared GPU lock: a 'cam-live run' or 'cam-live resume' of the full configuration holds the
-  backbone on the shared GPU for the whole run (by design for a persistent run; on this shared machine it must be coordinated).
-- resources.operator_authorization_record in the task files is validated only as a slug; nothing compares it with the record_id
-  that tools/authorize_live.py writes (live-<objective_id>-<unix time>).
-# The two check scripts are kept in docs/evidence/DOC/scripts/check_help.sh and check_exec.sh (copied from <S> on 2026-11-27 23:36 UTC).
+## 4. findings while checking
+- cam-live run / tools/launch_live.sh start timeout (code reading, not run): cam-live run waits at most --start-timeout
+  (default 120 s; launch_live.sh passes none) for the learner's state.json, which the learner writes only after it holds
+  the shared GPU lock and has built the agent (runtime/loop_service.py run_service -> _run_service). The separated
+  rehearsal's learner waited 849 s for the lock. When the start takes longer, cam-live run exits 5 "the runtime did not
+  start" while the detached supervisor and learner keep starting, and launch_live.sh (set -e) stops before its closing
+  hint. tools/planning_rehearsal.py holds passes --start-timeout 2400 for its first hold.
+- tools/secret_scan.py has no argparse: --help prints the usage line and exits 2. The full scan reads the machine's
+  credential files under /root/.config/camlive and /root/.config/agentrs (exact-match part); only the pattern part was
+  run here (real_secrets replaced by an empty list).
+- cam-live verify-completion --only IN-05,CM-13,DL-02 --quiet exits 1 by design (level 1 not reached); its category
+  counts depend on the repository's current documents and verdicts (first run 07:2x UTC: partial 3; 07:33-07:42 UTC,
+  after other DOC commits: implemented-needs-reverification 3).
+- tasks/utility_staging.yaml is a template: STAGING not ready (success.evidence_source, resources.staging_site REQUIRED).
+- cam-live validate --mode staging --debug now builds the tiny CPU configuration whatever --config says (KF-E11 fixed):
+  run twice with the GPU hidden and the lock path absent, backbone tiny / core debug: 13/16 (07:28, 77 s) and 15/16
+  (07:45, 114 s) at 12 decisions; the result varies between runs at this size.
+- The default GPU lock path <repo>/runs/gpu_heavy.lock exists only as this worktree's untracked symlink to
+  /workspace/agentrs/runs/cam_unified/gpu_heavy.lock; with CAM_LIVE_GPU_LOCK naming an absent file the doctor reports
+  gpu_lock as blocking for live (fail closed, never created).
+- resources.operator_authorization_record in the task files is validated as a slug only (runtime/tasks.py); nothing
+  compares it with the record_id tools/authorize_live.py writes (live-<objective_id>-<unix time>).
+- Disk: 32-35 GB free of 300 GB during the checks, below storage.warn_free_gb 50 (doctor ok, warning level).
+- The venv is still layered over /workspace/agentrs/.venv (IN-09 partial).
+- cam-live validate --out D into a directory that already holds a validation run does not start from scratch: a second
+  --debug run into the same D (07:38 UTC, kept as <S>/val_debug_reused_run2) ended after 9.5 s with 12/16
+  (recovery_exercised failing in addition). check_exec.sh removes D first; use a new --out directory.
+- run_lab_inproc took 62-142 s and evaluate_transfer_cpu 11-21 s over three runs, depending on the machine's load
+  (load average 15-20 on 48 CPUs).
+- HEAD moved from fdab7d3 to 90274bb during the checks (0b31814, fa168dc, 997e142 DOC, 90274bb G2-final): documents and
+  probes only; git log fdab7d3..HEAD -- cam_live/src cam_live/tools cam_live/configs cam_live/tasks cam_live/pyproject.toml
+  is empty. The validation report's git_head is the HEAD at its start.
