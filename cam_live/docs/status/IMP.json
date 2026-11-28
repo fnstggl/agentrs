@@ -1,7 +1,7 @@
 {
  "workstream": "IMP",
- "commit": "e6325aa",
- "summary": "Amendment 2026-11-28 item 2 (predictive imagination and multistep planning in decision-making). LatentPlanner searches imagined continuations of every candidate in the learned latent world model (transition + world-model goal values at imagined beliefs, coherent particles), reports information value; HorizonController value criterion; ImaginationCalibration learns the imagination weight of rule thompson_policy from verified multi-step windows; transition ensemble got zero-mean randomised priors (overconfidence defect); the ratio weight's amplification of unsupported imagination fixed. Imagination causally changes decisions on the runtime path (debug B2: share_tv 0.053, argmax changed 22/244); no reliable improvement measured; agent hook (change request IMP) applied by ST in dde7d2d.",
+ "commit": "0b429f0",
+ "summary": "Amendment 2026-11-28 item 2 (predictive imagination and multistep planning in decision-making). LatentPlanner searches imagined continuations of every candidate in the learned latent world model (transition + world-model goal values at imagined beliefs, coherent particles), reports information value; HorizonController value criterion; ImaginationCalibration learns the imagination weight of rule thompson_policy from verified multi-step windows; transition ensemble got zero-mean randomised priors (overconfidence defect); the ratio weight's amplification of unsupported imagination fixed. Imagination causally changes decisions on the runtime path (paired re-run B4 after G3-core D-IMP1: share_tv 0.056, argmax changed 23/332, arms identical until imagination can act in 10 of 10 pairs); no improvement measured; agent hook (change request IMP) applied by ST in dde7d2d. G3-core round: D-IMP1 (pairing), D-IMP2 (content target from the frozen base backbone), D-IMP3 (overlap correction) fixed with probes and regression tests.",
  "requirements": {
   "AM2-1 multi-step rollouts of candidate sequences": {
    "state": "implemented",
@@ -120,20 +120,32 @@
     "python -m cam_live.predict.imp_eval replay ..."
    ],
    "evidence": [
-    "docs/evidence/IMP/ablation_B2_final_code_summary.json",
+    "docs/evidence/IMP/g3/ablation_B4_paired_summary.json",
+    "docs/evidence/IMP/g3/imp_b4_pairing_decision0.txt",
     "docs/evidence/IMP/replay_live_ckpt38_fullsize.json"
    ],
    "measured": {
-    "B2_share_tv_mean": {
+    "B4_share_tv_mean": {
      "n": 10,
-     "mean": 0.05268282351879616,
-     "sd": 0.011522920788731635,
-     "lo": 0.0460853948025987,
-     "hi": 0.05930208333333333
+     "mean": 0.0556671150295794,
+     "sd": 0.018000446837757086,
+     "lo": 0.045271040450037076,
+     "hi": 0.06620651032010876
     },
-    "B2_argmax_changed": 22,
-    "B2_decisions_with_imagination": 244,
-    "B2_pairs_diverged": 10,
+    "B4_argmax_changed": 23,
+    "B4_decisions_with_imagination": 332,
+    "B4_pairing": {
+     "seeds_diverged": 10,
+     "n_pairs": 10,
+     "pairs_paired_until_influence": 10,
+     "pairs_action_differs_before_influence": 0,
+     "actions_changed_at_first_influence": 0,
+     "expected_changes_at_first_influence": 0.53125,
+     "pairs_with_different_actions": 10,
+     "first_action_difference_attributable": 5,
+     "first_action_difference_via_learning": 5
+    },
+    "B2_round1_withdrawn": "cross-arm divergence of the unpaired B2 is not evidence (G3-core D-IMP1); its within-decision share_tv 0.053 / argmax 9 % stand",
     "fullsize_replay": {
      "n": 24,
      "share_tv_mean": 0.00390625,
@@ -151,7 +163,14 @@
     "docs/evidence/IMP/ablation_P_from_exploration_checkpoint_summary.json"
    ],
    "measured": {
-    "B2_progress_on_minus_off": {
+    "B4_paired_progress_on_minus_off": {
+     "n": 10,
+     "mean": 0.018721095008032644,
+     "sd": 0.129656255356006,
+     "lo": -0.05248516304433737,
+     "hi": 0.09651069231813117
+    },
+    "B2_round1_unpaired_progress_on_minus_off": {
      "n": 10,
      "mean": 0.163738064276516,
      "sd": 0.38820393937254266,
@@ -242,6 +261,37 @@
    },
    "limitations": "IG rises with experience for learnable actions and tracks the prediction improvement only weakly; realised IV noisy; debug scale only; no agent hook needed"
   },
+  "G3-core D-IMP1 paired ablation": {
+   "state": "fixed",
+   "commits": [
+    "19579a4",
+    "5eb7ad9"
+   ],
+   "probe": "analyse_imp_b2_pairing.py on B4: decision-0 inputs bit-identical, 0 of 10 diverge (expected 0.44)",
+   "tests": [
+    "tests/predict/test_imp_g3.py::test_paired_runs_are_identical_until_imagination_can_act"
+   ]
+  },
+  "G3-core D-IMP2 content target fixed": {
+   "state": "fixed",
+   "commits": [
+    "19579a4"
+   ],
+   "probe": "probe_imp_content_target.py: relative change 0.0 / 0.0 (was 2.2 % / 21.9 %)",
+   "tests": [
+    "tests/predict/test_imp_g3.py::test_the_content_target_does_not_move_with_the_lora_adapters"
+   ]
+  },
+  "G3-core D-IMP3 overlapping windows": {
+   "state": "fixed",
+   "commits": [
+    "19579a4"
+   ],
+   "probe": "probe_imp_overlapping_windows.py: h=4 AR 0.9 overlapping 0.5 % / 0.5 % (was 18 % / 9.5 %), sd ratio 0.57 (was 1.5)",
+   "tests": [
+    "tests/predict/test_imp_g3.py::test_overlapping_windows_do_not_make_the_imagination_calibration_overconfident"
+   ]
+  },
   "COMPAT live checkpoints": {
    "state": "verified",
    "evidence": [
@@ -270,9 +320,9 @@
  ],
  "measured": {
   "suite_command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/IMP_fix.xml",
-  "final_run": "tests/predict on a clean export of HEAD c874309 (git archive HEAD cam_live): 192 tests, 182 passed, 10 skipped (gpu / browser / slow marks), 0 failed in 228 s. tests/predict/test_int3a_eligibility.py::test_a_record_checked_before_its_verdict_becomes_eligible_for_the_evaluator is flaky and pre-existing: it failed on clean exports of the start commit d1d06dc, of dde7d2d^ and of 88a9f68, in the previous final run (8f15367), and passed here and at bb24f96; it runs with planner=False and depends on whether the lifetime ends with an achieved / failed verdict",
+  "final_run": "tests/predict on a clean export of HEAD a06a416 (git archive HEAD cam_live): 195 tests, 184 passed, 10 skipped (gpu / browser / slow marks), 1 failed in 276 s: tests/predict/test_int3a_eligibility.py::test_a_record_checked_before_its_verdict_becomes_eligible_for_the_evaluator, pre-existing and flaky (fails on clean exports of the start commit d1d06dc, dde7d2d^ and 88a9f68, passed in other runs; G3-core: failed alone once, passed alone on a re-run; planner=False, IMP code not exercised)",
   "junit": "docs/evidence/test_results/IMP_fix.xml",
-  "imp_tests": "16 of 16 passed (test_imp_planning 10, test_imp_agent 2, test_imp_content 4)"
+  "imp_tests": "19 of 19 passed (test_imp_planning 10, test_imp_agent 2, test_imp_content 4, test_imp_g3 3)"
  },
  "not_done": [
   "content information gain uncalibrated and unused by selection",
@@ -282,6 +332,6 @@
  ],
  "scientific_failures": [
   "imagined continuations barely differ between first actions on CAM's real sequences (full size sd 0.0012 vs particle sd 0.26): the world model's values do not respond to the belief changes (value error = persistence error)",
-  "no reliable improvement in the paired ablation (B2 progress on - off 0.164, CI -0.043..0.413, n=10 pairs)"
+  "no improvement in the paired ablation (B4 progress on - off 0.019, CI -0.052..0.097, n=10 pairs)"
  ]
 }
