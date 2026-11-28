@@ -152,3 +152,40 @@ def test_meta_checks_cli_on_a_cpu_oe_run(tmp_path, monkeypatch):
         assert m["3_4_meta_updates"]["n_records"] == len(res["objectives"][0]["meta_updates"])
         assert m["1_reward_params_affect_inner_update"]["mix0_differentiated"]["noise_floor_same_psi"] == 0.0
         assert m["3_4_meta_updates"]["applied_with_fewer_independent_outcomes"] == 0
+
+
+def test_ablation_and_snapshot_comparisons(tmp_path):
+    base, new = tmp_path / "base", tmp_path / "new"
+    for d, n_e in ((base, 10), (new, 4)):
+        os.makedirs(d / "x1", exist_ok=True)
+        for s in (0, 1):
+            (d / "x1" / f"E_s{s}.json").write_text(json.dumps(_res(s, [_obj(0, "rle", achieved=True, decisions=n_e)],
+                                                                    "SW:rle")))
+    for s in (0, 1):
+        (new / "x1" / f"Eimag0_s{s}.json").write_text(json.dumps(_res(s, [_obj(0, "rle", achieved=False,
+                                                                                decisions=20)], "SW:rle")))
+    rep = R.build_report(str(new), 20, baseline_dir=str(base))
+    ab = rep["x1_ablations"]["Eimag0"]
+    assert ab["n_to_achieve"]["a_minus_b"]["mean"] == pytest.approx(4 - 20)
+    cmp_ = rep["amended_vs_baseline"]["x1/E"]
+    assert cmp_["n_to_achieve"]["a_minus_b"]["mean"] == pytest.approx(4 - 10)
+    assert cmp_["objectives_achieved"] == {"baseline": 2, "new": 2}
+    assert "x1/Eimag0" not in rep["amended_vs_baseline"]          # only conditions present on both snapshots
+
+
+def test_ablation_overrides_reach_the_configuration():
+    from cam_live.config import CamLiveConfig
+    from cam_live.eval import oe_batch
+    from cam_live.eval.oe_runner import apply_overrides
+    cfg = CamLiveConfig.debug()
+    done = apply_overrides(cfg, ["predict.imagination_select=false", "reward.meta.lr_reward=0.0",
+                                 "optim.inner_steps=2"])
+    assert done == {"predict.imagination_select": False, "reward.meta.lr_reward": 0.0, "optim.inner_steps": 2}
+    assert cfg.section("predict")["imagination_select"] is False
+    assert cfg.section("reward")["meta"]["lr_reward"] == 0.0 and cfg.optim.inner_steps == 2
+    with pytest.raises(ValueError):
+        apply_overrides(cfg, ["no_equals_sign"])
+    jobs = {j["name"]: j for j in oe_batch.PLANS["v6"]()}
+    assert jobs["x1/Eimag0_s2"]["extra"] == oe_batch.IMAG0 and jobs["x1/Erpsi0_s0"]["extra"] == oe_batch.RPSI_FROZEN
+    assert all(jobs[f"x1/{c}_s{s}"]["plan"] == jobs[f"x1/E_s{s}"]["plan"] for c in ("Eimag0", "Erpsi0") for s in (0, 1, 2))
+    assert [n for n in jobs][-6:] == [f"x2/{v}_s{s}" for s in (0, 1, 2) for v in ("initial", "experienced")]

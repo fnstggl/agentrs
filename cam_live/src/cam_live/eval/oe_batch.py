@@ -54,7 +54,23 @@ def _jobs_v3x5() -> List[Dict[str, Any]]:
     return [dict(name=f"x5/goalfree_s{s}", condition="E", seed=s, plan="GOALFREE:sw," + SW_TRAIN) for s in (0, 1)]
 
 
-PLANS = {"v3": _jobs_v3, "v3x5": _jobs_v3x5}
+IMAG0 = ["--set", "predict.imagination_select=false"]       # IMP's ablation "imagination weight 0" (docs/IMP.md)
+RPSI_FROZEN = ["--set", "reward.meta.lr_reward=0.0"]        # RW's ablation "R_psi frozen at its initialisation"
+
+
+def _jobs_v6() -> List[Dict[str, Any]]:
+    """The amended-snapshot comparison (coordinator, 2026-11-28): X0 and X1 as in v3 (same seeds, plans, budgets),
+    X1 ablations ``Eimag0`` (imagination weight 0) and ``Erpsi0`` (R_psi frozen), then X2 on X1's exports."""
+    jobs: List[Dict[str, Any]] = [j for j in _jobs_v3() if j["name"].startswith(("x0/", "x1/"))]
+    for s in (0, 1, 2):
+        jobs.append(dict(name=f"x1/Eimag0_s{s}", condition="E", seed=s, plan=SW_TRAIN, extra=list(IMAG0)))
+    for s in (0, 1, 2):
+        jobs.append(dict(name=f"x1/Erpsi0_s{s}", condition="E", seed=s, plan=SW_TRAIN, extra=list(RPSI_FROZEN)))
+    jobs += [j for j in _jobs_v3() if j["name"].startswith("x2/")]
+    return jobs
+
+
+PLANS = {"v3": _jobs_v3, "v3x5": _jobs_v3x5, "v6": _jobs_v6}
 
 
 def _n_plan(job: Dict[str, Any]) -> int:
@@ -153,6 +169,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--hold-s", dest="hold_s", type=float, default=810.0)
     ap.add_argument("--yield-s", dest="yield_s", type=float, default=20.0)
     ap.add_argument("--threads", type=int, default=6)
+    ap.add_argument("--no-new-after", dest="no_new_after", default="",
+                    help="UTC time (ISO, e.g. 2026-11-29T10:00) after which no lease is started; --no-new-after-only "
+                         "limits the cut-off to jobs with these name prefixes (others keep running)")
+    ap.add_argument("--no-new-after-only", dest="no_new_after_only", default="",
+                    help="comma-separated job-name prefixes the cut-off applies to (default: all jobs)")
     a = ap.parse_args(argv)
     from ..runtime.gpu_cycle import GpuLease
     from ..storage import DiskGuard
@@ -168,8 +189,20 @@ def main(argv: Optional[List[str]] = None) -> int:
     log = os.path.join(home, "results", "v3", "batch_log.jsonl")
     os.makedirs(os.path.dirname(log), exist_ok=True)
     rr = 0
+    cutoff = None
+    if a.no_new_after:
+        import calendar
+        cutoff = calendar.timegm(time.strptime(a.no_new_after[:16], "%Y-%m-%dT%H:%M"))
+    cut_pref = tuple(p for p in a.no_new_after_only.split(",") if p)
     while True:
         pending = [j for j in jobs if not j.finished()]
+        if cutoff is not None and time.time() >= cutoff:
+            keep = [j for j in pending if cut_pref and not j.name.startswith(cut_pref)]
+            if len(keep) < len(pending):
+                print(f"{time.strftime('%H:%M:%S')} cut-off {a.no_new_after} UTC reached: not scheduled "
+                      f"{[j.name for j in pending if j not in keep]}", flush=True)
+            pending = keep
+            jobs = [j for j in jobs if j in keep or j.finished()]
         if not pending:
             break
         names_done = {j.name for j in jobs if j.finished()}

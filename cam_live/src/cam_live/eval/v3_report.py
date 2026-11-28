@@ -316,7 +316,8 @@ def paired_vs(a: Dict[int, Dict[str, Any]], b: Dict[int, Dict[str, Any]], budget
     return out
 
 
-def build_report(results_dir: str, budget: int = 20, *, expect_commit: str = "") -> Dict[str, Any]:
+def build_report(results_dir: str, budget: int = 20, *, expect_commit: str = "",
+                 baseline_dir: str = "") -> Dict[str, Any]:
     report: Dict[str, Any] = {}
     for exp in EXPERIMENTS:
         by = collect(results_dir, exp)
@@ -342,7 +343,38 @@ def build_report(results_dir: str, budget: int = 20, *, expect_commit: str = "")
                                          ("n_to_achieve", "verified_value", "achieved"))}
     if collect(results_dir, "x2"):
         report["x2"] = transfer(results_dir, budget, expect_commit=expect_commit)
+    x1 = collect(results_dir, "x1")
+    abl = {c: r for c, r in x1.items() if c != "E"}
+    if e and abl:
+        report["x1_ablations"] = {c: {"note": f"E minus {c}, seed-paired (descriptive only, v3.5)",
+                                      **paired_vs(e, runs, budget, ("n_to_achieve", "verified_value", "achieved"))}
+                                  for c, runs in sorted(abl.items())}
+    if baseline_dir:
+        report["amended_vs_baseline"] = compare_trees(baseline_dir, results_dir, budget)
     return report
+
+
+def compare_trees(base_dir: str, new_dir: str, budget: int = 20) -> Dict[str, Any]:
+    """The same experiment / condition on two snapshots (e.g. the pre-amendment baseline and the amended code),
+    paired by seed: counts of achieved / never reached / interrupted on each side and seed-paired differences
+    new minus baseline (descriptive only, v3.5)."""
+    out: Dict[str, Any] = {"baseline_dir": os.path.abspath(base_dir), "new_dir": os.path.abspath(new_dir),
+                           "note": "new minus baseline, seed-paired; no test can reach p < 0.05 (v3.5)"}
+    for exp in EXPERIMENTS + ("x2",):
+        b, n = collect(base_dir, exp), collect(new_dir, exp)
+        for c in sorted(set(b) & set(n)):
+            sb, sn = summarise_condition(b[c], budget), summarise_condition(n[c], budget)
+            side = {k: {"baseline": sb[k], "new": sn[k]} for k in
+                    ("objectives_attempted", "objectives_achieved", "objectives_never_reached",
+                     "objectives_interrupted", "objectives_not_run", "achieved_by_problem", "stops")}
+            side["slow_steps"] = {"baseline": {k: sb["slow_steps"][k] for k in ("total", "kept", "reverted", "deferred")},
+                                  "new": {k: sn["slow_steps"][k] for k in ("total", "kept", "reverted", "deferred")}}
+            side["meta_updates_applied"] = {"baseline": f"{sb['meta_updates_applied_total']}/{sb['meta_update_records']}",
+                                            "new": f"{sn['meta_updates_applied_total']}/{sn['meta_update_records']}"}
+            out[f"{exp}/{c}"] = {**side, **paired_vs(n[c], b[c], budget,
+                                                    ("n_to_achieve", "verified_value", "achieved",
+                                                     "executable_fraction", "backbone_chosen_fraction"))}
+    return out
 
 
 def _drop_goalfree(runs: Dict[int, Dict[str, Any]]) -> Dict[int, Dict[str, Any]]:
@@ -400,13 +432,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--expect-commit", dest="expect_commit", default="",
                     help="snapshot commit every result must record (code_check.all_match)")
     ap.add_argument("--markdown", default="", help="also write per-objective tables to this Markdown file")
+    ap.add_argument("--baseline-dir", dest="baseline_dir", default="",
+                    help="results tree of another snapshot to compare with, seed-paired (summary_amended_vs_baseline)")
     a = ap.parse_args(argv)
     results_dir = a.results_dir
     if not results_dir:
         from .experiments import EVAL_HOME
         results_dir = os.path.join(EVAL_HOME, "results", "v3")
     os.makedirs(a.out_dir, exist_ok=True)
-    report = build_report(results_dir, a.budget, expect_commit=a.expect_commit)
+    report = build_report(results_dir, a.budget, expect_commit=a.expect_commit, baseline_dir=a.baseline_dir)
     for k, v in report.items():
         with open(os.path.join(a.out_dir, f"summary_{k}.json"), "w") as f:
             json.dump({"executed": True, "experiment": k, "results_dir": os.path.abspath(results_dir),

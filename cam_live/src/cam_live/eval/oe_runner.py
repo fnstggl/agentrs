@@ -72,6 +72,41 @@ def substantive_config(condition: str, seed: int, *, real: bool = True) -> Any:
     return cfg
 
 
+def _parse_value(v: str) -> Any:
+    try:
+        return json.loads(v)
+    except ValueError:
+        return v
+
+
+def apply_overrides(cfg: Any, sets: Sequence[str]) -> Dict[str, Any]:
+    """Ablation switches ``KEY=VALUE`` (VALUE parsed as JSON when it parses): ``a.b.c`` sets attribute ``b.c`` of the
+    root object's dataclass ``a`` when ``a`` is one (e.g. ``optim.lr_reward``), otherwise the nested key of section
+    ``a`` (e.g. ``predict.imagination_select=false``, ``reward.meta.lr_reward=0``). Returns what was set."""
+    done: Dict[str, Any] = {}
+    for item in sets or ():
+        key, sep, raw = item.partition("=")
+        if not sep or not key.strip():
+            raise ValueError(f"override {item!r} is not KEY=VALUE")
+        parts, val = key.strip().split("."), _parse_value(raw.strip())
+        head = getattr(cfg, parts[0], None)
+        if head is not None and not isinstance(head, dict) and len(parts) > 1 and hasattr(head, parts[1]):
+            obj = head
+            for p in parts[1:-1]:
+                obj = getattr(obj, p)
+            if not hasattr(obj, parts[-1]):
+                raise KeyError(f"override {key}: no such setting")
+            setattr(obj, parts[-1], val)
+        else:
+            d = cfg.sections.setdefault(parts[0], {})
+            for p in parts[1:-1]:
+                d[p] = dict(d.get(p) or {})
+                d = d[p]
+            d[parts[-1]] = val
+        done[key.strip()] = val
+    return done
+
+
 def describe(agent: Any) -> Dict[str, Any]:
     """Model configuration, active parameter groups and learning pathways of a substantive run."""
     from .conditions import FastOnlyAgent, FrozenBackboneChooser, FrozenEvalAgent
@@ -331,6 +366,7 @@ def cmd_sequence(a: argparse.Namespace) -> int:
         with lock:
             t_lock = time.time()
             cfg = substantive_config(a.condition, a.seed, real=not a.cpu)
+            res["overrides"] = apply_overrides(cfg, a.set)
             agent = _build(a.condition, cfg, os.path.join(root, "agent"), clock)
             ck = os.path.join(root, "ckpt_latest")
             if i > 0 and os.path.exists(ck):
@@ -472,6 +508,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                    help="run even when permitted tools are unavailable (diagnostics only)")
     s.add_argument("--from-export", dest="from_export", default="",
                    help="16.8 child: start from this weights-only export only (fresh process)")
+    s.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
+                   help="configuration override of an ablation arm (repeatable), e.g. predict.imagination_select=false")
     s.set_defaults(fn=cmd_sequence)
     t = sub.add_parser("transfer", help="fresh vs experienced in independent processes (16.8)")
     t.add_argument("--writer-root", dest="writer_root", required=True,
