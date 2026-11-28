@@ -23,7 +23,8 @@ def test_meta_checks_on_a_saved_run(tmp_path):
     six = chk["6_beyond_magnitude"]
     # a pure magnitude change of the reward cannot change the update (returns are standardised); psi_pre vs
     # psi_post is reported as measured (zero when no meta-update was applied)
-    assert six["delta_theta_output_scaled_x3_vs_post"] <= 1e-5 * max(1e-12, m0["update_norm"])
+    # (tolerance relative to the update: floating-point summation order differs with the torch thread count)
+    assert six["delta_theta_output_scaled_x3_vs_post"] <= 1e-3 * max(1e-12, m0["update_norm"])
     applied = chk["3_4_meta_updates"]["applied_nonzero_changed_version"]
     assert chk["group_changed_pre_to_post"]["reward"] == (applied > 0)
     assert chk["3_4_meta_updates"]["applied_with_fewer_independent_outcomes"] == 0

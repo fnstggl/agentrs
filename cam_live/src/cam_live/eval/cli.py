@@ -1,11 +1,14 @@
 """cam_live.eval.cli — command line of the scientific evaluation (spec Part 16).
 
+Engineering diagnostics (LabWorld, tiny backbone, schema-walker candidates; Protocol v3.1):
     python -m cam_live.eval.cli run --condition E --family F1 --seed 0 --lifetimes 8 --decisions 16 --out R.json
-    python -m cam_live.eval.cli batch --plan baselines_cpu [--jobs 10]   # the prespecified CPU batch (PROTOCOLS.md)
-    python -m cam_live.eval.cli anchors --family F1 --seeds 0-7 --out A.json
-    python -m cam_live.eval.cli analyse [--which all]                  # results JSON -> docs/evidence/S/*.json
-    python -m cam_live.eval.cli meta | integrity | continual | shadow | skills | scaling ...
+    python -m cam_live.eval.cli batch --plan main_cpu [--jobs 10]            # plans: pilot, main_cpu
+    python -m cam_live.eval.cli transfer-batch --name transfer_cpu [--frozen] # fresh-process transfer / before-after
+    python -m cam_live.eval.cli anchors --family F1 --world-seeds 0-7 --out A.json
+    python -m cam_live.eval.cli analyse --plan main_cpu                       # results -> evidence JSON
+    python -m cam_live.eval.cli integrity | meta | scaling | large ...
 
+Substantive runs (Protocol v3): ``python -m cam_live.eval.oe_runner`` and ``python -m cam_live.eval.oe_batch``.
 ``cam-live evaluate-transfer --checkpoint <ckpt>`` runs :func:`cam_live.eval.transfer.main`.
 Every command writes JSON with ``"executed": true`` only after the experiment ran.
 """

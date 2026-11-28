@@ -2,18 +2,25 @@
 open-ended families, one objective per GPU-lock hold, the learner state carried between holds by its own checkpoint.
 
     python -m cam_live.eval.oe_runner sequence --condition E --seed 0 --plan SW:rle,SW:rpn,SW:merge,SW:topk \
-        --decisions 20 --out R.json [--resume]
-    python -m cam_live.eval.oe_runner fresh --export DIR --version initial --plan SW:unique,MECH:7 --seed 0 ...
+        --decisions 20 --out R.json [--resume] [--save-exports] [--max-objectives 1 --no-lock]
+    python -m cam_live.eval.oe_runner sequence --from-export DIR ...        (16.8 child: weights-only start)
+    python -m cam_live.eval.oe_runner transfer --writer-root ROOT_{seed} --seeds 0,1 --plan SW:unique --out-dir D
+    python -m cam_live.eval.oe_batch ...                                    (scheduler: one GPU lease, <= 3 children)
 
 ``sequence`` runs the listed objectives in order with ONE agent (weights carry over: spec 10.4). Before each
-objective the shared GPU lock is taken, the agent is rebuilt from the configuration and restored from its last
+objective the shared GPU lock is taken (unless ``--no-lock``: a child of ``eval.oe_batch``, whose parent holds
+the lease), the agent is rebuilt from the configuration and restored from its last
 checkpoint (``CamLiveAgent.load``: complete learner state, same run directory), the objective runs under
 ``runtime.loop.LiveRuntime`` until it is verified achieved or its decision budget is spent, the checkpoint is
 written, the lock released. ``DiskGuard.check`` runs before every checkpoint / export and ``apply_retention``
 after every objective. The result file is rewritten after every objective (resumable with ``--resume``).
 
-``fresh`` is the 16.8 transfer child: a new process gets only a weights-only export, builds a new agent, loads
-the tensors strictly, resets fast beliefs and runs the plan (see ``eval.transfer`` for the steps).
+``sequence --from-export`` is the 16.8 transfer child: a new process gets only a weights-only export, builds a new
+agent, loads the tensors strictly, resets fast beliefs and runs the plan (steps as in ``eval.transfer``);
+``transfer`` starts such children in empty working directories with an empty ``CAM_LIVE_HOME``.
+
+A run is refused (``UnavailableTools``) when a tool of a modality the task permits is reported unavailable by the
+environment (e.g. a sandbox workspace the sandbox uid cannot reach): the unavailable tools are recorded per objective.
 
 Recorded per objective: verified outcome (status, value, the verifier's score history), decisions, the provenance
 of every candidate and of every chosen action (backbone-written vs schema walker), execution status of every
@@ -106,11 +113,28 @@ def _content_hash(a: Any) -> str:
                                      default=str).encode()).hexdigest()[:16]
 
 
+class UnavailableTools(RuntimeError):
+    """A tool the task permits is unavailable in this environment: the run would not test the agent (INT3A-2)."""
+
+
+_MODALITY_OF_INTERFACE = {"browser": "structured_browser"}
+
+
+def unavailable_permitted_tools(env: Any, task: Any) -> List[Dict[str, str]]:
+    permitted = {_MODALITY_OF_INTERFACE.get(i, i) for i in (task.interfaces or [])}
+    return [{"tool": t.name, "modality": t.modality, "reason": getattr(t, "unavailable_reason", "")}
+            for t in env.discover_tools() if not t.available and (not permitted or t.modality in permitted)]
+
+
 def run_objective(agent: Any, oc: Any, family: str, problem: str, wseed: int, objective_id: str, run_dir: str,
-                  clock: Any, *, max_decisions: int, k: int = 10, budget_s: float = 840.0) -> Dict[str, Any]:
+                  clock: Any, *, max_decisions: int, k: int = 10, budget_s: float = 840.0,
+                  allow_unavailable: bool = False) -> Dict[str, Any]:
     from ..runtime.loop import LiveRuntime, RuntimeConfig
     from .conditions import Timed
     env, policy, verifier, task = oc.open(family, problem, wseed, objective_id, max_decisions=max_decisions)
+    unavailable = unavailable_permitted_tools(env, task)
+    if unavailable and not allow_unavailable:
+        raise UnavailableTools(f"{objective_id}: permitted tools unavailable: {unavailable[:5]}")
     agent.attach_verifier(verifier)
     timed = Timed(agent)
     rt = LiveRuntime(timed, env, policy, verifier, task, run_dir, clock,
@@ -153,6 +177,7 @@ def run_objective(agent: Any, oc: Any, family: str, problem: str, wseed: int, ob
     first_hit = next((i for i, h in enumerate(hist) if (h.get("pass_fraction", h.get("value", 0.0)) or 0.0) >=
                       float(task.success["target"])), None)
     return {"family": family, "problem": problem, "world_seed": wseed, "objective_id": objective_id,
+            "unavailable_permitted_tools": unavailable, "n_tools": len(env.discover_tools()),
             "runtime_status": rt.status, "reason": rt.status_reason[:200], "verified_status": final.status,
             "verified_value": float(final.value), "target": float(final.target), "achieved": final.status == "achieved",
             "decisions": len(recs), "steps": steps, "wall_s": time.time() - t0,
@@ -288,7 +313,7 @@ def cmd_sequence(a: argparse.Namespace) -> int:
         fam, prob = plan[i]
         guard.check(need_bytes=2 * 2 ** 30, what="objective checkpoint")
         lock = contextlib.nullcontext()
-        if not a.cpu:
+        if not a.cpu and not a.no_lock:
             from ..nn.gpu import gpu_lock
             lock = gpu_lock(min_free_gb=a.min_free_gb, timeout_s=a.lock_timeout_s)
         with lock:
@@ -313,7 +338,8 @@ def cmd_sequence(a: argparse.Namespace) -> int:
                 wseed = int(prob) * 100 + a.seed
             ob = run_objective(agent, computer, fam, prob, wseed, f"obj_{fam}_{prob}_{i}_s{a.seed}",
                                os.path.join(root, f"obj{i:02d}"), clock, max_decisions=a.decisions,
-                               budget_s=a.hold_s - (time.time() - t_lock) - 60.0)
+                               budget_s=a.hold_s - (time.time() - t_lock) - 60.0,
+                               allow_unavailable=a.allow_unavailable)
             ob["index"] = i
             ob["group_changed"] = {g: h0.get(g) != h for g, h in agent.model.group_hashes().items()}
             ob["meta_updates"] = _meta_records(os.path.join(root, f"obj{i:02d}"))
@@ -425,6 +451,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     s.add_argument("--no-skills", dest="no_skills", action="store_true",
                    help="CU: primitive-only operation (skill executor excluded) - arm of X4")
     s.add_argument("--threads", type=int, default=8)
+    s.add_argument("--no-lock", dest="no_lock", action="store_true",
+                   help="do not take the GPU lock: the parent (eval.oe_batch) holds the lease")
+    s.add_argument("--allow-unavailable", dest="allow_unavailable", action="store_true",
+                   help="run even when permitted tools are unavailable (diagnostics only)")
     s.add_argument("--from-export", dest="from_export", default="",
                    help="16.8 child: start from this weights-only export only (fresh process)")
     s.set_defaults(fn=cmd_sequence)
