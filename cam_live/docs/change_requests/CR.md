@@ -36,8 +36,9 @@ segments are held out from the second segment on (fraction `val_fraction`). A ru
 `credit.learner.val_split: record` in its configuration (the line above keeps a configured value).
 
 **Tested** on a copy of agent.py with CR-1 and CR-3 applied (`git archive` of dc1753c + CR's credit/ files; docs/CR.md §6):
-`tests/integration/test_int3a_audit.py` 4/4 and `tests/credit/test_cr.py` 10/10 on the patched copy; the other
-integration files named in docs/CR.md §6; the integrated ablation runs of docs/CR.md §3.
+`tests/integration/test_int3a_audit.py` 4/4 and `tests/credit/test_cr.py` 10/10, `test_int2_wiring.py` +
+`test_agent_runtime.py` + `test_int2_checkpoints.py` 20/20 on the patched copy; the integrated ablation runs of
+docs/CR.md §3 and the real-configuration run of §5.
 
 ## CR-2 (optional, src/cam_live/agent.py): segment length from the configuration
 
@@ -77,6 +78,13 @@ rows** carried RUDDER credit, although 24 of 24 records had RUDDER credit by the
 times: revising earlier credit did not update the weights that act. With the line the revised decisions are replayed
 (each revision once; the queue is checkpointed with the assigner state; `tests/credit/test_cr.py::
 test_revised_credit_is_queued_for_replay_and_survives_a_checkpoint`). Measured effect in docs/CR.md.
+
+**Measured effect on behaviour (docs/CR.md 3.1, 4.3).** The line amplifies whatever estimator is the training default.
+With the evidence-selected `simple` it replays 0-2 rows per 64-decision run (simple credit is final while a decision
+is still among the newest 12); with RUDDER *forced* (unvalidated) it raised RUDDER-credited rows from 28-35 to 112-134
+per run and those runs were worse than `simple` (-66.8 +- 26.0 expected adopters, n = 9 paired seeds). The hook is
+therefore safe under the evidence-based default and useful once a learned estimator is validated; it must not be
+combined with forcing an estimator. Real configuration: 41 of 80 credited rows were replays (docs/CR.md 5).
 
 **Applies to every estimator** (simple credit is revised as linked outcomes mature as well); the inner update's
 segment / discount bookkeeping (`reward.inner`, lifetimes) is unchanged: a replayed row with return-like credit takes
