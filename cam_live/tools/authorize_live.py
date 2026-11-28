@@ -82,8 +82,18 @@ def task_sites(task) -> list:
     return out
 
 
+def parse_routine_arg(text: str) -> dict:
+    """``"PUT,PATCH https://api.host.example/sites/**"`` -> ``{"methods": ["PUT", "PATCH"], "dest": "..."}``."""
+    parts = str(text).split()
+    if len(parts) != 2:
+        raise StandingError(f"--routine takes 'METHODS URL' (e.g. 'PUT https://api.host.example/sites/**'), not {text!r}")
+    entry = {"methods": [m.strip().upper() for m in parts[0].split(",") if m.strip()], "dest": parts[1]}
+    liveauth.parse_routine(entry, "--routine")
+    return entry
+
+
 def build_record(task, *, hours: float, owned, read, preauthorized, accounts, issued_by: str, note: str = "",
-                 now: float = 0.0, standing: str = "", hosting=(), integrations=(), code_hosts=()) -> dict:
+                 now: float = 0.0, standing: str = "", hosting=(), integrations=(), code_hosts=(), routine=()) -> dict:
     now = now or time.time()
     res = dict(task.resources or {})
     d = dict(res.get("discord") or {})
@@ -96,8 +106,10 @@ def build_record(task, *, hours: float, owned, read, preauthorized, accounts, is
         app = str(d.get("application_id") or "")
         if app and f"account:discord:{app}" not in accounts:
             accounts.append(f"account:discord:{app}")
-    if not standing and (hosting or integrations or code_hosts):
-        raise StandingError("--hosting / --integration / --code-host belong to a standing profile (--standing)")
+    if not standing and (hosting or integrations or code_hosts or routine):
+        raise StandingError("--hosting / --integration / --code-host / --routine belong to a standing profile "
+                            "(--standing)")
+    entries = [parse_routine_arg(r) if isinstance(r, str) else dict(r) for r in routine]
     if standing:
         designated = list(hosting) + list(integrations) + task_sites(task)
         broad = [x for x in designated + preauthorized if not _specific(x)]
@@ -109,6 +121,17 @@ def build_record(task, *, hours: float, owned, read, preauthorized, accounts, is
         _add(preauthorized, *designated)
         read = list(read) or list(owned)
         _add(read, *code_hosts)
+        # the task's own sites serve public pages: reading them is routine; every other request to a designated
+        # destination is routine only where --routine declares it (default: approval)
+        for site in task_sites(task):
+            entries.insert(0, {"methods": ["GET", "HEAD"], "dest": site[:-2] + "/**"})
+        for e in entries:
+            pat = liveauth.parse_routine(e, "--routine")
+            if not any(D.match_any(D.Destination("url", "url:" + pat[1].host, host=pat[1].host, port=pat[1].port,
+                                                 scheme=pat[1].scheme, path="/"), D.parse_patterns([o])) is not None
+                       for o in owned if not o.startswith(("account:", "channel:"))):
+                raise StandingError(f"--routine {e['dest']} is not on a designated destination "
+                                    f"(--hosting / --integration / an owned site)")
     lim = task.limits
     budgets = {"money": float(lim.money), "money_per_action": float(getattr(lim, "money_per_action", 0) or 0),
                "money_per_day": float(getattr(lim, "money_per_day", 0) or 0),
@@ -124,6 +147,8 @@ def build_record(task, *, hours: float, owned, read, preauthorized, accounts, is
         rec["note"] = note
     if standing:
         rec["standing"] = {"profile": standing, "code_network": list(code_hosts)}
+        if entries:
+            rec["standing"]["routine"] = entries
     liveauth.validate_shape(rec)
     return rec
 
@@ -134,7 +159,12 @@ def retained_lines(policy_path: str = "") -> list:
         pol = load_policy(policy_path or run_policy_path())
     except PolicyError as e:
         return [f"  (the policy file cannot be read: {e})"]
-    out = [f"  - {r.id} ({r.cls}): {r.reason}" for r in pol.standing.retained]
+    out = ["  - R-NOT-ROUTINE: every operation on a designated destination that is not declared routine (typed "
+           "adapter operations: " + ", ".join(pol.standing.routine_operations) + "; HTTP / page interactions: the "
+           "routine list above)",
+           "  - on a declared-routine request: a method override, a deletion / transfer, a new key / token / account /"
+           " access, a message to a person, personal data the task does not permit"]
+    out += [f"  - {r.id} ({r.cls}): {r.reason}" for r in pol.standing.retained]
     out += ["  - P-SPEND-APPROVAL: any spending of real money",
             "  - data_use: member lists, personal data, message content only with the task's data permissions",
             "  - input on sites the operator does not own (P-INTERACT-APPROVAL), e.g. account registration forms",
@@ -155,8 +185,10 @@ def summary(task, rec: dict) -> str:
              "  budgets   : " + ", ".join(f"{k}={v:g}" for k, v in rec["budgets"].items())]
     st = rec.get("standing")
     if st:
-        lines += [f"  STANDING AUTHORIZATION, profile {st['profile']}: routine operations on the pre-authorized "
-                  f"destinations above need no per-item approval",
+        lines += [f"  STANDING AUTHORIZATION, profile {st['profile']}: declared-routine operations on the "
+                  f"pre-authorized destinations above need no per-item approval",
+                  "  routine HTTP / page interactions: " + ("; ".join(f"{','.join(e['methods'])} {e['dest']}"
+                                                                       for e in st.get("routine", [])) or "(none)"),
                   f"  generated code may reach without a per-job approval: {', '.join(st.get('code_network') or []) or '(nothing)'}",
                   "  approval is kept for:"] + retained_lines()
     return "\n".join(lines)
@@ -182,6 +214,10 @@ def main(argv=None) -> int:
                                                                        "pre-authorized; with --standing)")
     ap.add_argument("--code-host", action="append", default=[], help="host generated code may reach without a "
                                                                      "per-job approval (with --standing)")
+    ap.add_argument("--routine", action="append", default=[],
+                    help="'METHODS URL' declared routine on a designated destination, e.g. "
+                         "'PUT,PATCH https://api.host.example/sites/**' (* = one path segment, ** = any); anything "
+                         "not declared keeps approval (with --standing)")
     ap.add_argument("--yes", action="store_true", help="do not ask for the typed confirmation")
     a = ap.parse_args(argv)
     try:
@@ -208,7 +244,8 @@ def main(argv=None) -> int:
     try:
         rec = build_record(task, hours=a.hours, owned=a.owned, read=a.read, preauthorized=a.preauthorize,
                            accounts=a.account, issued_by=a.issued_by, note=a.note, standing=a.standing,
-                           hosting=a.hosting, integrations=a.integration, code_hosts=a.code_host)
+                           hosting=a.hosting, integrations=a.integration, code_hosts=a.code_host,
+                           routine=a.routine)
     except (StandingError, liveauth.LiveAuthorizationError) as e:
         print(f"not signed: {e}", file=sys.stderr)
         return 2

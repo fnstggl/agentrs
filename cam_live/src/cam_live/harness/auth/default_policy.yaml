@@ -326,10 +326,47 @@ publishing:
 # (X-HUMAN-VERIFICATION, X-USER-ACCOUNT, X-PLATFORM-ADAPTER) apply unchanged.
 # The rules are the exceptions of a standing profile: they apply to tasks whose signed record names a profile (a
 # record without one keeps the meaning of its explicit pre-authorizations). A rule applies to an operation with an
-# external write or input effect when any of its ops / methods / paths / fields matches.
+# external write or input effect when any of its ops / methods / paths / fields matches. They name classes; the
+# guarantee is the default below (routine only where declared) plus the consequence reading of each request.
 # ---------------------------------------------------------------------------------------------------------------
 standing:
   profiles: [routine-reversible-1]
+  # Under a profile, consequence keeps approval BY DEFAULT: an operation on a pre-authorized destination runs without
+  # per-item approval only when it is declared routine -- a typed adapter operation listed here (its meaning is
+  # fixed by the adapter), or a generic HTTP request / page interaction that the signed record's standing.routine
+  # manifest declares (method + destination path; a DELETE is never routine). Everything else asks (R-NOT-ROUTINE).
+  routine_operations: [discord.send_message, discord.edit_message, discord.create_channel, discord.modify_channel,
+                       discord.create_invite, discord.pin_message, discord.unpin_message, discord.create_event,
+                       discord.create_role, discord.modify_role, discord.set_channel_permissions, discord.modify_guild,
+                       publish.submit, publish.update, publish.write]
+  # What a request DOES, read from its effective method, its operation / URL-path words, its fields and values. In
+  # the retained modes: money words / fields on any write ask (P-SPEND-APPROVAL, every record); on a declared-routine
+  # generic request a method override, an irreversible / identity / messaging word, an addressee field, an e-mail
+  # address or phone number as a value, or personal data the task does not permit ask as well.
+  consequence:
+    method_override_headers: [x-http-method-override, x-http-method, x-method-override]
+    method_override_fields: [_method, method, _httpmethod, http_method, method_override]
+    irreversible_tokens: [delete, deletion, remove, removal, destroy, purge, wipe, erase, revoke, cancel, terminate,
+                          close, deactivate, disable, unsubscribe, transfer, unregister, reset, drop, truncate, kill]
+    money_tokens: [purchase, buy, order, checkout, charge, payment, pay, payout, invoice, billing, bill, subscribe,
+                   subscription, upgrade, downgrade, renew, renewal, transfer, refund, donate, donation, tip, cart,
+                   wallet, credit, topup, plan, register, registration]
+    money_fields: [amount, price, cost, total, currency, plan, sku, quantity, payment_method, card, card_number, iban,
+                   price_id, auto_renew, coupon, billing]
+    identity_tokens: [key, apikey, token, credential, secret, password, access, user, member, team, collaborator,
+                      invite, invitation, hook, webhook, oauth, oauth2, authorize, authorization, consent, register,
+                      registration, signup, account, permission, grant, share, sharing, ssh, sso, saml, admin, owner]
+    message_tokens: [send, message, mail, email, sms, chat, dm, notify, notification, postmessage, sendmessage,
+                     sendmail, broadcast, campaign, newsletter]
+    addressee_fields: [to, cc, bcc, recipient, recipients, recipient_id, rcpt, chat_id, user_id, user, users,
+                       member_id, email, emails, phone, phone_number, send_to, email_to, to_email, to_address,
+                       target_user, dm, peer_id]
+    personal_tokens: [customer, user, member, contact, subscriber, people, person, profile, lead, export, audience,
+                      recipient, follower, attendee, guest]
+    personal_fields: [email, emails, phone, phone_number, address, birthday, date_of_birth, dob, ssn, full_name,
+                      first_name, last_name, real_name, ip, ip_address, location]
+    content_extensions: [html, htm, css, js, mjs, txt, md, xml, svg, png, jpg, jpeg, gif, webp, avif, ico, woff,
+                         woff2, ttf, map, pdf, webmanifest, mp4, webm]
   retained_approval:
     modes: [live]
     rules:
@@ -346,10 +383,6 @@ standing:
         class: new_external_permission
         ops: ["*.register*", "*.signup*", "*.sign_up*", "*.create_account*", "*.oauth*", "*.authorize_app*",
               "*.create_token*", "*.create_api_key*", "*.create_key*", "*.add_bot*", "*.invite_bot*", "*.grant*"]
-        paths: ["*/signup*", "*/sign-up*", "*/sign_up*", "*/register*", "*/registration*", "*/oauth*",
-                "*/authorize*", "*/consent*", "*/api-keys*", "*/api_keys*", "*/apikeys*", "*/tokens*",
-                "*/access-tokens*", "*/access_tokens*", "*/credentials*", "*/invitations*", "*/members*",
-                "*/collaborators*", "*/permissions*", "*/billing*", "*/subscriptions*"]
         reason: "a new account, credential, permission or membership on an external service needs the operator's approval"
       - id: R-PERSON-MESSAGE
         class: message_to_person

@@ -63,6 +63,8 @@ class TaskCtx:
     standing_profile: str = ""           # record.standing.profile, when the policy accepts it
     code_network_hosts: List[D.Pattern] = field(default_factory=list)   # record.standing.code_network
     retained: List[Any] = field(default_factory=list)   # policy.standing.retained_approval rules of this mode
+    routine: List[Any] = field(default_factory=list)    # record.standing.routine: (methods, host pattern, path glob)
+    consequence_mode: bool = False       # this mode keeps approval for consequence (policy retained_approval.modes)
 
     @property
     def task_id(self) -> str:
@@ -93,6 +95,44 @@ class NodeEval:
     disclose: bool = False       # the destination's platform requires the configured disclosure
     method: str = ""             # HTTP method of a by_method tool ("" otherwise): part of the operation class
     location_used: str = ""      # destination taken from the tracked browser location (approval binds to it)
+
+
+_CAMEL_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+_HTTP_VERBS = {"GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE", "TRACE", "CONNECT", "PURGE", "MOVE", "COPY",
+               "LINK", "UNLINK"}
+
+
+def _tokens(text: str) -> Set[str]:
+    """Case-folded words of an operation name or URL path segment (``postMessage`` -> post, message;
+    ``API-Keys`` -> api, keys; ``deploy_keys`` -> deploy, keys); plural and singular both."""
+    out: Set[str] = set()
+    for w in re.split(r"[^A-Za-z0-9]+", _CAMEL_RE.sub(" ", str(text))):
+        w = w.lower()
+        if not w:
+            continue
+        out.add(w)
+        if len(w) > 3 and w.endswith("s"):
+            out.add(w[:-1])
+    return out
+
+
+def _path_glob(path: str, pattern: str) -> bool:
+    """Path glob with segment semantics: ``*`` one segment (no ``/``), ``**`` any number of segments."""
+    rx, i = "", 0
+    while i < len(pattern):
+        if pattern.startswith("**", i):
+            rx += ".*"
+            i += 2
+        elif pattern[i] == "*":
+            rx += "[^/]*"
+            i += 1
+        elif pattern[i] == "?":
+            rx += "[^/]"
+            i += 1
+        else:
+            rx += re.escape(pattern[i])
+            i += 1
+    return re.fullmatch(rx, path) is not None
 
 
 def truthy(v: Any) -> bool:
@@ -476,6 +516,7 @@ class Evaluator:
                 ne.effects.append(("input" if tool.interact_class == "input" else "read", d))
 
         self._retained(ne, tc, args)
+        self._consequence(ne, tc, args, tool)
         if not [d for d in ne.dests if d.kind not in ("file", "skill", "sim")]:
             self._platform(ne, None, tool, base)
             if base == "external_write" and not any(f.pid.startswith("P-DEST") for f in ne.deny):
@@ -561,7 +602,8 @@ class Evaluator:
         op = ne.node.operation
         for r in tc.retained:
             hit = any(fnmatch.fnmatchcase(op, g) for g in r.ops) or bool(ne.method and ne.method in r.methods) or \
-                any(d.kind == "url" and any(fnmatch.fnmatchcase(d.path or "/", g) for g in r.paths) for d in outward)
+                any(d.kind == "url" and any(fnmatch.fnmatchcase((d.path or "/").lower(), g.lower()) for g in r.paths)
+                    for d in outward)
             if not hit and r.fields:
                 if keys is None:
                     keys = {norm_field(k) for k, _ in walk_keys(expand(args))}
@@ -569,6 +611,142 @@ class Evaluator:
             if hit:
                 ne.approve.append(Finding(r.id, f"{r.reason} ({r.cls}: approval is retained whatever is "
                                                 f"pre-authorized)", outward[0], "content"))
+
+    def _consequence(self, ne: NodeEval, tc: TaskCtx, args: Dict[str, Any], tool: ToolRule) -> None:
+        """Consequence is judged from what the request does, and approval is the default for it (operator amendment
+        2026-11-28; G3-act G3A-2). In a mode that keeps approval for consequence (live):
+
+        * money -- any write that can create a charge, order, purchase, subscription or transfer (operation / path
+          words, money fields) asks (``P-SPEND-APPROVAL``), whatever record and budget;
+        * under a standing profile, an operation on a pre-authorized destination is routine only if it is declared
+          routine: a typed adapter operation of the policy's ``routine_operations``, or a generic HTTP request /
+          a page interaction matching the signed record's ``standing.routine`` (destination path and the request's
+          *effective* method, method-override headers and fields included). Anything else asks (``R-NOT-ROUTINE``);
+        * a declared-routine request still asks when it overrides its method, names a deletion / transfer, creates
+          a key, token, account, membership or access, addresses a person (any addressee field, an e-mail address
+          or phone number as a value, a messaging route) or reads / sends personal data the task does not permit."""
+        pol = self.p
+        st = pol.standing
+        if not tc.consequence_mode:
+            return
+        cq = st.consequence
+        outward = [(c, d) for c, d in ne.effects if c in ("write", "input") and d.kind not in ("file", "skill", "sim")]
+        reads = [d for c, d in ne.effects if c == "read" and d.kind == "url"]
+        api_reads = tool.effect == "by_method" and ne.node.modality not in (C.Modality.STRUCTURED_BROWSER, C.Modality.VISUAL)
+        if not api_reads:
+            reads = []                               # a page load is a read of a page; API reads are judged below
+        if not outward and not (tc.standing_profile and reads):
+            return
+        op = ne.node.operation
+        ex = expand(args)
+        keys = {k for k, _ in walk_keys(ex)}
+        url_q: Set[str] = set()
+        values: List[str] = []
+        for d in [d for _, d in outward] + reads:
+            if d.kind == "url" and "?" in (d.raw or ""):
+                for k, v in parse_qsl(d.raw.split("?", 1)[1].split("#", 1)[0], keep_blank_values=True):
+                    url_q.add(norm_field(k))
+                    values.append(v)
+        keys |= url_q
+        values += [v for v in _values_only(ex) if isinstance(v, str)]
+        op_tokens = _tokens(op)
+
+        def path_tokens(d: D.Destination, files_are_content: bool) -> Set[str]:
+            segs = [x for x in (d.path or "").split("/") if x]
+            ext = tuple("." + e for e in cq.get("content_extensions", []))
+            if files_are_content and segs and ext and segs[-1].lower().endswith(ext):
+                segs = segs[:-1]                     # the name of a file written is content, not an API resource
+            out: Set[str] = set()
+            for sgm in segs:
+                out |= _tokens(sgm)
+            return out
+        url_dests = [d for _, d in outward if d.kind == "url"] + reads
+        ptoks: Set[str] = set()
+        for d in url_dests:
+            ptoks |= path_tokens(d, files_are_content=d not in reads)
+        words = op_tokens | ptoks
+
+        # effective HTTP method: the method plus every override the request carries
+        methods = {ne.method} if ne.method else set()
+        hdrs = args.get("headers") if isinstance(args.get("headers"), dict) else {}
+        for k, v in hdrs.items():
+            if str(k).lower() in cq.get("method_override_headers", []) and isinstance(v, str) and v.strip():
+                methods.add(v.strip().upper())
+        body = {k: ex.get(k) for k in ("json", "body", "data", "params", "query", "form") if isinstance(ex, dict) and k in ex}
+        for k, v in walk_keys(body):
+            if k in cq.get("method_override_fields", []) and isinstance(v, str) and v.strip().upper() in _HTTP_VERBS:
+                methods.add(v.strip().upper())
+        for d in url_dests:
+            if "?" in (d.raw or ""):
+                for k, v in parse_qsl(d.raw.split("?", 1)[1], keep_blank_values=True):
+                    if norm_field(k) in cq.get("method_override_fields", []) and v.strip().upper() in _HTTP_VERBS:
+                        methods.add(v.strip().upper())
+        overridden = bool(ne.method) and methods != {ne.method}
+
+        first = outward[0][1] if outward else reads[0]
+        money = bool(words & set(cq.get("money_tokens", []))) or bool(keys & set(cq.get("money_fields", [])))
+        if outward and money and tool.kind != "payment":
+            ne.approve.append(Finding("P-SPEND-APPROVAL", "the request can create a charge, order, purchase, "
+                                                          "subscription or transfer: spending needs the operator's "
+                                                          "approval whatever the budget", None, "spend"))
+        if not tc.standing_profile:
+            return
+        pre_out = [(c, d) for c, d in outward if D.match_any(d, tc.owned) is not None and
+                   D.match_any(d, tc.preauth) is not None]
+        owned_reads = [d for d in reads if D.match_any(d, tc.owned) is not None]
+        if not pre_out and not owned_reads:
+            return
+
+        def declared(d: D.Destination, want: Set[str]) -> bool:
+            for meths, host, path in tc.routine:
+                if host.matches(D.Destination("url", d.key, host=d.host, port=d.port, path="", scheme=d.scheme)) \
+                        and _path_glob(d.path or "/", path) and want and want <= set(meths):
+                    return True
+            return False
+
+        typed = tool.effect not in ("by_method", "interact") and not tool.opaque
+        for c, d in pre_out + [("read", d) for d in owned_reads]:
+            if typed and d.kind in ("account", "channel", "url"):
+                routine = any(fnmatch.fnmatchcase(op, g) for g in st.routine_operations)
+            elif d.kind == "url":
+                # the declared method of the request; an override of it is judged below and always asks
+                want = {"INTERACT"} if tool.effect == "interact" else ({ne.method} if ne.method else {"GET"})
+                routine = declared(d, want)
+            else:
+                routine = False
+            if not routine:
+                ne.approve.append(Finding("R-NOT-ROUTINE", f"{op} on {d.key} is not declared routine in the "
+                                                            f"standing record: consequence keeps the operator's "
+                                                            f"approval by default", d, "content"))
+                return                                 # one finding per node: the approval covers it
+        # declared routine: consequence signals still ask. A typed adapter operation's meaning is its declaration
+        # in routine_operations (money above still applies); generic requests and interactions are read for what
+        # they do
+        if typed:
+            return
+        why = []
+        if overridden:
+            why.append(("R-IRREVERSIBLE-HTTP" if "DELETE" in methods else "R-METHOD-OVERRIDE",
+                        f"the request overrides its method ({', '.join(sorted(methods))})"))
+        if outward and words & set(cq.get("irreversible_tokens", [])):
+            why.append(("R-IRREVERSIBLE", "the request names an irreversible operation (delete / transfer / ...)"))
+        if outward and words & set(cq.get("identity_tokens", [])):
+            why.append(("R-NEW-PERMISSION", "the request can create a key, token, account, membership or access"))
+        addressed = bool(keys & set(cq.get("addressee_fields", []))) or any(
+            _EMAIL_RE.match(v.strip()) or (_PHONE_RE.match(v.strip()) and sum(ch.isdigit() for ch in v) >= 7)
+            for v in values if isinstance(v, str) and len(v) <= 254)
+        if outward and (addressed or words & set(cq.get("message_tokens", []))):
+            why.append(("R-PERSON-MESSAGE", "the request can address a person or carry a person's contact data"))
+        personal = bool(words & set(cq.get("personal_tokens", []))) or bool(keys & set(cq.get("personal_fields", []))) \
+            or any(set(_tokens(v)) & set(cq.get("personal_fields", [])) for v in values
+                   if isinstance(v, str) and len(v) <= 200 and "," in v)
+        perm = tc.task.data_permissions if isinstance(tc.task.data_permissions, dict) else {}
+        if personal and not perm.get("collect_personal_data"):
+            why.append(("R-PERSONAL-DATA", "the request reads or sends personal data, which the task does not permit "
+                                           "(data_permissions.collect_personal_data)"))
+        for pid, reason in why:
+            ne.approve.append(Finding(pid, reason + ": approval is kept on a declared-routine request", first,
+                                      "content"))
 
     def secret_platform(self, name: str) -> str:
         """The integrated platform a stored credential belongs to (by its vault scopes or its known name)."""

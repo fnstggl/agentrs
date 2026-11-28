@@ -41,7 +41,11 @@ from . import destinations as D
 REQUIRED = ("record_id", "task_id", "task_hash", "accounts", "owned", "read", "preauthorized", "budgets",
             "not_before", "not_after", "issued_by", "issued_at")
 OPTIONAL = ("interactive", "opted_in_recipients", "signature", "note", "rate_limits", "standing")
-STANDING_KEYS = ("profile", "code_network", "note")
+STANDING_KEYS = ("profile", "code_network", "routine", "note")
+#: methods a record may declare routine for a destination; ``INTERACT`` = clicks and input on its pages. A DELETE is
+#: never routine (irreversible), and nothing undeclared is (default: approval)
+ROUTINE_METHODS = ("GET", "HEAD", "PUT", "PATCH", "POST", "INTERACT")
+MAX_ROUTINE = 64
 #: most hosts a standing profile may open to generated code (each one is still checked per connection)
 MAX_CODE_NETWORK = 16
 BUDGET_KEYS = ("money", "money_per_action", "money_per_day", "compute_s", "max_external_actions", "max_decisions",
@@ -121,12 +125,17 @@ def validate_shape(record: Any) -> Dict[str, Any]:
                 pat = D.parse_pattern(x)
             except D.DestinationError as e:
                 raise LiveAuthorizationError(f"record.standing.code_network: {e}") from e
-            host = pat.host[2:] if pat.host.startswith("*.") else pat.host
-            if pat.kind != "url" or not host or "*" in host or "?" in host or "." not in host:
-                raise LiveAuthorizationError(f"record.standing.code_network names hosts (optionally '*.' + a domain), "
-                                             f"not {x!r}")
+            if pat.kind != "url" or not _code_host_ok(pat):
+                raise LiveAuthorizationError(f"record.standing.code_network names hosts one by one (a DNS name of at "
+                                             f"least two labels, or a loopback address with its port for an operator "
+                                             f"registered local service), no wildcard and no public address: {x!r}")
         if not isinstance(st.get("note", ""), str):
             raise LiveAuthorizationError("record.standing.note must be a string")
+        routine = st.get("routine", [])
+        if not isinstance(routine, list) or len(routine) > MAX_ROUTINE:
+            raise LiveAuthorizationError(f"record.standing.routine must be a list of at most {MAX_ROUTINE} entries")
+        for i, r in enumerate(routine):
+            parse_routine(r, f"record.standing.routine[{i}]")
     for k in ("not_before", "not_after", "issued_at"):
         if isinstance(record[k], bool) or not isinstance(record[k], (int, float)):
             raise LiveAuthorizationError(f"record.{k} must be a number")
@@ -162,6 +171,47 @@ def load_public_key(path: str) -> bytes:
 
 def window(record: Dict[str, Any]) -> Tuple[float, float]:
     return float(record["not_before"]), float(record["not_after"])
+
+
+def _code_host_ok(pat: "D.Pattern") -> bool:
+    """A code-network host is named exactly: no wildcard (a shared suffix such as *.github.io or *.co.uk is anyone's),
+    no public IP literal (it bypasses the name the operator reviewed), no single-label name; a loopback address only
+    with its port (an operator-registered local service, which the local-address rule checks as well)."""
+    import ipaddress
+    host = pat.host.strip("[]")
+    if not host or any(c in host for c in "*?") or pat.path not in ("", "/", "/*"):
+        return False
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        labels = [x for x in host.split(".") if x]
+        return len(labels) >= 2 and all(lbl.replace("-", "").isalnum() for lbl in labels) and not labels[-1].isdigit()
+    return ip.is_loopback and bool(pat.port)
+
+
+def parse_routine(entry: Any, where: str = "routine") -> Tuple[Tuple[str, ...], "D.Pattern", str]:
+    """``{"methods": [...], "dest": "<scheme>://<host>/<path glob>"}`` -> (methods, host pattern, path glob). The
+    host must be named (no wildcard host); in the path ``*`` is one segment, ``**`` any number of segments."""
+    if not isinstance(entry, dict) or set(entry) - {"methods", "dest"} or "dest" not in entry or "methods" not in entry:
+        raise LiveAuthorizationError(f"{where} must be an object {{methods, dest}}")
+    methods = entry["methods"]
+    if not isinstance(methods, list) or not methods or any(not isinstance(m, str) or m.upper() not in ROUTINE_METHODS
+                                                            for m in methods):
+        raise LiveAuthorizationError(f"{where}.methods must be a non-empty list of {', '.join(ROUTINE_METHODS)} "
+                                     f"(a DELETE is never routine)")
+    dest = entry["dest"]
+    if not isinstance(dest, str):
+        raise LiveAuthorizationError(f"{where}.dest must be a string")
+    try:
+        pat = D.parse_pattern(dest)
+    except D.DestinationError as e:
+        raise LiveAuthorizationError(f"{where}.dest: {e}") from e
+    if pat.kind != "url" or not pat.host or any(c in pat.host for c in "*?") or not pat.path or pat.path in ("/", "/*"):
+        raise LiveAuthorizationError(f"{where}.dest names one host and a path (e.g. https://api.host.example/sites/**), "
+                                     f"not {dest!r}")
+    host_only = D.parse_pattern(dest.split("://", 1)[0] + "://" + dest.split("://", 1)[1].split("/", 1)[0]
+                                if "://" in dest else dest.split("/", 1)[0])
+    return tuple(sorted({m.upper() for m in methods})), host_only, pat.path
 
 
 def standing(record: Dict[str, Any]) -> Dict[str, Any]:

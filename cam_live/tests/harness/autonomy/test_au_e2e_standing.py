@@ -80,7 +80,7 @@ def world(tmp_path):
     priv = install_operator_key(svc, tmp_path)
     rec = authorize_live.build_record(task, hours=1.0, owned=[], read=[rest, hosting.host], preauthorized=[],
                                       accounts=[], issued_by="operator", standing=PROFILE,
-                                      hosting=[hosting.url + "/*"])
+                                      hosting=[hosting.url + "/*"], routine=[f"PUT {hosting.url}/sites/cam/**"])
     svc.register_live_authorization(liveauth.sign_live_authorization(rec, priv), "operator")
     svc.register_task(task, "operator")
     env = ComputerEnvironment(run_dir, svc, secrets=svc.secrets_handle(), provenance="staging")
@@ -117,7 +117,8 @@ def approve_run(w, a, d):
 
 def test_routine_operations_run_without_approval_and_retained_ones_wait_for_the_operator(world):
     w, st = world, world["st"]
-    assert w["rec"]["standing"] == {"profile": PROFILE, "code_network": []}
+    assert w["rec"]["standing"] == {"profile": PROFILE, "code_network": [],
+                                    "routine": [{"methods": ["PUT"], "dest": w["hosting"].url + "/sites/cam/**"}]}
     assert w["hosting"].url + "/*" in w["rec"]["preauthorized"] and "channel:discord:*" in w["rec"]["preauthorized"]
     # Discord: routine operations in CAM's own server
     _, _, res = run(w, "discord.create_channel", guild_id=st.guild_id, name="notes", type="text")
@@ -146,7 +147,7 @@ def test_routine_operations_run_without_approval_and_retained_ones_wait_for_the_
     # a new credential on the hosting service: approval retained; the minted value never reaches the learner
     a, d, _ = run(w, "http.request", expect=NEEDS, method="POST", url=f"{w['hosting'].url}/v1/tokens",
                   json={"scope": "deploy"}, auth={"secret": "secret:hosting_token"})
-    assert "R-NEW-PERMISSION" in d.policy_ids
+    assert "R-NOT-ROUTINE" in d.policy_ids                # not declared routine: approval by default
     res = approve_run(w, a, d)
     assert res.status == C.ResultStatus.OK
     obs = res.observations[0]

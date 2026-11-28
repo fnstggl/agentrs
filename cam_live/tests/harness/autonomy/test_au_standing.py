@@ -73,9 +73,10 @@ def test_the_same_writes_without_a_standing_profile_still_ask(svc, tmp_path, clo
     ("discord.delete_message", dsc("x", message_id="333333333333333333"), "R-IRREVERSIBLE"),
     ("discord.delete_role", dict(guild_id=GUILD, role_id="444444444444444444"), "R-IRREVERSIBLE"),
     ("http.request", dict(method="DELETE", url=HOST + "/sites/cam"), "R-IRREVERSIBLE-HTTP"),
-    ("http.request", dict(method="POST", url=HOST + "/v1/tokens", json={"scope": "deploy"}), "R-NEW-PERMISSION"),
-    ("http.request", dict(method="POST", url=API + "/oauth/authorize", json={"client": "x"}), "R-NEW-PERMISSION"),
-    ("http.request", dict(method="PUT", url=API + "/v1/projects/7/collaborators/someone", json={}), "R-NEW-PERMISSION"),
+    # not declared routine in the record's manifest: approval by default (R-NOT-ROUTINE; AU round 2, G3A-2)
+    ("http.request", dict(method="POST", url=HOST + "/v1/tokens", json={"scope": "deploy"}), "R-NOT-ROUTINE"),
+    ("http.request", dict(method="POST", url=API + "/oauth/authorize", json={"client": "x"}), "R-NOT-ROUTINE"),
+    ("http.request", dict(method="PUT", url=API + "/v1/projects/7/collaborators/someone", json={}), "R-NOT-ROUTINE"),
     ("http.request", dict(method="POST", url=API + "/v1/messages", json={"to": "person@example.org", "text": "hi"}),
      "R-PERSON-MESSAGE"),
 ])
@@ -83,7 +84,7 @@ def test_retained_classes_keep_the_operators_approval(svc, lt, standing, op, arg
     a = act(op, arguments=args)
     d, d2 = approve_and_retry(svc, lt, a)
     assert pid in d.policy_ids, (op, d.policy_ids, d.reasons)
-    assert "approval is retained" in " ".join(d.reasons)
+    assert "approval" in " ".join(d.reasons)
     # the approved grant covers the operation's own primitive at execution time (and nothing else)
     assert svc.check_grant(a, d2)
     if op.startswith("discord."):
@@ -228,6 +229,7 @@ def test_a_new_signed_record_adds_an_approved_integration_while_the_run_continue
     rec = standing_record(lt, clock.now(), record_id="rec-2")
     rec["owned"].append("https://api.newservice.example/*")
     rec["preauthorized"].append("https://api.newservice.example/*")
+    rec["standing"]["routine"].append({"methods": ["POST"], "dest": "https://api.newservice.example/v1/items"})
     clock.advance(1.0)
     sign_register(svc, tmp_path, rec)
     d = decide(svc, lt, "http.request", None, method="POST", url=url, json={"name": "a"})

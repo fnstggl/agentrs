@@ -236,13 +236,24 @@ class RetainedRule:
     fields: List[str] = field(default_factory=list)
 
 
+#: vocabulary lists of ``standing.consequence`` (all optional; lower case; tokens are compared with the
+#: case-folded words of operation names and URL paths, fields with normalised argument keys)
+CONSEQUENCE_KEYS = ("method_override_headers", "method_override_fields", "irreversible_tokens", "money_tokens",
+                    "money_fields", "identity_tokens", "message_tokens", "addressee_fields", "personal_tokens",
+                    "personal_fields", "content_extensions")
+
+
 @dataclass
 class Standing:
-    """Standing authorization (operator amendment 2026-11-28): which record profiles the policy accepts, and the
-    approvals they never remove."""
+    """Standing authorization (operator amendment 2026-11-28): which record profiles the policy accepts, the
+    approvals they never remove, which typed adapter operations are routine (``routine_operations``; generic HTTP
+    and page interactions are routine only where the signed record's ``standing.routine`` declares them) and the
+    consequence vocabularies that keep approval even on a declared-routine request."""
     profiles: List[str] = field(default_factory=list)
     retained_modes: List[str] = field(default_factory=list)
     retained: List[RetainedRule] = field(default_factory=list)
+    routine_operations: List[str] = field(default_factory=list)
+    consequence: Dict[str, List[str]] = field(default_factory=dict)
 
 
 @dataclass
@@ -373,7 +384,7 @@ def _standing(d: Any) -> Standing:
     every mode already has (a policy file written before the section existed keeps its meaning)."""
     if d is None:
         return Standing()
-    d = _keys(d, "standing", required=("profiles", "retained_approval"))
+    d = _keys(d, "standing", required=("profiles", "retained_approval"), optional=("routine_operations", "consequence"))
     profiles = _strs(d["profiles"], "standing.profiles")
     ra = _keys(d["retained_approval"], "standing.retained_approval", required=("modes", "rules"))
     modes = [_choice(m, "standing.retained_approval.modes", MODES) for m in _strs(ra["modes"], "standing.retained_approval.modes")]
@@ -397,7 +408,14 @@ def _standing(d: Any) -> Standing:
             raise PolicyError(f"{w}: duplicate id {rule.id!r}")
         ids.add(rule.id)
         rules.append(rule)
-    return Standing(profiles=profiles, retained_modes=modes, retained=rules)
+    routine_ops = _strs(d.get("routine_operations"), "standing.routine_operations")
+    cq = _keys(d.get("consequence") or {}, "standing.consequence", optional=CONSEQUENCE_KEYS)
+    consequence: Dict[str, List[str]] = {}
+    for k in CONSEQUENCE_KEYS:
+        vals = _strs(cq.get(k), f"standing.consequence.{k}")
+        consequence[k] = [norm_field(v) for v in vals] if k.endswith("_fields") else [v.lower() for v in vals]
+    return Standing(profiles=profiles, retained_modes=modes, retained=rules, routine_operations=routine_ops,
+                    consequence=consequence)
 
 
 def _rate(d: Any, w: str, with_match: bool = False) -> RateRule:

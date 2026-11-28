@@ -19,13 +19,22 @@ HOSTING = "https://deploy.host.example/*"
 INTEGRATION = "https://api.integration.example/*"
 
 
+#: the routine manifest the operator declares for the hosting API and the integration (``--routine``): deploying
+#: site files, starting a deployment, updating a project; nothing else on these hosts is routine
+ROUTINE = [{"methods": ["PUT"], "dest": "https://deploy.host.example/sites/**"},
+           {"methods": ["POST"], "dest": "https://deploy.host.example/sites/*/deploys"},
+           {"methods": ["PATCH"], "dest": "https://api.integration.example/v1/projects/*"}]
+
+
 def standing_record(t, now, **over):
     """A signed-record body with CAM's designated infrastructure pre-authorized (what ``authorize_live.py
-    --standing`` writes): its Discord server, a hosting API, an integration; public web reading."""
+    --standing --hosting ... --integration ... --routine ...`` writes): its Discord server, a hosting API, an
+    integration, the routine manifest above; public web reading."""
     owned = [f"account:discord:{GUILD}", "channel:discord:*", HOSTING, INTEGRATION]
     rec = live_record(t, now, owned=owned, read=["https://*", "pypi.org", "files.pythonhosted.org"],
                       preauthorized=list(owned),
-                      standing={"profile": PROFILE, "code_network": ["pypi.org", "files.pythonhosted.org"]})
+                      standing={"profile": PROFILE, "code_network": ["pypi.org", "files.pythonhosted.org"],
+                                "routine": [dict(r) for r in ROUTINE]})
     rec.update(over)
     return rec
 

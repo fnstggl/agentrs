@@ -156,3 +156,28 @@ def test_cam_can_ask_for_an_account_or_a_verification_step_and_asking_grants_not
     assert {x["request_id"] for x in reqs.open_requests()} == {r["request_id"], v["request_id"]}
     with pytest.raises(ValueError):
         reqs.request("everything", "x" * 5, "y" * 5, "")
+
+
+def test_the_routine_manifest_is_declared_by_the_operator_and_nothing_else_is_routine(planning):
+    kw = dict(hours=8, owned=[], read=[], preauthorized=[], accounts=[], issued_by="o", standing=PROFILE,
+              hosting=["https://deploy.host.example/*"], now=1_800_000_000.0)
+    rec = AL.build_record(planning, routine=["PUT,PATCH https://deploy.host.example/sites/**"], **kw)
+    assert rec["standing"]["routine"] == [{"methods": ["PUT", "PATCH"], "dest": "https://deploy.host.example/sites/**"}]
+    text = AL.summary(planning, rec)
+    assert "PUT,PATCH https://deploy.host.example/sites/**" in text and "R-NOT-ROUTINE" in text
+    for bad in (["DELETE https://deploy.host.example/sites/**"],         # a deletion is never routine
+                ["PUT https://elsewhere.example/sites/**"],              # not a designated destination
+                ["PUT"], ["PUT https://*.host.example/x"]):
+        with pytest.raises((AL.StandingError, liveauth.LiveAuthorizationError)):
+            AL.build_record(planning, routine=bad, **kw)
+    # without a manifest a designated hosting API has nothing routine (the default is approval)
+    assert "routine" not in AL.build_record(planning, **kw)["standing"]
+
+
+def test_reading_the_tasks_own_sites_is_declared_routine(tmp_path):
+    t = C.TaskSpec(objective_id="obj-au-sites", objective="x", mode="live", interfaces=["api"],
+                   resources={"owned_sites": [{"name": "site", "root": str(tmp_path), "base_url": "https://cam-site.example"}]},
+                   limits=C.Limits(duration_s=60, money=1.0, max_external_actions=1, max_decisions=1, compute_s=1))
+    rec = AL.build_record(t, hours=1, owned=[], read=[], preauthorized=[], accounts=[], issued_by="o",
+                          standing=PROFILE, now=1_800_000_000.0)
+    assert rec["standing"]["routine"] == [{"methods": ["GET", "HEAD"], "dest": "https://cam-site.example/**"}]

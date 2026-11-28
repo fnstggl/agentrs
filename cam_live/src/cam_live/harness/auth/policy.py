@@ -243,6 +243,8 @@ class PolicyService:
                         f"record.standing.profile {st['profile']!r} is not a standing profile of the loaded policy "
                         f"({', '.join(self.policy.standing.profiles) if self.policy else 'no valid policy'})")
                 D.parse_patterns(st.get("code_network", []))
+                for r in st.get("routine", []):
+                    liveauth.parse_routine(r)
             except (liveauth.LiveAuthorizationError, D.DestinationError) as e:
                 self._log("live_authorization_rejected", reason=str(e), record_id=str(record.get("record_id", ""))[:80]
                           if isinstance(record, dict) else "")
@@ -256,7 +258,8 @@ class PolicyService:
                       issued_by=rec["issued_by"], operator=str(by),
                       standing=liveauth.standing(rec).get("profile", ""),
                       preauthorized=list(rec.get("preauthorized", []))[:64],
-                      code_network=list(liveauth.standing(rec).get("code_network", []))[:16])
+                      code_network=list(liveauth.standing(rec).get("code_network", []))[:16],
+                      routine=list(liveauth.standing(rec).get("routine", []))[:64])
             return {"record_id": rec["record_id"], "task_id": rec["task_id"]}
 
     def _task_ctx(self, task: C.TaskSpec, now: float) -> Tuple[Optional[TaskCtx], List[Tuple[str, str]]]:
@@ -308,7 +311,7 @@ class PolicyService:
                 out.extend(D.parse_patterns(v))
             return out
 
-        profile, code_hosts = "", []
+        profile, code_hosts, routine = "", [], []
         try:
             deny = pats("deny", "denied_destinations")
             if record is not None:
@@ -324,6 +327,7 @@ class PolicyService:
                 st = liveauth.standing(record)
                 if st and st.get("profile") in pol.standing.profiles:     # unknown profile: ignored (fail-closed)
                     profile, code_hosts = st["profile"], D.parse_patterns(st.get("code_network", []))
+                    routine = [liveauth.parse_routine(r) for r in st.get("routine", [])]
             else:
                 owned, read, pre, inter = list(mode.owned), list(mode.read), list(mode.preauthorized), []
                 if mode.honour_task_resources:
@@ -370,7 +374,7 @@ class PolicyService:
                        # the retained classes are the exceptions of a standing profile: a record without one keeps
                        # exactly the meaning of its explicit pre-authorizations (e.g. the Discord live check)
                        retained=list(pol.standing.retained) if profile and mode.name in pol.standing.retained_modes
-                       else []), []
+                       else [], routine=routine, consequence_mode=mode.name in pol.standing.retained_modes), []
 
     @staticmethod
     def _authorized_tools(task: C.TaskSpec) -> Optional[List[str]]:

@@ -53,7 +53,15 @@ def test_calling_a_remote_mcp_server_needs_it_approved_as_an_integration(svc, tm
     rec["owned"].append("https://mcp.tools.example/*")
     rec["preauthorized"].append("https://mcp.tools.example/*")
     clock.advance(1.0)
-    sign_register(svc, tmp_path, rec)                                # the operator approves the integration
+    sign_register(svc, tmp_path, rec)                     # the operator approves the integration, nothing routine yet
+    d = decide(svc, t, "http.request", None, **rpc)
+    assert d.verdict == NEEDS and "R-NOT-ROUTINE" in d.policy_ids
+    rec = standing_record(t, clock.now(), record_id="rec-mcp2")
+    rec["owned"].append("https://mcp.tools.example/*")
+    rec["preauthorized"].append("https://mcp.tools.example/*")
+    rec["standing"]["routine"].append({"methods": ["POST"], "dest": "https://mcp.tools.example/mcp"})
+    clock.advance(1.0)
+    sign_register(svc, tmp_path, rec)                     # ... and declares its JSON-RPC endpoint routine
     assert decide(svc, t, "http.request", None, **rpc).verdict == ALLOW
 
 
@@ -134,7 +142,14 @@ def test_registration_through_an_api_needs_the_service_approved_and_then_each_re
     clock.advance(1.0)
     sign_register(svc, tmp_path, rec)
     d = decide(svc, t, "http.request", None, **reg)
-    assert d.verdict == NEEDS and "R-NEW-PERMISSION" in d.policy_ids
+    assert d.verdict == NEEDS and "R-NOT-ROUTINE" in d.policy_ids
+    # even where the operator declared the API's POSTs routine, a registration keeps its approval
+    rec["standing"]["routine"].append({"methods": ["POST"], "dest": "https://api.host2.example/v1/**"})
+    rec["record_id"] = "rec-host2b"
+    clock.advance(1.0)
+    sign_register(svc, tmp_path, rec)
+    d = decide(svc, t, "http.request", None, **reg)
+    assert d.verdict == NEEDS and "R-NEW-PERMISSION" in d.policy_ids and "R-NOT-ROUTINE" not in d.policy_ids
     # never through a human-verification answer
     d = decide(svc, t, "http.request", None, method="POST", url="https://api.host2.example/v1/register",
                json={"email": "cam@mail.example", "cf-turnstile-response": "0.abc"})
