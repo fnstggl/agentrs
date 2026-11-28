@@ -2407,7 +2407,8 @@ class CamLiveAgent:
         return {"cache": cache, "alias": dict(p._alias), "absorbed": sorted(p._absorbed),
                 "detectors": {k: {a: v for a, v in vars(d).items() if isinstance(v, (int, float, bool))}
                               for k, d in p._detectors.items()},
-                "success": {k: list(v) for k, v in p._success.items()}}
+                "success": {k: list(v) for k, v in p._success.items()},
+                "goal_views": p.goal_views_state()}
 
     def _load_predictor_state(self, d: Dict[str, Any]) -> None:
         if not d:
@@ -2430,6 +2431,7 @@ class CamLiveAgent:
                 setattr(det, a, x)
             p._detectors[k] = det
         p._success = {k: list(v) for k, v in d.get("success", {}).items()}
+        p.load_goal_views_state(d.get("goal_views") or [])
 
     # ============================================================================================ step 17 / status
     def next_wake(self) -> Optional[float]:

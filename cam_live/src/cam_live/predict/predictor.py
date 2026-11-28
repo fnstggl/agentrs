@@ -326,7 +326,7 @@ class Predictor:
         voi = info = None
         if compute_voi and has_q and any_goal and self.fast is not None:
             voi, info = self._voi(wb, view, gmask, feasible.cpu(), net_cost, context_items, goal_text, cands,
-                                  e_a, e_g, generator)
+                                  e_a, e_g, generator, means=(mean, epi))
         # ---- records ---------------------------------------------------------------------------------------------
         out: List[CandidateEvaluation] = []
         p_succ, q_logit = ev_q.p_success[0].double().cpu(), ev_q.success_logit[0].double().cpu()
@@ -403,8 +403,14 @@ class Predictor:
     # ---- value of information -------------------------------------------------------------------------------------
     def _voi(self, wb: WorldBatch, view: _View, gmask: Tensor, feasible: Tensor, net_cost: Tensor,
              context_items: Sequence[ExperienceItem], goal_text: str, cands: Sequence[ActionSpec],
-             e_a: Tensor, e_g: Tensor, generator: Optional[torch.Generator]) -> Tuple[Tensor, Dict[str, Tensor]]:
-        """Decision-relevant value of observing each candidate's own outcomes once (module docstring)."""
+             e_a: Tensor, e_g: Tensor, generator: Optional[torch.Generator],
+             means: Optional[Tuple[Tensor, Tensor]] = None) -> Tuple[Tensor, Dict[str, Tensor]]:
+        """Decision-relevant value of observing each candidate's own outcomes once (module docstring).
+
+        ``means``: ``self._means(view, self.fast)`` when the caller already has it (the same values; INT3A item 2:
+        it was computed three times per decision). The sampled-outcome loop runs on a copy of the head view on the
+        fast state's device: the fast layer computes there anyway, and with the view on the GPU every one of the
+        ``voi_max_candidates x voi_samples`` re-evaluations moved the features of every candidate to it and back."""
         cfg, fast = self.cfg, self.fast
         n = len(cands)
         s_n = max(1, cfg.voi_samples)
@@ -413,11 +419,14 @@ class Predictor:
             m, _ = self._means(v, f)
             return (m * gmask.to(m.device)).sum(-1).cpu() - net_cost
 
-        base_vals = values(view, fast)
+        mean0, epi0 = means if means is not None else self._means(view, fast)
+        base_vals = (mean0 * gmask.to(mean0.device)).sum(-1).cpu() - net_cost       # = values(view, fast)
         base = base_vals[feasible].max()
         kinds = [[KIND_OF_ID[int(k)] for k in row] for row in wb.kind_ids.cpu()]
         qm = wb.q_mask.cpu()
-        mean0, epi0 = self._means(view, fast)
+        dev = getattr(fast, "device", None)
+        if dev is not None and view.phi.device != torch.device(dev):
+            view = _View(**{f.name: getattr(view, f.name).to(dev) for f in dataclasses.fields(_View)})
         gross = torch.zeros(n, dtype=F64)
         stderr = torch.zeros(n, dtype=F64)
         gain = torch.zeros(n, dtype=F64)
@@ -613,6 +622,26 @@ class Predictor:
 
     def forget_goal_view(self, decision_id: str) -> None:
         self._goal_views.pop(decision_id, None)
+
+    def goal_views_state(self) -> List[Dict[str, Any]]:
+        """Checkpointable goal views of executed decisions (a restored agent writes the same ``epistemic_after``).
+        Views of decisions not yet committed are left out (they are re-made by the next evaluation)."""
+        out = []
+        for did, gv in self._goal_views.items():
+            if "rows" in gv:
+                continue
+            v: _View = gv["view"]
+            out.append({"decision_id": did, "action_id": gv["action_id"], "queries": list(gv["queries"]),
+                        "before": float(gv["before"]), "gmask": gv["gmask"].detach().cpu(),
+                        "view": {f.name: getattr(v, f.name).detach().cpu() for f in dataclasses.fields(_View)}})
+        return out
+
+    def load_goal_views_state(self, rows: Sequence[Dict[str, Any]]) -> None:
+        self._goal_views.clear()
+        for r in rows:
+            self._goal_views[r["decision_id"]] = {"action_id": r["action_id"], "queries": list(r["queries"]),
+                                                  "before": float(r["before"]), "gmask": r["gmask"],
+                                                  "view": _View(**r["view"])}
 
     def _own(self, o: OutcomeObservation) -> OutcomeObservation:
         qid = self._alias.get(o.query_id, o.query_id)

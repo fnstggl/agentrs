@@ -138,3 +138,34 @@ def test_learning_progress_is_the_loss_change_on_the_same_targets(tmp_path):
         assert got >= 1
     finally:
         agent.close()
+
+
+def test_pending_goal_views_survive_a_checkpoint(tmp_path):
+    """A restored agent can still write ``epistemic_after`` for decisions made before the checkpoint (the goal views
+    of executed decisions are checkpointed with the predictor state), with the same value."""
+    clock = SimClock()
+    world = LabWorld(lab_config(6), clock)
+    task = lab_task(world, "obj_gv")
+    verifier = LabVerifier(world)
+    cfg = agent_config(use_backbone=False, planner=False)
+    agent = CamLiveAgent(cfg, str(tmp_path / "a"), clock=clock, task=task, verifier=verifier)
+    other = None
+    try:
+        drive(agent, world, clock, verifier, DriverState(), 5)
+        views = {k: v for k, v in agent.predictor._goal_views.items() if "rows" not in v}
+        assert views
+        path = str(tmp_path / "ck")
+        agent.save(path)
+        other = CamLiveAgent(cfg, str(tmp_path / "b"), clock=clock, task=task, verifier=verifier)
+        other.load(path)
+        got = {k: v for k, v in other.predictor._goal_views.items() if "rows" not in v}
+        assert set(got) == set(views)
+        for did in views:
+            for p in (agent.predictor, other.predictor):           # every query absorbed: compare the recomputation
+                p._absorbed.update(f"query:{q}" for q in views[did]["queries"])
+            a, b = agent.predictor.goal_epistemic_after(did), other.predictor.goal_epistemic_after(did)
+            assert a is not None and a == b
+    finally:
+        agent.close()
+        if other is not None:
+            other.close()
