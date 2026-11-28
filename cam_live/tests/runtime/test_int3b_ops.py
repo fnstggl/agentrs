@@ -396,3 +396,68 @@ def test_validate_passes_the_lock_budget_through(monkeypatch, tmp_path):
     monkeypatch.setenv("CAM_LIVE_HOME", str(tmp_path / "home"))
     assert cli.main(["validate", "--mode", "staging", "--debug", "--budget-s", "600", "--out", str(tmp_path / "v")]) == 1
     assert seen["budget_s"] == 600.0 and seen["real_model"] is False
+
+
+# ---------------------------------------------------------------------------------------------------------- HX-5
+def _site_task(mode):
+    from cam_live.contracts import Limits, TaskSpec
+    return TaskSpec(objective_id=f"o_{mode}", objective="x", mode=mode,
+                    limits=Limits(duration_s=600, max_decisions=5, money=1, compute_s=60, max_external_actions=5),
+                    resources={"staging_site": "http://127.0.0.1:18999/",
+                               "owned_sites": [{"name": "a", "base_url": "http://localhost:18998/x"},
+                                               {"name": "b", "base_url": "https://example.org/"}]})
+
+
+def test_a_staging_tasks_own_local_sites_are_registered_and_never_in_live_mode(tmp_path):
+    from cam_live.harness.auth import PolicyService
+    from cam_live.runtime.tasks import register_staging_sites, staging_local_services
+    assert staging_local_services(_site_task("staging")) == ["127.0.0.1:18999", "127.0.0.1:18998"]
+    assert staging_local_services(_site_task("live")) == [] and staging_local_services(_site_task("diagnostic")) == []
+    p = PolicyService(str(tmp_path / "run"))
+    register_staging_sites(p, _site_task("staging"))
+    got = {r["address"] for r in p.local_services() if r["source"] == "registered"}
+    assert got == {"127.0.0.1:18999", "127.0.0.1:18998"}
+    q = PolicyService(str(tmp_path / "live"))
+    assert register_staging_sites(q, _site_task("live")) == []
+    assert not [r for r in q.local_services() if r["source"] == "registered"]
+
+
+def test_the_supervisor_registers_staging_sites_before_the_learner_starts(tmp_path, monkeypatch):
+    import yaml
+    from cam_live.harness import service as hservice
+    from cam_live.harness.auth import client as aclient
+    from cam_live.harness.auth import launcher as alauncher
+    calls = []
+
+    class Auth:
+        def register_task(self, task, by):
+            calls.append(("task", task.mode))
+
+        def register_local_service(self, address, by, note=""):
+            calls.append(("local", address))
+            return {"address": address}
+
+    class Handle:
+        def stop(self):
+            return {}
+    monkeypatch.setattr(alauncher, "launch", lambda run_dir, _x, lc: Handle())
+    monkeypatch.setattr(aclient, "connect", lambda run_dir: Auth())
+
+    def no_env(*a, **k):
+        raise RuntimeError("no executor in this test")
+    monkeypatch.setattr(hservice, "RemoteEnvironment", no_env)
+    raw = yaml.safe_load(open(STAGING_TASK))
+    raw["resources"]["staging_site"] = "http://127.0.0.1:18999/"
+    for mode in ("staging",):
+        f = tmp_path / f"task_{mode}.yaml"
+        f.write_text(yaml.safe_dump(raw, sort_keys=False))
+        run = tmp_path / f"run_{mode}"
+        run.mkdir()
+        assert cli.main(["_supervise", "--run-dir", str(run), "--task", str(f)]) == 5   # stops at the fake executor
+    assert calls[0] == ("task", "staging") and ("local", "127.0.0.1:18999") in calls
+    # the live planning task: nothing is registered
+    calls.clear()
+    run = tmp_path / "run_live"
+    run.mkdir()
+    assert cli.main(["_supervise", "--run-dir", str(run), "--task", LIVE_TASK]) == 5
+    assert calls == [("task", "live")]

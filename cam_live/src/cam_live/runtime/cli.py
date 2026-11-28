@@ -510,6 +510,10 @@ def cmd_supervise(a: argparse.Namespace) -> int:
     try:
         auth = connect(run_dir)
         auth.register_task(task, "operator")
+        # HX-5: a staging task's own sites on this machine are reachable only once registered (never in live mode)
+        from .tasks import register_staging_sites
+        for r in register_staging_sites(auth, task):
+            print(f"supervisor: registered staging site {r.get('address')} as a local service", flush=True)
         if a.authorization:
             with open(a.authorization) as f:
                 auth.register_live_authorization(json.load(f), "operator")

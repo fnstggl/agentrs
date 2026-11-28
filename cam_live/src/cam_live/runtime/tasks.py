@@ -781,3 +781,49 @@ def scan_file(path: str) -> List[str]:
 def default_tasks_dir() -> str:
     from ..config import PROJECT_ROOT
     return os.path.join(PROJECT_ROOT, "tasks")
+
+
+# ==============================================================================================================
+# staging sites the operator's run registers as local services (change request HX-5)
+# ==============================================================================================================
+def staging_local_services(task: TaskSpec) -> List[str]:
+    """``host:port`` of every staging / owned site of a *staging* task that is an address of this machine
+    (``resources.staging_site``, ``resources.owned_site``, ``resources.owned_sites[].base_url``). The authorization
+    service refuses such addresses (P-LOCAL-ADDRESS) unless the operator registers them; ``cam-live run`` does that
+    for the operator before the learner starts. Always empty outside staging mode: a live task never opens a
+    loopback address to the learner."""
+    from urllib.parse import urlsplit
+    from ..harness.auth import destinations as D
+    from ..harness.auth import localnet
+    if task.mode != "staging":
+        return []
+    res = task.resources if isinstance(task.resources, dict) else {}
+    urls: List[str] = [res.get("staging_site"), res.get("owned_site")]
+    urls += [s.get("base_url") for s in (res.get("owned_sites") or []) if isinstance(s, dict)]
+    out: List[str] = []
+    for u in urls:
+        if not isinstance(u, str) or not u.strip() or is_unset(u):
+            continue
+        try:
+            p = urlsplit(u if "://" in u else f"http://{u}")
+            host, port = p.hostname or "", p.port or {"http": 80, "https": 443}.get(p.scheme, 0)
+        except ValueError:
+            continue
+        try:
+            canon = D.parse_pattern(f"{host}:{port}").host if host and port else ""
+        except Exception:  # noqa: BLE001 — not a valid host: nothing to register
+            canon = ""
+        if canon and localnet.local_kind(canon):
+            addr = f"[{canon}]:{port}" if ":" in canon else f"{canon}:{port}"
+            if addr not in out:
+                out.append(addr)
+    return out
+
+
+def register_staging_sites(policy: Any, task: TaskSpec, by: str = "operator") -> List[Dict[str, Any]]:
+    """Register :func:`staging_local_services` at the authorization service (the operator's
+    ``opctl local-service add``). Returns what was registered (empty outside staging mode)."""
+    done = []
+    for addr in staging_local_services(task):
+        done.append(policy.register_local_service(addr, by, f"staging site of task {task.objective_id}"))
+    return done

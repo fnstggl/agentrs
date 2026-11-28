@@ -83,6 +83,8 @@ def build_inproc(task: TaskSpec, cfg: CamLiveConfig, run_dir: str) -> Tuple[Any,
     clock = WallClock()
     policy = PolicyService(run_dir, sec.get("policy_file") or None, clock=clock)
     policy.register_task(task, "operator")
+    from .tasks import register_staging_sites
+    register_staging_sites(policy, task)               # HX-5 (staging mode only)
     # the environment keeps its own state and execution log under <run_dir>/exec, apart from the runtime's records
     env = build_environment(os.path.join(run_dir, "exec"), policy, provenance=task.mode, clock=clock,
                             secrets=policy.secrets_handle() if hasattr(policy, "secrets_handle") else None,
