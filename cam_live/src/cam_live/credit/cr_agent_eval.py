@@ -191,6 +191,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--no-replay", action="store_true", help="disable CR-3 (replay of revised credit) in a patched agent")
     ap.add_argument("--threads", type=int, default=2)
     ap.add_argument("--max-wall-s", type=float, default=0.0, help="stop the run after this many seconds (GPU hold)")
+    ap.add_argument("--gpu-timeout-s", type=float, default=3600.0, help="how long to wait for the shared GPU lock")
     ap.add_argument("--work", default="")
     ap.add_argument("--out", required=True)
     a = ap.parse_args(argv)
@@ -200,7 +201,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     lock = contextlib.nullcontext()
     if a.real:
         from ..nn.gpu import gpu_lock
-        lock = gpu_lock(timeout_s=3600.0, min_free_gb=16.0)
+        lock = gpu_lock(timeout_s=float(a.gpu_timeout_s), min_free_gb=16.0)
     with lock:
         res = run(a.condition, a.seed, a.decisions, work, real=a.real, world_seed=a.world_seed, segment=a.segment,
                   split=a.split, backbone=False if a.no_backbone else None, replay=not a.no_replay,

@@ -292,9 +292,94 @@ def exp_power(*, reps: int = 2000, n_experiments: int = 6, seed: int = 0,
     return out
 
 
+def exp_policy(work: str, *, signal: str = "rudder", seed: int = 0, mech: int = 0, n_lifetimes: int = 80,
+               n_decisions: int = 5, lr: float = 0.5, steps_per_lifetime: int = 4,
+               warm_lifetimes: int = 24) -> Dict[str, Any]:
+    """Learning from a delayed-only consequence with each credit signal (CR; spec 16.4 "does credit assignment improve
+    actual learning efficiency"). One LabWorld key-door mechanism; the first decision of every lifetime is drawn from a
+    learned two-way softmax over {unlock, wait} (logged propensities); the later decisions follow D's behaviour
+    policy. After each lifetime matures and closes, the estimators train (``steps_per_lifetime`` learner updates) and
+    credit is assigned; the first decision's logit is moved by a policy gradient with that decision's credit under
+    ``signal``:
+
+        return   the measured return G (REINFORCE; unbiased, high variance; running-mean baseline)
+        simple   the simple attribution (evidence-linked outcomes of the decision itself; 0 when none)
+        rudder   RUDDER's learning signal (G - F(H_<t)) / Gamma_t (the agent's RUDDER learning key)
+        rudder_contribution   RUDDER's redistributed contribution of the decision (low variance, biased if F is)
+        cocoa    COCOA's counterfactual credit of the executed decision
+
+    ``warm_lifetimes`` randomised lifetimes (p = 0.5) train the estimators before the policy starts learning, so the
+    learned estimators have data (the same lifetimes for every signal). Reported: P(unlock) after every lifetime and
+    the true effect of unlocking (``truth_effects``-style forced-arm simulation is not repeated here: the sign is
+    known from the mechanism, unlock helps in every door mechanism of D's lab)."""
+    from .labkit import LabRun
+    from .simple import NAME as SIMPLE_NAME
+    t0 = time.perf_counter()
+    cfg = _cfg(lr_heads=2e-3, seed=seed)
+    lab = build_lab(_fresh(work, f"cr_policy_{signal}_{seed}_{mech}.sqlite"), cfg, world=False, policy=False,
+                    credit=True, beta=BETA, settings=LearnerSettings.from_cfg(cfg, batch_size=32, val_fraction=0.0))
+    rng = random.Random(1000 + seed)
+    theta = 0.0                                          # logit of unlock against wait
+    probs, chosen, credits, base = [], [], [], 0.0
+    warm_G: List[float] = []
+    scale: Optional[float] = None
+    try:
+        learner, store, assigner = lab.learner, lab.store, lab.assigner
+        lab.rudder.max_trajectories = lab.cocoa.max_trajectories = 32
+        ms = 1000 * (seed + 1) + mech
+        for i in range(warm_lifetimes + n_lifetimes):
+            warm = i < warm_lifetimes
+            p = 0.5 if warm else 1.0 / (1.0 + math.exp(-theta))
+            s = 7_000_000 + 10_000 * seed + i
+            world = LabWorld(door_config(seed=ms), lab.clock)
+            world.rng = random.Random(s)
+            arms = Arms("", {T: _arm_action(T), C: _arm_action(C)}, {T: p, C: 1.0 - p})   # randomised, logged
+            lt = collect_lifetime(store, lab.linker, world, weighted_policy(door_weight, seed=s), n_decisions, seed=s,
+                                  candidates_fn=door_candidates, arms=arms, tag=f"pol_{signal}_{seed}_{i}")
+            learner.refresh_eligibility(lt.exp_ids)
+            if learner.counters["frequent"] == 0:
+                learner.learn(learner.poll() or UpdatePlan(trigger="replay"))
+            learner.learn(UpdatePlan(trigger="replay", max_steps=steps_per_lifetime, budget_s=1e9))
+            assigner.assign(lt.exp_ids, reason="objective_closed")
+            G = trajectory_return(store, store.trajectory(lt.task.objective_id), beta=BETA).G
+            if warm:
+                warm_G.append(G)
+                continue
+            if scale is None:                            # one fixed step scale for every signal: sd of the return
+                m = sum(warm_G) / len(warm_G)
+                scale = max(1e-6, math.sqrt(sum((g - m) ** 2 for g in warm_G) / max(1, len(warm_G) - 1)))
+                base = m
+            r0 = store.get(lt.exp_ids[0])
+            if signal == "return":
+                c = G - base
+                base += 0.1 * (G - base)
+            elif signal == SIMPLE_NAME:
+                c = float(r0.credit.get(SIMPLE_NAME, 0.0) or 0.0)
+            else:
+                key = {"rudder": RUDDER, "rudder_contribution": KEY_CONTRIB, "cocoa": COCOA}[signal]
+                c = r0.credit.get(key)
+                c = 0.0 if c is None or not math.isfinite(float(c)) else float(c)
+            a = 1.0 if lt.arm == T else 0.0
+            theta += lr * (c / scale) * (a - p)
+            theta = max(-8.0, min(8.0, theta))
+            probs.append(p)
+            chosen.append(lt.arm)
+            credits.append(c)
+        last = probs[-max(1, len(probs) // 4):]
+        return {"signal": signal, "seed": seed, "mech_seed": ms, "n_lifetimes": n_lifetimes, "lr": lr,
+                "p_unlock": probs, "chosen": chosen, "credit_first_decision": credits,
+                "p_unlock_last_quarter": sum(last) / len(last), "theta_final": theta,
+                "auc_p_unlock": sum(probs) / len(probs), "return_scale": scale, "_seconds": time.perf_counter() - t0}
+    finally:
+        lab.close()
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("what", choices=["estimand", "power"])
+    ap.add_argument("what", choices=["estimand", "power", "policy"])
+    ap.add_argument("--signal", default="rudder")
+    ap.add_argument("--mech", type=int, default=0)
+    ap.add_argument("--lifetimes", type=int, default=80)
     ap.add_argument("--out", required=True)
     ap.add_argument("--work", default="")
     ap.add_argument("--seed", type=int, default=0)
@@ -309,6 +394,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     torch.manual_seed(0)
     if a.what == "power":
         res = exp_power(reps=a.reps, seed=a.seed)
+    elif a.what == "policy":
+        work = a.work or tempfile.mkdtemp(prefix="camlive_CR_")
+        os.makedirs(work, exist_ok=True)
+        res = exp_policy(work, signal=a.signal, seed=a.seed, mech=a.mech, n_lifetimes=a.lifetimes)
     else:
         work = a.work or tempfile.mkdtemp(prefix="camlive_CR_")
         os.makedirs(work, exist_ok=True)
@@ -326,6 +415,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     json.dump(res, open(a.out, "w"), indent=1, sort_keys=True, default=str)
     print(json.dumps({k: res[k] for k in res if k in ("old_gate", "pooled", "resolve_vs_truth", "rows",
+                                                       "p_unlock_last_quarter", "auc_p_unlock", "theta_final",
                                                        "first_decision_latent", "measured_heterogeneity")},
                      indent=1, default=str)[:6000])
     return 0
