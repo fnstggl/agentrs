@@ -1,0 +1,117 @@
+{
+ "seed": 0,
+ "n_lifetimes": 10,
+ "n_decisions": 12,
+ "steps": 400,
+ "train_records": 84,
+ "held_out_records": 36,
+ "before": {
+  "lab.act": {
+   "n": 19,
+   "content_nll": 18.509714601189643,
+   "information_gain": 2.0873539047226024,
+   "realised_iv_next": -0.36779524929251906,
+   "n_iv": 18
+  },
+  "lab.probe": {
+   "n": 7,
+   "content_nll": 17.919498949690254,
+   "information_gain": 2.207514169193628,
+   "realised_iv_next": -0.5246947796490957,
+   "n_iv": 6
+  },
+  "lab.noise": {
+   "n": 7,
+   "content_nll": 18.48978102543783,
+   "information_gain": 2.19958240936204,
+   "realised_iv_next": -0.33968223186131397,
+   "n_iv": 6
+  },
+  "wait": {
+   "n": 3,
+   "content_nll": 17.74555880774705,
+   "information_gain": 1.96001490271226,
+   "realised_iv_next": -0.5554755437189781,
+   "n_iv": 3
+  }
+ },
+ "after": {
+  "lab.act": {
+   "n": 19,
+   "content_nll": 1.4830139686578663,
+   "information_gain": 5.3873591651728185,
+   "realised_iv_next": -1.0331457537766213,
+   "n_iv": 18
+  },
+  "lab.probe": {
+   "n": 7,
+   "content_nll": 2.3916360271354775,
+   "information_gain": 6.05792332014365,
+   "realised_iv_next": -0.41423260206993273,
+   "n_iv": 6
+  },
+  "lab.noise": {
+   "n": 7,
+   "content_nll": 16.26205240971672,
+   "information_gain": 4.55001926189006,
+   "realised_iv_next": 4.5273937888554,
+   "n_iv": 6
+  },
+  "wait": {
+   "n": 3,
+   "content_nll": 2.4261868522621337,
+   "information_gain": 5.497299241497243,
+   "realised_iv_next": 5.0315589572978885,
+   "n_iv": 3
+  }
+ },
+ "trace": [
+  {
+   "step": 0,
+   "content_predictive_nll": 18.270498572285135,
+   "content_ig": 2.1327592693555784
+  },
+  {
+   "step": 50,
+   "content_predictive_nll": 3.275118927280067,
+   "content_ig": 2.8752654606521193
+  },
+  {
+   "step": 100,
+   "content_predictive_nll": 2.154640654579385,
+   "content_ig": 3.7392674216096684
+  },
+  {
+   "step": 150,
+   "content_predictive_nll": 5.312023745336537,
+   "content_ig": 4.338711292138261
+  },
+  {
+   "step": 200,
+   "content_predictive_nll": 0.030404260879457246,
+   "content_ig": 4.4152650672770815
+  },
+  {
+   "step": 250,
+   "content_predictive_nll": -0.19787571102108914,
+   "content_ig": 4.437011271720449
+  },
+  {
+   "step": 300,
+   "content_predictive_nll": -2.1535574861714553,
+   "content_ig": 4.7243335750482816
+  },
+  {
+   "step": 350,
+   "content_predictive_nll": -4.269414176014649,
+   "content_ig": 4.9944226303645225
+  },
+  {
+   "step": 399,
+   "content_predictive_nll": -2.2628834434590788,
+   "content_ig": 5.007399765564987
+  }
+ ],
+ "seconds": 44.676321029663086,
+ "provenance": "diagnostic (LabWorld, debug-scale model)"
+}
