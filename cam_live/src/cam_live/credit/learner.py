@@ -99,6 +99,13 @@ class LearnerSettings:
     slow_guard_abs_tol: float = 0.01     # largest increase of the mean held-out loss one slow step may cause
     slow_guard_z: float = 2.0            # tolerance = z * standard error of the paired before/after difference
     slow_guard_chunks: int = 8           # the fixed validation sample is split into this many chunks (noise estimate)
+    slow_guard_min_rel_tol: float = 1e-4  # smallest tolerance, relative to the provider's held-out loss (G2L-9: never
+                                          # the float floor; measured: vetoes at the float floor were rises of 1e-7 to
+                                          # 5.4e-5 relative, real degradations 4.4e-4 to 0.2; docs/DX.md round 2)
+    slow_guard_max_drift_rel: float = 0.02   # per-provider drift bound relative to its held-out loss (the bound is
+                                             # max(slow_guard_max_drift, this * |loss|))
+    slow_balance: bool = True            # conflict-aware combination of the providers' adapter gradients (PCGrad
+                                         # projection) and the max_share cap, as for the experiential group
     slow_guard_max_drift: float = 0.02   # bound on the summed held-out change of accepted slow steps since the last
                                          # reference (promoted checkpoint, or the learner's first slow step)
     betas: Tuple[float, float] = (0.9, 0.999)
@@ -607,12 +614,17 @@ class ContinualLearner:
         se = math.sqrt(sum((x - d) ** 2 for x in c) / (n - 1) / n) if n > 1 else float("nan")
         mb = sum(before[j] for j in common) / n if n else float("nan")
         ma = sum(after[j] for j in common) / n if n else float("nan")
-        floor = 1e-7 * max(1.0, abs(mb)) if math.isfinite(mb) else 0.0   # float noise of a deterministic evaluation
+        scale = abs(mb) if math.isfinite(mb) else 0.0
+        # smallest tolerance: a fixed small fraction of the provider's own held-out loss (G2L-9). The float floor
+        # 1e-7 |loss| let a provider whose chunks all moved together (paired SE ~ 0), or that had one chunk, veto a
+        # step over a rise of 1e-6 relative while another provider improved by 14 %.
+        floor = max(s.slow_guard_min_rel_tol * scale, 1e-7 * max(1.0, scale))
         noise_tol = s.slow_guard_z * se if math.isfinite(se) else 0.0
-        tol = min(s.slow_guard_abs_tol, s.slow_guard_tol * max(abs(mb) if math.isfinite(mb) else 0.0, 1e-6),
-                  max(noise_tol, floor))
+        tol = min(s.slow_guard_abs_tol, s.slow_guard_tol * max(scale, 1e-6), max(noise_tol, floor))
+        tol = max(tol, min(floor, s.slow_guard_tol * max(scale, 1e-6)))   # the caps never undercut the floor
         drift_before = float((self.slow_guard_state.get("drift_by_provider") or {}).get(name, 0.0))
         drift = drift_before + (d if math.isfinite(d) else 0.0)
+        drift_bound = max(s.slow_guard_max_drift, s.slow_guard_max_drift_rel * scale)
         reasons = []
         if len(common) < len(before):
             reasons.append(f"{name}: held-out loss not computable after the step on {len(before) - len(common)} of "
@@ -622,11 +634,12 @@ class ContinualLearner:
         else:
             if d > tol:
                 reasons.append(f"{name}: held-out loss rose by {d:.4g} (> tolerance {tol:.4g})")
-            if drift > s.slow_guard_max_drift:
+            if drift > drift_bound:
                 reasons.append(f"{name}: summed change since {self.slow_guard_state.get('reference')} would be "
-                               f"{drift:.4g} (> {s.slow_guard_max_drift:.4g})")
+                               f"{drift:.4g} (> {drift_bound:.4g})")
         return {"validation_before": mb, "validation_after": ma, "paired_change": d, "paired_se": se, "n_chunks": n,
-                "tolerance": tol, "noise_tolerance": noise_tol, "drift_before": drift_before, "drift_after": drift,
+                "tolerance": tol, "noise_tolerance": noise_tol, "min_tolerance": floor, "drift_bound": drift_bound,
+                "drift_before": drift_before, "drift_after": drift,
                 "accepted": not reasons, "reasons": reasons}
 
     def _guard_verdict(self, before: Dict[Tuple[str, int], float], after: Dict[Tuple[str, int], float],
@@ -663,6 +676,98 @@ class ContinualLearner:
                 "rule": "per_provider", "judged": sorted(per), "unjudged": sorted(unjudged),
                 "by_provider": per, "mean_over_cells": {"before": agg_b, "after": agg_a,
                                                         "change": agg_a - agg_b}}
+
+    def _balance_adapter_grads(self, grads: Dict[str, List[Optional[Tensor]]]
+                               ) -> Tuple[Dict[str, List[Optional[Tensor]]], Dict[str, Any]]:
+        """Combination of the providers' adapter gradients for one slow step (CL-03 round 2).
+
+        1. Conflict-aware (PCGrad, Yu et al. 2020): for every pair whose gradients conflict (negative inner product),
+           the component of one provider's gradient along the other's is removed, so that to first order no
+           provider's step increases another provider's (training) loss. Pairs are visited in name order
+           (deterministic).
+        2. Loss balancing as for the experiential group: no provider takes more than ``max_share`` of the summed
+           adapter gradient norm (measured on the real configuration: the grounding loss had 7.0 against the world
+           model's 0.026, so the step was the grounding loss alone).
+        Returns the new gradients and a record of what was done."""
+        names = sorted(k for k, g in grads.items() if _norm(g) > 0)
+        info: Dict[str, Any] = {"providers": names}
+        if len(names) < 2:
+            return grads, info
+
+        def dot(a: List[Optional[Tensor]], b: List[Optional[Tensor]]) -> float:
+            tot = 0.0
+            for x, y in zip(a, b):
+                if x is not None and y is not None:
+                    tot += float((x.double() * y.double()).sum())
+            return tot
+
+        orig = {k: grads[k] for k in names}
+        sq = {k: dot(orig[k], orig[k]) for k in names}
+        conflicts: List[str] = []
+        out = {k: [None if t is None else t.clone() for t in orig[k]] for k in names}
+        for i in names:
+            for j in names:
+                if i == j or sq[j] <= 0:
+                    continue
+                c = dot(out[i], orig[j])
+                if c < 0:
+                    conflicts.append(f"{i}|{j}")
+                    f = c / sq[j]
+                    out[i] = [x if (x is None or y is None) else x - f * y for x, y in zip(out[i], orig[j])]
+                    if all(x is None for x in out[i]):
+                        break
+        norms = {k: _norm(out[k]) for k in names}
+        tot = sum(norms.values())
+        shares = {k: (v / tot if tot > 0 else 0.0) for k, v in norms.items()}
+        scale = {k: 1.0 for k in names}
+        nonzero = [k for k in names if norms[k] > 0]
+        if len(nonzero) > 1:
+            top = max(nonzero, key=lambda k: norms[k])
+            rest = tot - norms[top]
+            if shares[top] > self.settings.max_share and rest > 0:
+                scale[top] = self.settings.max_share * rest / ((1.0 - self.settings.max_share) * norms[top])
+                out[top] = [None if x is None else x * scale[top] for x in out[top]]
+        tot2 = sum(norms[k] * scale[k] for k in names)
+        info.update({"conflicts": conflicts, "norm_before": {k: math.sqrt(sq[k]) for k in names},
+                     "norm_projected": norms, "share_projected": shares, "scale": scale,
+                     "share_applied": {k: (norms[k] * scale[k] / tot2 if tot2 > 0 else 0.0) for k in names}})
+        new = dict(grads)
+        new.update(out)
+        return new, info
+
+    @torch.no_grad()
+    def _project_update(self, params: Sequence[torch.nn.Parameter], before: Sequence[Tensor],
+                        protect: Dict[str, List[Optional[Tensor]]], passes: int = 4) -> Dict[str, Any]:
+        """Make the applied adapter update Delta first-order non-increasing for every provider whose loss reaches the
+        adapters (A-GEM-style, Chaudhry et al. 2019, applied to the optimizer's update rather than to the gradient,
+        since AdamW's per-coordinate scaling can turn a conflict-free gradient into an update that raises another
+        loss): while <g_k, Delta> > 0 for some provider k, Delta <- Delta - (<g_k, Delta> / |g_k|^2) g_k (a few
+        passes over the providers in name order). Records each provider's first-order change before and after."""
+        delta = [p.detach() - b for p, b in zip(params, before)]
+
+        def dot(g: List[Optional[Tensor]], d: List[Tensor]) -> float:
+            return float(sum((x.double() * y.double()).sum() for x, y in zip(g, d) if x is not None))
+
+        sq = {k: dot(g, [x if x is not None else torch.zeros(()) for x in g]) for k, g in protect.items()}
+        first = {k: dot(g, delta) for k, g in protect.items()}
+        n_proj = 0
+        for _ in range(passes):
+            moved = False
+            for k in sorted(protect):
+                if sq[k] <= 0:
+                    continue
+                c = dot(protect[k], delta)
+                if c > 1e-12 * math.sqrt(sq[k]) * max(_norm(delta), 1e-30):
+                    f = c / sq[k]
+                    delta = [d if g is None else d - f * g.to(d.dtype) for d, g in zip(delta, protect[k])]
+                    moved, n_proj = True, n_proj + 1
+            if not moved:
+                break
+        for p, b, d in zip(params, before, delta):
+            p.copy_(b + d)
+        after = {k: dot(g, delta) for k, g in protect.items()}
+        return {"first_order_change_before": first, "first_order_change_after": after, "projections": n_proj,
+                "norm_after": _norm(delta)}
 
     def _providers_with_training_data(self) -> List[str]:
         """Providers with at least one record they may be trained on (their ``eligible`` flag is True)."""
@@ -894,6 +999,9 @@ class ContinualLearner:
             if unvalidated and not any(_norm(g) > 0 for g in grads.values()):
                 return self._defer(rec, notes, f"no loss that reaches the adapters has held-out validation records "
                                                f"({', '.join(unvalidated)}): the slow step is deferred")
+        protect = {k: g for k, g in grads.items() if _norm(g) > 0}      # the providers' own adapter gradients
+        if s.slow_balance:
+            grads, notes["slow_balance"] = self._balance_adapter_grads(grads)
         for j, p in enumerate(params):
             g = None
             for gs in grads.values():
@@ -925,6 +1033,8 @@ class ContinualLearner:
         self.sched_step[GROUP_ADAPTERS] += 1
         for p in params:
             p.grad = None
+        if s.slow_balance and len(protect) > 1:    # the update itself, not only its gradient (AdamW rescales per
+            notes["update_projection"] = self._project_update(params, before, protect)   # coordinate)
         if hasattr(model, "mark_adapters_updated"):
             model.mark_adapters_updated()
         with torch.no_grad():

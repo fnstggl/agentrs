@@ -58,9 +58,9 @@ class HonoursOwnFlag:
         return None, {}
 
 
-def _lab(lab_factory, **settings):
+def _lab(lab_factory, lr=1e-4, **settings):
     cfg = CamLiveConfig.debug()
-    cfg.optim.lr_adapters = 1e-4
+    cfg.optim.lr_adapters = lr
     st = dict(slow_guard=True, val_fraction=0.4, val_batch=32, slow_batch_size=4)
     st.update(settings)
     torch.manual_seed(0)
@@ -103,7 +103,9 @@ def test_without_held_out_records_a_slow_step_is_deferred_not_taken(lab_factory)
 
 
 def test_one_providers_degradation_is_not_hidden_by_anothers_gain(lab_factory):
-    lab = _lab(lab_factory)
+    # lr 1e-3: the degradation (~6e-4 of the loss) is above the minimum relative tolerance 1e-4 (G2L-9); at 1e-4 it
+    # was 6e-5, which the round-2 rule treats as no change
+    lab = _lab(lab_factory, lr=1e-3)
     L, m = lab.learner, lab.model
     L.register(AdapterProbe("improves", s=100.0, eval_sign=+1.0, spread=0.5))
     L.register(AdapterProbe("degrades", s=50.0, eval_sign=-1.0, spread=0.5))

@@ -246,6 +246,7 @@ def test_cumulative_drift_of_accepted_slow_steps_is_bounded_until_a_promotion(la
     v1 = step()
     assert v1["accepted"] and v1["paired_change"] > 0 and v1["paired_se"] > 0
     L.settings.slow_guard_max_drift = 2.5 * v1["paired_change"]          # each step is inside its own tolerance ...
+    L.settings.slow_guard_max_drift_rel = 0.0                             # (DX round 2: absolute bound only here)
     v2, v3 = step(), step()
     assert v2["accepted"] and v2["noise_tolerance"] > v2["paired_change"]
     assert not v3["accepted"] and v3["noise_tolerance"] > v3["paired_change"]     # ... but the sum is not
