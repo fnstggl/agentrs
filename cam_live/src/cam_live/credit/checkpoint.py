@@ -390,6 +390,33 @@ def verify_checkpoint(path: str) -> List[str]:
     return bad
 
 
+def strip_optimizer_state(path: str) -> int:
+    """Remove a checkpoint's optimizer state, keeping it a complete, verifiable checkpoint of everything else: the
+    manifest is rewritten first (atomically) without the ``optim/`` files and with ``optimizer_state_pruned``, then
+    the files are deleted (a crash in between leaves extra files, never a damaged checkpoint). Returns the bytes
+    freed (0 when there was no optimizer state)."""
+    m = _read_manifest(path)
+    if m is None:
+        return 0
+    gone = {k: v for k, v in m["files"].items() if k.startswith("optim/")}
+    if not gone:
+        return 0
+    m = dict(m)
+    m["files"] = {k: v for k, v in m["files"].items() if not k.startswith("optim/")}
+    m["optimizer_state_pruned"] = sorted(m.get("optimizers", []))
+    m["optimizers"] = []
+    atomic_write_bytes(os.path.join(path, MANIFEST), json.dumps(m, indent=1, sort_keys=True).encode())
+    freed = 0
+    for rel, meta in gone.items():
+        f = os.path.join(path, rel)
+        if os.path.isfile(f):
+            freed += int(meta.get("bytes", 0))
+            os.remove(f)
+    if os.path.isdir(os.path.join(path, "optim")):
+        fsync_dir(os.path.join(path, "optim"))
+    return freed
+
+
 def _info(path: str, m: Dict[str, Any]) -> CheckpointInfo:
     return CheckpointInfo(m["checkpoint_id"], int(m["seq"]), path, m.get("created_at", 0.0), m.get("parent", ""),
                           m.get("notes", ""), m.get("model_version", ""), m.get("reward_version", ""),
@@ -597,7 +624,7 @@ def load_checkpoint(path_or_root: str, checkpoint_id: Optional[str] = None, *, m
         if f.endswith(".safetensors"):
             st.weights[f[:-len(".safetensors")]] = load_file(os.path.join(wdir, f), device=str(map_location))
     odir = os.path.join(path, "optim")
-    for f in sorted(os.listdir(odir)):
+    for f in sorted(os.listdir(odir)) if os.path.isdir(odir) else []:
         if f.endswith(".pt"):
             st.optimizers[f[:-3]] = _load_pt(os.path.join(odir, f), map_location)
     st.fast_state = _load_pt(os.path.join(path, "fast_state.pt"), map_location)["fast_state"]
@@ -819,9 +846,12 @@ class CheckpointManager:
     """Checkpoint root with retention, promotion gated by validation and retention metrics, and rollback."""
 
     def __init__(self, root: str, *, keep_last: int = 3, keep_promoted: int = 5, gates: Optional[PromotionGates] = None,
-                 clock: Optional[Clock] = None):
+                 clock: Optional[Clock] = None, keep_optim: int = 1):
         self.root = os.path.abspath(root)
         self.keep_last, self.keep_promoted = max(2, int(keep_last)), max(1, int(keep_promoted))
+        #: kept checkpoints that keep their optimizer state: the newest ``keep_optim`` (cam_live.storage's retention
+        #: policy: optimizer state only in the newest checkpoint of a group; weights in every kept one)
+        self.keep_optim = max(0, int(keep_optim))
         self.gates = gates or PromotionGates()
         self.clock = clock or WallClock()
         os.makedirs(self.root, exist_ok=True)
@@ -992,6 +1022,9 @@ class CheckpointManager:
                 removed.append(i.checkpoint_id)
         if removed:
             fsync_dir(self.root)
+        kept = [i for i in infos if i.checkpoint_id in keep]
+        for i in kept[:max(0, len(kept) - self.keep_optim)]:
+            strip_optimizer_state(i.path)
         return removed
 
 
@@ -1138,6 +1171,14 @@ def promote_learner(manager: "CheckpointManager", learner: Any, *, retention: Di
         _info, state = manager.rollback("; ".join(dec.reasons)[:500])
         rb = restore_learner(learner, state)
         rb["rolled_back_to"] = dec.baseline_id
+        # a promoted checkpoint that is not the newest keeps no optimizer state (retention policy): the moments of
+        # the refused trajectory do not belong to the restored weights, so the learner's optimizers start fresh
+        reset = []
+        for name, opt in getattr(learner, "optimizers", {}).items():
+            if name not in state.optimizers:
+                opt.state.clear()
+                reset.append(name)
+        rb["optimizer_state_reset"] = reset
         if hasattr(learner, "set_slow_reference"):
             learner.set_slow_reference(dec.baseline_id)
     return dec, info, rb

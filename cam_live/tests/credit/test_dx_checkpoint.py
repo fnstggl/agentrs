@@ -165,3 +165,39 @@ def test_auth_config_hash_is_the_tasks_authorization_fields_and_a_change_is_repo
     assert C.restore_learner(lab.learner, loaded, rng=False, expected_auth_hash=h)["auth_config_changed"] is False
     assert C.restore_learner(lab.learner, loaded, rng=False,
                              expected_auth_hash=C.auth_config_hash(changed))["auth_config_changed"] is True
+
+
+def test_promotions_keep_optimizer_state_only_in_the_newest_checkpoint(lab_factory, tmp_path):
+    """Retention policy of cam_live.storage (G2-integration p03): weights in every kept checkpoint, optimizer state
+    only in the newest; every kept checkpoint still verifies and loads; a rollback to a promoted checkpoint without
+    optimizer state starts the learner's optimizers fresh."""
+    lab, _ = _lab_with_everything(lab_factory)
+    L = lab.learner
+    mgr = C.CheckpointManager(str(tmp_path / "ck"), keep_last=3, keep_promoted=5)
+    ret = {"lab/base/neg_nll": -1.0}
+    decs = []
+    for k in range(3):
+        L.learn(UpdatePlan(trigger="test", max_steps=1, budget_s=1e9, exp_ids=[r.exp_id for r in lab.store.all()]))
+        dec, info, _ = C.promote_learner(mgr, L, retention=ret, validation={"v": float(k)})
+        decs.append((dec, info))
+    assert all(d.promoted for d, _ in decs)
+    infos = mgr.list()
+    with_optim = [i.checkpoint_id for i in infos if os.listdir(os.path.join(i.path, "optim"))]
+    assert with_optim == [infos[-1].checkpoint_id]
+    for i in infos:
+        assert C.verify_checkpoint(i.path) == []
+        st = C.load_checkpoint(i.path)
+        assert st.weights and (bool(st.optimizers) == (i.checkpoint_id == infos[-1].checkpoint_id))
+        if i.checkpoint_id != infos[-1].checkpoint_id:
+            assert json.load(open(os.path.join(i.path, C.MANIFEST)))["optimizer_state_pruned"]
+    # a refused promotion is saved first (it becomes the newest checkpoint, so the promoted one it rolls back to keeps
+    # no optimizer state): the rollback starts the learner's optimizers fresh
+    L.learn(UpdatePlan(trigger="test", max_steps=1, budget_s=1e9, exp_ids=[r.exp_id for r in lab.store.all()]))
+    assert any(len(o.state) for o in L.optimizers.values())
+    dec, info, rb = C.promote_learner(mgr, L, retention=ret, validation={"v": -100.0})
+    assert not dec.promoted and rb is not None and rb["rolled_back_to"] == decs[-1][1].checkpoint_id
+    assert set(rb["optimizer_state_reset"]) == set(L.optimizers)
+    assert all(len(o.state) == 0 for o in L.optimizers.values())
+    newest = mgr.list()[-1]                       # the rollback is recorded as a checkpoint of the restored state
+    assert newest.rollback_of and not os.listdir(os.path.join(newest.path, "optim"))      # fresh optimizers: none
+    assert all(C.verify_checkpoint(i.path) == [] for i in mgr.list())
