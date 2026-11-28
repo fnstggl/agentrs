@@ -116,3 +116,127 @@ averaged rule did (before: 0 reverted). INT3A fixed the same eligibility feedbac
   consistency checks and repair, not a second source of truth. Power-loss durability is not tested.
 * The evidence numbers of D (`docs/evidence/D/*.json`, from `e6f51c7`) were not regenerated (G2-learn: conclusions
   reproduce on the current tree, numbers partly differ); D's `-m slow` tests were not re-run by DX.
+
+# Round 2 (after G2-learn round 2 at f54d8cc): slow learning, G2L-9, DX-1 root cause, retention
+
+G2-learn round 2 confirmed G2L-1 … G2L-5 fixed and measured slow (adapter) learning nearly frozen in the integrated
+agent (1 of 13 slow steps kept on the real configuration); 37 of 44 rejections looked like real held-out degradations
+of other providers (world model +0.5-4 %, COCOA +1-22 %), 7 were micro vetoes at the float-floor tolerance (G2L-9).
+
+## Finding: the "degradations" were mostly the guard's own measurement
+
+Logging the first-order change of every provider's loss predicted for the applied update next to the realized
+held-out change showed realized world-model changes of 1-3 % (median) against predicted ~1e-5, with either sign
+(debug agent, 8 lifetimes: 23 of 34 world-model rises above tolerance were predicted to be decreases). Two causes,
+both in what the guard compares, not in what the adapters did:
+1. **Running statistics moved by the step's own loss evaluation.** The slow step computes the providers' losses
+   with gradients; `predict.world.world_nll` then updates the world model's `KindNormaliser` buffers (EMA of each
+   kind's NLL, the loss's denominator) and `predict.heads.world_batch` updates the real-valued target scaler
+   (`heads.scaler`). The held-out loss "after" the step was measured in other units than "before", and a refused
+   step did not restore them. Fix (`ContinualLearner._running_state` / `_restore_running_state`): the slow step
+   snapshots every model buffer and every provider's `heads.scaler` before its loss evaluation and restores them
+   afterwards — the slow timescale changes the adapters only (running statistics stay the frequent timescale's
+   business). Test `test_the_slow_step_does_not_move_running_statistics_so_the_guard_measures_the_adapter_change`
+   (paired change 1.025 on the previous code, exactly 0 now).
+2. **COCOA's held-out loss was random.** `HindsightModel.loss` draws Poisson bootstrap weights from the global
+   generator; the provider used them also when evaluating held-out loss, so "before" and "after" were differently
+   weighted losses (and every validation consumed global random numbers). Now bootstrap weights are drawn only for a
+   training step (`bootstrap=_training_call()`).
+
+After these two fixes, in the same debug-agent run type the realized per-step held-out change is world model median
+5e-6 relative (was 2e-2), COCOA 6e-7 (was 4e-2).
+
+## Changes (credit/ only)
+
+1. **G2L-9 — minimum tolerance.** `slow_guard_min_rel_tol = 1e-4`: a provider's tolerance is never below 1e-4 of its
+   own held-out loss (was 1e-7). Basis (measured): micro vetoes were rises of 1e-7 … 5.4e-5 relative (G2-learn's 7
+   cases); the smallest substantive degradation in G2-learn's runs was 4.4e-4; providers whose chunks agree have a
+   paired SE of 3e-7 … 3e-5 relative (DX runs: evaluator, fast_prior, rudder, bridge, and the world model after the
+   measurement fix), while every provider's held-out loss moves by a median of 4e-4 … 0.8 relative between two
+   consecutive slow steps (frequent updates and validation refresh in between). 1e-4 lies above the first group and
+   below the second. Per-provider drift bound max(0.02, 2 % of the provider's loss) (`slow_guard_max_drift_rel`).
+   No held-out evidence still defers the step.
+2. **Measurement fixes** above (running statistics, deterministic COCOA validation).
+3. **Multi-provider combination** (kept; secondary after the measurement fix): PCGrad projection between conflicting
+   adapter gradients plus the `max_share` cap 0.9 (the grounding loss had > 0.9 of the adapter gradient); the applied
+   AdamW update projected to be first-order non-increasing for every provider with an adapter gradient and for
+   COCOA's hindsight model through `HindsightProvider.adapter_sensitivity_loss` (attached latents, its own training
+   records, no training step, no random draw); a trust region driven by the verdicts (a refused step halves the next
+   adapter step down to 1/16, an accepted one grows it by 1.5 up to 1, checkpointed).
+4. **Retention (G2-integration p03):** `CheckpointManager(keep_optim=1)` keeps optimizer state only in the newest kept
+   checkpoint (manifest rewritten atomically; every kept checkpoint verifies and loads); a rollback to a checkpoint
+   without optimizer state starts the learner's optimizers fresh (`optimizer_state_reset` in the report).
+5. **CL-10:** `credit.checkpoint.auth_config_hash(task)`; agent diff in docs/change_requests/DX.md (DX-2).
+6. **DX-1:** root cause and the exact hook in docs/change_requests/DX.md; the experiment copy can no longer fail
+   `learn()` or a checkpoint.
+
+## Measurements (G2-learn's `probe_slow_acceptance.py`, unchanged, own work directories in DX's scratch)
+
+Debug integrated agent (`--mode agent`, 8 lifetimes, tiny CPU configuration; runs are not reproducible across
+processes because ids carry `os.urandom` bytes, so two seed sets each), slow steps judged / kept:
+
+| Code | seeds 11-18 | seeds 21-28 | pooled kept | binding providers of refusals | net adapter change (L2) |
+|---|---|---|---|---|---|
+| before (DX round 1, = f54d8cc's credit/) | 5 / 22 | 9 / 31 | 14 / 53 (26 %) | cocoa 20, world_model 14, others 5 | 0.026 / 0.011 |
+| + G2L-9 tolerance, PCGrad + update projection | 4 / 27 | — | 4 / 27 (15 %) | cocoa 15, world_model 8 | 0.018 |
+| + COCOA protection | 14 / 25 | 7 / 34 | 21 / 59 (36 %) | cocoa 21, world_model 16 | 0.056 / 0.023 |
+| + trust region | 6 / 17 | 11 / 25 | 17 / 42 (40 %) | cocoa 15, world_model 10 | 0.020 / 0.017 |
+| **+ measurement fix (running statistics, deterministic COCOA validation) = final** | **26 / 30** | **32 / 32** | **58 / 62 (94 %)** | rudder 4 (rises 1.2e-4 … 2.8e-4 relative) | 0.037 / 0.018 |
+
+(G2-learn's run at f54d8cc: 7 / 26.) With the final code the realized per-step held-out change of the world model is
+median 5e-6 relative (before 2e-2), COCOA 6e-7 (before 4e-2); every applied step still carries a verdict. The net
+adapter change stays modest because refused *promotions* roll the learner back (retention gate: decision agreement on
+earlier objectives dropped by more than 0.1 in several promotions of these runs) — that is CL-05's gate, not the
+slow-step guard. Statistical note: before vs the variants without the measurement fix is not significant (Fisher
+p 0.19-0.32); before vs final is (14 / 53 vs 58 / 62, p = 2e-14).
+
+D's lab (`--mode lab --rounds 20`, deterministic): before 20 / 27 kept (all 7 refusals COCOA, the bootstrap-noise
+artifact), final 27 / 27; held-out losses at the end world 2.7752 → 2.7738, bridge_grounding 12.335 → 12.306, rudder
+0.0644 → 0.0644 (COCOA's held-out value is now the deterministic loss, not comparable with the bootstrap-weighted
+one).
+
+Real configuration (Qwen3-4B + 50m core, CUDA, queued GPU lease; `--mode agent --real --seeds 11 12 13`, as G2-learn
+ran it): **4 of 8 slow steps kept** (G2-learn at f54d8cc: 0 / 6 and 1 / 7; DX with COCOA protection but without the
+measurement fix: 1 / 5); 3 lifetimes / 38 records, GPU lease held 407 s. In every one of the 8 steps the restore
+found both running statistics changed by the step's loss evaluation (`heads.predict_world.normaliser.scale` and
+the `RealScaler`), confirming the artifact on the real configuration; the world model's per-step held-out change is
+now -4e-5 … +2e-5 relative (G2-learn: +0.5 … +4 %), COCOA's ≤ 1.3e-5, RUDDER's ≤ 5e-6. All 4 refusals are by the
+grounding loss itself: its held-out NLL rose by 0.09-0.28 % while the step lowered it on the 4-record slow batch,
+i.e. the grounding objective did not generalise in those steps, and the guard refused them correctly. The trust
+region took the step to 0.19-0.5 of its size after refusals. Net adapter change 0.0043 (one promotion was refused
+for forgetting, decision agreement -0.11 on an earlier objective, which rolled the learner back).
+
+Before / after held-out losses per provider are only comparable within a run (different runs see different
+experience); the per-step paired changes above are the within-run comparison.
+
+## DX-1 root cause (summary; details and the exact hooks in docs/change_requests/DX.md)
+
+With the hook applied by patching in a driver that replicates the integration test: 1 failure in 30 runs with the
+hook, 1 in 22 without (pooled with the coordinator's runs 6 / 58 vs 1 / 32, Fisher p = 0.41). Every run of both arms
+pauses after 5 consecutive verifier errors (the test's `_NoVerifier` raises), so the test always has exactly 5
+decisions and fails when none is a successful api action — a property of the test. The hook path raised nothing,
+cost 0.06 s (evaluation) + 0.009 s (copy) per run, draws no random numbers, and nothing outside `credit/` reads the
+copied records. It is now also wrapped so it can never fail `learn()` or a checkpoint.
+
+## Test runs (round 2)
+
+* `.venv/bin/python -m pytest cam_live/tests/credit cam_live/tests/nn -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/DX_fix2.xml`
+  on `6159def`: **251 passed, 21 skipped, 0 failed, 233 s**.
+* New tests: `tests/credit/test_dx_slow_r2.py` (7: micro veto, single chunk, real degradation still refused and no
+  evidence still defers, dominant loss, COCOA protection, trust region, running statistics),
+  `tests/credit/test_dx_checkpoint.py` (+2: auth hash, optimizer retention). On the code before each change: the
+  micro-veto and single-chunk tests fail (accepted False), the dominance test fails (unknown setting / world rises),
+  the running-statistics test fails (paired change 1.025 instead of 0), the retention test fails (optimizer state in
+  every checkpoint).
+* Adjusted: `test_dx_guard.py::test_one_providers_degradation_is_not_hidden_by_anothers_gain` uses lr 1e-3 so its
+  degradation (6e-4 relative) is above the new minimum tolerance; `test_gcl_fixes.py::test_cumulative_drift_...` sets
+  `slow_guard_max_drift_rel = 0` to test the absolute bound it was written for.
+
+## Still open (round 2)
+
+* RC-08 in the agent needs DX-1 applied; CL-10's authorization hash needs DX-2 applied (both agent.py, coordinator).
+* The record-level split still lets RUDDER / COCOA train on whole trajectories that contain held-out records of
+  their own (they read trajectories, the split is per record); pre-existing, not changed.
+* The first-order update projection is a heuristic; on the real configuration the predicted changes were 2-3 orders
+  below the realized ones before the measurement fix, so its contribution is not separately established.
+

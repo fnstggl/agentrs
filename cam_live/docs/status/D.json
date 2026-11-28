@@ -1,7 +1,7 @@
 {
  "workstream": "D",
  "stage": "1 + 2 (complete workstream) + G-cl fixes + DX fixes (G2-learn G2L-1..6, CL-10)",
- "commit": "c9fd652fe2c5d65ea52905b084c07e95dac23a16",
+ "commit": "6159def01f8301136b5e288ae29e360875671792",
  "summary": "Retrospective credit and continual learning. Stage 1 (model-independent): SqliteExperienceStore, OutcomeLinker, exact REINFORCE / all-actions / COCOA / RUDDER references, ReturnDecomposer, HindsightModel, simple attribution, EstimatorSelector, SMDP traces and credit ledger, atomic checkpoints. Stage 2 (on nn.model.CamLiveModel): ContinualLearner with one optimizer per group (never reward), per-group clipping, warm-up / cosine schedules, three timescales (fast belief update without gradient; frequent experiential + heads updates triggered by matured independent outcomes; slow adapter updates every adapter_every with a bounded adapter graph and a held-out guard: absolute, noise-measured tolerance, drift bound since the last promoted checkpoint, exact revert), measured loss shares with a 90 % cap, stratified replay, held-out split, learning records with hashes, deltas and a behavioural probe; LossProviders for RUDDER, COCOA and a bridge-grounding adapter loss; CreditAssigner (versioned per-decision credit, withheld until the return is final, evidence-selected default, credited returns); anchors + functional regularisation + measured forgetting; complete learner checkpoints, promotion / rollback on validation and retention, weights-only export and a fresh-model loader. Evidence at debug scale in LabWorld (docs/evidence/D/diagnostics.json) and single updates on Qwen3-4B + 50m core (docs/evidence/D/real_update.json). Integrated: agent.py constructs and calls the store, linker, learner, assigner, retention and checkpoint functions (verified by G2-learn; the earlier 'not integrated' statements were stale). Fix stage after the independent verification G-cl (docs/D/FIXES.md): append-only stored history with index checks, validated attribution amounts, estimator selection only on held-out lifetimes with paired standard errors (no estimator is promoted on LabWorld), provenance-gated promotion and COCOA support, full-trajectory credit, evidence regenerated from one committed tree. DX stage after G2-learn (docs/DX.md): fail-closed per-provider slow-step guard, learner-owned eligibility flags no longer shadow the providers' own, outcome timing enforced on append/update, overflow-safe attribution shares, the count mode search's convergence report, experiment records reaching the store and evidence-based estimator selection inside learn() (agent wiring: change request DX-1), checkpoints with experiment records and pending outcomes (CL-10).",
  "requirements": {
   "RC-01": {
@@ -343,7 +343,7 @@
     "docs/evidence/test_results/DX_fix.xml",
     "docs/change_requests/DX.md"
    ],
-   "limitations": "[DX, G2L-6] Credit side of the integration done: CreditAssigner.attach_experiments(registry) makes every ContinualLearner.learn() copy the caller's experiment records into the experience store before the held-out split is refreshed and run evaluate_experiments() after the update: compare_with_experiment on every randomised experiment whose arms have >= 2 matured held-out units (held out by lifetime, paired SE, unchanged), then the selection whenever that held-out measurement changes; when it cannot run, credit_selection.jsonl gets the reason per experiment and arm (assigned units, no final return, lifetime trained on, not randomised). Tested end to end with a test agent keeping its experiments in a real predict.registry.ExperimentRegistry (selection runs on held-out lifetimes; with holdout_experiments=False / one-unit experiments it does not and says why) and, -m slow, with the real CamLiveAgent plus the one line of change request DX-1. NOT done in the agent: DX-1 (agent.py, INT3A) is not applied, so the integrated agent still never evaluates its experiments; with DX-1 applied the selection still does not run there as configured (each agent experiment has one randomised decision; holdout_experiments=False makes every experiment lifetime trained on) and the log says so. Earlier (D fix stage, G-cl M1): Fix stage (G-cl M1): the comparison is held out by lifetime and enforced in code (experiment lifetimes are never trained on; compare_with_experiment excludes any lifetime an estimator or the learner trained on and records it); z-scores use the paired standard error of estimate - measurement on the same units; a zero / undefined standard error is refused. Re-run (diagnostics.json, estimators trained on 288 unregistered lifetimes, validated on 288 held-out experiment lifetimes of 6 experiments): NO estimator is promoted, the default stays 'simple'. RUDDER: RMSE 3.402, mean z^2 6.61, sign agreement 1.0; COCOA: RMSE 4.234, mean z^2 13.84, sign agreement 1.0 (gate mean z^2 <= 3). The earlier 'rudder promoted' was in-sample and is withdrawn. RUDDER's experiment estimate is the decomposer's prediction difference after the first decision, whose latent is the same in every lifetime of every mechanism (identical initial context): it can only estimate an average effect, while the six mechanisms' measured effects differ. The simple attribution has no estimate for a decision without linked outcomes, so it cannot be scored on these experiments. One seed, debug scale. In the synthetic selection test (held-out lifetimes, paired SE) RUDDER passes (mean z^2 about 1.0) and learned COCOA coefficients fail (about 28)."
+   "limitations": "[DX round 2] DX-1 root cause (5/28 failures of test_int2_wiring with the hook): not the hook. Replicating the test 52 times: 1/30 failures with the hook, 1/22 without (pooled with the coordinator's 6/58 vs 1/32, Fisher p 0.41); every run pauses after 5 consecutive errors of the test's _NoVerifier, so the test has exactly 5 decisions and fails when none is a successful api action. The hook path raised nothing, costs 0.07 s per run and draws no random numbers; it is now wrapped so it can never fail learn() or a checkpoint. Hook unchanged (docs/change_requests/DX.md). [DX, G2L-6] Credit side of the integration done: CreditAssigner.attach_experiments(registry) makes every ContinualLearner.learn() copy the caller's experiment records into the experience store before the held-out split is refreshed and run evaluate_experiments() after the update: compare_with_experiment on every randomised experiment whose arms have >= 2 matured held-out units (held out by lifetime, paired SE, unchanged), then the selection whenever that held-out measurement changes; when it cannot run, credit_selection.jsonl gets the reason per experiment and arm (assigned units, no final return, lifetime trained on, not randomised). Tested end to end with a test agent keeping its experiments in a real predict.registry.ExperimentRegistry (selection runs on held-out lifetimes; with holdout_experiments=False / one-unit experiments it does not and says why) and, -m slow, with the real CamLiveAgent plus the one line of change request DX-1. NOT done in the agent: DX-1 (agent.py, INT3A) is not applied, so the integrated agent still never evaluates its experiments; with DX-1 applied the selection still does not run there as configured (each agent experiment has one randomised decision; holdout_experiments=False makes every experiment lifetime trained on) and the log says so. Earlier (D fix stage, G-cl M1): Fix stage (G-cl M1): the comparison is held out by lifetime and enforced in code (experiment lifetimes are never trained on; compare_with_experiment excludes any lifetime an estimator or the learner trained on and records it); z-scores use the paired standard error of estimate - measurement on the same units; a zero / undefined standard error is refused. Re-run (diagnostics.json, estimators trained on 288 unregistered lifetimes, validated on 288 held-out experiment lifetimes of 6 experiments): NO estimator is promoted, the default stays 'simple'. RUDDER: RMSE 3.402, mean z^2 6.61, sign agreement 1.0; COCOA: RMSE 4.234, mean z^2 13.84, sign agreement 1.0 (gate mean z^2 <= 3). The earlier 'rudder promoted' was in-sample and is withdrawn. RUDDER's experiment estimate is the decomposer's prediction difference after the first decision, whose latent is the same in every lifetime of every mechanism (identical initial context): it can only estimate an average effect, while the six mechanisms' measured effects differ. The simple attribution has no estimate for a decision without linked outcomes, so it cannot be scored on these experiments. One seed, debug scale. In the synthetic selection test (held-out lifetimes, paired SE) RUDDER passes (mean z^2 about 1.0) and learned COCOA coefficients fail (about 28)."
   },
   "CL-01": {
    "state": "implemented",
@@ -600,7 +600,10 @@
    "integration_points": [
     "cam_live.credit.learner.ContinualLearner._slow_update",
     "cam_live.credit.learner.encode_with_adapter_grad",
-    "cam_live.credit.providers.BridgeGroundingProvider"
+    "cam_live.credit.providers.BridgeGroundingProvider",
+    "cam_live.credit.learner.ContinualLearner._balance_adapter_grads",
+    "cam_live.credit.learner.ContinualLearner._project_update",
+    "cam_live.credit.providers.HindsightProvider.adapter_sensitivity_loss"
    ],
    "tests": [
     "tests/credit/test_learner.py::test_slow_adapter_update_runs_every_adapter_every_frequent_updates_and_reaches_lora_and_bridge",
@@ -614,7 +617,12 @@
     "tests/credit/test_dx_guard.py::test_one_providers_degradation_is_not_hidden_by_anothers_gain",
     "tests/credit/test_dx_guard.py::test_a_loss_without_held_out_records_of_its_own_does_not_move_the_adapters",
     "tests/credit/test_dx_guard.py::test_a_held_out_loss_that_cannot_be_computed_after_the_step_rejects_it",
-    "tests/credit/test_dx_guard.py::test_held_out_flags_survive_a_refresh_and_late_eligibility_is_picked_up"
+    "tests/credit/test_dx_guard.py::test_held_out_flags_survive_a_refresh_and_late_eligibility_is_picked_up",
+    "tests/credit/test_dx_slow_r2.py::test_a_consistent_rise_of_1e_minus_5_relative_no_longer_vetoes_a_step_that_helps_another_provider",
+    "tests/credit/test_dx_slow_r2.py::test_a_single_validation_chunk_gets_the_relative_minimum_not_the_float_floor",
+    "tests/credit/test_dx_slow_r2.py::test_a_real_degradation_above_the_minimum_is_still_refused_and_no_evidence_still_defers",
+    "tests/credit/test_dx_slow_r2.py::test_a_dominant_loss_no_longer_pushes_the_adapters_against_another_providers_loss",
+    "tests/credit/test_dx_slow_r2.py::test_cocoa_reads_the_representation_and_the_update_does_not_raise_its_loss_to_first_order"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
@@ -634,7 +642,7 @@
     "docs/DX.md",
     "docs/evidence/test_results/DX_fix.xml"
    ],
-   "limitations": "[DX, G2L-4, G2L-5] The held-out guard fails closed and judges every provider: a slow step is deferred (not taken) while no provider has held-out validation records; a loss without held-out records of its own is removed from the adapter gradient (and the step deferred if no validated loss remains); a held-out loss that cannot be computed after the step rejects it; the step is kept only if, for EACH provider with held-out records, the paired change of its held-out loss over its validation chunks is <= min(0.01, 5 % of its loss, max(2 SE, float floor)) and its summed change since the last promoted checkpoint is <= 0.02; a rejected step is undone with its AdamW state, learning rate, schedule and counters. The verdict lists by_provider, judged and unjudged providers (providers with training data but no held-out records). [DX] Providers are asked eligible(record) without the learner's own flags: before, predict.providers read the learner's held-out exclusion as permanent, so held-out records lost their val: flag at the next refresh (in G2-learn's agent probe only rudder / cocoa / bridge_grounding had held-out losses; now 8 providers). Measured in that probe (3 short lifetimes, tiny configuration): 11 slow steps, 0 without a verdict, 8 reverted (one validation chunk per provider -> float-floor tolerance), 3 kept (clean export of e4186c8: 7 attempted, 2 deferred, 0 without a verdict, 3 of 5 reverted). Whether adapter updates improve semantic understanding is still NOT shown. The adapter graph covers the newest grad_last context items plus all candidate and goal texts (change request D-8)."
+   "limitations": "[DX round 2, G2-learn round 2 / G2L-9] The held-out guard measured artefacts: the slow step's own loss evaluation updated running statistics (the world model's KindNormaliser buffers and the target RealScaler) so the held-out loss after the step was in other units, and COCOA's held-out loss used random Poisson bootstrap weights. Fixed: the slow step restores model buffers and providers' heads.scaler after its loss evaluation (it changes the adapters only), COCOA's held-out evaluation is deterministic. G2L-9: minimum tolerance 1e-4 of the provider's held-out loss (micro vetoes were 1e-7..5.4e-5, the smallest real degradation 4.4e-4); per-provider drift bound max(0.02, 2 % of the loss). Also: PCGrad + max_share 0.9 combination of the providers' adapter gradients, the applied AdamW update projected first-order non-increasing for every provider with an adapter gradient and for COCOA (sensitivity gradient on its training records), a verdict-driven trust region (refusal halves the next step to >= 1/16, acceptance grows it by 1.5). Measured with G2-learn's probe_slow_acceptance.py: debug integrated agent (8 lifetimes, two seed sets) kept 14/53 slow steps before, 58/62 after (Fisher p 2e-14); per-step held-out change of the world model median 2e-2 -> 5e-6 relative, COCOA 4e-2 -> 6e-7; D's lab 20/27 -> 27/27; real configuration (Qwen3-4B + 50m core, CUDA, 3 lifetimes) 4/8 kept (G2-learn: 0/6, 1/7), every refusal by the grounding loss's own held-out rise (0.09-0.28 %), the restore found the normaliser and scaler moved in all 8 steps. Net adapter change stays small where promotions are refused for forgetting (rollbacks). Whether adapter updates improve semantic understanding is still NOT shown. Earlier (DX round 1): [DX, G2L-4, G2L-5] The held-out guard fails closed and judges every provider: a slow step is deferred (not taken) while no provider has held-out validation records; a loss without held-out records of its own is removed from the adapter gradient (and the step deferred if no validated loss remains); a held-out loss that cannot be computed after the step rejects it; the step is kept only if, for EACH provider with held-out records, the paired change of its held-out loss over its validation chunks is <= min(0.01, 5 % of its loss, max(2 SE, float floor)) and its summed change since the last promoted checkpoint is <= 0.02; a rejected step is undone with its AdamW state, learning rate, schedule and counters. The verdict lists by_provider, judged and unjudged providers (providers with training data but no held-out records). [DX] Providers are asked eligible(record) without the learner's own flags: before, predict.providers read the learner's held-out exclusion as permanent, so held-out records lost their val: flag at the next refresh (in G2-learn's agent probe only rudder / cocoa / bridge_grounding had held-out losses; now 8 providers). Measured in that probe (3 short lifetimes, tiny configuration): 11 slow steps, 0 without a verdict, 8 reverted (one validation chunk per provider -> float-floor tolerance), 3 kept (clean export of e4186c8: 7 attempted, 2 deferred, 0 without a verdict, 3 of 5 reverted). Whether adapter updates improve semantic understanding is still NOT shown. The adapter graph covers the newest grad_last context items plus all candidate and goal texts (change request D-8)."
   },
   "CL-04": {
    "state": "implemented",
@@ -701,7 +709,7 @@
    "limitations": "The learner schedules fast / frequent / slow; the fourth timescale (meta-update of the reward) belongs to Workstream C and is not scheduled here. 'Informative' is decided from the stored surprise of a registered prediction (outcomes nobody predicted always count); the independence unit is the top-level decision, not a statistical test. In D's evidence only the first plan comes from poll(); the remaining updates of each experiment are explicit replay plans."
   },
   "CL-10": {
-   "state": "implemented",
+   "state": "partial",
    "files": [
     "src/cam_live/credit/checkpoint.py"
    ],
@@ -710,7 +718,8 @@
     "cam_live.credit.checkpoint.capture_learner",
     "cam_live.credit.checkpoint.save_checkpoint_at",
     "cam_live.credit.checkpoint.load_checkpoint",
-    "cam_live.credit.checkpoint.restore_learner"
+    "cam_live.credit.checkpoint.restore_learner",
+    "cam_live.credit.checkpoint.auth_config_hash"
    ],
    "tests": [
     "tests/credit/test_dx_checkpoint.py::test_every_15_2_item_is_in_the_checkpoint_and_comes_back",
@@ -720,7 +729,8 @@
     "tests/credit/test_checkpoint.py::test_replay_indices_and_pending_pointer_travel_with_the_checkpoint",
     "tests/credit/test_checkpoint.py::test_crash_at_every_step_of_a_save_leaves_a_loadable_checkpoint",
     "tests/credit/test_checkpoint.py::test_kill_9_during_save_leaves_a_loadable_checkpoint",
-    "tests/credit/test_checkpoint.py::test_checkpoint_of_a_gpu_model_is_stored_on_cpu"
+    "tests/credit/test_checkpoint.py::test_checkpoint_of_a_gpu_model_is_stored_on_cpu",
+    "tests/credit/test_dx_checkpoint.py::test_auth_config_hash_is_the_tasks_authorization_fields_and_a_change_is_reported"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit cam_live/tests/nn -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/DX_fix.xml"
@@ -729,7 +739,7 @@
     "docs/DX.md",
     "docs/evidence/test_results/DX_fix.xml"
    ],
-   "limitations": "15.2 item -> checkpoint content: model weights / semantic adapters / intrinsic reward weights -> weights/<group>.safetensors (every trainable group incl. reward); optimizer state -> optim/<name>.pt (learner groups + extra optimizers, e.g. the agent's reward_meta); fast adaptive state -> fast_state.pt; current task -> state.json current_task; replay indices -> replay_state (sampler stream position, head); experiment records -> state.json experiments [DX]; pending outcomes -> pending_outcomes (the unresolved queries) [DX] + pending_pointer; learning schedules -> schedules (counters, lr schedule steps, guard state); random seeds -> rng.pt (python / numpy / torch CPU+CUDA generators) + config seed; authorization configuration -> auth_config_hash (checked with expected_auth_hash on load) + the task's auth_scope in current_task; model versions -> model_version / reward_version, MANIFEST group hashes and architecture signature. Atomic (temp dir, fsync, rename; crash at every step and kill -9 tested); every tensor is moved to the CPU before writing (GPU test runs only where CUDA is available). Limits: the authorization configuration itself stays with the authorization service (a learner checkpoint cannot restore authorization), and agent.save passes no auth_config_hash (change request DX-2 note); experiments and pending queries live durably in the experience store, the checkpoint copy is for consistency checks / repair (restore writes back experiment records the store lacks, never replaces one it holds, and reports pending queries missing in the store); power-loss durability not tested; integrated restart is INT2's / INT3's evidence, not re-run by DX."
+   "limitations": "15.2 item -> checkpoint content: model weights / semantic adapters / intrinsic reward weights -> weights/<group>.safetensors (every trainable group incl. reward); optimizer state -> optim/<name>.pt (learner groups + extra optimizers, e.g. the agent's reward_meta); fast adaptive state -> fast_state.pt; current task -> state.json current_task; replay indices -> replay_state (sampler stream position, head); experiment records -> state.json experiments [DX]; pending outcomes -> pending_outcomes (the unresolved queries) [DX] + pending_pointer; learning schedules -> schedules (counters, lr schedule steps, guard state); random seeds -> rng.pt (python / numpy / torch CPU+CUDA generators) + config seed; authorization configuration -> auth_config_hash (checked with expected_auth_hash on load) + the task's auth_scope in current_task; model versions -> model_version / reward_version, MANIFEST group hashes and architecture signature. Atomic (temp dir, fsync, rename; crash at every step and kill -9 tested); every tensor is moved to the CPU before writing (GPU test runs only where CUDA is available). Limits: the authorization configuration itself stays with the authorization service (a learner checkpoint cannot restore authorization), and agent.save passes no auth_config_hash (change request DX-2 note); experiments and pending queries live durably in the experience store, the checkpoint copy is for consistency checks / repair (restore writes back experiment records the store lacks, never replaces one it holds, and reports pending queries missing in the store); power-loss durability not tested; integrated restart is INT2's / INT3's evidence, not re-run by DX. [DX round 2] credit.checkpoint.auth_config_hash(task) (sha256 of the task's authorization fields as the learner sees them) and the agent diff (change request DX-2: capture_learner(auth_config_hash=...), restore_learner(expected_auth_hash=...)); with DX-1 the agent's experiment records are copied into the store before every checkpoint. Both are agent.py changes not applied at the time of writing, so CL-10 stays partial for the integrated agent (G2-learn R2.4). Retention: CheckpointManager keeps optimizer state only in the newest kept checkpoint (keep_optim=1, cam_live.storage policy); a rollback to a checkpoint without it starts the learner's optimizers fresh."
   }
  },
  "public_api": [
@@ -1083,6 +1093,25 @@
   "tests_dx_slow": {
    "tests/credit -m slow at 78139c9": "5 of 6 passed (test_evidence.py 5/5; the DX integrated-agent test failed on a trigger_state read, fixed in c9fd652)",
    "DX integrated-agent slow test at c9fd652": "1 passed (50 s)"
+  },
+  "tests_dx2": {
+   "tests": 272,
+   "failures": 0,
+   "errors": 0,
+   "skipped": 21,
+   "seconds": 232.336,
+   "file": "docs/evidence/test_results/DX_fix2.xml",
+   "dirs": "tests/credit + tests/nn (default marks)"
+  },
+  "slow_steps_dx2": {
+   "debug_agent_kept_before": "5/22, 9/31",
+   "debug_agent_kept_after": "26/30, 32/32",
+   "lab_kept_before_after": "20/27 -> 27/27",
+   "real_agent_kept_after": "4/8 (G2-learn before: 0/6, 1/7)",
+   "world_model_per_step_heldout_change_median_rel": "2e-2 -> 5e-6",
+   "cocoa_per_step_heldout_change_median_rel": "4e-2 -> 6e-7",
+   "dx1_driver_failures": "hook 1/30, no hook 1/22",
+   "outputs": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/DX/r2/"
   }
  },
  "measured_commands": {
@@ -1155,6 +1184,21 @@
    "G2L-8": "not in DX's paths (agent; INT3A fixed its provider side in 914b10a); DX's learner-side eligibility fix gives every provider its held-out records back (clean-export agent probe at e4186c8: validate() 8 providers, before 3), but a short run's first promotion can still be refused for missing validation (same run: refused once, then promoted); the residual (empty held-out split) is addressed by INT3A-5 (above)",
    "CL-10": "claimed by DX: experiment records and pending outcomes added to checkpoints; tests/credit/test_dx_checkpoint.py",
    "INT3A-5": "done: stratified record split (guaranteed held-out records per objective with >= 7 records) and explicit 'no held-out evidence' in promotion decisions; tests/credit/test_dx_split.py; probe_promotion_evidence.py --reps 5 before 3/5, after 5/5"
+  },
+  "round2": {
+   "verification": "docs/verification/G2_learn.md round 2 (f54d8cc)",
+   "fixes": "docs/DX.md (Round 2)",
+   "commits": [
+    "0745ae4",
+    "9a47d7d",
+    "2672207",
+    "5a59e17",
+    "6159def"
+   ],
+   "G2L-9": "fixed: minimum tolerance 1e-4 relative; test_dx_slow_r2.py (micro-veto case of G2-learn's real-configuration run)",
+   "slow_dominance": "root cause found (guard measurement artefacts) and fixed; combination / projection / trust region added; debug agent 14/53 -> 58/62 kept, real configuration 4/8 (was 0/6, 1/7)",
+   "DX-1": "root-caused as test flakiness (5 decisions before the runtime pauses on the test's raising verifier); hook safe; exact hook and DX-2 diff in change_requests/DX.md",
+   "optimizer_retention": "done: optimizer state only in the newest kept checkpoint"
   }
  }
 }
