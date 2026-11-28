@@ -1,0 +1,712 @@
+{
+ "CU-01": {
+  "status": "partial",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Holds in-process as root: Chromium, workspace, Python / shell with uid drop to camsbx, Landlock, seccomp, jobs, artifacts (tests 7/7; p11 16/0; p12 8/0). FAILS (D2): in the deployment cam-live run starts (environment service as cambrowser) Python and shell execution are unavailable (g04).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/g2harness/g04_separated_sandbox.py",
+   "cam_live/docs/verification/repro/sec/p11_sandbox.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-02": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 6/6; EB's registered separated probe: Chromium 159 from the shared copy as cambrowser loads the staging page.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/EB/repro/probe_separated_registered.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-03": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 12/12; G-env probe_browser 19/0.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/env/probe_browser.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-04": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "The CDP test passes (env before compute). It fails only after compute's session-scoped sync_playwright fixture (tests/harness/compute/conftest.py:166-176) -- HX-4, a test-isolation defect, product code unaffected (browser.py:1072-1087 uses a thread).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/tests/harness/env/test_browser_sessions.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-05": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 9/9; BR-STALE HOLDS.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/env/probe_browser.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-06": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 5/5.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-07": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Non-GPU tests 5/5 (pinned revisions and licences, no model in a credential-holding process, unpinned snapshots unavailable, checkpoint key mapping, strict answer parsing) and both -m gpu GoClick-Base tests (isolated child process; in-process frozen and releases memory) pass in my run. Custom remote code is not executed (native Florence-2 with renamed tensors; disclosed).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute/test_ec_grounding.py -q --rootdir=cam_live -o addopts=\"\" -m gpu",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-08": {
+  "status": "partial",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Non-GPU tests 3/5 pass and the -m gpu Vocaela evaluation-only test passes; test_mai_ui_2b_grounds_under_the_shared_gpu_lock was still waiting for the shared GPU lock (held by the evaluation queue) when this verdict was written, so the optional MAI-UI-2B integration was not executed by me. See G2_harness.md section 1.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute/test_ec_grounding.py -q --rootdir=cam_live -o addopts=\"\" -m gpu",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-09": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 16/16; G-sec p14 21/0 (stale-observation refusal, coordinate validation, per-gesture authorization).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/sec/p14_visual.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-11": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 6/6; PG-PROGRAMS-REAL-POLICY HOLDS.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/env/probe_programs.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-13": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 8/8; six modalities composed behind one interface in the launched service (SEP-COMPOSITION). The code modality is unavailable in the separated deployment (D2, judged under CU-01 / CU-37).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/env/probe_separated.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-14": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 4/4 (persistent profiles survive restart; stored-secret fill by reference).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/tests/harness/env/test_browser_sessions.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-15": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 9/9; SK-INDUCE-RUN and SK-WIRING HOLD.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/env/probe_skills.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-16": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 4/4; SK-SMUGGLED-STEP, SK-PROTECTED-GUARD, SK-NO-APPROVAL-BYPASS HOLD.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/env/probe_skills.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-17": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 5/5.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/env/probe_skills.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-18": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 5/5; SK-STALE-REPAIR and SK-RETIRED HOLD.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/env/probe_skills.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-19": {
+  "status": "partial",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "As claimed: the procedure level (skill.run) records start / end observation, primitive operations with times, elapsed time, resources, termination (tests 2/2). FAILS: programs of steps are merged into one ActionResult without per-step boundaries, and nothing calls cam_live.credit.smdp.attach_trace (grep), so the semi-Markov trace / duration-aware discounting is not reached from the runtime (HX-3).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-21": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 9/9.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-25": {
+  "status": "partial",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Holds: one evaluator for every modality; every G-sec / G-env probe for M1-M4, m6, C1, C2, M1, M7, M10 HOLDS; g05 22 spellings of this machine refused. FAILS: data-use / data-collection classes are enforced on the Discord modality only -- the api modality reads the same Discord data with the same bot credential (D1). Minor: the launched authorization service does not recognise $PUBLIC_IPADDR (launcher ENV_PASSTHROUGH, auth/launcher.py:63-66; D7). Disclosed: http_api does not report peer_ip (DNS rebinding).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/g2harness/g01_policy_bypass.py",
+   "cam_live/docs/verification/repro/g2harness/g03_planning_task_raw_api.py",
+   "cam_live/docs/verification/repro/g2harness/g05_local_address.py",
+   "cam_live/docs/verification/repro/sec/p06_staging_loopback.py",
+   "cam_live/docs/verification/repro/env/probe_browser.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-26": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 7/7; G-sec p15 18/0; G-env BR-INJECT, BR-TRUST, IN-OPERATOR-TRUST HOLD. The guarantee is structural (content carries no authority); the learner's own resistance is not tested here.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/sec/p15_injection_circumvention.py",
+   "cam_live/docs/verification/repro/env/probe_browser.py",
+   "cam_live/docs/verification/repro/env/probe_perception_internal.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-27": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 7/7 incl. privileged (real service users); G-sec p10 23/0 and p13 18/0.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/sec/p10_secrets.py",
+   "cam_live/docs/verification/repro/sec/p13_uid_separation.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-28": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 4/4; ENV-ORDER HOLDS (submitted, started, primitive_check, primitive_op, observation, result).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/env/probe_env_core.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-29": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 4/4; ENV-RESTART HOLDS (SIGKILL during a write: not re-sent, recorded result returned).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/env/probe_env_core.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-31": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 6/6; MS-BLOCK-SCOPE and MS-NO-SWITCH HOLD.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/env/probe_api_publish_modality.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-32": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 13/13; FT-RETRY-BOUNDS, HT-HARD-NEVER-RETRIED, HT-POST-RETRY HOLD.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/env/probe_api_publish_modality.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-34": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 4/4; benchmark evidence present; G-sec reproduced it on a 32-target subset (repro/sec/bench_spot.json). I did not re-run the benchmark (single synthetic run, disclosed).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/sec/bench_spot.json",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-35": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "The 8 named controlled tests (structured HTML, canvas controls, dynamic changes, multi-step workflow, unfamiliar variants and a mid-run interface change, repeated tasks with skills, delayed consequences) pass on real Chromium. Scripted harness tests, not learner-driven (disclosed).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-36": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 5/5; ENV-ONCE-1 and ENV-ONCE-2 (two valid grants, concurrent) HOLD; Discord sends carry an enforced nonce.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/env/probe_env_core.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-37": {
+  "status": "partial",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Holds: learner, browser, authorization and verifier processes run under camlearn / cambrowser / camauth / camverify (privileged tests; p13 18/0; SEP-UIDS). FAILS (D2): in the separated deployment cam-live run starts, the environment service runs as cambrowser (non-root) and sandbox.py:1153 makes every code tool unavailable ('not root: generated code would run under the harness uid') -- the generated-code sandbox is not a separately running uid there (g04, root).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/g2harness/g04_separated_sandbox.py",
+   "cam_live/docs/verification/repro/sec/p13_uid_separation.py",
+   "cam_live/docs/verification/repro/env/probe_separated.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "CU-38": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 3/3; G-sec p14 21/0 (grounder output is an untrusted proposal, validated against the observation, authorized per gesture).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/sec/p14_visual.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "IH-01": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 16/16; G-env probe_env_core 8/0 (authorization before execution, order, restart, stop, RPC uid).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/env/probe_env_core.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "IH-02": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 12/12; G-env probe_browser 19/0 and BR-WORKFLOW-REAL-POLICY HOLD with the real policy.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/env/probe_browser.py",
+   "cam_live/docs/verification/repro/env/probe_browser_workflow.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "IH-04": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 11/11; PB-FLOW, PB-APPROVAL-BINDING-ES3 HOLD (preview binds the exact text).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/env/probe_api_publish_modality.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "IH-05": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 50/50 (staging Discord); the adapter sends only 'Authorization: Bot', no user-token path; scope and NEVER_GRANTED permissions enforced in the adapter; raw writes to Discord refused (g03 controls). The D1 read gap is a policy / modality gap recorded under IH-15 and CU-25.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/g2harness/g03_planning_task_raw_api.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "IH-06": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 5/5; PB-ANALYTICS HOLDS; Discord counts via discord.get_guild_stats.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/env/probe_api_publish_modality.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "IH-07": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "All named tests pass fresh; G-sec p10 23/0; G-env BR-SECRET-BASIC/-TRANSFORMED/-USABLE and HT-SECRET-* HOLD; the separated service scrubs (SEP-COMPOSITION). The bot token released in D1 is used in a request header only, never observed. Scrubbing is list-based (disclosed).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/sec/p10_secrets.py",
+   "cam_live/docs/verification/repro/env/probe_browser.py",
+   "cam_live/docs/verification/repro/env/probe_api_publish_modality.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "IH-08": {
+  "status": "partial",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Holds: tool table, modality, interface and mode checks (tests 14/14, p01 25/0, p15 18/0). FAILS (D5): the task's resources.authorized_tools is not enforced -- the policy derives permitted operations from interfaces only (harness/auth/policy.py:331-332), so under tasks/discord_100_planning.yaml (authorized_tools browser.*, sandbox.*, discord.*, internal.*, wait; interfaces incl. api) http.get is allowed (g03 last check).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/g2harness/g03_planning_task_raw_api.py",
+   "cam_live/docs/verification/repro/sec/p01_grant_core.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "IH-09": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 12/12; G-sec p04 15/0 (exact coverage by tool class, method and full destination; page-bound interaction approvals; transport table); G-env PB-APPROVAL-BINDING and -ES3 HOLD.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/sec/p04_approvals.py",
+   "cam_live/docs/verification/repro/env/probe_api_publish_modality.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "IH-10": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 19/19; G-sec p03 9/0 (per-step and per-primitive charging, write_global); G-env SK-RATE-LIMIT (10 vs 10) and PG-RATE-LIMIT HOLD.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/sec/p03_limits.py",
+   "cam_live/docs/verification/repro/env/probe_skills.py",
+   "cam_live/docs/verification/repro/env/probe_programs.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "IH-11": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 9/9; G-sec p02 13/0 (API, opctl and touch R/auth/STOP void outstanding grants; reset_stop); ENV-STOP HOLDS.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/sec/p02_stop_pause.py",
+   "cam_live/docs/verification/repro/env/probe_env_core.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "IH-12": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "docs/HARNESS_ADAPTER_GUIDE.md documents the contract, secret references (secret:<name>), check_primitive per primitive and peer_ip; tests 5/5. (Change request HX-2, the hard-constraints section of docs/EA/SECURITY.md, is not applied -- D8, EA's security doc, not the adapter guide.)",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/HARNESS_ADAPTER_GUIDE.md",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "IH-13": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 4/4 incl. every executor of factories.all_executors behind the real service (browser and visual with -m browser); grep of harness code: only 'reward': False capability and the docstrings.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/tests/harness/env/test_hx_no_reward.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "IH-14": {
+  "status": "partial",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Holds: p07 13/0 (paraphrase set of G-sec), tests 11/11. FAILS: 'unauthorized data collection' -- raw http.get/api.get of Discord's message history and member list with the bot credential is allowed without member_list / content permission (D1, g01 B, g03); 'circumvention' -- a site's own CAPTCHA is answered through browser.fill + click in real Chromium (D4, g02) and CAPTCHA answers under keys outside the exact TOKEN_FIELDS list (captcha_input, recaptcha_response_field, captchaResponseToken, form body) are allowed (g01 C). Content detectors are lexical (disclosed).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/g2harness/g01_policy_bypass.py",
+   "cam_live/docs/verification/repro/g2harness/g02_browser_captcha.py",
+   "cam_live/docs/verification/repro/g2harness/g03_planning_task_raw_api.py",
+   "cam_live/docs/verification/repro/sec/p07_prohibited_classes.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "IH-15": {
+  "status": "failed",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "The adapter path holds (204e9d4: tests/harness/skills/test_hx_data_use.py passes; discord.read_messages refused with P-DATA-USE). FAILS (D1): under the real planning task and the record tools/authorize_live.py builds with --read 'https://*' --read 'http://*' (tools/launch_live.sh:7), http.get / api.get of https://discord.com/api/v10/channels/<id>/messages and /guilds/<guild>/members are ALLOWED and the broker releases the bot token (bound to all of discord.com, harness/credentials.py:35); T-NET-REQUEST has no data class (default_policy.yaml:208-214) so data_permissions and PL-DISCORD-MESSAGE-CONTENT are never consulted; http_api.py:658-664 puts the body text and parsed JSON into the observation (experience stream). The application has MESSAGE_CONTENT and GUILD_MEMBERS intents (live evidence step 1).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/g2harness/g03_planning_task_raw_api.py",
+   "cam_live/docs/verification/repro/g2harness/g01_policy_bypass.py",
+   "cam_live/tests/harness/skills/test_hx_data_use.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "IH-16": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 7/7 incl. privileged; G-sec p09 12/0 (edit/delete/reorder/duplicate/truncate/keyless rebuild/emptied log detected, head required) and p13 (learner uid cannot read, write or unlink the log); g01 D: revocations audited, chain verifies.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/sec/p09_audit.py",
+   "cam_live/docs/verification/repro/sec/p13_uid_separation.py",
+   "cam_live/docs/verification/repro/g2harness/g01_policy_bypass.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "IH-17": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 4/4; g01 section D 13/0: destination revocation refuses 6 spellings of the host, stops an in-flight action at its next primitive, survives a restart; secret, task and live-record revocation; unknown scope raises; every revocation audited. A request already sent before revocation is not recalled (disclosed).",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/g2harness/g01_policy_bypass.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "OP-04": {
+  "status": "partial",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Judged from docs/evidence/discord/ only (no contact with Discord). Shows: 50/50 steps ok against https://discord.com/api/v10 and the Gateway, 2026-11-27 05:53-06:00 UTC, bot identity bot:true, designated guild only (other_guilds 0), guild name restored, temporary channel deleted, token-free. Does not show: the current code -- the run used policy 'default-1+discord-live-check' (current default-2) and predates a1cdc0e and 204e9d4; the post-run restoration check is stated in the README, not a recorded step. The two staging acceptance tests pass fresh. A fresh operator-run live check is needed.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/evidence/discord/live_check_20261127.json",
+   "cam_live/docs/evidence/discord/README.md",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "OP-07": {
+  "status": "verified",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Tests 4/4 incl. tests/harness/auth/test_hx_credentials_privileged.py as root (value only in the vault and the verifier copy, unreadable for learner and sandbox uids, never argv / printed, known by name to the running service, refused as a leak, redacted, revocable). Owner-claim bookkeeping (HX-1) not judged.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/tests/integration/test_credentials_membership.py",
+   "cam_live/tests/harness/auth/test_hx_credentials_privileged.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ },
+ "OP-09": {
+  "status": "partial",
+  "by": "G2-harness",
+  "commit": "4d6044ade68edfb92a2db16129a2809540496764",
+  "supersedes": [
+   "all"
+  ],
+  "notes": "Holds: solver services, third-party challenge endpoints (HX Chromium test: answer never leaves), solved-token keys of the list, proxy rotation, user-only endpoints, non-bot schemes, literal Authorization headers, self-bot code (tests 9/9). FAILS: (D3) browser.navigate to https://discord.com/developers/applications[/<id>/bot] and /developers/teams (user-session application) is allowed -- missing from DISCORD_CLIENT_PATHS (platform_constraints.py:131-136); (D4) a site's own CAPTCHA answered via browser.fill + click reached the server (g02), unlisted answer keys allowed (g01 C, TOKEN_FIELDS exact match, platform_constraints.py:91-97); (D6) a Discord page's same-origin reads are judged per origin (browser.py:1511-1524), so the per-URL refusal asserted in test_hx_platform_constraints.py:136 is not what the browser does.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/harness/compute -q --rootdir=cam_live -o addopts=\"\" -m \"browser or privileged or not (gpu or slow or network)\"  # 605 passed, 0 failed (root)",
+   "cam_live/docs/verification/repro/g2harness/g01_policy_bypass.py",
+   "cam_live/docs/verification/repro/g2harness/g02_browser_captcha.py",
+   "cam_live/docs/verification/G2_harness.md"
+  ]
+ }
+}
