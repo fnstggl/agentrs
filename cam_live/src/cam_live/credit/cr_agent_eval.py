@@ -178,6 +178,12 @@ def run(condition: str, seed: int, decisions: int, work: str, *, real: bool = Fa
     return out
 
 
+def _run_main(a: Any, work: str) -> Dict[str, Any]:
+    return run(a.condition, a.seed, a.decisions, work, real=a.real, world_seed=a.world_seed, segment=a.segment,
+               split=a.split, backbone=False if a.no_backbone else None, replay=not a.no_replay,
+               max_wall_s=a.max_wall_s)
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--condition", required=True, choices=["simple", "rudder", "cocoa"])
@@ -203,10 +209,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         from ..nn.gpu import gpu_lock
         lock = gpu_lock(timeout_s=float(a.gpu_timeout_s), min_free_gb=16.0)
     with lock:
-        res = run(a.condition, a.seed, a.decisions, work, real=a.real, world_seed=a.world_seed, segment=a.segment,
-                  split=a.split, backbone=False if a.no_backbone else None, replay=not a.no_replay,
-                  max_wall_s=a.max_wall_s)
+        flag = os.path.join(os.path.dirname(os.path.abspath(a.out)), "HOLDING_GPU") if a.real else ""
+        if flag:                                   # lets the caller pause its own CPU jobs during the hold
+            open(flag, "w").write(str(os.getpid()))
+        try:
+            res = _run_main(a, work)
+        finally:
+            if flag and os.path.exists(flag):
+                os.remove(flag)
     from .diagnose import code_provenance
+
     res["_code"] = code_provenance()
     res["_command"] = "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.cr_agent_eval " + " ".join(
         argv if argv is not None else __import__("sys").argv[1:])
