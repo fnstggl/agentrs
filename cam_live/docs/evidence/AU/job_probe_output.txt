@@ -1,0 +1,12 @@
+# unpatched working tree
+authorize allow ['permitted by policy default-3']
+job_start denied network access requested without naming the hosts
+last ('denied', ['failure_class'], 'resource: max_decisions exhausted (used 100 incl. reserved, requested 1, limit 100)')
+result {"state": null, "exit_code": null, "stdout_tail": null, "status_of_call": null, "detail": null}
+index requests []
+# with the jobs.py change request applied (patched copy, PYTHONPATH)
+authorize allow ['permitted by policy default-3']
+job_start ok 
+last ('ok', ['action_id', 'cancel_requested', 'connections', 'cpu_s', 'created', 'deadline_s', 'ended', 'error', 'exit_code', 'job_id', 'killed_for', 'kind'], '')
+result {"state": "succeeded", "exit_code": 0, "stdout_tail": "200\n", "status_of_call": null, "detail": null}
+index requests ['/simple/autinypkg/']

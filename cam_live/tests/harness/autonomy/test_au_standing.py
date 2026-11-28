@@ -258,3 +258,35 @@ def test_a_signed_record_cannot_carry_a_wildcard_code_network():
             liveauth.validate_shape(standing_record(t, 1.0, standing={"profile": PROFILE, "code_network": bad}))
     with pytest.raises(liveauth.LiveAuthorizationError):
         liveauth.validate_shape(standing_record(t, 1.0, standing={"profile": PROFILE, "extra": True}))
+
+
+def test_a_background_job_with_scoped_network_keeps_its_grant_for_its_connections(svc, lt, standing, clock):
+    hosts = ["pypi.org"]
+
+    def connect(action, host):
+        return svc.check_primitive(C.PrimitiveOp(op="net.connect", modality=C.Modality.CODE, arguments={
+            "host": host, "port": 443, "ip": "", "private": False, "url": f"tcp://{host}:443",
+            "from": action.operation, "dest": f"{host}:443"}), action)
+    # an ordinary program run's grant closes when its result is recorded
+    b = act("sandbox.python", C.Modality.CODE, arguments=dict(code="1", network="scoped", hosts=hosts))
+    d = svc.authorize(b, lt, {})
+    assert d.verdict == ALLOW and svc.check_grant(b, d)
+    svc.record(b, C.ActionResult(action_id=b.action_id, status=C.ResultStatus.OK))
+    r = connect(b, "pypi.org")
+    assert r.verdict == DENY and "P-NO-ACTIVE-GRANT" in r.policy_ids
+    # a background job's grant stays open for the job's own connections
+    a = act("sandbox.job_start", C.Modality.CODE, arguments=dict(purpose="fetch an index", kind="python", code="1",
+                                                                deadline_s=60, network="scoped", hosts=hosts))
+    d = svc.authorize(a, lt, {})
+    assert d.verdict == ALLOW and svc.check_grant(a, d)
+    start = C.PrimitiveOp(op="sandbox.job_start", modality=C.Modality.CODE,
+                          arguments=dict(purpose="fetch an index", kind="python", deadline_s=60, network="scoped",
+                                         hosts=hosts, sha256="0" * 64))
+    assert svc.check_primitive(start, a).verdict == ALLOW
+    svc.record(a, C.ActionResult(action_id=a.action_id, status=C.ResultStatus.OK, artifacts={"job": "job_1"}))
+    assert connect(a, "pypi.org").verdict == ALLOW              # after the action returned: the job is running
+    assert connect(a, "example.org").verdict == DENY            # still only the declared hosts
+    clock.advance(1000.0)                   # beyond the grant's execution window (900 s + slack), record still valid
+    r = connect(a, "pypi.org")
+    assert r.verdict == DENY and "P-NO-ACTIVE-GRANT" in r.policy_ids, r.policy_ids
+    assert decide(svc, lt, "http.get", None, url="https://pypi.org/simple/").verdict == ALLOW

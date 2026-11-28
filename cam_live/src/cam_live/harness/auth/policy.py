@@ -33,7 +33,8 @@ from . import localnet
 from . import platform_constraints
 from .approvals import APPROVED, PENDING, REJECTED, ApprovalQueue
 from .audit import AuditLog, AuditVerification, verify_audit_log
-from .evaluate import INTENT_PIDS, WRITE_ONLY_PIDS, Evaluator, Finding, NodeEval, TaskCtx, shingles, similarity
+from .evaluate import (INTENT_PIDS, WRITE_ONLY_PIDS, Evaluator, Finding, NodeEval, TaskCtx, network_requested, shingles,
+                       similarity)
 from .grants import GrantError, GrantSigner, load_or_create_key
 from .limits import RESOURCE_PREFIX, LimitLedger, min_nonzero
 from .schema import EFFECT_RANK, MODES, RATE_CAP_KEYS, Policy, PolicyError, RateRule, load_policy, run_policy_path
@@ -1252,9 +1253,15 @@ class PolicyService:
                       "compute_s": num(cost.compute_s), "external_actions": ext,
                       "primitive_ops": float(max(len(result.ops) if isinstance(result.ops, list) else 0, int(num(cost.primitive_ops)))),
                       "seconds": seconds}
+            # a background job started with scoped network keeps its grant open for the job's connections (each is
+            # still checked against the hosts it declared), never beyond the grant's execution window (exec_until)
+            job = executed and result.status == C.ResultStatus.OK and isinstance(result.artifacts, dict) and \
+                bool(result.artifacts.get("job")) and isinstance(action.arguments, dict) and \
+                network_requested(action.arguments.get("network"))
             with self.store.tx():
                 self.ledger.add(row["task_id"], actual, now)
-                self.store.x("UPDATE grants SET status='closed', closed_at=? WHERE nonce=?", (now, row["nonce"]))
+                if not job:
+                    self.store.x("UPDATE grants SET status='closed', closed_at=? WHERE nonce=?", (now, row["nonce"]))
                 self.store.x("DELETE FROM kv WHERE k LIKE ?", (f"limit_event:{row['task_id']}:%",))
             loc, labels = "", {}
             for o in (result.observations if isinstance(result.observations, list) else []):
