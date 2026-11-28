@@ -167,6 +167,19 @@ def action_signature(a: ActionSpec) -> str:
     return hashlib.sha256(json.dumps(core(a), sort_keys=True, default=str).encode()).hexdigest()
 
 
+def refusal_failure_class(auth: AuthorizationDecision) -> str:
+    """G2I-14: the failure class of a refusal by the authorization service — a budget / rate-window refusal (every
+    reason a ``resource: ...`` limit, or only limit rules ``L-...``) is ``RESOURCE_LIMIT``, a platform rule
+    ``PLATFORM_RESTRICTION``, anything else ``MISSING_PERMISSION`` (``harness.failures.refusal_class``)."""
+    from ..harness.failures import refusal_class
+    if auth.verdict == AuthVerdict.ALLOW:
+        return FailureClass.MISSING_PERMISSION          # an ALLOW whose grant does not verify
+    pids = [str(p) for p in (auth.policy_ids or [])]
+    if pids and all(p.startswith("L-") for p in pids):
+        return FailureClass.RESOURCE_LIMIT
+    return refusal_class(list(auth.reasons or []), pids)
+
+
 def is_wait(a: ActionSpec) -> bool:
     return a.modality == Modality.INTERNAL and a.operation.split(".")[-1] in ("wait", "sleep") and not a.steps
 
@@ -1003,7 +1016,9 @@ class LiveRuntime:
                 raw["auth"] = auth.to_dict()
                 changed = True
             elif auth.verdict == AuthVerdict.DENY:
-                a.update(status="rejected", resolved_at=self.clock.now(), reasons=list(auth.reasons))
+                # approved by the operator (no longer pending there), then refused by a rule of the service
+                a.update(status="refused_after_approval", resolved_at=self.clock.now(), reasons=list(auth.reasons),
+                         policy_ids=list(auth.policy_ids or []), failure_class=refusal_failure_class(auth))
                 changed = True
             elif auth.approval_id and auth.approval_id != aid:
                 a["approval_id"] = auth.approval_id
@@ -1017,7 +1032,7 @@ class LiveRuntime:
         acted = False
         for aid in list(self.approvals):
             a = self.approvals.get(aid)
-            if a is None or a["status"] not in ("approved", "rejected"):
+            if a is None or a["status"] not in ("approved", "rejected", "refused_after_approval"):
                 continue
             raw = self._approval_raw.get(aid) or {}
             if not raw.get("decision"):
@@ -1042,6 +1057,14 @@ class LiveRuntime:
                                    "denied", preds, aid, new_decision=False)
                 else:
                     self._execute(decision, auth, preds, approval_id=aid, new_decision=False)
+            elif a["status"] == "refused_after_approval":
+                why = "; ".join(str(r) for r in a.get("reasons") or []) or "refused"
+                rules = ", ".join(a.get("policy_ids") or []) or "a rule of the authorization service"
+                self._complete(decision, self._synthetic(action, ResultStatus.DENIED,
+                                                         a.get("failure_class") or FailureClass.MISSING_PERMISSION,
+                                                         f"approved by the operator ({aid}), then refused by the "
+                                                         f"authorization service ({rules}): {why}; not executed"),
+                               "denied", preds, aid, new_decision=False)
             else:
                 # the operator's note stays in the audit trail; no free text from the operator reaches the learner
                 self._complete(decision, self._synthetic(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
@@ -1307,7 +1330,7 @@ class LiveRuntime:
         if auth.verdict != AuthVerdict.ALLOW or not look_grant(self.policy, action, auth):
             detail = "; ".join(auth.reasons) or ("authorization refused" if auth.verdict != AuthVerdict.ALLOW
                                                  else "the grant does not match this action")
-            self._complete(decision, self._synthetic(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
+            self._complete(decision, self._synthetic(action, ResultStatus.DENIED, refusal_failure_class(auth),
                                                      detail), "denied", preds)
             return True
         self._execute(decision, auth, preds, new_decision=True)
@@ -1500,7 +1523,7 @@ class LiveRuntime:
         self._absorb(decision, result, delta, preds, approval_id, kind)
         self._last_result_ok = result.status == ResultStatus.OK
         if is_obstacle(result):
-            self.obstacles.open(action, result, self.agent)
+            self.obstacles.open(action, result, self.agent, decision_id=decision.decision_id)
         self.obstacles.on_result(action, result)
         self._save_state()
 

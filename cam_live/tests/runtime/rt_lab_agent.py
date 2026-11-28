@@ -67,6 +67,7 @@ class LabAgent:
         self.queries: Dict[str, List[Any]] = {}                   # env query id -> [channel, effort, action id]
         self.samples: List[List[float]] = []                      # [channel, effort, count] matured outcomes
         self.new_samples = 0
+        self.sample_actions: List[str] = []                       # action id of each sample (learning provenance)
         self.w: List[float] = []
         self.version = 0
         self.shared_version = 0
@@ -119,6 +120,7 @@ class LabAgent:
             a, b = self._ab(ch)
             self.belief[ch] = [a + float(o.value), b + effort]
             self.samples.append([ch, effort, float(o.value)])
+            self.sample_actions.append(str(action_id))          # which experience each sample came from
             self.new_samples += 1
             matched += 1
             exp = self._experiments.get(self._exp_by_action.get(action_id, ""))
@@ -235,6 +237,7 @@ class LabAgent:
             param_groups=["heads"], weight_delta={"heads": float(np.linalg.norm(new - old))},
             hash_before={"heads": self._hash(old)}, hash_after={"heads": self._hash(new)},
             n_experiences=len(self.samples), prediction_change={"probe_mean_abs_change": change},
+            exp_ids=list(dict.fromkeys(self.sample_actions)),   # the experiences this regression used
             model_version=f"lab-agent-v{self.version + 1}", notes="ridge regression over channel features")
         self.w, self.version = [float(v) for v in new], self.version + 1
         self._pending_meta = True

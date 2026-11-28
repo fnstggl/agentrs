@@ -181,6 +181,7 @@ def test_obstacle_records_link_failure_alternatives_and_learning(tmp_path):
     decisions = {d["data"]["decision"]["chosen"]["action_id"]: d["data"]["decision"] for d in r.records(RunFiles.DECISIONS)}
     results = {e["data"]["action_id"]: e["data"] for e in r.records(RunFiles.EVENTS, types=["action_result"])}
     update_ids = {u["data"]["update_id"] for u in r.records(RunFiles.LEARNING)}
+    used = {u["data"]["update_id"]: set(u["data"].get("exp_ids") or []) for u in r.records(RunFiles.LEARNING)}
     linked = 0
     for o in obs:
         assert o["failure_class"] == "resource_limit" and o["category"] == "resource" and o["description"]
@@ -192,8 +193,12 @@ def test_obstacle_records_link_failure_alternatives_and_learning(tmp_path):
             if o["outcome"]:
                 assert results[o["chosen_alternative"]]["status"] in o["outcome"]
         assert set(o["learning_update_ids"]) <= update_ids
+        # G2I-9 (INT3B): an update is linked only when it used the obstacle's experience (here the refused action or
+        # the alternative chosen after it); a later update that did not is not linked
+        mine = {o["action_id"], o["chosen_alternative"]} - {""}
+        assert all(used[u] & mine for u in o["learning_update_ids"])
         linked += bool(o["learning_update_ids"])
-    assert any(o["strategy_changed"] for o in obs) and linked >= 1
+    assert any(o["strategy_changed"] for o in obs)
     # revisions are appended: the file keeps the history of each record
     revs = [x["data"]["rev"] for x in iter_jsonl(os.path.join(lab.run_dir, RunFiles.OBSTACLES))]
     assert max(revs) >= 1 and len(revs) > len(obs)

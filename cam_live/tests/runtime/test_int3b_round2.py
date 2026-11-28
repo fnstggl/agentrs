@@ -316,3 +316,91 @@ def test_finishing_an_objective_again_after_a_crash_records_it_once(tmp_path):
     fin = [e for e in RunReader(lab.run_dir).records(RunFiles.EVENTS) if e["type"] == "objective_finished"]
     assert len(fin) == 1                                                   # a5ab772: 2
     lab.rt.close()
+
+
+# ---------------------------------------------------------------------------------------------------------- G2I-14 / 15 / 8 / 9
+def test_a_limit_refusal_is_a_resource_limit_not_a_missing_permission(tmp_path):
+    from cam_live.contracts import AuthorizationDecision, AuthVerdict, FailureClass
+    from cam_live.diagnostics.world import AllowAllPolicy, LabConfig
+    from cam_live.runtime.logs import RunReader
+    from cam_live.runtime.loop import refusal_failure_class
+    from rt_helpers import make_lab
+    limit = AuthorizationDecision(AuthVerdict.DENY, "h", ["resource: max_external_actions exhausted (used 2, limit 2)"],
+                                  policy_ids=["L-EXTERNAL-ACTIONS"])
+    assert refusal_failure_class(limit) == FailureClass.RESOURCE_LIMIT
+    rule = AuthorizationDecision(AuthVerdict.DENY, "h", ["not an allowed destination"], policy_ids=["T-DEST"])
+    assert refusal_failure_class(rule) == FailureClass.MISSING_PERMISSION
+
+    class LimitPolicy(AllowAllPolicy):
+        def authorize(self, action, task, context=None):
+            if action.operation == "lab.act":
+                return AuthorizationDecision(AuthVerdict.DENY, action.content_hash(), list(limit.reasons),
+                                             policy_ids=list(limit.policy_ids))
+            return super().authorize(action, task, context)
+    lab = make_lab(str(tmp_path / "run"), lab_cfg=LabConfig(seed=3, target=10000), policy=LimitPolicy(),
+                   agent_kw={"only_ops": ["lab.act"]}, task_edit=lambda t: setattr(t.limits, "max_decisions", 2),
+                   rt_cfg=__import__("cam_live.runtime.loop", fromlist=["RuntimeConfig"]).RuntimeConfig(
+                       fsync=False, settle_after_finish_s=0.0))
+    lab.rt.run(max_iterations=50)
+    r = RunReader(lab.run_dir)
+    res = [e["data"] for e in r.records(RunFiles.EVENTS, types=["action_result"]) if e["data"]["kind"] == "denied"]
+    assert res and all(d["failure_class"] == FailureClass.RESOURCE_LIMIT for d in res)    # a5ab772: missing_permission
+    obs = [o["data"]["obstacle"] for o in r.obstacles()]
+    assert obs and obs[0]["category"] == "resource"
+    lab.rt.close()
+
+
+def test_an_approved_action_refused_at_re_authorization_is_not_reported_as_rejected(tmp_path):
+    from cam_live.contracts import AuthorizationDecision, AuthVerdict, FailureClass
+    from cam_live.diagnostics.world import LabConfig
+    from cam_live.runtime.logs import RunReader
+    from cam_live.runtime.loop import RuntimeConfig
+    from rt_helpers import ApprovalPolicy, make_lab
+
+    class ReservingPolicy(ApprovalPolicy):
+        """Approved at the service by the operator's own tool; the identical re-authorization is then refused by a
+        limit (as when the approval's own grant reserved the last unit of the budget)."""
+        def authorize(self, action, task, context=None):
+            for e in self.queue.values():
+                if e["action_hash"] == action.content_hash() and e["status"] == "approved":
+                    return AuthorizationDecision(AuthVerdict.DENY, e["action_hash"],
+                                                 ["resource: max_external_actions exhausted (used 2 incl. reserved, "
+                                                  "requested 1, limit 2)"], policy_ids=["L-EXTERNAL-ACTIONS"])
+            return super().authorize(action, task, context)
+    policy = ReservingPolicy(("lab.unlock",))
+    lab = make_lab(str(tmp_path / "run"), lab_cfg=LabConfig(seed=3, target=10000), policy=policy,
+                   agent_kw={"only_ops": ["lab.unlock", "lab.probe"]}, rt_cfg=RuntimeConfig(fsync=False))
+    for _ in range(40):
+        lab.rt.step()
+        if policy.queue:
+            break
+    (aid,) = list(policy.queue)
+    lab.agent.only_ops = {"lab.probe"}
+    policy.queue[aid]["status"] = "approved"                  # the operator approved it at the service
+    for _ in range(10):
+        lab.rt.step()
+    r = RunReader(lab.run_dir)
+    res = [e["data"] for e in r.records(RunFiles.EVENTS, types=["action_result"]) if e["data"].get("approval_id") == aid
+           and e["data"]["kind"] != "queued"]
+    assert res, "the approval was reported"
+    d = res[-1]
+    assert "rejected" not in d["failure_detail"] and "approved by the operator" in d["failure_detail"]   # a5ab772
+    assert "L-EXTERNAL-ACTIONS" in d["failure_detail"] and d["failure_class"] == FailureClass.RESOURCE_LIMIT
+    lab.rt.close()
+
+
+def test_obstacles_unknown_class_is_informational_and_learning_links_need_use():
+    from cam_live.contracts import ActionResult, ActionSpec, FailureClass, LearningUpdateRecord, ResultStatus, SimClock
+    from cam_live.runtime.logs import RunLog
+    from cam_live.runtime.obstacles import CATEGORY_BY_FAILURE, ObstacleTracker
+    import tempfile
+    assert CATEGORY_BY_FAILURE[FailureClass.UNKNOWN] == "informational"                     # a5ab772: ""
+    log = RunLog(tempfile.mkdtemp(), SimClock(), durable=False)
+    tr = ObstacleTracker(log, SimClock())
+    a = ActionSpec(action_id="act_1", operation="x.y")
+    rec = tr.open(a, ActionResult(action_id="act_1", status=ResultStatus.FAILED), decision_id="dec_000001")
+    other = LearningUpdateRecord(update_id="u_other", ts=0.0, trigger="t", timescale="frequent", exp_ids=["exp_999"])
+    used = LearningUpdateRecord(update_id="u_used", ts=0.0, trigger="t", timescale="frequent", exp_ids=["exp_000001"])
+    tr.on_learning([other, used])
+    assert rec.learning_update_ids == ["u_used"]                                            # a5ab772: both
+    log.close()

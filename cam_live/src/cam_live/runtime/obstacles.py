@@ -20,7 +20,8 @@ CATEGORY_BY_FAILURE: Dict[str, str] = {
     FailureClass.VISUAL_GROUNDING: "technical", FailureClass.PAGE_CHANGED: "technical",
     FailureClass.TRANSIENT_NETWORK: "technical", FailureClass.WRONG_SITE_ASSUMPTION: "informational",
     FailureClass.MISSING_PERMISSION: "permission", FailureClass.PLATFORM_RESTRICTION: "permission",
-    FailureClass.RESOURCE_LIMIT: "resource", FailureClass.STRATEGIC: "strategic", FailureClass.UNKNOWN: "",
+    FailureClass.RESOURCE_LIMIT: "resource", FailureClass.STRATEGIC: "strategic",
+    FailureClass.UNKNOWN: "informational",          # G2I-8: as the harness taxonomy (harness/failures.py)
 }
 
 
@@ -40,7 +41,16 @@ class ObstacleTracker:
         entry["rev"] += 1
         return rid
 
-    def open(self, action: ActionSpec, result: ActionResult, agent: Any = None) -> ObstacleRecord:
+    @staticmethod
+    def _ids_of(action_id: str, decision_id: str = "") -> set:
+        """The identifiers by which a learning update names the experience of a decision (its action id, decision
+        id, or the experience record id the integrated agent derives from the decision id)."""
+        out = {str(action_id)} if action_id else set()
+        if decision_id:
+            out |= {str(decision_id), "exp_" + str(decision_id)[4:]}
+        return out
+
+    def open(self, action: ActionSpec, result: ActionResult, agent: Any = None, decision_id: str = "") -> ObstacleRecord:
         fc = result.failure_class if result.failure_class != FailureClass.NONE else FailureClass.UNKNOWN
         desc = result.failure_detail or (f"action finished with status {result.status}"
                                          if result.status != ResultStatus.OK else
@@ -54,7 +64,7 @@ class ObstacleTracker:
                 rec.explanations = [dict(e) for e in (explain(rec) or [])]
             except Exception as e:  # noqa: BLE001 — a failing diagnostic hook must not hide the obstacle itself
                 rec.outcome = f"explanation hook failed: {type(e).__name__}"
-        entry = {"rec": rec, "rev": 0, "op": action.operation}
+        entry = {"rec": rec, "rev": 0, "op": action.operation, "ids": sorted(self._ids_of(action.action_id, decision_id))}
         self._open[rec.obstacle_id] = entry
         self._write(entry)
         while len(self._open) > self.max_open:
@@ -69,6 +79,8 @@ class ObstacleTracker:
                 continue
             rec.alternatives = [c.action.action_id for c in decision.candidates][:64]
             rec.chosen_alternative = decision.chosen.action_id
+            entry["ids"] = sorted(set(entry.get("ids") or []) | self._ids_of(decision.chosen.action_id,
+                                                                             decision.decision_id))
             rec.strategy_changed = decision.chosen.operation != entry["op"]
             self._write(entry)
 
@@ -84,9 +96,12 @@ class ObstacleTracker:
     def on_learning(self, updates: Sequence[LearningUpdateRecord]) -> None:
         """Link the learning updates that followed; an obstacle is closed once its alternative has an outcome and
         a learning step has run after it."""
-        ids = [u.update_id for u in updates]
         for oid in list(self._open):
             entry = self._open[oid]
+            # G2I-9: an update is linked to an obstacle only when it used the obstacle's experience (its record of
+            # the failed action, the alternative chosen after it, or their outcomes), not because it came later
+            mine = set(entry.get("ids") or []) | ({str(entry["rec"].action_id)} if entry["rec"].action_id else set())
+            ids = [u.update_id for u in updates if mine & {str(x) for x in (getattr(u, "exp_ids", None) or [])}]
             if ids:
                 entry["rec"].learning_update_ids.extend(ids)
                 self._write(entry)
@@ -100,11 +115,12 @@ class ObstacleTracker:
 
     def to_state(self) -> List[Dict[str, Any]]:
         return [{"rec": e["rec"].to_dict(), "rev": e["rev"], "op": e["op"], "settled": bool(e.get("settled")),
-                 "learn_calls": e.get("learn_calls", 0)} for e in self._open.values()]
+                 "learn_calls": e.get("learn_calls", 0), "ids": list(e.get("ids") or [])} for e in self._open.values()]
 
     def load_state(self, st: Optional[List[Dict[str, Any]]]) -> None:
         self._open = {}
         for d in st or []:
             rec = ObstacleRecord.from_dict(d["rec"])
             self._open[rec.obstacle_id] = {"rec": rec, "rev": int(d.get("rev", 1)), "op": d.get("op", ""),
-                                           "settled": bool(d.get("settled")), "learn_calls": d.get("learn_calls", 0)}
+                                           "settled": bool(d.get("settled")), "learn_calls": d.get("learn_calls", 0),
+                                           "ids": list(d.get("ids") or [rec.action_id])}
