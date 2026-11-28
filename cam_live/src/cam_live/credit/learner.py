@@ -15,11 +15,15 @@ Timescales
                here looks at a wall clock.
     slow       semantic adapters, every ``adapter_every`` applied frequent updates, on batches encoded with a graph
                into the adapters (newest ``grad_last`` context items, under the backbone's gradient checkpointing).
-               A slow step is kept only if the held-out loss, measured on a fixed validation sample before and after
-               the step, did not rise by more than a small absolute tolerance derived from the noise of that paired
-               difference (capped by ``slow_guard_abs_tol``), and the summed change of the accepted slow steps since
-               the last promoted checkpoint stays below ``slow_guard_max_drift``. A rejected step is undone exactly:
-               adapter weights, their AdamW moments and step counts, the schedule and the counters.
+               The held-out guard judges every provider separately (fix of G2L-5): a slow step is kept only if, for
+               *each* provider with held-out records, its loss on a fixed validation sample, measured before and
+               after the step, did not rise by more than a small absolute tolerance derived from the noise of that
+               paired difference (capped by ``slow_guard_abs_tol``), and that provider's summed change over the
+               accepted slow steps since the last promoted checkpoint stays below ``slow_guard_max_drift``. The guard
+               fails closed (fix of G2L-4): without any held-out evidence the step is deferred (not taken), a loss
+               without held-out records of its own does not move the adapters, and a held-out loss that cannot be
+               computed after the step rejects it. A rejected step is undone exactly: adapter weights, their AdamW
+               moments and step counts, the schedule and the counters.
 
 Design decisions that answer failures of earlier projects
     * Gradients are taken with ``torch.autograd.grad`` with respect to the learner's own parameter lists, one
@@ -204,7 +208,8 @@ class ContinualLearner:
                    GROUP_ADAPTERS: cfg.optim.lr_adapters}
         self.clip = {GROUP_EXPERIENTIAL: cfg.optim.clip_experiential, GROUP_HEADS: cfg.optim.clip_heads,
                      GROUP_ADAPTERS: cfg.optim.clip_adapters}
-        self.counters = {"frequent": 0, "slow": 0, "fast": 0, "skipped": 0, "slow_reverted": 0, "triggers": 0}
+        self.counters = {"frequent": 0, "slow": 0, "fast": 0, "skipped": 0, "slow_reverted": 0, "slow_deferred": 0,
+                         "triggers": 0}
         self.sched_step = {g: 0 for g in LEARNER_GROUPS}
         self.probe_ids: List[str] = []
         self.elig_seq: Dict[str, Any] = {}
@@ -335,7 +340,7 @@ class ContinualLearner:
             for rec in recs.values():
                 val, dirty = self.is_validation(rec), False
                 for p in self.providers:
-                    ok = bool(p.eligible(rec))
+                    ok = self._provider_eligible(p, rec)
                     for name, flag in ((p.name, ok and not val), (VAL_PREFIX + p.name, ok and val)):
                         if rec.eligible.get(name) is not flag:
                             rec.eligible[name], dirty = flag, True
@@ -346,6 +351,30 @@ class ContinualLearner:
                     changed += 1
         self.elig_seq = {"head": head, "providers": names, "xobj": xobj}
         return {"checked": len(recs), "changed": changed, "train_flags": int(n_train), "val_flags": int(n_val)}
+
+    @staticmethod
+    def _provider_eligible(p: LossProvider, rec: ExperienceRecord) -> bool:
+        """``p.eligible(rec)`` judged without the flags the learner itself wrote for ``p`` (``eligible[p.name]`` and
+        ``eligible["val:" + p.name]``). Providers that honour ``record.eligible[self.name]`` as an exclusion (e.g.
+        ``predict.providers``) otherwise read the learner's own held-out exclusion, or a "not yet eligible" written
+        before an outcome matured, as permanent: held-out records lost their validation flag at the next refresh
+        and records never became trainable once they qualified (DX, found with G2L-4 / G2L-5)."""
+        saved = {k: rec.eligible.pop(k) for k in (p.name, VAL_PREFIX + p.name) if k in rec.eligible}
+        try:
+            return bool(p.eligible(rec))
+        finally:
+            rec.eligible.update(saved)
+
+    @staticmethod
+    def _as_validation(p: LossProvider, recs: Sequence[ExperienceRecord]) -> List[ExperienceRecord]:
+        """Held-out records as ``p`` sees them when its loss is evaluated: ``eligible[p.name]`` carries the provider's
+        own eligibility (the ``val:`` flag), not the learner's training exclusion (in-memory copies only)."""
+        out = []
+        for r in recs:
+            r = dataclasses.replace(r, eligible=dict(r.eligible))
+            r.eligible[p.name] = bool(r.eligible.get(VAL_PREFIX + p.name, False))
+            out.append(r)
+        return out
 
     # ------------------------------------------------------------------------------------------ trigger
     def _unit(self, rec: ExperienceRecord) -> str:
@@ -483,6 +512,7 @@ class ContinualLearner:
                                          strata={"family": 1.0}, provenance=self.settings.provenance)
                 if not recs:
                     continue
+                recs = self._as_validation(p, recs)
                 if getattr(p, "needs_latents", True):
                     batch = encode_decisions(self.model, self.store, recs, with_next=self.settings.with_next, grad=False)
                 else:
@@ -507,6 +537,7 @@ class ContinualLearner:
                                          strata={"family": 1.0}, provenance=self.settings.provenance)
                 if not recs:
                     continue
+                recs = self._as_validation(p, recs)
                 k = max(1, min(int(self.settings.slow_guard_chunks), len(recs)))
                 full = encode_decisions(self.model, self.store, recs, with_next=self.settings.with_next, grad=False) \
                     if getattr(p, "needs_latents", True) else None
@@ -522,46 +553,96 @@ class ContinualLearner:
 
     @staticmethod
     def _fresh_guard_state() -> Dict[str, Any]:
-        return {"drift": 0.0, "accepted": 0, "rejected": 0, "reference": "start"}
+        return {"drift": 0.0, "drift_by_provider": {}, "accepted": 0, "rejected": 0, "deferred": 0,
+                "reference": "start"}
 
     def set_slow_reference(self, label: str = "") -> None:
         """The current adapters become the reference of the drift bound (``promote_learner`` calls this when a
         checkpoint is promoted and after a rollback to the promoted checkpoint)."""
+        deferred = int(self.slow_guard_state.get("deferred", 0))
         self.slow_guard_state = self._fresh_guard_state()
+        self.slow_guard_state["deferred"] = deferred
         self.slow_guard_state["reference"] = label or self.model_version
 
-    def _guard_verdict(self, before: Dict[Tuple[str, int], float], after: Dict[Tuple[str, int], float]
-                       ) -> Optional[Dict[str, Any]]:
-        """Accept / reject a slow step from the paired held-out losses (see the module docstring)."""
+    def _provider_verdict(self, name: str, before: Dict[int, float], after: Dict[int, float]) -> Dict[str, Any]:
+        """Paired before / after change of one provider's held-out loss over its validation chunks, its tolerance
+        and the drift bound (see the module docstring)."""
         s = self.settings
-        common = [k for k in before if k in after]
-        if not common:
-            return None
-        chunks: Dict[int, List[float]] = {}
-        for k in common:
-            chunks.setdefault(k[1], []).append(after[k] - before[k])
-        c = [sum(v) / len(v) for v in chunks.values()]
-        d = sum(c) / len(c)
-        se = math.sqrt(sum((x - d) ** 2 for x in c) / (len(c) - 1) / len(c)) if len(c) > 1 else float("nan")
-        mb = sum(before[k] for k in common) / len(common)
-        ma = sum(after[k] for k in common) / len(common)
-        floor = 1e-7 * max(1.0, abs(mb))                          # float noise of a deterministic evaluation
+        common = sorted(j for j in before if j in after)
+        c = [after[j] - before[j] for j in common]
+        n = len(c)
+        d = sum(c) / n if n else float("nan")
+        se = math.sqrt(sum((x - d) ** 2 for x in c) / (n - 1) / n) if n > 1 else float("nan")
+        mb = sum(before[j] for j in common) / n if n else float("nan")
+        ma = sum(after[j] for j in common) / n if n else float("nan")
+        floor = 1e-7 * max(1.0, abs(mb)) if math.isfinite(mb) else 0.0   # float noise of a deterministic evaluation
         noise_tol = s.slow_guard_z * se if math.isfinite(se) else 0.0
-        tol = min(s.slow_guard_abs_tol, s.slow_guard_tol * max(abs(mb), 1e-6), max(noise_tol, floor))
-        drift = float(self.slow_guard_state.get("drift", 0.0)) + d
+        tol = min(s.slow_guard_abs_tol, s.slow_guard_tol * max(abs(mb) if math.isfinite(mb) else 0.0, 1e-6),
+                  max(noise_tol, floor))
+        drift_before = float((self.slow_guard_state.get("drift_by_provider") or {}).get(name, 0.0))
+        drift = drift_before + (d if math.isfinite(d) else 0.0)
         reasons = []
+        if len(common) < len(before):
+            reasons.append(f"{name}: held-out loss not computable after the step on {len(before) - len(common)} of "
+                           f"{len(before)} chunks")
         if not (math.isfinite(d) and math.isfinite(ma)):
-            reasons.append("held-out loss not finite after the step")
+            reasons.append(f"{name}: held-out loss not finite after the step")
         else:
             if d > tol:
-                reasons.append(f"held-out loss rose by {d:.4g} (> tolerance {tol:.4g})")
+                reasons.append(f"{name}: held-out loss rose by {d:.4g} (> tolerance {tol:.4g})")
             if drift > s.slow_guard_max_drift:
-                reasons.append(f"summed change since {self.slow_guard_state.get('reference')} would be {drift:.4g} "
-                               f"(> {s.slow_guard_max_drift:.4g})")
-        return {"validation_before": mb, "validation_after": ma, "paired_change": d, "paired_se": se,
-                "n_chunks": len(c), "tolerance": tol, "noise_tolerance": noise_tol, "drift_before":
-                float(self.slow_guard_state.get("drift", 0.0)), "drift_after": drift,
-                "reference": self.slow_guard_state.get("reference"), "accepted": not reasons, "reasons": reasons}
+                reasons.append(f"{name}: summed change since {self.slow_guard_state.get('reference')} would be "
+                               f"{drift:.4g} (> {s.slow_guard_max_drift:.4g})")
+        return {"validation_before": mb, "validation_after": ma, "paired_change": d, "paired_se": se, "n_chunks": n,
+                "tolerance": tol, "noise_tolerance": noise_tol, "drift_before": drift_before, "drift_after": drift,
+                "accepted": not reasons, "reasons": reasons}
+
+    def _guard_verdict(self, before: Dict[Tuple[str, int], float], after: Dict[Tuple[str, int], float],
+                       unjudged: Sequence[str] = ()) -> Optional[Dict[str, Any]]:
+        """Accept / reject a slow step from the paired held-out losses of *every* provider that has held-out records
+        (``None`` when there are none: the caller treats that as "not shown safe"). The top-level numbers are those
+        of the provider closest to (or furthest over) its tolerance; ``by_provider`` has all of them."""
+        by: Dict[str, Dict[int, float]] = {}
+        for (name, j), v in before.items():
+            by.setdefault(name, {})[j] = v
+        if not by:
+            return None
+        aft: Dict[str, Dict[int, float]] = {}
+        for (name, j), v in after.items():
+            aft.setdefault(name, {})[j] = v
+        per = {name: self._provider_verdict(name, b, aft.get(name, {})) for name, b in sorted(by.items())}
+
+        def margin(v: Dict[str, Any]) -> float:
+            if not v["accepted"]:
+                return float("inf")
+            return v["paired_change"] - v["tolerance"]
+
+        worst = max(per, key=lambda k: margin(per[k]))
+        w = per[worst]
+        reasons = [r for v in per.values() for r in v["reasons"]]
+        cells = [(k, j) for k, j in before if (k, j) in after]
+        agg_b = sum(before[k] for k in cells) / len(cells) if cells else float("nan")
+        agg_a = sum(after[k] for k in cells) / len(cells) if cells else float("nan")
+        return {"validation_before": w["validation_before"], "validation_after": w["validation_after"],
+                "paired_change": w["paired_change"], "paired_se": w["paired_se"], "n_chunks": w["n_chunks"],
+                "tolerance": w["tolerance"], "noise_tolerance": w["noise_tolerance"], "drift_before": w["drift_before"],
+                "drift_after": w["drift_after"], "binding_provider": worst,
+                "reference": self.slow_guard_state.get("reference"), "accepted": not reasons, "reasons": reasons,
+                "rule": "per_provider", "judged": sorted(per), "unjudged": sorted(unjudged),
+                "by_provider": per, "mean_over_cells": {"before": agg_b, "after": agg_a,
+                                                        "change": agg_a - agg_b}}
+
+    def _providers_with_training_data(self) -> List[str]:
+        """Providers with at least one record they may be trained on (their ``eligible`` flag is True)."""
+        out = []
+        for p in self.providers:
+            try:
+                n = self.store.count(loss=p.name, provenance=self.settings.provenance)
+            except TypeError:                     # stores without the provenance filter
+                n = self.store.count(loss=p.name)
+            if n:
+                out.append(p.name)
+        return out
 
     # ------------------------------------------------------------------------------------------ fast timescale
     def reset_fast(self, kind: Optional[str] = None) -> None:
@@ -739,6 +820,10 @@ class ContinualLearner:
         if not records:
             return self._skip(rec, notes, "no eligible experience")
         val_before = self._validation_cells() if s.slow_guard else {}
+        validated = {k[0] for k in val_before}
+        if s.slow_guard and not validated:          # fail closed (G2L-4): nothing can show the step is safe
+            return self._defer(rec, notes, "no provider has held-out validation records: the slow step is deferred "
+                                           "until held-out evidence exists")
         hash_before = self.group_hashes()
         probe_before = self.probe()
         was = model.training
@@ -755,6 +840,14 @@ class ContinualLearner:
                       "adapter_grad_norm_by_loss": {k: _norm(g) for k, g in grads.items()}})
         if not grads:
             return self._skip(rec, notes, "no provider produced a loss")
+        if s.slow_guard:                            # a loss without held-out records of its own does not move adapters
+            unvalidated = sorted(k for k, g in grads.items() if k not in validated and _norm(g) > 0)
+            if unvalidated:
+                notes["excluded_without_held_out"] = unvalidated
+                grads = {k: g for k, g in grads.items() if k not in unvalidated}
+            if unvalidated and not any(_norm(g) > 0 for g in grads.values()):
+                return self._defer(rec, notes, f"no loss that reaches the adapters has held-out validation records "
+                                               f"({', '.join(unvalidated)}): the slow step is deferred")
         for j, p in enumerate(params):
             g = None
             for gs in grads.values():
@@ -796,11 +889,18 @@ class ContinualLearner:
                     "bridge": _norm([p - b for p, b in zip(params, before) if id(p) not in lora])}
         reverted = False
         if s.slow_guard and val_before:
-            verdict = self._guard_verdict(val_before, self._validation_cells())
+            unjudged = sorted(set(self._providers_with_training_data()) - validated)
+            verdict = self._guard_verdict(val_before, self._validation_cells(), unjudged)
+            if verdict is None:                    # cannot happen with val_before non-empty; never keep unjudged
+                verdict = {"accepted": False, "reasons": ["no held-out verdict could be formed"], "rule": "per_provider"}
             if verdict is not None:
                 notes["guard"] = verdict
                 if verdict["accepted"]:
-                    self.slow_guard_state["drift"] = verdict["drift_after"]
+                    by = verdict.get("by_provider") or {}
+                    dp = dict(self.slow_guard_state.get("drift_by_provider") or {})
+                    dp.update({k: v["drift_after"] for k, v in by.items()})
+                    self.slow_guard_state["drift_by_provider"] = dp
+                    self.slow_guard_state["drift"] = max(dp.values(), default=0.0)
                     self.slow_guard_state["accepted"] = int(self.slow_guard_state.get("accepted", 0)) + 1
                 else:                              # undo the step completely
                     with torch.no_grad():
@@ -829,6 +929,14 @@ class ContinualLearner:
         return self._finish(rec, notes, hash_before, probe_before)
 
     # ------------------------------------------------------------------------------------------ records
+    def _defer(self, rec: LearningUpdateRecord, notes: Dict[str, Any], why: str) -> LearningUpdateRecord:
+        """A slow step the guard cannot judge is not taken (it is attempted again when the next one falls due)."""
+        self.counters["slow_deferred"] = self.counters.get("slow_deferred", 0) + 1
+        self.slow_guard_state["deferred"] = int(self.slow_guard_state.get("deferred", 0)) + 1
+        notes["guard"] = None
+        notes["deferred"] = True
+        return self._skip(rec, notes, why)
+
     def _skip(self, rec: LearningUpdateRecord, notes: Dict[str, Any], why: str) -> LearningUpdateRecord:
         self.counters["skipped"] += 1
         notes["skipped"] = why
