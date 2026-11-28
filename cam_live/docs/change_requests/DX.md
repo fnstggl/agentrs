@@ -150,3 +150,9 @@ attached registry first), which closes CL-10's other gap (G2-learn R2.4: `experi
 * `CheckpointManager` (the agent's promotion checkpoints) keeps optimizer state only in the newest kept checkpoint; a
   rollback to a promoted checkpoint without it reports `optimizer_state_reset` and the learner's optimizers start
   fresh (the agent keeps its `reward_meta` optimizer as before).
+
+**Master (2026-11-28 ~05:00 UTC): DX-1 and DX-2 applied** after DX's root cause (the wiring test pauses after five
+decisions by construction; failure rates 6/58 with the hook vs 1/32 without, Fisher p 0.41; the hook path draws no
+random numbers and cannot fail an update). Agent tests: predict/test_selection_agent, integration agent_runtime /
+agent_recovery / int2_checkpoints / int2_queries / int2_selection, credit/test_dx_checkpoint — 26 passed
+(`docs/evidence/test_results/M_dx12_agent.xml`).

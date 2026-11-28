@@ -48,7 +48,7 @@ from .contracts import (ActionResult, ActionSpec, CandidateEvaluation, Clock, Co
                         MetaUpdateRecord, ObstacleRecord, Observation, OutcomeKind, OutcomeObservation,
                         OutcomeQuery, OutcomeStatus, Quantity, ResultStatus, RunFiles, TaskSpec,
                         ToolDescriptor, Trust, VerifiedOutcome, WallClock, new_id)
-from .credit.checkpoint import capture_learner, load_checkpoint, restore_learner, save_checkpoint_at
+from .credit.checkpoint import auth_config_hash, capture_learner, load_checkpoint, restore_learner, save_checkpoint_at
 from .credit.learner import ContinualLearner, LearnerSettings
 from .credit.links import OutcomeLinker
 from .credit.providers import (BridgeGroundingProvider, CreditAssigner, HindsightProvider,
@@ -716,6 +716,9 @@ class CamLiveAgent:
         self.selector = EstimatorSelector(log_path=os.path.join(self.dir, "credit_selection.jsonl"), clock=self.clock)
         self.assigner = CreditAssigner(self.model, self.store, rudder=self.rudder, cocoa=self.cocoa,
                                        selector=self.selector, beta=s.credit_beta, clock=self.clock)
+        # the agent's experiments reach the experience store and credit-estimator selection runs on held-out
+        # experiment lifetimes when they exist (RC-08, change request DX-1)
+        self.assigner.attach_experiments(self.experiments)
         # ---- continual learner and its providers ----
         lsec = cfg.section("credit").get("learner", {})
         lover = {} if "val_split" in lsec else {"val_split": "record"}   # a single live objective must train
@@ -2326,6 +2329,7 @@ class CamLiveAgent:
                                 generators={"agent": self.gen, "decider": self.decider.generator},
                                 lifetime_context=self.meta.reward.lifetime.state.detach().clone(),
                                 current_task=self.task.to_dict() if self.task is not None else None,
+                                auth_config_hash=auth_config_hash(self.task) if self.task is not None else "",
                                 reward_version=self.meta.reward.version,
                                 extra={"agent": self._json_state(), "scaler": self.heads.scaler.state(),
                                        "planner": self.planner.controller.state()})
@@ -2343,7 +2347,8 @@ class CamLiveAgent:
         st = load_checkpoint(path, map_location=self.model.device)
         _generator_states_to_cpu(st.aux_state)     # torch.Generator.set_state takes a CPU ByteTensor only
         restore_learner(self.learner, st, extra_optimizers={"reward_meta": self.meta.optimizer},
-                        generators={"agent": self.gen, "decider": self.decider.generator})
+                        generators={"agent": self.gen, "decider": self.decider.generator},
+                        expected_auth_hash=auth_config_hash(self.task) if self.task is not None else None)  # DX-2
         aux = (st.aux_state or {}).get("agent", {})
         self.meta.load_state_dict(aux["meta"])
         self._load_meta_batches(aux.get("meta_batches", {}))
