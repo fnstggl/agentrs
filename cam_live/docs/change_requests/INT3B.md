@@ -29,3 +29,14 @@ Outcomes measured while an ended objective settles (`runtime.loop`, `settle_afte
 reconciled. The agent links them and resolves their predictions like any other; the meta-learner's view of "outcomes
 after the verdict" is LRN's/INT3A's to decide. Informational: no change is required for correctness; a field on the
 record (`OutcomeObservation.source` already says `verifier`) is enough to tell them apart in an analysis.
+
+## INT3B-4 (configuration `configs/cam_live.yaml` section `nn`, owner master; agent prompt INT3A): the proposer prompt does not fit the default window on the planning task
+
+**Measured (rehearsal segment A, real configuration).** With every permitted tool listed (S-6b), the planning task's
+proposer prompt is 4112 tokens even after the observation digest is shrunk to 94 characters; the backbone keeps
+`nn.max_prompt_tokens` = 2048 tokens (the END of the prompt: instructions, objective and most tools are cut). 12 of 12
+decisions were over the window and the backbone produced 0 valid actions: no note, no operator request could be
+written. With `nn: {max_prompt_tokens: 6144}` (segment B) the prompts were 4369-5303 tokens and 27 of 30 decisions had
+valid backbone proposals (96 actions).
+**Proposed.** `nn: {max_prompt_tokens: 6144}` in `configs/cam_live.yaml` for the planning run (Qwen3-4B's context is
+32k; nvidia-smi sampled the segment-B learner at ~10 GB GPU memory early in the run — no peak was recorded), or a compact tool list for large tool sets.
