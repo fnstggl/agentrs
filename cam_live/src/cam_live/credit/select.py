@@ -265,10 +265,21 @@ class EstimatorSelector:
         return {n: self.score(n) for n in names}
 
     # ---------------------------------------------------------------------------------------------- selection
-    def select(self) -> SelectionRecord:
+    def log_row(self, row: Dict[str, Any]) -> None:
+        """Append one JSON row to the selection log (durable on return); no-op without ``log_path``."""
+        if not self.log_path:
+            return
+        os.makedirs(os.path.dirname(os.path.abspath(self.log_path)), exist_ok=True)
+        with open(self.log_path, "a") as fh:
+            fh.write(json.dumps(row, sort_keys=True, default=str) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+
+    def select(self, context: Optional[Dict[str, Any]] = None) -> SelectionRecord:
         """Re-evaluate the default. A candidate is promoted only if it passes every gate *and* its error against
         the measured differences is at least ``min_improvement`` lower than the current default's on the
-        experiments both were compared on. A learned default that no longer passes falls back to the baseline."""
+        experiments both were compared on. A learned default that no longer passes falls back to the baseline.
+        ``context`` (e.g. ``CreditAssigner.evaluate_experiments``' per-experiment report) is logged with the row."""
         scores = self.scores()
         before, reasons = self.default, []
         current = self.default
@@ -312,14 +323,10 @@ class EstimatorSelector:
             holdout={e.key: {"held_out": e.held_out, "n_excluded_trained": e.n_excluded_trained,
                              "paired_n": dict(e.paired_n), **e.holdout} for e in self._used()})
         self.history.append(rec)
-        if self.log_path:
-            os.makedirs(os.path.dirname(os.path.abspath(self.log_path)), exist_ok=True)
-            with open(self.log_path, "a") as fh:
-                fh.write(json.dumps({"selection": rec.to_dict(),
-                                     "evidence": [e.to_dict() for e in self.evidence.values()]},
-                                    sort_keys=True, default=str) + "\n")
-                fh.flush()
-                os.fsync(fh.fileno())
+        row: Dict[str, Any] = {"selection": rec.to_dict(), "evidence": [e.to_dict() for e in self.evidence.values()]}
+        if context is not None:
+            row["evaluation"] = context
+        self.log_row(row)
         return rec
 
     # ---------------------------------------------------------------------------------------------- persistence

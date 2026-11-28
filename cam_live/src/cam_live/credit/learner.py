@@ -679,6 +679,9 @@ class ContinualLearner:
         out: List[LearningUpdateRecord] = []
         self._sync_optimizers()
         credit_changes: Dict[str, float] = {}
+        evaluates = bool(getattr(self.credit, "evaluates_experiments", False))
+        if evaluates:              # the caller's experiments reach the store before the held-out split is refreshed
+            self.credit.record_experiments()
         if self.credit is not None and plan.exp_ids:
             up = self.credit.assign(plan.exp_ids, reason=plan.trigger)
             credit_changes = dict(up.changes)
@@ -698,6 +701,17 @@ class ContinualLearner:
             out.append(self._slow_update(plan, forced=True))
         if plan.exp_ids and hasattr(self.store, "pop_retrain"):
             self.store.pop_retrain(plan.exp_ids)
+        if evaluates:              # RC-08: estimator selection on held-out randomised evidence (or why it did not run)
+            try:
+                ev = self.credit.evaluate_experiments()
+                self.trigger_state["credit_selection"] = {"ran": ev.ran, "default": ev.default_after,
+                                                          "n_evidence": ev.n_evidence, "reason": ev.reason[:300]}
+            except Exception as e:  # noqa: BLE001 — recorded (status + selection log), never silently dropped
+                err = f"{type(e).__name__}: {e}"
+                self.trigger_state["credit_selection"] = {"ran": False, "error": err[:300]}
+                sel = getattr(self.credit, "selector", None)
+                if sel is not None and hasattr(sel, "log_row"):
+                    sel.log_row({"evaluation": None, "selection": None, "error": err, "ts": self.clock.now()})
         return out
 
     def _collect(self, providers: Sequence[LossProvider], batch: DecisionBatch, params: Sequence[torch.nn.Parameter],

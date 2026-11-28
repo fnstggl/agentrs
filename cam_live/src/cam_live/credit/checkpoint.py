@@ -9,7 +9,8 @@ Layout of a checkpoint root::
         optim/<name>.pt               optimizer state keyed by *parameter name*
         fast_state.pt  lifetime.pt    fast adaptive state and lifetime context
         rng.pt                        python / numpy / torch (CPU and CUDA) generator states
-        state.json                    current task, replay sampler indices, pending-outcome pointer, schedules,
+        state.json                    current task, replay sampler indices, pending-outcome pointer and the
+                                      pending outcome queries themselves, experiment records, schedules,
                                       authorization-config hash, model / reward versions
     <root>/LATEST  <root>/PROMOTED    pointer files (a convenience: validity is decided by scanning)
     <root>/promotions.jsonl           promotion / refusal / rollback log with the metrics that decided them
@@ -96,6 +97,8 @@ class CheckpointState:
     arch_signature: Dict[str, Any] = field(default_factory=dict)
     extra: Dict[str, Any] = field(default_factory=dict)                      # JSON-native
     aux_state: Any = None                    # nested tensors / numbers owned by loss providers (e.g. retention anchors)
+    experiments: List[Dict[str, Any]] = field(default_factory=list)          # experiment records (ExperimentRecord)
+    pending_outcomes: List[Dict[str, Any]] = field(default_factory=list)     # unresolved outcome queries (OutcomeQuery)
 
 
 @dataclass
@@ -507,7 +510,8 @@ def _write_checkpoint(root: str, state: CheckpointState, *, seq: int, name: Opti
                  "pending_pointer": state.pending_pointer, "schedules": state.schedules,
                  "auth_config_hash": state.auth_config_hash, "model_version": state.model_version,
                  "reward_version": state.reward_version, "arch_signature": state.arch_signature,
-                 "extra": state.extra}, os.path.join(tmp, "state.json"))
+                 "extra": state.extra, "experiments": state.experiments,
+                 "pending_outcomes": state.pending_outcomes}, os.path.join(tmp, "state.json"))
     _fault("files")
     files = {}
     for d, _dirs, fs in os.walk(tmp):
@@ -586,6 +590,8 @@ def load_checkpoint(path_or_root: str, checkpoint_id: Optional[str] = None, *, m
     st = CheckpointState(**{k: js[k] for k in ("current_task", "replay_state", "pending_pointer", "schedules",
                                                "auth_config_hash", "model_version", "reward_version",
                                                "arch_signature", "extra")})
+    st.experiments = list(js.get("experiments") or [])            # absent in checkpoints written before DX
+    st.pending_outcomes = list(js.get("pending_outcomes") or [])
     wdir = os.path.join(path, "weights")
     for f in sorted(os.listdir(wdir)):
         if f.endswith(".safetensors"):
@@ -626,8 +632,37 @@ def capture_state(model: Optional[nn.Module] = None, optimizers: Optional[Dict[s
     if store is not None:
         st.replay_state = store.state_dict()
         st.pending_pointer = store.pending_pointer()
+        if hasattr(store, "experiments"):
+            st.experiments = [json.loads(json.dumps(e.to_dict(), default=str)) for e in store.experiments()]
+        if hasattr(store, "pending_all"):
+            st.pending_outcomes = [json.loads(json.dumps(q.to_dict(), default=str)) for q in store.pending_all()]
     st.rng = capture_rng(generators)
     return st
+
+
+def _restore_store_records(state: CheckpointState, store: Any) -> Dict[str, Any]:
+    """Experiment records of the checkpoint that the store lacks are written back (a record the store holds is
+    never replaced: experience is not rolled back); pending queries are checked against the store."""
+    from ..contracts import ExperimentRecord
+    rep: Dict[str, Any] = {"experiments_in_checkpoint": len(state.experiments), "experiments_restored": [],
+                           "pending_in_checkpoint": len(state.pending_outcomes), "pending_missing_in_store": [],
+                           "pending_resolved_since": 0}
+    if hasattr(store, "experiment") and hasattr(store, "put_experiment"):
+        for d in state.experiments:
+            if store.experiment(d.get("experiment_id", "")) is None:
+                store.put_experiment(ExperimentRecord.from_dict(d))
+                rep["experiments_restored"].append(d.get("experiment_id", ""))
+    if hasattr(store, "pending_all") and hasattr(store, "query"):
+        open_now = {q.query_id for q in store.pending_all()}
+        for d in state.pending_outcomes:
+            qid = d.get("query_id", "")
+            if qid in open_now:
+                continue
+            if store.query(qid) is None:
+                rep["pending_missing_in_store"].append(qid)
+            else:
+                rep["pending_resolved_since"] += 1
+    return rep
 
 
 def restore_state(state: CheckpointState, model: Optional[nn.Module] = None,
@@ -649,6 +684,8 @@ def restore_state(state: CheckpointState, model: Optional[nn.Module] = None,
                                            "hyper": ["no saved state for this optimizer"]}
     if store is not None and state.replay_state:
         rep["replay"] = store.load_state_dict(state.replay_state)
+    if store is not None and (state.experiments or state.pending_outcomes):
+        rep["store_records"] = _restore_store_records(state, store)
     if rng:
         restore_rng(state.rng, generators)
     if expected_auth_hash is not None:
@@ -965,6 +1002,9 @@ def capture_learner(learner: Any, *, extra_optimizers: Optional[Dict[str, torch.
         if k in opts:
             raise ValueError(f"optimizer name {k!r} is already used by the learner")
         opts[k] = o
+    credit = getattr(learner, "credit", None)
+    if credit is not None and getattr(credit, "evaluates_experiments", False):
+        credit.record_experiments()           # the caller's experiment registry is in the store, hence checkpointed
     fast = learner.fast_state.state_dict() if getattr(learner, "fast_state", None) is not None else None
     aux = {"providers": {p.name: p.state_dict() for p in learner.providers if hasattr(p, "state_dict")}}
     ex = dict(extra or {})

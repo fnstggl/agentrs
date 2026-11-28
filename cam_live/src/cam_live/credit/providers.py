@@ -25,6 +25,8 @@ Nothing here produces a reward: credit is bookkeeping about verified / measured 
 from __future__ import annotations
 
 import bisect
+import hashlib
+import json
 import math
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple
@@ -32,7 +34,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set,
 import torch
 from torch import Tensor
 
-from ..contracts import Clock, ExperienceRecord, OutcomeStatus, WallClock
+from ..contracts import Clock, ExperienceRecord, ExperimentRecord, OutcomeStatus, Record, WallClock
 from ..learning_api import TIMESCALE_FREQUENT, TIMESCALE_SLOW, DecisionBatch, encode_decisions
 from ..nn.api import LatentModelAPI
 from .cocoa import SUPPORTED, UNSUPPORTED, HindsightModel, check_support
@@ -744,6 +746,27 @@ class CreditedReturns:
     uncertainty: Tensor          # [B] float64 (0 where unknown)
 
 
+@dataclass
+class ExperimentEvaluation(Record):
+    """One pass of :meth:`CreditAssigner.evaluate_experiments`: which randomised experiments could be compared with
+    the estimators on held-out units, why the others could not, and whether the estimator selection ran.
+
+    ``ran`` is True only when at least one held-out randomised comparison exists and ``EstimatorSelector.select`` was
+    evaluated on it; otherwise ``reason`` says why the selection did not run (it is never run on in-sample data)."""
+    ts: float
+    ran: bool
+    reason: str
+    default_before: str
+    default_after: str
+    n_experiments: int = 0                 # experiments in the experience store
+    n_randomized: int = 0                  # of them randomised with >= 2 arms
+    n_recorded: int = 0                    # experiment records written to the store by this pass
+    n_compared: int = 0                    # comparisons that produced held-out evidence in this pass
+    n_evidence: int = 0                    # held-out randomised comparisons the selector holds in total
+    experiments: List[Dict[str, Any]] = field(default_factory=list)
+    selection: Optional[Dict[str, Any]] = None
+
+
 class CreditAssigner:
     """Retrospective credit for stored decisions (spec 9.1-9.4).
 
@@ -767,6 +790,11 @@ class CreditAssigner:
         self.goal_relevant_only = goal_relevant_only
         self.last: Optional[CreditUpdate] = None
         self._learners: List[Any] = []
+        self._experiment_source: Any = None
+        self._eval_fp: Optional[str] = None
+        self._evidence_fp: Optional[str] = None
+        self.last_evaluation: Optional[ExperimentEvaluation] = None
+        self.min_units_per_arm = 2
 
     def attach_learner(self, learner: Any) -> None:
         """Called by ``ContinualLearner(credit=self)``: what the learner trained on is excluded from validation."""
@@ -975,6 +1003,155 @@ class CreditAssigner:
     def select(self) -> SelectionRecord:
         """Re-evaluate which estimator is the training default from all randomised evidence added so far."""
         return self.selector.select()
+
+    # ---- experiments recorded elsewhere (the agent's registry) -----------------------------------------------
+    def attach_experiments(self, source: Any) -> None:
+        """Where the caller records its experiments: an object with ``records()`` (``predict.registry.
+        ExperimentRegistry``), a callable returning ``ExperimentRecord`` objects, or an iterable of them. Once a
+        source is attached, an attached :class:`~cam_live.credit.learner.ContinualLearner` copies the experiments
+        into the experience store before every update (so randomised lifetimes are known to the held-out split) and
+        runs :meth:`evaluate_experiments` after it (RC-08, G2L-6)."""
+        self._experiment_source = source
+
+    @property
+    def evaluates_experiments(self) -> bool:
+        return self._experiment_source is not None
+
+    def _source_records(self) -> List[ExperimentRecord]:
+        src = self._experiment_source
+        if src is None:
+            return []
+        if hasattr(src, "records"):
+            got = src.records()
+        elif callable(src):
+            got = src()
+        else:
+            got = src
+        return [e for e in (got or []) if isinstance(e, ExperimentRecord)]
+
+    def record_experiments(self, experiments: Optional[Iterable[ExperimentRecord]] = None) -> int:
+        """Copy experiment records (default: the attached source) into the experience store; a record is written
+        when it is new or changed (status, outcomes ...). Returns the number written."""
+        exps = list(experiments) if experiments is not None else self._source_records()
+        st, n = self.store, 0
+        for e in exps:
+            old = st.experiment(e.experiment_id)
+            if old is None or json.dumps(old.to_dict(), sort_keys=True, default=str) != \
+                    json.dumps(e.to_dict(), sort_keys=True, default=str):
+                st.put_experiment(e)
+                n += 1
+        return n
+
+    def _units(self, exp: ExperimentRecord, recs: Sequence[ExperienceRecord], trained: Set[str], arm: str,
+               returns: "_ReturnCache") -> Dict[str, int]:
+        """Unit accounting of one arm, with the filters of :meth:`compare_with_experiment`."""
+        out = {"assigned": 0, "return_not_final": 0, "lifetime_trained_on": 0, "not_randomized": 0, "held_out": 0}
+        for r in recs:
+            if record_arm(r) != arm:
+                continue
+            out["assigned"] += 1
+            if not returns.get(r.objective_id).matured:
+                out["return_not_final"] += 1
+            elif r.objective_id in trained:
+                out["lifetime_trained_on"] += 1
+            elif not (exp.assignment == "randomized" and r.decision.exploration == "randomized"
+                      and bool(r.decision.probabilities)):
+                out["not_randomized"] += 1
+            else:
+                out["held_out"] += 1
+        return out
+
+    def evaluate_experiments(self, experiments: Optional[Iterable[ExperimentRecord]] = None, *,
+                             confidence: float = 0.95, force_log: bool = False) -> ExperimentEvaluation:
+        """Compare the estimators with every registered randomised experiment whose arms have at least
+        ``min_units_per_arm`` matured held-out units, then re-run the evidence-based selection when the held-out
+        evidence changed (spec 9.4; RC-08). Experiments given here or by the attached source are recorded in the
+        store first. Comparisons are held out by lifetime exactly as in :meth:`compare_with_experiment`; nothing
+        in-sample is ever scored. Every pass whose outcome differs from the previous one is logged to the
+        selector's log (with the selection when it ran, else with the reason it did not)."""
+        st = self.store
+        n_rec = self.record_experiments(experiments)
+        before = self.selector.default
+        trained = self.trained_objectives()
+        src = self.rudder or self.cocoa
+        returns = src.returns if src is not None else _ReturnCache(st, self.beta, True, False)
+        rows: List[Dict[str, Any]] = []
+        exps = st.experiments()
+        n_rand = n_cmp = 0
+        for exp in exps:
+            arms = [str(a) for a in exp.arms]
+            row: Dict[str, Any] = {"experiment_id": exp.experiment_id, "assignment": exp.assignment, "arms": arms,
+                                   "status": exp.status}
+            if exp.assignment != "randomized" or len(arms) < 2:
+                row.update(compared=False, reason="not a randomised experiment with two or more arms")
+                rows.append(row)
+                continue
+            n_rand += 1
+            recs = st.experiment_records(exp.experiment_id)
+            row["decisions"] = len(recs)
+            pairs = []
+            for other in arms[1:]:
+                treatment, control = arms[0], other
+                units = {a: self._units(exp, recs, trained, a, returns) for a in (treatment, control)}
+                pr: Dict[str, Any] = {"treatment": treatment, "control": control, "units": units}
+                short = [a for a, u in units.items() if u["held_out"] < self.min_units_per_arm]
+                if short:
+                    pr.update(compared=False, reason="; ".join(
+                        f"arm {a!r}: {units[a]['held_out']} matured held-out units (< {self.min_units_per_arm}; "
+                        f"assigned {units[a]['assigned']}, return not final {units[a]['return_not_final']}, lifetime "
+                        f"trained on {units[a]['lifetime_trained_on']}, not randomised {units[a]['not_randomized']})"
+                        for a in short))
+                else:
+                    ev = self.compare_with_experiment(exp.experiment_id, treatment=treatment, control=control,
+                                                      confidence=confidence)
+                    if ev is None:
+                        pr.update(compared=False, reason="the measured arm difference is undefined")
+                    else:
+                        n_cmp += 1
+                        pr.update(compared=True, held_out=ev.held_out, measured=ev.diff, se=ev.se,
+                                  estimates=dict(ev.estimates), paired_n=dict(ev.paired_n),
+                                  n_excluded_trained=ev.n_excluded_trained)
+                pairs.append(pr)
+            row["comparisons"] = pairs
+            row["compared"] = any(p.get("compared") for p in pairs)
+            if not row["compared"]:
+                row["reason"] = " | ".join(p["reason"] for p in pairs)
+            rows.append(row)
+        used = self.selector._used()
+        # the selection is re-run when the held-out *measurement* changes (a new comparison, more or other units),
+        # not each time a still-training estimator's estimate moves (that is picked up with the next measurement)
+        ev_fp = hashlib.sha256(json.dumps(sorted(
+            (e.key, e.diff, e.se, e.n_treatment, e.n_control, e.n_excluded_trained, sorted(e.estimates))
+            for e in used), default=str).encode()).hexdigest()
+        ran, reason, sel = False, "", None
+        if not exps:
+            reason = "no experiment is recorded in the experience store"
+        elif not n_rand:
+            reason = "no randomised experiment with two or more arms"
+        elif not used:
+            reason = (f"no randomised experiment has {self.min_units_per_arm} or more matured held-out units in each "
+                      f"arm (held out by lifetime: units whose lifetime an estimator or the learner trained on are "
+                      f"excluded); the default stays {before}")
+        report = ExperimentEvaluation(ts=self.clock.now(), ran=False, reason=reason, default_before=before,
+                                      default_after=before, n_experiments=len(exps), n_randomized=n_rand,
+                                      n_recorded=n_rec, n_compared=n_cmp, n_evidence=len(used), experiments=rows)
+        if used and (ev_fp != self._evidence_fp or force_log):
+            sel = self.selector.select(context=report.to_dict())
+            self._evidence_fp = ev_fp
+            report.ran, report.default_after = True, sel.default_after
+            report.reason = "; ".join(sel.reasons) or "selection ran on held-out randomised evidence"
+            report.selection = sel.to_dict()
+            self._eval_fp = None
+        elif used:                 # the last selection stands; nothing new to log
+            report.ran, report.reason = False, "held-out evidence unchanged since the last selection"
+            report.default_after = self.selector.default
+        fp = hashlib.sha256(json.dumps({k: v for k, v in report.to_dict().items() if k not in ("ts", "n_recorded")},
+                                       sort_keys=True, default=str).encode()).hexdigest()
+        if not used and (fp != self._eval_fp or force_log):
+            self.selector.log_row({"evaluation": report.to_dict(), "selection": None})
+            self._eval_fp = fp
+        self.last_evaluation = report
+        return report
 
     # ---- persistence ----------------------------------------------------------------------------------------
     def state_dict(self) -> Dict[str, Any]:
