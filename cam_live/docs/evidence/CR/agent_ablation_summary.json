@@ -3,61 +3,61 @@
   "cocoa": {
    "credit_truth_pearson": {
     "cocoa": {
-     "mean": 0.06967238917550371,
-     "n": 3,
-     "sd": 0.10903500892960241,
-     "se": 0.06295139175659921
+     "mean": 0.19653652833758253,
+     "n": 6,
+     "sd": 0.20023806402655675,
+     "se": 0.08174684732463534
     },
     "rudder": {
-     "mean": 0.3450443446824915,
-     "n": 3,
-     "sd": 0.24221447660962087,
-     "se": 0.13984259327218893
+     "mean": 0.19247925931371782,
+     "n": 6,
+     "sd": 0.24976471839432565,
+     "se": 0.10196601930267161
     },
     "rudder_contribution": {
-     "mean": 0.13389169437456175,
-     "n": 3,
-     "sd": 0.0658546030757783,
-     "se": 0.03802117281317656
+     "mean": 0.0942176287248027,
+     "n": 6,
+     "sd": 0.08469292143821605,
+     "se": 0.03457574039154196
     },
     "rudder_rtg": {
-     "mean": 0.305138445397443,
-     "n": 3,
-     "sd": 0.2006883059853971,
-     "se": 0.115867447483879
+     "mean": 0.18034871041862413,
+     "n": 6,
+     "sd": 0.2280850007106182,
+     "se": 0.09311531162055887
     },
     "simple": {
-     "mean": 0.3660142384666399,
-     "n": 3,
-     "sd": 0.29907917359210456,
-     "se": 0.1726734413824124
+     "mean": 0.33864779062331835,
+     "n": 6,
+     "sd": 0.22411260771263486,
+     "se": 0.09149358897008156
     }
    },
    "credited_rows_consumed": {
-    "mean": 118.0,
-    "n": 3,
-    "sd": 10.14889156509222,
-    "se": 5.8594652770823155
+    "mean": 110.83333333333333,
+    "n": 6,
+    "sd": 18.03792301421277,
+    "se": 7.363951234071135
    },
    "ea_second_half": {
-    "mean": 0.9982509625436675,
-    "n": 3,
-    "sd": 0.5370993030944353,
-    "se": 0.31009442722313263
+    "mean": 2.4236248333633363,
+    "n": 6,
+    "sd": 2.9642917606369297,
+    "se": 1.2101670437161414
    },
    "ea_total": {
-    "mean": 65.62573374768955,
-    "n": 3,
-    "sd": 26.263969079829703,
-    "se": 15.163509618227687
+    "mean": 141.58425540305566,
+    "n": 6,
+    "sd": 164.3241169921467,
+    "se": 67.08503984402772
    },
-   "runs": 3,
+   "runs": 6,
    "unlock_found": 1,
    "waits": {
-    "mean": 1.0,
-    "n": 3,
-    "sd": 1.7320508075688772,
-    "se": 1.0
+    "mean": 2.3333333333333335,
+    "n": 6,
+    "sd": 2.7325202042558927,
+    "se": 1.1155467020454342
    }
   },
   "rudder": {
@@ -245,21 +245,24 @@
  "paired_vs_simple": {
   "cocoa": {
    "ea_second_half_minus_simple": {
-    "mean": -1.7487189656133495,
-    "n": 3,
-    "sd": 2.7359094353978577,
-    "se": 1.5795780490053903
+    "mean": -1.6804837385187146,
+    "n": 6,
+    "sd": 2.137042093827393,
+    "se": 0.8724437814543476
    },
    "ea_total_minus_simple": {
-    "mean": -60.71470583289414,
-    "n": 3,
-    "sd": 96.1619424121521,
-    "se": 55.51912333745331
+    "mean": -38.198483678181766,
+    "n": 6,
+    "sd": 115.3874155583238,
+    "se": 47.106715142729044
    },
    "seeds": [
     0,
     1,
-    2
+    2,
+    3,
+    4,
+    5
    ]
   },
   "rudder": {
@@ -968,6 +971,170 @@
    "unlock_index": 26,
    "waits": 0,
    "wall_seconds": 2591.7200078964233
+  },
+  {
+   "agent_source": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/CR/snap/cam_live/src/cam_live/agent.py",
+   "code": {
+    "clean": true,
+    "commit": "",
+    "python_hash_seed": "0",
+    "threads": 2,
+    "torch": "2.15.0+cu132",
+    "uncommitted": []
+   },
+   "condition": "cocoa",
+   "credit_keys": {
+    "cocoa": 59,
+    "rudder": 64,
+    "rudder_contribution": 64,
+    "rudder_rtg": 64,
+    "simple": 61
+   },
+   "credit_truth_pearson": {
+    "cocoa": 0.5529321718776814,
+    "rudder": 0.20849964307334823,
+    "rudder_contribution": 0.1631357287746472,
+    "rudder_rtg": 0.2736375438459814,
+    "simple": 0.509659855652383
+   },
+   "credited_rows_consumed": 126,
+   "decisions": 64,
+   "default_at_end": "cocoa",
+   "executed_actions": 64,
+   "expected_adopters_per_decision": {
+    "first_half": 0.6665292482322169,
+    "last_quarter": 1.0570379898202984,
+    "second_half": 1.0507278638835753
+   },
+   "expected_adopters_total": 54.95222758770535,
+   "held_out_records": 10,
+   "n_unlock": 0,
+   "ops": {
+    "lab.act": 61,
+    "lab.probe": 3
+   },
+   "policy_update_rows": 332,
+   "policy_updates": 21,
+   "pooled_units_last": 1,
+   "replay_cr3": true,
+   "replayed_credited_rows": 98,
+   "replayed_rows": 98,
+   "seed": 3,
+   "segment_decisions": 8,
+   "set": "abl2",
+   "split": "segment",
+   "unlock_index": null,
+   "waits": 0,
+   "wall_seconds": 538.6396589279175
+  },
+  {
+   "agent_source": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/CR/snap/cam_live/src/cam_live/agent.py",
+   "code": {
+    "clean": true,
+    "commit": "",
+    "python_hash_seed": "0",
+    "threads": 2,
+    "torch": "2.15.0+cu132",
+    "uncommitted": []
+   },
+   "condition": "cocoa",
+   "credit_keys": {
+    "cocoa": 61,
+    "rudder": 64,
+    "rudder_contribution": 64,
+    "rudder_rtg": 64,
+    "simple": 61
+   },
+   "credit_truth_pearson": {
+    "cocoa": 0.1851293947261923,
+    "rudder": 0.034005574162869805,
+    "rudder_contribution": -0.005147917261458062,
+    "rudder_rtg": 0.03251383258833132,
+    "simple": 0.14609582066854848
+   },
+   "credited_rows_consumed": 106,
+   "decisions": 64,
+   "default_at_end": "cocoa",
+   "executed_actions": 59,
+   "expected_adopters_per_decision": {
+    "first_half": 2.158718170965484,
+    "last_quarter": 1.4966005403732827,
+    "second_half": 2.1318419914500306
+   },
+   "expected_adopters_total": 126.55808670149996,
+   "held_out_records": 10,
+   "n_unlock": 0,
+   "ops": {
+    "lab.act": 59
+   },
+   "policy_update_rows": 318,
+   "policy_updates": 21,
+   "pooled_units_last": 0,
+   "replay_cr3": true,
+   "replayed_credited_rows": 84,
+   "replayed_rows": 84,
+   "seed": 4,
+   "segment_decisions": 8,
+   "set": "abl2",
+   "split": "segment",
+   "unlock_index": null,
+   "waits": 5,
+   "wall_seconds": 536.0945234298706
+  },
+  {
+   "agent_source": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/CR/snap/cam_live/src/cam_live/agent.py",
+   "code": {
+    "clean": true,
+    "commit": "",
+    "python_hash_seed": "0",
+    "threads": 2,
+    "torch": "2.15.0+cu132",
+    "uncommitted": []
+   },
+   "condition": "cocoa",
+   "credit_keys": {
+    "cocoa": 58,
+    "rudder": 64,
+    "rudder_contribution": 64,
+    "rudder_rtg": 64,
+    "simple": 60
+   },
+   "credit_truth_pearson": {
+    "cocoa": 0.23214043589511044,
+    "rudder": -0.12276269540138557,
+    "rudder_contribution": 0.005642877711941796,
+    "rudder_rtg": -0.13947445011489698,
+    "simple": 0.2780883520190589
+   },
+   "credited_rows_consumed": 79,
+   "decisions": 64,
+   "default_at_end": "cocoa",
+   "executed_actions": 58,
+   "expected_adopters_per_decision": {
+    "first_half": 7.881022600924593,
+    "last_quarter": 9.336994201050413,
+    "second_half": 8.36442625721541
+   },
+   "expected_adopters_total": 471.1180168860601,
+   "held_out_records": 9,
+   "n_unlock": 0,
+   "ops": {
+    "lab.act": 57,
+    "lab.probe": 1
+   },
+   "policy_update_rows": 288,
+   "policy_updates": 20,
+   "pooled_units_last": 2,
+   "replay_cr3": true,
+   "replayed_credited_rows": 63,
+   "replayed_rows": 63,
+   "seed": 5,
+   "segment_decisions": 8,
+   "set": "abl2",
+   "split": "segment",
+   "unlock_index": null,
+   "waits": 6,
+   "wall_seconds": 617.8984611034393
   },
   {
    "agent_source": "/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/CR/snap/cam_live/src/cam_live/agent.py",

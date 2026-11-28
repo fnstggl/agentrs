@@ -1,7 +1,7 @@
 {
  "workstream": "CR",
  "stage": "amendment 2026-11-28 item 4 (retrospective credit assignment)",
- "commit": "159fb27a3610274923caacb2b0278544401aae91",
+ "commit": "1a4adb2aa7f224fae7a77c82329fb234c2d51814",
  "summary": "Diagnosis of the failed held-out estimator selection (seed-specific under-resolution of weakly heterogeneous mechanisms; a gate that rejects an ideal learner at realistic sizes; impossible by construction in the agent), learned credit inside one long open objective (segments), a blocked held-out split by segment, an estimand-matched pooled selection rule over held-out randomised units of any experiment size, a revision queue for the policy update (agent hook CR-3), a controlled policy-learning diagnostic and an integrated-agent ablation (simple vs forced RUDDER / COCOA). docs/CR.md.",
  "requirements": {
   "AM4-credit-inside-one-objective": {
@@ -79,61 +79,61 @@
      "cocoa": {
       "credit_truth_pearson": {
        "cocoa": {
-        "mean": 0.06967238917550371,
-        "n": 3,
-        "sd": 0.10903500892960241,
-        "se": 0.06295139175659921
+        "mean": 0.19653652833758253,
+        "n": 6,
+        "sd": 0.20023806402655675,
+        "se": 0.08174684732463534
        },
        "rudder": {
-        "mean": 0.3450443446824915,
-        "n": 3,
-        "sd": 0.24221447660962087,
-        "se": 0.13984259327218893
+        "mean": 0.19247925931371782,
+        "n": 6,
+        "sd": 0.24976471839432565,
+        "se": 0.10196601930267161
        },
        "rudder_contribution": {
-        "mean": 0.13389169437456175,
-        "n": 3,
-        "sd": 0.0658546030757783,
-        "se": 0.03802117281317656
+        "mean": 0.0942176287248027,
+        "n": 6,
+        "sd": 0.08469292143821605,
+        "se": 0.03457574039154196
        },
        "rudder_rtg": {
-        "mean": 0.305138445397443,
-        "n": 3,
-        "sd": 0.2006883059853971,
-        "se": 0.115867447483879
+        "mean": 0.18034871041862413,
+        "n": 6,
+        "sd": 0.2280850007106182,
+        "se": 0.09311531162055887
        },
        "simple": {
-        "mean": 0.3660142384666399,
-        "n": 3,
-        "sd": 0.29907917359210456,
-        "se": 0.1726734413824124
+        "mean": 0.33864779062331835,
+        "n": 6,
+        "sd": 0.22411260771263486,
+        "se": 0.09149358897008156
        }
       },
       "credited_rows_consumed": {
-       "mean": 118.0,
-       "n": 3,
-       "sd": 10.14889156509222,
-       "se": 5.8594652770823155
+       "mean": 110.83333333333333,
+       "n": 6,
+       "sd": 18.03792301421277,
+       "se": 7.363951234071135
       },
       "ea_second_half": {
-       "mean": 0.9982509625436675,
-       "n": 3,
-       "sd": 0.5370993030944353,
-       "se": 0.31009442722313263
+       "mean": 2.4236248333633363,
+       "n": 6,
+       "sd": 2.9642917606369297,
+       "se": 1.2101670437161414
       },
       "ea_total": {
-       "mean": 65.62573374768955,
-       "n": 3,
-       "sd": 26.263969079829703,
-       "se": 15.163509618227687
+       "mean": 141.58425540305566,
+       "n": 6,
+       "sd": 164.3241169921467,
+       "se": 67.08503984402772
       },
-      "runs": 3,
+      "runs": 6,
       "unlock_found": 1,
       "waits": {
-       "mean": 1.0,
-       "n": 3,
-       "sd": 1.7320508075688772,
-       "se": 1.0
+       "mean": 2.3333333333333335,
+       "n": 6,
+       "sd": 2.7325202042558927,
+       "se": 1.1155467020454342
       }
      },
      "rudder": {
@@ -320,21 +320,24 @@
     "integrated_paired_vs_simple": {
      "cocoa": {
       "ea_second_half_minus_simple": {
-       "mean": -1.7487189656133495,
-       "n": 3,
-       "sd": 2.7359094353978577,
-       "se": 1.5795780490053903
+       "mean": -1.6804837385187146,
+       "n": 6,
+       "sd": 2.137042093827393,
+       "se": 0.8724437814543476
       },
       "ea_total_minus_simple": {
-       "mean": -60.71470583289414,
-       "n": 3,
-       "sd": 96.1619424121521,
-       "se": 55.51912333745331
+       "mean": -38.198483678181766,
+       "n": 6,
+       "sd": 115.3874155583238,
+       "se": 47.106715142729044
       },
       "seeds": [
        0,
        1,
-       2
+       2,
+       3,
+       4,
+       5
       ]
      },
      "rudder": {
@@ -576,6 +579,7 @@
   "patched_copy_integration": "test_int3a_audit 4/4, test_int2_wiring + test_agent_runtime + test_int2_checkpoints 20/20 on a copy with CR-1 + CR-3",
   "cr3": "RUDDER forced: credited policy-update rows 112 / 132 / 134 with the CR-3 line vs 28 / 35 / 35 without (seeds 0-2, 64 decisions); 3 of 96 rows in the 22-decision smoke run without it",
   "integrated_rudder_minus_simple_expected_adopters": "-66.8 +- 26.0 (n = 9 paired seeds, p ~ 0.03)",
+  "integrated_cocoa_minus_simple_expected_adopters": "-38.2 +- 47.1 (n = 6, n.s.)",
   "lab_gate_mean_z2_seed0_48": {
    "rudder": 6.72,
    "cocoa": 10.89,
