@@ -32,11 +32,11 @@ class ChangeDetector:
 
     Under a correct model the residuals have mean 0 and variance ~1; ``drift`` is the slack per observation and
     ``threshold`` the decision level in residual standard deviations. ``update`` returns True while a sustained
-    shift is detected; ``reset`` is called by the owner once it has adapted (for example after raising the fast
-    layer's process noise)."""
+    shift is detected; the detector re-arms itself once both statistics have fallen below ``rearm * threshold``
+    (G2D-1), and ``reset`` lets an owner clear it explicitly."""
 
-    def __init__(self, drift: float = 0.5, threshold: float = 8.0, clip: float = 6.0):
-        self.drift, self.threshold, self.clip = drift, threshold, clip
+    def __init__(self, drift: float = 0.5, threshold: float = 8.0, clip: float = 6.0, rearm: float = 0.25):
+        self.drift, self.threshold, self.clip, self.rearm = drift, threshold, clip, rearm
         self.pos = self.neg = 0.0
         self.n = 0
         self.detected_at: Optional[int] = None
@@ -50,6 +50,11 @@ class ChangeDetector:
         self.neg = max(0.0, self.neg - r - self.drift)
         if self.detected_at is None and max(self.pos, self.neg) > self.threshold:
             self.detected_at = self.n
+        elif self.detected_at is not None and max(self.pos, self.neg) < self.rearm * self.threshold:
+            # G2D-1: re-arm once the evidence for the shift has decayed (the statistics fall only under residuals
+            # within the drift slack, i.e. once predictions are calibrated again), so a later confident miss can
+            # be attributed to the model again instead of to a latched old shift
+            self.detected_at = None
         return self.changed
 
     @property
