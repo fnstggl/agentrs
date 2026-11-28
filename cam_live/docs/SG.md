@@ -89,10 +89,10 @@ Old checkpoints load: the estimator starts empty and the restored fast state bec
 
 | file | what it pins | result |
 |---|---|---|
-| `tests/harness/skills/test_sg_skills.py` (9 unit + 5 `browser`) | locator rewriting (refs, `ref@obs`, duplicates -> `nth`, unknown observation / no locator -> none); grounded traces -> role/name steps, enum domain, observation bookkeeping excluded, size changes tentative; one-trace parameter from what flows into the result; unknown observation refused at induction; applicability learns state-dependence and gates only when confident; step removal renumbers captures and refuses needed steps; recurring procedures found and induced; composition rules; **browser**: own grounded traces -> validated skill reused with new arguments (3 ops per run, induce cost = its validation run), single-trace skill; reuse on an unseen path, precondition refusal elsewhere (applicability told, reliability not), composite navigate + skill run from another site; `skill.discover` registers the recurring procedure and two refinements take it from 5 to 4 to 3 primitive operations per run | pass (JUnit `docs/evidence/test_results/SG_fix.xml`: 179 passed, 0 failed, on `git archive` of HEAD `7439936`) |
+| `tests/harness/skills/test_sg_skills.py` (10 unit + 5 `browser`) | locator rewriting (refs, `ref@obs`, duplicates -> `nth`, unknown observation / no locator -> none); grounded traces -> role/name steps, enum domain, observation bookkeeping excluded, size changes tentative; one-trace parameter from what flows into the result; unknown observation refused at induction; applicability learns state-dependence and gates only when confident; step removal renumbers captures and refuses needed steps; recurring procedures found and induced; composition rules; **browser**: own grounded traces -> validated skill reused with new arguments (3 ops per run, induce cost = its validation run), single-trace skill; reuse on an unseen path, precondition refusal elsewhere (applicability told, reliability not), composite navigate + skill run from another site; `skill.discover` registers the recurring procedure and two refinements take it from 5 to 4 to 3 primitive operations per run; the reusable portion of a noisy own trace; layout B: a choice parameter over the observed radios and no false success; observations the environment shows by itself are indexed | pass (JUnit `docs/evidence/test_results/SG_fix.xml`: 179 passed, 0 failed, on `git archive` of HEAD `7439936`; the later `observe()`-indexing test passes on `1da315a`) |
 | `tests/harness/skills/test_es_skills.py` (ES) | updated for composition (`skill.induce` / `skill.discover` stay protected; `skill.run` composable) and the new tool | pass |
 | `tests/reward/test_sg_transfer.py` (4) | transfer estimate = prior 1/2 without evidence; same mechanism later -> all candidates > 0.7; re-drawn mechanism later -> mean < 1/2 and below the same-mechanism estimate; the estimate changes which goal is selected (score ratio = transfer ratio); persistence; old checkpoints | pass |
-| `tests/reward/test_sg_agent_transfer.py` (1) | through the agent API: outcomes of an assigned LabWorld objective after a goal-free period become transfer evidence, none during the goal-free period, survive save / load | pass (ST integrated SG-1..3 in `dde7d2d`) |
+| `tests/reward/test_sg_agent_transfer.py` (1) | through the agent API: outcomes of an assigned LabWorld objective after a goal-free period become transfer evidence, none during the goal-free period, survive save / load | pass on HEAD (ST integrated SG-1..3 in `dde7d2d`) |
 
 ### 5.2 Integration into the actual runtime
 
@@ -110,8 +110,17 @@ Old checkpoints load: the estimator starts empty and the restored fast state bec
   a restart with the reference prior restored. (SG's own run of `tests/integration/test_agent_runtime.py` +
   `test_int2_checkpoints.py` on its patched copy was stopped under the master's CPU rule before it finished.)
 * The real-configuration runs (§6) ran the real runtime (`runtime.loop.LiveRuntime` through
-  `eval.oe_runner.run_objective`) on the persistent staging computer, from `git archive` of HEAD `e356100` (ST's
-  integrated agent with every amendment hook applied so far).
+  `eval.oe_runner.run_objective`) on the persistent staging computer, from `git archive` of HEAD `9656770` (ST's
+  integrated agent with every amendment hook applied so far, the queued GPU lock) with `harness/skills.py` of
+  `1da315a`.
+* A debug-scale runtime run (`scratchpad/SG/runs/debug_skills.json`: tiny random backbone on CPU, 3 objectives
+  "store two more entries", 15 decisions each, real browser and authorization service) found an integration defect:
+  CAM chose `skill.discover` by itself twice; the second call found a recurring procedure (two clicks, 3 occurrences)
+  and induction refused every occurrence with "observation ... is not known here" — the grounded clicks named
+  elements of the observations the runtime takes of the environment every cycle (`observe()`), which the skill
+  executor never saw (only action results). Fixed in `1da315a` (the executor indexes `observe()` too; test). No
+  objective was achieved at debug scale (the tiny backbone's policy filled the form in 2 of 45 decisions), so no
+  verified-progress trace arose there.
 
 ### 5.3 Controlled mechanism measurement (CU-33 comparison; `docs/evidence/SG/skills_browser_measure.{py,json}`)
 
@@ -163,7 +172,42 @@ objective exactly when what was learned still holds), not that goal-free learnin
 
 ## 6. Real configuration (Qwen3-4B + 50m core, open-ended generation on)
 
-Pending at the time of this version: the four runs wait for the shared GPU lock (queue of other workstreams).
+Runs: `scratchpad/SG/sg_runner.py` — one agent, several objectives inside ONE hold of the queued GPU lock (<= 820 s),
+the real runtime on the persistent staging computer (real browser, real authorization service, signing verifier
+reading the sites' own state), tree = `git archive` of HEAD `9656770` with `harness/skills.py` of `1da315a`, seed 0,
+`nice -n 10`, 4 threads. Summaries: `docs/evidence/SG/real_summary.json` (from `analyse_real.py`), raw result files
+copied to `docs/evidence/SG/real/`.
+
+### 6.1 Skills arm (`real/real_skills.json`; one hold, 826 s, peak 11.3 GB, after 32 min in the lock queue)
+
+| objective | verified | decisions | chosen actions that failed | skill decisions |
+|---|---|---|---|---|
+| store two more entries | 0 of 2 | 12 | 8 of 12 (backbone actions naming a tab `"A"` that does not exist; downloads refused as a private address) | 0 |
+| store two more entries | 0 of 2 | 12 | 2 of 12 | 0 |
+| record one more item | 3 -> 3 of 4 | 8 | 1 (tab `"items"`) | 1 `skill.discover` (nothing recurring yet) |
+
+**No skill was acquired in the real configuration**, because there was nothing to acquire from: in 32 decisions the
+agent never produced verified progress (no entry stored, no item recorded), so no verified-progress trace arose and
+the agent offered no `skill.induce`; its one `skill.discover` found no procedure that had recurred. Diagnosis: the
+limit is the action choice of the real configuration on this interface (backbone-written browser actions with
+invented tab ids `"A"`, `"items"`, CSS selectors given an element ref; grounded fills chosen without the submit), not
+the skill pathway — every skill-pathway defect that would have blocked acquisition from such a trace is fixed and
+tested on exactly this interface (§5.1, §5.3). This is an empirical negative result for item 6 in the real
+configuration, at 32 decisions; the X4 runs on 48600c4 reached verified progress on this task in some objectives
+with 20 decisions per objective (`docs/evidence/S/v3/old_snapshot_48600c4/`), so more decisions per objective would
+be the next test.
+
+### 6.2 Debug scale through the same runtime (`real/debug_skills.json`, `real/debug_skills2.json`; CPU, tiny backbone)
+
+2 x 3 objectives, 15 decisions each: none achieved. CAM chose `skill.discover` by itself 2 resp. 5 times; in the first
+run one call found a recurring two-click procedure (3 occurrences) and **induction refused it — an integration
+defect**: the clicks named elements of the observations the runtime takes of the environment every cycle, which the
+skill executor did not index. Fixed in `1da315a` (pinned by a test); the second run (with the fix) found nothing
+recurring.
+
+### 6.3 Goal-free arm
+
+Queued for the GPU lock at the time of this version.
 
 
 ## 7. Negative results, limitations, diagnosis
@@ -207,13 +251,13 @@ Pending at the time of this version: the four runs wait for the shared GPU lock 
 
 | capability | (a) | (b) | (c) | (d) |
 |---|---|---|---|---|
-| 6.1 acquisition from CAM's own executed traces | unit + browser tests (§5.1) | `skill` modality of the real environment; the agent's own `skill.induce` over verified-progress traces; real runs §6 | __C61__ | controlled: before SG 0 of every induce attempt validated (X4: 3 of 3 rejected); now own grounded traces -> validated skills on both staging tasks |
+| 6.1 acquisition from CAM's own executed traces | unit + browser tests (§5.1) | `skill` modality of the real environment; the agent's own `skill.induce` over verified-progress traces; real runs §6 | real configuration: none (no verified-progress trace in 32 decisions, so nothing to induce: §6.1); debug scale: CAM chose `skill.discover` by itself 7 times in 90 decisions, one found a recurring procedure whose induction exposed the `observe()` indexing defect (fixed) | controlled: before SG 0 of every induce attempt validated (X4: 3 of 3 rejected); now own grounded traces -> validated skills on both staging tasks |
 | 6.2 validation (independent, by execution) | tests: fresh arguments, tentative conditions, reusable portion, no false success | every registration goes through it in the runtime | a refused candidate is never offered (`skill.run` only for validated skills) | layout B: refused instead of a false success (the effect is not observable at the end) |
-| 6.3 learned applicability | `ApplicabilityModel` tests (learns state dependence; refuses only when P(p<0.15) >= 0.75) | trained by every runtime run, validation run and precondition failure; reported by `skill.list` | a confident "not applicable" stops a run before anything executes (tested); __C63__ | not measured as an improvement (the real runs are too short to reach a refusal) |
-| 6.4 efficiency from experience | browser test: 5 -> 4 -> 3 primitive operations over three versions | `skill.discover` is an ordinary tool of the runtime | refinement changes what a run executes (tested) | controlled: decisions per task 4 -> 1 (store) and 6 -> 1 (wizard); real configuration §6: __D64__ |
+| 6.3 learned applicability | `ApplicabilityModel` tests (learns state dependence; refuses only when P(p<0.15) >= 0.75) | trained by every runtime run, validation run and precondition failure; reported by `skill.list` | a confident "not applicable" stops a run before anything executes (tested); not exercised in the real runs (no skill existed) | not measured as an improvement (the real runs are too short to reach a refusal) |
+| 6.4 efficiency from experience | browser test: 5 -> 4 -> 3 primitive operations over three versions | `skill.discover` is an ordinary tool of the runtime | refinement changes what a run executes (tested) | controlled: decisions per task 4 -> 1 (store) and 6 -> 1 (wizard); real configuration §6: not reached (no skill acquired) |
 | 6.5 composition | tests: rules, composite navigate + skill run from another site (4 primitives) | SG-1 (agent traces may contain `skill.run`); executor nesting through the environment's dispatch | a composite runs where its part alone is refused (precondition) | not measured in the real configuration |
 | 6.6 reuse in unfamiliar situations | tests: unseen path (`/app/`), unseen arguments (fresh, enum) | as 6.1 | the skill runs on a page it never saw; refused on a different interface | negative: no transfer to a different interface (layout B); re-acquisition there was refused by validation (asynchronous effect) |
-| 6.7 procedural vs neural | — | the policy chooses `skill.run` among all candidates like any action | __C67__ | __D67__ |
+| 6.7 procedural vs neural | — | the policy chooses `skill.run` among all candidates like any action | real runs: no skill existed, so `skill.run` was never offered; the policy's own `skill.discover` choices: 1 of 32 (real), 7 of 90 (debug) | not measurable here (no skill in the real configuration); controlled: the procedural gain is 4 -> 1 / 6 -> 1 decisions, which is not neural learning — it does not change what the policy prefers |
 | 7.1 gaps, informative experiences, unfamiliar mechanisms | existing `GoalFreeMode` tests (uncertainty x achievable progress, noisy-TV gate, budget) | the runtime's goal-free mode (no success criterion); real run §6 | __C71__ | — |
-| 7.2 learned transfer estimate (was 1.0) | `test_sg_transfer.py` (4) | SG-2 / SG-3 hooks (ST); patched copy: agent-level test __HOOK__ | the estimate scales the selection score (test: the higher-transfer goal is selected; score ratio = transfer ratio) | LabWorld diagnostic: same mechanism +1.11 nats, 5/5 seeds, estimate 0.80; re-drawn -0.57 nats, 1/5, estimate 0.46; real run §6: __D72__ |
+| 7.2 learned transfer estimate (was 1.0) | `test_sg_transfer.py` (4) | SG-2 / SG-3 hooks (ST); patched copy: agent-level test passes on HEAD (`tests/reward/test_sg_agent_transfer.py`) | the estimate scales the selection score (test: the higher-transfer goal is selected; score ratio = transfer ratio) | LabWorld diagnostic: same mechanism +1.11 nats, 5/5 seeds, estimate 0.80; re-drawn -0.57 nats, 1/5, estimate 0.46; real run §6: __D72__ |
 | 7.3 usefulness on later unfamiliar objectives (ablation) | — | `CUFREE` period before assigned objectives in the same runtime | __C73__ | __D73__ |
