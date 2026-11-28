@@ -198,7 +198,7 @@ def record_signals(rec: ExperienceRecord, store: ExperienceStore) -> Tuple[Dict[
                 continue
             if k in SCALAR_NAMES:
                 out[k] = f
-            elif k == "learning_progress":
+            elif k in ("learning_progress", "information_value"):     # bootstrap-only inputs (ST-3)
                 extras[k] = f
     return out, extras, t_r
 
@@ -211,6 +211,9 @@ class AssembledSignals:
     learning_progress: Tensor         # [B] float64, NaN where no value was recorded (bootstrap input only)
     reward_time: Tensor               # [B] float64
     keys: List[str]                   # noisy-TV context key of each row
+    #: ST-3: realised information value (agent annotation ``information_value``: the later prediction loss without
+    #: minus with the decision's context items, nats), NaN where not measured; bootstrap input only
+    information_value: Optional[Tensor] = None
 
 
 class SignalAssembler:
@@ -234,11 +237,12 @@ class SignalAssembler:
                  b: Optional[Tensor] = None, b_next: Optional[Tensor] = None, e_g: Optional[Tensor] = None,
                  has_next: Optional[Tensor] = None, device: Optional[torch.device] = None,
                  dtype: torch.dtype = torch.float32) -> AssembledSignals:
-        rows, lps, times = [], [], []
+        rows, lps, ivs, times = [], [], [], []
         for rec in records:
             sig, extras, t_r = record_signals(rec, store)
             rows.append(sig)
             lps.append(extras.get("learning_progress", float("nan")))
+            ivs.append(extras.get("information_value", float("nan")))
             times.append(t_r)
         if self.evaluator is not None and b is not None and e_g is not None and records:
             hz = torch.tensor([self._horizons(r) for r in records], dtype=torch.float64, device=b.device)
@@ -261,7 +265,8 @@ class SignalAssembler:
         return AssembledSignals(signals=sig, tensor=sig.to_tensor(dtype, device), mask=sig.mask(dtype, device),
                                 learning_progress=torch.tensor(lps, dtype=torch.float64),
                                 reward_time=torch.tensor(times, dtype=torch.float64),
-                                keys=[context_key(r) for r in records])
+                                keys=[context_key(r) for r in records],
+                                information_value=torch.tensor(ivs, dtype=torch.float64))
 
     def assemble_batch(self, batch: DecisionBatch, store: ExperienceStore, *, b_next: Optional[Tensor] = None,
                        has_next: Optional[Tensor] = None) -> AssembledSignals:

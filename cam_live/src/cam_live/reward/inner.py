@@ -312,6 +312,7 @@ class PolicyImprovementLoss:
             ok = torch.isfinite(v)
             return torch.where(ok, v, torch.zeros_like(v)), ok.to(torch.float64)
         lp, lp_ok = col(asm.learning_progress)
+        iv, iv_ok = col(getattr(asm, "information_value", None))      # ST-3
         dv, _ = col(s.delta_v)
         vd, vd_ok = col(s.verified_progress_delta)
         eb, eb_ok = col(s.epistemic_before)
@@ -321,7 +322,8 @@ class PolicyImprovementLoss:
         ea = torch.where(both, ea, torch.ones_like(ea))           # no measured drop: no exploration reward
         keys = [k if bool(ok) else None for k, ok in zip(asm.keys, both)]
         return self.bootstrap(learning_progress=lp * lp_ok, delta_v=dv, epistemic_before=eb, epistemic_after=ea,
-                              verified_delta=vd, verified_mask=vd_ok, context_keys=keys, gate_update=gate_update)
+                              verified_delta=vd, verified_mask=vd_ok, context_keys=keys, gate_update=gate_update,
+                              information_value=iv * iv_ok)
 
     def build_batch(self, store: ExperienceStore, records: Sequence[ExperienceRecord], *,
                     batch: Optional[DecisionBatch] = None, policy_only: bool = False,

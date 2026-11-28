@@ -9,6 +9,10 @@ yet earned trust; it is never described or logged as meta-learned.
     exploration          relative reduction of *epistemic* uncertainty, closed by the noisy-TV gate once that
                          uncertainty stops falling; aleatoric noise earns nothing
     verified outcomes    sparse verifier measurements that were already observed
+    information value    (ST-3) the realised information value of the decision's result: the world model's loss on the
+                         next decisions' matured outcomes without minus with the decision's context items (agent
+                         annotation; measured once those outcomes matured, so present in inner updates, not at
+                         reward time)
 
 ``RewardMixer`` computes r = mix * r_bootstrap + (1 - mix) * r_learned with mix starting at 1.0 (the inner update
 standardises both before mixing, ``reward.inner``). The mix is lowered only when held-out verified query evidence
@@ -31,7 +35,7 @@ from .integrity import NoisyTVGate, bound_reward
 BOOTSTRAP_LABEL = "bootstrap"
 LEARNED_LABEL = "learned"
 MIXED_LABEL = "mixed"
-BOOTSTRAP_VERSION = "bootstrap-1"
+BOOTSTRAP_VERSION = "bootstrap-2"          # 2: + realised information value (ST-3)
 
 __all__ = ["BOOTSTRAP_LABEL", "LEARNED_LABEL", "MIXED_LABEL", "BOOTSTRAP_VERSION", "learning_progress",
            "LearningProgressTracker", "BootstrapWeights", "BootstrapOutput", "BootstrapReward", "MixedReward",
@@ -79,6 +83,8 @@ class BootstrapWeights:
     delta_v: float = 1.0
     exploration: float = 0.5
     verified: float = 2.0
+    information_value: float = 1.0    # ST-3: tanh of the realised information value (nats), on the scale of learning
+                                      # progress (also tanh of a loss difference in nats)
 
 
 @dataclass
@@ -99,16 +105,22 @@ class BootstrapReward:
     def __call__(self, *, learning_progress: Optional[Tensor] = None, delta_v: Optional[Tensor] = None,
                  epistemic_before: Optional[Tensor] = None, epistemic_after: Optional[Tensor] = None,
                  verified_delta: Optional[Tensor] = None, verified_mask: Optional[Tensor] = None,
-                 context_keys: Optional[Sequence[str]] = None, gate_update: bool = True) -> BootstrapOutput:
+                 context_keys: Optional[Sequence[str]] = None, gate_update: bool = True,
+                 information_value: Optional[Tensor] = None) -> BootstrapOutput:
         """All inputs [B] (None = not available, contributes 0). ``context_keys`` names the context of each row
         for the noisy-TV gate (rows without a key are not gated). ``gate_update=False`` reads the gate without
         advancing it (replay of a step the gate has already seen; the gate moves once per real step)."""
-        ref = next(t for t in (learning_progress, delta_v, epistemic_before, verified_delta) if t is not None)
+        ref = next(t for t in (learning_progress, delta_v, epistemic_before, verified_delta, information_value)
+                   if t is not None)
         zeros = torch.zeros_like(ref, dtype=ref.dtype)
         comp: Dict[str, Tensor] = {}
         comp["learning_progress"] = self.w.learning_progress * (
             zeros if learning_progress is None else torch.tanh(learning_progress.to(ref.dtype)))
         comp["delta_v"] = self.w.delta_v * (zeros if delta_v is None else delta_v.to(ref.dtype))
+        # ST-3: what an action's result changed in CAM's later predictions (realised information value, nats): the
+        # world model's loss on the next decisions' matured outcomes without minus with the decision's context items
+        comp["information_value"] = self.w.information_value * (
+            zeros if information_value is None else torch.tanh(information_value.to(ref.dtype)))
         if epistemic_before is None or epistemic_after is None:
             comp["exploration"] = zeros
         else:

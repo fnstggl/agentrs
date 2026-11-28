@@ -39,7 +39,9 @@ def test_bootstrap_reward_is_labelled_bounded_and_made_of_its_named_components()
                epistemic_before=t(1.0, 1.0, 1.0), epistemic_after=t(0.5, 1.0, 0.0),
                verified_delta=t(0.0, 0.0, 400.0), verified_mask=t(0.0, 0.0, 1.0))
     assert out.label == "bootstrap" and out.version == B.BOOTSTRAP_VERSION
-    assert set(out.components) == {"learning_progress", "delta_v", "exploration", "verified"}
+    assert set(out.components) == {"learning_progress", "delta_v", "exploration", "verified",
+                                   "information_value"}                         # ST-3 (0 when not given)
+    assert out.components["information_value"].tolist() == [0.0, 0.0, 0.0]
     assert float(out.total.abs().max()) < 1.0
     assert torch.allclose(out.total, torch.tanh(sum(out.components.values())))
     assert out.components["exploration"].tolist() == [0.25, 0.0, 0.5]

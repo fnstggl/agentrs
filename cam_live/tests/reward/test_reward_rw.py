@@ -376,3 +376,34 @@ def test_the_agent_configuration_uses_the_rw_defaults():
     from cam_live.reward.metalearner import MetaConfig
     mc = MetaConfig.from_cfg(CamLiveConfig.load())
     assert (mc.promotion_rule, mc.estimator, mc.utility, mc.heldout_fraction) == ("validity", "auto", "direct", None)
+
+
+# ------------------------------------------------------------------------------------------ ST-3
+def test_realised_information_value_is_a_bounded_bootstrap_input_and_not_an_input_of_r_psi():
+    """ST-3: the agent's annotation ``reward_signals.information_value`` (later prediction loss without minus with
+    the decision's context items) enters the bootstrap reward like learning progress (tanh, weight 1), reaches the
+    inner update's bootstrap reward, and leaves R_psi's signal vector (and its parameter shapes) unchanged."""
+    from cam_live.reward.assemble import annotation_key
+    from cam_live.reward.bootstrap import BootstrapReward
+    from cam_live.reward.signals import N_SIGNALS
+    b = BootstrapReward(bound=4.0)
+    out = b(information_value=torch.tensor([0.0, 0.5, -0.5, 50.0], dtype=torch.float64))
+    assert torch.allclose(out.components["information_value"],
+                          torch.tanh(torch.tensor([0.0, 0.5, -0.5, 50.0], dtype=torch.float64)))
+    assert float(out.components["information_value"].abs().max()) <= 1.0
+    ec = dg.ExperimentConfig()
+    model, store, clock, ml = dg.make_stack(0, ec, mix=1.0)
+    lt, _, _ = dg.lab_lifetime(ml, store, clock, ec, seed=4242, update_every=0)
+    recs = lt.records[:6]
+    shapes = {k: tuple(v.shape) for k, v in ml.reward.psi().items()}
+    ib0 = ml.inner.build_batch(store, recs)
+    for k, r in enumerate(recs[:3]):                       # annotated (as the agent writes it) on three of six rows
+        r.decision.diagnostics[annotation_key("information_value")] = [2.0, -1.0, 0.0][k]
+        store.update(r)
+    ib1 = ml.inner.build_batch(store, recs)
+    iv = ib1.boot_components["information_value"]
+    assert torch.allclose(iv[:3].double(), torch.tanh(torch.tensor([2.0, -1.0, 0.0], dtype=torch.float64)))
+    assert bool((iv[3:] == 0).all()) and bool((ib0.boot_components["information_value"] == 0).all())
+    assert not torch.equal(ib0.r_boot, ib1.r_boot)        # it changes the bootstrap reward of the inner update
+    assert ib1.signals.shape[-1] == ib0.signals.shape[-1] == N_SIGNALS and torch.equal(ib0.signals, ib1.signals)
+    assert {k: tuple(v.shape) for k, v in ml.reward.psi().items()} == shapes

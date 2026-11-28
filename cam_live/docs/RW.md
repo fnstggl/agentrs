@@ -21,15 +21,18 @@ without forcing the mix. What changed and what it showed:
 | outer utility | return-to-go (dominated by later decisions' outcomes) | `direct` (the decision's own signed outcomes) |
 | level metrics (member count, sessions) | the reading's level was the decision's utility (defect) | the change since the latest earlier reading |
 
-Evidence (details §3-§6): (a) 166 tests pass in `tests/reward` (19 new), the pooled gradient equals finite
+Evidence (details §3-§6): (a) 167 tests pass in `tests/reward` (20 new), the pooled gradient equals finite
 differences, the e-processes hold their error level in simulation. (b) The integrated agent runs it by default;
 the live run's newest checkpoint loads (validity state reported fresh). (c)/(d), debug scale, one LabWorld objective
 per seed, controlled configuration (live update learns only from the mixed reward), same seeds against a frozen
-R_psi: meta-learning raised R_psi's prospective agreement with verified outcomes above the frozen R_psi's in 12 of 12
-seed-configurations; the evidence handed it weight in 2 of 3 600-decision objectives (decisions 252 and 573; frozen
-arms never), the decisions changed 9-17 decisions later, and afterwards the chosen actions' true value was +2.06
-adopters per decision [1.58, 2.54] over the bootstrap-only counterfactual in the seed with 348 decisions left (+2.05
-[-0.92, 5.08] in the other, 27 decisions). Within 300 decisions only 1 of 3; at the agent's reward step (1e-4) 0 of 3.
+R_psi: meta-learning raised R_psi's prospective agreement with verified outcomes above the frozen R_psi's in 17 of
+18 seed-configurations; the evidence handed it weight in 4 of 9 600-decision objectives (decisions 252 and 573 at the
+reference reward step 3e-3, 494 and 545 at the agent's 1e-4; frozen arms never, 12 objectives), the decisions changed
+7-31 decisions later, and in each of the four the chosen actions' true value afterwards exceeded the bootstrap-only
+counterfactual's on the same decisions: +2.06 adopters per decision [1.58, 2.54] (348 decisions left), +2.05
+[-0.92, 5.08] (27), +1.01 [0.37, 1.71] (106), +1.71 [0.22, 3.29] (55) — one seed each, correlated decisions. Within
+300 decisions only 1 of 3. In the integrated agent's own configuration (debug, 120 decisions) the evidence did not
+move the mix.
 Real configuration: INTERIM — the real-model run of the integrated agent has been waiting for the shared GPU lock since 09:34 UTC (one attempt timed out after 30 min); section 5 is updated when it has run.
 Diagnosed limits (§4, §6): the outer utility (fixed: `direct`) and the inner-loss return half-life (1 day against
 decisions an hour apart; not changed — it governs every live update) blur the credit R_psi receives; the anytime test
@@ -130,6 +133,34 @@ credited (0), so an objective's changes sum to last minus first reading and no p
 `MetaLearner.register_objective` remembers the task's success metric; `admit_measurements` admits its readings this
 way (other measurements unchanged). The level state is rebuilt from the ledger file on restart.
 
+### 2.4 ST-3 applied: realised information value as a bootstrap input (`assemble.py`, `inner.py`, `bootstrap.py`)
+
+ST's change request (`docs/change_requests/ST.md` ST-3), reviewed and applied as proposed: the agent's annotation
+`reward_signals.information_value` (the world model's loss on the next two decisions' matured outcomes with the
+decision's context items removed minus with them; same weights, same targets; nats) enters the bootstrap reward as
+`w * tanh(IV)`, `w = 1`, through the bootstrap-only extras path. Review:
+
+* **Sound as a learning signal.** It is a measured, signed realised quantity, not a bonus for any kind of action: it is
+  positive only when what an action brought into the context made later outcomes more predictable, negative when it
+  misled. Irreducible randomness in a result cannot make *other* outcomes predictable, so it earns ~0 in expectation
+  (no noisy-TV loop; the gate is not needed). Limits: it credits information about the next two decisions' outcomes
+  only (myopic); it is 0 while the world model ignores context; a result that copies a later measurement counts as
+  informative (genuinely, but it can favour echoing). The verified outcomes, the goal term and the validity evidence
+  are unaffected by it.
+* **Weight 1.** The bootstrap is, by design (spec 7.6), a fixed labelled stabiliser with hand-set component weights;
+  IV is on the scale of learning progress (tanh of a loss difference in nats), so weight 1 puts the two on one scale,
+  and the inner update standardises the bootstrap total, so only the relative weights inside the bootstrap matter.
+  Learning how much it deserves is R_psi's job: IV is *not* an R_psi input here (signal schema and R_psi's shapes
+  unchanged, so checkpoints stay compatible). Exposing it to R_psi — a new signal column whose input weights start at
+  zero when an older checkpoint is loaded — is the principled next step; not done in this round.
+* **Interaction with RW's changes.** IV is measured only after the next decisions' outcomes matured, so it is absent
+  from the bootstrap reward *at reward time* — the reward the validity evidence scores prospectively — and present in
+  the live updates of matured decisions (support and replay). The promotion criterion therefore neither gains nor
+  loses from it; at mix 1 an information-only action can now be reinforced by the live update.
+* **Test**: `tests/reward/test_reward_rw.py::test_realised_information_value_is_a_bounded_bootstrap_input_and_not_an_
+  input_of_r_psi` (component = tanh, bounded, reaches the inner update's bootstrap reward for annotated rows and 0
+  elsewhere, R_psi's signal vector and parameter shapes unchanged).
+
 ## 3. Evidence, by capability and level
 
 Levels (operator item 8): (a) implementation correctness, (b) integration into the actual runtime, (c) causal
@@ -212,9 +243,15 @@ c_0 of R_psi with its 95 % confidence sequence; "gain" = agreement minus the fro
 | pooled (direct, half-life 86400 s, lr 0.003) | 0 | 600 | 99 | 0.32 / 0.53 / 0.62 | 0.42 [0.19, 0.51] | 0.49 | 252 | 0.75 | 269 | 2.06 [1.58, 2.54] |
 | pooled (direct, half-life 86400 s, lr 0.003) | 1 | 600 | 98 | 0.08 / 0.11 / 0.48 | 0.21 [0.01, 0.35] | 0.17 | 573 | 0.75 | 582 | 2.05 [-0.92, 5.08] |
 | pooled (direct, half-life 86400 s, lr 0.003) | 2 | 600 | 96 | 0.00 / 0.15 / 0.21 | 0.10 [-0.07, 0.23] | 0.31 | - | 1.00 | - | - |
+| pooled (direct, half-life 86400 s, lr 0.0001) | 0 | 600 | 99 | 0.08 / 0.32 / 0.40 | 0.19 [-0.07, 0.26] | 0.26 | 494 | 0.75 | 525 | 1.01 [0.37, 1.71] |
+| pooled (direct, half-life 86400 s, lr 0.0001) | 1 | 600 | 98 | 0.08 / 0.13 / 0.47 | 0.22 [0.01, 0.35] | 0.18 | 545 | 0.75 | 552 | 1.71 [0.22, 3.29] |
+| pooled (direct, half-life 86400 s, lr 0.0001) | 2 | 600 | 96 | -0.14 / 0.06 / 0.14 | -0.01 [-0.21, 0.09] | 0.19 | - | 1.00 | - | - |
+| pooled (direct, half-life 86400 s, lr 0.0001) | 3 | 600 | 99 | -0.06 / 0.14 / 0.19 | 0.10 [-0.09, 0.27] | 0.16 | - | 1.00 | - | - |
+| pooled (direct, half-life 86400 s, lr 0.0001) | 4 | 600 | 98 | -0.11 / -0.06 / 0.13 | -0.04 [-0.24, 0.07] | 0.17 | - | 1.00 | - | - |
+| pooled (direct, half-life 86400 s, lr 0.0001) | 5 | 600 | 99 | -0.40 / -0.21 / -0.13 | -0.22 [-0.39, -0.05] | -0.07 | - | 1.00 | - | - |
 
 Frozen arm (R_psi at its initialisation, same seeds): prospective agreement -0.11 / 0.00 / -0.22 (300 decisions) and
-no mix change in any of 9 frozen objectives (3 seeds x 300 at both half-lives, 3 x 600). `query / direct` (the old
+no mix change in any of 12 frozen objectives (3 seeds x 300 at both half-lives, 6 seeds x 600). `query / direct` (the old
 estimator with the new utility), 3 seeds: 22-28 applied steps per 300 decisions (pooled: 48-49), agreement gain over the
 frozen R_psi +0.03 / 0.00 / +0.35 (pooled: +0.41 / +0.09 / +0.27), no mix change — the reason `auto` tries the pooled
 estimator first.
@@ -225,23 +262,25 @@ Reading, per level:
   verified progress was final (149-150 pairs per 300 decisions, 83-108 informative); every live update event got one
   pooled outer step (48-49 applied per 300 decisions, 96-99 per 600); nothing was held out of the meta-update.
 * **(c) learning changes what R_psi rewards, and only evidence lets it act.** On the same decisions, the meta-learned
-  R_psi agreed with the verified outcomes better than the frozen one in every seed of every `direct`
-  configuration (12 of 12: 3 seeds x {300 decisions at lr 3e-3, at lr 1e-4, at half-life 600 s; 600 decisions} — the
-  600-decision runs extend the 300-decision ones; gains +0.09 .. +0.49) and in 2 of 3 with `return_to_go`. While the mix is 1, R_psi has weight 0 in the live update and every learned arm took exactly the same
-  decisions as its frozen arm. Where the evidence lowered the mix (4 objectives; the 600-decision seed 0 repeats the
-  300-decision one up to decision 300), the decisions stayed identical for 8-17 more decisions — until a live update that used R_psi had changed the policy — and then differed. No frozen
-  arm ever moved the mix.
-* **(d) improvement.** 600-decision objectives, default utility: promoted in 2 of 3 seeds (decisions 252 and 573; seed
-  2's evidence stayed below the bar, e-value 5.8 against 40). After the promotion, the true expected adopters of the
-  chosen actions exceeded the frozen arm's on the same decisions by +2.06 per decision [1.58, 2.54] (seed 0, 348
-  decisions: 5.79 vs 3.73; the learned arm chose `lab.act` 298 times vs 223, `lab.probe` 28 vs 62) and +2.05
-  [-0.92, 5.08] (seed 1, 27 decisions). In 300-decision objectives the promotion came in 1 of 3 seeds (seed 0: +0.93
-  [0.23, 1.83] over 48 decisions); with a 600 s inner half-life also 1 of 3 (seed 0 at decision 221; -0.05
-  [-0.79, 0.75] afterwards); with the agent's reward step (lr 1e-4) 0 of 3 within 300 decisions. Intervals are
-  bootstraps over decisions of one seed (the decisions are correlated): suggestive, not established. Caveat on scope:
-  in this controlled configuration the live update has no goal term (it learns only from the mixed reward), so a
-  learned reward that tracks verified outcomes has more to add than in the agent, whose goal term already reinforces
-  verified progress.
+  R_psi agreed with the verified outcomes better than the frozen one in 17 of 18 seed-configurations with `direct`
+  (3 seeds x {300 decisions at lr 3e-3, at lr 1e-4, at half-life 600 s; 600 at lr 3e-3} and 6 seeds x 600 at lr 1e-4 —
+  the 600-decision runs extend the 300-decision ones; gains -0.07 .. +0.49) and in 2 of 3 with `return_to_go`. While
+  the mix is 1, R_psi has weight 0 in the live update and every learned arm took exactly the same decisions as its
+  frozen arm. Where the evidence lowered the mix (6 objectives; the 600-decision seed 0 at lr 3e-3 repeats the
+  300-decision one up to decision 300), the decisions stayed identical for 7-31 more decisions — until a live update
+  that used R_psi had changed the policy — and then differed. No frozen arm ever moved the mix (12 objectives).
+* **(d) improvement.** 600-decision objectives: the evidence promoted R_psi in 2 of 3 seeds at the reference reward
+  step 3e-3 (decisions 252, 573) and in 2 of 6 at the agent's 1e-4 (494, 545); in every promoted objective the true
+  expected adopters of the chosen actions afterwards exceeded the frozen arm's on the same decisions: +2.06 per
+  decision [1.58, 2.54] (lr 3e-3 seed 0, 348 decisions: 5.79 vs 3.73; the learned arm chose `lab.act` 298 times vs
+  223, `lab.probe` 28 vs 62), +2.05 [-0.92, 5.08] (seed 1, 27 decisions), +1.01 [0.37, 1.71] (lr 1e-4 seed 0, 106
+  decisions), +1.71 [0.22, 3.29] (lr 1e-4 seed 1, 55 decisions). Within 300 decisions the promotion came in 1 of 3
+  seeds (seed 0: +0.93 [0.23, 1.83] over 48 decisions); with a 600 s inner half-life also 1 of 3 (seed 0 at decision
+  221; -0.05 [-0.79, 0.75] afterwards). Intervals are bootstraps over the decisions of one seed (correlated
+  decisions): suggestive, not established; 4 of 9 600-decision objectives never reached the bar. Caveat on scope: in
+  this controlled configuration the live update has no goal term (it learns only from the mixed reward), so a learned
+  reward that tracks verified outcomes has more to add than in the agent, whose goal term already reinforces verified
+  progress (§3.3b: the agent itself, 120 decisions: no promotion).
 
 ## 4. A finding about the learning signal: the return horizon smears the reward's credit
 
@@ -327,13 +366,13 @@ INTERIM: `docs/evidence/RW/rw_pathway.py --arm learned --decisions 80 --budget-s
 
 ## 8. Tests and commands
 
-* `tests/reward/test_reward_rw.py` (new, 19 tests): sequential statistics, validity evidence and mix decisions, the
+* `tests/reward/test_reward_rw.py` (new, 20 tests): sequential statistics, validity evidence and mix decisions, the
   meta-learner wiring, checkpoint compatibility, the pooled estimator (finite differences), the `auto` fallback,
   level readings, the configuration's defaults. `tests/reward/test_reward_metalearner.py::test_promotion_moves_the_
   mix_only_on_held_out_evidence` now names `promotion_rule="value"` (the LRN rule it tests); `reward.diagnose.
   make_stack` keeps the stage-1/2 references' estimator (`query`) and utility (`return_to_go`) unless told otherwise.
 * Whole directory: `cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live
-  --junitxml=cam_live/docs/evidence/test_results/RW_fix.xml` — 166 passed, 4 skipped in 162 s (run on an isolated copy of HEAD 07303fe + RW's files; `docs/evidence/test_results/RW_fix.xml`).
+  --junitxml=cam_live/docs/evidence/test_results/RW_fix.xml` — 167 passed, 4 skipped in 138 s (run on an isolated copy of HEAD 07303fe + RW's files, ST-3 included; `docs/evidence/test_results/RW_fix.xml`).
 * Not mine but touched by the new defaults: `tests/integration/test_agent_runtime.py` 11 passed (693 s; incl. `test_meta_update_runs_with_a_nonzero_meta_gradient` under the new `auto` / `direct` defaults), `tests/integration/test_agent_recovery.py` + `tests/eval/test_meta_integrity.py` 4 passed, 1 skipped (same copy; logs `docs/evidence/RW/other_tests_*.log`). A run of the integration file in the shared worktree (with other agents' uncommitted changes) errored in its module fixture before it could report why; on the isolated copy it passes. G2-decision's `probe_meta_path.py` on RW's code: 21 of 23 checks (the two failures are the probe's own analytic-vs-FD comparison at derivative magnitudes 1.3e-8 and 1.6e-6, below FD precision; the code's gradient equals the probe's analytic one to 3e-15 in both); on HEAD 23 of 23; the probe is not run-to-run reproducible (HEAD twice: first applied gradient norm 0.258 / 0.249), so its trajectories differ between runs (`docs/evidence/RW/g2d_probe_meta_path_*.log`).
 
 ## 9. Not done / limitations
