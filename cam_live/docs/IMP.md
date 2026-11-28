@@ -61,8 +61,9 @@ stored debug-scale transitions, member spread (norm) 0.12 against real belief ch
 *confidently* "nothing changes" for every action never taken, so it could never point at an untried enabling
 action. `LatentTransition(prior_scale=...)` now adds randomised prior functions (Osband et al. 2018, as the world
 heads already had) that are **zero-mean over the members**: the ensemble mean is exactly that of the trainable
-members (a transition trained without them predicts the same mean; checkpoints unchanged, older ones load), each
-member learns to cancel its offset where there are data, and members disagree about untried actions
+members at initialisation and, where the members have learned to cancel their offsets, on the training data (not
+off-data after training — G3-core §2.1); checkpoints are unchanged and older ones load; members disagree about
+untried actions
 (`predict.transition_prior_scale = 1.0` per dimension of the RMS-normalised belief, the world heads' prior scale).
 Test: spread 0.016 -> 0.57 untrained; after training 0.12 on seen actions vs 0.88 on a never-taken one.
 
@@ -89,7 +90,10 @@ sum of squared deviations of the real values from their mean over the candidates
 large as the differences between the actions the decision was about). The persistence baseline (values read at the
 start belief) is measured alongside. `imagination_criterion = "value"` (default) decides; `"latent"` keeps the old
 rule. Both are recorded (`allowed_by`). Horizon `k` needs >= 3 measurements and a smoothed error <= 0.5 for every
-`j <= k`; it shrinks when the error rises.
+`j <= k`; it shrinks when the error rises. What it certifies is that imagination is *harmless* to the decision at
+that horizon (its values agree with those at the real belief), not that it is informative about consequences: when
+the world model's values barely depend on the belief, it admits the full horizon although imagination carries
+nothing — which is what happened at full size (§3.2; G3-core §2.1). The persistence baseline is recorded for that.
 
 ### 2.4 Imagined consequences in the selection rule, gated by verified outcomes
 

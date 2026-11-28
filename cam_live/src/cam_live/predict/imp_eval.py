@@ -111,7 +111,10 @@ def make_deterministic(seed: int) -> Dict[str, Any]:
     import uuid
     from ..eval import runner as R
     rng = _random.Random(10_007 * int(seed) + 1)
-    uuid.uuid4 = lambda: uuid.UUID(int=rng.getrandbits(128), version=4)            # type: ignore[assignment]
+    orig_uuid = getattr(uuid.uuid4, "_imp_orig", uuid.uuid4)
+    seeded = lambda: uuid.UUID(int=rng.getrandbits(128), version=4)                   # noqa: E731
+    seeded._imp_orig = orig_uuid                                                       # type: ignore[attr-defined]
+    uuid.uuid4 = seeded                                                                # type: ignore[assignment]
     orig = getattr(R.runtime_config, "_imp_orig", R.runtime_config)
 
     def runtime_config(k: int = 16) -> Any:
@@ -120,8 +123,12 @@ def make_deterministic(seed: int) -> Dict[str, Any]:
         return c
     runtime_config._imp_orig = orig                                                    # type: ignore[attr-defined]
     R.runtime_config = runtime_config
+
+    def undo() -> None:
+        uuid.uuid4 = orig_uuid                                                         # type: ignore[assignment]
+        R.runtime_config = orig
     return {"paired": True, "clock": "SimClock", "uuid4": f"seeded ({10_007 * int(seed) + 1})",
-            "learn_budget_s": 1e9, "pythonhashseed": os.environ.get("PYTHONHASHSEED")}
+            "learn_budget_s": 1e9, "pythonhashseed": os.environ.get("PYTHONHASHSEED"), "_undo": undo}
 
 
 def run(arm: str, seed: int, *, family: str, lifetimes: int, decisions: int, real: bool, backbone: bool,
@@ -135,6 +142,7 @@ def run(arm: str, seed: int, *, family: str, lifetimes: int, decisions: int, rea
     if threads:
         torch.set_num_threads(int(threads))
     determinism = make_deterministic(seed) if paired else {"paired": False, "clock": "OffsetClock (wall)"}
+    undo = determinism.pop("_undo", None)
     t0 = time.time()
     root = os.path.abspath(workdir)
     if os.path.exists(root):
@@ -214,6 +222,8 @@ def run(arm: str, seed: int, *, family: str, lifetimes: int, decisions: int, rea
             agent.close()
         except Exception:  # noqa: BLE001
             pass
+        if undo is not None:                       # in-process callers (tests) get the real uuid4 / budgets back
+            undo()
         if out:
             os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
             with open(out, "w") as f:
@@ -468,7 +478,12 @@ def pairing(on: Dict[str, Any], off: Dict[str, Any]) -> Dict[str, Any]:
     n = min(len(xs), len(ys))
     ok = first_in is None or (first_inf is not None and first_in > first_inf)
     tv = (xs[first_inf].get("imagination") or {}).get("share_tv") if first_inf is not None else None
+    tv_act = (xs[first_act].get("imagination") or {}).get("share_tv") if first_act is not None else None
+    # the first different action is attributable to imagination when the inputs were still identical there and the
+    # on arm's distributions with and without imagination differed at that decision
+    attributable = None if first_act is None else bool((first_in is None or first_in > first_act) and (tv_act or 0) > 0)
     return {"decisions_compared": n, "first_input_difference": first_in, "first_action_difference": first_act,
+            "share_tv_at_first_action_difference": tv_act, "first_action_difference_attributable": attributable,
             "first_imagination_influence": first_inf, "paired_until_influence": bool(ok),
             "share_tv_at_first_influence": tv,
             "action_differs_at_first_influence": (first_act == first_inf) if first_inf is not None else None,
@@ -517,7 +532,11 @@ def summarize(paths: Sequence[str]) -> Dict[str, Any]:
                                  "actions_changed_at_first_influence": sum(
                                      1 for p in pairs if p["pairing"]["action_differs_at_first_influence"]),
                                  "expected_changes_at_first_influence": sum(
-                                     p["pairing"]["share_tv_at_first_influence"] or 0.0 for p in pairs)},
+                                     p["pairing"]["share_tv_at_first_influence"] or 0.0 for p in pairs),
+                                 "pairs_with_different_actions": sum(1 for p in pairs if p["pairing"][
+                                     "first_action_difference"] is not None),
+                                 "first_action_difference_attributable": sum(1 for p in pairs if p["pairing"][
+                                     "first_action_difference_attributable"])},
            "on_arm": {"imagination_tv_mean": _mean_ci([r["on"]["imagination_tv_mean"] for r in per_seed
                                                        if "on" in r and r["on"]["imagination_tv_mean"] is not None]),
                       "argmax_changed": sum(r["on"]["argmax_changed_by_imagination"] for r in per_seed if "on" in r),
