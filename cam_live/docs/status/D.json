@@ -1,7 +1,7 @@
 {
  "workstream": "D",
  "stage": "1 + 2 (complete workstream) + G-cl fixes + DX fixes (G2-learn G2L-1..6, CL-10)",
- "commit": "715417e7dc61c67174c1636e0612772ac0773c8d",
+ "commit": "c9fd652fe2c5d65ea52905b084c07e95dac23a16",
  "summary": "Retrospective credit and continual learning. Stage 1 (model-independent): SqliteExperienceStore, OutcomeLinker, exact REINFORCE / all-actions / COCOA / RUDDER references, ReturnDecomposer, HindsightModel, simple attribution, EstimatorSelector, SMDP traces and credit ledger, atomic checkpoints. Stage 2 (on nn.model.CamLiveModel): ContinualLearner with one optimizer per group (never reward), per-group clipping, warm-up / cosine schedules, three timescales (fast belief update without gradient; frequent experiential + heads updates triggered by matured independent outcomes; slow adapter updates every adapter_every with a bounded adapter graph and a held-out guard: absolute, noise-measured tolerance, drift bound since the last promoted checkpoint, exact revert), measured loss shares with a 90 % cap, stratified replay, held-out split, learning records with hashes, deltas and a behavioural probe; LossProviders for RUDDER, COCOA and a bridge-grounding adapter loss; CreditAssigner (versioned per-decision credit, withheld until the return is final, evidence-selected default, credited returns); anchors + functional regularisation + measured forgetting; complete learner checkpoints, promotion / rollback on validation and retention, weights-only export and a fresh-model loader. Evidence at debug scale in LabWorld (docs/evidence/D/diagnostics.json) and single updates on Qwen3-4B + 50m core (docs/evidence/D/real_update.json). Integrated: agent.py constructs and calls the store, linker, learner, assigner, retention and checkpoint functions (verified by G2-learn; the earlier 'not integrated' statements were stale). Fix stage after the independent verification G-cl (docs/D/FIXES.md): append-only stored history with index checks, validated attribution amounts, estimator selection only on held-out lifetimes with paired standard errors (no estimator is promoted on LabWorld), provenance-gated promotion and COCOA support, full-trajectory credit, evidence regenerated from one committed tree. DX stage after G2-learn (docs/DX.md): fail-closed per-provider slow-step guard, learner-owned eligibility flags no longer shadow the providers' own, outcome timing enforced on append/update, overflow-safe attribution shares, the count mode search's convergence report, experiment records reaching the store and evidence-based estimator selection inside learn() (agent wiring: change request DX-1), checkpoints with experiment records and pending outcomes (CL-10).",
  "requirements": {
   "RC-01": {
@@ -402,14 +402,20 @@
     "cam_live.credit.checkpoint.CheckpointManager.save",
     "cam_live.credit.checkpoint.export_weights",
     "cam_live.credit.checkpoint.promote_learner",
-    "cam_live.credit.checkpoint.restore_learner"
+    "cam_live.credit.checkpoint.restore_learner",
+    "cam_live.credit.learner.ContinualLearner.is_validation",
+    "cam_live.credit.replay.SqliteExperienceStore.position_in_objective"
    ],
    "tests": [
     "tests/credit/test_checkpoint.py::test_promotion_is_gated_by_validation_and_retention_and_rollback_restores_the_promoted_state",
     "tests/credit/test_checkpoint.py::test_weights_only_export_contains_only_parameters_and_fixed_configuration",
     "tests/credit/test_checkpoint.py::test_tolerant_loading_reports_added_removed_and_reshaped_modules",
     "tests/credit/test_retention.py::test_promotion_needs_validation_and_retention_and_a_refusal_rolls_the_learner_back",
-    "tests/credit/test_gcl_fixes.py::test_promotion_ignores_internal_reward_metrics_by_provenance_whatever_their_name"
+    "tests/credit/test_gcl_fixes.py::test_promotion_ignores_internal_reward_metrics_by_provenance_whatever_their_name",
+    "tests/credit/test_dx_split.py::test_every_objective_with_enough_records_has_a_held_out_record_and_the_fraction_is_kept",
+    "tests/credit/test_dx_split.py::test_the_split_is_deterministic_stable_under_appends_and_one_sided",
+    "tests/credit/test_dx_split.py::test_small_objectives_and_the_objective_split_are_unchanged_in_kind",
+    "tests/credit/test_dx_split.py::test_a_promotion_without_held_out_evidence_says_so_explicitly"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
@@ -418,9 +424,11 @@
    "evidence": [
     "docs/evidence/test_results/D_fix.xml",
     "docs/evidence/D/measured.json",
-    "docs/D/FIXES.md"
+    "docs/D/FIXES.md",
+    "docs/DX.md",
+    "docs/evidence/test_results/DX_fix.xml"
    ],
-   "limitations": "Fix stage (G-cl m6): metrics count only by provenance (INDEPENDENT_PROVENANCE); internal-reward and unknown provenances are ignored whatever the name; promote_learner declares the provenance of the learner's held-out losses per provider. A plain number is the caller's declaration (validation / retention); only undeclared numbers named like the internal reward are still ignored by name. Promotion and rollback are wired to the learner's held-out validation losses and to measured forgetting and tested on the real model at debug scale; the integrated agent calls promote_learner (agent.py; G2-learn CL-05), and the 'independent validation' is the learner's own held-out split of stored experience, not a separate evaluation service. Experience is never rolled back."
+   "limitations": "Fix stage (G-cl m6): metrics count only by provenance (INDEPENDENT_PROVENANCE); internal-reward and unknown provenances are ignored whatever the name; promote_learner declares the provenance of the learner's held-out losses per provider. A plain number is the caller's declaration (validation / retention); only undeclared numbers named like the internal reward are still ignored by name. Promotion and rollback are wired to the learner's held-out validation losses and to measured forgetting and tested on the real model at debug scale; the integrated agent calls promote_learner (agent.py; G2-learn CL-05), and the 'independent validation' is the learner's own held-out split of stored experience, not a separate evaluation service. Experience is never rolled back. [DX, change request INT3A-5, G2L-8] With val_split='record' (the agent's setting) the held-out split is stratified within each objective: its k-th stored record is held out iff floor(u + (k+1) f) > floor(u + k f) (u = seeded hash of the objective, f = val_fraction): exactly every 1/f-th record, so an objective with >= ceil(1/f) = 7 records always has held-out records (before: independent hash per record, a 14-record objective had none with probability 0.85^14 = 0.10); deterministic given the seed and the append-only history, one side per record. promote_learner states the held-out evidence in the decision (PromotionDecision.held_out: evidence, held-out records per provider, providers with a held-out loss; logged) and a refusal for lack of it says 'no held-out evidence: ...' explicitly (fail closed, as the slow-step guard). The objective split (val_split='objective', D's lab) is unchanged. G2-learn's probe_promotion_evidence.py --reps 5: before 3 of 5 first promotions granted (2 refused: the first lifetime had no held-out record), after 5 of 5 granted."
   },
   "CL-06": {
    "state": "partial",
@@ -1063,15 +1071,19 @@
    }
   },
   "tests_dx": {
-   "tests": 259,
+   "tests": 263,
    "failures": 0,
    "errors": 0,
    "skipped": 21,
-   "seconds": 208.659,
+   "seconds": 207.621,
    "file": "docs/evidence/test_results/DX_fix.xml",
    "dirs": "tests/credit + tests/nn (default marks)"
   },
-  "_note_g2learn": "measured.json / diagnostics.json numbers come from e6f51c7 and were not regenerated by DX; G2-learn re-ran diagnose on 5562e65: COCOA mean z^2 11.32 / RMSE 3.83 (recorded 13.84 / 4.23), RUDDER 6.54 / 3.41 (6.61 / 3.40), retention NLL increase 0.316 +- 0.129 (0.357 +- 0.135), decision agreement 0.833 (0.856), learning numbers identical to 1e-6; conclusions unchanged. DX's guard change (per provider, fail closed) may change the debug run's slow-step counts (20 of 20 accepted recorded); not re-measured."
+  "_note_g2learn": "measured.json / diagnostics.json numbers come from e6f51c7 and were not regenerated by DX; G2-learn re-ran diagnose on 5562e65: COCOA mean z^2 11.32 / RMSE 3.83 (recorded 13.84 / 4.23), RUDDER 6.54 / 3.41 (6.61 / 3.40), retention NLL increase 0.316 +- 0.129 (0.357 +- 0.135), decision agreement 0.833 (0.856), learning numbers identical to 1e-6; conclusions unchanged. DX's guard change (per provider, fail closed) may change the debug run's slow-step counts (20 of 20 accepted recorded); not re-measured.",
+  "tests_dx_slow": {
+   "tests/credit -m slow at 78139c9": "5 of 6 passed (test_evidence.py 5/5; the DX integrated-agent test failed on a trigger_state read, fixed in c9fd652)",
+   "DX integrated-agent slow test at c9fd652": "1 passed (50 s)"
+  }
  },
  "measured_commands": {
   "regenerate_all": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/D/regenerate.py",
@@ -1105,7 +1117,7 @@
   "With held-out lifetimes and the paired standard error, learned COCOA coefficients that passed the in-sample synthetic selection test (old measured.json: mean z^2 1.53) fail it (regenerated: 28.3): their bias is several standard errors. RUDDER passes (1.00).",
   "The history check of SqliteExperienceStore.update decodes and compares the stored record: durable add_outcome throughput fell from about 90 to 58 per second in a same-load A/B run of bench_store.py (old vs new replay.py, two runs each); appends and sampling are unchanged."
  ],
- "commit_note": "commit = the code commit every evidence file was regenerated from (docs/evidence/D/regenerate.py exports it with git archive; each file records it under _code); the status file is committed afterwards. DX: 'commit' is now the code commit of the DX fixes (715417e); D's evidence files under docs/evidence/D keep their own _commits (measured._commits) and were not regenerated by DX; DX's evidence is docs/evidence/test_results/DX_fix.xml and docs/DX.md.",
+ "commit_note": "commit = the code commit every evidence file was regenerated from (docs/evidence/D/regenerate.py exports it with git archive; each file records it under _code); the status file is committed afterwards. DX: 'commit' is now the code commit of the DX fixes (c9fd652, last DX code commit); D's evidence files under docs/evidence/D keep their own _commits (measured._commits) and were not regenerated by DX; DX's evidence is docs/evidence/test_results/DX_fix.xml and docs/DX.md.",
  "fix_stage": {
   "verification": "docs/verification/G_cl.md (G, lens cl)",
   "fixes": "docs/D/FIXES.md",
@@ -1140,8 +1152,9 @@
    "G2L-5": "fixed: probe_credit_gaps.py --only guard masking check PASS; tests/credit/test_dx_guard.py",
    "G2L-6": "credit side fixed and tested end to end (tests/credit/test_dx_selection.py); agent wiring = change request DX-1 (not applied); with DX-1 the agent evaluates its experiments but the selection does not run there as configured (reported)",
    "G2L-7": "closed by INT3A KF-E01 before DX (G2-learn)",
-   "G2L-8": "not in DX's paths (agent; INT3A fixed its provider side in 914b10a); DX's learner-side eligibility fix gives every provider its held-out records back (clean-export agent probe at e4186c8: validate() 8 providers, before 3), but a short run's first promotion can still be refused for missing validation (same run: refused once, then promoted)",
-   "CL-10": "claimed by DX: experiment records and pending outcomes added to checkpoints; tests/credit/test_dx_checkpoint.py"
+   "G2L-8": "not in DX's paths (agent; INT3A fixed its provider side in 914b10a); DX's learner-side eligibility fix gives every provider its held-out records back (clean-export agent probe at e4186c8: validate() 8 providers, before 3), but a short run's first promotion can still be refused for missing validation (same run: refused once, then promoted); the residual (empty held-out split) is addressed by INT3A-5 (above)",
+   "CL-10": "claimed by DX: experiment records and pending outcomes added to checkpoints; tests/credit/test_dx_checkpoint.py",
+   "INT3A-5": "done: stratified record split (guaranteed held-out records per objective with >= 7 records) and explicit 'no held-out evidence' in promotion decisions; tests/credit/test_dx_split.py; probe_promotion_evidence.py --reps 5 before 3/5, after 5/5"
   }
  }
 }

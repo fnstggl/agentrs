@@ -20,6 +20,25 @@ re-run unchanged on the fixed tree. All commands from `/workspace/camlive`.
 | G2L-6 estimator selection never runs in the agent (RC-08) | `credit/providers.py::CreditAssigner.attach_experiments / record_experiments / evaluate_experiments` (+ `ExperimentEvaluation`), `credit/select.py::EstimatorSelector.select(context=)` / `log_row`, `credit/learner.py::learn` (records the attached source's experiments in the store before the held-out split is refreshed; evaluates after the update). Comparisons use `compare_with_experiment` unchanged (held out by lifetime, paired SE); per experiment and arm the report counts assigned units, units without a final return, in trained-on lifetimes, not randomised, held out; the selection re-runs when the held-out measurement changes, and every pass where it cannot run is logged with the reason. agent.py: change request **DX-1** (one line) | `probe_agent_credit.py` through a wrapper that applies DX-1: see "RC-08 in the integrated agent" | `tests/credit/test_dx_selection.py` 4 default tests + 1 slow test with the real `CamLiveAgent` (all fail on old code: no API) |
 | CL-10 (unclaimed) checkpoints persist every 15.2 item | `credit/checkpoint.py`: `CheckpointState.experiments` (store's experiment records) and `pending_outcomes` (unresolved queries) written in `state.json` atomically with the rest; restore writes back experiment records the store lacks (never replaces one it holds) and reports pending queries missing / resolved since; `capture_learner` first records the attached experiment source; old checkpoints load | — (claimed now; not yet verified independently) | `tests/credit/test_dx_checkpoint.py` 3 tests (fail on old code) |
 
+## Change request INT3A-5 (added by the coordinator): a held-out split that cannot be empty (G2L-8 residual)
+
+* `credit/learner.py::ContinualLearner.is_validation` / `_record_held_out` (+ `credit/replay.py::
+  SqliteExperienceStore.position_in_objective`): with `val_split="record"` (the agent's setting) the k-th stored record
+  of an objective is held out iff floor(u + (k+1) f) > floor(u + k f), u = seeded hash of the objective, f =
+  `val_fraction`: exactly every 1/f-th record of each objective (fraction f up to one record), so an objective with
+  >= ceil(1/f) = 7 records always has held-out records. Deterministic given the seed and the append-only history
+  (a stored record's position never changes; decisions are cached), one side per record. The objective split
+  (`val_split="objective"`, D's lab and evidence) is unchanged.
+* `credit/checkpoint.py::promote_learner` / `CheckpointManager.promote`: the decision carries `held_out`
+  (`evidence`, held-out records per provider, providers with a held-out loss, record count; also in
+  `promotions.jsonl`), and a refusal for lack of it adds the reason `no held-out evidence: no provider has a held-out
+  loss (...)` next to the existing "no independent validation metric supplied" (fail closed, as CL-03's guard).
+* Tests `tests/credit/test_dx_split.py` (4; 3 fail on the code before: 9 of 60 objectives of 7-18 records had no
+  held-out record, `PromotionDecision` had no `held_out`; the fourth pins determinism / one-sidedness, which held).
+* G2-learn's `probe_promotion_evidence.py --reps 5` (own work directory in DX's scratch), same tree except the
+  change: before **3 of 5** first promotions granted (runs 1 and 4 refused: `validate()` empty after the 14-decision
+  first lifetime), after **5 of 5** (every first lifetime had held-out records for 6-8 providers; the probe check "granted on held-out evidence in every run" PASS).
+
 ## RC-08 in the integrated agent (with DX-1 applied at construction)
 
 A wrapper in DX's scratch directory (not in the repository:
@@ -63,17 +82,19 @@ averaged rule did (before: 0 reverted). INT3A fixed the same eligibility feedbac
 
 ## Test runs
 
-* Final run on the committed tree (`715417e` + docs), default marks:
+* Final run on the committed tree (`c9fd652`), default marks:
   `.venv/bin/python -m pytest cam_live/tests/credit cam_live/tests/nn -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/DX_fix.xml`
-  -> **238 passed, 21 skipped, 0 failed, 209 s** (JUnit: 259 test cases incl. skips; 26 DX cases, 1 of them the
-  `-m slow` integrated-agent test, skipped by the default marks). Before DX's changes the same directories had 114
-  passed / 7 skipped (credit) and 99 passed / 13 skipped (nn) at G2-learn's run.
-* `-m slow`: `test_dx_selection.py::test_integrated_agent_with_the_change_request_line_records_and_evaluates_its_experiments`
-  1 passed (39 s). D's other slow tests: SLOW_RESULT
+  -> **242 passed, 21 skipped, 0 failed, 208 s** (30 DX test cases, one of them the `-m slow` integrated-agent test,
+  skipped by the default marks). G2-learn's run before DX: 114 passed / 7 skipped (credit), 99 / 13 (nn).
+* `-m slow`: the DX integrated-agent test (`test_dx_selection.py::test_integrated_agent_with_the_change_request_line_records_and_evaluates_its_experiments`)
+  1 passed (50 s) on `c9fd652`. `tests/credit -m slow` on `78139c9` (460 s): D's `test_evidence.py` 5 of 5 passed
+  with DX's guard / eligibility / selection changes; the DX slow test failed in that run (it read
+  `learner.trigger_state`, which a later `poll()` rewrites) and was fixed in `c9fd652` (the last selection pass is
+  kept in `learner.credit_selection` / `status()`).
 * Old-code runs (export of `6719595` + DX's test files): `test_dx_fast_mode.py` 8 of 8 fail; `test_dx_fixes.py` 4 of 5
   fail (the fifth pins the explicit refusal that was already right); `test_dx_guard.py` 5 of 5 fail on behaviour
   (adapters changed / step accepted / val flags 11 -> 0); `test_dx_selection.py` 4 of 4 and `test_dx_checkpoint.py`
-  3 of 3 fail (API absent: new functionality).
+  3 of 3 fail (API absent: new functionality); `test_dx_split.py` 3 of 4 fail (export of `78139c9`).
 * Verifier probes on the final tree: `probe_fast_stress.py` 46/46 (before 42/46), `probe_credit_gaps.py` 18/18
   (before 13/18), `probe_agent_credit.py` 13/13 (clean export of `e4186c8`; before: 12/13 or 13/13 depending on the
   run, the failing check being G2L-4's), G-nn's `repro/nn/probe_fast.py` 43/44 (unchanged: the one failure is the

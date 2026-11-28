@@ -67,3 +67,8 @@ shows the selection running on held-out lifetimes.
   has a hash of the authorization configuration in force, passing it (`capture_learner(..., auth_config_hash=h)`)
   and checking it on load (`restore_learner(..., expected_auth_hash=h)`) makes CL-10's last item complete for the
   agent; DX cannot do it from credit/.
+
+## INT3A-5 (requested of D / DX by INT3A): done in credit/
+
+The stratified record split and the explicit "no held-out evidence" promotion reason are implemented in
+`credit/learner.py` / `credit/checkpoint.py` (docs/DX.md, section INT3A-5). No change is needed in agent.py.
