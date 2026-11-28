@@ -23,6 +23,7 @@ and the bookkeeping, not what the real backbone writes (that is measured on the 
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 import torch
@@ -322,3 +323,32 @@ def test_one_decision_runs_end_to_end_on_the_debug_model(tmp_path, samples):
     finally:
         agent.close()
 
+
+
+@pytest.mark.slow
+def test_proposal_learning_runs_in_the_learners_slow_step_on_a_runtime_lifetime(tmp_path):
+    """Integration: the real runtime drives the agent through a LabWorld lifetime with backbone proposals on; the
+    continual learner's slow (adapter) steps include the proposal-learning loss (held-out validated like the others),
+    and the loss never touches the reward group."""
+    import int_helpers as h
+    agent = CamLiveAgent(h.agent_config(use_backbone=True, planner=False, proposal_learning=True,
+                                        proposer_max_new_tokens=4, proposer_samples=1, promote_every=10_000),
+                         str(tmp_path / "pl"), clock=SimClock())
+    try:
+        assert any(p.name == "proposal_learning" for p in agent.learner.providers)
+        h.run_lifetime(h.Recorder(agent), agent.clock, str(tmp_path), 7, max_steps=24, max_decisions=14)
+        ups = [u for u in agent.learner.updates if u.timescale == "slow_adapters"] \
+            if hasattr(agent.learner, "updates") else []
+        if not ups:
+            import json as _j
+            path = os.path.join(agent.dir, "learner_updates.jsonl")
+            ups = [_j.loads(x) for x in open(path) if x.strip()]
+            ups = [u.get("data", u) for u in ups]
+            ups = [u for u in ups if u.get("timescale") == "slow_adapters"]
+        assert ups, "no slow step was attempted"
+        seen = [u for u in ups if "proposal_learning" in (u.get("losses") if isinstance(u, dict) else u.losses)]
+        assert seen, [(u.get("losses"), str(u.get("notes"))[:300]) if isinstance(u, dict) else u.losses for u in ups]
+        held = agent.store.sample(32, loss="val:proposal_learning", seed=0)
+        assert held, "the provider has no held-out records"
+    finally:
+        agent.close()

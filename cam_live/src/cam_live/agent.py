@@ -28,6 +28,7 @@ measurements supervise the meta objective only when the verifier can authenticat
 from __future__ import annotations
 
 import collections
+import contextlib
 import copy
 import dataclasses
 import hashlib
@@ -58,6 +59,7 @@ from .credit.retention import AnchorSet, RetentionProvider
 from .credit.select import EstimatorSelector
 from .learning_api import DecisionBatch
 from .nn.model import build_model
+from .nn.persist import PersistentStateChain, PersistSettings
 from .predict.candidates import BackboneProposer
 from .predict.heads import attach_heads, canonical_query
 from .predict.imagination import is_imagined
@@ -146,7 +148,9 @@ class AgentSettings:
                                              # INT3A); > 0 bounds the list (ablation only, recorded per decision)
     proposer_fit_prompt: bool = True         # shrink the observation digest (never tools / objective) so the
                                              # prompt fits the backbone's prompt window, which keeps the END
-    planner: bool = True                     # imagined values of candidates (recorded; no rule selects on them)
+    planner: bool = True                     # multi-step latent imagination of every candidate (predict.planner);
+                                             # rule thompson_policy weights it by a calibration on verified
+                                             # multi-step outcomes (predict.imagination_select = false: weight 0)
     goal_metric_query: bool = True           # ask the verifier for the objective metric after every action
     skills: bool = True                      # validated skills and skill induction from verified-successful runs
     induce_min_steps: int = 2
@@ -227,7 +231,8 @@ PROV_GROUNDED = "grounded"                   # deterministic enumeration from th
 PROV_SKILL = "skill_library"
 PROV_EXPERIENCE = "experience_trace"         # arguments taken from the agent's own verified-successful executions
 #: operations that never belong to a reusable procedure (bookkeeping, waiting, the skill library itself)
-_NOT_PROCEDURAL = ("wait", "internal.", "skill.", "program")
+_NOT_PROCEDURAL = ("wait", "internal.", "skill.list", "skill.describe", "skill.induce", "skill.discover", "program")
+#: (SG) ``skill.run`` stays procedural: a sequence that ran a skill can become a composed skill (spec 12A.9)
 _NONTEXT_INPUTS = ("checkbox", "radio", "submit", "button", "hidden", "file", "image", "reset", "range", "color")
 
 
@@ -752,6 +757,14 @@ class CamLiveAgent:
         self.heads = attach_heads(self.model)
         # ---- durable experience, registries ----
         self.store = SqliteExperienceStore(os.path.join(self.dir, RunFiles.STORE), seed=cfg.seed, durable=s.durable)
+        # ---- persistent latent state of the experiential core, carried across decisions (PS, KF-E04) ----
+        pss = PersistSettings.from_cfg(cfg)
+        self.persist: Optional[PersistentStateChain] = None
+        if pss.enabled:
+            self.persist = PersistentStateChain(self.model, self.store, pss,
+                                                path=os.path.join(self.dir, "core_state.sqlite"))
+        elif getattr(self.model, "persistent", None) is not None:
+            self.model.persistent = None                  # a shared model must not keep another agent's chain
         self.predictions = PredictionRegistry(os.path.join(self.dir, "prediction_registry.jsonl"), self.clock)
         self.experiments = ExperimentRegistry(os.path.join(self.dir, "experiment_registry.jsonl"), self.predictions,
                                               self.clock, seed=cfg.seed)
@@ -921,9 +934,15 @@ class CamLiveAgent:
     def _items(self, refs: Optional[Sequence[str]] = None) -> List[ExperienceItem]:
         return self.store.items(list(refs if refs is not None else self._window()))
 
+    def _live(self) -> Any:
+        """Decision-time block: the current context window is read with the carried core state of the next
+        decision (``nn.persist``); stored records are re-encoded with their own decision's state."""
+        return self.persist.live() if self.persist is not None else contextlib.nullcontext()
+
     @torch.no_grad()
     def _belief(self, items: Sequence[ExperienceItem]) -> torch.Tensor:
-        return self.model.core_forward(self.model.tokenize([list(items)]), None).b
+        with self._live():
+            return self.model.core_forward(self.model.tokenize([list(items)]), None).b
 
     def _goal_text(self) -> str:
         return (self.task.objective if self.task is not None else "") or ""
@@ -1319,8 +1338,9 @@ class CamLiveAgent:
                 self.fast_records.append(rec)
         items = self._items()
         if self.task is not None and self.task.objective.strip():
-            bv = self.predictor.belief_value(items, self._goal_text(), deadline=self._deadline(),
-                                             objective_scale=self._scale())
+            with self._live():
+                bv = self.predictor.belief_value(items, self._goal_text(), deadline=self._deadline(),
+                                                 objective_scale=self._scale())
             out.update(p_success=bv["p_success"], b_norm=bv["b_norm"])
         return out
 
@@ -1902,20 +1922,21 @@ class CamLiveAgent:
         items = self._items(refs)
         did = self._decision_id()
         objective = self.task.objective_id if (self.task is not None and self.task.objective.strip()) else ""
-        evals = self.predictor.evaluate_candidates(
-            items, self._goal_text(), cands, queries=self._queries_for, decision_id=did, objective_id=objective,
-            deadline=self._deadline(), objective_scale=self._scale(), compute_voi=True, generator=self.gen)
+        with self._live():
+            evals = self.predictor.evaluate_candidates(
+                items, self._goal_text(), cands, queries=self._queries_for, decision_id=did, objective_id=objective,
+                deadline=self._deadline(), objective_scale=self._scale(), compute_voi=True, generator=self.gen)
         imagined = None
         allowed = self.planner.controller.allowed() if self.settings.planner else 0
         if allowed >= 1:                                   # only where multi-step accuracy has been measured
             try:
-                imagined = self.planner.plan(items, self._goal_text(), cands, now=float(self.clock.now()),
-                                             deadline=self._deadline(), objective_scale=self._scale(),
-                                             horizon=allowed, generator=self.gen)
+                with self._live():
+                    imagined = self.planner.plan(items, self._goal_text(), cands, now=float(self.clock.now()),
+                                                 deadline=self._deadline(), objective_scale=self._scale(),
+                                                 horizon=allowed, generator=self.gen, predictor=self.predictor,
+                                                 evaluations=evals)
                 for ev, im in zip(evals, imagined):
-                    ev.extras.update({"imagined_value_mean": float(im.value_mean),
-                                      "imagined_value_std": float(im.value_std),
-                                      "imagined_horizon_steps": float(im.horizon_steps)})
+                    ev.extras.update(im.extras())
             except Exception as e:  # noqa: BLE001
                 self.last["planner_error"] = f"{type(e).__name__}: {e}"
         self.pending_eval = {"decision_id": did, "refs": refs, "imagined": imagined is not None,
@@ -2101,6 +2122,9 @@ class CamLiveAgent:
             existing.outcomes = list(existing.outcomes) + [o for o in outcomes if o.query_id not in held]
             existing.duration_s = max(0.0, float(result.ended - result.started)) if result.ended else 0.0
             self.store.update(existing)
+        if self.persist is not None:                       # PS: this decision becomes the next position of the chain
+            self.persist.commit(decision.decision_id, context_refs=refs, post_refs=post,
+                                objective_id=decision.objective_id, ts=float(decision.ts))
         if immediate:
             self.store.mark_for_retraining([exp_id], "outcome_matured", outcome_key=immediate[0].dedup_key,
                                            now=float(self.clock.now()))
@@ -2180,12 +2204,37 @@ class CamLiveAgent:
 
     def _goal_free_outcome(self, o: OutcomeObservation, owner: Dict[str, str], q: Optional[OutcomeQuery]) -> None:
         aid = owner.get("action_id", "")
+        if q is not None and aid not in self.active_goals and not self._goal_free_active():
+            self._transfer_evidence(o, owner, q)
         if q is None or aid not in self.active_goals:
             return
         rec = self.store.get(owner.get("exp_id", ""))
         cost = rec.result.cost if (rec is not None and rec.result is not None) else Cost()
         self._goal_outcome(aid, canonical_query(q, [aid]).metric, float(o.value), cost,
                            censored=o.status == OutcomeStatus.CENSORED)
+
+    def _transfer_evidence(self, o: OutcomeObservation, owner: Dict[str, str], q: OutcomeQuery) -> None:
+        """(SG) An outcome of an independently assigned objective is evidence about what goal-free learning was worth:
+        goal-free mode scores it with its posterior and with the reference prior that posterior started from, on the
+        features the predictor computed for the executed action (its learned transfer estimate, spec 11.4)."""
+        fn = getattr(self.goal_free, "observe_assigned", None)
+        if not callable(fn) or o.status != OutcomeStatus.OBSERVED or o.value is None:
+            return
+        cache = getattr(self.predictor, "_cache", None) or {}
+        qid = (getattr(self.predictor, "_alias", None) or {}).get(o.query_id, o.query_id)
+        c = cache.get(qid)
+        rec = self.store.get(owner.get("exp_id", "")) if owner.get("exp_id") else None
+        if c is None or rec is None or rec.decision is None:
+            return
+        key = self.goal_free.key_of(rec.decision.chosen, canonical_query(q, [owner.get("action_id", "")]))
+        try:
+            gain = fn(key, c.phi, q.kind, float(o.value), float(q.exposure or 1.0),
+                      objective_id=getattr(self.task, "objective_id", ""))
+        except Exception as e:  # noqa: BLE001 — transfer evidence is an aid; its absence is reported
+            self.last["transfer_error"] = f"{type(e).__name__}: {e}"
+            return
+        if gain is not None:
+            self.counters["transfer_evidence"] += 1
 
     # ============================================================================================ KF-E01
     def _credit_for(self, rec: ExperienceRecord) -> Optional[Tuple[float, str, bool]]:
@@ -2521,13 +2570,14 @@ class CamLiveAgent:
                                 auth_config_hash=auth_config_hash(self.task) if self.task is not None else "",
                                 reward_version=self.meta.reward.version,
                                 extra={"agent": self._json_state(), "scaler": self.heads.scaler.state(),
-                                       "planner": self.planner.controller.state()})
+                                       "planner": self.planner.state()})
         state.aux_state = dict(state.aux_state or {})
         state.aux_state["agent"] = {"meta": self.meta.state_dict(), "meta_batches": self._meta_batches(),
                                     "predictor": self._predictor_state(),
                                     "goal_free": self.goal_free.state_dict(),
                                     "goal_free_fast": self.goal_free.fast.state_dict(),
-                                    "py_rng": _rng_state(self.rng), "proposer_rng": _rng_state(self.proposer.rng)}
+                                    "py_rng": _rng_state(self.rng), "proposer_rng": _rng_state(self.proposer.rng),
+                                    "persistent_state": self.persist.state_dict() if self.persist is not None else None}
         info = save_checkpoint_at(path, state, notes=f"agent decisions={self.n_decisions}", clock=self.clock)
         self.checkpoint_id = info.checkpoint_id
         return info.checkpoint_id
@@ -2543,9 +2593,14 @@ class CamLiveAgent:
         # (counter + restore report) and the current task is kept; an agent restored before it has a task compares
         # when the runtime sets one (set_objective).
         self.restore_report = dict(rep or {})
+        if self.persist is not None:                       # PS: None = checkpoint written before PS (rho closed)
+            self.restore_report["persistent_state"] = self.persist.load_state_dict(
+                ((st.aux_state or {}).get("agent") or {}).get("persistent_state"))
         self._checkpoint_auth_hash = "" if current is not None else str(getattr(st, "auth_config_hash", "") or "")
         aux = (st.aux_state or {}).get("agent", {})
         self.meta.load_state_dict(aux["meta"])
+        if getattr(self.meta, "restored_fresh", None):          # RW-1: parts absent from an older checkpoint
+            self.restore_report["meta_restored_fresh"] = list(self.meta.restored_fresh)
         self._load_meta_batches(aux.get("meta_batches", {}))
         self.predictor.set_fast_state(self.learner.fast_state)
         self._load_predictor_state(aux.get("predictor", {}))
@@ -2553,6 +2608,10 @@ class CamLiveAgent:
             self.goal_free.load_state_dict(aux["goal_free"])
         if aux.get("goal_free_fast"):
             self.goal_free.fast.load_state_dict(aux["goal_free_fast"])
+        if aux.get("goal_free") or aux.get("goal_free_fast"):
+            fn = getattr(self.goal_free, "after_fast_restore", None)     # (SG) reference prior of transfer evidence
+            if callable(fn):
+                fn()
         if aux.get("py_rng"):
             self.rng.setstate(_rng_from(aux["py_rng"]))
         if aux.get("proposer_rng"):
@@ -2560,7 +2619,7 @@ class CamLiveAgent:
         ex = st.extra or {}
         self.heads.scaler.load_state(ex.get("scaler", {}))
         if ex.get("planner"):
-            self.planner.controller.load_state(ex["planner"])
+            self.planner.load_state(ex["planner"])
         self._load_json_state(ex.get("agent", {}))
         if current is not None and self.restore_report.get("auth_config_changed"):
             self.counters["auth_config_changed_on_load"] += 1
@@ -2721,6 +2780,8 @@ class CamLiveAgent:
             "goal_free": self._goal_free_active(), "lifetime": self.lifetime, "decisions": self.n_decisions,
             "model_version": self.learner.model_version, "reward_version": self.meta.reward.version,
             "bootstrap_mix": self.meta.mixer.mix, "learner": self.learner.status(), "meta": dict(self.meta.stats),
+            "reward_validity": {k: v for k, v in self.meta.validity.summary().items() if k != "by_mix"}
+            if hasattr(self.meta, "validity") else None,
             "meta_events": len(self.meta.events), "ledger_entries": len(self.meta.ledger),
             "credit_default": self.assigner.default, "store_records": self.store.count(),
             "predictions": len(self.predictions), "planner_horizon": self.planner.controller.allowed(),
@@ -2734,7 +2795,8 @@ class CamLiveAgent:
             "last_promotion": self.promotions[-1] if self.promotions else None,
             "skills_known": len(self.skill_catalog), "surface": (self.surface or {}).get("url", ""),
             "proposal": {k: v for k, v in ((self.last.get("proposal") or {}).get("stats", {}) or {}).items()
-                         if k != "raw"}})
+                         if k != "raw"},
+            "persistent_state": self.persist.status() if self.persist is not None else {"enabled": False}})
 
     # ============================================================================================ F-1 hooks
     def drain_experiments(self) -> List[ExperimentRecord]:
@@ -2773,6 +2835,8 @@ class CamLiveAgent:
             return self.heads.policy(z, mask, b).probs[0].detach().cpu().double()
 
     def close(self) -> None:
+        if self.persist is not None:
+            self.persist.close()
         try:
             self.store.close()
         except Exception:  # noqa: BLE001
