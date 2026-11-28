@@ -12,9 +12,14 @@ re-initialised at every call (§1). PS carries the core state across decisions: 
 state is recomputed from a stored anchor K decisions back, so decision-time and replayed beliefs are the same function
 and gradients cross K decision boundaries; old checkpoints load with the new retention parameter closed and compute
 exactly what they computed before (§2). It is integrated in the runtime and causally changes beliefs and decisions
-(§4.2–4.3). Whether it improves learning is mixed and mostly negative at debug scale: on a synthetic memory task it
-learns to carry information far beyond the window; on LabWorld / codec objectives it made prospective prediction
-worse; full-size results in §4.4. §5 lists the diagnosis and what is not shown.
+(§4.2–4.3). Whether it improves learning: on a synthetic memory task it is learned and carries information far beyond the
+window (out-of-window accuracy 0.29 → 0.80); on the agent's actual experience — LabWorld, codec and SW / MECH
+objectives, and CAM's own live planning run, at debug scale and at full size, paired on identical experience — it
+gives **no measurable improvement** in learning to predict (on − off within ±0.02 nats) and no consistent retention
+effect. The diagnosis (§5): in this experience what the predictions need is already held by the context window or, in
+longer objectives, by the per-objective fast posterior; the mechanism's benefit needs non-stationary or one-off
+information needed long after it left the window, which the evaluated experience does not contain — an empirical
+limitation of the evidence, not a defect found in the mechanism.
 
 ## 1. Does the design before PS satisfy the specification? (audit at 87eab34)
 
@@ -373,11 +378,13 @@ situation; when it is restarted with PS-1 its checkpoints take the legacy path (
 defect of the mechanism.** (i) The mechanism is correct and learnable: finite differences, decision = replay, and
 the synthetic memory task, where the same training path (stored decisions replayed through the chain, one step per
 decision) learns to carry a fact 7 decisions past the window and beyond the gradient horizon K. (ii) In the
-diagnostic objectives the information the predictions need is inside the window: an objective is 8–16 decisions,
-the window holds 48 items (debug) / 256 (50m), so within an objective the carried state duplicates the window;
-across objectives LabWorld draws a new hidden mechanism per world, so what the state carries over from the previous
-objective is at best family-level knowledge, which the weights also learn. On identical experience the two arms
-then learn to predict equally well (replay: −0.004 ± 0.003) and the learner slightly closes the retention. (iii) The
+evaluated objectives the information the predictions need is already carried by something else: an objective of
+8–16 decisions fits the window (48 items debug, 256 at 50m); in longer ones (the 40-decision streams) the world's
+numeric mechanism is stationary and is accumulated over the whole objective by the fast Bayesian posterior, which is
+never truncated within an objective; across objectives LabWorld draws a new hidden mechanism per world, so what the
+state carries over is at best family-level knowledge, which the weights also learn. On identical experience the two arms
+then learn to predict equally well (debug replay: −0.004 ± 0.003 over 12 pairs; long objectives −0.008 ± 0.006;
+full size on three real streams −0.019 / +0.009 / −0.004) and the learner slightly closes the retention. (iii) The
 held-out codec block, a different domain after four LabWorld objectives, is the one place with a consistent sign in
 favour of the carried state (9 of 12 pairs) but the effect is small (−0.02 nats) and not significant. Where the
 long-horizon structure that the state exists for occurs — long objectives (the 100-member planning objective will
