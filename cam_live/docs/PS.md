@@ -476,6 +476,14 @@ later — the synthetic result says the mechanism can learn it; it has not been 
 * **Online on / off outcomes** (progress, prospective NLL) are dominated by trajectory divergence at the sample
   sizes affordable here (§4.3); they are reported, not used as evidence either way.
 
+**When to switch it on.** The switch is `persistent_state.enabled: true`; what would justify it is a paired
+fixed-stream replay (`scripts/ps_replay.py`, minutes on the GPU) that shows a gain on the experience it would be used
+for. The live planning objective is the natural candidate once it has run longer than the window holds (hundreds of
+decisions, with one-off observations such as research results and operator answers needed much later): replaying
+its store with and without the chain is the test. A run that switches it on starts from the initial chain state, with
+the retention closed if its checkpoint predates the chain, so the switch itself changes nothing until learning opens
+`ρ`.
+
 ## 6. Reproduce
 
 All CPU commands with `OMP_NUM_THREADS=4 nice -n 10`, `CUDA_VISIBLE_DEVICES=`, one at a time; `S=cam_live/docs/evidence/PS/scripts`.
