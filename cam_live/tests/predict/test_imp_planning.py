@@ -213,16 +213,20 @@ class _ToyPredictor:
 
 def _trained_transition(model):
     torch.manual_seed(0)
+    rng = random.Random(0)                     # local: independent of the order the suite runs in
     tr = LatentTransition(D, hidden=64, n_members=3, d_time=8, seed=0)
     opt = torch.optim.Adam(tr.parameters(), lr=3e-3)
     states = [torch.tensor(v, dtype=torch.float32) for v in ([0, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0],
                                                              [1, 1, 0, 0, 0, 0], [0, 1, 0, 0, 0, 0])]
     from cam_live.predict.world import transition_nll
-    for _ in range(1500):
+    for step in range(3000):
+        if step == 2000:
+            for g in opt.param_groups:
+                g["lr"] = 1e-3
         bs, zs, ns = [], [], []
         for _ in range(64):
-            b = random.choice(states)
-            a = random.randrange(4)
+            b = rng.choice(states)
+            a = rng.randrange(4)
             bs.append(b)
             zs.append(model.decision_latent(b[None], model.e_a[:, a:a + 1], model.e_g)[0, 0])
             ns.append(_ToyModel.step_true(b, a))
@@ -274,7 +278,9 @@ def test_planner_looks_ahead_through_learned_dynamics_and_needs_the_horizon_for_
     assert all(abs(c - 1.0) < 0.2 for c in c1) and all(p.next_index == PLAIN for p in h1)
     # two imagined transitions: KEY1 -> KEY2 -> DOOR is found; only the chain that starts with KEY1 reaches it
     c2 = [p.cont_mean for p in h2]
+    # (each particle follows one trained transition member; the door's value is 10 x the imagined belief's dim 1)
     assert c2[KEY1] == max(c2) and c2[KEY1] > 8.0 and max(c2[KEY2], c2[DOOR], c2[PLAIN]) < 3.0
+    assert all(v > 6.0 for v in h2[KEY1].cont_samples)
     assert h2[KEY1].next_index == KEY2 and h2[KEY1].next_share == 1.0
     # after KEY1 (belief dim 0 set) one transition suffices: KEY2 now enables the DOOR
     after = torch.tensor([[1.0, 0, 0, 0, 0, 0]])

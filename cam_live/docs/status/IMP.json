@@ -1,0 +1,221 @@
+{
+ "workstream": "IMP",
+ "commit": "04cc26d",
+ "summary": "Amendment 2026-11-28 item 2 (predictive imagination and multistep planning in decision-making). LatentPlanner searches imagined continuations of every candidate in the learned latent world model (transition + world-model goal values at imagined beliefs, coherent particles), reports information value; HorizonController value criterion; ImaginationCalibration learns the imagination weight of rule thompson_policy from verified multi-step windows; transition ensemble got zero-mean randomised priors (overconfidence defect); the ratio weight's amplification of unsupported imagination fixed. Imagination causally changes decisions on the runtime path (debug B2: share_tv 0.053, argmax changed 22/244); no reliable improvement measured; agent hook is change request IMP (not applied yet).",
+ "requirements": {
+  "AM2-1 multi-step rollouts of candidate sequences": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/predict/planner.py",
+    "src/cam_live/predict/predictor.py"
+   ],
+   "integration_points": [
+    "cam_live.predict.planner.LatentPlanner.plan",
+    "cam_live.predict.predictor.Predictor.goal_values",
+    "cam_live.predict.predictor.Predictor.fast_draws"
+   ],
+   "tests": [
+    "tests/predict/test_imp_planning.py::test_planner_looks_ahead_through_learned_dynamics_and_needs_the_horizon_for_longer_chains",
+    "tests/predict/test_imp_planning.py::test_deadline_ends_the_imagined_sequence",
+    "tests/predict/test_imp_planning.py::test_goal_values_at_the_real_latents_are_the_recorded_goal_values"
+   ],
+   "evidence": [
+    "docs/IMP.md \u00a72.1, \u00a73.1"
+   ],
+   "limitations": "continuations range over the current candidate set; exhaustive at the first imagined level within the row budget, greedy + random subset deeper"
+  },
+  "AM2-2 comparison of alternative approaches": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/predict/planner.py"
+   ],
+   "tests": [
+    "tests/predict/test_imp_planning.py::test_planner_looks_ahead_through_learned_dynamics_and_needs_the_horizon_for_longer_chains"
+   ],
+   "evidence": [
+    "docs/IMP.md \u00a72.1"
+   ],
+   "limitations": "the best imagined continuation per first action is compared; its next action and the particles' agreement are recorded, the full imagined sequence is not"
+  },
+  "AM2-3 information value of experiments": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/predict/planner.py"
+   ],
+   "tests": [
+    "tests/predict/test_imp_planning.py::test_planner_looks_ahead_through_learned_dynamics_and_needs_the_horizon_for_longer_chains"
+   ],
+   "evidence": [
+    "docs/IMP.md \u00a72.2, \u00a73.3 (info value > 0 for 66 % of chosen candidates in B2)"
+   ],
+   "limitations": "recorded per candidate; exploration uses it only through Thompson sampling over particles; randomised experiments are still designed on one-step outcomes"
+  },
+  "AM2-4 selection on expected long-term value and uncertainty": {
+   "state": "implemented (agent hook pending: change request IMP)",
+   "files": [
+    "src/cam_live/predict/policy.py"
+   ],
+   "integration_points": [
+    "cam_live.predict.policy.DecisionMaker.thompson_policy",
+    "cam_live.predict.policy.imagined_preference",
+    "cam_live.predict.policy.imagination_inputs"
+   ],
+   "tests": [
+    "tests/predict/test_imp_planning.py::test_rule_uses_imagination_only_through_the_learned_weight_and_records_both_distributions",
+    "tests/predict/test_imp_planning.py::test_imagined_preference_is_in_one_step_units_and_zero_without_differences",
+    "tests/predict/test_imp_agent.py::test_agent_decides_with_imagination_and_learns_its_weight_from_verified_windows"
+   ],
+   "evidence": [
+    "docs/IMP.md \u00a72.4, \u00a73.3"
+   ],
+   "limitations": "the worktree agent does not pass the planner's numbers until ST applies change request IMP"
+  },
+  "AM2-5 calibration gating of imagined values": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/predict/policy.py",
+    "src/cam_live/predict/planner.py"
+   ],
+   "integration_points": [
+    "cam_live.predict.policy.ImaginationCalibration",
+    "cam_live.predict.policy.imagination_weight",
+    "cam_live.predict.planner.LatentPlanner.refresh_calibration"
+   ],
+   "tests": [
+    "tests/predict/test_imp_planning.py::test_imagination_weight_is_learned_from_verified_windows_per_horizon",
+    "tests/predict/test_imp_planning.py::test_verified_windows_feed_the_calibration_once_and_only_when_final"
+   ],
+   "evidence": [
+    "docs/IMP.md \u00a72.4, \u00a73.3 (B2: weight 0.17 throughout, beta_im ~ 0)"
+   ],
+   "limitations": "verified multi-step windows are scarce (2-7 per seed and lifetime in T1)"
+  },
+  "AM2-6 horizon grows only as measured accuracy supports it": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/predict/imagination.py",
+    "src/cam_live/predict/planner.py"
+   ],
+   "integration_points": [
+    "cam_live.predict.imagination.HorizonController",
+    "cam_live.predict.imagination.value_consistency_error",
+    "cam_live.predict.planner.LatentPlanner.measure"
+   ],
+   "tests": [
+    "tests/predict/test_imp_planning.py::test_value_criterion_horizon_and_old_controller_states",
+    "tests/predict/test_imp_planning.py::test_value_consistency_error_is_zero_for_exact_dynamics_and_relative_to_candidate_spread"
+   ],
+   "evidence": [
+    "docs/evidence/IMP/replay_live_ckpt38_fullsize.json (value errors [0.04, 0.047, 0.066, 0.069] vs persistence [0.038, 0.041, 0.055, 0.055])"
+   ],
+   "limitations": "the value criterion passes at both scales because imagination equals not imagining there (harmless, not informative); the latent criterion still never passes (KF-X10)"
+  },
+  "AM2-7 imagined consequences causally change actual decisions (ablation)": {
+   "state": "verified at debug scale on the runtime path; full size: replay of live decisions",
+   "files": [
+    "src/cam_live/predict/imp_eval.py"
+   ],
+   "commands": [
+    "PYTHONPATH=<HEAD + CR IMP> python -m cam_live.predict.imp_eval run --arm on|off --seed S --family T1 --lifetimes 6 --decisions 16",
+    "python -m cam_live.predict.imp_eval replay ..."
+   ],
+   "evidence": [
+    "docs/evidence/IMP/ablation_B2_final_code_summary.json",
+    "docs/evidence/IMP/replay_live_ckpt38_fullsize.json"
+   ],
+   "measured": {
+    "B2_share_tv_mean": {
+     "n": 10,
+     "mean": 0.05268282351879616,
+     "sd": 0.011522920788731635,
+     "lo": 0.0460853948025987,
+     "hi": 0.05930208333333333
+    },
+    "B2_argmax_changed": 22,
+    "B2_decisions_with_imagination": 244,
+    "B2_pairs_diverged": 10,
+    "fullsize_replay": {
+     "n": 24,
+     "share_tv_mean": 0.00390625,
+     "share_tv_max": 0.03125,
+     "argmax_changed": 0,
+     "plan_s_mean": 29.967962731917698
+    }
+   }
+  },
+  "AM2-8 measured improvement in decisions": {
+   "state": "not demonstrated (honest negative)",
+   "evidence": [
+    "docs/IMP.md \u00a73.4, \u00a73.6, \u00a74",
+    "docs/evidence/IMP/ablation_B2_final_code_summary.json",
+    "docs/evidence/IMP/ablation_P_from_exploration_checkpoint_summary.json"
+   ],
+   "measured": {
+    "B2_progress_on_minus_off": {
+     "n": 10,
+     "mean": 0.163738064276516,
+     "sd": 0.38820393937254266,
+     "lo": -0.042933606582726026,
+     "hi": 0.41325307381508036
+    },
+    "P_from_exploration_checkpoint_progress_on_minus_off": {
+     "n": 6,
+     "mean": -0.012680173366157213,
+     "sd": 0.11242490110985112,
+     "lo": -0.10045190370729858,
+     "hi": 0.07087464506819345
+    },
+    "P_share_tv": {
+     "n": 6,
+     "mean": 0.048273919390647325,
+     "sd": 0.018089280504127843,
+     "lo": 0.03537029676735559,
+     "hi": 0.06165775777448571
+    },
+    "P_argmax_changed": [
+     22,
+     187
+    ]
+   },
+   "limitations": "beta_im ~ 0 on the verified windows available; the delayed dependency was rarely experienced; batch stopped at 42 of 120 lifetimes by the CPU rule"
+  },
+  "COMPAT live checkpoints": {
+   "state": "verified",
+   "evidence": [
+    "docs/evidence/IMP/replay_live_ckpt38_fullsize.json (restore: arch differences none, planner state old format -> calibration fresh, reported)"
+   ],
+   "tests": [
+    "tests/predict/test_imp_agent.py::test_old_planner_state_loads_and_reports_a_fresh_calibration",
+    "tests/predict/test_imp_planning.py::test_transition_prior_keeps_the_mean_and_the_checkpoint_and_makes_untried_actions_uncertain"
+   ]
+  }
+ },
+ "public_api": [
+  "cam_live.predict.planner.LatentPlanner.plan(..., predictor=None, evaluations=None)",
+  "cam_live.predict.planner.LatentPlanner.state() / load_state()",
+  "cam_live.predict.planner.ImaginedEvaluation.extras()",
+  "cam_live.predict.policy.ImaginationCalibration, imagination_calibration(transition)",
+  "cam_live.predict.policy.imagination_weight, imagined_preference, imagination_inputs",
+  "cam_live.predict.predictor.Predictor.goal_values / fast_draws",
+  "cam_live.predict.imagination.value_consistency_error, HorizonController(criterion=...)",
+  "cam_live.predict.world.LatentTransition(prior_scale=...)",
+  "PredictConfig: imagination_criterion, imagination_select, imagination_continuation, imagination_max_rows, imagination_aleatoric, imagination_prior_sd, transition_prior_scale",
+  "python -m cam_live.predict.imp_eval run|replay|summarize"
+ ],
+ "change_requests": [
+  "docs/change_requests/IMP.md (agent.py, for ST: open)"
+ ],
+ "measured": {
+  "suite_command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/predict -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/IMP_fix.xml"
+ },
+ "not_done": [
+  "agent.py hook not applied (change request IMP)",
+  "experiments still designed on one-step outcomes",
+  "transition trained on one-step latent NLL only (no value-consistency objective)",
+  "no reliable improvement of decisions measured"
+ ],
+ "scientific_failures": [
+  "imagined continuations barely differ between first actions on CAM's real sequences (full size sd 0.0012 vs particle sd 0.26): the world model's values do not respond to the belief changes (value error = persistence error)",
+  "no reliable improvement in the paired ablation (B2 progress on - off 0.164, CI -0.043..0.413, n=10 pairs)"
+ ]
+}
