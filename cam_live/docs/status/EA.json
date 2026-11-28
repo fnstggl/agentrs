@@ -573,7 +573,9 @@
     "src/cam_live/harness/service_boot.py",
     "src/cam_live/harness/safefs.py",
     "src/cam_live/runtime/logs.py",
-    "src/cam_live/harness/credentials.py"
+    "src/cam_live/harness/credentials.py",
+    "src/cam_live/runtime/cli.py",
+    "src/cam_live/runtime/plan_report.py"
    ],
    "integration_points": [
     "cam_live.harness.auth.launcher.launch"
@@ -588,9 +590,16 @@
     "tests/harness/auth/test_hx_sandbox_host_privileged.py::test_root_services_never_import_what_a_service_uid_can_write",
     "tests/runtime/test_hx4_safe_writes.py::test_the_learner_cannot_redirect_roots_run_directory_writes_through_a_race",
     "tests/runtime/test_hx4_safe_writes.py::test_a_planted_target_or_directory_is_refused_not_followed",
-    "tests/harness/auth/test_hx4_fixes.py::test_safefs_never_follows_a_symlink_in_a_writable_directory"
+    "tests/harness/auth/test_hx4_fixes.py::test_safefs_never_follows_a_symlink_in_a_writable_directory",
+    "tests/runtime/test_hx5_operator_cli_root.py::test_export_checkpoint_never_copies_learner_chosen_files_anywhere",
+    "tests/runtime/test_hx5_operator_cli_root.py::test_plan_report_never_writes_through_a_planted_symlink",
+    "tests/runtime/test_hx5_operator_cli_root.py::test_a_fifo_in_place_of_state_json_does_not_block_root"
    ],
    "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/runtime -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix5.xml   # 881 passed, 0 failed, 4 deselected (gpu/slow/network) in 589 s at 5e57c7a (load average ~45), compute first, tests/runtime included; browser and privileged marks included",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g15_operator_cli_root.py   # HOLDS, 0 DEFECT",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g16_safefs.py   # HOLDS, 0 DEFECT",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g17_audit_anchor.py   # HOLDS, 0 DEFECT",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/runtime -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix4.xml   # 874 passed, 0 failed, 4 deselected (gpu/slow/network) in 401 s at 0fedb1a, compute first, tests/runtime included; browser and privileged marks included",
     "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g11_boot_path.py   # HOLDS, 0 DEFECT",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix3.xml   # 627 passed, 0 failed, 4 deselected (gpu/slow/network) in 274 s at 85101a2, compute first; browser and privileged marks included",
@@ -605,13 +614,15 @@
     "docs/evidence/test_results/HX_fix.xml",
     "docs/evidence/test_results/HX_fix2.xml",
     "docs/evidence/test_results/HX_fix3.xml",
-    "docs/evidence/test_results/HX_fix4.xml"
+    "docs/evidence/test_results/HX_fix4.xml",
+    "docs/evidence/test_results/HX_fix5.xml"
    ],
    "limitations": "Process and uid separation inside one unprivileged container: learner (camlearn), environment service with Chromium (cambrowser), generated code (camsbx, run by the sandbox host, a root process the launcher starts with the environment service; it serves only the environment uid and holds no policy and no secrets), authorization service (camauth), verifier (camverify); Landlock, seccomp, no_new_privs. Not a VM, no network namespaces, shared kernel; the sandbox host is root (its only function is to start sandboxed jobs). Generated code has no network under the default policy (net.connect is not a policy tool). Background jobs started through the host deliver late events only by polling (job.status / job.result), not as pushed events. Measured as root with the real service users. Round 3: the sandbox host stays root for its whole life (it drops each job to camsbx through the per-job monitor); a pre-forked unprivileged helper was not built. The host still trusts the environment service's uid to have asked the authorization service (it verifies no grant itself); what a job can do is bounded by the sandbox (camsbx, Landlock, seccomp, egress broker).",
    "hx_2026_11_27": "No code change. Ran the named tests with -m privileged and -m browser; G-sec probe p13 re-run: 18 HOLDS / 0 DEFECT.",
    "hx_round2_2026_11_28": "G2-harness D2: in the separated deployment sandbox.python was unavailable ('not root'); fixed in 863bdae (sandbox host). g04 0/1 -> 1/0 (code runs as camsbx); privileged test through a cam-live-run-style launch.",
    "hx_round3_2026_11_28": "Round 3 (G2-harness R2-C1, critical): every separated service now starts as 'python -I service_boot.py <roots> -m <module>' with cwd '/', so neither the run directory nor any other service-writable directory is on its import path and PYTHON* variables are ignored; root services get HOME /root and a system PATH; the sandbox host refuses a peer before reading from it and times out a silent one. On 0a30cd8 a module the learner planted in the run directory was imported as root at the host's restart; now no service imports it. Audit: the import path of a launched service (cam_live src, the venv's stdlib and site-packages, the shared base venv the venv's .pth adds) has no directory writable by a service uid (checked by the test). The run directory itself stays group-writable for the learner (launcher layout, unchanged).",
-   "hx_round4_2026_11_28": "Round 4 (G2-harness R3-M1): every root write into a directory another uid can write goes through cam_live.harness.safefs (O_PATH|O_NOFOLLOW walk, random O_EXCL|O_NOFOLLOW temporaries, fd-based owner/mode, rename within the directory fd, non-regular targets refused, O_NOFOLLOW reads): runtime.logs atomic writes and read_json (supervisor, operator CLI), launcher layout and key/policy copies, vault, credentials CLI, sandbox host. g11 9/2 -> 11/0 (the inotify race S4b no longer wins). Remaining: the run directory stays group-writable for the learner; runtime/control.py opens control.json.lock with 'a+' (change request HX-6)."
+   "hx_round4_2026_11_28": "Round 4 (G2-harness R3-M1): every root write into a directory another uid can write goes through cam_live.harness.safefs (O_PATH|O_NOFOLLOW walk, random O_EXCL|O_NOFOLLOW temporaries, fd-based owner/mode, rename within the directory fd, non-regular targets refused, O_NOFOLLOW reads): runtime.logs atomic writes and read_json (supervisor, operator CLI), launcher layout and key/policy copies, vault, credentials CLI, sandbox host. g11 9/2 -> 11/0 (the inotify race S4b no longer wins). Remaining: the run directory stays group-writable for the learner; runtime/control.py opens control.json.lock with 'a+' (change request HX-6).",
+   "hx_round5_2026_11_28": "Round 5 (G2-harness R4-C1, R4-M1, R4-m1, R4-m2): offline export-checkpoint chooses the checkpoint by name in <run>/checkpoints, copies nothing it would follow, verifies the MANIFEST and exports only to the operator's destination outside the run directory; plan-report and the supervisor's logs / task copy / journal print through safefs; safefs reads cannot block on a FIFO; credentials revoke unlinks relative to the directory fd. g15 2/0, g16 3/0, g17 5/0."
   },
   "OP-09": {
    "state": "implemented",
@@ -670,7 +681,10 @@
   "OP-07": {
    "state": "implemented",
    "files": [
-    "src/cam_live/harness/credentials.py"
+    "src/cam_live/harness/credentials.py",
+    "src/cam_live/runtime/cli.py",
+    "src/cam_live/runtime/plan_report.py",
+    "src/cam_live/harness/safefs.py"
    ],
    "integration_points": [
     "cam_live.harness.credentials.main",
@@ -680,17 +694,24 @@
     "tests/integration/test_credentials_membership.py::test_bad_values_and_loose_files_are_refused",
     "tests/integration/test_credentials_membership.py::test_cli_never_prints_the_value_and_revoke_removes_the_copy",
     "tests/integration/test_credentials_membership.py::test_store_puts_the_value_only_in_vault_and_verifier_copy",
-    "tests/harness/auth/test_hx_credentials_privileged.py::test_operator_entered_credential_is_isolated_from_learner_sandbox_training_data_and_logs"
+    "tests/harness/auth/test_hx_credentials_privileged.py::test_operator_entered_credential_is_isolated_from_learner_sandbox_training_data_and_logs",
+    "tests/runtime/test_hx5_operator_cli_root.py::test_credentials_revoke_does_not_unlink_through_a_planted_symlink"
    ],
    "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/compute cam_live/tests/harness/env cam_live/tests/harness/auth cam_live/tests/harness/skills cam_live/tests/integration/test_credentials_membership.py cam_live/tests/runtime -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix5.xml   # 881 passed, 0 failed, 4 deselected (gpu/slow/network) in 589 s at 5e57c7a (load average ~45), compute first, tests/runtime included; browser and privileged marks included",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g15_operator_cli_root.py   # HOLDS, 0 DEFECT",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g16_safefs.py   # HOLDS, 0 DEFECT",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/g2harness/g17_audit_anchor.py   # HOLDS, 0 DEFECT",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included"
    ],
    "evidence": [
+    "docs/HX.md",
     "docs/evidence/test_results/HX_fix.xml",
-    "docs/HX.md"
+    "docs/evidence/test_results/HX_fix5.xml"
    ],
    "limitations": "Claimed by HX in EA's status file (the requirement's workstream is M; change request HX-1). The value is entered once by root (hidden prompt, pipe or a 0600 file; never argv) and exists only in the vault file (auth uid, 0600) and the verifier's copy (verifier uid, 0600). Isolation from the learner is uid separation of the launched deployment (measured with the real service users); training data and logs: the value is never in an observation (the broker releases it to an executor for one granted action and destination; scrubbing redacts it), the authorization service refuses an action containing it (X-CREDENTIAL-LEAK). Scrubbing knows the listed encodings only (EA limitation of CU-27). Root can read everything.",
-   "hx_2026_11_27": "No code change. Ran M's three tests (not changed) and added a privileged test in HX's directory."
+   "hx_2026_11_27": "No code change. Ran M's three tests (not changed) and added a privileged test in HX's directory.",
+   "hx_round5_2026_11_28": "Round 5 (G2-harness R4-C1, R4-M1, R4-m1, R4-m2): offline export-checkpoint chooses the checkpoint by name in <run>/checkpoints, copies nothing it would follow, verifies the MANIFEST and exports only to the operator's destination outside the run directory; plan-report and the supervisor's logs / task copy / journal print through safefs; safefs reads cannot block on a FIFO; credentials revoke unlinks relative to the directory fd. g15 2/0, g16 3/0, g17 5/0."
   }
  },
  "public_api": [
@@ -834,6 +855,15 @@
    ],
    "final_run": "874 passed, 0 failed, 4 deselected (gpu/slow/network) in 401 s at 0fedb1a, compute first, tests/runtime included; browser and privileged marks included",
    "junit": "docs/evidence/test_results/HX_fix4.xml"
+  },
+  "round5": {
+   "date": "2026-11-28",
+   "fixes": "G2-harness R4-C1, R4-M1, R4-m1, R4-m2 + root-command sweep",
+   "commits": [
+    "8f6c615"
+   ],
+   "final_run": "881 passed, 0 failed, 4 deselected (gpu/slow/network) in 589 s at 5e57c7a (load average ~45), compute first, tests/runtime included; browser and privileged marks included",
+   "junit": "docs/evidence/test_results/HX_fix5.xml"
   }
  }
 }

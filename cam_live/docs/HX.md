@@ -178,3 +178,28 @@ g12 6/2 → 8/0, g13 10/6 → 16/0; g01 30/0, g08 39/0, g10 1/0 still hold. The 
   `g-recaptcha-response`; `captcha` alone); "are you a robot?" only on a control that answers; typed fields named
   CAPTCHA unless they configure it; "type the code shown" only for an image. `enable_captcha`, `captcha_provider`,
   "Enable CAPTCHA on sign-up", "Get reCAPTCHA keys", an "Are you a bot?" link and the e-mail code field pass.
+
+# Round 5 — fixes of the G2-harness round-4 findings at a5ab772 (2026-11-28)
+
+Commits `8f6c615`, `5e57c7a` (the round-3 audit race test now bounds its writer: unbounded, it became quadratic under load and stalled a suite run). Final run `HX_fix5.xml`: harness suites (compute first, browser + privileged), credentials and `tests/runtime` — 881 passed, 0 failed, 4 deselected, 589 s at load ~45. Probes after the fix: **g15 2/0** (E1 export-checkpoint, E2 plan-report), **g16 3/0** (incl. the
+FIFO read F3), g17 5/0. The privileged tests `tests/runtime/test_hx5_operator_cli_root.py` (4) all fail on a5ab772.
+
+* **R4-C1 (critical).** Offline `export-checkpoint` (no runtime process): the checkpoint is chosen by *name* among the
+  real directories `ckpt_<digits>` of `<run>/checkpoints` (`--checkpoint`, else the base name the state names, else
+  the newest); `state.json` is never used as a path. The directory is copied entry by entry relative to directory
+  fds into a private staging directory next to the destination — a symlink, FIFO, socket or device anywhere refuses
+  the export —, a checkpoint with `MANIFEST.json` must match its hashes, the weights-only export reads the staged
+  copy, and the destination is the operator's `--out` (normalised; outside the run directory; must not exist or be
+  an empty directory this uid owns — never merged) or `<state root>/exports/<run>_<ckpt>`. A checkpoint without a
+  MANIFEST (test agents) is exported with `manifest_verified` stating so.
+* **R4-M1 (major).** `plan-report` writes through `safefs.write_atomic` (random O_EXCL temporary, rename within the
+  directory fd, a planted symlink / non-regular target refused). The default location stays `<run>/plan_report.md`.
+* **R4-m1 (minor).** `safefs.open_regular`: `O_NONBLOCK|O_NOFOLLOW`, type checked on the fd, `O_NONBLOCK` cleared; used
+  by `read_nofollow`, the run-log readers (`iter_jsonl`, `iter_since`), the launcher's `_mk` and `chown_chmod_nofollow`.
+* **R4-m2 (minor).** `credentials revoke` unlinks the verifier copy relative to the directory fd (`safefs.unlink`).
+* **Sweep of root-run commands.** The supervisor's detached-process log (`safefs.open_append`), log tails, the task
+  copy into the run directory, `journal --print` and the dashboard's journal read go through safefs; `status`,
+  `resume`, `dashboard`, `journal` read run files through `read_json` / the run-log readers (safe since round 4/5);
+  `approve` / `reject` / `stop` / `pause` go through the command channel (HX-6 applied by M) and the authorization
+  service. Not swept: modules outside the allowed files (`runtime/journal.py` writes through safefs per G2;
+  `runtime/doctor.py`, `eval/*`, `verify_completion` read repository files, not the run directory).
