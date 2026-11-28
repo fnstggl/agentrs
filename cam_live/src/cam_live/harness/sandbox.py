@@ -483,12 +483,33 @@ monitor()
 '''
 
 # ==============================================================================================================
-# In-sandbox network shim (``sitecustomize`` on PYTHONPATH of scoped-network jobs; standard library only)
+# In-sandbox start-up and network shim (``sitecustomize`` on PYTHONPATH of every job; standard library only)
 # ==============================================================================================================
 _SHIM = r'''
-"""Brokered sockets for sandboxed Python. The kernel denies socket(); every outbound TCP stream is requested
-from the egress broker over the inherited descriptor CAM_EGRESS_FD and authorized there, one by one."""
+"""Sandboxed Python start-up (``sitecustomize`` on PYTHONPATH of every job). 1. The host interpreter's own
+site-packages are taken off sys.path: the sandbox cannot read them (Landlock), so a package found there would fail
+with PermissionError instead of being reported as not installed, and package tools would read broken metadata.
+Approved packages come from the harness's read-only package directory; a program installs more into its workspace.
+2. Brokered sockets: the kernel denies socket(); every outbound TCP stream is requested from the egress broker over
+the inherited descriptor CAM_EGRESS_FD and authorized there, one by one."""
 import os as _os
+import sys as _sys
+
+
+def _cam_prune_host_site():
+    try:
+        import site as _site
+        drop = set(_site.getsitepackages())
+        user = _site.getusersitepackages()
+        if user:
+            drop.add(user)
+    except Exception:
+        return
+    home = _os.environ.get("HOME", "")
+    _sys.path[:] = [p for p in _sys.path if p not in drop or (home and p.startswith(home.rstrip("/") + "/"))]
+
+
+_cam_prune_host_site()
 
 _FD = _os.environ.get("CAM_EGRESS_FD", "")
 if _FD.isdigit():
@@ -1143,7 +1164,8 @@ _RESERVED_ENV = {"PATH", "HOME", "TMPDIR", "PYTHONPATH", "LD_PRELOAD", "LD_LIBRA
                  "PYTHONSTARTUP", "PYTHONHOME", "BASH_ENV", "ENV"}
 _ETC_READ = ("/etc/ld.so.cache", "/etc/ld.so.conf", "/etc/ld.so.conf.d", "/etc/localtime", "/etc/passwd",
              "/etc/group", "/etc/nsswitch.conf", "/etc/ssl/certs", "/etc/ca-certificates", "/etc/alternatives",
-             "/etc/mime.types", "/etc/shells", "/etc/os-release")
+             "/etc/mime.types", "/etc/shells", "/etc/os-release", "/etc/debian_version", "/etc/lsb-release",
+             "/etc/issue")                 # the distribution files package tools read to describe the platform
 _SYS_READ = ("/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/proc/cpuinfo", "/proc/meminfo",
              "/proc/loadavg", "/proc/uptime", "/proc/version", "/proc/filesystems", "/sys/devices/system/cpu")
 
@@ -1518,9 +1540,9 @@ class Sandbox:
     # ------------------------------------------------------------------------------------------ execution
     def _env(self, cwd: str, network: str, egress_fd: Optional[int], extra: Optional[Dict[str, str]]) -> Dict[str, str]:
         ws = self.workspace
-        pypath = [cwd, os.path.join(self.support, "pkgs")]
-        if network == "scoped":
-            pypath.insert(0, os.path.join(self.support, "shim"))
+        # the shim is the jobs' sitecustomize: it prunes the host's site-packages always, brokers sockets only when
+        # the job was given an egress descriptor (network='scoped')
+        pypath = [os.path.join(self.support, "shim"), cwd, os.path.join(self.support, "pkgs")]
         env = {"PATH": f"{os.path.join(self.support, 'bin')}:/usr/local/bin:/usr/bin:/bin",
                "HOME": ws, "TMPDIR": os.path.join(ws, ".tmp"), "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
                "PYTHONPATH": ":".join(pypath), "PYTHONPYCACHEPREFIX": os.path.join(ws, ".cam", "pycache"),
