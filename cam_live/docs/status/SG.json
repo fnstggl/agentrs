@@ -1,0 +1,191 @@
+{
+ "workstream": "SG",
+ "commit": "a0fb471",
+ "summary": "Amendment items 6 and 7. Skills CAM acquires from its own executed traces now validate and are reused (before: every induce in every run failed validation - stale observation ids, refs made parameters); learned applicability, composition, discovery of recurring procedures, refinement by experience; no false success. Goal-free mode's expected transferable competence is learned from later assigned objectives (was the constant 1.0). Agent hooks SG-1..3 for ST. See docs/SG.md for the four evidence levels per capability.",
+ "requirements": {
+  "CU-15": {
+   "state": "integrated",
+   "files": [
+    "src/cam_live/harness/skills.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.skills.SkillExecutor.execute",
+    "cam_live.harness.skills.SkillExecutor.trace_of",
+    "cam_live.harness.skills.stable_arguments",
+    "cam_live.harness.skills.SkillExecutor.recurring_procedures"
+   ],
+   "tests": [
+    "tests/harness/skills/test_sg_skills.py",
+    "tests/harness/skills/test_es_skills.py"
+   ],
+   "evidence": [
+    "docs/evidence/SG/skills_browser_measure.json",
+    "docs/SG.md"
+   ],
+   "changed": "skills from the agent's own grounded browser traces become re-executable (role/name locators), skill.discover mines recurring procedures",
+   "still_fails": "see docs/SG.md \u00a76-7 (real configuration) and \u00a77 (asynchronous effects)"
+  },
+  "CU-16": {
+   "state": "integrated",
+   "files": [
+    "src/cam_live/harness/skills.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.skills.SkillExecutor.validate_candidate"
+   ],
+   "tests": [
+    "tests/harness/skills/test_sg_skills.py",
+    "tests/harness/skills/test_es_skills.py"
+   ],
+   "evidence": [
+    "docs/SG.md"
+   ],
+   "changed": "tentative single-example conditions tested by validation; content-only text conditions (no false success); reusable portion of noisy traces",
+   "still_fails": "postcondition inference is a rule over the observation format"
+  },
+  "CU-17": {
+   "state": "integrated",
+   "files": [
+    "src/cam_live/harness/skills.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.skills.fresh_arguments",
+    "cam_live.harness.skills.SkillInducer.induce"
+   ],
+   "tests": [
+    "tests/harness/skills/test_sg_skills.py"
+   ],
+   "evidence": [
+    "docs/evidence/SG/skills_browser_measure.json"
+   ],
+   "changed": "parameters from one trace (what flows into the result), enum domains from options and from peer elements, reuse on an unseen path, composition",
+   "still_fails": "no transfer to a different interface (layout B): a new skill is needed"
+  },
+  "CU-18": {
+   "state": "integrated",
+   "files": [
+    "src/cam_live/harness/skills.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.skills.ApplicabilityModel",
+    "cam_live.harness.skills.SkillExecutor.refine"
+   ],
+   "tests": [
+    "tests/harness/skills/test_sg_skills.py"
+   ],
+   "evidence": [
+    "docs/SG.md"
+   ],
+   "changed": "learned applicability (probit ADF) gates runs only when confident; precondition failures teach applicability; refinement drops needless steps after successes",
+   "still_fails": "applicability never refused a run in the real-configuration runs (too few runs)"
+  },
+  "CU-33": {
+   "state": "evaluated",
+   "files": [
+    "src/cam_live/harness/skills.py",
+    "docs/evidence/SG/skills_browser_measure.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.skills.SkillExecutor.execute"
+   ],
+   "tests": [
+    "tests/harness/skills/test_sg_skills.py"
+   ],
+   "evidence": [
+    "docs/evidence/SG/skills_browser_measure.json",
+    "docs/evidence/SG/real_summary.json"
+   ],
+   "changed": "primitive-only vs acquired skills measured on browser tasks (success, decisions, primitive operations, latency, unseen path, changed interface); real configuration skills vs primitive arm",
+   "still_fails": "one seed per arm in the real configuration"
+  },
+  "AE-04": {
+   "state": "integrated (agent hook pending at ST)",
+   "files": [
+    "src/cam_live/reward/selfgoals.py"
+   ],
+   "integration_points": [
+    "cam_live.reward.selfgoals.TransferEstimator",
+    "cam_live.reward.selfgoals.GoalFreeMode.observe_assigned",
+    "cam_live.reward.selfgoals.GoalFreeMode.candidates"
+   ],
+   "tests": [
+    "tests/reward/test_sg_transfer.py",
+    "tests/reward/test_sg_agent_transfer.py"
+   ],
+   "evidence": [
+    "docs/evidence/SG/transfer_labworld.json",
+    "docs/SG.md"
+   ],
+   "changed": "expected transferable competence learned from later assigned objectives (was 1.0)",
+   "still_fails": "usefulness on real objectives: see docs/SG.md \u00a76 (one seed)"
+  }
+ },
+ "public_api": [
+  "cam_live.harness.skills.ApplicabilityModel",
+  "cam_live.harness.skills.stable_arguments",
+  "cam_live.harness.skills.without_step",
+  "cam_live.harness.skills.restart_at",
+  "skill.discover (tool)",
+  "cam_live.reward.selfgoals.TransferEstimator",
+  "cam_live.reward.selfgoals.GoalFreeMode.observe_assigned",
+  "cam_live.reward.selfgoals.GoalFreeMode.after_fast_restore"
+ ],
+ "change_requests": [
+  "docs/change_requests/SG.md (SG-1 composition, SG-2 transfer evidence, SG-3 restore)"
+ ],
+ "extra_packages": [],
+ "measured": {
+  "controlled.store_entry_layout_b.primitive_only.success": 10,
+  "controlled.store_entry_layout_b.primitive_only.n": 10,
+  "controlled.store_entry_layout_b.primitive_only.decisions_per_task": 5,
+  "controlled.store_entry_layout_b.primitive_only.primitive_ops_per_task": 5,
+  "controlled.store_entry_layout_b.primitive_only.latency_s_mean": 0.9320624174550176,
+  "controlled.store_entry_layout_b.acquisition_ok": false,
+  "controlled.store_entry.primitive_only.success": 10,
+  "controlled.store_entry.primitive_only.n": 10,
+  "controlled.store_entry.primitive_only.decisions_per_task": 4,
+  "controlled.store_entry.primitive_only.primitive_ops_per_task": 4,
+  "controlled.store_entry.primitive_only.latency_s_mean": 0.726397834904492,
+  "controlled.store_entry.skill_based.success": 10,
+  "controlled.store_entry.skill_based.n": 10,
+  "controlled.store_entry.skill_based.decisions_per_task": 1,
+  "controlled.store_entry.skill_based.primitive_ops_per_task": 3,
+  "controlled.store_entry.skill_based.latency_s_mean": 0.6436141487210989,
+  "controlled.store_entry.acquisition_ok": true,
+  "controlled.record_item.primitive_only.success": 10,
+  "controlled.record_item.primitive_only.n": 10,
+  "controlled.record_item.primitive_only.decisions_per_task": 6,
+  "controlled.record_item.primitive_only.primitive_ops_per_task": 6,
+  "controlled.record_item.primitive_only.latency_s_mean": 1.704693370871246,
+  "controlled.record_item.skill_based.success": 8,
+  "controlled.record_item.skill_based.n": 10,
+  "controlled.record_item.skill_based.decisions_per_task": 1,
+  "controlled.record_item.skill_based.primitive_ops_per_task": 5.4,
+  "controlled.record_item.skill_based.latency_s_mean": 1.3525643920060246,
+  "controlled.record_item.acquisition_ok": true,
+  "transfer_labworld.same.mean_gain_nats": 1.1056084841489793,
+  "transfer_labworld.same.seeds_positive": "5/5",
+  "transfer_labworld.same.mean_transfer_after": 0.7968465345393964,
+  "transfer_labworld.redrawn.mean_gain_nats": -0.5736306106050809,
+  "transfer_labworld.redrawn.seeds_positive": "1/5",
+  "transfer_labworld.redrawn.mean_transfer_after": 0.45788516199114226,
+  "tests.SG_fix.passed": 179,
+  "tests.SG_fix.failed": 0,
+  "tests.SG_fix.wall_s": 150.2,
+  "tests.SG_fix.tree": "git archive of HEAD 7439936"
+ },
+ "measured_commands": [
+  "PYTHONPATH=<HEAD tree>/cam_live/src .venv/bin/python -m pytest cam_live/tests/harness/skills cam_live/tests/reward/test_sg_transfer.py cam_live/tests/reward/test_sg_agent_transfer.py cam_live/tests/reward/test_reward_goalfree.py cam_live/tests/reward/test_reward_selfgoals.py -m 'browser or not browser' --junitxml=cam_live/docs/evidence/test_results/SG_fix.xml",
+  "PYTHONPATH=cam_live/src .venv/bin/python cam_live/docs/evidence/SG/skills_browser_measure.py --out cam_live/docs/evidence/SG/skills_browser_measure.json --n 10",
+  "PYTHONPATH=cam_live/src .venv/bin/python cam_live/docs/evidence/SG/transfer_labworld.py --seeds 0,1,2,3,4 --out cam_live/docs/evidence/SG/transfer_labworld.json",
+  "scratchpad/SG/real_queue.sh (sg_runner.py, patched copy = HEAD + docs/change_requests/SG.md)"
+ ],
+ "not_done": [
+  "agent.py hooks SG-1..3 are applied by ST, not by SG; SG's runtime evidence used a patched copy",
+  "real-configuration comparisons have one seed per arm (GPU budget and contention)",
+  "skills do not transfer to a different interface; asynchronous effects need an observation after the last step and may still be missed",
+  "goal-free usefulness() on verified objective utilities is still not fed by the runtime (the learned transfer estimate is)"
+ ],
+ "scientific_failures": [],
+ "notes": "Tests run on git-archive trees of SG's commits (other workstreams' uncommitted authorization changes break two Discord live-check tests in the shared working tree)."
+}
