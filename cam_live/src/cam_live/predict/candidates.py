@@ -868,10 +868,11 @@ class ProposalLearningProvider:
     advantage is not positive, results that did not execute successfully (refused, failed, queued) and objectives
     with fewer than ``min_group`` rewarded decisions give no target.
 
-    The context is built from the decision's own experience items (``context_item_refs``: what the experiential
-    core encoded for that decision), the objective verbatim, under the proposer's section headers and instruction
-    block (``instructions``), in the backbone's chat format; the belief is detached (this loss trains the adapters,
-    not the core). Held-out validation, the slow-step guard (no other provider's held-out loss may worsen) and the
+    The context is the exact prompt the backbone was given when the decision was made (kept with the decision by the
+    agent while proposal learning is on; G3A-4: the generator learns in the context it proposes in); a record stored
+    without it falls back to a proxy built from the decision's own experience items (``context_item_refs``), the
+    objective verbatim, the proposer's section headers and instruction block (``instructions``), in the backbone's
+    chat format (counted as ``proxy_rows``). The belief is detached (this loss trains the adapters, not the core). Held-out validation, the slow-step guard (no other provider's held-out loss may worsen) and the
     trust region of ``credit.learner`` apply to it like to every adapter loss."""
     timescale = "slow_adapters"
 
@@ -924,7 +925,23 @@ class ProposalLearningProvider:
                 lines.append(t[:self.item_chars])
         return "\n".join(lines[-self.context_items:])
 
+    @staticmethod
+    def decision_prompt(record: Any) -> str:
+        """The exact prompt the backbone was given at decision time (``decision.diagnostics["generation"]["prompt"]``,
+        kept by the agent when proposal learning is on; G3A-4), or ''."""
+        d = record.decision.diagnostics if isinstance(record.decision.diagnostics, dict) else {}
+        g = d.get("generation") if isinstance(d.get("generation"), dict) else {}
+        p = g.get("prompt")
+        return p if isinstance(p, str) else ""
+
     def prompt(self, record: Any, store: Any) -> str:
+        """The decision-time prompt when the record kept it (G3A-4: the generator learns in the context it actually
+        proposes in: instructions, objective, every tool, OWN RECORDS, observation digest, chat format); for records
+        stored without it (before G3A-4, or proposal learning off at the time) a proxy built from the decision's
+        experience items under the same headers (counted as ``proxy_rows`` in the metrics)."""
+        exact = self.decision_prompt(record)
+        if exact:
+            return exact
         enc = lambda v: json.dumps(v, ensure_ascii=True, sort_keys=True, separators=(",", ":"), default=str)  # noqa
         text = "\n".join([self.instructions, H_OBJECTIVE, enc(record.goal_text or ""), "", H_OBSERVATION,
                           enc(self.context(record, store)), "", H_END, H_ANSWER, ""])
@@ -947,5 +964,6 @@ class ProposalLearningProvider:
         words = torch.tensor([max(1, len(t.split())) for t in targets], dtype=lp.dtype, device=lp.device)
         nll = -(lp / words)
         loss = (w * nll).sum() / w.sum()
+        proxy = sum(1 for i, _ in rows if not self.decision_prompt(batch.records[i]))
         return loss, {"n_rows": float(len(rows)), "nll_per_word": float(nll.detach().mean()),
-                      "mean_advantage": float(w.mean())}
+                      "mean_advantage": float(w.mean()), "proxy_rows": float(proxy)}

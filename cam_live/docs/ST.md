@@ -201,8 +201,8 @@ Backbone proposals over each run (offered candidates; `<scratch>/ST/reprop.py`):
 | independent samples with their own budget (hotfix) | `test_st_hotfix` (num_return_sequences, per-sample parse, de-duplication, raw text) | live run 2, staging | cut-off lines: 35/36 decisions -> 1/39 (live) and 0/30 (staging); backbone-written chosen actions 2/35 -> 9/39 (live), 8/30 (staging) | valid proposals per decision not higher (4.1 -> 4.2-4.6: the samples are mostly identical) |
 | OWN RECORDS section | `test_st_strategy` (content, order, budget priority, ablation, persistence, compatibility with old entries) | staging 'after' (section 300-2,300 characters, prompts 5.0-6.0 k tokens) | after vs after_nomem (same code, one seed): different proposal mix (create_channel / get_member_events vs modify_guild 65 of 169); no note in either | none established (no reduction of repeats or re-proposals; one seed) |
 | `expected` in the output format | `test_st_strategy` (format, ablation) | staging after / after_nomem | 6/30 and 10/30 chosen actions carry the generator's own prediction (0 without the field) | not measured (no learned component scores the text) |
-| proposal learning (LoRA + bridge from CAM's own reward) | `test_st_strategy`: positive advantages only, gradient reaches LoRA and bridge, an SGD step raises the rewarded line's log-likelihood more than an unrelated line's; runs in the learner's slow step on a runtime lifetime (`-m slow`) | real model, 'long': in the first slow step its gradient dominated (norm 34.1) and its held-out loss fell 11.320 -> 11.139 nats/word | none on behaviour: the guard reverted the step (bridge_grounding held-out +0.0174 > tol. 0.0021) | not established |
-| realised information value (+ ST-3 bootstrap input, RW a055332) | `test_st_iv` (measured once from later predictions; reaches the bootstrap component) | real model, 'long': 33 records measured | IV within ±5e-4 nats for every action type: no differential value reaches the reward | none: the world model's targets do not depend on content (5.5) |
+| proposal learning (LoRA + bridge from CAM's own reward) | `test_st_strategy`: positive advantages only, gradient reaches LoRA and bridge, an SGD step raises the rewarded line's log-likelihood more than an unrelated line's; runs in the learner's slow step on a runtime lifetime (`-m slow`) | real model, 'long': in the first slow step its gradient dominated (norm 34.1) and its held-out loss fell 11.320 -> 11.139 nats/word — on the proxy prompt (G3A-4; exact decision prompt since round 2) | none on behaviour: the guard reverted the step (bridge_grounding held-out +0.0174 > tol. 0.0021) | not established |
+| realised information value (+ ST-3 bootstrap input, RW a055332) | `test_st_iv` (measured once from later predictions; reaches the bootstrap component) | real model, 'long': 33 records measured | IV within ±5e-4 nats for every action type: no differential value reaches the reward | none: the world model's targets do not depend on content (5.5) and the belief barely depends on the context (6.2); content part added in round 2 (G3A-10), not measured on the real model |
 | agent.py integration (IMP, PS-1, RW-1/2, SG-1..3; CR-1..3) | snapshot tests (section 4) | each workstream's own runtime evidence | — | — |
 
 ### 5.4 Negative results and their diagnosis
@@ -261,9 +261,11 @@ its 4,000 s budget after the first decision): **52 decisions**. From `analyse-ru
 **The first real-model slow step with proposal learning** (`learning_updates.jsonl`, trigger "8 frequent updates"):
 the adapter step was computed from bridge_grounding, fast_prior, world_model, world_model_adapters and
 proposal_learning (gradient norms 9.1, 2e-4, 2e-3, 9e-4 and **34.1**: the generator's own loss dominated); after the
-step **proposal_learning's held-out loss fell from 11.320 to 11.139 nats per word (-0.181)** — the generator became
-more likely to write CAM's above-average-reward executed actions on held-out decisions — but the guard **reverted the
-step** because bridge_grounding's held-out loss rose by 0.0174 (tolerance 0.0021; one validation chunk, no noise
+step **proposal_learning's held-out loss fell from 11.320 to 11.139 nats per word (-0.181)** — measured on the
+provider's *proxy* prompt (objective + the decision's last experience items under the proposer's headers; no tool list,
+no OWN RECORDS, no observation digest), so it shows that the generator became more likely to write these actions *in
+that proxy context*, not in the prompt it actually proposes from (G3A-4; the provider now trains on the exact
+decision-time prompt, section 6) — but the guard **reverted the step** because bridge_grounding's held-out loss rose by 0.0174 (tolerance 0.0021; one validation chunk, no noise
 estimate). So the learned path into the generator works on the real model and improves its own held-out objective,
 and the slow-step guard (no provider's held-out loss may worsen) blocked it: an interference between consequence
 prediction and proposal learning in the shared LoRA / bridge parameters, judged on very little held-out evidence.
@@ -273,13 +275,59 @@ The world model's matured targets in this run are only `action.succeeded`, three
 (`observed.exec.modality.visual_heavy.{n, expected_cost, recovery_s}`) and the objective metric `membership.confirmed`
 (0 at every reading) — 26 / 22 / 22 / 22 / 22 targets in the first 43 records. None of them depends on what a page
 says or what a note contains, so removing an action's content from later contexts cannot change their likelihood:
-the information value is ~0 for every action type *by construction of what CAM predicts*, not because the pathway
-is missing. A generic remedy is a content-dependent self-supervised prediction target whose likelihood the
+the information value is ~0 for every action type for four of the five targets by construction of what CAM
+predicts. G3-act showed this is not the whole cause (section 6.2): the predictions barely depend on the context at
+all. A generic remedy is a content-dependent self-supervised prediction target whose likelihood the
 information can change — e.g. the latent transition model's prediction of later beliefs, or the bridge-grounding
 model of observed consequence text once the bridge is trained — so that "this page made my later observations
 predictable" becomes measurable. Not built (predict/ is IMP's; the bridge is a no-op until slow steps train it).
 
-## 6. What is not done
+## 6. Round 2 (independent verification G3-act, `docs/verification/G3_act.md`)
+
+| id | finding | fix | test |
+|---|---|---|---|
+| G3A-3 (major) | `self.uid = os.urandom(3)` entered every action / decision / experience id; two fresh agents with the same seed were not the same experiment (verified 4 vs 1 after 8 decisions), so every "paired, same seed" comparison — SG's goal-free ablation (re-run gave +12 / +15 where SG had -4 / -9), IMP's pairs, **my staging conditions** — carried this noise | 831cc85: uid = sha256(seed, salt); b74b312 (master's request): salt = `agent.id_salt` when configured, else the absolute run directory — separate runs never share id prefixes or Discord nonces, paired arms set the same explicit salt. Every other random draw of the agent was already seeded (`rng`, `gen`, proposer and decider generators) | `test_st_determinism.py`: two fresh agents, seed 0, salt `pair-0`, separate run directories, the tests' driver (`learn(1e9)`), 8 LabWorld decisions -> identical operations, arguments, full probability vectors, model versions and verified outcome (fails on f983cea); uid per run directory without a salt |
+| G3A-4 (medium) | proposal learning trained (and its held-out gain was measured) on a proxy prompt | the agent keeps the exact decision-time prompt with the decision while proposal learning is on (`decision.diagnostics["generation"]["prompt"]`, ~20 KB per decision, not in state.json) and `ProposalLearningProvider` trains on it; records without it (older, or learning off then) use the proxy and are counted (`proxy_rows`) | `test_proposal_learning_trains_on_the_exact_decision_prompt` |
+| G3A-5 (minor) | the authorized-tools filter failed open on an all-unauthorized batch | fail closed (b74b312); the runtime already handles an empty candidate set (`no_candidates`) | `test_an_all_unauthorized_batch_is_dropped_fail_closed` + G3-act's probe |
+| CR-4 (CR's round 2) | HEAD's `_credit_for` still read the default's learning key with the old return-like rule, while CR's round 2 made RUDDER's learning signal per-decision (`rudder_contribution`) | applied: `_credit_for` delegates to `CreditAssigner.learning_credit` (CR's exact diff) | `tests/credit/test_cr.py`; two INT3A tests (`test_int3a_audit.py`) encode the pre-CR semantics and fail (one already on HEAD without CR-4) — reported for CR to update |
+| G3A-10 (medium) | the runtime information value ignored IMP's content target | the IV now has a world part (per matured target) and a content part (IMP's `record_content_nll` of the later actions' returned content, without minus with t's items, per content dimension); IV = world + content, both annotated; `agent.information_value_content` (on) switches the content part; the head is never created by the agent. Sound as a target (fixed, content-dependent; IMP's tests); IMP's own debug run found its realised IV noisy (wrong sign for probes, -0.4 nats) — so the content part adds content-sensitivity, not yet a reliable signal | `test_information_value_includes_the_content_target_when_the_model_has_it` (equals the hand computation), `..._content_part_can_be_switched_off` |
+
+Clean snapshot of HEAD 7074351 + the round-2 agent.py / candidates.py / tests (`docs/evidence/test_results/ST_fix.xml`,
+replaces round 1's): 80 tests — 78 passed, 2 failed: the two `test_int3a_audit.py` tests that encode the credit
+semantics before CR's round 2 (CR-4 row above; one fails on HEAD without any ST change). The slow-step integration
+test was made independent of the sample path (whether the 2-3-record slow batch holds a positive-advantage row) after
+it failed once on that; the two PS-1 regressions of round 1 no longer fail on HEAD.
+
+Consequence for section 5: the staging conditions used separate run directories and the urandom uid, so they were
+not paired even at the level of ids (besides the backbone's sampling over different prompts): the "one seed, no causal
+claim" caveat is stronger than stated — the after / after_nomem / after_rot differences are sample-path noise until
+re-run with an equal salt and repeated seeds.
+
+### 6.2 Central finding for item 5: CAM's predictions do not use the content of its context
+
+G3-act measured on the real model (the long run's last checkpoint and store; `repro/g3act/iv_sensitivity.py real`):
+removing a decision's items from the later decisions' contexts moves those later beliefs by a median **3.3e-4
+relative** (‖b_with − b_without‖ / ‖b_with‖; max 6.2e-3), against **0.19** between consecutive decisions; keeping only
+the newest 3 of a median 119 context items changes the world model's prediction error by **7.0e-5 nats**. The belief b
+— through which every prediction, the policy, R_psi, the content head and the bridge-conditioned generator read the
+situation — is nearly insensitive to any individual older item, and the predictors ignore the window's content.
+
+What it implies:
+* **Information cannot have value yet, whatever the target.** Research, reading and notes act on CAM only through the
+  context; if b does not carry an item's content forward, no target (world, content, imagination, credit) can make
+  that item predictive of anything, and every information-value, VOI or credit signal for it is ~0. The content target
+  (G3A-10) is necessary but not sufficient.
+* **The learned components cannot sustain a strategy across decisions through b.** What CAM did and read two
+  decisions ago is, for its neural state, nearly erased; coherence across decisions then rests on the backbone's text
+  context (OWN RECORDS, the digest) — i.e. on the pretrained generator, not on learned experience.
+* **The bottleneck for item 5 is the experiential core's use of its window** (how it pools ~120 items into b, and
+  what its training so far rewards it to keep), together with PS's carried state — not the proposal format, the
+  selection rule or the reward. Whether this is architectural (pooling dilutes an item ~1/N) or a training state (few
+  frequent updates; no loss that needs an old item) is not separated by this measurement; a test is a loss that can
+  only be reduced by carrying an older item (e.g. the content target of a later action that depends on an earlier
+  observation) and the same sensitivity measurement before / after training on it.
+
+## 7. What is not done
 
 * The long run reached 52 of the planned ~70 decisions (its second lease hold came late and lasted 3 minutes); repeated
   seeds of the staging comparisons were not run — every staging difference above is one sample path.
@@ -291,3 +339,6 @@ predictable" becomes measurable. Not built (predict/ is IMP's; the bridge is a n
 * A learned operation-level steering of generation (the experiential policy choosing which tools the generator
   instantiates, so "which actions are considered" is learned, spec 1.4) — designed, not built.
 * The two PS-1 regressions (section 4) are for PS / the master to decide.
+* Round 2: no staging re-run of my conditions with an equal `agent.id_salt` and repeated seeds (the comparisons of
+  section 5 stay unpaired); the content part of the information value is tested at debug scale only; the test of
+  6.2 (a loss that needs an older item, and the context-sensitivity measurement before / after) is not built.

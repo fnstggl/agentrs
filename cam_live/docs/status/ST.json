@@ -97,5 +97,49 @@
   "a content-dependent self-supervised predictive target (forwarded to IMP by the master)",
   "learned operation-level steering of the generator (designed, not built)",
   "item-5 mechanisms switched on in the live run (master's decision)"
- ]
+ ],
+ "round2_g3act": {
+  "G3A-3": {
+   "state": "fixed",
+   "commits": [
+    "831cc85",
+    "b74b312"
+   ],
+   "what": "uid = sha256(seed, salt); salt = agent.id_salt when configured, else the absolute run directory; paired arms set an equal explicit salt",
+   "tests": [
+    "tests/integration/test_st_determinism.py (fails on f983cea)"
+   ]
+  },
+  "G3A-4": {
+   "state": "fixed",
+   "what": "the decision keeps the exact decision-time prompt while proposal learning is on; ProposalLearningProvider trains on it; proxy only for records without it (proxy_rows)",
+   "tests": [
+    "tests/integration/test_st_strategy.py::test_proposal_learning_trains_on_the_exact_decision_prompt"
+   ],
+   "note": "the round-1 held-out gain (-0.181 nats/word) was on the proxy prompt; ST.md qualified"
+  },
+  "G3A-5": {
+   "state": "fixed",
+   "commits": [
+    "b74b312"
+   ],
+   "tests": [
+    "test_st_hotfix.py::test_an_all_unauthorized_batch_is_dropped_fail_closed",
+    "docs/verification/repro/g3act/test_g3act_st.py"
+   ]
+  },
+  "G3A-10": {
+   "state": "fixed (integration); not measured on the real model",
+   "what": "IV = world part + content part (predict.content.record_content_nll per content dimension); both annotated",
+   "tests": [
+    "tests/integration/test_st_iv.py (content part equals the hand computation; switchable)"
+   ]
+  },
+  "central_finding": "real model (G3-act): removing a decision's items moves later beliefs by a median 3.3e-4 relative vs 0.19 between decisions; keeping only the newest 3 of ~119 items changes prediction error by 7e-5 nats: the belief and the predictors ignore the context's content, so information cannot have value through any target yet and learned components cannot sustain a strategy through b (docs/ST.md 6.2)",
+  "CR-4": {
+   "state": "applied",
+   "what": "_credit_for delegates to CreditAssigner.learning_credit",
+   "still_fails": "tests/integration/test_int3a_audit.py (2 tests) encode the pre-CR credit semantics; reported to the master for CR"
+  }
+ }
 }

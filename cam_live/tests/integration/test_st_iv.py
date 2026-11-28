@@ -84,3 +84,52 @@ def test_information_value_reaches_the_bootstrap_reward_when_rw_applies_st3(tmp_
         assert float(out0.components["information_value"][0]) == 0.0
     finally:
         agent.close()
+
+
+def test_information_value_includes_the_content_target_when_the_model_has_it(tmp_path):
+    """G3A-10: the runtime information value also measures IMP's content-dependent target (predict.content: the
+    content the later actions returned), per content dimension, next to the world part; IV = world + content."""
+    import dataclasses
+    from cam_live.predict.content import HEAD_CONTENT, record_content_nll
+    agent = _agent(tmp_path)
+    _fixed_generator(agent, [['{"operation": "internal.note", "arguments": {"text": "the page lists 3 groups"}}\n'
+                              '{"operation": "web.get", "arguments": {"url": "https://a.example/"}}']])
+    try:
+        head = agent.model.head(HEAD_CONTENT)                     # registered by attach_heads (IMP)
+        d0 = _step(agent, "internal.note", "internal.note: saved")
+        _step(agent, "web.get", "page text: groups A, B and C")
+        _step(agent, "web.get", "page text: group A has 40 members")
+        agent._information_value()
+        rec0 = agent.store.by_decision(d0.decision_id)
+        dg = rec0.decision.diagnostics
+        w, c, iv = (dg.get("reward_signals.information_value_world"), dg.get("reward_signals.information_value_content"),
+                    dg.get("reward_signals.information_value"))
+        assert w is not None and c is not None and math.isfinite(c)
+        assert abs(iv - (w + c)) < 1e-12
+        # the content part is the per-dimension difference of record_content_nll without / with t's items
+        log = next(x for x in agent.iv_log if x["exp_id"] == rec0.exp_id)
+        later = [agent.store.get(e) for e in log["later"]]
+        new = set(rec0.post_item_refs) - set(rec0.context_item_refs)
+        cf = [dataclasses.replace(r, context_item_refs=[x for x in r.context_item_refs if x not in new]) for r in later]
+        agent.model.eval()
+        a, b = record_content_nll(agent.model, agent.store, later), record_content_nll(agent.model, agent.store, cf)
+        pairs = [(x, y) for x, y in zip(a, b) if x is not None and y is not None]
+        assert pairs and abs(c - (sum(y - x for x, y in pairs) / len(pairs)) / head.k) < 1e-9
+    finally:
+        agent.close()
+
+
+def test_information_value_content_part_can_be_switched_off(tmp_path):
+    agent = _agent(tmp_path, information_value_content=False)
+    _fixed_generator(agent, [['{"operation": "internal.note", "arguments": {"text": "n"}}\n'
+                              '{"operation": "web.get", "arguments": {"url": "https://a.example/"}}']])
+    try:
+        d0 = _step(agent, "internal.note", "saved")
+        _step(agent, "web.get", "page one")
+        _step(agent, "web.get", "page two")
+        agent._information_value()
+        dg = agent.store.by_decision(d0.decision_id).decision.diagnostics
+        assert "reward_signals.information_value_content" not in dg
+        assert dg.get("reward_signals.information_value") == dg.get("reward_signals.information_value_world")
+    finally:
+        agent.close()

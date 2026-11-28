@@ -118,6 +118,8 @@ class AgentSettings:
                                              # without minus with the items the decision added to the context;
                                              # annotation reward_signals.information_value); False: not measured
     information_value_later: int = 2         # later decisions whose predictions measure it
+    information_value_content: bool = True   # G3A-10: include IMP's content target (predict.content: the content the
+                                             # later actions returned) per content dimension, besides the world part
     proposer_rotate_samples: bool = False    # ST: sample i lists the same tools starting at position i * n / samples
                                              # (one batched generate call over the rotated prompts; nothing hidden)
     proposer_per_tool: int = 12               # settings per tool from the schema walker (a small discrete
@@ -597,6 +599,7 @@ class AgentProposer(BackboneProposer):
     samples: int = 1                            # independent continuations per call (num_return_sequences)
     raw_chars: int = 3000                       # characters of each continuation kept in the stats
     rotate: bool = False                        # samples read the tool list from different starting positions
+    keep_prompt: bool = False                   # keep the exact prompt in the stats (proposal learning trains on it)
 
     def prompt(self, tools: Sequence[ToolDescriptor], observation_digest: str, objective: str = "",
                k: Optional[int] = None, memory: str = "") -> str:
@@ -707,6 +710,8 @@ class AgentProposer(BackboneProposer):
                  # ST: what it wrote, per sample (raw text kept as data), and the size of its own-records section
                  "samples": len(texts), "per_sample": per_sample, "memory_chars": len(memory or ""),
                  "raw": [str(t)[:max(0, int(self.raw_chars))] for t in texts]}
+        if self.keep_prompt:                    # G3A-4: the exact decision-time prompt, for proposal learning
+            stats["prompt_text"] = prompt
         return ProposalResult(actions if max_n is None else actions[:max_n], stats, rejections,
                               [str(t) for t in texts])
 
@@ -855,6 +860,7 @@ class CamLiveAgent:
         self.proposer.expected = bool(s.proposer_expected)
         self.proposer.raw_chars = int(s.proposer_raw_chars)
         self.proposer.rotate = bool(s.proposer_rotate_samples)
+        self.proposer.keep_prompt = bool(s.proposal_learning and s.use_backbone and s.adapters)
         self.tool_meta: Dict[str, Tuple[str, str]] = {}  # operation -> (modality, side effects) as last discovered
         self.goal_free = GoalFreeMode(self.model, self.model.new_fast_state(),
                                       GoalFreeBudget(seconds=s.goal_free_seconds, decisions=s.goal_free_decisions),
@@ -2032,6 +2038,8 @@ class CamLiveAgent:
                 "samples": ps.get("samples"), "per_sample": ps.get("per_sample"),
                 "memory_chars": ps.get("memory_chars"), "by_operation": ps.get("by_operation"),
                 "raw": ps.get("raw")}
+            if ps.get("prompt_text"):                  # G3A-4: what proposal learning trains on (the real prompt)
+                decision.diagnostics["generation"]["prompt"] = ps["prompt_text"]
         decision.diagnostics["planner_horizon"] = self.pending_eval.get("planner_horizon", 0)
         if rec is not None:
             self.exp_out[rec.experiment_id] = rec
@@ -2288,30 +2296,18 @@ class CamLiveAgent:
         The estimator is the evidence-selected ``CreditAssigner.default`` (``credit.select``; ``simple`` until RUDDER
         or COCOA agree with held-out randomised experiments) and its learning key (``credit.providers.LEARNING_KEY``):
 
-        * ``rudder`` / ``cocoa`` give a *return-like* value (RUDDER's redistributed return-to-go; COCOA's credit of the
-          action for its own and later outcomes): it replaces the row's discounted goal return;
+        * ``rudder`` gives its redistributed contribution as a per-decision goal reward, ``cocoa`` a *return-like*
+          value (its credit of the action for its own and later outcomes) that replaces the row's discounted goal
+          return; a row without the default's credit keeps its simple per-decision credit (CR-4);
         * ``simple`` gives the decision's own linked outcome amounts: a per-decision goal reward, used only where
           the environment attributes outcomes to decisions (its declared answers are then increments the decision
           caused). Elsewhere the linked answer of a decision's goal question is a *reading of the objective level*
           (e.g. the pass fraction after the action), which is not a contribution of that decision.
 
         The verified per-decision annotation, when final, still takes precedence over per-decision credit."""
-        from .credit.providers import LEARNING_KEY
-        est = str(getattr(self.assigner, "default", "") or "")
-        if not est or not isinstance(rec.credit, dict):
-            return None
-        v = rec.credit.get(LEARNING_KEY.get(est, est))
-        try:
-            v = float(v)
-        except (TypeError, ValueError):
-            return None
-        if not math.isfinite(v):
-            return None
-        if est == "simple":
-            if rec.objective_id not in self.attributing:
-                return None
-            return v, est, False
-        return v, est, True
+        # CR-4 (G3-core D-CR1 / D-CR2): the credit side decides the learning signal of each estimator, whether it is
+        # return-like, and falls back to the simple per-decision credit on rows the default has not credited yet
+        return self.assigner.learning_credit(rec, attributing=rec.objective_id in self.attributing)
 
     # ============================================================================================ LRN-3
     def _annotate(self, exp_id: str, name: str, value: float) -> bool:
@@ -2389,19 +2385,52 @@ class CamLiveAgent:
             try:
                 with_ = self._world_nll_raw(later, record_world_nll)
                 without = self._world_nll_raw(cf, record_world_nll)
+                content = self._content_nll_fn()
+                with_c = self._world_nll_raw(later, content) if content is not None else []
+                without_c = self._world_nll_raw(cf, content) if content is not None else []
             finally:
                 self.model.train(was)
             pairs = [(a, b) for a, b in zip(with_, without) if a is not None and b is not None]
+            cpairs = [(a, b) for a, b in zip(with_c, without_c) if a is not None and b is not None]
             done.append(exp_id)
-            if not pairs:
+            if not pairs and not cpairs:
                 continue
-            iv = sum(b - a for a, b in pairs) / len(pairs)
+            # world part: per matured target (nats); content part (G3A-10, IMP's predict.content target: what the later
+            # actions RETURNED, which depends on what pages / notes say): per content dimension (nats)
+            iv_w = sum(b - a for a, b in pairs) / len(pairs) if pairs else 0.0
+            iv_c = (sum(b - a for a, b in cpairs) / len(cpairs)) / self._content_dims() if cpairs else 0.0
+            iv = iv_w + iv_c
             measured += 1
+            if pairs:
+                self._annotate(exp_id, "information_value_world", iv_w)
+            if cpairs:
+                self._annotate(exp_id, "information_value_content", iv_c)
             if self._annotate(exp_id, "information_value", iv):
                 self.iv_log = (self.iv_log + [{"exp_id": exp_id, "operation": rec.decision.chosen.operation,
-                                               "information_value": iv, "items": len(new),
+                                               "information_value": iv, "world": iv_w if pairs else None,
+                                               "content": iv_c if cpairs else None, "items": len(new),
                                                "later": [r.exp_id for r in later]}])[-64:]
         self.iv_pending = [x for x in self.iv_pending if x not in set(done)]
+
+    def _content_nll_fn(self) -> Any:
+        """IMP's content-NLL measurement (``predict.content.record_content_nll``) as an ``fn(model, heads, store,
+        records)``, or None when the content head is not part of this model (``predict.content`` off / absent) or
+        ``agent.information_value_content`` is off. The head is never created here."""
+        if not self.settings.information_value_content:
+            return None
+        try:
+            from .predict.content import HEAD_CONTENT, record_content_nll
+            self.model.head(HEAD_CONTENT)
+        except Exception:  # noqa: BLE001 — no content head: the world part alone
+            return None
+        return lambda model, heads, store, recs: record_content_nll(model, store, recs)
+
+    def _content_dims(self) -> int:
+        try:
+            from .predict.content import HEAD_CONTENT
+            return max(1, int(getattr(self.model.head(HEAD_CONTENT), "k", 1)))
+        except Exception:  # noqa: BLE001
+            return 1
 
     def _world_nll_raw(self, recs: Sequence[ExperienceRecord], fn: Any) -> List[Optional[float]]:
         try:
@@ -2915,7 +2944,7 @@ class CamLiveAgent:
             "last_promotion": self.promotions[-1] if self.promotions else None,
             "skills_known": len(self.skill_catalog), "surface": (self.surface or {}).get("url", ""),
             "proposal": {k: v for k, v in ((self.last.get("proposal") or {}).get("stats", {}) or {}).items()
-                         if k != "raw"},
+                         if k not in ("raw", "prompt_text")},
             "persistent_state": self.persist.status() if self.persist is not None else {"enabled": False},
             "information_value": {"pending": len(self.iv_pending), "measured": int(self.counters.get(
                 "annotated_information_value", 0)), "latest": self.iv_log[-4:]}})

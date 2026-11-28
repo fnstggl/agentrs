@@ -346,9 +346,44 @@ def test_proposal_learning_runs_in_the_learners_slow_step_on_a_runtime_lifetime(
             ups = [u.get("data", u) for u in ups]
             ups = [u for u in ups if u.get("timescale") == "slow_adapters"]
         assert ups, "no slow step was attempted"
-        seen = [u for u in ups if "proposal_learning" in (u.get("losses") if isinstance(u, dict) else u.losses)]
-        assert seen, [(u.get("losses"), str(u.get("notes"))[:300]) if isinstance(u, dict) else u.losses for u in ups]
+        # the provider is called inside the learner's slow step with the step's real batch (rows and metrics recorded
+        # per provider); whether that batch holds a positive-advantage row (-> a loss) depends on the sample path
+        # (slow batches of 2-3 records here), which the unit tests above cover
+        import json as _json
+        notes = [_json.loads(u.get("notes") or "{}") if isinstance(u, dict) else {} for u in ups]
+        seen = [n for n in notes if "proposal_learning" in (n.get("rows") or {})
+                and "n_candidates" in ((n.get("metrics") or {}).get("proposal_learning") or {})
+                or "proposal_learning" in ((n.get("metrics") or {}))]
+        assert seen, [str(n)[:300] for n in notes]
         held = agent.store.sample(32, loss="val:proposal_learning", seed=0)
         assert held, "the provider has no held-out records"
+    finally:
+        agent.close()
+
+
+def test_proposal_learning_trains_on_the_exact_decision_prompt(tmp_path):
+    """G3A-4: with proposal learning on, the decision keeps the prompt the backbone was actually given and the
+    provider trains on it (not on a proxy); records without it fall back to the proxy and are counted."""
+    agent = _agent(tmp_path)
+    calls = _fixed_generator(agent, [['{"operation": "web.get", "arguments": {"url": "https://a.example/"}}']])
+    try:
+        agent.ingest([Observation(obs_id="obs_1", ts=agent.clock.now(), kind="metric", text="nothing yet")])
+        d = _choose(agent, _tools(), "web.get")
+        sent = calls[-1]["prompts"][0]
+        assert d.diagnostics["generation"]["prompt"] == sent
+        assert "prompt_text" not in agent.status()["proposal"]          # not in the state file
+        _result(agent, d, obs_text="page text")
+        rec = agent.store.by_decision(d.decision_id)
+        prov = next(p for p in agent.learner.providers if p.name == "proposal_learning")
+        assert prov.prompt(rec, agent.store) == sent
+        rec.decision.diagnostics["generation"].pop("prompt")
+        assert prov.prompt(rec, agent.store) != sent                    # proxy for a record without it
+        off = _agent(tmp_path / "off", proposal_learning=False)
+        _fixed_generator(off, [['{"operation": "web.get", "arguments": {"url": "https://a.example/"}}']])
+        try:
+            d2 = _choose(off, _tools(), "web.get")
+            assert "prompt" not in d2.diagnostics["generation"]         # not kept when nothing trains on it
+        finally:
+            off.close()
     finally:
         agent.close()
