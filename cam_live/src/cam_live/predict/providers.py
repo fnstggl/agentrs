@@ -139,7 +139,13 @@ class _Base:
         self.allowed_provenance = tuple(allowed_provenance or heads.cfg.allowed_provenance)
 
     def _permitted(self, record: ExperienceRecord) -> bool:
-        return record.provenance in self.allowed_provenance and record.eligible.get(self.name, True)
+        """Whether the record's provenance may train / validate this provider. ``record.eligible[<name>]`` is *not*
+        read here (INT3A, G2L-8): ``ContinualLearner.refresh_eligibility`` writes that flag (and ``val:<name>``) from
+        this very method, so reading it back fed the learner's own output into its input — a held-out record
+        (train flag False by construction) lost its ``val:`` flag at the next refresh, and a record checked before its
+        outcomes matured (flag False) never became eligible again (the world model's held-out set emptied after one
+        refresh; the evaluator, eligible only once the objective's verdict exists, never trained on such records)."""
+        return record.provenance in self.allowed_provenance
 
 
 # ----------------------------------------------------------------------------------------------------------------

@@ -51,6 +51,51 @@ What is not shown by the probe: it calls `propose` without executing anything, o
 Whether the agent *chooses* and executes the write is a property of the selection rule on the real model — measured in
 the runtime runs of section 2 (SW:rle, 4 decisions).
 
+## 2. Decision cost on the real configuration
+
+`docs/evidence/INT3A/profile_decision.py`: the agent built as the open-ended runner builds it (condition E,
+substantive settings), driven by `LiveRuntime` with the runner's `RuntimeConfig`; every agent method, the proposer,
+`model.generate` / `encode_*` / `backbone.embed`, the predictor (`evaluate_candidates`, `_voi`, `observe_outcomes`,
+`belief_value`), decider, planner, learner, meta-learner, providers' losses, environment, verifier and runtime methods
+are wrapped by timers (inclusive wall time, CUDA synchronised before and after). Machine shared (load 24-30, other GPU
+processes resident). Mean seconds per runtime step that decided and acted:
+
+| component (inclusive) | SW:rle, this round, old VOI (2 acted steps) | MECH:7, before (7) | MECH:7, after (8) |
+|---|---|---|---|
+| whole runtime step | 16.7 | 18.5 | 17.1 |
+| propose (of which `model.generate`) | 12.5 (12.2) | 11.4 (11.2) | 10.8 (10.5) |
+| evaluate (of which VOI) | 2.1 (1.5) | 2.1 (1.7) | 2.0 (1.5) |
+| `backbone.embed` (candidate and context texts) | 1.1 | 2.1 | 2.1 |
+| learn (of which `ContinualLearner.learn`) | 0.9 (0.8) | 3.9 (3.4) | 3.3 (2.7) |
+| internal rewards / update beliefs / save | 0.3 / 0.2 / 0.5 | 0.3 / 0.3 / 0.2 | 0.3 / 0.2 / 0.2 |
+| learning-progress measurement (LRN-3, new) | 0.07 | 0.2 | 0.3 |
+
+* **110-150 s per decision is not reproduced**: a decision of the real configuration takes ~17-19 s here, 60-73 % of
+  it the backbone writing the k = 4 alternatives (up to 512 new tokens; the generation itself is `nn/`'s). The
+  b663d5e agent (the code the S-6 runs measured) profiled the same way on MECH:7 in the same session: 17.8 s per
+  acted step (propose 11.8, generation 11.6, learn 3.0, evaluate 2.0, VOI 1.7, embed 1.5;
+  `profile_mech_b663d5e.json`). The S-6 sequence run's 110-150 s were measured on a machine at load ~55 with another
+  tenant on the GPU; no component of the agent, then or now, accounts for them.
+* **Waste removed (same semantics)**: the VOI computed the decision's predictive means three times
+  (`evaluate_candidates` already had them) and ran its `voi_max_candidates x voi_samples` (16 x 8) sampled-outcome
+  re-evaluations on the GPU head view while the fast layer computes on the CPU (every re-evaluation copied every
+  candidate's features to the CPU and back). Now the evaluation passes its means and the loop runs on a CPU copy of
+  the view. Same numbers: on the CPU bit-identical (`tests/predict/test_int3a_cost.py`); on the real configuration the
+  first VOI call of the SW run, captured with its inputs (fast state, generator state) and recomputed with the new code,
+  differs by at most 4.4e-16 in VOI (max 0.26) and 7.1e-15 in information gain (max 16.4) — rounding of the same
+  float64 operations on another device. VOI 1.67 -> 1.45 s per decision (MECH); the difference of whole steps
+  (18.5 -> 17.1 s) is within the run-to-run spread (different actions are chosen, the generated text differs).
+* Not changed: generation (11 s), embedding of new candidate texts (2 s: backbone proposals are new texts every
+  decision; the embedding cache already serves repeats), the continual learner (`credit/`, frozen for verification).
+  The runtime's own work is below 0.5 s per step.
+
+What the runtime runs also show (S-6b in the loop, not only in the probe): on SW:rle the agent chose
+`internal.request_operator` (asking the operator to confirm a solution; recorded, nothing sent) and then the
+backbone-written `sandbox.write_file solution.py`; the verifier's next reading was pass fraction 1.0 and the objective
+was verified achieved after 2 decisions (`runtime_sw_rle_profile.json`). On MECH:7 within 8 decisions the agent
+measured the service with backbone-written `http.get`s at chosen points, wrote a placeholder `model.py` and inspected
+its records; the verifier's R^2 stayed 0 (no fitted model was written in 8 decisions).
+
 ## 3. LRN-3: the bootstrap's learning-progress and exploration inputs are written
 
 Before, `epistemic_after` and `learning_progress` were never produced, so the bootstrap terms `learning_progress`
@@ -66,7 +111,9 @@ their own `decision.diagnostics` key `reward_signals.<name>` (the store permits 
   per decision, the decision-time head view of the executed candidate's goal-relevant predictions; once the fast layer
   has absorbed the decision's own outcome for *every* one of them (`update_beliefs`), the goal-value epistemic std is
   recomputed on that view with the current fast state — the same quantity as the decision-time
-  `CandidateEvaluation.uncertainty` (`epistemic_before`). No network pass, no new prediction is registered.
+  `CandidateEvaluation.uncertainty` (`epistemic_before`). No network pass, no new prediction is registered. The
+  views of executed decisions are checkpointed with the predictor state (a restored agent writes the same value) and
+  dropped at a new objective (the fast state returns to the prior).
 * `reward.assemble.stored_signals` reads the `reward_signals` dict and every `reward_signals.<name>` key (the dict wins
   where both name a signal); the inner update's bootstrap uses them.
 
@@ -126,7 +173,8 @@ differentiated update is the update applied; checkpointed with the batch), and w
 bit-identical to before. Test `tests/integration/test_int3a_audit.py::test_stored_credit_changes_the_policy_update_
 target_and_gradient` (a change of the stored simple credit, and of RUDDER credit once that estimator is selected,
 changes the returns and the inner gradient) and `::test_without_credit_the_update_is_unchanged`; both fail on
-b663d5e. Not shown: that credit makes the policy better (RUDDER / COCOA have not been promoted by the selector in any
+b663d5e. The independent verifier confirmed the connection (`docs/verification/G2_learn.md` G2L-7: the hook returns
+stored credit for 20 / 20 and 34 / 34 records in integrated runs). Not shown: that credit makes the policy better (RUDDER / COCOA have not been promoted by the selector in any
 run; at the default, credit enters only rows without a final verified annotation in attributing environments).
 
 ## B. KF-E02: the reward signal `info_gain` is produced
@@ -148,49 +196,34 @@ switch). `new_lifetime()` is kept for diagnostics whose lifetimes are separate l
 `test_int3a_audit.py::test_the_lifetime_context_of_r_psi_is_not_reset_at_an_objective_change` (zeroed before).
 `docs/MODEL_ARCHITECTURE.md` section 10.2 (not INT3A's file) still describes the old behaviour.
 
-## 2. Decision cost on the real configuration
+## G2L-8: the first promotion of a short objective found no held-out evidence
 
-`docs/evidence/INT3A/profile_decision.py`: the agent built as the open-ended runner builds it (condition E,
-substantive settings), driven by `LiveRuntime` with the runner's `RuntimeConfig`; every agent method, the proposer,
-`model.generate` / `encode_*` / `backbone.embed`, the predictor (`evaluate_candidates`, `_voi`, `observe_outcomes`,
-`belief_value`), decider, planner, learner, meta-learner, providers' losses, environment, verifier and runtime methods
-are wrapped by timers (inclusive wall time, CUDA synchronised before and after). Machine shared (load 24-30, other GPU
-processes resident). Mean seconds per runtime step that decided and acted:
+Verifier report (`docs/verification/G2_learn.md` G2L-8): `test_int2_checkpoints.py::test_promotion_needs_independent_
+evidence_and_a_refusal_rolls_back` passed 3 / 3 at 5562e65 and 1 / 4 at 3e29595 ("no independent validation metric
+supplied"). Measured with the test's own setup (`val_probe.py` in the INT3A scratch: lifetime 31, then the first
+promotion), per run: records of the first objective, records the learner holds out (`is_validation`), records still
+carrying a `val:` flag at the promotion:
 
-| component (inclusive) | SW:rle, this round, old VOI (2 acted steps) | MECH:7, before (7) | MECH:7, after (8) |
-|---|---|---|---|
-| whole runtime step | 16.7 | 18.5 | 17.1 |
-| propose (of which `model.generate`) | 12.5 (12.2) | 11.4 (11.2) | 10.8 (10.5) |
-| evaluate (of which VOI) | 2.1 (1.5) | 2.1 (1.7) | 2.0 (1.5) |
-| `backbone.embed` (candidate and context texts) | 1.1 | 2.1 | 2.1 |
-| learn (of which `ContinualLearner.learn`) | 0.9 (0.8) | 3.9 (3.4) | 3.3 (2.7) |
-| internal rewards / update beliefs / save | 0.3 / 0.2 / 0.5 | 0.3 / 0.3 / 0.2 | 0.3 / 0.2 / 0.2 |
-| learning-progress measurement (LRN-3, new) | 0.07 | 0.2 | 0.3 |
+* 5562e65 (3 runs): 14 / 12 / 14 records; `val:` flags only for `bridge_grounding`, `rudder`, `cocoa`
+  (`val:world_model`, `val:fast_prior`, `val:evaluator` 0 in every run); promoted 2 of 3.
+* 3e29595 (3 runs): 12 / 12 / 12 records (the policy spends the money budget faster); `val:` flags only for
+  `bridge_grounding`; promoted 2 of 3.
 
-* **110-150 s per decision is not reproduced**: a decision of the real configuration takes ~17-19 s here, 60-73 % of
-  it the backbone writing the k = 4 alternatives (up to 512 new tokens; the generation itself is `nn/`'s). The
-  b663d5e agent measured the same way on the same objective: see the last paragraph. The S-6 sequence run's 110-150 s
-  were measured on a machine at load ~55 with another tenant on the GPU; no component of the agent accounts for them
-  in these profiles.
-* **Waste removed (same semantics)**: the VOI computed the decision's predictive means three times
-  (`evaluate_candidates` already had them) and ran its `voi_max_candidates x voi_samples` (16 x 8) sampled-outcome
-  re-evaluations on the GPU head view while the fast layer computes on the CPU (every re-evaluation copied every
-  candidate's features to the CPU and back). Now the evaluation passes its means and the loop runs on a CPU copy of
-  the view. Same numbers: on the CPU bit-identical (`tests/predict/test_int3a_cost.py`); on the real configuration the
-  first VOI call of the SW run, captured with its inputs (fast state, generator state) and recomputed with the new code,
-  differs by at most 4.4e-16 in VOI (max 0.26) and 7.1e-15 in information gain (max 16.4) — rounding of the same
-  float64 operations on another device. VOI 1.67 -> 1.45 s per decision (MECH); the difference of whole steps
-  (18.5 -> 17.1 s) is within the run-to-run spread (different actions are chosen, the generated text differs).
-* Not changed: generation (11 s), embedding of new candidate texts (2 s: backbone proposals are new texts every
-  decision; the embedding cache already serves repeats), the continual learner (`credit/`, frozen for verification).
-  The runtime's own work is below 0.5 s per step.
-
-What the runtime runs also show (S-6b in the loop, not only in the probe): on SW:rle the agent chose
-`internal.request_operator` (asking the operator to confirm a solution; recorded, nothing sent) and then the
-backbone-written `sandbox.write_file solution.py`; the verifier's next reading was pass fraction 1.0 and the objective
-was verified achieved after 2 decisions (`runtime_sw_rle_profile.json`). On MECH:7 within 8 decisions the agent
-measured the service with backbone-written `http.get`s at chosen points, wrote a placeholder `model.py` and inspected
-its records; the verifier's R^2 stayed 0 (no fitted model was written in 8 decisions).
+Cause (a defect in `predict/providers.py`, present in both): `_Base._permitted` read `record.eligible[<provider>]`,
+which `ContinualLearner.refresh_eligibility` itself writes from `provider.eligible(record)`. A held-out record has its
+train flag False by construction, so at the next refresh it was no longer eligible and its `val:` flag was cleared:
+the world model's, fast prior's and evaluator's held-out sets emptied after one refresh, and promotion depended on the
+few providers whose eligibility does not pass through `_permitted` and on how the objective ended. The same feedback
+kept a record checked before its outcomes / verdict existed ineligible for ever: the evaluator (eligible only once
+the objective has a signed verdict) trained on none of an objective's records (0 of 14 measured). Fix: `_permitted`
+no longer reads the learner's flags. After (3 runs): 9 / 14 / 14 records, every held-out record keeps `val:world_model`,
+`val:fast_prior` (and `val:evaluator` after the verdict), the evaluator's train flags are set for 12 of 14 records,
+promoted 3 of 3; the INT2 test passed 8 of 8 consecutive runs (it also passed 4 of 4 here before the fix: the failure is
+probabilistic). Regression tests `tests/predict/test_int3a_eligibility.py` (2; both fail on the old code).
+Residual: with a 15 % record split an objective of N records has no held-out record with probability 0.85^N
+(0.10-0.23 for N = 9-14), and then its promotion is refused (fail-closed). That is the split's property
+(`credit/learner.py`, frozen): change request INT3A-5. Behaviour change to note: the evaluator and fast-prior now train
+on records they were silently excluded from.
 
 ## 6. The bootstrap mix stays at 1 on the real model: can the promotion test become conclusive?
 
@@ -233,3 +266,20 @@ design (inconclusive -> hold), which is what every real-model run showed. Poolin
 (not clearing on hold) would raise the power at n = 20 from 0.15 to 0.50 for a 0.4 RMS effect, but repeated looks at a
 growing buffer need a sequential bound (alpha spending or a confidence sequence) to keep the 5 % error; that is a
 design change of the promotion rule, not a defect fix, and was not made. The mix was not forced.
+
+## Remaining limitations
+
+* RUDDER / COCOA credit reaches training only once `credit.select` promotes one of them, and nothing in the agent
+  feeds that selection (G2L-6 / RC-08: the agent's randomised experiments are not in the credit store); DX works on
+  the credit side and may send a change request for `agent.py` — not started here.
+* S-6b: shown for the first decisions of SW:rle (solved in 2 decisions through the runtime) and MECH:7 (measurements and
+  a placeholder model in 8 decisions, R^2 0). No program execution (`sandbox.python`) was proposed in the probe rounds;
+  whether the agent fits a model for MECH within an evaluation budget, and how it behaves on the planning task, is not
+  measured here. Prompts are within the 2048-token window for these families; the planning task needs INT3A-4.
+* Decision cost: ~17-19 s per decision measured (generation 60-73 %); the 110-150 s of the S-6 runs were not
+  reproduced with either the old or the new agent; the VOI change saves ~0.2 s per decision.
+* LRN-3 values are written; whether the exploration / learning-progress terms improve behaviour is not measured.
+* The promotion test of the bootstrap mix is structurally unable to become conclusive at realistic evidence rates
+  unless the learned reward is far better than the bootstrap (section 6); not changed.
+* G2L-8 residual: an objective with no held-out record cannot be promoted (probability 0.85^N; INT3A-5).
+

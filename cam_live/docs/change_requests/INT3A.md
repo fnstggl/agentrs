@@ -92,3 +92,17 @@ generation cost grows with the prompt: measure before / after on the real config
 **Meanwhile (agent).** `_fitted_digest` shortens the observation digest, then the tool descriptions (100 characters,
 then none) — never the tool list, the objective or the instructions — and records `prompt_fit` (tokens, window,
 `over_window`) per decision and the counter `decisions_prompt_over_window`.
+
+## INT3A-5 (credit/learner.py `ContinualLearner.is_validation`, owner D / DX): a held-out set that cannot be empty
+
+**What / why (measured, G2L-8).** With `val_split = "record"` (the agent's setting for a single live objective) each
+record is held out by a hash of its id (`val_fraction` 0.15). Record ids carry the agent's random `uid`, so a
+9-14-record objective has no held-out record with probability 0.85^N = 0.10-0.23, and its promotion is then refused
+("no independent validation metric supplied") whatever was learned. INT3A fixed the larger cause in its own files
+(`predict/providers._Base._permitted` read back the learner's own flags, so held-out records lost their `val:` flags
+at the next refresh — measured: `val:world_model` 0 of all records in every run before, present for every held-out
+record after; `tests/predict/test_int3a_eligibility.py`); the residual probability is the split's.
+**Proposed.** Stratify the record split within an objective: hold out record k of an objective (k by sequence) when
+`hash(seed | objective_id) + k * val_fraction` crosses an integer (every 1/val_fraction-th record, offset by the hash),
+so every objective with >= 1/val_fraction records has at least one held-out record; or hold out the first matured
+record of each objective when none is held out yet.
